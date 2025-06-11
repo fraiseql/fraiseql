@@ -11,22 +11,24 @@ Core decorators for defining GraphQL types, inputs, enums, and mutations.
 - `@fraiseql.interface` - Define GraphQL interface types
 - `@fraiseql.result`, `@fraiseql.success`, `@fraiseql.failure` - Result unions
 
-## [Field Types](./field-types.md)
-Field definitions and metadata for GraphQL schema generation.
+## Field Definitions and Scalars
 
-- `fraise_field()` - Field metadata and configuration
-- Type mapping from Python to GraphQL
-- Optional and nullable field handling
+### fraise_field()
+Field metadata and configuration for GraphQL schema generation:
 
-## [Scalars](./scalars.md)
-Built-in and custom scalar types for domain-specific data.
+- `description` - GraphQL field description
+- `purpose` - Internal documentation
+- `default` - Default field values
+- `deprecation_reason` - Mark fields as deprecated
 
-- `UUID` - Universally unique identifiers
+### Built-in Scalars
+FraiseQL includes several custom scalar types:
+
+- `UUID` - Universally unique identifiers  
 - `DateTime` - ISO 8601 date and time
 - `Date` - Date only
 - `JSON` - Arbitrary JSON data
 - `EmailAddress` - Email validation
-- Custom scalar creation
 
 ## [Application](./application.md)
 FastAPI application creation and configuration.
@@ -36,21 +38,21 @@ FastAPI application creation and configuration.
 - Development vs production modes
 - Middleware integration
 
-## [Repository](./repository.md)
-Database repository pattern for CQRS operations.
+## Database Repository
+FraiseQL uses the CQRS (Command Query Responsibility Segregation) pattern:
 
-- `CQRSRepository` - Base repository class
-- Query operations
-- Command operations
-- Transaction handling
+- `CQRSRepository` - Base repository class for database operations
+- Query operations with automatic SQL generation
+- Command operations through PostgreSQL functions
+- Built-in transaction handling
 
-## [Authentication](./authentication.md)
-Authentication providers and decorators.
+## Authentication
+Flexible authentication system with multiple providers:
 
-- `@requires_auth` - Require authentication
-- `@requires_role` - Require specific roles
-- `@requires_permission` - Require permissions
-- Custom auth providers
+- Development authentication for local testing
+- Auth0 integration for production use
+- Custom authentication provider support
+- Role-based access control
 
 ## [TestFoundry](./testfoundry.md)
 Automated test generation for database operations and GraphQL mutations.

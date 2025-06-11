@@ -279,4 +279,4 @@ print(f"Database URL: {config.database_url[:20]}...")  # Truncate for security
 
 - Learn about [Authentication](./authentication.md) configuration
 - Explore [Performance](./performance.md) optimization settings
-- Set up [Monitoring](./monitoring.md) and logging
+- Review [Security](./security.md) best practices

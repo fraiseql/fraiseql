@@ -36,31 +36,26 @@ Understand the fundamental concepts and architecture of FraiseQL.
 Detailed reference for all FraiseQL APIs and decorators.
 
 - [Decorators](./api-reference/decorators.md)
-- [Field Types](./api-reference/field-types.md)
-- [Scalars](./api-reference/scalars.md)
-- [Mutations](./api-reference/mutations.md)
+- [Application](./api-reference/application.md)
 - [TestFoundry](./api-reference/testfoundry.md) - Automated test generation
 
 ### 🎓 [Tutorials](./tutorials/index.md)
 Learn by building real-world applications with FraiseQL.
 
 - [Building a Blog API](./tutorials/blog-api.md)
-- [E-commerce Backend](./tutorials/ecommerce.md)
-- [Real-time Chat](./tutorials/chat-app.md)
 
 ### 🔧 [Advanced Topics](./advanced/index.md)
 Deep dive into advanced features and optimization techniques.
 
 - [Authentication](./advanced/authentication.md)
 - [Performance Optimization](./advanced/performance.md)
-- [Custom Scalars](./advanced/custom-scalars.md)
-- [Testing Strategies](./advanced/testing.md)
+- [Security](./advanced/security.md)
+- [Configuration](./advanced/configuration.md)
 
 ### 🔄 [Migration Guide](./migration/index.md)
 Migrating from Strawberry or other GraphQL frameworks? We've got you covered.
 
 - [From Strawberry](./migration/from-strawberry.md)
-- [From GraphQL](./migration/from-graphql.md)
 
 ### 📊 [Comparisons](./comparisons/index.md)
 See how FraiseQL compares to other GraphQL and API solutions.

@@ -78,9 +78,6 @@ nav:
     - api-reference/index.md
     - Application: api-reference/application.md
     - Decorators: api-reference/decorators.md
-    - Field Types: api-reference/field-types.md
-    - Scalars: api-reference/scalars.md
-    - Mutations: api-reference/mutations.md
     - TestFoundry: api-reference/testfoundry.md
   - Advanced Topics:
     - advanced/index.md
@@ -88,11 +85,19 @@ nav:
     - Authentication: advanced/authentication.md
     - Performance: advanced/performance.md
     - Pagination: advanced/pagination.md
+    - Security: advanced/security.md
     - Domain-Driven Database: advanced/domain-driven-database.md
+    - Database API Patterns: advanced/database-api-patterns.md
+    - Eliminating N+1: advanced/eliminating-n-plus-one.md
+    - Performance Comparison: advanced/performance-comparison.md
     - LLM-Native Architecture: advanced/llm-native-architecture.md
   - Tutorials:
     - tutorials/index.md
     - Blog API: tutorials/blog-api.md
+  - Mutations:
+    - mutations/index.md
+    - Migration Guide: mutations/migration-guide.md
+    - PostgreSQL Functions: mutations/postgresql-function-based.md
   - Migration:
     - migration/index.md
     - From Strawberry: migration/from-strawberry.md

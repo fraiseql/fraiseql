@@ -416,4 +416,4 @@ FROM authors_view;
 
 - Learn about [Query Translation](./query-translation.md)
 - Explore [Performance Optimization](../advanced/performance.md)
-- Read about [Testing Strategies](../advanced/testing.md)
+- Review [Security Best Practices](../advanced/security.md)

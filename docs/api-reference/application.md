@@ -329,4 +329,4 @@ FraiseQL provides different error formats based on environment:
 - [Configuration Guide](../advanced/configuration.md) - Detailed configuration options
 - [Authentication](../advanced/authentication.md) - Setting up authentication
 - [GraphQL Playground](../getting-started/graphql-playground.md) - Using the interactive playground
-- [Production Deployment](../deployment/production.md) - Deployment best practices
+- [Configuration Guide](../advanced/configuration.md) - Detailed configuration options

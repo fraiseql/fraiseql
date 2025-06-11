@@ -340,4 +340,4 @@ FraiseQL validates types at multiple levels:
 
 - Learn about [Database Views](./database-views.md)
 - Understand [Query Translation](./query-translation.md)
-- Explore [Custom Scalars](../api-reference/scalars.md)
+- Review [API Reference](../api-reference/index.md) for detailed documentation

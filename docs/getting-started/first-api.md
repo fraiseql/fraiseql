@@ -303,5 +303,5 @@ All with a single database query!
 ## Next Steps
 
 - Learn about [authentication](../advanced/authentication.md)
-- Explore [custom scalars](../advanced/custom-scalars.md)
+- Explore [configuration options](../advanced/configuration.md)
 - Read about [performance optimization](../advanced/performance.md)

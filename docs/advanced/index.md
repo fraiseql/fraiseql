@@ -17,11 +17,11 @@ Optimize your FraiseQL API for production with materialized views, connection po
 ## [Pagination](./pagination.md)
 Implement efficient pagination using cursor-based and offset-based approaches, following the GraphQL Relay specification.
 
-## [Custom Scalars](./custom-scalars.md)
-Create custom GraphQL scalar types for domain-specific data types like phone numbers, coordinates, and custom validation.
+## Database First Architecture
+FraiseQL leverages PostgreSQL's power with JSON/JSONB columns and database views for optimal performance and type safety.
 
-## [Testing Strategies](./testing.md)
-Comprehensive testing approaches for FraiseQL APIs, including unit tests, integration tests, and end-to-end testing.
+## Development Best Practices
+Follow established patterns for type definitions, field configurations, and database schema design.
 
 ## Production Deployment
 
