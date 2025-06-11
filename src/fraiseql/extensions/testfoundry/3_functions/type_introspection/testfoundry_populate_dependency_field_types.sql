@@ -1,0 +1,40 @@
+-- ============================================================================
+-- Script: populate_dependency_field_types.sql
+-- Purpose:
+--   Update testfoundry_tb_fk_mapping by inferring missing dependency_field_types
+-- ============================================================================
+
+-- DO $$
+-- DECLARE
+--     v_mapping RECORD;
+--     v_inferred_types TEXT[];
+-- BEGIN
+--     FOR v_mapping IN
+--         SELECT *
+--         FROM testfoundry_tb_fk_mapping
+--         WHERE dependency_fields IS NOT NULL
+--           AND (dependency_field_types IS NULL OR array_length(dependency_field_types, 1) = 0)
+--     LOOP
+--         BEGIN
+--             -- Try to infer types
+--             v_inferred_types := testfoundry_infer_dependency_field_types(
+--                 v_mapping.from_expression,
+--                 v_mapping.dependency_field_mapping
+--             );
+--
+--             -- If inference successful, update
+--             IF v_inferred_types IS NOT NULL THEN
+--                 UPDATE testfoundry_tb_fk_mapping
+--                 SET dependency_field_types = v_inferred_types
+--                 WHERE input_type = v_mapping.input_type;
+--             ELSE
+--                 RAISE NOTICE 'No types inferred for input_type: %', v_mapping.input_type;
+--             END IF;
+--
+--         EXCEPTION WHEN OTHERS THEN
+--             RAISE WARNING 'Failed to infer types for input_type: %, error: %', v_mapping.input_type, SQLERRM;
+--         END;
+--     END LOOP;
+-- END;
+-- $$;
+--

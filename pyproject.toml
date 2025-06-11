@@ -1,0 +1,137 @@
+[build-system]
+requires = ["hatchling", "setuptools_scm"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fraiseql"
+version = "0.1.0a1"
+description = "Lightweight GraphQL-to-PostgreSQL query builder using jsonb"
+authors = [
+  { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["graphql", "postgresql", "api", "database", "jsonb", "fastapi", "async", "orm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+    "Topic :: Database",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Typing :: Typed",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+  "fastapi>=0.115.12",
+  "graphql-core>=3.2.6",
+  "psycopg[pool]>=3.2.6",
+  "psycopg-pool>=3.2.6",
+  "uvicorn>=0.34.3",
+  "pydantic>=2.0.0",
+  "httpx>=0.25.0",
+  "pyjwt[crypto]>=2.8.0",
+  "python-dateutil>=2.8.0",
+  "click>=8.1.0",
+  "python-dotenv>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/fraiseql/fraiseql"
+Documentation = "https://fraiseql.readthedocs.io"
+Repository = "https://github.com/fraiseql/fraiseql"
+Issues = "https://github.com/fraiseql/fraiseql/issues"
+Changelog = "https://github.com/fraiseql/fraiseql/blob/main/CHANGELOG.md"
+
+[project.scripts]
+fraiseql = "fraiseql.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "black>=25.0.1",
+  "pre-commit>=4.2.0",
+  "pytest>=8.3.5",
+  "pytest-asyncio>=0.21.0",
+  "testcontainers[postgres]>=4.0.0",
+  "pytest-xdist>=3.5.0",
+  "pytest-watch>=1.0.0",
+  "pytest-cov>=4.0.0",
+  "tox>=4.0.0",
+  "ruff>=0.8.4",
+  "pyright>=1.1.401",
+  "build>=1.0.0",
+  "twine>=5.0.0",
+]
+auth0 = [
+  "pyjwt[crypto]>=2.8.0",
+  "httpx>=0.25.0",
+]
+docs = [
+  "mkdocs>=1.5.0",
+  "mkdocs-material>=9.0.0",
+  "mkdocs-mermaid2-plugin>=1.0.0",
+  "pymdown-extensions>=10.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+    "database: marks tests as requiring database (deselect with '-m \"not database\"')",
+]
+minversion = "8.0"
+addopts = "-ra -q"
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.ruff]
+src = ["src"]
+target-version = "py313"
+line-length = 100
+exclude = ["tests"]
+fix = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "E501",    # Line too long
+  "PLR0913", # Too many function arguments
+  "D203",    # One-blank-line-before-class
+  "D213",    # Multi-line-summary-second-line
+  "TC006",   # Unquoted cast
+]
+per-file-ignores = { "**/*.pyi" = [
+  "ANN401",
+  "PYI020",
+  "UP037",
+  "UP007",
+], "tests/**/*.py" = [
+  "S101",
+] }
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.setuptools_scm]
+version_scheme = "python-simplified-semver"
+local_scheme = "node-and-date"
+
+[tool.hatch.build]
+include = ["src/fraiseql"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fraiseql"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/fraiseql"]

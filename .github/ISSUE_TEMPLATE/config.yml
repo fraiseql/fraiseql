@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a Question
+    url: https://github.com/fraiseql/fraiseql/discussions
+    about: Ask questions and discuss with other community members
+  - name: Documentation
+    url: https://fraiseql.readthedocs.io
+    about: Check out the documentation for usage and examples

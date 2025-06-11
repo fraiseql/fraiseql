@@ -1,0 +1,47 @@
+# Configuration for automatic PR labeling
+
+# Documentation changes
+documentation:
+  - docs/**/*
+  - '*.md'
+  - mkdocs.yml
+
+# Test changes
+tests:
+  - tests/**/*
+  - '**/test_*.py'
+  - '**/*_test.py'
+
+# Source code changes
+core:
+  - src/fraiseql/core/**/*
+
+types:
+  - src/fraiseql/types/**/*
+
+sql:
+  - src/fraiseql/sql/**/*
+
+mutations:
+  - src/fraiseql/mutations/**/*
+
+cli:
+  - src/fraiseql/cli/**/*
+
+# Configuration changes
+config:
+  - pyproject.toml
+  - ruff.toml
+  - pyrightconfig.json
+  - tox.ini
+  - .pre-commit-config.yaml
+
+# CI/CD changes
+ci:
+  - .github/workflows/*
+  - .github/actions/*
+
+# Dependencies
+dependencies:
+  - pyproject.toml
+  - requirements*.txt

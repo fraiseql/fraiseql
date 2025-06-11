@@ -1,0 +1,1 @@
+"""FraiseQL CLI commands."""
