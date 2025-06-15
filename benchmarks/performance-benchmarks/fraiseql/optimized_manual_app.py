@@ -1,5 +1,5 @@
 """Optimized manual benchmark for FraiseQL with Redis caching and projection tables."""
-import asyncio
+
 import json
 import os
 import time
@@ -8,15 +8,17 @@ from statistics import mean, quantiles
 import asyncpg
 import redis.asyncio as redis
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
 app = FastAPI(title="Optimized FraiseQL Benchmark API")
 
 # Database configuration
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://benchmark:benchmark@postgres-bench/benchmark_db")
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL", "postgresql://benchmark:benchmark@postgres-bench/benchmark_db"
+)
 
 # Redis connection
 redis_client: redis.Redis = None
+
 
 async def get_redis():
     """Get Redis client."""
@@ -26,7 +28,7 @@ async def get_redis():
             redis_client = redis.Redis(
                 host=os.environ.get("REDIS_HOST", "localhost"),
                 port=int(os.environ.get("REDIS_PORT", "6379")),
-                decode_responses=True
+                decode_responses=True,
             )
         except Exception as e:
             print(f"Redis connection failed: {e}")
@@ -38,7 +40,7 @@ async def get_redis():
 async def startup_event():
     """Initialize optimizations on startup."""
     print("🚀 Starting optimized FraiseQL manual benchmark app...")
-    
+
     # Test Redis connection
     redis_conn = await get_redis()
     if redis_conn:
@@ -49,7 +51,7 @@ async def startup_event():
             print(f"⚠️  Redis connection failed: {e} - continuing without cache")
     else:
         print("⚠️  Redis not available - continuing without cache")
-    
+
     print("🏆 Optimizations ready: Redis Caching + Projection Tables (tv_)")
 
 
@@ -73,12 +75,12 @@ async def health():
             redis_status = "connected"
         except:
             pass
-    
+
     return {
         "status": "healthy",
         "redis": redis_status,
         "optimizations": ["projection_tables_tv", "redis_caching"],
-        "database": "tv_users, tv_products, tv_orders projection tables enabled"
+        "database": "tv_users, tv_products, tv_orders projection tables enabled",
     }
 
 
@@ -86,10 +88,10 @@ async def health():
 async def benchmark_users(limit: int = 100):
     """Optimized user benchmarking using projection tables and Redis cache."""
     start_time = time.time()
-    
+
     # Generate cache key
     cache_key = f"bench_users:{limit}"
-    
+
     # Try Redis cache first
     redis_conn = await get_redis()
     if redis_conn:
@@ -105,25 +107,25 @@ async def benchmark_users(limit: int = 100):
                     "cache_time_ms": cache_time * 1000,
                     "result_count": cached_data["result_count"],
                     "mean_ms": cached_data["mean_ms"],
-                    "optimization": "redis_cache_hit"
+                    "optimization": "redis_cache_hit",
                 }
         except Exception as e:
             print(f"Redis cache read error: {e}")
-    
+
     # Database query using projection table
     conn = await asyncpg.connect(DATABASE_URL)
-    
+
     try:
         # Warm up using projection table
         await conn.fetch("SELECT data FROM tv_users LIMIT $1", limit)
-        
+
         # Run benchmark with projection table (tv_users)
         times = []
         for _ in range(10):
             query_start = time.time()
             await conn.fetch("SELECT data FROM tv_users LIMIT $1", limit)
             times.append((time.time() - query_start) * 1000)  # Convert to ms
-        
+
         result = {
             "query": "users",
             "limit": limit,
@@ -133,26 +135,26 @@ async def benchmark_users(limit: int = 100):
             "min_ms": min(times),
             "max_ms": max(times),
             "result_count": limit,
-            "optimization": "projection_table_tv_users"
+            "optimization": "projection_table_tv_users",
         }
-        
+
         # Cache the result
         if redis_conn:
             try:
                 await redis_conn.setex(
-                    cache_key, 
+                    cache_key,
                     300,  # 5 minutes
-                    json.dumps(result)
+                    json.dumps(result),
                 )
             except Exception as e:
                 print(f"Redis cache write error: {e}")
-        
+
         total_time = time.time() - start_time
         result["total_time_ms"] = total_time * 1000
-        
+
         print(f"🚀 Optimized users query: {result['mean_ms']:.2f}ms avg (projection table)")
         return result
-        
+
     finally:
         await conn.close()
 
@@ -161,10 +163,10 @@ async def benchmark_users(limit: int = 100):
 async def benchmark_products(limit: int = 100):
     """Optimized product benchmarking using projection tables and Redis cache."""
     start_time = time.time()
-    
+
     # Generate cache key
     cache_key = f"bench_products:{limit}"
-    
+
     # Try Redis cache first
     redis_conn = await get_redis()
     if redis_conn:
@@ -180,25 +182,25 @@ async def benchmark_products(limit: int = 100):
                     "cache_time_ms": cache_time * 1000,
                     "result_count": cached_data["result_count"],
                     "mean_ms": cached_data["mean_ms"],
-                    "optimization": "redis_cache_hit"
+                    "optimization": "redis_cache_hit",
                 }
         except Exception as e:
             print(f"Redis cache read error: {e}")
-    
+
     # Database query using projection table
     conn = await asyncpg.connect(DATABASE_URL)
-    
+
     try:
         # Warm up using projection table
         await conn.fetch("SELECT data FROM tv_products LIMIT $1", limit)
-        
+
         # Run benchmark with projection table (tv_products)
         times = []
         for _ in range(10):
             query_start = time.time()
             await conn.fetch("SELECT data FROM tv_products LIMIT $1", limit)
             times.append((time.time() - query_start) * 1000)  # Convert to ms
-        
+
         result = {
             "query": "products",
             "limit": limit,
@@ -208,26 +210,26 @@ async def benchmark_products(limit: int = 100):
             "min_ms": min(times),
             "max_ms": max(times),
             "result_count": limit,
-            "optimization": "projection_table_tv_products"
+            "optimization": "projection_table_tv_products",
         }
-        
+
         # Cache the result
         if redis_conn:
             try:
                 await redis_conn.setex(
-                    cache_key, 
+                    cache_key,
                     300,  # 5 minutes
-                    json.dumps(result)
+                    json.dumps(result),
                 )
             except Exception as e:
                 print(f"Redis cache write error: {e}")
-        
+
         total_time = time.time() - start_time
         result["total_time_ms"] = total_time * 1000
-        
+
         print(f"🚀 Optimized products query: {result['mean_ms']:.2f}ms avg (projection table)")
         return result
-        
+
     finally:
         await conn.close()
 
@@ -236,10 +238,10 @@ async def benchmark_products(limit: int = 100):
 async def benchmark_orders(limit: int = 100):
     """Optimized order benchmarking using projection tables and Redis cache."""
     start_time = time.time()
-    
+
     # Generate cache key
     cache_key = f"bench_orders:{limit}"
-    
+
     # Try Redis cache first
     redis_conn = await get_redis()
     if redis_conn:
@@ -255,25 +257,25 @@ async def benchmark_orders(limit: int = 100):
                     "cache_time_ms": cache_time * 1000,
                     "result_count": cached_data["result_count"],
                     "mean_ms": cached_data["mean_ms"],
-                    "optimization": "redis_cache_hit"
+                    "optimization": "redis_cache_hit",
                 }
         except Exception as e:
             print(f"Redis cache read error: {e}")
-    
+
     # Database query using projection table
     conn = await asyncpg.connect(DATABASE_URL)
-    
+
     try:
         # Warm up using projection table
         await conn.fetch("SELECT data FROM tv_orders LIMIT $1", limit)
-        
+
         # Run benchmark with projection table (tv_orders)
         times = []
         for _ in range(10):
             query_start = time.time()
             await conn.fetch("SELECT data FROM tv_orders LIMIT $1", limit)
             times.append((time.time() - query_start) * 1000)  # Convert to ms
-        
+
         result = {
             "query": "orders",
             "limit": limit,
@@ -283,26 +285,26 @@ async def benchmark_orders(limit: int = 100):
             "min_ms": min(times),
             "max_ms": max(times),
             "result_count": limit,
-            "optimization": "projection_table_tv_orders"
+            "optimization": "projection_table_tv_orders",
         }
-        
+
         # Cache the result
         if redis_conn:
             try:
                 await redis_conn.setex(
-                    cache_key, 
+                    cache_key,
                     300,  # 5 minutes
-                    json.dumps(result)
+                    json.dumps(result),
                 )
             except Exception as e:
                 print(f"Redis cache write error: {e}")
-        
+
         total_time = time.time() - start_time
         result["total_time_ms"] = total_time * 1000
-        
+
         print(f"🚀 Optimized orders query: {result['mean_ms']:.2f}ms avg (projection table)")
         return result
-        
+
     finally:
         await conn.close()
 
@@ -313,7 +315,7 @@ async def get_cache_stats():
     redis_conn = await get_redis()
     if not redis_conn:
         return {"error": "Redis not available"}
-    
+
     try:
         info = await redis_conn.info("stats")
         return {
@@ -321,8 +323,10 @@ async def get_cache_stats():
             "keyspace_hits": info.get("keyspace_hits", 0),
             "keyspace_misses": info.get("keyspace_misses", 0),
             "total_commands_processed": info.get("total_commands_processed", 0),
-            "hit_rate_percent": info.get("keyspace_hits", 0) / max(1, info.get("keyspace_hits", 0) + info.get("keyspace_misses", 0)) * 100,
-            "optimization": "redis_statistics"
+            "hit_rate_percent": info.get("keyspace_hits", 0)
+            / max(1, info.get("keyspace_hits", 0) + info.get("keyspace_misses", 0))
+            * 100,
+            "optimization": "redis_statistics",
         }
     except Exception as e:
         return {"error": f"Redis stats failed: {e}"}
@@ -332,7 +336,7 @@ async def get_cache_stats():
 async def compare_optimizations(limit: int = 100):
     """Compare old views vs new projection tables performance."""
     conn = await asyncpg.connect(DATABASE_URL)
-    
+
     try:
         # Test old views (v_users)
         old_times = []
@@ -340,31 +344,32 @@ async def compare_optimizations(limit: int = 100):
             start = time.time()
             await conn.fetch("SELECT data FROM v_users LIMIT $1", limit)
             old_times.append((time.time() - start) * 1000)
-        
+
         # Test new projection tables (tv_users)
         new_times = []
         for _ in range(5):
             start = time.time()
             await conn.fetch("SELECT data FROM tv_users LIMIT $1", limit)
             new_times.append((time.time() - start) * 1000)
-        
+
         old_avg = mean(old_times)
         new_avg = mean(new_times)
         improvement = ((old_avg - new_avg) / old_avg) * 100
-        
+
         return {
             "limit": limit,
             "old_views_avg_ms": old_avg,
             "projection_tables_avg_ms": new_avg,
             "improvement_percent": improvement,
             "speedup_factor": old_avg / new_avg,
-            "optimization": "projection_table_comparison"
+            "optimization": "projection_table_comparison",
         }
-        
+
     finally:
         await conn.close()
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

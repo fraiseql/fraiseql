@@ -33,7 +33,7 @@ const queries = {
       isActive
     }
   }`,
-  
+
   products: `{
     products(pagination: { limit: 10 }) {
       id
@@ -43,7 +43,7 @@ const queries = {
       stockQuantity
     }
   }`,
-  
+
   orders: `{
     orders(limit: 10) {
       id
@@ -61,90 +61,90 @@ export default function () {
     JSON.stringify({ query: queries.users }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   const strawberryUsersRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.users }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   // Check responses
   const fraiseqlUsersOk = check(fraiseqlUsersRes, {
     'FraiseQL users status 200': (r) => r.status === 200,
   });
-  
+
   const strawberryUsersOk = check(strawberryUsersRes, {
     'Strawberry users status 200': (r) => r.status === 200,
   });
-  
+
   if (!fraiseqlUsersOk) requestErrors.add(1, { framework: 'fraiseql', query: 'users' });
   if (!strawberryUsersOk) requestErrors.add(1, { framework: 'strawberry', query: 'users' });
-  
+
   // Record durations
   fraiseqlDuration.add(fraiseqlUsersRes.timings.duration, { query: 'users' });
   strawberryDuration.add(strawberryUsersRes.timings.duration, { query: 'users' });
-  
+
   sleep(0.5);
-  
+
   // Test products query
   const fraiseqlProductsRes = http.post(
     FRAISEQL_URL,
     JSON.stringify({ query: queries.products }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   const strawberryProductsRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.products }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   // Check responses
   const fraiseqlProductsOk = check(fraiseqlProductsRes, {
     'FraiseQL products status 200': (r) => r.status === 200,
   });
-  
+
   const strawberryProductsOk = check(strawberryProductsRes, {
     'Strawberry products status 200': (r) => r.status === 200,
   });
-  
+
   if (!fraiseqlProductsOk) requestErrors.add(1, { framework: 'fraiseql', query: 'products' });
   if (!strawberryProductsOk) requestErrors.add(1, { framework: 'strawberry', query: 'products' });
-  
+
   // Record durations
   fraiseqlDuration.add(fraiseqlProductsRes.timings.duration, { query: 'products' });
   strawberryDuration.add(strawberryProductsRes.timings.duration, { query: 'products' });
-  
+
   sleep(0.5);
-  
+
   // Test orders query
   const fraiseqlOrdersRes = http.post(
     FRAISEQL_URL,
     JSON.stringify({ query: queries.orders }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   const strawberryOrdersRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.orders }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   // Check responses
   const fraiseqlOrdersOk = check(fraiseqlOrdersRes, {
     'FraiseQL orders status 200': (r) => r.status === 200,
   });
-  
+
   const strawberryOrdersOk = check(strawberryOrdersRes, {
     'Strawberry orders status 200': (r) => r.status === 200,
   });
-  
+
   if (!fraiseqlOrdersOk) requestErrors.add(1, { framework: 'fraiseql', query: 'orders' });
   if (!strawberryOrdersOk) requestErrors.add(1, { framework: 'strawberry', query: 'orders' });
-  
+
   // Record durations
   fraiseqlDuration.add(fraiseqlOrdersRes.timings.duration, { query: 'orders' });
   strawberryDuration.add(strawberryOrdersRes.timings.duration, { query: 'orders' });
-  
+
   sleep(1);
 }

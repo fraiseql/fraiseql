@@ -88,7 +88,7 @@ SELECT jsonb_build_object(
 
 ### 4. **Developer Experience**
 - **Type Safety**: Strong typing with code generation
-- **Introspection**: Self-documenting APIs  
+- **Introspection**: Self-documenting APIs
 - **Debugging**: Rich error messages and query analysis
 - **GraphiQL Playground**: Interactive query interface
 - **Extensive Tooling**: Apollo Studio, schema stitching

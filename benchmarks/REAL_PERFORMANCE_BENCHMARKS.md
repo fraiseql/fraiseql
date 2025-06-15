@@ -18,12 +18,12 @@ Hardware:
   CPU: AMD EPYC 7763 (16 cores)
   RAM: 64GB DDR4
   Storage: NVMe SSD
-  
+
 Database:
   PostgreSQL: 15.4
   Size: 10GB (production-like)
   Tables: Users (1M rows), Posts (10M rows), Comments (50M rows)
-  
+
 Test Conditions:
   - Cold start measurements included
   - Network latency simulated (1ms)

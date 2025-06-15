@@ -1,6 +1,7 @@
 """Minimal test app to debug FraiseQL setup."""
 
 from typing import Optional
+
 import fraiseql
 from fraiseql import create_fraiseql_app, fraise_field
 from fraiseql.fastapi import FraiseQLConfig
@@ -9,6 +10,7 @@ from fraiseql.fastapi import FraiseQLConfig
 @fraiseql.type
 class TestType:
     """A simple test type."""
+
     id: str
     name: str
 
@@ -16,16 +18,13 @@ class TestType:
 @fraiseql.type
 class Query:
     """Minimal query type."""
-    
+
     # Simple field with static resolver
     hello: str = fraise_field(default="world", description="Hello world")
-    
+
     # Test type field with default
-    test_item: Optional[TestType] = fraise_field(
-        default=None, 
-        description="Get test item"
-    )
-    
+    test_item: Optional[TestType] = fraise_field(default=None, description="Get test item")
+
     @staticmethod
     def resolve_test_item(root, info) -> TestType:
         return TestType(id="1", name="Test Item")
@@ -46,4 +45,5 @@ app = create_fraiseql_app(
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

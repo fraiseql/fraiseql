@@ -71,7 +71,7 @@ const queryTemplates = [
         }
       }
     `,
-    variables: () => ({ 
+    variables: () => ({
       query: ['widget', 'gadget', 'tool', 'device'][Math.floor(Math.random() * 4)]
     }),
   },
@@ -129,10 +129,10 @@ function selectRandomQuery() {
 export default function () {
   // Select a random query based on weights
   const selectedQuery = selectRandomQuery();
-  
+
   // Record start time
   const startTime = new Date();
-  
+
   // Execute the query
   const response = http.post(
     GRAPHQL_ENDPOINT,
@@ -146,10 +146,10 @@ export default function () {
       timeout: '10s',
     }
   );
-  
+
   // Track metrics
   requestsPerSecond.add(1);
-  
+
   // Check response
   const success = check(response, {
     'status is 200': (r) => r.status === 200,
@@ -164,14 +164,14 @@ export default function () {
     },
     'response time < 1s': (r) => r.timings.duration < 1000,
   });
-  
+
   if (success) {
     successfulRequests.add(1);
   } else {
     failedRequests.add(1);
     errorRate.add(1);
   }
-  
+
   // Vary sleep time based on load
   const currentVUs = __VU;
   if (currentVUs < 100) {
@@ -186,8 +186,8 @@ export default function () {
 export function handleSummary(data) {
   // Custom summary report
   const customData = {
-    framework: __ENV.TARGET.includes('fraiseql') ? 'FraiseQL' : 
-               __ENV.TARGET.includes('strawberry') ? 'Strawberry+SQLAlchemy' : 
+    framework: __ENV.TARGET.includes('fraiseql') ? 'FraiseQL' :
+               __ENV.TARGET.includes('strawberry') ? 'Strawberry+SQLAlchemy' :
                'Unknown',
     testType: 'load-test',
     timestamp: new Date().toISOString(),
@@ -203,7 +203,7 @@ export function handleSummary(data) {
     },
     queryBreakdown: {},
   };
-  
+
   // Add per-query metrics
   queryTemplates.forEach(q => {
     const taggedMetrics = data.metrics[`http_req_duration{name:${q.name}}`];
@@ -216,7 +216,7 @@ export function handleSummary(data) {
       };
     }
   });
-  
+
   return {
     'stdout': JSON.stringify(customData, null, 2),
   };

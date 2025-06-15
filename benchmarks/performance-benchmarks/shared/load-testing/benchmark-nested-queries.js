@@ -41,7 +41,7 @@ const queries = {
       }
     }
   }`,
-  
+
   productsWithReviews: `{
     products(pagination: { limit: 10 }) {
       id
@@ -62,7 +62,7 @@ const queries = {
       }
     }
   }`,
-  
+
   ordersWithDetails: `{
     orders(limit: 10) {
       id
@@ -94,81 +94,81 @@ export default function () {
     JSON.stringify({ query: queries.usersWithOrders }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   const strawberryUsersRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.usersWithOrders }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   // Check responses
   check(fraiseqlUsersRes, {
     'FraiseQL nested users status 200': (r) => r.status === 200,
   });
-  
+
   check(strawberryUsersRes, {
     'Strawberry nested users status 200': (r) => r.status === 200,
   });
-  
+
   // Record durations
   fraiseqlDuration.add(fraiseqlUsersRes.timings.duration, { query: 'usersWithOrders' });
   strawberryDuration.add(strawberryUsersRes.timings.duration, { query: 'usersWithOrders' });
-  
+
   sleep(1);
-  
+
   // Test products with reviews query
   const fraiseqlProductsRes = http.post(
     FRAISEQL_URL,
     JSON.stringify({ query: queries.productsWithReviews }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   const strawberryProductsRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.productsWithReviews }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   // Check responses
   check(fraiseqlProductsRes, {
     'FraiseQL nested products status 200': (r) => r.status === 200,
   });
-  
+
   check(strawberryProductsRes, {
     'Strawberry nested products status 200': (r) => r.status === 200,
   });
-  
+
   // Record durations
   fraiseqlDuration.add(fraiseqlProductsRes.timings.duration, { query: 'productsWithReviews' });
   strawberryDuration.add(strawberryProductsRes.timings.duration, { query: 'productsWithReviews' });
-  
+
   sleep(1);
-  
+
   // Test orders with details query
   const fraiseqlOrdersRes = http.post(
     FRAISEQL_URL,
     JSON.stringify({ query: queries.ordersWithDetails }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   const strawberryOrdersRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.ordersWithDetails }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   // Check responses
   check(fraiseqlOrdersRes, {
     'FraiseQL nested orders status 200': (r) => r.status === 200,
   });
-  
+
   check(strawberryOrdersRes, {
     'Strawberry nested orders status 200': (r) => r.status === 200,
   });
-  
+
   // Record durations
   fraiseqlDuration.add(fraiseqlOrdersRes.timings.duration, { query: 'ordersWithDetails' });
   strawberryDuration.add(strawberryOrdersRes.timings.duration, { query: 'ordersWithDetails' });
-  
+
   sleep(2);
 }

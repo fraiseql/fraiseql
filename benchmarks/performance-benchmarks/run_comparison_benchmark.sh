@@ -37,9 +37,9 @@ run_load_test() {
     local url=$2
     local query=$3
     local test_name=$4
-    
+
     echo -e "${YELLOW}🔧 Testing ${framework} - ${test_name}${NC}"
-    
+
     # Create k6 test script
     cat > /tmp/k6_test.js << EOF
 import http from 'k6/http';
@@ -60,9 +60,9 @@ export default function() {
       'Content-Type': 'application/json',
     },
   };
-  
+
   let response = http.post('${url}', JSON.stringify(payload), params);
-  
+
   check(response, {
     'status is 200': (r) => r.status === 200,
     'response time < 1000ms': (r) => r.timings.duration < 1000,
@@ -80,9 +80,9 @@ wait_for_service() {
     local service_name=$2
     local max_attempts=60
     local attempt=1
-    
+
     echo -e "${YELLOW}⏳ Waiting for ${service_name} to be ready...${NC}"
-    
+
     while [ $attempt -le $max_attempts ]; do
         if curl -s -f "$url" > /dev/null 2>&1; then
             echo -e "${GREEN}✅ ${service_name} is ready!${NC}"
@@ -92,7 +92,7 @@ wait_for_service() {
         sleep 2
         ((attempt++))
     done
-    
+
     echo -e "${RED}❌ ${service_name} failed to start${NC}"
     return 1
 }
@@ -161,10 +161,10 @@ print("="*60)
 for test_type in test_types:
     print(f"\\n🔍 {test_type.upper()} QUERIES:")
     print("-" * 40)
-    
+
     for framework in frameworks:
         result_file = f"{results_dir}/{framework}_{test_type}_results.json"
-        
+
         if os.path.exists(result_file):
             try:
                 with open(result_file, 'r') as f:

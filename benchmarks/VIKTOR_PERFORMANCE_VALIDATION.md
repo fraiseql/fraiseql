@@ -10,7 +10,7 @@
 
 ### Test Environment
 - **Hardware**: Intel i5-6300U, 4 cores, 31GB RAM
-- **Database**: PostgreSQL 15 with optimized configuration  
+- **Database**: PostgreSQL 15 with optimized configuration
 - **Container**: Unified Podman container (PostgreSQL + app via Unix socket)
 - **Data Scale**: Medium profile (10K users, 50K products, 20K orders)
 
@@ -58,7 +58,7 @@
 
 #### **Simple Queries: 2-5x Faster**
 - **FraiseQL**: 752-1,435 req/s (49-74ms)
-- **Hasura**: ~400-800 req/s (60-120ms) 
+- **Hasura**: ~400-800 req/s (60-120ms)
 - **PostGraphile**: ~300-600 req/s (80-150ms)
 - **Traditional**: 145-359 req/s (235-833ms)
 
@@ -136,7 +136,7 @@
 
 **Performance Benchmarks Confirmed:**
 - ✅ 1,400+ req/s for simple queries
-- ✅ Sub-100ms latency for CRUD operations  
+- ✅ Sub-100ms latency for CRUD operations
 - ✅ Single SQL query for complex hierarchical data
 - ✅ 100% success rate under load
 - ✅ Consistent performance across query types

@@ -14,7 +14,7 @@ CREATE TABLE users (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- Posts table  
+-- Posts table
 CREATE TABLE posts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title VARCHAR(500) NOT NULL,

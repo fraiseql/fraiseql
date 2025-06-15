@@ -9,8 +9,11 @@
 
 [![CI](https://github.com/fraiseql/fraiseql/actions/workflows/ci.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/ci.yml)
 [![Test Suite](https://github.com/fraiseql/fraiseql/actions/workflows/test.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/fraiseql/fraiseql/branch/main/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/fraiseql/fraiseql)
+[![Security](https://github.com/fraiseql/fraiseql/actions/workflows/security.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/security.yml)
+[![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
+[![codecov](https://codecov.io/gh/fraiseql/fraiseql/branch/main/graph/badge.svg)](https://codecov.io/gh/fraiseql/fraiseql)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/fraiseql.svg)](https://badge.fury.io/py/fraiseql)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
@@ -28,6 +31,7 @@ This means your GraphQL queries become simple `SELECT` statements from views, wh
 
 ## Key Features
 
+- 🚀 **Code Generation** - Generate migrations, CRUD operations, and schemas from your types
 - 🏗️ **CQRS Architecture** - Clear separation between reads (views) and writes (functions)
 - 🍓 **Strawberry-Inspired API** - Familiar decorator patterns for Python developers
 - 🔐 **Type-Safe** - Full type hints with Python 3.11+ and runtime validation
@@ -35,6 +39,7 @@ This means your GraphQL queries become simple `SELECT` statements from views, wh
 - 🔌 **Pluggable Auth** - Modular authentication system (Auth0 provider included)
 - 🧪 **TestFoundry** - Generate pgTAP tests for your database operations
 - ⚡ **FastAPI Integration** - Production-ready ASGI application
+- 📊 **5-10x Faster** - Benchmarked performance advantage over traditional GraphQL
 
 ## Installation
 
@@ -47,7 +52,18 @@ pip install "fraiseql[auth0]"
 
 ## Quick Start
 
-### 1. Define Your Types
+### 1. Initialize Your Project
+
+```bash
+# Create a new FraiseQL project
+fraiseql init my-api
+cd my-api
+
+# Start development server
+fraiseql dev
+```
+
+### 2. Define Your Types
 
 ```python
 from uuid import UUID
@@ -153,7 +169,46 @@ app = create_fraiseql_app(
 # Run with: uvicorn app:app --reload
 ```
 
-### 5. Query Your API
+## Code Generation
+
+FraiseQL includes powerful code generation tools to speed up development:
+
+### Generate Migrations
+
+```bash
+# Generate a migration for your User type
+fraiseql generate migration User --table users
+
+# Output: migrations/20240615123045_create_users.sql
+```
+
+### Generate CRUD Operations
+
+```bash
+# Generate complete CRUD mutations for a type
+fraiseql generate crud User
+
+# Output: src/mutations/user_mutations.py
+```
+
+### Generate GraphQL Schema
+
+```bash
+# Export your complete GraphQL schema
+fraiseql generate schema --output schema.graphql
+```
+
+### TestFoundry Integration
+
+```bash
+# Generate pgTAP tests for your database
+fraiseql testfoundry generate User
+
+# Run tests
+fraiseql testfoundry run
+```
+
+## Query Your API
 
 Visit `http://localhost:8000/playground` for the GraphQL Playground, or send queries to `/graphql`:
 

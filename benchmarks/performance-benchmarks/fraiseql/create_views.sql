@@ -13,7 +13,7 @@ DROP VIEW IF EXISTS v_categories CASCADE;
 -- View for 'users' resolver
 -- This view will be used when querying: { users { ... } }
 CREATE VIEW v_users AS
-SELECT 
+SELECT
     u.id,
     jsonb_build_object(
         'id', u.id,
@@ -64,7 +64,7 @@ FROM users u;
 
 -- View for 'products' resolver
 CREATE VIEW v_products AS
-SELECT 
+SELECT
     p.id,
     jsonb_build_object(
         'id', p.id,
@@ -76,7 +76,7 @@ SELECT
         'categoryId', p.category_id,
         'isActive', p.is_active,
         'createdAt', p.created_at,
-        'category', CASE 
+        'category', CASE
             WHEN p.category_id IS NOT NULL THEN (
                 SELECT jsonb_build_object(
                     'id', c.id,
@@ -116,13 +116,13 @@ SELECT
             '[]'::jsonb
         ),
         'averageRating', (
-            SELECT AVG(rating)::float 
-            FROM reviews 
+            SELECT AVG(rating)::float
+            FROM reviews
             WHERE product_id = p.id
         ),
         'reviewCount', (
-            SELECT COUNT(*) 
-            FROM reviews 
+            SELECT COUNT(*)
+            FROM reviews
             WHERE product_id = p.id
         )
     ) as data
@@ -130,7 +130,7 @@ FROM products p;
 
 -- View for 'orders' resolver
 CREATE VIEW v_orders AS
-SELECT 
+SELECT
     o.id,
     jsonb_build_object(
         'id', o.id,
@@ -167,7 +167,7 @@ SELECT
                             'name', p.name,
                             'price', p.price,
                             'stockQuantity', p.stock_quantity,
-                            'category', CASE 
+                            'category', CASE
                                 WHEN p.category_id IS NOT NULL THEN (
                                     SELECT jsonb_build_object(
                                         'id', c.id,
@@ -190,8 +190,8 @@ SELECT
             '[]'::jsonb
         ),
         'itemCount', (
-            SELECT COUNT(*) 
-            FROM order_items 
+            SELECT COUNT(*)
+            FROM order_items
             WHERE order_id = o.id
         )
     ) as data
@@ -199,7 +199,7 @@ FROM orders o;
 
 -- View for 'categories' resolver
 CREATE VIEW v_categories AS
-SELECT 
+SELECT
     c.id,
     jsonb_build_object(
         'id', c.id,
@@ -209,8 +209,8 @@ SELECT
         'parentId', c.parent_id,
         'createdAt', c.created_at,
         'productCount', (
-            SELECT COUNT(*) 
-            FROM products 
+            SELECT COUNT(*)
+            FROM products
             WHERE category_id = c.id
         ),
         'products', COALESCE(

@@ -76,7 +76,7 @@ FROM users u
 LEFT JOIN (aggregated order stats)...
 
 -- Optimized indexes
-CREATE INDEX idx_tv_users_order_count 
+CREATE INDEX idx_tv_users_order_count
 ON tv_users USING btree(((data->>'orderCount')::int));
 ```
 

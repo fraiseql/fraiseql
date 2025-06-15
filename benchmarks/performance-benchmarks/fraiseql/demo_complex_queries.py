@@ -3,8 +3,6 @@
 Demonstrate FraiseQL's complex query capabilities with example SQL.
 This shows what FraiseQL would generate for deeply nested GraphQL queries.
 """
-import json
-from datetime import datetime
 
 print("🏆 FraiseQL Complex Domain Query Examples")
 print("=" * 80)
@@ -41,7 +39,7 @@ print("""
 print("\nFraiseQL Generated SQL:")
 print("""
 WITH RECURSIVE org_tree AS (
-    SELECT 
+    SELECT
         o.id as org_id,
         o.name as org_name,
         jsonb_build_object(
@@ -52,7 +50,7 @@ WITH RECURSIVE org_tree AS (
     FROM organizations o
     LIMIT 5
 )
-SELECT 
+SELECT
     ot.org_id,
     jsonb_set(
         ot.data,
@@ -148,7 +146,7 @@ print("""
 
 print("\nFraiseQL Generated SQL:")
 print("""
-SELECT 
+SELECT
     p.id,
     jsonb_build_object(
         'id', p.id::text,
@@ -215,9 +213,9 @@ LEFT JOIN LATERAL (
     SELECT jsonb_build_object(
         'totalHours', COALESCE(SUM(te.hours), 0),
         'billableHours', COALESCE(SUM(te.hours) FILTER (WHERE te.billable), 0),
-        'averageHoursPerTask', 
-            CASE 
-                WHEN COUNT(DISTINCT te.task_id) > 0 
+        'averageHoursPerTask',
+            CASE
+                WHEN COUNT(DISTINCT te.task_id) > 0
                 THEN ROUND(SUM(te.hours) / COUNT(DISTINCT te.task_id), 2)
                 ELSE 0
             END
@@ -257,7 +255,7 @@ print("\nFraiseQL Execution:")
 print("""
 1. Execute PostgreSQL Function:
    SELECT create_project($1, $2, $3, $4, $5, $6, $7)
-   
+
 2. Audit Log Entry (automatic):
    INSERT INTO audit_log (entity_type, entity_id, action, actor_id, changes)
    VALUES ('project', $project_id, 'create', $actor_id, $changes)
@@ -290,7 +288,7 @@ organizationsHierarchy query:
   2. Fetch departments: SELECT * FROM departments WHERE org_id IN (...)
   3. Fetch teams: SELECT * FROM teams WHERE dept_id IN (...)
   4. Fetch employees: SELECT * FROM employees WHERE team_id IN (...)
-  
+
   Total: 4 queries + in-memory joining + data transformation
   Typical latency: 150-200ms
 """)
@@ -299,10 +297,10 @@ print("\nFraiseQL:")
 print("""
 organizationsHierarchy query:
   1. Single SQL query with JSONB aggregation
-  
+
   Total: 1 query, data returned pre-formatted
   Typical latency: 30-50ms
-  
+
   Performance gain: 3-4x faster
   Additional benefits:
   - Lower memory usage (no in-memory joining)
@@ -320,7 +318,7 @@ print("""
    SELECT id, [complex aggregated JSON] as data
    FROM projects p
    JOIN [multiple tables with complex logic]
-   
+
    - Pre-computed complex aggregations
    - Refreshed on mutations
    - Sub-millisecond query times
@@ -339,11 +337,11 @@ print("""
    L1: In-memory LRU cache (5000 entries)
        - Sub-millisecond response
        - Process-local
-       
+
    L2: Redis distributed cache
        - Millisecond response
        - Shared across workers
-       
+
    L3: Projection tables
        - Pre-computed results
        - Persistent storage

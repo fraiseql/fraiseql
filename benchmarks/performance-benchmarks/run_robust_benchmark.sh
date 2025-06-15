@@ -33,10 +33,10 @@ if [ -f benchmark_profile.json ]; then
     USERS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['users'])")
     PRODUCTS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['products'])")
     ORDERS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['orders'])")
-    
+
     echo -e "${GREEN}Profile: $PROFILE${NC}"
     echo -e "Scale: ${USERS} users, ${PRODUCTS} products, ${ORDERS} orders"
-    
+
     export BENCHMARK_USERS=$USERS
     export BENCHMARK_PRODUCTS=$PRODUCTS
     export BENCHMARK_ORDERS=$ORDERS
@@ -142,27 +142,27 @@ wait_for_service() {
     local name=$1
     local port=$2
     local max_attempts=60
-    
+
     echo -e "\nChecking $name..."
     for i in $(seq 1 $max_attempts); do
         if curl -s "http://localhost:$port/health" | grep -q "healthy"; then
             echo -e "${GREEN}✓ $name is healthy${NC}"
             return 0
         fi
-        
+
         # Check if container is still running
         if ! podman ps | grep -q "bench-$name"; then
             echo -e "${RED}✗ $name container stopped${NC}"
             podman logs bench-$name --tail 20
             return 1
         fi
-        
+
         if [ $((i % 10)) -eq 0 ]; then
             echo -e "  Still waiting... ($i/$max_attempts)"
         fi
         sleep 1
     done
-    
+
     echo -e "${RED}✗ $name failed to become healthy${NC}"
     podman logs bench-$name --tail 20
     return 1
@@ -177,13 +177,13 @@ echo -e "\n${YELLOW}Testing GraphQL endpoints...${NC}"
 test_endpoint() {
     local name=$1
     local port=$2
-    
+
     echo -n "  Testing $name... "
     RESPONSE=$(curl -s -X POST \
         -H "Content-Type: application/json" \
         -d '{"query": "{ __typename }"}' \
         "http://localhost:$port/graphql")
-    
+
     if echo "$RESPONSE" | grep -q "__typename"; then
         echo -e "${GREEN}✓${NC}"
     else

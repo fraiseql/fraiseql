@@ -43,7 +43,7 @@ async def get_post(info, id: UUID) -> Optional[Post]:
 async def get_posts(
     info,
     filters: Optional[PostFilters] = None,
-    order_by: PostOrderBy = PostOrderBy.CREATED_AT_DESC,
+    order_by: Optional[PostOrderBy] = None,
     limit: int = 20,
     offset: int = 0,
 ) -> list[Post]:
@@ -60,9 +60,14 @@ async def get_posts(
         if filters.tags_contain:
             filter_dict["tags"] = filters.tags_contain
 
+    # Set up ordering
+    order_clause = "created_at DESC"
+    if order_by:
+        order_clause = f"{order_by.field} {order_by.direction.upper()}"
+
     # Get posts from view
     posts_data = await db.get_posts(
-        filters=filter_dict, order_by=order_by.value, limit=limit, offset=offset
+        filters=filter_dict, order_by=order_clause, limit=limit, offset=offset
     )
 
     return [Post.from_dict(data) for data in posts_data]

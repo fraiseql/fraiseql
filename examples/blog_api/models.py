@@ -121,6 +121,14 @@ class PostFilters:
     search: str | None = None  # Search in title and content
 
 
+@fraiseql.input
+class PostOrderBy:
+    """Ordering options for posts."""
+
+    field: str  # created_at, updated_at, title, view_count
+    direction: str = "desc"  # asc or desc
+
+
 # Result types for mutations
 
 

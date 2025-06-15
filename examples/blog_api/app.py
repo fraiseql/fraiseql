@@ -18,7 +18,6 @@ from queries import (
     me,
 )
 
-from fraiseql.auth.auth0 import Auth0Config
 from fraiseql.fastapi import create_fraiseql_app
 
 # Create the FraiseQL app
@@ -43,15 +42,8 @@ app = create_fraiseql_app(
         create_comment,
         delete_post,
     ],
-    # Auth0 configuration (optional)
-    auth=(
-        Auth0Config(
-            domain=os.getenv("AUTH0_DOMAIN", ""),
-            api_identifier=os.getenv("AUTH0_API_IDENTIFIER", ""),
-        )
-        if os.getenv("AUTH0_DOMAIN")
-        else None
-    ),
+    # Auth0 configuration disabled for example
+    auth=None,
     # App metadata
     title="Blog API",
     version="1.0.0",

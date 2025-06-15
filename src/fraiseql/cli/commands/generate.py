@@ -259,6 +259,6 @@ async def delete_{type_name.lower()}(
 
 async def get_timestamp():
     """Get current timestamp for migration filenames."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    return datetime.now(datetime.UTC).strftime("%Y%m%d%H%M%S")

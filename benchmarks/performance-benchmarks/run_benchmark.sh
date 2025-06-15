@@ -43,12 +43,12 @@ if [ -f benchmark_profile.json ]; then
     USERS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['users'])")
     PRODUCTS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['products'])")
     ORDERS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['orders'])")
-    
+
     echo -e "\n${GREEN}📊 Selected profile: $PROFILE${NC}"
     echo -e "   Users: ${BLUE}${USERS}${NC}"
     echo -e "   Products: ${BLUE}${PRODUCTS}${NC}"
     echo -e "   Orders: ${BLUE}${ORDERS}${NC}"
-    
+
     # Export for SQL script
     export BENCHMARK_USERS=$USERS
     export BENCHMARK_PRODUCTS=$PRODUCTS
@@ -121,9 +121,9 @@ check_service_ready() {
     local container_name=$3
     local max_attempts=180  # 3 minutes
     local attempt=0
-    
+
     echo -e "\n${YELLOW}Waiting for $service_name...${NC}"
-    
+
     while [ $attempt -lt $max_attempts ]; do
         if curl -s "http://localhost:$port/health" &> /dev/null; then
             response=$(curl -s "http://localhost:$port/health")
@@ -132,7 +132,7 @@ check_service_ready() {
                 return 0
             fi
         fi
-        
+
         if [ $((attempt % 20)) -eq 0 ] && [ $attempt -gt 0 ]; then
             echo -e "${YELLOW}Still waiting... (${attempt}s)${NC}"
             # Show last few log lines
@@ -141,11 +141,11 @@ check_service_ready() {
         else
             echo -n "."
         fi
-        
+
         sleep 1
         attempt=$((attempt + 1))
     done
-    
+
     echo -e "\n${RED}✗ $service_name failed to become ready${NC}"
     echo -e "${YELLOW}Full logs:${NC}"
     podman logs --tail 50 $container_name

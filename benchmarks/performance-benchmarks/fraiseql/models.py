@@ -12,6 +12,7 @@ from fraiseql import fraise_type
 @fraise_type
 class Category:
     """Product category"""
+
     id: UUID
     name: str
     slug: str
@@ -22,6 +23,7 @@ class Category:
 @fraise_type
 class User:
     """User with aggregated statistics"""
+
     id: UUID
     email: str
     username: str
@@ -38,6 +40,7 @@ class User:
 @fraise_type
 class ProductReviewUser:
     """Simplified user for product reviews"""
+
     id: UUID
     username: str
     full_name: str
@@ -46,6 +49,7 @@ class ProductReviewUser:
 @fraise_type
 class Review:
     """Product review"""
+
     id: UUID
     rating: int
     title: Optional[str]
@@ -57,6 +61,7 @@ class Review:
 @fraise_type
 class ProductReview:
     """Product review returned by mutations"""
+
     id: UUID
     user_id: UUID
     product_id: UUID
@@ -69,6 +74,7 @@ class ProductReview:
 @fraise_type
 class Product:
     """Product with aggregated data"""
+
     id: UUID
     name: str
     slug: str
@@ -88,6 +94,7 @@ class Product:
 @fraise_type
 class OrderItem:
     """Item in an order"""
+
     id: UUID
     product_id: UUID
     product_name: str
@@ -96,9 +103,10 @@ class OrderItem:
     total_price: float
 
 
-@fraise_type  
+@fraise_type
 class Order:
     """Order with items"""
+
     id: UUID
     user_id: UUID
     status: str
@@ -112,6 +120,7 @@ class Order:
 @fraise_type
 class PopularProduct:
     """Popular product from materialized view"""
+
     id: UUID
     name: str
     slug: str
@@ -124,6 +133,7 @@ class PopularProduct:
 @fraise_type
 class ProductsByCategory:
     """Products grouped by category"""
+
     category: str
     products: list[Product]
 
@@ -131,6 +141,7 @@ class ProductsByCategory:
 @fraise_type
 class UserStats:
     """User statistics"""
+
     user_id: UUID
     username: str
     order_count: int

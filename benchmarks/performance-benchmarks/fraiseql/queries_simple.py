@@ -1,18 +1,16 @@
 """FraiseQL benchmark queries - simplified version."""
 
-from fraiseql import fraise_type
 from typing import List
 
-from models import (
-    User, Product, Order, Category,
-    PopularProduct, ProductsByCategory, UserStats
-)
+from models import Category, Order, PopularProduct, Product, ProductsByCategory, User, UserStats
+
+from fraiseql import fraise_type
 
 
 @fraise_type
 class Query:
     """Root query type for the benchmark API."""
-    
+
     # Try without field() to see if it works
     users: List[User]
     products: List[Product]

@@ -11,7 +11,7 @@ This directory contains a comprehensive performance benchmarking system for comp
 - Calculates a performance score based on hardware
 - Recommends appropriate data scale profiles:
   - **Minimal**: 100 users, 500 products, 200 orders
-  - **Small**: 1K users, 5K products, 2K orders  
+  - **Small**: 1K users, 5K products, 2K orders
   - **Medium**: 10K users, 50K products, 20K orders
   - **Large**: 50K users, 200K products, 100K orders
   - **XLarge**: 100K users, 1M products, 5M orders

@@ -32,7 +32,7 @@ const queries = {
       }
     }
   }`,
-  
+
   simpleProducts: `{
     products {
       id
@@ -40,7 +40,7 @@ const queries = {
       price
     }
   }`,
-  
+
   simpleUsers: `{
     users {
       id
@@ -59,7 +59,7 @@ export default function () {
       headers: { 'Content-Type': 'application/json' },
     }
   );
-  
+
   check(introspectionRes, {
     'introspection status is 200': (r) => r.status === 200,
     'introspection has data': (r) => {
@@ -67,9 +67,9 @@ export default function () {
       return body.data && body.data.__schema;
     },
   });
-  
+
   requestDuration.add(introspectionRes.timings.duration);
-  
+
   // Test products query
   const productsRes = http.post(
     FRAISEQL_URL,
@@ -78,16 +78,16 @@ export default function () {
       headers: { 'Content-Type': 'application/json' },
     }
   );
-  
+
   const productsSuccess = check(productsRes, {
     'products status is 200': (r) => r.status === 200,
   });
-  
+
   if (!productsSuccess) {
     requestErrors.add(1);
     console.log('Products query failed:', productsRes.body);
   }
-  
+
   // Test users query
   const usersRes = http.post(
     FRAISEQL_URL,
@@ -96,15 +96,15 @@ export default function () {
       headers: { 'Content-Type': 'application/json' },
     }
   );
-  
+
   const usersSuccess = check(usersRes, {
     'users status is 200': (r) => r.status === 200,
   });
-  
+
   if (!usersSuccess) {
     requestErrors.add(1);
     console.log('Users query failed:', usersRes.body);
   }
-  
+
   sleep(1);
 }

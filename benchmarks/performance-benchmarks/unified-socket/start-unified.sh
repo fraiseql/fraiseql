@@ -16,34 +16,34 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
     PGVERSION=$(ls /usr/lib/postgresql/ | head -n1)
     echo "  Using PostgreSQL version: $PGVERSION"
     su - postgres -c "/usr/lib/postgresql/$PGVERSION/bin/initdb -D $PGDATA"
-    
+
     # Configure PostgreSQL for socket connections
     echo "Configuring PostgreSQL..."
     su - postgres -c "echo \"local all all trust\" > $PGDATA/pg_hba.conf"
     su - postgres -c "echo \"host all all 127.0.0.1/32 trust\" >> $PGDATA/pg_hba.conf"
-    
+
     # Start PostgreSQL temporarily for setup
     su - postgres -c "/usr/lib/postgresql/$PGVERSION/bin/pg_ctl -D $PGDATA -o '-c listen_addresses=localhost' start"
-    
+
     # Wait for PostgreSQL to be ready
     until su - postgres -c "psql -U postgres -c 'SELECT 1'" &> /dev/null; do
         echo "Waiting for PostgreSQL to start..."
         sleep 1
     done
-    
+
     # Create database and user
     su - postgres -c "psql -U postgres -c \"CREATE USER benchmark WITH PASSWORD 'benchmark';\""
     su - postgres -c "psql -U postgres -c \"CREATE DATABASE benchmark_db OWNER benchmark;\""
-    
+
     # Run initialization scripts
     echo "Running database initialization scripts..."
     su - postgres -c "PGPASSWORD=benchmark psql -U benchmark -d benchmark_db -f /docker-entrypoint-initdb.d/01-schema.sql"
-    
+
     # Run FraiseQL views if they exist
     if [ -f "/docker-entrypoint-initdb.d/02-views.sql" ]; then
         su - postgres -c "PGPASSWORD=benchmark psql -U benchmark -d benchmark_db -f /docker-entrypoint-initdb.d/02-views.sql"
     fi
-    
+
     # Generate and run adaptive seed data
     if [ -f "/docker-entrypoint-initdb.d/create_adaptive_seed.sh" ]; then
         echo "Generating adaptive seed data..."
@@ -51,7 +51,7 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
         ./create_adaptive_seed.sh
         su - postgres -c "PGPASSWORD=benchmark psql -U benchmark -d benchmark_db -f /tmp/seed-data-generated.sql"
     fi
-    
+
     # Stop PostgreSQL
     su - postgres -c "/usr/lib/postgresql/$PGVERSION/bin/pg_ctl -D $PGDATA stop"
 fi

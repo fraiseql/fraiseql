@@ -37,9 +37,9 @@ DECLARE
 BEGIN
     FOR i IN 1..5000 LOOP
         -- Rotate through categories
-        SELECT id INTO cat_id FROM benchmark.categories 
+        SELECT id INTO cat_id FROM benchmark.categories
         ORDER BY id LIMIT 1 OFFSET (i % 5);
-        
+
         INSERT INTO benchmark.products (
             sku,
             name,
@@ -73,9 +73,9 @@ DECLARE
 BEGIN
     FOR i IN 1..2000 LOOP
         -- Random user
-        SELECT id INTO user_id FROM benchmark.users 
+        SELECT id INTO user_id FROM benchmark.users
         ORDER BY RANDOM() LIMIT 1;
-        
+
         -- Create order
         INSERT INTO benchmark.orders (
             id,
@@ -90,30 +90,30 @@ BEGIN
             (ARRAY['pending', 'processing', 'shipped', 'delivered', 'cancelled'])[FLOOR(RANDOM() * 5 + 1)],
             0  -- Will update later
         ) RETURNING id INTO order_id;
-        
+
         -- Add 1-5 items per order
         num_items := FLOOR(RANDOM() * 5 + 1)::INTEGER;
-        
+
         FOR j IN 1..num_items LOOP
-            SELECT id INTO product_id FROM benchmark.products 
-            WHERE is_active = true 
+            SELECT id INTO product_id FROM benchmark.products
+            WHERE is_active = true
             ORDER BY RANDOM() LIMIT 1;
-            
+
             INSERT INTO benchmark.order_items (
                 order_id,
                 product_id,
                 quantity,
                 unit_price
-            ) 
-            SELECT 
+            )
+            SELECT
                 order_id,
                 product_id,
                 FLOOR(RANDOM() * 5 + 1)::INTEGER,
                 price
-            FROM benchmark.products 
+            FROM benchmark.products
             WHERE id = product_id;
         END LOOP;
-        
+
         -- Update order total
         UPDATE benchmark.orders o
         SET total_amount = (
@@ -122,7 +122,7 @@ BEGIN
             WHERE oi.order_id = o.id
         )
         WHERE o.id = order_id;
-        
+
         IF i % 500 = 0 THEN
             RAISE NOTICE 'Generated % orders', i;
         END IF;
@@ -139,7 +139,7 @@ BEGIN
     FOR i IN 1..1000 LOOP
         SELECT id INTO user_id FROM benchmark.users ORDER BY RANDOM() LIMIT 1;
         SELECT id INTO product_id FROM benchmark.products WHERE is_active = true ORDER BY RANDOM() LIMIT 1;
-        
+
         BEGIN
             INSERT INTO benchmark.reviews (
                 user_id,

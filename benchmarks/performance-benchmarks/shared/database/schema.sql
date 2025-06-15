@@ -145,7 +145,7 @@ CREATE INDEX idx_orders_metadata ON orders USING gin(metadata);
 
 -- Create views for FraiseQL (JSONB-based)
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     jsonb_build_object(
         'id', u.id,
         'email', u.email,
@@ -161,7 +161,7 @@ SELECT
 FROM users u;
 
 CREATE VIEW product_view AS
-SELECT 
+SELECT
     jsonb_build_object(
         'id', p.id,
         'sku', p.sku,
@@ -208,7 +208,7 @@ SELECT
 FROM products p;
 
 CREATE VIEW order_view AS
-SELECT 
+SELECT
     jsonb_build_object(
         'id', o.id,
         'orderNumber', o.order_number,

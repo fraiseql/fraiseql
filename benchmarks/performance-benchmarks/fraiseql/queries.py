@@ -1,66 +1,51 @@
 """FraiseQL benchmark queries using automatic WhereType generation."""
 
-from typing import Optional
-from fraiseql import fraise_type, fraise_field as field
+from models import Category, Order, PopularProduct, Product, ProductsByCategory, User, UserStats
 
-from models import (
-    User, Product, Order, Category,
-    PopularProduct, ProductsByCategory, UserStats
-)
+from fraiseql import fraise_field as field
+from fraiseql import fraise_type
 
 
 @fraise_type
 class Query:
     """Root query type for the benchmark API.
-    
+
     FraiseQL automatically generates WhereType filters for each field,
     so we don't need individual resolvers for different query patterns.
     """
-    
+
     # Health check field
-    ping: str = field(
-        default="pong",
-        description="Health check endpoint"
-    )
-    
+    ping: str = field(default="pong", description="Health check endpoint")
+
     # User queries with automatic filtering
     users: list[User] = field(
-        default_factory=list,
-        description="Query users with automatic filters"
+        default_factory=list, description="Query users with automatic filters"
     )
-    
-    # Product queries with automatic filtering  
+
+    # Product queries with automatic filtering
     products: list[Product] = field(
-        default_factory=list,
-        description="Query products with automatic filters"
+        default_factory=list, description="Query products with automatic filters"
     )
-    
+
     # Order queries with automatic filtering
     orders: list[Order] = field(
-        default_factory=list,
-        description="Query orders with automatic filters"
+        default_factory=list, description="Query orders with automatic filters"
     )
-    
+
     # Category queries
-    categories: list[Category] = field(
-        default_factory=list,
-        description="Query categories"
-    )
-    
+    categories: list[Category] = field(default_factory=list, description="Query categories")
+
     # Table views for performance
     popular_products: list[PopularProduct] = field(
-        default_factory=list,
-        description="Popular products from table view"
+        default_factory=list, description="Popular products from table view"
     )
-    
+
     products_by_category: list[ProductsByCategory] = field(
-        default_factory=list,
-        description="Products grouped by category from table view"
+        default_factory=list, description="Products grouped by category from table view"
     )
-    
+
     user_stats: list[UserStats] = field(
-        default_factory=list,
-        description="User statistics from table view"
+        default_factory=list, description="User statistics from table view"
     )
 
 

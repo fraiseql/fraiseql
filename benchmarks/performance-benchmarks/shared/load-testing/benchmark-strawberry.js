@@ -29,7 +29,7 @@ const queries = {
       username
     }
   }`,
-  
+
   simpleProducts: `{
     products(pagination: { limit: 10 }) {
       id
@@ -37,7 +37,7 @@ const queries = {
       price
     }
   }`,
-  
+
   nestedUsersOrders: `{
     users(limit: 5) {
       id
@@ -49,7 +49,7 @@ const queries = {
       }
     }
   }`,
-  
+
   nestedProductsReviews: `{
     products(pagination: { limit: 5 }) {
       id
@@ -70,7 +70,7 @@ export default function () {
     JSON.stringify({ query: queries.simpleUsers }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   check(simpleUsersRes, {
     'simple users status 200': (r) => r.status === 200,
     'simple users has data': (r) => {
@@ -78,18 +78,18 @@ export default function () {
       return body.data && body.data.users && body.data.users.length > 0;
     },
   });
-  
+
   queryDuration.add(simpleUsersRes.timings.duration, { query: 'simpleUsers' });
-  
+
   sleep(0.5);
-  
+
   // Test simple products query
   const simpleProductsRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.simpleProducts }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   check(simpleProductsRes, {
     'simple products status 200': (r) => r.status === 200,
     'simple products has data': (r) => {
@@ -97,45 +97,45 @@ export default function () {
       return body.data && body.data.products && body.data.products.length > 0;
     },
   });
-  
+
   queryDuration.add(simpleProductsRes.timings.duration, { query: 'simpleProducts' });
-  
+
   sleep(0.5);
-  
+
   // Test nested users with orders
   const nestedUsersRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.nestedUsersOrders }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   check(nestedUsersRes, {
     'nested users status 200': (r) => r.status === 200,
   });
-  
+
   queryDuration.add(nestedUsersRes.timings.duration, { query: 'nestedUsersOrders' });
-  
+
   sleep(0.5);
-  
+
   // Test nested products with reviews
   const nestedProductsRes = http.post(
     STRAWBERRY_URL,
     JSON.stringify({ query: queries.nestedProductsReviews }),
     { headers: { 'Content-Type': 'application/json' } }
   );
-  
+
   check(nestedProductsRes, {
     'nested products status 200': (r) => r.status === 200,
   });
-  
+
   queryDuration.add(nestedProductsRes.timings.duration, { query: 'nestedProductsReviews' });
-  
+
   sleep(1);
 }
 
 export function handleSummary(data) {
   console.log('=== BENCHMARK SUMMARY ===\n');
-  
+
   // Extract query durations
   const metrics = data.metrics.query_duration;
   if (metrics && metrics.values) {
@@ -145,19 +145,19 @@ export function handleSummary(data) {
     console.log(`  95th percentile: ${metrics.values['p(95)'].toFixed(2)}ms`);
     console.log(`  99th percentile: ${metrics.values['p(99)'].toFixed(2)}ms`);
   }
-  
+
   // Success rate
   const checks = data.metrics.checks;
   if (checks && checks.values) {
     console.log(`\nSuccess Rate: ${(checks.values.rate * 100).toFixed(2)}%`);
   }
-  
+
   // Request rate
   const httpReqs = data.metrics.http_reqs;
   if (httpReqs && httpReqs.values) {
     console.log(`Request Rate: ${httpReqs.values.rate.toFixed(2)} req/s`);
   }
-  
+
   return {
     '/results/strawberry-benchmark.json': JSON.stringify(data, null, 2),
   };

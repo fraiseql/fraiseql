@@ -78,7 +78,6 @@ nav:
     - api-reference/index.md
     - Application: api-reference/application.md
     - Decorators: api-reference/decorators.md
-    - TestFoundry: api-reference/testfoundry.md
   - Advanced Topics:
     - advanced/index.md
     - Configuration: advanced/configuration.md

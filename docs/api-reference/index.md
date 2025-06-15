@@ -24,7 +24,7 @@ Field metadata and configuration for GraphQL schema generation:
 ### Built-in Scalars
 FraiseQL includes several custom scalar types:
 
-- `UUID` - Universally unique identifiers  
+- `UUID` - Universally unique identifiers
 - `DateTime` - ISO 8601 date and time
 - `Date` - Date only
 - `JSON` - Arbitrary JSON data

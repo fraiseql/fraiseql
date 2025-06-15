@@ -79,37 +79,35 @@ class FraiseQLRepository:
     def get_pool(self) -> AsyncConnectionPool:
         """Expose the underlying connection pool."""
         return self._pool
-    
+
     async def execute_function(
-        self, 
-        function_name: str, 
-        input_data: dict[str, object]
+        self, function_name: str, input_data: dict[str, object]
     ) -> dict[str, object]:
         """Execute a PostgreSQL function and return the result.
-        
+
         Args:
             function_name: Fully qualified function name (e.g., 'graphql.create_user')
             input_data: Dictionary to pass as JSONB to the function
-            
+
         Returns:
             Dictionary result from the function (mutation_result type)
         """
         import json
-        
+
         # Check if this is psycopg pool or asyncpg pool
-        if hasattr(self._pool, 'connection'):
+        if hasattr(self._pool, "connection"):
             # psycopg pool
             async with (
                 self._pool.connection() as conn,
                 conn.cursor(row_factory=dict_row) as cursor,
             ):
                 # Validate function name to prevent SQL injection
-                if not function_name.replace('_', '').replace('.', '').isalnum():
+                if not function_name.replace("_", "").replace(".", "").isalnum():
                     raise ValueError(f"Invalid function name: {function_name}")
-                
+
                 await cursor.execute(
                     f"SELECT * FROM {function_name}(%s::jsonb)",
-                    (json.dumps(input_data),)
+                    (json.dumps(input_data),),
                 )
                 result = await cursor.fetchone()
                 return result if result else {}
@@ -118,17 +116,14 @@ class FraiseQLRepository:
             async with self._pool.acquire() as conn:
                 # Set up JSON codec for asyncpg
                 await conn.set_type_codec(
-                    'jsonb',
-                    encoder=json.dumps,
-                    decoder=json.loads,
-                    schema='pg_catalog'
+                    "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
                 )
                 # Validate function name to prevent SQL injection
-                if not function_name.replace('_', '').replace('.', '').isalnum():
+                if not function_name.replace("_", "").replace(".", "").isalnum():
                     raise ValueError(f"Invalid function name: {function_name}")
-                
+
                 result = await conn.fetchrow(
                     f"SELECT * FROM {function_name}($1::jsonb)",
-                    input_data  # Pass the dict directly, asyncpg will encode it
+                    input_data,  # Pass the dict directly, asyncpg will encode it
                 )
                 return dict(result) if result else {}

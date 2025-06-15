@@ -25,43 +25,43 @@ DROP MATERIALIZED VIEW IF EXISTS mv_user_stats CASCADE;
 DO $$
 BEGIN
     -- Check and rename users table
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'users' AND schemaname = 'benchmark') 
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'users' AND schemaname = 'benchmark')
        AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'tb_users' AND schemaname = 'benchmark') THEN
         ALTER TABLE users RENAME TO tb_users;
     END IF;
-    
+
     -- Check and rename products table
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'products' AND schemaname = 'benchmark') 
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'products' AND schemaname = 'benchmark')
        AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'tb_products' AND schemaname = 'benchmark') THEN
         ALTER TABLE products RENAME TO tb_products;
     END IF;
-    
+
     -- Check and rename orders table
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'orders' AND schemaname = 'benchmark') 
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'orders' AND schemaname = 'benchmark')
        AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'tb_orders' AND schemaname = 'benchmark') THEN
         ALTER TABLE orders RENAME TO tb_orders;
     END IF;
-    
+
     -- Check and rename categories table
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'categories' AND schemaname = 'benchmark') 
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'categories' AND schemaname = 'benchmark')
        AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'tb_categories' AND schemaname = 'benchmark') THEN
         ALTER TABLE categories RENAME TO tb_categories;
     END IF;
-    
+
     -- Check and rename order_items table
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'order_items' AND schemaname = 'benchmark') 
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'order_items' AND schemaname = 'benchmark')
        AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'tb_order_items' AND schemaname = 'benchmark') THEN
         ALTER TABLE order_items RENAME TO tb_order_items;
     END IF;
-    
+
     -- Check and rename product_categories table
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'product_categories' AND schemaname = 'benchmark') 
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'product_categories' AND schemaname = 'benchmark')
        AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'tb_product_categories' AND schemaname = 'benchmark') THEN
         ALTER TABLE product_categories RENAME TO tb_product_categories;
     END IF;
-    
+
     -- Check and rename product_reviews table
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'product_reviews' AND schemaname = 'benchmark') 
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'product_reviews' AND schemaname = 'benchmark')
        AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'tb_product_reviews' AND schemaname = 'benchmark') THEN
         ALTER TABLE product_reviews RENAME TO tb_product_reviews;
     END IF;

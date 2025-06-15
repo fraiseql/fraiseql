@@ -11,7 +11,7 @@ DROP VIEW IF EXISTS v_categories CASCADE;
 
 -- View for 'users' field with aggregated data
 CREATE VIEW v_users AS
-SELECT 
+SELECT
     u.id,
     jsonb_build_object(
         'id', u.id::text,
@@ -21,23 +21,23 @@ SELECT
         'createdAt', u.created_at,
         'isActive', u.is_active,
         'orderCount', COALESCE((
-            SELECT COUNT(*)::int 
-            FROM orders o 
+            SELECT COUNT(*)::int
+            FROM orders o
             WHERE o.user_id = u.id
         ), 0),
         'totalSpent', COALESCE((
-            SELECT SUM(o.total_amount)::float 
-            FROM orders o 
+            SELECT SUM(o.total_amount)::float
+            FROM orders o
             WHERE o.user_id = u.id
         ), 0.0),
         'reviewCount', COALESCE((
-            SELECT COUNT(*)::int 
-            FROM reviews r 
+            SELECT COUNT(*)::int
+            FROM reviews r
             WHERE r.user_id = u.id
         ), 0),
         'averageRating', (
-            SELECT AVG(r.rating)::float 
-            FROM reviews r 
+            SELECT AVG(r.rating)::float
+            FROM reviews r
             WHERE r.user_id = u.id
         )
     ) as data
@@ -45,7 +45,7 @@ FROM users u;
 
 -- View for 'products' field with aggregated data
 CREATE VIEW v_products AS
-SELECT 
+SELECT
     p.id,
     jsonb_build_object(
         'id', p.id::text,
@@ -58,13 +58,13 @@ SELECT
         'createdAt', p.created_at,
         'updatedAt', p.updated_at,
         'reviewCount', COALESCE((
-            SELECT COUNT(*)::int 
-            FROM reviews r 
+            SELECT COUNT(*)::int
+            FROM reviews r
             WHERE r.product_id = p.id
         ), 0),
         'averageRating', (
-            SELECT AVG(r.rating)::float 
-            FROM reviews r 
+            SELECT AVG(r.rating)::float
+            FROM reviews r
             WHERE r.product_id = p.id
         ),
         'category', CASE WHEN p.category_id IS NOT NULL THEN (
@@ -103,7 +103,7 @@ FROM products p;
 
 -- View for 'orders' field with order items
 CREATE VIEW v_orders AS
-SELECT 
+SELECT
     o.id,
     jsonb_build_object(
         'id', o.id::text,
@@ -134,7 +134,7 @@ FROM orders o;
 
 -- View for 'categories' field
 CREATE VIEW v_categories AS
-SELECT 
+SELECT
     c.id,
     jsonb_build_object(
         'id', c.id::text,

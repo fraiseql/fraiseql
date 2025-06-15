@@ -11,7 +11,7 @@ SET search_path TO benchmark, public;
 -- Display configuration
 \echo 'Benchmark Data Generation Configuration:'
 \echo '  Users:    ' :users_count
-\echo '  Products: ' :products_count  
+\echo '  Products: ' :products_count
 \echo '  Orders:   ' :orders_count
 
 -- Function to generate random text
@@ -60,7 +60,7 @@ WITH category_count AS (
     SELECT LEAST(100, GREATEST(5, :products_count::INTEGER / 100)) as count
 )
 INSERT INTO categories (name, slug, description)
-SELECT 
+SELECT
     'Category ' || i,
     'category-' || i,
     'Description for category ' || i
@@ -75,7 +75,7 @@ DECLARE
     start_time TIMESTAMP := clock_timestamp();
 BEGIN
     RAISE NOTICE 'Starting user generation: % users', total_users;
-    
+
     FOR i IN 0..(total_users / batch_size) LOOP
         INSERT INTO users (username, email, password_hash, full_name, created_at)
         SELECT
@@ -85,15 +85,15 @@ BEGIN
             'User ' || (i * batch_size + s),
             NOW() - INTERVAL '2 years' + (random() * INTERVAL '2 years')
         FROM generate_series(1, LEAST(batch_size, total_users - i * batch_size)) s;
-        
+
         current_batch := current_batch + LEAST(batch_size, total_users - i * batch_size);
-        
+
         IF current_batch % 10000 = 0 OR current_batch = total_users THEN
             RAISE NOTICE 'Generated % users (%.1f%%)', current_batch, (current_batch::FLOAT / total_users * 100);
         END IF;
     END LOOP;
-    
-    RAISE NOTICE 'User generation completed in % seconds', 
+
+    RAISE NOTICE 'User generation completed in % seconds',
         EXTRACT(EPOCH FROM (clock_timestamp() - start_time));
 END $$;
 
@@ -108,7 +108,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*) INTO category_count FROM categories;
     RAISE NOTICE 'Starting product generation: % products', total_products;
-    
+
     FOR i IN 0..(total_products / batch_size) LOOP
         INSERT INTO products (name, slug, description, price, category_id, stock_quantity, sku, created_at)
         SELECT
@@ -121,15 +121,15 @@ BEGIN
             'SKU-' || (i * batch_size + s),
             NOW() - INTERVAL '1 year' + (random() * INTERVAL '1 year')
         FROM generate_series(1, LEAST(batch_size, total_products - i * batch_size)) s;
-        
+
         current_batch := current_batch + LEAST(batch_size, total_products - i * batch_size);
-        
+
         IF current_batch % 10000 = 0 OR current_batch = total_products THEN
             RAISE NOTICE 'Generated % products (%.1f%%)', current_batch, (current_batch::FLOAT / total_products * 100);
         END IF;
     END LOOP;
-    
-    RAISE NOTICE 'Product generation completed in % seconds', 
+
+    RAISE NOTICE 'Product generation completed in % seconds',
         EXTRACT(EPOCH FROM (clock_timestamp() - start_time));
 END $$;
 
@@ -144,7 +144,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*) INTO user_count FROM users;
     RAISE NOTICE 'Starting order generation: % orders', total_orders;
-    
+
     FOR i IN 0..(total_orders / batch_size) LOOP
         INSERT INTO orders (user_id, status, total_amount, created_at, updated_at)
         SELECT
@@ -154,15 +154,15 @@ BEGIN
             NOW() - INTERVAL '6 months' + (random() * INTERVAL '6 months'),
             NOW() - INTERVAL '6 months' + (random() * INTERVAL '6 months')
         FROM generate_series(1, LEAST(batch_size, total_orders - i * batch_size)) s;
-        
+
         current_batch := current_batch + LEAST(batch_size, total_orders - i * batch_size);
-        
+
         IF current_batch % 10000 = 0 OR current_batch = total_orders THEN
             RAISE NOTICE 'Generated % orders (%.1f%%)', current_batch, (current_batch::FLOAT / total_orders * 100);
         END IF;
     END LOOP;
-    
-    RAISE NOTICE 'Order generation completed in % seconds', 
+
+    RAISE NOTICE 'Order generation completed in % seconds',
         EXTRACT(EPOCH FROM (clock_timestamp() - start_time));
 END $$;
 
@@ -179,38 +179,38 @@ BEGIN
     SELECT COUNT(*) INTO order_count FROM orders;
     SELECT COUNT(*) INTO product_count FROM products;
     estimated_total := order_count * 2.5; -- Average 2.5 items per order
-    
+
     RAISE NOTICE 'Starting order items generation: ~% items', estimated_total;
-    
+
     -- Generate items in batches
     FOR i IN 0..(order_count / batch_size) LOOP
         INSERT INTO order_items (order_id, product_id, quantity, price_at_time)
-        SELECT 
+        SELECT
             o.id,
             floor(random() * product_count + 1)::INTEGER,
             floor(random() * 5 + 1)::INTEGER,
             p.price
         FROM (
-            SELECT id 
-            FROM orders 
-            ORDER BY id 
-            LIMIT batch_size 
+            SELECT id
+            FROM orders
+            ORDER BY id
+            LIMIT batch_size
             OFFSET i * batch_size
         ) o
         CROSS JOIN LATERAL (
             SELECT price, generate_series(1, floor(random() * 3 + 1)::INTEGER)
-            FROM products 
+            FROM products
             WHERE id = floor(random() * product_count + 1)::INTEGER
             LIMIT 1
         ) p;
-        
+
         items_generated := items_generated + batch_size * 2;
-        
+
         IF items_generated % 50000 = 0 THEN
             RAISE NOTICE 'Generated ~% order items', items_generated;
         END IF;
     END LOOP;
-    
+
     -- Update order totals
     UPDATE orders o
     SET total_amount = (
@@ -218,8 +218,8 @@ BEGIN
         FROM order_items oi
         WHERE oi.order_id = o.id
     );
-    
-    RAISE NOTICE 'Order items generation completed in % seconds', 
+
+    RAISE NOTICE 'Order items generation completed in % seconds',
         EXTRACT(EPOCH FROM (clock_timestamp() - start_time));
 END $$;
 
@@ -234,9 +234,9 @@ BEGIN
     review_count := GREATEST(100, :orders_count::INTEGER / 5);
     SELECT COUNT(*) INTO user_count FROM users;
     SELECT COUNT(*) INTO product_count FROM products;
-    
+
     RAISE NOTICE 'Generating % reviews...', review_count;
-    
+
     INSERT INTO reviews (user_id, product_id, rating, comment, created_at)
     SELECT
         floor(random() * user_count + 1)::INTEGER,
@@ -246,8 +246,8 @@ BEGIN
         NOW() - INTERVAL '6 months' + (random() * INTERVAL '6 months')
     FROM generate_series(1, review_count) i
     ON CONFLICT (user_id, product_id) DO NOTHING;
-    
-    RAISE NOTICE 'Review generation completed in % seconds', 
+
+    RAISE NOTICE 'Review generation completed in % seconds',
         EXTRACT(EPOCH FROM (clock_timestamp() - start_time));
 END $$;
 
@@ -259,9 +259,9 @@ DECLARE
 BEGIN
     active_user_count := GREATEST(10, :users_count::INTEGER / 10);
     SELECT COUNT(*) INTO product_count FROM products;
-    
+
     RAISE NOTICE 'Generating cart items for % active users...', active_user_count;
-    
+
     INSERT INTO cart_items (user_id, product_id, quantity, added_at)
     SELECT
         user_id,
@@ -283,13 +283,13 @@ DECLARE
     address_user_count INTEGER;
 BEGIN
     address_user_count := GREATEST(50, :users_count::INTEGER / 2);
-    
+
     RAISE NOTICE 'Generating addresses for % users...', address_user_count;
-    
+
     INSERT INTO addresses (user_id, street, city, state, postal_code, country, is_default)
     SELECT
         id,
-        floor(random() * 9999 + 1)::TEXT || ' ' || 
+        floor(random() * 9999 + 1)::TEXT || ' ' ||
             (ARRAY['Main St', 'Oak Ave', 'First St', 'Park Rd', 'Elm St'])[floor(random() * 5 + 1)::INTEGER],
         (ARRAY['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'])[floor(random() * 5 + 1)::INTEGER],
         (ARRAY['NY', 'CA', 'IL', 'TX', 'AZ'])[floor(random() * 5 + 1)::INTEGER],
@@ -315,7 +315,7 @@ BEGIN
     SELECT COUNT(*) INTO order_count FROM orders;
     SELECT COUNT(*) INTO order_item_count FROM order_items;
     SELECT COUNT(*) INTO review_count FROM reviews;
-    
+
     RAISE NOTICE '';
     RAISE NOTICE '=== Data Generation Summary ===';
     RAISE NOTICE 'Users:       %', user_count;

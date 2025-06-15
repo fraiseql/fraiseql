@@ -1,12 +1,13 @@
 """Simple FraiseQL app without database."""
 
-from fraiseql import fraise_type, create_fraiseql_app, fraise_field
+from fraiseql import create_fraiseql_app, fraise_field, fraise_type
 from fraiseql.fastapi import FraiseQLConfig
 
 
-@fraise_type  
+@fraise_type
 class SimpleUser:
     """Simple user type."""
+
     id: str = fraise_field(default="1")
     name: str = fraise_field(default="Test User")
     email: str = fraise_field(default="test@example.com")
@@ -15,26 +16,22 @@ class SimpleUser:
 @fraise_type
 class Query:
     """Root query type."""
-    
+
     # Simple string field
-    hello: str = fraise_field(
-        default="world",
-        description="Hello world"
-    )
-    
+    hello: str = fraise_field(default="world", description="Hello world")
+
     # Single user
     me: SimpleUser = fraise_field(
-        default_factory=lambda: SimpleUser(),
-        description="Get current user"
+        default_factory=lambda: SimpleUser(), description="Get current user"
     )
-    
+
     # List of users
     all_users: list[SimpleUser] = fraise_field(
         default_factory=lambda: [
             SimpleUser(id="1", name="Alice", email="alice@example.com"),
             SimpleUser(id="2", name="Bob", email="bob@example.com"),
         ],
-        description="Get all users"
+        description="Get all users",
     )
 
 
@@ -50,6 +47,7 @@ app = create_fraiseql_app(
     title="Simple Test API",
 )
 
+
 # Add health endpoint
 @app.get("/health")
 async def health():
@@ -58,4 +56,5 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

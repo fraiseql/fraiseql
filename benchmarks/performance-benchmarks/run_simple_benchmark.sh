@@ -23,10 +23,10 @@ if [ -f benchmark_profile.json ]; then
     USERS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['users'])")
     PRODUCTS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['products'])")
     ORDERS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['orders'])")
-    
+
     echo -e "${GREEN}Profile: $PROFILE${NC}"
     echo -e "Scale: ${USERS} users, ${PRODUCTS} products, ${ORDERS} orders"
-    
+
     export BENCHMARK_USERS=$USERS
     export BENCHMARK_PRODUCTS=$PRODUCTS
     export BENCHMARK_ORDERS=$ORDERS

@@ -25,7 +25,7 @@ CREATE OR REPLACE FUNCTION sync_refresh_user_projection(p_user_id UUID)
 RETURNS VOID AS $$
 BEGIN
     INSERT INTO tv_users (id, data)
-    SELECT 
+    SELECT
         u.id,
         jsonb_build_object(
             'id', u.id,
@@ -35,23 +35,23 @@ BEGIN
             'createdAt', u.created_at,
             'isActive', u.is_active,
             'orderCount', COALESCE((
-                SELECT COUNT(*)::int 
-                FROM tb_orders o 
+                SELECT COUNT(*)::int
+                FROM tb_orders o
                 WHERE o.user_id = u.id
             ), 0),
             'totalSpent', COALESCE((
-                SELECT SUM(o.total_amount)::float 
-                FROM tb_orders o 
+                SELECT SUM(o.total_amount)::float
+                FROM tb_orders o
                 WHERE o.user_id = u.id
             ), 0.0),
             'reviewCount', COALESCE((
-                SELECT COUNT(*)::int 
-                FROM tb_product_reviews pr 
+                SELECT COUNT(*)::int
+                FROM tb_product_reviews pr
                 WHERE pr.user_id = u.id
             ), 0),
             'averageRating', (
-                SELECT AVG(pr.rating)::float 
-                FROM tb_product_reviews pr 
+                SELECT AVG(pr.rating)::float
+                FROM tb_product_reviews pr
                 WHERE pr.user_id = u.id
             )
         ) as data
@@ -91,7 +91,7 @@ CREATE OR REPLACE FUNCTION sync_refresh_product_projection(p_product_id UUID)
 RETURNS VOID AS $$
 BEGIN
     INSERT INTO tv_products (id, data)
-    SELECT 
+    SELECT
         p.id,
         jsonb_build_object(
             'id', p.id,
@@ -104,13 +104,13 @@ BEGIN
             'createdAt', p.created_at,
             'updatedAt', p.updated_at,
             'reviewCount', COALESCE((
-                SELECT COUNT(*)::int 
-                FROM tb_product_reviews pr 
+                SELECT COUNT(*)::int
+                FROM tb_product_reviews pr
                 WHERE pr.product_id = p.id
             ), 0),
             'averageRating', (
-                SELECT AVG(pr.rating)::float 
-                FROM tb_product_reviews pr 
+                SELECT AVG(pr.rating)::float
+                FROM tb_product_reviews pr
                 WHERE pr.product_id = p.id
             ),
             'categories', COALESCE((
@@ -153,7 +153,7 @@ BEGIN
     ON CONFLICT (id) DO UPDATE
     SET data = EXCLUDED.data,
         updated_at = NOW();
-    
+
     -- Also update popular products view
     PERFORM sync_refresh_popular_products();
 END;
@@ -164,7 +164,7 @@ CREATE OR REPLACE FUNCTION sync_refresh_order_projection(p_order_id UUID)
 RETURNS VOID AS $$
 BEGIN
     INSERT INTO tv_orders (id, data)
-    SELECT 
+    SELECT
         o.id,
         jsonb_build_object(
             'id', o.id,
@@ -204,9 +204,9 @@ RETURNS VOID AS $$
 BEGIN
     -- Clear and rebuild popular products
     TRUNCATE tv_popular_products;
-    
+
     INSERT INTO tv_popular_products (id, data)
-    SELECT 
+    SELECT
         p.id,
         jsonb_build_object(
             'id', p.id,
@@ -219,7 +219,7 @@ BEGIN
         ) as data
     FROM tb_products p
     LEFT JOIN (
-        SELECT 
+        SELECT
             product_id,
             COUNT(*)::int as review_count,
             AVG(rating)::float as avg_rating
@@ -227,7 +227,7 @@ BEGIN
         GROUP BY product_id
     ) review_stats ON review_stats.product_id = p.id
     LEFT JOIN (
-        SELECT 
+        SELECT
             oi.product_id,
             SUM(oi.total_price)::float as total_revenue
         FROM tb_order_items oi
@@ -246,9 +246,9 @@ RETURNS VOID AS $$
 BEGIN
     -- Clear and rebuild user stats
     TRUNCATE tv_user_stats;
-    
+
     INSERT INTO tv_user_stats (id, data)
-    SELECT 
+    SELECT
         u.id,
         jsonb_build_object(
             'userId', u.id,
@@ -260,7 +260,7 @@ BEGIN
         ) as data
     FROM tb_users u
     LEFT JOIN (
-        SELECT 
+        SELECT
             user_id,
             COUNT(*)::int as order_count,
             SUM(total_amount)::float as total_spent
@@ -269,7 +269,7 @@ BEGIN
         GROUP BY user_id
     ) order_stats ON order_stats.user_id = u.id
     LEFT JOIN (
-        SELECT 
+        SELECT
             user_id,
             COUNT(*)::int as review_count,
             AVG(rating)::float as avg_rating
@@ -302,28 +302,28 @@ BEGIN
             'existing_username', (SELECT username FROM tb_users WHERE email = p_email)
         );
     END IF;
-    
+
     IF EXISTS (SELECT 1 FROM tb_users WHERE username = p_username) THEN
         RETURN jsonb_build_object(
             'error', 'Username already taken',
             'suggested_username', p_username || '_' || substr(md5(random()::text), 1, 4)
         );
     END IF;
-    
+
     -- Create user
     INSERT INTO tb_users (email, username, full_name, password_hash, is_active)
     VALUES (p_email, p_username, p_full_name, p_password_hash, true)
     RETURNING id INTO v_user_id;
-    
+
     -- Get full user data
     SELECT row_to_json(u)::JSONB INTO v_user_data
     FROM tb_users u
     WHERE u.id = v_user_id;
-    
+
     -- Update projections
     PERFORM sync_refresh_user_projection(v_user_id);
     PERFORM sync_refresh_user_stats();
-    
+
     RETURN v_user_data;
 EXCEPTION
     WHEN OTHERS THEN
@@ -347,12 +347,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM tb_users WHERE id = p_user_id) THEN
         RETURN jsonb_build_object('error', 'User not found');
     END IF;
-    
+
     -- Create order
     INSERT INTO tb_orders (user_id, status, total_amount)
     VALUES (p_user_id, 'pending', 0)
     RETURNING id INTO v_order_id;
-    
+
     -- Process items
     FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
     LOOP
@@ -361,7 +361,7 @@ BEGIN
         INTO v_product
         FROM tb_products
         WHERE id = (v_item->>'product_id')::UUID;
-        
+
         IF NOT FOUND THEN
             -- Rollback by deleting the order
             DELETE FROM tb_orders WHERE id = v_order_id;
@@ -370,7 +370,7 @@ BEGIN
                 'product_id', v_item->>'product_id'
             );
         END IF;
-        
+
         -- Check stock
         IF v_product.stock_quantity < (v_item->>'quantity')::INTEGER THEN
             DELETE FROM tb_orders WHERE id = v_order_id;
@@ -381,13 +381,13 @@ BEGIN
                 'requested', (v_item->>'quantity')::INTEGER
             );
         END IF;
-        
+
         -- Add order item
         INSERT INTO tb_order_items (
-            order_id, 
-            product_id, 
-            quantity, 
-            unit_price, 
+            order_id,
+            product_id,
+            quantity,
+            unit_price,
             total_price
         ) VALUES (
             v_order_id,
@@ -396,31 +396,31 @@ BEGIN
             v_product.price,
             v_product.price * (v_item->>'quantity')::INTEGER
         );
-        
+
         -- Update total
         v_total_amount := v_total_amount + (v_product.price * (v_item->>'quantity')::INTEGER);
-        
+
         -- Update product stock
         UPDATE tb_products
         SET stock_quantity = stock_quantity - (v_item->>'quantity')::INTEGER
         WHERE id = v_product.id;
     END LOOP;
-    
+
     -- Update order total
     UPDATE tb_orders
     SET total_amount = v_total_amount,
         status = 'confirmed'
     WHERE id = v_order_id;
-    
+
     -- Get complete order data
     SELECT row_to_json(o)::JSONB INTO v_order_data
     FROM tb_orders o
     WHERE o.id = v_order_id;
-    
+
     -- Update projections
     PERFORM sync_refresh_order_projection(v_order_id);
     PERFORM sync_increment_user_order_count(p_user_id);
-    
+
     RETURN v_order_data;
 EXCEPTION
     WHEN OTHERS THEN
@@ -446,37 +446,37 @@ BEGIN
     IF p_rating < 1 OR p_rating > 5 THEN
         RETURN jsonb_build_object('error', 'Rating must be between 1 and 5');
     END IF;
-    
+
     -- Check if user already reviewed this product
     IF EXISTS (
-        SELECT 1 FROM tb_product_reviews 
+        SELECT 1 FROM tb_product_reviews
         WHERE user_id = p_user_id AND product_id = p_product_id
     ) THEN
         RETURN jsonb_build_object(
             'error', 'You have already reviewed this product',
             'existing_review_id', (
-                SELECT id FROM tb_product_reviews 
+                SELECT id FROM tb_product_reviews
                 WHERE user_id = p_user_id AND product_id = p_product_id
             )
         );
     END IF;
-    
+
     -- Create review
     INSERT INTO tb_product_reviews (
         user_id, product_id, rating, title, comment
     ) VALUES (
         p_user_id, p_product_id, p_rating, p_title, p_comment
     ) RETURNING id INTO v_review_id;
-    
+
     -- Get review data
     SELECT row_to_json(r)::JSONB INTO v_review_data
     FROM tb_product_reviews r
     WHERE r.id = v_review_id;
-    
+
     -- Update projections
     PERFORM sync_refresh_product_projection(p_product_id);
     PERFORM sync_refresh_user_projection(p_user_id);
-    
+
     RETURN v_review_data;
 EXCEPTION
     WHEN OTHERS THEN
@@ -498,14 +498,14 @@ DECLARE
     v_execution_time_ms INTEGER;
 BEGIN
     v_start_time := clock_timestamp();
-    
+
     -- Input validation
     IF NOT (p_input ? 'email' AND p_input ? 'username' AND p_input ? 'fullName') THEN
         v_result.status := 'validation_error';
         v_result.message := 'Email, username, and fullName are required';
         RETURN v_result;
     END IF;
-    
+
     -- Call core function
     v_user_data := core_create_user(
         p_email => p_input->>'email',
@@ -513,7 +513,7 @@ BEGIN
         p_full_name => p_input->>'fullName',
         p_password_hash => md5(COALESCE(p_input->>'password', 'default'))  -- Just for demo
     );
-    
+
     -- Handle result
     IF v_user_data->>'error' IS NOT NULL THEN
         v_result.status := 'error';
@@ -526,14 +526,14 @@ BEGIN
         v_result.object_data := v_user_data;
         v_result.updated_fields := ARRAY['email', 'username', 'full_name'];
     END IF;
-    
+
     -- Calculate execution time
     v_execution_time_ms := EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_time)::INTEGER;
-    
+
     -- Add metadata
-    v_result.extra_metadata := COALESCE(v_result.extra_metadata, '{}'::jsonb) || 
+    v_result.extra_metadata := COALESCE(v_result.extra_metadata, '{}'::jsonb) ||
         jsonb_build_object('execution_time_ms', v_execution_time_ms);
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -547,20 +547,20 @@ DECLARE
     v_start_time TIMESTAMP;
 BEGIN
     v_start_time := clock_timestamp();
-    
+
     -- Validation
     IF NOT (p_input ? 'userId' AND p_input ? 'items') THEN
         v_result.status := 'validation_error';
         v_result.message := 'User ID and items are required';
         RETURN v_result;
     END IF;
-    
+
     -- Call core function
     v_order_data := core_create_order(
         p_user_id => (p_input->>'userId')::UUID,
         p_items => p_input->'items'
     );
-    
+
     -- Handle result
     IF v_order_data->>'error' IS NOT NULL THEN
         v_result.status := 'error';
@@ -572,7 +572,7 @@ BEGIN
         v_result.message := 'Order created successfully';
         v_result.object_data := v_order_data;
     END IF;
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -590,7 +590,7 @@ BEGIN
         v_result.message := 'User ID, product ID, and rating are required';
         RETURN v_result;
     END IF;
-    
+
     -- Call core function
     v_review_data := core_add_product_review(
         p_user_id => (p_input->>'userId')::UUID,
@@ -599,7 +599,7 @@ BEGIN
         p_title => p_input->>'title',
         p_comment => p_input->>'comment'
     );
-    
+
     -- Handle result
     IF v_review_data->>'error' IS NOT NULL THEN
         v_result.status := 'error';
@@ -611,7 +611,7 @@ BEGIN
         v_result.message := 'Review added successfully';
         v_result.object_data := v_review_data;
     END IF;
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -634,22 +634,22 @@ BEGIN
     LOOP
         PERFORM sync_refresh_user_projection(v_user_id);
     END LOOP;
-    
+
     -- Populate product projections
     FOR v_product_id IN SELECT id FROM tb_products
     LOOP
         PERFORM sync_refresh_product_projection(v_product_id);
     END LOOP;
-    
+
     -- Populate order projections
     FOR v_order_id IN SELECT id FROM tb_orders
     LOOP
         PERFORM sync_refresh_order_projection(v_order_id);
     END LOOP;
-    
+
     -- Populate category projections
     INSERT INTO tv_categories (id, data)
-    SELECT 
+    SELECT
         c.id,
         jsonb_build_object(
             'id', c.id,
@@ -662,11 +662,11 @@ BEGIN
     ON CONFLICT (id) DO UPDATE
     SET data = EXCLUDED.data,
         updated_at = NOW();
-    
+
     -- Populate aggregate views
     PERFORM sync_refresh_popular_products();
     PERFORM sync_refresh_user_stats();
-    
+
     -- Populate products by category
     INSERT INTO tv_products_by_category (data)
     SELECT jsonb_build_object(
@@ -687,7 +687,7 @@ BEGIN
     JOIN tb_products p ON p.id = pc.product_id
     WHERE p.is_active = true
     GROUP BY c.id, c.name;
-    
+
     RAISE NOTICE 'All projections populated successfully';
 END;
 $$ LANGUAGE plpgsql;

@@ -2,34 +2,35 @@
 """
 Test complex queries against the existing FraiseQL instance with the complex schema.
 """
+
 import asyncio
-import asyncpg
-import json
 import time
-from datetime import datetime
+
+import asyncpg
 
 DATABASE_URL = "postgresql://benchmark:benchmark@localhost:5432/benchmark_db"
+
 
 async def test_complex_queries():
     print("🏆 Testing FraiseQL Complex Domain Queries")
     print("=" * 80)
-    
+
     try:
         conn = await asyncpg.connect(DATABASE_URL)
         print("✅ Connected to PostgreSQL with complex schema")
     except Exception as e:
         print(f"❌ Failed to connect to database: {e}")
         return
-    
+
     # Test 1: Organization Hierarchy Query
     print("\n1️⃣ ORGANIZATION HIERARCHY QUERY (4 levels deep)")
     print("-" * 60)
-    
+
     start_time = time.time()
     try:
         query = """
         WITH RECURSIVE org_tree AS (
-            SELECT 
+            SELECT
                 o.id as org_id,
                 o.name as org_name,
                 jsonb_build_object(
@@ -42,7 +43,7 @@ async def test_complex_queries():
             FROM benchmark.organizations o
             LIMIT 3
         )
-        SELECT 
+        SELECT
             ot.org_id,
             jsonb_set(
                 ot.data,
@@ -99,33 +100,33 @@ async def test_complex_queries():
         ) teams ON true
         GROUP BY ot.org_id, ot.data
         """
-        
+
         results = await conn.fetch(query)
         query_time = (time.time() - start_time) * 1000
-        
+
         print(f"✅ Query completed in {query_time:.2f}ms")
         print(f"✅ Organizations processed: {len(results)}")
-        
+
         for result in results:
-            org_data = result['data']
+            org_data = result["data"]
             print(f"   📋 {org_data['name']} ({org_data['industry']})")
-            for dept in org_data.get('departments', []):
+            for dept in org_data.get("departments", []):
                 print(f"      └── {dept['name']} (${dept['budget']:,})")
-                for team in dept.get('teams', []):
-                    emp_count = team['employeeCount']
+                for team in dept.get("teams", []):
+                    emp_count = team["employeeCount"]
                     print(f"          └── {team['name']} ({emp_count} employees)")
-        
+
     except Exception as e:
         print(f"❌ Organization hierarchy query failed: {e}")
-    
+
     # Test 2: Project Full Details Query
     print("\n\n2️⃣ PROJECT FULL DETAILS QUERY (5+ levels deep)")
     print("-" * 60)
-    
+
     start_time = time.time()
     try:
         query = """
-        SELECT 
+        SELECT
             p.id,
             jsonb_build_object(
                 'id', p.id::text,
@@ -165,7 +166,7 @@ async def test_complex_queries():
                 'fullName', e.full_name,
                 'email', e.email,
                 'role', e.role,
-                'team', CASE 
+                'team', CASE
                     WHEN t.id IS NOT NULL THEN jsonb_build_object(
                         'id', t.id::text,
                         'name', t.name
@@ -200,7 +201,7 @@ async def test_complex_queries():
                     'title', t.title,
                     'status', t.status,
                     'priority', t.priority,
-                    'assignedTo', CASE 
+                    'assignedTo', CASE
                         WHEN e.id IS NOT NULL THEN jsonb_build_object(
                             'id', e.id::text,
                             'fullName', e.full_name
@@ -222,9 +223,9 @@ async def test_complex_queries():
                 'totalHours', COALESCE(SUM(te.hours), 0),
                 'billableHours', COALESCE(SUM(te.hours) FILTER (WHERE te.billable), 0),
                 'uniqueContributors', COUNT(DISTINCT te.employee_id),
-                'averageHoursPerTask', 
-                    CASE 
-                        WHEN COUNT(DISTINCT te.task_id) > 0 
+                'averageHoursPerTask',
+                    CASE
+                        WHEN COUNT(DISTINCT te.task_id) > 0
                         THEN ROUND(SUM(te.hours) / COUNT(DISTINCT te.task_id), 2)
                         ELSE 0
                     END
@@ -237,49 +238,51 @@ async def test_complex_queries():
         ORDER BY p.priority DESC, p.created_at DESC
         LIMIT 3
         """
-        
+
         results = await conn.fetch(query)
         query_time = (time.time() - start_time) * 1000
-        
+
         print(f"✅ Query completed in {query_time:.2f}ms")
         print(f"✅ Projects processed: {len(results)}")
-        
+
         for result in results:
-            project_data = result['data']
+            project_data = result["data"]
             print(f"   🚀 {project_data['name']} (Priority {project_data['priority']})")
             print(f"      Status: {project_data['status']}")
             print(f"      Budget: ${project_data['budget']:,}")
-            if project_data.get('department'):
-                dept = project_data['department']
-                org = dept.get('organization', {})
+            if project_data.get("department"):
+                dept = project_data["department"]
+                org = dept.get("organization", {})
                 print(f"      Department: {dept['name']} @ {org.get('name', 'Unknown')}")
-            if project_data.get('leadEmployee'):
-                lead = project_data['leadEmployee']
+            if project_data.get("leadEmployee"):
+                lead = project_data["leadEmployee"]
                 print(f"      Lead: {lead['fullName']} ({lead['role']})")
-            
-            team_members = project_data.get('teamMembers', [])
+
+            team_members = project_data.get("teamMembers", [])
             if team_members:
                 print(f"      Team: {len(team_members)} members")
-            
-            tasks = project_data.get('recentTasks', [])
+
+            tasks = project_data.get("recentTasks", [])
             if tasks:
                 print(f"      Recent Tasks: {len(tasks)}")
-            
-            analytics = project_data.get('timeAnalytics', {})
-            if analytics.get('totalHours', 0) > 0:
-                print(f"      Time Logged: {analytics['totalHours']} hours ({analytics['uniqueContributors']} contributors)")
-    
+
+            analytics = project_data.get("timeAnalytics", {})
+            if analytics.get("totalHours", 0) > 0:
+                print(
+                    f"      Time Logged: {analytics['totalHours']} hours ({analytics['uniqueContributors']} contributors)"
+                )
+
     except Exception as e:
         print(f"❌ Project details query failed: {e}")
-    
+
     # Test 3: Aggregation Performance
     print("\n\n3️⃣ COMPLEX AGGREGATION QUERY")
     print("-" * 60)
-    
+
     start_time = time.time()
     try:
         query = """
-        SELECT 
+        SELECT
             jsonb_build_object(
                 'organizationStats', org_stats.data,
                 'departmentStats', dept_stats.data,
@@ -374,35 +377,35 @@ async def test_complex_queries():
             ) role_dist
         ) emp_stats
         """
-        
+
         result = await conn.fetchrow(query)
         query_time = (time.time() - start_time) * 1000
-        
+
         print(f"✅ Complex aggregation completed in {query_time:.2f}ms")
-        
+
         if result:
-            summary = result['summary']
+            summary = result["summary"]
             print("\n📊 Enterprise Summary:")
-            
-            org_stats = summary.get('organizationStats', {})
+
+            org_stats = summary.get("organizationStats", {})
             print(f"   Organizations: {org_stats.get('totalOrganizations', 0)}")
             print(f"   Avg Employees/Org: {org_stats.get('avgEmployeesPerOrg', 0)}")
             print(f"   Total Budget: ${org_stats.get('totalBudget', 0):,}")
-            
-            proj_stats = summary.get('projectStats', {})
+
+            proj_stats = summary.get("projectStats", {})
             print(f"   Projects: {proj_stats.get('totalProjects', 0)}")
             print(f"   Avg Tasks/Project: {proj_stats.get('avgTasksPerProject', 0)}")
-            
-            emp_stats = summary.get('employeeStats', {})
+
+            emp_stats = summary.get("employeeStats", {})
             print(f"   Employees: {emp_stats.get('totalEmployees', 0)}")
             print(f"   Avg Level: {emp_stats.get('avgLevel', 0)}")
             print(f"   Avg Skills/Employee: {emp_stats.get('avgSkillsPerEmployee', 0)}")
-    
+
     except Exception as e:
         print(f"❌ Aggregation query failed: {e}")
-    
+
     await conn.close()
-    
+
     print("\n" + "=" * 80)
     print("💡 Performance Summary:")
     print("✅ Single SQL queries handle deep nesting (4-5 levels)")
@@ -411,6 +414,7 @@ async def test_complex_queries():
     print("✅ Complex aggregations computed at database level")
     print("✅ Results are pre-formatted JSON matching GraphQL schema")
     print("=" * 80)
+
 
 if __name__ == "__main__":
     asyncio.run(test_complex_queries())

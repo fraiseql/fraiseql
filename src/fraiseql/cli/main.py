@@ -4,7 +4,7 @@ import sys
 
 import click
 
-from .commands import check, dev, generate, init, testfoundry
+from .commands import check, dev, generate, init
 
 
 @click.group()
@@ -23,7 +23,6 @@ cli.add_command(init.init)
 cli.add_command(dev.dev)
 cli.add_command(generate.generate)
 cli.add_command(check.check)
-cli.add_command(testfoundry.testfoundry)
 
 
 def main():

@@ -43,12 +43,12 @@ class UserOrderLoader(DataLoader):
         async with get_session() as session:
             stmt = select(Order).where(Order.user_id.in_(user_ids))
             orders = await session.execute(stmt)
-            
+
             # Group orders by user_id
             orders_by_user = defaultdict(list)
             for order in orders.scalars():
                 orders_by_user[order.user_id].append(order)
-                
+
             return [orders_by_user.get(user_id, []) for user_id in user_ids]
 ```
 
@@ -67,7 +67,7 @@ async def users(self, limit: int = 10) -> list[User]:
             # Add timeout
             stmt = select(UserModel).limit(limit)
             result = await asyncio.wait_for(
-                session.execute(stmt), 
+                session.execute(stmt),
                 timeout=5.0
             )
             return [User.from_orm(u) for u in result.scalars()]

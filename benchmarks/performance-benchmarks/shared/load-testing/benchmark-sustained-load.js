@@ -71,7 +71,7 @@ const queryTemplates = [
       maxPrice: Math.floor(Math.random() * 900) + 100
     })
   },
-  
+
   // Complex queries (40% of load)
   {
     name: 'userWithOrders',
@@ -142,26 +142,26 @@ export default function () {
   // Select a random query based on weights
   const queryTemplate = selectRandomQuery();
   const variables = queryTemplate.variables();
-  
+
   const payload = {
     query: queryTemplate.query,
   };
-  
+
   if (Object.keys(variables).length > 0) {
     payload.variables = variables;
   }
-  
+
   const start = Date.now();
   const res = http.post(
     STRAWBERRY_URL,
     JSON.stringify(payload),
-    { 
+    {
       headers: { 'Content-Type': 'application/json' },
       tags: { query: queryTemplate.name }
     }
   );
   const duration = Date.now() - start;
-  
+
   // Check response
   const success = check(res, {
     'status is 200': (r) => r.status === 200,
@@ -171,12 +171,12 @@ export default function () {
       return !body.errors;
     },
   });
-  
+
   // Record metrics
   queryDuration.add(duration, { query: queryTemplate.name });
   successRate.add(success);
   errorRate.add(!success);
-  
+
   // Variable think time based on query complexity
   const thinkTime = queryTemplate.weight < 0.3 ? 0.5 : 1;
   sleep(thinkTime + Math.random() * 0.5);
@@ -184,21 +184,21 @@ export default function () {
 
 export function handleSummary(data) {
   const timestamp = new Date().toISOString();
-  
+
   console.log('\\n=== SUSTAINED LOAD TEST RESULTS ===');
   console.log(`Test completed at: ${timestamp}`);
   console.log(`\\nTotal Requests: ${data.metrics.http_reqs.values.count}`);
   console.log(`Request Rate: ${data.metrics.http_reqs.values.rate.toFixed(2)} req/s`);
   console.log(`\\nSuccess Rate: ${((1 - data.metrics.errors.values.rate) * 100).toFixed(2)}%`);
   console.log(`Failed Requests: ${data.metrics.http_req_failed.values.passes}`);
-  
+
   console.log('\\nResponse Time Percentiles:');
   console.log(`  50th: ${data.metrics.http_req_duration.values.med.toFixed(2)}ms`);
   console.log(`  75th: ${data.metrics.http_req_duration.values['p(75)'].toFixed(2)}ms`);
   console.log(`  90th: ${data.metrics.http_req_duration.values['p(90)'].toFixed(2)}ms`);
   console.log(`  95th: ${data.metrics.http_req_duration.values['p(95)'].toFixed(2)}ms`);
   console.log(`  99th: ${data.metrics.http_req_duration.values['p(99)'].toFixed(2)}ms`);
-  
+
   return {
     '/results/sustained-load-results.json': JSON.stringify(data, null, 2),
     '/results/sustained-load-summary.txt': `

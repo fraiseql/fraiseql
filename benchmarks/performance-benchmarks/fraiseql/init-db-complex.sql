@@ -203,7 +203,7 @@ CREATE INDEX idx_tasks_tags ON tasks USING gin(tags);
 
 -- Create complex views for nested queries
 CREATE OR REPLACE VIEW v_organization_hierarchy AS
-SELECT 
+SELECT
     o.id as organization_id,
     o.name as organization_name,
     d.id as department_id,
@@ -220,7 +220,7 @@ LEFT JOIN employees e ON e.team_id = t.id;
 
 -- Create projection tables for ultra-complex queries
 CREATE TABLE tv_organization_full AS
-SELECT 
+SELECT
     o.id,
     jsonb_build_object(
         'id', o.id::text,
@@ -234,21 +234,21 @@ SELECT
         'updatedAt', o.updated_at,
         'departmentCount', (SELECT COUNT(*) FROM departments WHERE organization_id = o.id),
         'employeeCount', (
-            SELECT COUNT(*) 
-            FROM employees e 
-            JOIN teams t ON e.team_id = t.id 
-            JOIN departments d ON t.department_id = d.id 
+            SELECT COUNT(*)
+            FROM employees e
+            JOIN teams t ON e.team_id = t.id
+            JOIN departments d ON t.department_id = d.id
             WHERE d.organization_id = o.id
         ),
         'activeProjectCount', (
-            SELECT COUNT(*) 
-            FROM projects p 
-            JOIN departments d ON p.department_id = d.id 
+            SELECT COUNT(*)
+            FROM projects p
+            JOIN departments d ON p.department_id = d.id
             WHERE d.organization_id = o.id AND p.status != 'completed'
         ),
         'totalBudget', (
-            SELECT COALESCE(SUM(budget), 0) 
-            FROM departments 
+            SELECT COALESCE(SUM(budget), 0)
+            FROM departments
             WHERE organization_id = o.id
         )
     ) as data
@@ -258,7 +258,7 @@ CREATE INDEX idx_tv_organization_full_id ON tv_organization_full(id);
 
 -- Create deeply nested projection for projects
 CREATE TABLE tv_project_deep AS
-SELECT 
+SELECT
     p.id,
     jsonb_build_object(
         'id', p.id::text,
@@ -280,7 +280,7 @@ SELECT
                 'industry', o.industry
             )
         ),
-        'leadEmployee', CASE 
+        'leadEmployee', CASE
             WHEN le.id IS NOT NULL THEN jsonb_build_object(
                 'id', le.id::text,
                 'fullName', le.full_name,
@@ -346,12 +346,12 @@ BEGIN
                 jsonb_build_object('name', 'PostgreSQL', 'level', 'Advanced', 'yearsExperience', 3 + (random() * 7)::int),
                 jsonb_build_object('name', 'GraphQL', 'level', 'Intermediate', 'yearsExperience', 1 + (random() * 4)::int)
             );
-            
+
             certs_array := jsonb_build_array(
                 jsonb_build_object('name', 'AWS Certified', 'issueDate', '2023-01-15', 'expiryDate', '2026-01-15'),
                 jsonb_build_object('name', 'PostgreSQL Professional', 'issueDate', '2022-06-20', 'expiryDate', '2025-06-20')
             );
-            
+
             INSERT INTO employees (
                 email, username, full_name, team_id, role, level, salary, hire_date, skills, certifications
             ) VALUES (
@@ -393,16 +393,16 @@ BEGIN
             WHERE t.department_id = dept_record.id
             ORDER BY random()
             LIMIT 1;
-            
+
             milestones_array := jsonb_build_array(
                 jsonb_build_object('name', 'Planning', 'status', 'completed', 'dueDate', '2024-01-15'),
                 jsonb_build_object('name', 'Development', 'status', 'in_progress', 'dueDate', '2024-06-15'),
                 jsonb_build_object('name', 'Testing', 'status', 'pending', 'dueDate', '2024-08-15'),
                 jsonb_build_object('name', 'Deployment', 'status', 'pending', 'dueDate', '2024-09-15')
             );
-            
+
             INSERT INTO projects (
-                name, description, department_id, lead_employee_id, 
+                name, description, department_id, lead_employee_id,
                 status, priority, budget, start_date, end_date, milestones
             ) VALUES (
                 'Project ' || substr(md5(random()::text), 1, 8),
@@ -428,7 +428,7 @@ END $$;
 
 -- Generate project members
 INSERT INTO project_members (project_id, employee_id, role, allocation_percentage, start_date)
-SELECT 
+SELECT
     p.id,
     e.id,
     CASE (random() * 3)::int
@@ -465,9 +465,9 @@ BEGIN
             WHERE project_id = project_record.id
             ORDER BY random()
             LIMIT 1;
-            
+
             tags_array := jsonb_build_array('backend', 'frontend', 'database', 'api', 'ui', 'performance', 'security', 'testing');
-            
+
             INSERT INTO tasks (
                 project_id, assigned_to_id, title, description,
                 status, priority, estimated_hours, due_date, tags
@@ -513,7 +513,7 @@ BEGIN
             WHERE pm.project_id = task_record.project_id
             ORDER BY random()
             LIMIT 1;
-            
+
             INSERT INTO task_comments (
                 task_id, author_id, content, mentions
             ) VALUES (
@@ -522,7 +522,7 @@ BEGIN
                 'Comment about the task: ' || substr(md5(random()::text), 1, 100),
                 jsonb_build_array()
             ) RETURNING id INTO comment_id;
-            
+
             -- Generate nested replies
             FOR j IN 1..(random() * 2)::int LOOP
                 SELECT pm.employee_id INTO author_record
@@ -530,7 +530,7 @@ BEGIN
                 WHERE pm.project_id = task_record.project_id
                 ORDER BY random()
                 LIMIT 1;
-                
+
                 INSERT INTO task_comments (
                     task_id, author_id, parent_comment_id, content
                 ) VALUES (
@@ -546,7 +546,7 @@ END $$;
 
 -- Generate time entries
 INSERT INTO time_entries (task_id, employee_id, hours, date, description, billable)
-SELECT 
+SELECT
     t.id,
     t.assigned_to_id,
     1 + (random() * 7)::numeric(6,2),
@@ -577,12 +577,12 @@ BEGIN
         p_name, p_description, p_department_id, p_lead_employee_id,
         p_budget, p_start_date, p_end_date, 'planning', 3
     ) RETURNING id INTO v_project_id;
-    
+
     -- Log the action
     INSERT INTO audit_log (entity_type, entity_id, action, actor_id, changes)
-    VALUES ('project', v_project_id, 'create', p_lead_employee_id, 
+    VALUES ('project', v_project_id, 'create', p_lead_employee_id,
             jsonb_build_object('name', p_name, 'budget', p_budget));
-    
+
     RETURN v_project_id;
 END;
 $$ LANGUAGE plpgsql;
@@ -601,12 +601,12 @@ BEGIN
     ) VALUES (
         p_project_id, p_employee_id, p_role, p_allocation, CURRENT_DATE
     ) RETURNING id INTO v_member_id;
-    
+
     -- Log the action
     INSERT INTO audit_log (entity_type, entity_id, action, actor_id, changes)
     VALUES ('project_member', v_member_id, 'assign', p_employee_id,
             jsonb_build_object('project_id', p_project_id, 'role', p_role));
-    
+
     RETURN v_member_id;
 END;
 $$ LANGUAGE plpgsql;
@@ -620,17 +620,17 @@ DECLARE
     v_old_status VARCHAR;
 BEGIN
     SELECT status INTO v_old_status FROM tasks WHERE id = p_task_id;
-    
-    UPDATE tasks 
-    SET status = p_new_status, 
+
+    UPDATE tasks
+    SET status = p_new_status,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = p_task_id;
-    
+
     -- Log the action
     INSERT INTO audit_log (entity_type, entity_id, action, actor_id, changes)
     VALUES ('task', p_task_id, 'status_update', p_actor_id,
             jsonb_build_object('old_status', v_old_status, 'new_status', p_new_status));
-    
+
     RETURN FOUND;
 END;
 $$ LANGUAGE plpgsql;
@@ -639,29 +639,29 @@ $$ LANGUAGE plpgsql;
 ANALYZE;
 
 -- Display summary
-SELECT 
+SELECT
     'Summary of Complex Test Data:' as info
 UNION ALL
-SELECT 
+SELECT
     'Organizations: ' || COUNT(*)::text FROM organizations
 UNION ALL
-SELECT 
+SELECT
     'Departments: ' || COUNT(*)::text FROM departments
 UNION ALL
-SELECT 
+SELECT
     'Teams: ' || COUNT(*)::text FROM teams
 UNION ALL
-SELECT 
+SELECT
     'Employees: ' || COUNT(*)::text FROM employees
 UNION ALL
-SELECT 
+SELECT
     'Projects: ' || COUNT(*)::text FROM projects
 UNION ALL
-SELECT 
+SELECT
     'Tasks: ' || COUNT(*)::text FROM tasks
 UNION ALL
-SELECT 
+SELECT
     'Task Comments: ' || COUNT(*)::text FROM task_comments
 UNION ALL
-SELECT 
+SELECT
     'Time Entries: ' || COUNT(*)::text FROM time_entries;

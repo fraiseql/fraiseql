@@ -29,7 +29,6 @@ class TestCLIMain:
         assert "dev" in result.output
         assert "generate" in result.output
         assert "check" in result.output
-        assert "testfoundry" in result.output
 
     def test_cli_no_command(self, cli_runner):
         """Test CLI without command shows help."""
@@ -65,12 +64,3 @@ class TestCLIMain:
         assert "schema" in result.output
         assert "migration" in result.output
         assert "crud" in result.output
-
-        # Test testfoundry group
-        result = cli_runner.invoke(cli, ["testfoundry", "--help"])
-        assert result.exit_code == 0
-        assert "Manage TestFoundry automated test generation" in result.output
-        assert "install" in result.output
-        assert "generate" in result.output
-        assert "analyze" in result.output
-        assert "uninstall" in result.output

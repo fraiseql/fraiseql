@@ -11,7 +11,7 @@ services:
       - ../shared/database/seed-data-small.sql:/docker-entrypoint-initdb.d/02-seed.sql
     ports:
       - "5432:5432"
-    
+
   hasura:
     image: hasura/graphql-engine:v2.35.0
     ports:

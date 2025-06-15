@@ -210,7 +210,7 @@ export default function () {
   // Test 1: Product with Reviews (Medium complexity)
   const productId = productIds[Math.floor(Math.random() * productIds.length)];
   const startTime = new Date();
-  
+
   let response = http.post(
     GRAPHQL_ENDPOINT,
     JSON.stringify({
@@ -239,7 +239,7 @@ export default function () {
   // Test 2: Order with Items (Medium complexity)
   const orderId = orderIds[Math.floor(Math.random() * orderIds.length)];
   const orderStartTime = new Date();
-  
+
   response = http.post(
     GRAPHQL_ENDPOINT,
     JSON.stringify({
@@ -267,12 +267,12 @@ export default function () {
 
   // Test 3: User Order History (High complexity)
   const userId = userIds[Math.floor(Math.random() * userIds.length)];
-  
+
   response = http.post(
     GRAPHQL_ENDPOINT,
     JSON.stringify({
       query: queries.userOrderHistory,
-      variables: { 
+      variables: {
         userId: userId,
         limit: 10
       },
@@ -296,7 +296,7 @@ export default function () {
   // Test 4: Deep Nested Order Query (Very high complexity)
   const status = orderStatuses[Math.floor(Math.random() * orderStatuses.length)];
   const deepStartTime = new Date();
-  
+
   response = http.post(
     GRAPHQL_ENDPOINT,
     JSON.stringify({

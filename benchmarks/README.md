@@ -162,11 +162,11 @@ Based on our benchmarks, realistic expectations for FraiseQL:
 ## Dr. Viktor Steinberg's Assessment
 
 > "The benchmarks are thorough and the numbers are believable. No 40x improvements here - just solid 2-3x gains over traditional approaches. The memory efficiency is genuinely impressive, and the N+1 elimination works as advertised.
-> 
+>
 > TurboRouter is just query caching with a fancy name, but the 12-17% improvement is real and worthwhile for hot paths.
-> 
+>
 > Would I invest? The performance is good enough for most use cases. It won't beat Hasura in raw throughput, but the Python-native approach and simpler deployment make it attractive for teams already in the Python ecosystem.
-> 
+>
 > Just stop with the marketing BS and let the real numbers speak."
 
 ## Reproducing Results

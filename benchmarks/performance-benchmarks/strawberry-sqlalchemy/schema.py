@@ -1,22 +1,33 @@
 """Strawberry GraphQL schema with SQLAlchemy models"""
+
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-import strawberry
 from aiodataloader import DataLoader
-from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
-
 from models import (
-    User as UserModel,
-    Product as ProductModel,
-    Order as OrderModel,
-    OrderItem as OrderItemModel,
-    Review as ReviewModel,
     Category as CategoryModel,
 )
+from models import (
+    Order as OrderModel,
+)
+from models import (
+    OrderItem as OrderItemModel,
+)
+from models import (
+    Product as ProductModel,
+)
+from models import (
+    Review as ReviewModel,
+)
+from models import (
+    User as UserModel,
+)
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+
+import strawberry
 
 
 # Strawberry types
@@ -27,7 +38,7 @@ class Category:
     slug: str
     description: Optional[str]
     parent_id: Optional[UUID]
-    
+
     @classmethod
     def from_model(cls, model: CategoryModel) -> "Category":
         return cls(
@@ -35,7 +46,7 @@ class Category:
             name=model.name,
             slug=model.slug,
             description=model.description,
-            parent_id=model.parent_id
+            parent_id=model.parent_id,
         )
 
 
@@ -47,48 +58,44 @@ class User:
     full_name: str
     created_at: datetime
     is_active: bool
-    
+
     @strawberry.field
     async def order_count(self, info) -> int:
         """Get order count for user"""
         session = info.context["session"]
         result = await session.execute(
-            select(func.count(OrderModel.id))
-            .where(OrderModel.user_id == self.id)
+            select(func.count(OrderModel.id)).where(OrderModel.user_id == self.id)
         )
         return result.scalar() or 0
-    
+
     @strawberry.field
     async def total_spent(self, info) -> Decimal:
         """Get total amount spent by user"""
         session = info.context["session"]
         result = await session.execute(
-            select(func.sum(OrderModel.total_amount))
-            .where(OrderModel.user_id == self.id)
+            select(func.sum(OrderModel.total_amount)).where(OrderModel.user_id == self.id)
         )
-        return result.scalar() or Decimal('0.00')
-    
+        return result.scalar() or Decimal("0.00")
+
     @strawberry.field
     async def review_count(self, info) -> int:
         """Get review count for user"""
         session = info.context["session"]
         result = await session.execute(
-            select(func.count(ReviewModel.id))
-            .where(ReviewModel.user_id == self.id)
+            select(func.count(ReviewModel.id)).where(ReviewModel.user_id == self.id)
         )
         return result.scalar() or 0
-    
+
     @strawberry.field
     async def average_rating(self, info) -> Optional[float]:
         """Get average rating given by user"""
         session = info.context["session"]
         result = await session.execute(
-            select(func.avg(ReviewModel.rating))
-            .where(ReviewModel.user_id == self.id)
+            select(func.avg(ReviewModel.rating)).where(ReviewModel.user_id == self.id)
         )
         avg = result.scalar()
         return float(avg) if avg else None
-    
+
     @classmethod
     def from_model(cls, model: UserModel) -> "User":
         return cls(
@@ -97,7 +104,7 @@ class User:
             username=model.username,
             full_name=model.full_name,
             created_at=model.created_at,
-            is_active=model.is_active
+            is_active=model.is_active,
         )
 
 
@@ -106,14 +113,10 @@ class ProductReviewUser:
     id: UUID
     username: str
     full_name: str
-    
+
     @classmethod
     def from_model(cls, model: UserModel) -> "ProductReviewUser":
-        return cls(
-            id=model.id,
-            username=model.username,
-            full_name=model.full_name
-        )
+        return cls(id=model.id, username=model.username, full_name=model.full_name)
 
 
 @strawberry.type
@@ -124,7 +127,7 @@ class Review:
     comment: Optional[str]
     created_at: datetime
     user: ProductReviewUser
-    
+
     @classmethod
     def from_model(cls, model: ReviewModel, user: UserModel) -> "Review":
         return cls(
@@ -133,7 +136,7 @@ class Review:
             title=model.title,
             comment=model.comment,
             created_at=model.created_at,
-            user=ProductReviewUser.from_model(user)
+            user=ProductReviewUser.from_model(user),
         )
 
 
@@ -146,38 +149,36 @@ class Product:
     price: Decimal
     stock_quantity: int
     category_id: Optional[UUID]
-    
+
     @strawberry.field
     async def category(self, info) -> Optional[Category]:
         """Get product category"""
         if not self.category_id:
             return None
-        
+
         loader = info.context["category_loader"]
         category = await loader.load(self.category_id)
         return Category.from_model(category) if category else None
-    
+
     @strawberry.field
     async def average_rating(self, info) -> Optional[float]:
         """Get average product rating"""
         session = info.context["session"]
         result = await session.execute(
-            select(func.avg(ReviewModel.rating))
-            .where(ReviewModel.product_id == self.id)
+            select(func.avg(ReviewModel.rating)).where(ReviewModel.product_id == self.id)
         )
         avg = result.scalar()
         return float(avg) if avg else None
-    
+
     @strawberry.field
     async def review_count(self, info) -> int:
         """Get review count for product"""
         session = info.context["session"]
         result = await session.execute(
-            select(func.count(ReviewModel.id))
-            .where(ReviewModel.product_id == self.id)
+            select(func.count(ReviewModel.id)).where(ReviewModel.product_id == self.id)
         )
         return result.scalar() or 0
-    
+
     @strawberry.field
     async def reviews(self, info, limit: int = 10) -> List[Review]:
         """Get product reviews with limit"""
@@ -191,7 +192,7 @@ class Product:
         )
         reviews = result.scalars().all()
         return [Review.from_model(r, r.user) for r in reviews]
-    
+
     @classmethod
     def from_model(cls, model: ProductModel) -> "Product":
         return cls(
@@ -201,7 +202,7 @@ class Product:
             description=model.description,
             price=model.price,
             stock_quantity=model.stock_quantity,
-            category_id=model.category_id
+            category_id=model.category_id,
         )
 
 
@@ -211,15 +212,10 @@ class OrderProduct:
     sku: str
     name: str
     price: Decimal
-    
+
     @classmethod
     def from_model(cls, model: ProductModel) -> "OrderProduct":
-        return cls(
-            id=model.id,
-            sku=model.sku,
-            name=model.name,
-            price=model.price
-        )
+        return cls(id=model.id, sku=model.sku, name=model.name, price=model.price)
 
 
 @strawberry.type
@@ -229,7 +225,7 @@ class OrderItem:
     unit_price: Decimal
     total_price: Decimal
     product: OrderProduct
-    
+
     @classmethod
     def from_model(cls, model: OrderItemModel, product: ProductModel) -> "OrderItem":
         return cls(
@@ -237,7 +233,7 @@ class OrderItem:
             quantity=model.quantity,
             unit_price=model.unit_price,
             total_price=model.total_price,
-            product=OrderProduct.from_model(product)
+            product=OrderProduct.from_model(product),
         )
 
 
@@ -247,14 +243,11 @@ class OrderUser:
     email: str
     username: str
     full_name: str
-    
+
     @classmethod
     def from_model(cls, model: UserModel) -> "OrderUser":
         return cls(
-            id=model.id,
-            email=model.email,
-            username=model.username,
-            full_name=model.full_name
+            id=model.id, email=model.email, username=model.username, full_name=model.full_name
         )
 
 
@@ -266,14 +259,14 @@ class Order:
     status: str
     total_amount: Decimal
     created_at: datetime
-    
+
     @strawberry.field
     async def user(self, info) -> OrderUser:
         """Get order user using DataLoader"""
         loader = info.context["user_loader"]
         user = await loader.load(self.user_id)
         return OrderUser.from_model(user)
-    
+
     @strawberry.field
     async def items(self, info) -> List[OrderItem]:
         """Get order items"""
@@ -286,17 +279,16 @@ class Order:
         )
         items = result.scalars().all()
         return [OrderItem.from_model(item, item.product) for item in items]
-    
+
     @strawberry.field
     async def item_count(self, info) -> int:
         """Get item count for order"""
         session = info.context["session"]
         result = await session.execute(
-            select(func.count(OrderItemModel.id))
-            .where(OrderItemModel.order_id == self.id)
+            select(func.count(OrderItemModel.id)).where(OrderItemModel.order_id == self.id)
         )
         return result.scalar() or 0
-    
+
     @classmethod
     def from_model(cls, model: OrderModel) -> "Order":
         return cls(
@@ -305,7 +297,7 @@ class Order:
             user_id=model.user_id,
             status=model.status,
             total_amount=model.total_amount,
-            created_at=model.created_at
+            created_at=model.created_at,
         )
 
 
@@ -342,12 +334,10 @@ class OrderByInput:
 # DataLoader factories
 def create_user_loader(session):
     async def batch_load_users(user_ids: List[UUID]) -> List[Optional[UserModel]]:
-        result = await session.execute(
-            select(UserModel).where(UserModel.id.in_(user_ids))
-        )
+        result = await session.execute(select(UserModel).where(UserModel.id.in_(user_ids)))
         users_by_id = {user.id: user for user in result.scalars()}
         return [users_by_id.get(uid) for uid in user_ids]
-    
+
     return DataLoader(batch_load_users)
 
 
@@ -358,16 +348,14 @@ def create_category_loader(session):
         )
         categories_by_id = {cat.id: cat for cat in result.scalars()}
         return [categories_by_id.get(cid) for cid in category_ids]
-    
+
     return DataLoader(batch_load_categories)
 
 
 def create_product_loader(session):
     async def batch_load_products(product_ids: List[UUID]) -> List[Optional[ProductModel]]:
-        result = await session.execute(
-            select(ProductModel).where(ProductModel.id.in_(product_ids))
-        )
+        result = await session.execute(select(ProductModel).where(ProductModel.id.in_(product_ids)))
         products_by_id = {prod.id: prod for prod in result.scalars()}
         return [products_by_id.get(pid) for pid in product_ids]
-    
+
     return DataLoader(batch_load_products)

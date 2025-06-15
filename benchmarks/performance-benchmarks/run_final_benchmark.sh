@@ -34,12 +34,12 @@ if [ -f benchmark_profile.json ]; then
     USERS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['users'])")
     PRODUCTS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['products'])")
     ORDERS=$(python3 -c "import json; print(json.load(open('benchmark_profile.json'))['data_scale']['orders'])")
-    
+
     echo -e "${GREEN}📊 Profile: $PROFILE${NC}"
     echo -e "   👥 Users: ${BLUE}${USERS}${NC}"
     echo -e "   📦 Products: ${BLUE}${PRODUCTS}${NC}"
     echo -e "   🛒 Orders: ${BLUE}${ORDERS}${NC}"
-    
+
     export BENCHMARK_USERS=$USERS
     export BENCHMARK_PRODUCTS=$PRODUCTS
     export BENCHMARK_ORDERS=$ORDERS
@@ -121,7 +121,7 @@ sleep 60
 check_service() {
     local name=$1
     local port=$2
-    
+
     echo -n "  Checking $name... "
     if curl -s "http://localhost:$port/health" 2>/dev/null | grep -q "healthy"; then
         echo -e "${GREEN}✓ Ready${NC}"
