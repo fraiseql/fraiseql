@@ -81,9 +81,7 @@ class TestParseMutationResult:
         result_row = {
             "status": "failed:validation",
             "message": "Validation failed",
-            "errors": [
-                {"message": "Invalid email", "code": 422, "identifier": "invalid_email"}
-            ],
+            "errors": [{"message": "Invalid email", "code": 422, "identifier": "invalid_email"}],
         }
 
         custom_status_map = {"failed:validation": ("error", 422)}

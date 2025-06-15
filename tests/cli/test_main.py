@@ -20,10 +20,7 @@ class TestCLIMain:
         result = cli_runner.invoke(cli, ["--help"])
 
         assert result.exit_code == 0
-        assert (
-            "FraiseQL - Lightweight GraphQL-to-PostgreSQL query builder"
-            in result.output
-        )
+        assert "FraiseQL - Lightweight GraphQL-to-PostgreSQL query builder" in result.output
         assert "Commands:" in result.output
         assert "init" in result.output
         assert "dev" in result.output

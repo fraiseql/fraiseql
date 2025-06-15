@@ -50,9 +50,7 @@ class TestCLIIntegration:
         import os
 
         # Create blog project
-        result = cli_runner.invoke(
-            cli, ["init", "myblog", "--template", "blog", "--no-git"]
-        )
+        result = cli_runner.invoke(cli, ["init", "myblog", "--template", "blog", "--no-git"])
         assert result.exit_code == 0
 
         os.chdir("myblog")

@@ -144,10 +144,7 @@ class TestGenerateMigration:
             result = cli_runner.invoke(cli, ["generate", "migration", "User"])
 
             assert result.exit_code == 0
-            assert (
-                "Migration created: migrations/20250610120000_create_users.sql"
-                in result.output
-            )
+            assert "Migration created: migrations/20250610120000_create_users.sql" in result.output
 
             # Check file exists and content
             migration_file = Path("migrations/20250610120000_create_users.sql")
@@ -200,10 +197,7 @@ class TestGenerateCrud:
         result = cli_runner.invoke(cli, ["generate", "crud", "Product"])
 
         assert result.exit_code == 0
-        assert (
-            "CRUD mutations created: src/mutations/product_mutations.py"
-            in result.output
-        )
+        assert "CRUD mutations created: src/mutations/product_mutations.py" in result.output
 
         # Check file exists
         mutations_file = Path("src/mutations/product_mutations.py")

@@ -201,9 +201,7 @@ class TestAutoCamelCaseIntegration:
             product_name: str = fraiseql.fraise_field(description="Product name")
             unit_price: float = fraiseql.fraise_field(description="Unit price")
             quantity_ordered: int = fraiseql.fraise_field(description="Quantity")
-            special_instructions: str = fraiseql.fraise_field(
-                description="Instructions"
-            )
+            special_instructions: str = fraiseql.fraise_field(description="Instructions")
 
         @fraiseql.type
         class CustomerInfo:
@@ -222,9 +220,7 @@ class TestAutoCamelCaseIntegration:
             order_status: OrderStatus = fraiseql.fraise_field(description="Status")
             total_amount: float = fraiseql.fraise_field(description="Total")
             created_at: str = fraiseql.fraise_field(description="Created")
-            estimated_pickup_time: str = fraiseql.fraise_field(
-                description="Pickup time"
-            )
+            estimated_pickup_time: str = fraiseql.fraise_field(description="Pickup time")
 
         query = """
         query {
@@ -272,16 +268,11 @@ class TestAutoCamelCaseIntegration:
         assert "'fullName', data->'customer_info'->>'full_name'" in sql_str
         assert "'emailAddress', data->'customer_info'->>'email_address'" in sql_str
         assert "'phoneNumber', data->'customer_info'->>'phone_number'" in sql_str
-        assert (
-            "'deliveryAddress', data->'customer_info'->>'delivery_address'" in sql_str
-        )
+        assert "'deliveryAddress', data->'customer_info'->>'delivery_address'" in sql_str
 
         # Nested order items fields
         assert "'itemId', data->'order_items'->>'item_id'" in sql_str
         assert "'productName', data->'order_items'->>'product_name'" in sql_str
         assert "'unitPrice', data->'order_items'->>'unit_price'" in sql_str
         assert "'quantityOrdered', data->'order_items'->>'quantity_ordered'" in sql_str
-        assert (
-            "'specialInstructions', data->'order_items'->>'special_instructions'"
-            in sql_str
-        )
+        assert "'specialInstructions', data->'order_items'->>'special_instructions'" in sql_str

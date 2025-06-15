@@ -109,9 +109,7 @@ class TestFraiseEnum:
         async def update_task(info, input: UpdateTaskInput) -> Task:
             return Task(id=input.id, title="Test Task", status=input.status)
 
-        schema = build_fraiseql_schema(
-            query_types=[QueryRoot], mutation_resolvers=[update_task]
-        )
+        schema = build_fraiseql_schema(query_types=[QueryRoot], mutation_resolvers=[update_task])
 
         # Check that the input type has the enum field
         input_type = schema.type_map.get("UpdateTaskInput")
@@ -194,9 +192,7 @@ class TestFraiseEnum:
         async def update_order(info, input: UpdateOrderInput) -> Order:
             return Order(id=input.order_id, status=input.status)
 
-        schema = build_fraiseql_schema(
-            query_types=[QueryRoot], mutation_resolvers=[update_order]
-        )
+        schema = build_fraiseql_schema(query_types=[QueryRoot], mutation_resolvers=[update_order])
 
         mutation = """
         mutation UpdateOrder($input: UpdateOrderInput!) {
@@ -282,9 +278,7 @@ class TestFraiseEnum:
             @staticmethod
             async def resolve_roles(_root, _info) -> list[Role]:
                 return [
-                    Role(
-                        name="Editor", permissions=[Permission.READ, Permission.WRITE]
-                    ),
+                    Role(name="Editor", permissions=[Permission.READ, Permission.WRITE]),
                     Role(
                         name="Admin",
                         permissions=[

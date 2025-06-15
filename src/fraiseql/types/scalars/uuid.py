@@ -42,9 +42,7 @@ def parse_uuid_value(value: Any) -> uuid.UUID:
     raise GraphQLError(msg)
 
 
-def parse_uuid_literal(
-    ast: ValueNode, variables: dict[str, object] | None = None
-) -> uuid.UUID:
+def parse_uuid_literal(ast: ValueNode, variables: dict[str, object] | None = None) -> uuid.UUID:
     """Parse a UUID literal from the GraphQL AST."""
     _ = variables
     if isinstance(ast, StringValueNode):

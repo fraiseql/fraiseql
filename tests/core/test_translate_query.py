@@ -252,10 +252,7 @@ class TestTranslateQuery:
         sql_str = result.as_string(None)
 
         # Check nested GROUP BY
-        assert (
-            "GROUP BY data->'location'->>'country', data->'location'->>'city'"
-            in sql_str
-        )
+        assert "GROUP BY data->'location'->>'country', data->'location'->>'city'" in sql_str
 
     def test_translate_query_with_all_features(self):
         """Test combining WHERE, ORDER BY, and GROUP BY with nested fields."""

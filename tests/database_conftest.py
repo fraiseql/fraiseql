@@ -37,10 +37,7 @@ def postgres_container():
     tests complete.
     """
     # Use existing container if available (for test reruns)
-    if (
-        "postgres" in _container_cache
-        and _container_cache["postgres"].get_container_host_ip()
-    ):
+    if "postgres" in _container_cache and _container_cache["postgres"].get_container_host_ip():
         yield _container_cache["postgres"]
         return
 
@@ -152,9 +149,7 @@ def create_test_table():
     """Factory fixture to create test tables."""
     created_tables = []
 
-    async def _create_table(
-        conn: psycopg.AsyncConnection, table_name: str, schema: str
-    ):
+    async def _create_table(conn: psycopg.AsyncConnection, table_name: str, schema: str):
         """Create a test table with the given schema."""
         await conn.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
         await conn.execute(schema)
@@ -213,9 +208,7 @@ async def db_connection_committed(
 # Marker for database tests
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line(
-        "markers", "database: mark test as requiring database access"
-    )
+    config.addinivalue_line("markers", "database: mark test as requiring database access")
 
 
 # Skip database tests if --no-db flag is provided

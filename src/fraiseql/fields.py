@@ -87,9 +87,7 @@ def fraise_field(
     inferred_type: type | None = None,  # Added this for automatic annotation inference
 ) -> FraiseQLField:
     """Create a new FraiseQLField with metadata for schema building and codegen."""
-    logger.debug(
-        "Creating FraiseQLField for type: %s with purpose: %s", field_type, purpose
-    )
+    logger.debug("Creating FraiseQLField for type: %s with purpose: %s", field_type, purpose)
     # Validate purpose
     if purpose not in {"input", "output", "both"}:
         msg = f"Invalid purpose for FraiseQLField: {purpose}"

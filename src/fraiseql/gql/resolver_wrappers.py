@@ -39,9 +39,7 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
     gql_output_type = convert_type_to_graphql_output(sig.return_annotation)
     gql_output_type_cast = cast(GraphQLOutputType, gql_output_type)
 
-    async def resolver(
-        root: object, info: GraphQLResolveInfo, **kwargs: object
-    ) -> object:
+    async def resolver(root: object, info: GraphQLResolveInfo, **kwargs: object) -> object:
         _ = root
         coerced_kwargs: dict[str, object] = {}
 
@@ -53,8 +51,7 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
                 isinstance(value, dict)
                 and isclass(expected_type)
                 and (
-                    is_dataclass(expected_type)
-                    or hasattr(expected_type, "__fraiseql_definition__")
+                    is_dataclass(expected_type) or hasattr(expected_type, "__fraiseql_definition__")
                 )
             ):
                 coerced_kwargs[name] = expected_type(**value)

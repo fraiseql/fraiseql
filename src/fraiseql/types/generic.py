@@ -163,9 +163,7 @@ def get_or_create_concrete_type(generic_type: type, concrete_arg: type) -> type:
     """Get or create a concrete type, using cache for efficiency."""
     cache_key = (generic_type, concrete_arg)
     if cache_key not in _concrete_type_cache:
-        _concrete_type_cache[cache_key] = create_concrete_type(
-            generic_type, concrete_arg
-        )
+        _concrete_type_cache[cache_key] = create_concrete_type(generic_type, concrete_arg)
     return _concrete_type_cache[cache_key]
 
 
@@ -175,18 +173,10 @@ class PageInfo:
     """Pagination information following Relay cursor specification."""
 
     has_next_page: bool = fraise_field(description="Whether there is a next page")
-    has_previous_page: bool = fraise_field(
-        description="Whether there is a previous page"
-    )
-    start_cursor: str | None = fraise_field(
-        default=None, description="Cursor for the first item"
-    )
-    end_cursor: str | None = fraise_field(
-        default=None, description="Cursor for the last item"
-    )
-    total_count: int | None = fraise_field(
-        default=None, description="Total number of items"
-    )
+    has_previous_page: bool = fraise_field(description="Whether there is a previous page")
+    start_cursor: str | None = fraise_field(default=None, description="Cursor for the first item")
+    end_cursor: str | None = fraise_field(default=None, description="Cursor for the last item")
+    total_count: int | None = fraise_field(default=None, description="Total number of items")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "PageInfo":
@@ -214,9 +204,7 @@ class Connection(Generic[T]):
 
     edges: list[Edge[T]] = fraise_field(description="List of edges in this connection")
     page_info: PageInfo = fraise_field(description="Information about pagination")
-    total_count: int | None = fraise_field(
-        default=None, description="Total number of items"
-    )
+    total_count: int | None = fraise_field(default=None, description="Total number of items")
 
 
 # Convenience alias for common usage (matches printoptim pattern)
