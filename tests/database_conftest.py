@@ -16,6 +16,7 @@ import pytest_asyncio
 
 try:
     from testcontainers.postgres import PostgresContainer
+
     HAS_DOCKER = True
 except ImportError:
     HAS_DOCKER = False
@@ -25,6 +26,7 @@ except ImportError:
 if HAS_DOCKER:
     try:
         import docker
+
         client = docker.from_env()
         client.ping()
     except Exception:
@@ -53,7 +55,7 @@ def postgres_container():
     """
     if not HAS_DOCKER:
         pytest.skip("Docker not available")
-    
+
     # Use existing container if available (for test reruns)
     if "postgres" in _container_cache and _container_cache["postgres"].get_container_host_ip():
         yield _container_cache["postgres"]
