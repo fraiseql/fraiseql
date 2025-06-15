@@ -13,7 +13,22 @@ import psycopg
 import psycopg_pool
 import pytest
 import pytest_asyncio
-from testcontainers.postgres import PostgresContainer
+
+try:
+    from testcontainers.postgres import PostgresContainer
+    HAS_DOCKER = True
+except ImportError:
+    HAS_DOCKER = False
+    PostgresContainer = None
+
+# Try to detect if Docker is actually available
+if HAS_DOCKER:
+    try:
+        import docker
+        client = docker.from_env()
+        client.ping()
+    except Exception:
+        HAS_DOCKER = False
 
 # Container cache for session-wide reuse
 _container_cache = {}
@@ -36,6 +51,9 @@ def postgres_container():
     running for the entire test session. It's automatically cleaned up after all
     tests complete.
     """
+    if not HAS_DOCKER:
+        pytest.skip("Docker not available")
+    
     # Use existing container if available (for test reruns)
     if "postgres" in _container_cache and _container_cache["postgres"].get_container_host_ip():
         yield _container_cache["postgres"]
