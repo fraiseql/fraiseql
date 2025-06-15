@@ -45,7 +45,9 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         uuid.UUID: GraphQLID,
         UUIDField: GraphQLID,
         datetime.date: GraphQLScalarType(name="Date", serialize=DateScalar.serialize),
-        datetime.datetime: GraphQLScalarType(name="DateTime", serialize=DateTimeScalar.serialize),
+        datetime.datetime: GraphQLScalarType(
+            name="DateTime", serialize=DateTimeScalar.serialize
+        ),
         datetime.time: GraphQLString,
         ipaddress.IPv4Address: GraphQLScalarType(
             name="IpAddress",

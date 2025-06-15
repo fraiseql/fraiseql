@@ -44,7 +44,9 @@ def is_optional_type(typ: type[Any]) -> bool:
     """
     origin = get_origin(typ)
     args = get_args(typ)
-    return origin in (Union, types.UnionType) and any(a is type(None) or a is None for a in args)
+    return origin in (Union, types.UnionType) and any(
+        a is type(None) or a is None for a in args
+    )
 
 
 def get_non_optional_type(typ: type[Any]) -> type[Any]:

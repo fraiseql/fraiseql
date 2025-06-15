@@ -82,7 +82,10 @@ def create_development_router(
                     {
                         "message": error.message,
                         "locations": (
-                            [{"line": loc.line, "column": loc.column} for loc in error.locations]
+                            [
+                                {"line": loc.line, "column": loc.column}
+                                for loc in error.locations
+                            ]
                             if error.locations
                             else None
                         ),

@@ -29,7 +29,9 @@ def define_fraiseql_type(
     typed_cls = cast(type[Any], cls)
 
     type_hints = get_type_hints(cls, include_extras=True)
-    field_map, patched_annotations = collect_fraise_fields(typed_cls, type_hints, kind=kind)
+    field_map, patched_annotations = collect_fraise_fields(
+        typed_cls, type_hints, kind=kind
+    )
 
     # For type and interface decorators, set all fields to "output" purpose if they are "both"
     if kind in ("type", "interface"):

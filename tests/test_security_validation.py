@@ -83,7 +83,9 @@ class TestFunctionNameValidation:
             if should_pass:
                 assert result, f"'{function_name}' should be valid but was rejected"
             else:
-                assert not result, f"'{function_name}' should be invalid but was accepted"
+                assert not result, (
+                    f"'{function_name}' should be invalid but was accepted"
+                )
 
     def test_validation_prevents_common_sql_injection_patterns(self):
         """Test that validation prevents common SQL injection attack patterns."""
@@ -125,9 +127,9 @@ class TestFunctionNameValidation:
         ]
 
         for pattern in injection_patterns:
-            assert not self.validate_function_name(
-                pattern
-            ), f"Injection pattern '{pattern}' should be blocked"
+            assert not self.validate_function_name(pattern), (
+                f"Injection pattern '{pattern}' should be blocked"
+            )
 
     def test_unicode_and_encoding_attacks(self):
         """Test that validation handles Unicode and encoding-based attacks."""
@@ -143,9 +145,9 @@ class TestFunctionNameValidation:
         ]
 
         for attack in unicode_attacks:
-            assert not self.validate_function_name(
-                attack
-            ), f"Unicode attack '{attack}' should be blocked"
+            assert not self.validate_function_name(attack), (
+                f"Unicode attack '{attack}' should be blocked"
+            )
 
 
 class TestSecurityBestPractices:
@@ -203,7 +205,9 @@ class TestSecurityBestPractices:
         ]
 
         for sig in valid_signatures:
-            assert validate_function_signature(sig), f"'{sig}' should be a valid signature"
+            assert validate_function_signature(sig), (
+                f"'{sig}' should be a valid signature"
+            )
 
         # Invalid signatures
         invalid_signatures = [
@@ -219,4 +223,6 @@ class TestSecurityBestPractices:
         ]
 
         for sig in invalid_signatures:
-            assert not validate_function_signature(sig), f"'{sig}' should be an invalid signature"
+            assert not validate_function_signature(sig), (
+                f"'{sig}' should be an invalid signature"
+            )

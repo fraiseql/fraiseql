@@ -177,7 +177,9 @@ class Auth0Provider(AuthProvider):
 
         return response.json()
 
-    async def get_user_roles(self, user_id: str, access_token: str) -> list[dict[str, Any]]:
+    async def get_user_roles(
+        self, user_id: str, access_token: str
+    ) -> list[dict[str, Any]]:
         """Fetch user roles from Auth0 Management API.
 
         Args:
@@ -199,7 +201,9 @@ class Auth0Provider(AuthProvider):
 
         return response.json()
 
-    async def get_user_permissions(self, user_id: str, access_token: str) -> list[dict[str, Any]]:
+    async def get_user_permissions(
+        self, user_id: str, access_token: str
+    ) -> list[dict[str, Any]]:
         """Fetch user permissions from Auth0 Management API.
 
         Args:
@@ -217,7 +221,9 @@ class Auth0Provider(AuthProvider):
         )
 
         if response.status_code != 200:
-            raise AuthenticationError(f"Failed to fetch user permissions: {response.text}")
+            raise AuthenticationError(
+                f"Failed to fetch user permissions: {response.text}"
+            )
 
         return response.json()
 
