@@ -55,9 +55,7 @@ def resolve_all_fields(
         elif sel.kind == "inline_fragment":
             inline_frag = cast(InlineFragmentNode, sel)
             type_condition = (
-                inline_frag.type_condition.name.value
-                if inline_frag.type_condition
-                else None
+                inline_frag.type_condition.name.value if inline_frag.type_condition else None
             )
             if typename is None or type_condition is None or type_condition == typename:
                 for frag_sel in inline_frag.selection_set.selections:

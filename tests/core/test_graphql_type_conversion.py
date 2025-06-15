@@ -164,16 +164,12 @@ class TestConvertTypeToGraphQLInput:
 
     def test_union_types_raise_error(self):
         """Test that Union types raise TypeError."""
-        with pytest.raises(
-            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
-        ):
+        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(Union[str, int])  # type: ignore
 
     def test_annotated_union_types_raise_error(self):
         """Test that Annotated Union types raise TypeError."""
-        with pytest.raises(
-            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
-        ):
+        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(Annotated[str | int, "some annotation"])  # type: ignore
 
     def test_invalid_type_raises_error(self):
@@ -182,9 +178,7 @@ class TestConvertTypeToGraphQLInput:
         class RegularClass:
             pass
 
-        with pytest.raises(
-            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
-        ):
+        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(RegularClass)
 
     def test_non_input_fraise_type_raises_error(self):
@@ -194,9 +188,7 @@ class TestConvertTypeToGraphQLInput:
         class OutputType:
             name: str
 
-        with pytest.raises(
-            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
-        ):
+        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(OutputType)
 
 
@@ -332,9 +324,7 @@ class TestConvertTypeToGraphQLOutput:
 
         fields = result.fields
         assert fields["required_name"].type == GraphQLString
-        assert (
-            fields["optional_age"].type == GraphQLInt
-        )  # Optional wrapper should be removed
+        assert fields["optional_age"].type == GraphQLInt  # Optional wrapper should be removed
 
     def test_success_failure_types(self):
         """Test conversion of success/failure types."""
@@ -487,9 +477,7 @@ class TestRecursiveJSONField:
         result = convert_type_to_graphql_input(RecursiveInput)
         assert isinstance(result, GraphQLInputObjectType)
         assert "field" in result.fields
-        assert isinstance(
-            result.fields["field"].type, GraphQLScalarType
-        )  # JSON scalar type
+        assert isinstance(result.fields["field"].type, GraphQLScalarType)  # JSON scalar type
 
 
 class TestMissingFieldsInComplexTypes:

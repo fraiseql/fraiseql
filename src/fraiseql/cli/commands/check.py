@@ -63,9 +63,7 @@ def check():
 
             # Get registered types
             types_count = len(registry._types) if hasattr(registry, "_types") else 0
-            inputs_count = (
-                len(registry._input_types) if hasattr(registry, "_input_types") else 0
-            )
+            inputs_count = len(registry._input_types) if hasattr(registry, "_input_types") else 0
 
             click.echo(f"  📊 Registered types: {types_count}")
             click.echo(f"  📊 Input types: {inputs_count}")
@@ -78,9 +76,7 @@ def check():
 
                 # Show some schema info
                 if hasattr(schema, "type_map"):
-                    custom_types = [
-                        name for name in schema.type_map if not name.startswith("__")
-                    ]
+                    custom_types = [name for name in schema.type_map if not name.startswith("__")]
                     click.echo(f"  📊 Schema contains {len(custom_types)} custom types")
 
             except Exception as e:

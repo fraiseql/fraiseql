@@ -17,9 +17,7 @@ def test_fraise_field_with_purpose() -> None:
         purpose="input",  # purpose should be one of 'input', 'output', or 'both'
     )
 
-    assert field.purpose == "input", (
-        f"Expected purpose to be 'input', but got {field.purpose}"
-    )
+    assert field.purpose == "input", f"Expected purpose to be 'input', but got {field.purpose}"
 
 
 def test_fraise_field_with_annotation() -> None:
@@ -28,17 +26,13 @@ def test_fraise_field_with_annotation() -> None:
         my_field: str = fraise_field(field_type=str)
 
     field = ExampleClass.my_field
-    assert field.field_type == str, (
-        f"Expected field_type to be 'str', but got {field.field_type}"
-    )
+    assert field.field_type == str, f"Expected field_type to be 'str', but got {field.field_type}"
 
 
 def test_fraise_field_with_default() -> None:
     field = fraise_field(field_type=int, default=42)
 
-    assert field.default == 42, (
-        f"Expected default value to be 42, but got {field.default}"
-    )
+    assert field.default == 42, f"Expected default value to be 42, but got {field.default}"
 
 
 def test_schema_introspection_v2(clear_registry) -> None:
@@ -63,9 +57,7 @@ def test_schema_introspection_v2(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
-        info, input: CreateUserInput
-    ) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
             return CreateUserError(message="Blocked domain", code=403)
         return CreateUserSuccess(user=GQLUser(id=str(uuid.uuid4()), email=input.email))
@@ -120,9 +112,7 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
-        info, input: CreateUserInput
-    ) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
             return CreateUserError(message="Blocked domain", code=403)
 
@@ -143,9 +133,9 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
     user_input = CreateUserInput(email="hello@fraise.dev")
     result = await create_user(info, user_input)
 
-    assert isinstance(result, CreateUserSuccess), (
-        f"Expected success but got: {type(result).__name__} with fields: {vars(result)}"
-    )
+    assert isinstance(
+        result, CreateUserSuccess
+    ), f"Expected success but got: {type(result).__name__} with fields: {vars(result)}"
     assert result.status == "ok"
     assert result.message == "User created"
     assert result.user.email == "hello@fraise.dev"
@@ -204,9 +194,7 @@ def test_schema_structure(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
-        info, input: CreateUserInput
-    ) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(
             user=GQLUser(id="abc", email=input.email),
             status="ok",
@@ -260,9 +248,7 @@ async def test_manual_mutation_execution_v3(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
-        info, input: CreateUserInput
-    ) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
             return CreateUserSuccess(
                 id_=uuid.uuid4(),
@@ -319,9 +305,7 @@ def test_mutation_through_graphql(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
-        info, input: CreateUserInput
-    ) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(
             id_=uuid.uuid4(),
             user=GQLUser(id=str(uuid.uuid4()), email=input.email),

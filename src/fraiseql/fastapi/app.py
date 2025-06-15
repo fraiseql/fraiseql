@@ -16,9 +16,7 @@ from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
-async def create_db_pool(
-    database_url: str, **pool_kwargs: Any
-) -> psycopg_pool.AsyncConnectionPool:
+async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.AsyncConnectionPool:
     """Create async database connection pool."""
     return psycopg_pool.AsyncConnectionPool(database_url, **pool_kwargs)
 

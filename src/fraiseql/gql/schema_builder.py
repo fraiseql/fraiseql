@@ -106,9 +106,7 @@ class SchemaRegistry:
             graphql_enum: The corresponding GraphQL enum type.
         """
         if enum_cls in self._enums:
-            logger.debug(
-                "Enum '%s' is already registered in the schema.", enum_cls.__name__
-            )
+            logger.debug("Enum '%s' is already registered in the schema.", enum_cls.__name__)
         else:
             logger.debug("Registering enum '%s' to the schema.", enum_cls.__name__)
 
@@ -126,18 +124,14 @@ class SchemaRegistry:
                 interface_cls.__name__,
             )
         else:
-            logger.debug(
-                "Registering interface '%s' to the schema.", interface_cls.__name__
-            )
+            logger.debug("Registering interface '%s' to the schema.", interface_cls.__name__)
 
         self._interfaces[interface_cls] = interface_cls
 
     def deregister(self, typename: str) -> None:
         """Deregister a type by its name to avoid name conflicts in subsequent tests."""
         # If the type is in the registry, remove it
-        types_to_remove = [
-            key for key, value in self._types.items() if value.__name__ == typename
-        ]
+        types_to_remove = [key for key, value in self._types.items() if value.__name__ == typename]
         for key in types_to_remove:
             del self._types[key]
             logger.debug("Deregistered type '%s' from the schema.", typename)

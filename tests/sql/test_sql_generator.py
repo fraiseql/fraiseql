@@ -125,8 +125,7 @@ def test_order_by_nested_field():
 
     sql_str = query.as_string(None)
     assert (
-        "ORDER BY data->'profile'->>'age' ASC, data->'profile'->'location'->>'city' DESC"
-        in sql_str
+        "ORDER BY data->'profile'->>'age' ASC, data->'profile'->'location'->>'city' DESC" in sql_str
     )
 
 
@@ -222,9 +221,7 @@ def test_combined_where_group_by_order_by():
     assert order_pos > group_pos
 
     assert "WHERE data->>'year' = '2024'" in sql_str
-    assert (
-        "GROUP BY data->'location'->>'region', data->'product'->>'category'" in sql_str
-    )
+    assert "GROUP BY data->'location'->>'region', data->'product'->>'category'" in sql_str
     assert "ORDER BY data->'location'->>'region' ASC" in sql_str
 
 
@@ -245,9 +242,7 @@ def test_json_output_with_order_by():
 
     assert "jsonb_build_object(" in sql_str
     assert "'__typename', 'User'" in sql_str
-    assert (
-        "ORDER BY data->'profile'->>'fullName' ASC, data->>'created_at' DESC" in sql_str
-    )
+    assert "ORDER BY data->'profile'->>'fullName' ASC, data->>'created_at' DESC" in sql_str
 
 
 def test_empty_order_by_and_group_by():

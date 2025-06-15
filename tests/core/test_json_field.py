@@ -25,9 +25,7 @@ async def test_json_field_in_mutation():
     # --- Define QueryRoot inside the test, so it registers post-clear ---
     @fraiseql.type
     class QueryRoot:
-        ping: Annotated[
-            str, fraise_field(description="Ping-pong healthcheck", purpose="output")
-        ]
+        ping: Annotated[str, fraise_field(description="Ping-pong healthcheck", purpose="output")]
 
         @staticmethod
         def resolve_ping(root: Any, info: Any) -> str:
@@ -165,8 +163,6 @@ async def test_json_field_in_mutation():
         logger.debug("Introspection result: %s", introspect.data)
 
     assert not introspect.errors
-    field_names = [
-        f["name"] for f in introspect.data["__schema"]["queryType"]["fields"]
-    ]
+    field_names = [f["name"] for f in introspect.data["__schema"]["queryType"]["fields"]]
     logger.debug("QueryRoot fields seen in introspection: %s", field_names)
     assert "ping" in field_names

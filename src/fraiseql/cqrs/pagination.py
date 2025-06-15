@@ -188,12 +188,8 @@ class CursorPaginator:
 
         # Build page info
         page_info = {
-            "has_next_page": has_extra
-            if params.is_forward
-            else (params.after is not None),
-            "has_previous_page": has_extra
-            if params.is_backward
-            else (params.before is not None),
+            "has_next_page": has_extra if params.is_forward else (params.after is not None),
+            "has_previous_page": has_extra if params.is_backward else (params.before is not None),
             "start_cursor": edges[0]["cursor"] if edges else None,
             "end_cursor": edges[-1]["cursor"] if edges else None,
         }

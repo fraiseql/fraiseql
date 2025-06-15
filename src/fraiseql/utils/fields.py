@@ -75,10 +75,7 @@ def patch_missing_field_types(cls: type[Any]) -> None:
             else:
                 # Check if the attribute exists and is a FraiseQLField
                 field_value = getattr(base, name, None)
-                if (
-                    isinstance(field_value, FraiseQLField)
-                    and field_value.field_type is None
-                ):
+                if isinstance(field_value, FraiseQLField) and field_value.field_type is None:
                     field_value.field_type = typ
                     logger.debug(
                         "Patched field '%s' with inferred type from annotation: %s",

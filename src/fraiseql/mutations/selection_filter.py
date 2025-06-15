@@ -32,9 +32,7 @@ from typing import Any
 from graphql import FieldNode, GraphQLResolveInfo, SelectionSetNode
 
 
-def filter_mutation_result(
-    data: Mapping[str, Any], info: GraphQLResolveInfo
-) -> dict[str, Any]:
+def filter_mutation_result(data: Mapping[str, Any], info: GraphQLResolveInfo) -> dict[str, Any]:
     """Filters the mutation result data to only include fields selected in the GraphQL query.
 
     This supports top-level selection sets and nested structures.
@@ -70,9 +68,7 @@ def _filter_selected_fields(
 
         if selection.selection_set and isinstance(value, dict):
             # Recurse for nested selection sets
-            filtered[field_name] = _filter_selected_fields(
-                value, selection.selection_set
-            )
+            filtered[field_name] = _filter_selected_fields(value, selection.selection_set)
         else:
             filtered[field_name] = value
 
