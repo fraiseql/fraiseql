@@ -1,0 +1,37 @@
+# Dockerfile for complex domain benchmarking
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Performance-optimized packages
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    gcc \
+    curl \
+    libjemalloc2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Use jemalloc for better memory allocation
+ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+
+# Container-optimized environment variables
+ENV MALLOC_ARENA_MAX=2
+ENV PYTHONUNBUFFERED=1
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Database URL
+ENV DATABASE_URL=postgresql://benchmark:benchmark@postgres-bench:5432/benchmark_db
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start the complex domain app
+CMD ["python", "ultra_optimized_complex_app.py"]
