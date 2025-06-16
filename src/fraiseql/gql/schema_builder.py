@@ -59,6 +59,7 @@ class SchemaRegistry:
         # Clear SchemaRegistry's own registries
         self._types.clear()
         self._mutations.clear()
+        self._queries.clear()
         self._enums.clear()
         self._interfaces.clear()
         logger.debug("Registry after clearing: %s", list(self._types.keys()))
@@ -72,6 +73,7 @@ class SchemaRegistry:
         """Initialize empty registries for types, mutations, enums, and interfaces."""
         self._types: dict[type, type] = {}
         self._mutations: dict[str, Callable[..., Any]] = {}
+        self._queries: dict[str, Callable[..., Any]] = {}
         self._enums: dict[type, GraphQLEnumType] = {}
         self._interfaces: dict[type, type] = {}
 
@@ -157,10 +159,52 @@ class SchemaRegistry:
             # Legacy: direct resolver function
             self._mutations[mutation_or_fn.__name__] = mutation_or_fn
 
+    def register_query(self, query_fn: Callable[..., Any]) -> None:
+        """Register a query function as a GraphQL field."""
+        self._queries[query_fn.__name__] = query_fn
+
     def build_query_type(self) -> GraphQLObjectType:
-        """Build the root Query GraphQLObjectType from registered types."""
+        """Build the root Query GraphQLObjectType from registered types and query functions."""
         fields: dict[str, GraphQLField] = {}
 
+        # First, handle query functions if any are registered
+        for name, fn in self._queries.items():
+            hints = get_type_hints(fn)
+            
+            if "return" not in hints:
+                msg = f"Query function '{name}' is missing a return type annotation."
+                raise TypeError(msg)
+            
+            # Use convert_type_to_graphql_output for the return type
+            gql_return_type = convert_type_to_graphql_output(hints["return"])
+            logger.debug(f"Query {name}: return type {hints['return']} converted to {gql_return_type}")
+            gql_args: dict[str, GraphQLArgument] = {}
+            
+            # Detect arguments (excluding 'info' and 'root')
+            for param_name, param_type in hints.items():
+                if param_name in {"info", "root", "return"}:
+                    continue
+                # Use convert_type_to_graphql_input for input arguments
+                gql_input_type = convert_type_to_graphql_input(param_type)
+                gql_args[param_name] = GraphQLArgument(gql_input_type)
+            
+            # Create a wrapper that adapts the GraphQL resolver signature
+            def make_resolver(fn):
+                async def resolver(root, info, **kwargs):
+                    # Call the original function without the root argument
+                    return await fn(info, **kwargs)
+                return resolver
+            
+            wrapped_resolver = make_resolver(fn)
+            wrapped_resolver = wrap_resolver_with_enum_serialization(wrapped_resolver)
+            
+            fields[name] = GraphQLField(
+                type_=cast(GraphQLOutputType, gql_return_type),
+                args=gql_args,
+                resolve=wrapped_resolver,
+            )
+
+        # Then, check for legacy QueryRoot type pattern
         for typ in self._types:
             definition = getattr(typ, "__fraiseql_definition__", None)
             if definition is None:
@@ -298,13 +342,13 @@ class SchemaRegistry:
 
 def build_fraiseql_schema(
     *,
-    query_types: list[type] | None = None,
+    query_types: list[type | Callable[..., Any]] | None = None,
     mutation_resolvers: list[type | Callable[..., Any]] | None = None,
 ) -> GraphQLSchema:
     """Compose a full GraphQL schema from query types and mutation resolvers.
 
     Args:
-        query_types: Optional list of Python types to register as query types.
+        query_types: Optional list of Python types or query functions to register.
         mutation_resolvers: Optional list of mutation classes or resolver functions.
 
     Returns:
@@ -318,7 +362,12 @@ def build_fraiseql_schema(
     registry = SchemaRegistry.get_instance()
 
     for typ in query_types:
-        registry.register_type(typ)
+        if callable(typ) and not isinstance(typ, type):
+            # It's a query function
+            registry.register_query(typ)
+        else:
+            # It's a type
+            registry.register_type(typ)
 
     for fn in mutation_resolvers:
         registry.register_mutation(fn)
