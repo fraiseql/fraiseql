@@ -1,11 +1,11 @@
 """FastAPI application factory for FraiseQL."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 
 import psycopg_pool
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from fraiseql.auth.auth0 import Auth0Config
@@ -32,6 +32,7 @@ def create_fraiseql_app(
     # Optional configuration
     config: FraiseQLConfig | None = None,
     auth: Auth0Config | AuthProvider | None = None,
+    context_getter: Callable[[Request], Awaitable[dict[str, Any]]] | None = None,
     # App configuration
     title: str | None = None,
     version: str | None = None,
@@ -54,6 +55,7 @@ def create_fraiseql_app(
         queries: Sequence of query types (if not using default QueryRoot)
         config: Full configuration object (overrides other params)
         auth: Authentication configuration or provider
+        context_getter: Optional async function to build GraphQL context from request
         title: API title
         version: API version
         description: API description
@@ -183,6 +185,7 @@ def create_fraiseql_app(
         schema=schema,
         config=config,
         auth_provider=auth_provider,
+        context_getter=context_getter,
     )
 
     app.include_router(graphql_router)

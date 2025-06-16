@@ -1,9 +1,10 @@
 """GraphQL routers for development and production environments."""
 
 import json
+from collections.abc import Awaitable, Callable
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from graphql import GraphQLSchema, graphql, parse, validate
 from pydantic import BaseModel
@@ -41,26 +42,37 @@ def create_graphql_router(
     schema: GraphQLSchema,
     config: FraiseQLConfig,
     auth_provider: AuthProvider | None = None,
+    context_getter: Callable[[Request], Awaitable[dict[str, Any]]] | None = None,
 ) -> APIRouter:
     """Create appropriate router based on environment."""
     if config.environment == "production" and config.enable_query_compilation:
-        return create_production_router(schema, config, auth_provider)
+        return create_production_router(schema, config, auth_provider, context_getter)
     else:
-        return create_development_router(schema, config, auth_provider)
+        return create_development_router(schema, config, auth_provider, context_getter)
 
 
 def create_development_router(
     schema: GraphQLSchema,
     config: FraiseQLConfig,
     auth_provider: AuthProvider | None = None,
+    context_getter: Callable[[Request], Awaitable[dict[str, Any]]] | None = None,
 ) -> APIRouter:
     """Create development router with full GraphQL features."""
     router = APIRouter(prefix="", tags=["GraphQL"])
 
+    # Create context dependency based on whether custom context_getter is provided
+    if context_getter:
+        async def get_context(http_request: Request) -> dict[str, Any]:
+            return await context_getter(http_request)
+        context_dependency = Depends(get_context)
+    else:
+        context_dependency = Depends(build_graphql_context)
+
     @router.post("/graphql")
     async def graphql_endpoint(
         request: GraphQLRequest,
-        context: dict[str, Any] = Depends(build_graphql_context),
+        http_request: Request,
+        context: dict[str, Any] = context_dependency,
     ):
         """Execute GraphQL query with full validation and introspection."""
         try:
@@ -111,9 +123,10 @@ def create_development_router(
     @router.get("/graphql")
     async def graphql_get_endpoint(
         query: str,
+        http_request: Request,
         variables: str | None = None,
         operationName: str | None = None,
-        context: dict[str, Any] = Depends(build_graphql_context),
+        context: dict[str, Any] = context_dependency,
     ):
         """Handle GraphQL GET requests."""
         parsed_variables = None
@@ -129,7 +142,7 @@ def create_development_router(
             operationName=operationName,
         )
 
-        return await graphql_endpoint(request, context)
+        return await graphql_endpoint(request, http_request, context)
 
     if config.enable_playground:
 
@@ -149,6 +162,7 @@ def create_production_router(
     schema: GraphQLSchema,
     config: FraiseQLConfig,
     auth_provider: AuthProvider | None = None,
+    context_getter: Callable[[Request], Awaitable[dict[str, Any]]] | None = None,
     compiled_queries: dict[str, CompiledQuery] | None = None,
 ) -> APIRouter:
     """Create production router with optimizations.
@@ -161,6 +175,14 @@ def create_production_router(
     """
     router = APIRouter(prefix="", tags=["GraphQL"])
 
+    # Create context dependency based on whether custom context_getter is provided
+    if context_getter:
+        async def get_context(http_request: Request) -> dict[str, Any]:
+            return await context_getter(http_request)
+        context_dependency = Depends(get_context)
+    else:
+        context_dependency = Depends(build_graphql_context)
+
     # Load compiled queries if path provided
     if config.compiled_queries_path and compiled_queries is None:
         compiled_queries = load_compiled_queries(config.compiled_queries_path)
@@ -170,7 +192,8 @@ def create_production_router(
     @router.post("/graphql")
     async def graphql_endpoint(
         request: GraphQLRequest,
-        context: dict[str, Any] = Depends(build_graphql_context),
+        http_request: Request,
+        context: dict[str, Any] = context_dependency,
     ):
         """Execute GraphQL query using pre-compiled queries when possible."""
         try:
