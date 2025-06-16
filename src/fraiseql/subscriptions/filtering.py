@@ -11,13 +11,13 @@ class FilterExpressionEvaluator:
     """Safely evaluates filter expressions."""
     
     ALLOWED_NAMES = {
-        "user", "project", "resource", "context",
+        "user", "project", "resource", "context", "info",
         "and", "or", "not", "in", "True", "False", "None"
     }
     
     ALLOWED_ATTRIBUTES = {
         "is_public", "has_access", "is_owner", "is_member",
-        "role", "permissions", "id", "status"
+        "role", "permissions", "id", "status", "get", "context"
     }
     
     def __init__(self, context: Dict[str, Any]):
@@ -47,7 +47,8 @@ class FilterExpressionEvaluator:
                 ast.Expression, ast.Compare, ast.BoolOp,
                 ast.Name, ast.Attribute, ast.Constant,
                 ast.And, ast.Or, ast.Not, ast.Eq, ast.NotEq,
-                ast.In, ast.NotIn, ast.Load
+                ast.In, ast.NotIn, ast.Load, ast.Call,
+                ast.List, ast.Tuple, ast.Dict
             )
             
             if not isinstance(child, allowed_types):
@@ -82,6 +83,7 @@ def filter(expression: str):
         async def wrapper(info, **kwargs):
             # Build filter context
             context = {
+                "info": info,
                 "user": info.context.get("user") if hasattr(info, 'context') else None,
                 "context": info.context if hasattr(info, 'context') else {},
                 **kwargs  # Include arguments
@@ -98,6 +100,8 @@ def filter(expression: str):
             
             # Evaluate filter
             evaluator = FilterExpressionEvaluator(context)
+            # Add parameter names to allowed names
+            evaluator.ALLOWED_NAMES = evaluator.ALLOWED_NAMES.union(kwargs.keys())
             if not evaluator.evaluate(expression):
                 raise PermissionError("Filter condition not met")
             

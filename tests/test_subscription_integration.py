@@ -1,0 +1,253 @@
+"""Integration tests for GraphQL subscriptions."""
+
+import asyncio
+import pytest
+from typing import AsyncGenerator
+from uuid import UUID, uuid4
+
+from graphql import subscribe, GraphQLSchema, parse
+
+import fraiseql
+from fraiseql import subscription
+from fraiseql.gql.schema_builder import build_fraiseql_schema, SchemaRegistry
+from fraiseql.subscriptions import complexity, filter, cache
+
+
+# Define test types
+@fraiseql.type
+class Message:
+    id: UUID
+    text: str
+    channel: str
+    timestamp: float
+
+
+@fraiseql.type
+class Channel:
+    id: UUID
+    name: str
+    active_users: int
+
+
+# Define a simple query to satisfy GraphQL requirement
+@fraiseql.query
+async def ping(info) -> str:
+    """Health check query."""
+    return "pong"
+
+
+# Define subscriptions
+@subscription
+@complexity(score=5)
+@filter("channel in info.context.get('allowed_channels', [])")
+async def message_stream(
+    info, 
+    channel: str
+) -> AsyncGenerator[Message, None]:
+    """Subscribe to messages in a channel."""
+    # Simulate real-time messages
+    for i in range(3):
+        await asyncio.sleep(0.1)
+        yield Message(
+            id=uuid4(),
+            text=f"Message {i} in {channel}",
+            channel=channel,
+            timestamp=asyncio.get_event_loop().time()
+        )
+
+
+@subscription
+@cache(ttl=5.0)
+async def channel_stats(
+    info,
+    channel_id: UUID
+) -> AsyncGenerator[Channel, None]:
+    """Subscribe to channel statistics."""
+    # Simulate periodic updates
+    for i in range(2):
+        await asyncio.sleep(0.1)
+        yield Channel(
+            id=channel_id,
+            name=f"Channel {channel_id}",
+            active_users=10 + i
+        )
+
+
+@pytest.mark.asyncio
+class TestSubscriptionIntegration:
+    """Test subscription integration with GraphQL."""
+    
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Set up test environment."""
+        registry = SchemaRegistry.get_instance()
+        registry.clear()
+        # Re-register query and subscriptions after clearing
+        registry.register_query(ping)
+        registry.register_subscription(message_stream)
+        registry.register_subscription(channel_stats)
+        yield
+        registry.clear()
+    
+    async def test_subscription_execution(self):
+        """Test that subscriptions execute correctly."""
+        # Build schema
+        registry = SchemaRegistry.get_instance()
+        schema = registry.build_schema()
+        
+        # Test message stream subscription
+        subscription_query = """
+            subscription MessageStream($channel: String!) {
+                message_stream(channel: $channel) {
+                    id
+                    text
+                    channel
+                    timestamp
+                }
+            }
+        """
+        
+        context = {"allowed_channels": ["general", "random"]}
+        
+        # Subscribe and collect results
+        results = []
+        async for result in await subscribe(
+            schema,
+            parse(subscription_query),
+            variable_values={"channel": "general"},
+            context_value=context
+        ):
+            if not result.errors and result.data:
+                results.append(result.data["message_stream"])
+        
+        assert len(results) == 3
+        assert all(r["channel"] == "general" for r in results)
+        assert all("Message" in r["text"] for r in results)
+    
+    async def test_subscription_filtering(self):
+        """Test that subscription filtering works."""
+        # Build schema
+        registry = SchemaRegistry.get_instance()
+        schema = registry.build_schema()
+        
+        subscription_query = """
+            subscription {
+                message_stream(channel: "private") {
+                    id
+                    text
+                }
+            }
+        """
+        
+        # Context without "private" in allowed channels
+        context = {"allowed_channels": ["general"]}
+        
+        # Should get permission error
+        try:
+            result = await subscribe(
+                schema,
+                parse(subscription_query),
+                context_value=context
+            )
+            
+            # The subscription should fail immediately
+            first_result = await result.__anext__()
+            assert False, "Expected PermissionError but subscription succeeded"
+        except PermissionError as e:
+            assert "Filter condition not met" in str(e)
+    
+    async def test_multiple_subscriptions(self):
+        """Test multiple concurrent subscriptions."""
+        # Build schema
+        registry = SchemaRegistry.get_instance()
+        schema = registry.build_schema()
+        
+        # Subscribe to both message stream and channel stats
+        message_sub = """
+            subscription {
+                message_stream(channel: "general") {
+                    id
+                    text
+                }
+            }
+        """
+        
+        channel_sub = """
+            subscription {
+                channel_stats(channel_id: "123e4567-e89b-12d3-a456-426614174000") {
+                    id
+                    name
+                    active_users
+                }
+            }
+        """
+        
+        context = {"allowed_channels": ["general"]}
+        
+        # Run both subscriptions concurrently
+        async def collect_messages():
+            results = []
+            async for result in await subscribe(
+                schema, parse(message_sub), context_value=context
+            ):
+                if not result.errors:
+                    results.append(result.data["message_stream"])
+            return results
+        
+        async def collect_stats():
+            results = []
+            async for result in await subscribe(
+                schema, parse(channel_sub), context_value=context
+            ):
+                if not result.errors:
+                    results.append(result.data["channel_stats"])
+            return results
+        
+        # Run concurrently
+        messages, stats = await asyncio.gather(
+            collect_messages(),
+            collect_stats()
+        )
+        
+        assert len(messages) == 3
+        assert len(stats) == 2
+        assert stats[0]["active_users"] == 10
+        assert stats[1]["active_users"] == 11
+    
+    async def test_subscription_error_handling(self):
+        """Test subscription error handling."""
+        @subscription
+        async def failing_subscription(info) -> AsyncGenerator[str, None]:
+            """A subscription that fails."""
+            yield "first"
+            raise ValueError("Subscription error!")
+        
+        # Register the failing subscription
+        registry = SchemaRegistry.get_instance()
+        registry.register_subscription(failing_subscription)
+        
+        # Build schema
+        schema = registry.build_schema()
+        
+        subscription_query = """
+            subscription {
+                failing_subscription
+            }
+        """
+        
+        # Collect results
+        results = []
+        got_error = False
+        
+        try:
+            async for result in await subscribe(schema, parse(subscription_query)):
+                if result.data:
+                    results.append(result.data["failing_subscription"])
+        except ValueError as e:
+            got_error = True
+            assert "Subscription error!" in str(e)
+        
+        # Should get first result then error
+        assert len(results) == 1
+        assert results[0] == "first"
+        assert got_error

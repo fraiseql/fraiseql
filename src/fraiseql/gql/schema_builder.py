@@ -379,6 +379,7 @@ class SchemaRegistry:
                 type_=cast(GraphQLOutputType, gql_return_type),
                 args=gql_args,
                 subscribe=wrapped_resolver,
+                resolve=lambda value, info, **kwargs: value  # Pass through the yielded value
             )
 
         return GraphQLObjectType(name="Subscription", fields=MappingProxyType(fields))
