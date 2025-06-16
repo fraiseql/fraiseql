@@ -14,6 +14,7 @@ from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.dependencies import get_db_pool, set_auth_provider, set_db_pool
 from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.utils import normalize_database_url
 
 
 async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.AsyncConnectionPool:
@@ -33,6 +34,7 @@ def create_fraiseql_app(
     config: FraiseQLConfig | None = None,
     auth: Auth0Config | AuthProvider | None = None,
     context_getter: Callable[[Request], Awaitable[dict[str, Any]]] | None = None,
+    lifespan: Callable[[FastAPI], Any] | None = None,
     # App configuration
     title: str | None = None,
     version: str | None = None,
@@ -56,6 +58,7 @@ def create_fraiseql_app(
         config: Full configuration object (overrides other params)
         auth: Authentication configuration or provider
         context_getter: Optional async function to build GraphQL context from request
+        lifespan: Optional custom lifespan context manager for the FastAPI app
         title: API title
         version: API version
         description: API description
@@ -91,8 +94,10 @@ def create_fraiseql_app(
     if config is None:
         # Build config kwargs, only including explicitly provided values
         # This allows environment variables to be loaded for unprovided fields
+        # Normalize database URL to handle both formats
+        normalized_url = normalize_database_url(database_url or "postgresql://localhost/fraiseql")
         config_kwargs: dict[str, Any] = {
-            "database_url": database_url or "postgresql://localhost/fraiseql",
+            "database_url": normalized_url,
             "environment": "production" if production else "development",
         }
 
@@ -123,27 +128,58 @@ def create_fraiseql_app(
     set_auth_provider(auth_provider)
 
     # Create lifespan context manager for the app
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        """Manage application lifecycle."""
-        # Startup
-        pool = await create_db_pool(
-            config.database_url,
-            min_size=1,
-            max_size=config.database_pool_size,
-            timeout=config.database_pool_timeout,
-        )
-        set_db_pool(pool)
+    if lifespan is None:
+        # Use default lifespan that manages database pool
+        @asynccontextmanager
+        async def default_lifespan(app: FastAPI):
+            """Manage application lifecycle."""
+            # Startup
+            pool = await create_db_pool(
+                config.database_url,
+                min_size=1,
+                max_size=config.database_pool_size,
+                timeout=config.database_pool_timeout,
+            )
+            set_db_pool(pool)
 
-        yield
+            yield
 
-        # Shutdown
-        pool_to_close = get_db_pool()
-        if pool_to_close:
-            await pool_to_close.close()
+            # Shutdown
+            pool_to_close = get_db_pool()
+            if pool_to_close:
+                await pool_to_close.close()
 
-        if auth_provider and hasattr(auth_provider, "close"):
-            await auth_provider.close()
+            if auth_provider and hasattr(auth_provider, "close"):
+                await auth_provider.close()
+        
+        lifespan_to_use = default_lifespan
+    else:
+        # Wrap user's lifespan to ensure database pool is still managed
+        @asynccontextmanager
+        async def wrapped_lifespan(app: FastAPI):
+            """Wrap user lifespan with FraiseQL resource management."""
+            # Startup - initialize database pool
+            pool = await create_db_pool(
+                config.database_url,
+                min_size=1,
+                max_size=config.database_pool_size,
+                timeout=config.database_pool_timeout,
+            )
+            set_db_pool(pool)
+            
+            # Call user's lifespan
+            async with lifespan(app):
+                yield
+            
+            # Shutdown - cleanup our resources
+            pool_to_close = get_db_pool()
+            if pool_to_close:
+                await pool_to_close.close()
+
+            if auth_provider and hasattr(auth_provider, "close"):
+                await auth_provider.close()
+        
+        lifespan_to_use = wrapped_lifespan
 
     # Create or extend FastAPI app
     if app is None:
@@ -151,7 +187,7 @@ def create_fraiseql_app(
             title=config.app_name,
             version=config.app_version,
             description=description or "GraphQL API powered by FraiseQL",
-            lifespan=lifespan,
+            lifespan=lifespan_to_use,
         )
 
     # Setup CORS if enabled
