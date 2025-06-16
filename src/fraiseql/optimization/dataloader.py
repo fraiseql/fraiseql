@@ -7,6 +7,7 @@ from typing import (
 )
 from collections import defaultdict
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 
 K = TypeVar('K', bound=Hashable)
 V = TypeVar('V')
@@ -23,7 +24,8 @@ class DataLoader(Generic[K, V], ABC):
         self,
         batch_load_fn: Optional[Callable] = None,
         max_batch_size: int = 1000,
-        cache: bool = True
+        cache: bool = True,
+        context: Optional[Dict[str, Any]] = None
     ):
         self._batch_load_fn = batch_load_fn
         self._max_batch_size = max_batch_size
@@ -148,3 +150,23 @@ class DataLoader(Generic[K, V], ABC):
         
         # Return in key order
         return [item_map.get(key) for key in keys]
+
+
+@asynccontextmanager
+async def dataloader_context():
+    """
+    Context manager for DataLoader usage.
+    
+    Example:
+        async with dataloader_context() as ctx:
+            loader = UserLoader(context=ctx)
+            user = await loader.load(user_id)
+    """
+    # For now, just yield an empty dict as context
+    # In a real app, this would integrate with request context
+    context = {}
+    try:
+        yield context
+    finally:
+        # Cleanup if needed
+        pass
