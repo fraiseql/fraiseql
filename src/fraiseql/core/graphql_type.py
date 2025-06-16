@@ -171,6 +171,10 @@ def convert_type_to_graphql_input(
         inner = get_args(typ)[0]
         return GraphQLList(convert_type_to_graphql_input(inner))
 
+    # Handle dict types (dict[str, Any], dict[str, str], etc.) as JSON
+    if origin is dict:
+        return convert_scalar_to_graphql(dict)
+
     # Handle enum types
     if isinstance(typ, type) and issubclass(typ, Enum):
         # Check if it has been decorated with @fraise_enum
@@ -243,6 +247,10 @@ def convert_type_to_graphql_output(
         (inner_type,) = get_args(typ)
         inner_gql_type = convert_type_to_graphql_output(inner_type)
         return GraphQLList(inner_gql_type)
+
+    # Handle dict types (dict[str, Any], dict[str, str], etc.) as JSON
+    if get_origin(typ) is dict:
+        return convert_scalar_to_graphql(dict)
 
     # Handle Any as JSON scalar
     if typ == Any or str(typ) == "typing.Any":
