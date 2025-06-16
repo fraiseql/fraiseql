@@ -1,0 +1,150 @@
+"""DataLoader implementation for batch loading and caching."""
+
+import asyncio
+from typing import (
+    List, Dict, Any, Optional, Callable, 
+    TypeVar, Generic, Hashable, Union
+)
+from collections import defaultdict
+from abc import ABC, abstractmethod
+
+K = TypeVar('K', bound=Hashable)
+V = TypeVar('V')
+
+
+class DataLoader(Generic[K, V], ABC):
+    """
+    Base class for batch loading and caching data.
+    
+    Prevents N+1 queries by batching and caching loads.
+    """
+    
+    def __init__(
+        self,
+        batch_load_fn: Optional[Callable] = None,
+        max_batch_size: int = 1000,
+        cache: bool = True
+    ):
+        self._batch_load_fn = batch_load_fn
+        self._max_batch_size = max_batch_size
+        self._cache_enabled = cache
+        
+        # Per-request state
+        self._cache: Dict[K, V] = {}
+        self._queue: List[K] = []
+        self._batch_promise: Optional[asyncio.Future] = None
+        self._dispatch_scheduled = False
+    
+    @abstractmethod
+    async def batch_load(self, keys: List[K]) -> List[Optional[V]]:
+        """
+        Load multiple keys in a single batch.
+        
+        Must return results in the same order as keys.
+        Missing values should be None.
+        """
+        if self._batch_load_fn:
+            return await self._batch_load_fn(keys)
+        raise NotImplementedError("Must implement batch_load method")
+    
+    async def load(self, key: K) -> Optional[V]:
+        """Load a single key, batching with other loads."""
+        # Check cache first
+        if self._cache_enabled and key in self._cache:
+            return self._cache[key]
+        
+        # Add to queue
+        self._queue.append(key)
+        
+        # Schedule batch dispatch
+        if not self._dispatch_scheduled:
+            self._dispatch_scheduled = True
+            asyncio.create_task(self._dispatch_batch())
+        
+        # Wait for batch to complete
+        if not self._batch_promise:
+            self._batch_promise = asyncio.Future()
+        
+        await self._batch_promise
+        
+        # Return from cache
+        return self._cache.get(key)
+    
+    async def load_many(self, keys: List[K]) -> List[Optional[V]]:
+        """Load multiple keys."""
+        tasks = [self.load(key) for key in keys]
+        return await asyncio.gather(*tasks)
+    
+    async def prime(self, key: K, value: V):
+        """Pre-populate cache with a known value."""
+        if self._cache_enabled:
+            self._cache[key] = value
+    
+    def clear(self, key: Optional[K] = None):
+        """Clear cache for a key or all keys."""
+        if key is not None:
+            self._cache.pop(key, None)
+        else:
+            self._cache.clear()
+    
+    async def _dispatch_batch(self):
+        """Dispatch queued keys as a batch."""
+        # Wait for more keys to accumulate
+        await asyncio.sleep(0)
+        
+        # Get unique keys from queue
+        batch_keys = list(dict.fromkeys(self._queue))
+        self._queue.clear()
+        
+        # Split into smaller batches if needed
+        batches = [
+            batch_keys[i:i + self._max_batch_size]
+            for i in range(0, len(batch_keys), self._max_batch_size)
+        ]
+        
+        try:
+            # Load all batches
+            all_results = []
+            for batch in batches:
+                results = await self.batch_load(batch)
+                
+                # Validate results
+                if len(results) != len(batch):
+                    raise ValueError(
+                        f"batch_load must return {len(batch)} results, "
+                        f"got {len(results)}"
+                    )
+                
+                # Cache results
+                for key, value in zip(batch, results):
+                    if value is not None and self._cache_enabled:
+                        self._cache[key] = value
+                
+                all_results.extend(results)
+            
+            # Resolve promise
+            if self._batch_promise:
+                self._batch_promise.set_result(None)
+            
+        except Exception as e:
+            # Reject promise
+            if self._batch_promise:
+                self._batch_promise.set_exception(e)
+        
+        finally:
+            # Reset state
+            self._batch_promise = None
+            self._dispatch_scheduled = False
+    
+    def sort_by_keys(
+        self, 
+        items: List[Dict[str, Any]], 
+        keys: List[K],
+        key_field: str = "id"
+    ) -> List[Optional[V]]:
+        """Helper to sort results to match key order."""
+        # Create lookup map
+        item_map = {item[key_field]: item for item in items}
+        
+        # Return in key order
+        return [item_map.get(key) for key in keys]

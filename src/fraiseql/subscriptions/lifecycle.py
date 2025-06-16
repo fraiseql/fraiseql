@@ -1,0 +1,114 @@
+"""Lifecycle hooks for subscriptions."""
+
+from typing import Callable, Any, Dict
+from functools import wraps
+from datetime import datetime
+
+
+class SubscriptionLifecycle:
+    """Manages subscription lifecycle events."""
+    
+    @staticmethod
+    def on_start(func: Callable) -> Callable:
+        """Hook called when subscription starts."""
+        @wraps(func)
+        async def wrapper(info, **kwargs):
+            # Record start
+            start_time = datetime.utcnow()
+            subscription_id = f"{func.__name__}_{id(info)}"
+            
+            # Call hook
+            await func(info, subscription_id, **kwargs)
+            
+            # Store in context
+            if hasattr(info, 'context') and info.context:
+                info.context["subscription_start"] = start_time
+                info.context["subscription_id"] = subscription_id
+            
+            return subscription_id
+        
+        return wrapper
+    
+    @staticmethod
+    def on_event(func: Callable) -> Callable:
+        """Hook called for each subscription event."""
+        @wraps(func)
+        async def wrapper(info, event: Any, **kwargs):
+            # Call hook
+            result = await func(info, event, **kwargs)
+            
+            # Log event
+            if hasattr(info, 'context') and info.context and info.context.get("debug_subscriptions"):
+                print(f"Subscription {info.context.get('subscription_id')} "
+                      f"emitted: {event}")
+            
+            return result
+        
+        return wrapper
+    
+    @staticmethod
+    def on_complete(func: Callable) -> Callable:
+        """Hook called when subscription completes."""
+        @wraps(func)
+        async def wrapper(info, **kwargs):
+            # Calculate duration
+            start_time = None
+            if hasattr(info, 'context') and info.context:
+                start_time = info.context.get("subscription_start")
+            
+            if start_time:
+                duration = (datetime.utcnow() - start_time).total_seconds()
+                print(f"Subscription duration: {duration}s")
+            
+            # Call hook
+            await func(info, **kwargs)
+            
+            # Cleanup context
+            if hasattr(info, 'context') and info.context:
+                info.context.pop("subscription_start", None)
+                info.context.pop("subscription_id", None)
+        
+        return wrapper
+
+
+def with_lifecycle(
+    on_start: Callable = None,
+    on_event: Callable = None,
+    on_complete: Callable = None
+):
+    """
+    Add lifecycle hooks to subscription.
+    
+    Usage:
+        @subscription
+        @with_lifecycle(
+            on_start=log_subscription_start,
+            on_event=validate_event,
+            on_complete=cleanup_resources
+        )
+        async def my_subscription(info):
+            ...
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(info, **kwargs):
+            # Call on_start
+            if on_start:
+                await on_start(info, func.__name__, kwargs)
+            
+            try:
+                # Execute subscription
+                async for value in func(info, **kwargs):
+                    # Call on_event
+                    if on_event:
+                        value = await on_event(info, value)
+                    
+                    yield value
+                    
+            finally:
+                # Call on_complete
+                if on_complete:
+                    await on_complete(info, func.__name__, kwargs)
+        
+        return wrapper
+    return decorator
