@@ -101,7 +101,7 @@ class TestMutationDefinition:
 
     def test_missing_error_type_raises_error(self):
         """Test that missing error type raises TypeError."""
-        with pytest.raises(TypeError, match="must define 'error' type"):
+        with pytest.raises(TypeError, match="must define 'failure' type"):
 
             @mutation
             class BadMutation:

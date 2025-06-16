@@ -82,6 +82,7 @@ def clear_registry():
     # This is needed because decorators run at import time
     registry.register_query(get_user)
     registry.register_query(get_all_users)
+    registry.register_type(QueryRoot)
     
     yield
     registry.clear()
@@ -108,9 +109,9 @@ def test_query_decorator_registration():
 @pytest.mark.asyncio
 async def test_query_decorator_execution():
     """Test that decorated queries can be executed."""
-    schema = build_fraiseql_schema(
-        query_types=[QueryRoot]
-    )
+    # Since queries are registered via decorator, we need to include them in build_fraiseql_schema
+    registry = SchemaRegistry.get_instance()
+    schema = registry.build_schema()
     
     # Test get_user query
     query = """
@@ -143,9 +144,8 @@ async def test_query_decorator_execution():
 @pytest.mark.asyncio
 async def test_field_decorator_execution():
     """Test that @field decorated methods work."""
-    schema = build_fraiseql_schema(
-        query_types=[QueryRoot]
-    )
+    registry = SchemaRegistry.get_instance()
+    schema = registry.build_schema()
     
     query = """
         query {
@@ -209,9 +209,9 @@ def test_mixed_decorators_and_explicit_queries():
 
 def test_no_queries_error():
     """Test that schema building fails without any queries."""
-    # Clear all registered queries first
+    # Clear all registered queries and types
     registry = SchemaRegistry.get_instance()
-    registry._queries.clear()
+    registry.clear()  # Clear everything
     
     with pytest.raises(TypeError, match="Type Query must define one or more fields"):
-        build_fraiseql_schema()
+        registry.build_schema()

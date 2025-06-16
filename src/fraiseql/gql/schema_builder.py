@@ -60,6 +60,7 @@ class SchemaRegistry:
         self._types.clear()
         self._mutations.clear()
         self._queries.clear()
+        self._subscriptions.clear()
         self._enums.clear()
         self._interfaces.clear()
         logger.debug("Registry after clearing: %s", list(self._types.keys()))
@@ -74,6 +75,7 @@ class SchemaRegistry:
         self._types: dict[type, type] = {}
         self._mutations: dict[str, Callable[..., Any]] = {}
         self._queries: dict[str, Callable[..., Any]] = {}
+        self._subscriptions: dict[str, Callable[..., Any]] = {}
         self._enums: dict[type, GraphQLEnumType] = {}
         self._interfaces: dict[type, type] = {}
 
@@ -162,6 +164,10 @@ class SchemaRegistry:
     def register_query(self, query_fn: Callable[..., Any]) -> None:
         """Register a query function as a GraphQL field."""
         self._queries[query_fn.__name__] = query_fn
+
+    def register_subscription(self, subscription_fn: Callable[..., Any]) -> None:
+        """Register a subscription function as a GraphQL field."""
+        self._subscriptions[subscription_fn.__name__] = subscription_fn
 
     def build_query_type(self) -> GraphQLObjectType:
         """Build the root Query GraphQLObjectType from registered types and query functions."""
@@ -332,16 +338,70 @@ class SchemaRegistry:
 
         return GraphQLObjectType(name="Mutation", fields=MappingProxyType(fields))
 
+    def build_subscription_type(self: SchemaRegistry) -> GraphQLObjectType:
+        """Build the root Subscription GraphQLObjectType from registered subscriptions."""
+        fields = {}
+
+        for name, fn in self._subscriptions.items():
+            hints = get_type_hints(fn)
+            
+            if "return" not in hints:
+                msg = f"Subscription '{name}' is missing a return type annotation."
+                raise TypeError(msg)
+            
+            # Extract yield type from AsyncGenerator
+            return_type = hints["return"]
+            yield_type = return_type.__args__[0] if hasattr(return_type, "__args__") else Any
+            
+            # Use convert_type_to_graphql_output for the yield type
+            gql_return_type = convert_type_to_graphql_output(yield_type)
+            gql_args: dict[str, GraphQLArgument] = {}
+            
+            # Detect arguments (excluding 'info' and 'root')
+            for param_name, param_type in hints.items():
+                if param_name in {"info", "root", "return"}:
+                    continue
+                # Use convert_type_to_graphql_input for input arguments
+                gql_input_type = convert_type_to_graphql_input(param_type)
+                gql_args[param_name] = GraphQLArgument(gql_input_type)
+            
+            # Create a wrapper that adapts the GraphQL subscription signature
+            def make_subscription(fn):
+                async def subscribe(root, info, **kwargs):
+                    # Call the original function without the root argument
+                    async for value in fn(info, **kwargs):
+                        yield value
+                return subscribe
+            
+            wrapped_resolver = make_subscription(fn)
+            
+            fields[name] = GraphQLField(
+                type_=cast(GraphQLOutputType, gql_return_type),
+                args=gql_args,
+                subscribe=wrapped_resolver,
+            )
+
+        return GraphQLObjectType(name="Subscription", fields=MappingProxyType(fields))
+
     def build_schema(self) -> GraphQLSchema:
         """Build the complete GraphQL schema from registered types and mutations."""
         # Check if there are any mutations registered
         mutation_type = None
         if self._mutations:
             mutation_type = self.build_mutation_type()
+        
+        # Check if there are any subscriptions registered
+        subscription_type = None
+        if self._subscriptions:
+            subscription_type = self.build_subscription_type()
 
         # Collect all types that should be included in the schema
         all_types = []
         for typ in self._types.values():
+            # Skip QueryRoot - it's special and its fields are added to Query type
+            if typ.__name__ == "QueryRoot":
+                continue
+                
             definition = getattr(typ, "__fraiseql_definition__", None)
             if definition and definition.kind in ("type", "output"):
                 # Convert to GraphQL type to ensure it's in the schema
@@ -354,6 +414,7 @@ class SchemaRegistry:
         return GraphQLSchema(
             query=self.build_query_type(),
             mutation=mutation_type,
+            subscription=subscription_type,
             types=all_types if all_types else None,
         )
 
@@ -369,20 +430,24 @@ def build_fraiseql_schema(
     *,
     query_types: list[type | Callable[..., Any]] | None = None,
     mutation_resolvers: list[type | Callable[..., Any]] | None = None,
+    subscription_resolvers: list[Callable[..., Any]] | None = None,
 ) -> GraphQLSchema:
-    """Compose a full GraphQL schema from query types and mutation resolvers.
+    """Compose a full GraphQL schema from query types, mutation resolvers, and subscriptions.
 
     Args:
         query_types: Optional list of Python types or query functions to register.
         mutation_resolvers: Optional list of mutation classes or resolver functions.
+        subscription_resolvers: Optional list of subscription functions to register.
 
     Returns:
-        A GraphQLSchema combining the registered query and mutation types.
+        A GraphQLSchema combining the registered query, mutation, and subscription types.
     """
     if mutation_resolvers is None:
         mutation_resolvers = []
     if query_types is None:
         query_types = []
+    if subscription_resolvers is None:
+        subscription_resolvers = []
 
     registry = SchemaRegistry.get_instance()
 
@@ -396,16 +461,28 @@ def build_fraiseql_schema(
 
     for fn in mutation_resolvers:
         registry.register_mutation(fn)
+    
+    for fn in subscription_resolvers:
+        registry.register_subscription(fn)
 
     # Only add mutation type if there are mutations
     mutation_type = None
     if mutation_resolvers:
         mutation_type = registry.build_mutation_type()
+    
+    # Only add subscription type if there are subscriptions
+    subscription_type = None
+    if subscription_resolvers:
+        subscription_type = registry.build_subscription_type()
 
     # Collect all types that should be included in the schema
     # This includes types that implement interfaces
     all_types = []
     for typ in registry._types.values():
+        # Skip QueryRoot - it's special and its fields are added to Query type
+        if typ.__name__ == "QueryRoot":
+            continue
+            
         definition = getattr(typ, "__fraiseql_definition__", None)
         if definition and definition.kind in ("type", "output"):
             # Convert to GraphQL type to ensure it's in the schema
@@ -418,5 +495,6 @@ def build_fraiseql_schema(
     return GraphQLSchema(
         query=registry.build_query_type(),
         mutation=mutation_type,
+        subscription=subscription_type,
         types=all_types if all_types else None,
     )

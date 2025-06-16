@@ -20,16 +20,13 @@ from .types.generic import (
     create_connection,
 )
 from .types.interface import fraise_interface
+from .subscriptions import subscription
 
 # Core aliases
 type = fraise_type
 input = fraise_input
 enum = fraise_enum
 interface = fraise_interface
-
-
-def subscription(x: Any) -> Any:
-    return x  # Placeholder for future implementation
 
 
 # FastAPI integration (optional)
