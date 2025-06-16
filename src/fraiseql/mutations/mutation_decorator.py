@@ -27,14 +27,14 @@ class MutationDefinition:
         hints = get_type_hints(mutation_class)
         self.input_type = hints.get("input")
         self.success_type = hints.get("success")
-        self.error_type = hints.get("error")
+        self.error_type = hints.get("error") or hints.get("failure")  # Support both 'error' and 'failure'
 
         if not self.input_type:
             raise TypeError(f"Mutation {self.name} must define 'input' type")
         if not self.success_type:
             raise TypeError(f"Mutation {self.name} must define 'success' type")
         if not self.error_type:
-            raise TypeError(f"Mutation {self.name} must define 'error' type")
+            raise TypeError(f"Mutation {self.name} must define 'failure' type (or 'error' for backwards compatibility)")
 
         # Derive function name from class name if not provided
         if function_name:
