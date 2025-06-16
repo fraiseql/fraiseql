@@ -5,6 +5,7 @@ Exports public API for FraiseQL framework.
 
 from typing import Any
 
+from .decorators import field, query
 from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
 from .mutations.decorators import failure, result, success
@@ -90,6 +91,7 @@ __all__ = [
     "create_fraiseql_app",
     "enum",
     "failure",
+    "field",
     "fraise_enum",
     "fraise_field",
     "fraise_input",
@@ -98,6 +100,7 @@ __all__ = [
     "input",
     "interface",
     "mutation",
+    "query",
     "requires_auth",
     "requires_permission",
     "requires_role",

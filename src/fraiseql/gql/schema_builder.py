@@ -220,6 +220,31 @@ class SchemaRegistry:
             query_instance = typ()
             field_count = 0
 
+            # First check for @field decorated methods
+            for attr_name in dir(typ):
+                attr = getattr(typ, attr_name)
+                if callable(attr) and hasattr(attr, "__fraiseql_field__"):
+                    # This is a @field decorated method
+                    import inspect
+                    sig = inspect.signature(attr)
+                    return_type = sig.return_annotation
+                    if return_type == inspect.Signature.empty:
+                        logger.warning(f"Field method {attr_name} missing return type annotation")
+                        continue
+                    
+                    logger.debug(f"Found @field decorated method: {attr_name}")
+                    gql_type = convert_type_to_graphql_output(return_type)
+                    method = getattr(query_instance, attr_name)
+                    wrapped_resolver = wrap_resolver_with_enum_serialization(method)
+                    
+                    fields[attr_name] = GraphQLField(
+                        type_=cast(GraphQLOutputType, gql_type),
+                        resolve=wrapped_resolver,
+                        description=getattr(attr, "__fraiseql_field_description__", None),
+                    )
+                    field_count += 1
+
+            # Then check regular fields
             for field_name, field_def in definition.fields.items():
                 logger.debug("Field '%s' definition: %s", field_name, field_def)
                 if field_def.purpose not in {"output", "both"}:
