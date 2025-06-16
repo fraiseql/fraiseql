@@ -18,7 +18,7 @@ For example:
 
 | Environment Variable | Description | Example |
 |---------------------|-------------|---------|
-| `FRAISEQL_DATABASE_URL` | PostgreSQL connection URL | `postgresql://user:pass@localhost/dbname` |
+| `FRAISEQL_DATABASE_URL` | PostgreSQL connection URL | See [Database URL Formats](#database-url-formats) below |
 
 ### Application Settings
 
@@ -147,3 +147,135 @@ Environment variable names are case-insensitive. These are all equivalent:
 ## Extra Environment Variables
 
 FraiseQL will ignore any environment variables that don't start with `FRAISEQL_` or aren't recognized configuration options. This prevents validation errors from unrelated environment variables in your system.
+
+## Database URL Formats
+
+FraiseQL supports multiple PostgreSQL connection string formats:
+
+### 1. Standard URL Format (Recommended)
+
+```bash
+postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
+```
+
+Examples:
+```bash
+# Basic connection
+FRAISEQL_DATABASE_URL=postgresql://localhost/mydb
+
+# With authentication
+FRAISEQL_DATABASE_URL=postgresql://user:password@localhost/mydb
+
+# With port and parameters
+FRAISEQL_DATABASE_URL=postgresql://user:pass@host:5432/mydb?sslmode=require&connect_timeout=10
+
+# Using postgres:// scheme (also supported)
+FRAISEQL_DATABASE_URL=postgres://user@localhost/mydb
+```
+
+### 2. psycopg2 Connection String Format
+
+FraiseQL also accepts psycopg2-style connection strings and automatically converts them:
+
+```bash
+"dbname='database' user='username' host='hostname' port='5432' password='password'"
+```
+
+Examples:
+```bash
+# Basic psycopg2 format
+FRAISEQL_DATABASE_URL="dbname='mydb' user='myuser' host='localhost'"
+
+# With password and port
+FRAISEQL_DATABASE_URL="dbname='mydb' user='myuser' password='mypass' host='localhost' port='5432'"
+
+# With additional parameters
+FRAISEQL_DATABASE_URL="dbname='mydb' user='myuser' host='localhost' sslmode='require' connect_timeout='10'"
+```
+
+### 3. Automatic Format Detection
+
+FraiseQL automatically detects and converts between formats:
+
+```python
+from fraiseql import create_fraiseql_app
+
+# Both of these work identically:
+app = create_fraiseql_app(
+    database_url="postgresql://user@localhost/mydb"
+)
+
+app = create_fraiseql_app(
+    database_url="dbname='mydb' user='user' host='localhost'"
+)
+```
+
+### 4. Connection Parameters
+
+Common PostgreSQL connection parameters:
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `sslmode` | SSL connection mode | `require`, `disable`, `prefer` |
+| `connect_timeout` | Connection timeout in seconds | `10` |
+| `application_name` | Application name for pg_stat_activity | `my_app` |
+| `options` | Command-line options | `-c statement_timeout=5min` |
+
+### 5. Special Characters in Passwords
+
+If your password contains special characters:
+
+**URL format**: URL-encode special characters
+```bash
+# Password: my@pass#word!
+FRAISEQL_DATABASE_URL=postgresql://user:my%40pass%23word%21@localhost/mydb
+```
+
+**psycopg2 format**: Use quotes
+```bash
+FRAISEQL_DATABASE_URL="dbname='mydb' user='user' password='my@pass#word!' host='localhost'"
+```
+
+### 6. Connection Pool Configuration
+
+Additional pool settings via environment variables:
+
+```bash
+# Connection pool size
+FRAISEQL_DATABASE_POOL_SIZE=50
+
+# Maximum overflow connections
+FRAISEQL_DATABASE_MAX_OVERFLOW=10
+
+# Pool timeout in seconds
+FRAISEQL_DATABASE_POOL_TIMEOUT=30
+```
+
+### 7. Example Configurations
+
+**Development**:
+```bash
+FRAISEQL_DATABASE_URL=postgresql://localhost/myapp_dev
+```
+
+**Production with SSL**:
+```bash
+FRAISEQL_DATABASE_URL=postgresql://user:pass@db.example.com:5432/myapp_prod?sslmode=require&connect_timeout=10
+```
+
+**Docker Compose**:
+```bash
+FRAISEQL_DATABASE_URL=postgresql://postgres:postgres@db:5432/myapp
+```
+
+**Cloud Providers**:
+```bash
+# Heroku (automatically set as DATABASE_URL)
+FRAISEQL_DATABASE_URL=$DATABASE_URL
+
+# AWS RDS
+FRAISEQL_DATABASE_URL=postgresql://user:pass@mydb.abc123.us-east-1.rds.amazonaws.com:5432/myapp
+
+# Google Cloud SQL
+FRAISEQL_DATABASE_URL=postgresql://user:pass@/myapp?host=/cloudsql/project:region:instance
+```
