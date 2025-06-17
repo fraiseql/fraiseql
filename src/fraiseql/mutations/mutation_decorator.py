@@ -82,28 +82,47 @@ class MutationDefinition:
 
 
 def mutation(
-    _cls: type[T] | None = None,
+    _cls: type[T] | Callable[..., Any] | None = None,
     *,
     function: str | None = None,
     schema: str = "graphql",
-) -> type[T] | Callable[[type[T]], type[T]]:
-    """Decorator to define a PostgreSQL function-based mutation.
+) -> type[T] | Callable[[type[T]], type[T]] | Callable[..., Any]:
+    """Decorator to define a mutation.
 
-    Args:
-        function: Optional PostgreSQL function name (defaults to snake_case of class name)
-        schema: PostgreSQL schema containing the function (defaults to "graphql")
-
-    Example:
+    Supports two patterns:
+    
+    1. Simple function-based mutations (returns the type directly):
+        @mutation
+        async def create_user(info, input: CreateUserInput) -> User:
+            # Your logic here
+            return User(...)
+    
+    2. Class-based mutations with success/error handling:
         @mutation
         class CreateUser:
             input: CreateUserInput
             success: CreateUserSuccess
             error: CreateUserError
 
-    This will call the PostgreSQL function `graphql.create_user`.
+    Args:
+        function: Optional PostgreSQL function name (defaults to snake_case of name)
+        schema: PostgreSQL schema containing the function (defaults to "graphql")
     """
 
-    def decorator(cls: type[T]) -> type[T]:
+    def decorator(cls_or_fn: type[T] | Callable[..., Any]) -> type[T] | Callable[..., Any]:
+        # Check if it's a function (simple mutation pattern)
+        if callable(cls_or_fn) and not isinstance(cls_or_fn, type):
+            # It's a function-based mutation
+            fn = cls_or_fn
+            
+            # Store metadata for schema building
+            fn.__fraiseql_mutation__ = True
+            fn.__fraiseql_resolver__ = fn
+            
+            return fn
+        
+        # Otherwise, it's a class-based mutation
+        cls = cls_or_fn
         # Create mutation definition
         definition = MutationDefinition(cls, function, schema)
 

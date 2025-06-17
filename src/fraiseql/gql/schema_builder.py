@@ -147,16 +147,21 @@ class SchemaRegistry:
             mutation_or_fn: The mutation class or resolver function to register.
         """
         if hasattr(mutation_or_fn, "__fraiseql_mutation__"):
-            # It's a @mutation decorated class
-            # Register the resolver function
-            resolver_fn = mutation_or_fn.__fraiseql_resolver__
-            self._mutations[resolver_fn.__name__] = resolver_fn
-            # Also register the success and error types
-            definition = mutation_or_fn.__fraiseql_mutation__
-            if definition.success_type:
-                self.register_type(definition.success_type)
-            if definition.error_type:
-                self.register_type(definition.error_type)
+            # Check if it's a simple function-based mutation
+            if hasattr(mutation_or_fn, "__fraiseql_resolver__") and mutation_or_fn.__fraiseql_resolver__ is mutation_or_fn:
+                # It's a function-based mutation decorated with @mutation
+                self._mutations[mutation_or_fn.__name__] = mutation_or_fn
+            else:
+                # It's a @mutation decorated class
+                # Register the resolver function
+                resolver_fn = mutation_or_fn.__fraiseql_resolver__
+                self._mutations[resolver_fn.__name__] = resolver_fn
+                # Also register the success and error types
+                definition = mutation_or_fn.__fraiseql_mutation__
+                if hasattr(definition, 'success_type') and definition.success_type:
+                    self.register_type(definition.success_type)
+                if hasattr(definition, 'error_type') and definition.error_type:
+                    self.register_type(definition.error_type)
         else:
             # Legacy: direct resolver function
             self._mutations[mutation_or_fn.__name__] = mutation_or_fn
