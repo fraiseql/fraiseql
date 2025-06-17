@@ -7,7 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0a3] - 2025-01-16
+## [0.1.0a3] - 2025-06-17
+
+### Added
+- **WebSocket Subscriptions**: Complete production-ready implementation
+  - Support for both `graphql-ws` and `graphql-transport-ws` protocols
+  - Full connection lifecycle management with proper state transitions
+  - Keep-alive mechanism with configurable ping/pong intervals
+  - Error handling with appropriate WebSocket close codes
+  - Broadcasting capability for multi-connection scenarios
+  - FastAPI integration with working HTML/JavaScript example
+- **Query Registration Patterns**: Comprehensive documentation and examples
+  - Clarified that `@fraiseql.query` decorator already works perfectly
+  - Added migration guide showing all three registration approaches
+  - Created examples demonstrating decorator, QueryRoot, and explicit patterns
+  - Comprehensive test coverage proving all patterns work together
+- **Enhanced Examples**:
+  - `examples/websocket_fastapi.py` - Working WebSocket subscription demo
+  - `examples/query_patterns/` - All query registration patterns demonstrated
+  - Updated blog API example to use clean `@query` decorator pattern
+- **Documentation**: 
+  - `docs/migration/query-registration.md` - Complete migration guide
+  - Enhanced user exploration notes with Grumpy's assessment
+
+### Fixed
+- Query registration confusion - documented that auto-registration works at import time
+- WebSocket connection cleanup and proper task cancellation
+- Import patterns for query modules to ensure decorator registration
+
+### Technical Details
+- Added `WebSocketError` exception class
+- Enhanced `SubscriptionManager` with connection broadcasting
+- Complete WebSocket message handling for GraphQL protocols
+- 16 comprehensive WebSocket tests covering all scenarios
+- 6 query registration tests proving pattern compatibility
+
+## [0.1.0a2] - 2025-01-16
 
 ### Added
 - Query registration pattern with `@query` decorator for simple function-based queries
