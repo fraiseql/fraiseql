@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a5] - 2025-06-17
+
+### Added
+- **Comprehensive Documentation**: Based on user feedback from pgGit demo integration
+  - Quick Start Guide with 5-minute getting started tutorial
+  - Complete API Reference documenting all decorators and functions
+  - Troubleshooting Guide addressing common issues
+  - Working examples including full pgGit demo implementation
+
+### Fixed
+- **Documentation Gaps**: Addressed critical DX issues reported by users
+  - Clarified that `fraiseql.build_schema()` doesn't exist (use `create_fraiseql_app()`)
+  - Added clear examples showing correct API usage
+  - Documented how to enable GraphQL Playground
+  - Provided immediately runnable example code
+
+### Developer Experience
+- Added documentation links to README for better discoverability
+- Created minimal 50-line example for quick testing
+- Improved error messages guidance in troubleshooting docs
+- Added common patterns and integration examples
+
 ## [0.1.0a4] - 2025-06-17
 
 ### Added

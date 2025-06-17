@@ -65,7 +65,7 @@ except ImportError:
 # CQRS support
 from .cqrs import CQRSExecutor, CQRSRepository
 
-__version__ = "0.1.0a4"
+__version__ = "0.1.0a5"
 
 __all__ = [
     "Auth0Config",
