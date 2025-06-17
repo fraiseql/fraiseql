@@ -50,9 +50,100 @@ pip install fraiseql
 pip install "fraiseql[auth0]"
 ```
 
+## Documentation
+
+- 📚 [Quick Start Guide](docs/QUICKSTART_GUIDE.md) - Get started in 5 minutes
+- 🔧 [API Reference](docs/API_REFERENCE_QUICK.md) - All decorators and functions  
+- ❓ [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- 💡 [Examples](examples/) - Working code examples
+
 ## Quick Start
 
-### 1. Initialize Your Project
+### 1. Basic Example
+
+```python
+import fraiseql
+from datetime import datetime
+from typing import List, Optional
+
+# Define your types
+@fraiseql.type
+class Post:
+    id: int
+    title: str
+    content: str
+    created_at: datetime
+
+# Create queries
+@fraiseql.query
+async def posts(info) -> List[Post]:
+    """Get all posts"""
+    return [
+        Post(id=1, title="Hello", content="World", created_at=datetime.now())
+    ]
+
+@fraiseql.query
+async def post(info, id: int) -> Optional[Post]:
+    """Get a post by ID"""
+    if id == 1:
+        return Post(id=1, title="Hello", content="World", created_at=datetime.now())
+    return None
+
+# Create the app
+if __name__ == "__main__":
+    import uvicorn
+    
+    app = fraiseql.create_fraiseql_app(
+        types=[Post],
+        production=False  # Enables GraphQL Playground
+    )
+    
+    print("GraphQL Playground: http://localhost:8000/playground")
+    uvicorn.run(app, port=8000)
+```
+
+### 2. With Database Integration
+
+```python
+import fraiseql
+from fraiseql import fraise_field
+
+@fraiseql.type
+class User:
+    id: int
+    email: str = fraise_field(description="User's email address")
+    name: str = fraise_field(description="Display name")
+
+@fraiseql.query
+async def get_user(info, id: int) -> Optional[User]:
+    db = info.context["db"]
+    result = await db.fetch_one("SELECT * FROM users WHERE id = %s", (id,))
+    return User(**result) if result else None
+
+# Create mutations
+@fraiseql.input
+class CreateUserInput:
+    email: str
+    name: str
+
+@fraiseql.mutation
+async def create_user(info, input: CreateUserInput) -> User:
+    db = info.context["db"]
+    result = await db.fetch_one(
+        "INSERT INTO users (email, name) VALUES (%s, %s) RETURNING *",
+        (input.email, input.name)
+    )
+    return User(**result)
+
+# Create app with database
+app = fraiseql.create_fraiseql_app(
+    database_url="postgresql://user:pass@localhost/dbname",
+    types=[User],
+    production=False
+)
+```
+
+### 3. CLI Usage (Alternative)
 
 ```bash
 # Create a new FraiseQL project
@@ -63,7 +154,7 @@ cd my-api
 fraiseql dev
 ```
 
-### 2. Define Your Types
+### 4. Define Your Types
 
 ```python
 from uuid import UUID
