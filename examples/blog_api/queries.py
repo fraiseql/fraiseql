@@ -6,9 +6,11 @@ from uuid import UUID
 from db import BlogRepository
 from models import Comment, Post, PostFilters, PostOrderBy, User
 
+import fraiseql
 from fraiseql.auth import requires_auth
 
 
+@fraiseql.query
 async def get_user(info, id: UUID) -> Optional[User]:
     """Get a user by ID."""
     db: BlogRepository = info.context["db"]
@@ -16,6 +18,7 @@ async def get_user(info, id: UUID) -> Optional[User]:
     return User.from_dict(user_data) if user_data else None
 
 
+@fraiseql.query
 @requires_auth
 async def me(info) -> Optional[User]:
     """Get the current authenticated user."""
@@ -25,6 +28,7 @@ async def me(info) -> Optional[User]:
     return User.from_dict(user_data) if user_data else None
 
 
+@fraiseql.query
 async def get_post(info, id: UUID) -> Optional[Post]:
     """Get a post by ID."""
     db: BlogRepository = info.context["db"]
@@ -40,6 +44,7 @@ async def get_post(info, id: UUID) -> Optional[Post]:
     return Post.from_dict(post_data)
 
 
+@fraiseql.query
 async def get_posts(
     info,
     filters: Optional[PostFilters] = None,
@@ -73,6 +78,7 @@ async def get_posts(
     return [Post.from_dict(data) for data in posts_data]
 
 
+@fraiseql.query
 async def get_comments_for_post(info, post_id: UUID) -> list[Comment]:
     """Get all comments for a post."""
     db: BlogRepository = info.context["db"]

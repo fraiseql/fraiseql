@@ -35,3 +35,7 @@ class FilterError(FraiseQLError):
 
 class N1QueryDetected(FraiseQLError):
     """Raised when N+1 query pattern is detected."""
+
+
+class WebSocketError(FraiseQLError):
+    """Raised when WebSocket operations fail."""

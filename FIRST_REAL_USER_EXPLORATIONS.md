@@ -180,3 +180,130 @@ The confusion between what the examples show (passing query functions) and what 
 3. The API has changed recently
 
 This real-world migration attempt highlights the need for more comprehensive documentation and migration guides for users coming from other GraphQL frameworks.
+
+## WebSocket Subscription Implementation (January 2025)
+
+### Completed Implementation
+
+Following Test-Driven Development approach, successfully implemented full WebSocket subscription support:
+
+**Test Coverage**: All 28 subscription tests passing
+- 4 subscription integration tests
+- 8 core subscription tests  
+- 16 WebSocket subscription tests
+
+**Implementation Details**:
+1. **Protocol Support**: Both `graphql-ws` (legacy Apollo) and `graphql-transport-ws` (new standard) protocols
+2. **Connection Management**: Complete lifecycle with states (CONNECTING → READY → CLOSING → CLOSED)
+3. **Message Handling**: Full support for all message types (CONNECTION_INIT, SUBSCRIBE, COMPLETE, PING/PONG, etc.)
+4. **Subscription Execution**: Async generator support with proper cleanup
+5. **Keep-Alive**: Configurable ping/pong mechanism to detect disconnected clients
+6. **Error Handling**: Comprehensive error handling with proper WebSocket close codes
+7. **Broadcasting**: Built-in support for broadcasting to multiple connections
+8. **FastAPI Integration**: Working example with HTML/JavaScript client
+
+**Key Files Created/Modified**:
+- `/src/fraiseql/subscriptions/websocket.py` - Complete WebSocket implementation
+- `/tests/test_websocket_subscriptions.py` - Comprehensive test suite
+- `/examples/websocket_fastapi.py` - Working FastAPI example
+- `/src/fraiseql/core/exceptions.py` - Added WebSocketError
+- `/src/fraiseql/subscriptions/__init__.py` - Updated exports
+
+### Grumpy's Assessment Needed
+
+*Viktor the Grumpy Investor enters, adjusting his glasses while reviewing the implementation*
+
+"So you finally got WebSockets working, eh? Let me run through this implementation with my checklist..."
+
+*Opens laptop and starts running tests*
+
+```bash
+$ uv run pytest tests/test_websocket_subscriptions.py -v
+============================= test session starts ==============================
+collected 16 items
+
+tests/test_websocket_subscriptions.py ................                   [100%]
+============================== 16 passed in 0.98s ==============================
+```
+
+"Hmm, 16 tests passing. Not bad. Let me check the broader subscription tests..."
+
+```bash
+$ uv run pytest tests/test_subscription*.py tests/test_subscriptions.py -v
+============================= test session starts ==============================
+collected 28 items
+tests/test_subscription_integration.py ....                              [ 14%]
+tests/test_subscriptions.py ........                                     [ 42%]
+tests/test_websocket_subscriptions.py ................                   [100%]
+============================== 28 passed in 1.69s ==============================
+```
+
+*Grumpy nods approvingly*
+
+"Alright, you've got basic WebSocket functionality. But looking at this implementation and the user feedback above, we still have MAJOR issues to address before this is production-ready:
+
+### 🚨 CRITICAL BLOCKERS
+
+1. **Query Registration is STILL BROKEN** 
+   - Users can't even create a basic schema!
+   - The blog shows passing functions, code expects types
+   - This is embarrassing - fix it NOW
+
+2. **Documentation is Completely Wrong**
+   - Examples don't match implementation
+   - Missing decorator reference
+   - No migration guide from Strawberry
+
+3. **DataLoader Not Implemented**
+   - You've got WebSockets but no N+1 query prevention?
+   - This will kill performance in production
+
+### 📋 Grumpy's Priority List
+
+**IMMEDIATE (Block everything else):**
+1. Fix query registration - make it work like the blog example
+2. Add @fraiseql.query decorator
+3. Update ALL examples to actually work
+
+**HIGH PRIORITY (This week):**
+1. Implement DataLoader with automatic batching
+2. Add comprehensive migration guide from Strawberry
+3. Fix type system to support JSON/dict[str, Any]
+4. Add context_getter parameter to create_fraiseql_app
+
+**MEDIUM PRIORITY (Before beta):**
+1. Performance benchmarks vs Strawberry
+2. Production deployment guide
+3. Security audit of WebSocket implementation
+4. Rate limiting for subscriptions
+
+**NICE TO HAVE:**
+1. GraphQL playground with subscription support
+2. Subscription filtering and authorization
+3. Horizontal scaling guide for WebSockets
+
+### 🔍 Code Review Notes
+
+Your WebSocket implementation looks solid:
+- ✅ Proper connection lifecycle
+- ✅ Both protocol support  
+- ✅ Good error handling
+- ✅ Clean async patterns
+
+But it's useless if people can't even create a basic schema!
+
+### 📊 Market Reality Check
+
+Looking at the user feedback, we're not ready for users yet:
+- Can't do basic query registration
+- Environment variable conflicts
+- Missing critical features (DataLoader, JSON support)
+- Documentation actively misleads users
+
+**Verdict**: Fix the fundamentals before adding more features. A working basic GraphQL server beats a broken one with WebSockets.
+
+Now stop patting yourself on the back for WebSockets and FIX THE QUERY REGISTRATION!"
+
+*Grumpy slams laptop closed*
+
+"And update the version to 0.1.0a3 since you added WebSockets. At least version numbers should reflect reality."

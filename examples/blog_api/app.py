@@ -10,13 +10,8 @@ from mutations import (
     delete_post,
     update_post,
 )
-from queries import (
-    get_comments_for_post,
-    get_post,
-    get_posts,
-    get_user,
-    me,
-)
+# Import queries module to ensure @query decorators are registered
+import queries  # noqa: F401
 
 from fraiseql.fastapi import create_fraiseql_app
 
@@ -26,14 +21,8 @@ app = create_fraiseql_app(
     database_url=os.getenv("DATABASE_URL", "postgresql://localhost/blog_db"),
     # Register GraphQL types
     types=[User, Post, Comment],
-    # Register queries
-    queries=[
-        get_user,
-        me,
-        get_post,
-        get_posts,
-        get_comments_for_post,
-    ],
+    # Queries are auto-registered via @fraiseql.query decorator in queries.py
+    # No need to list them explicitly!
     # Register mutations
     mutations=[
         create_user,
