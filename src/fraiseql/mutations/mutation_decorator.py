@@ -27,14 +27,18 @@ class MutationDefinition:
         hints = get_type_hints(mutation_class)
         self.input_type = hints.get("input")
         self.success_type = hints.get("success")
-        self.error_type = hints.get("error") or hints.get("failure")  # Support both 'error' and 'failure'
+        self.error_type = hints.get("error") or hints.get(
+            "failure"
+        )  # Support both 'error' and 'failure'
 
         if not self.input_type:
             raise TypeError(f"Mutation {self.name} must define 'input' type")
         if not self.success_type:
             raise TypeError(f"Mutation {self.name} must define 'success' type")
         if not self.error_type:
-            raise TypeError(f"Mutation {self.name} must define 'failure' type (or 'error' for backwards compatibility)")
+            raise TypeError(
+                f"Mutation {self.name} must define 'failure' type (or 'error' for backwards compatibility)"
+            )
 
         # Derive function name from class name if not provided
         if function_name:
@@ -74,19 +78,17 @@ class MutationDefinition:
 
         # Store mutation definition for schema building
         resolver.__fraiseql_mutation__ = self
-        
+
         # Set proper annotations for the resolver
         # We use Union of success and error types as the return type
         from typing import Union
+
         if self.success_type and self.error_type:
             return_type = Union[self.success_type, self.error_type]
         else:
             return_type = self.success_type or self.error_type
-            
-        resolver.__annotations__ = {
-            'input': self.input_type,
-            'return': return_type
-        }
+
+        resolver.__annotations__ = {"input": self.input_type, "return": return_type}
 
         return resolver
 
@@ -100,13 +102,13 @@ def mutation(
     """Decorator to define a mutation.
 
     Supports two patterns:
-    
+
     1. Simple function-based mutations (returns the type directly):
         @mutation
         async def create_user(info, input: CreateUserInput) -> User:
             # Your logic here
             return User(...)
-    
+
     2. Class-based mutations with success/error handling:
         @mutation
         class CreateUser:
@@ -119,25 +121,28 @@ def mutation(
         schema: PostgreSQL schema containing the function (defaults to "graphql")
     """
 
-    def decorator(cls_or_fn: type[T] | Callable[..., Any]) -> type[T] | Callable[..., Any]:
+    def decorator(
+        cls_or_fn: type[T] | Callable[..., Any],
+    ) -> type[T] | Callable[..., Any]:
         # Import here to avoid circular imports
         from fraiseql.gql.schema_builder import SchemaRegistry
+
         registry = SchemaRegistry.get_instance()
-        
+
         # Check if it's a function (simple mutation pattern)
         if callable(cls_or_fn) and not isinstance(cls_or_fn, type):
             # It's a function-based mutation
             fn = cls_or_fn
-            
+
             # Store metadata for schema building
             fn.__fraiseql_mutation__ = True
             fn.__fraiseql_resolver__ = fn
-            
+
             # Auto-register with schema
             registry.register_mutation(fn)
-            
+
             return fn
-        
+
         # Otherwise, it's a class-based mutation
         cls = cls_or_fn
         # Create mutation definition
@@ -148,7 +153,7 @@ def mutation(
 
         # Create and store resolver
         cls.__fraiseql_resolver__ = definition.create_resolver()
-        
+
         # Auto-register with schema
         registry.register_mutation(cls)
 

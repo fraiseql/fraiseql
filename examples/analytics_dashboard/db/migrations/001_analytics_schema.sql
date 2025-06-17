@@ -296,7 +296,7 @@ RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.ended_at IS NOT NULL AND OLD.ended_at IS NULL THEN
         NEW.duration_seconds = EXTRACT(EPOCH FROM (NEW.ended_at - NEW.started_at));
-        
+
         -- Mark as bounce if session was very short with only 1 page view
         IF NEW.duration_seconds < 10 AND NEW.page_views <= 1 THEN
             NEW.is_bounce = true;

@@ -1,9 +1,8 @@
 """Regression test for simple mutations in quickstart examples."""
 
-import pytest
 from datetime import datetime
-from typing import Optional
-from uuid import UUID, uuid4
+
+import pytest
 
 import fraiseql
 from fraiseql import fraise_field
@@ -15,13 +14,14 @@ def clear_registry():
     """Clear registry before each test to avoid type conflicts."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
-    
+
     # Also clear the GraphQL type cache
     from fraiseql.core.graphql_type import _graphql_type_cache
+
     _graphql_type_cache.clear()
-    
+
     yield
-    
+
     registry.clear()
     _graphql_type_cache.clear()
 
@@ -30,6 +30,7 @@ def clear_registry():
 @fraiseql.type
 class Branch:
     """A branch pointing to a specific commit"""
+
     name: str = fraise_field(description="Branch name")
     commit_hash: str = fraise_field(description="Current commit hash")
     created_at: datetime
@@ -50,14 +51,14 @@ async def create_branch(info, input: CreateBranchInput) -> Branch:
         name=input.name,
         commit_hash=input.commit_hash,
         created_at=datetime.now(),
-        updated_at=datetime.now()
+        updated_at=datetime.now(),
     )
 
 
 def test_quickstart_mutation_pattern_works():
     """Test that the mutation pattern from quickstart.py works."""
     # This should not raise "TypeError: Mutation create_branch must define 'success' type"
-    assert hasattr(create_branch, '__fraiseql_mutation__')
+    assert hasattr(create_branch, "__fraiseql_mutation__")
     assert create_branch.__fraiseql_mutation__ is True
     assert create_branch.__fraiseql_resolver__ is create_branch
 
@@ -66,18 +67,15 @@ def test_quickstart_mutation_pattern_works():
 async def test_quickstart_mutation_can_execute():
     """Test that quickstart mutations can be executed."""
     # Create test input
-    test_input = CreateBranchInput(
-        name="feature/test",
-        commit_hash="abc123"
-    )
-    
+    test_input = CreateBranchInput(name="feature/test", commit_hash="abc123")
+
     # Mock info
     class MockInfo:
         context = {"db": None}
-    
+
     # This should work without errors
     result = await create_branch(MockInfo(), test_input)
-    
+
     assert isinstance(result, Branch)
     assert result.name == "feature/test"
     assert result.commit_hash == "abc123"
@@ -88,26 +86,26 @@ async def test_quickstart_mutation_can_execute():
 def test_simple_mutation_in_schema():
     """Test that simple mutations are correctly added to GraphQL schema."""
     from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
-    
+
     registry = SchemaRegistry.get_instance()
     registry.clear()
-    
+
     # Register types
     registry.register_type(Branch)
-    
+
     # Re-register the mutation since we cleared the registry
     registry.register_mutation(create_branch)
-    
+
     # The mutation should be registered
-    assert 'create_branch' in registry._mutations
-    
+    assert "create_branch" in registry._mutations
+
     # Add a dummy query
     @fraiseql.query
     async def dummy(info) -> str:
         return "test"
-    
+
     registry.register_query(dummy)
-    
+
     # Build schema - this should NOT raise an error about missing 'success' type
     try:
         schema = build_fraiseql_schema()
@@ -115,50 +113,47 @@ def test_simple_mutation_in_schema():
         if "must define 'success' type" in str(e):
             pytest.fail(f"Simple mutations should not require success type: {e}")
         raise
-    
+
     # Verify mutation is in schema
     assert schema.mutation_type is not None
-    assert 'create_branch' in schema.mutation_type.fields
+    assert "create_branch" in schema.mutation_type.fields
 
 
 def test_quickstart_app_creation():
     """Test that quickstart app can be created with simple mutations."""
     from fraiseql import create_fraiseql_app
     from fraiseql.gql.schema_builder import SchemaRegistry
-    
+
     # Clear registry
     registry = SchemaRegistry.get_instance()
     registry.clear()
-    
+
     # Define minimal types and queries for app
     @fraiseql.type
     class Commit:
         hash: str
         message: str
-    
+
     @fraiseql.query
     async def commits(info) -> list[Commit]:
         return []
-    
+
     # Import our mutations
     # (In real quickstart, these would be imported from the file)
-    
+
     # This should work without any errors
-    app = create_fraiseql_app(
-        types=[Branch, Commit],
-        production=False
-    )
-    
+    app = create_fraiseql_app(types=[Branch, Commit], production=False)
+
     assert app is not None
 
 
 def test_both_mutation_styles_in_same_app():
     """Test that both mutation styles can coexist."""
     from fraiseql.gql.schema_builder import SchemaRegistry
-    
+
     registry = SchemaRegistry.get_instance()
     registry.clear()
-    
+
     # Simple mutation
     @fraiseql.mutation
     async def simple_mutation(info, name: str) -> Branch:
@@ -166,29 +161,29 @@ def test_both_mutation_styles_in_same_app():
             name=name,
             commit_hash="test",
             created_at=datetime.now(),
-            updated_at=datetime.now()
+            updated_at=datetime.now(),
         )
-    
+
     # Class-based mutation
     @fraiseql.success
     class CreateSuccess:
         branch: Branch
         message: str
-    
+
     @fraiseql.failure
     class CreateError:
         message: str
-    
+
     @fraiseql.mutation
     class ClassBasedMutation:
         input: CreateBranchInput
         success: CreateSuccess
         error: CreateError
-    
+
     # Register both
     registry.register_mutation(simple_mutation)
     registry.register_mutation(ClassBasedMutation)
-    
+
     # Both should be registered
-    assert 'simple_mutation' in registry._mutations
-    assert 'class_based_mutation' in registry._mutations
+    assert "simple_mutation" in registry._mutations
+    assert "class_based_mutation" in registry._mutations

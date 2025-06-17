@@ -282,7 +282,7 @@ RETURNS INTEGER AS $$
 DECLARE
     deleted_count INTEGER;
 BEGIN
-    DELETE FROM user_presence 
+    DELETE FROM user_presence
     WHERE last_activity < CURRENT_TIMESTAMP - INTERVAL '1 hour'
     AND status != 'online';
     GET DIAGNOSTICS deleted_count = ROW_COUNT;

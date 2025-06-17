@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **@dataloader_field Decorator**: Production-ready decorator for automatic DataLoader integration
   - Eliminates N+1 queries with zero boilerplate code
-  - Auto-implements DataLoader-based field resolution 
+  - Auto-implements DataLoader-based field resolution
   - Full type safety with return type conversion
   - Seamless GraphQL schema integration
   - Comprehensive input validation and security hardening
@@ -81,7 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `examples/websocket_fastapi.py` - Working WebSocket subscription demo
   - `examples/query_patterns/` - All query registration patterns demonstrated
   - Updated blog API example to use clean `@query` decorator pattern
-- **Documentation**: 
+- **Documentation**:
   - `docs/migration/query-registration.md` - Complete migration guide
   - Enhanced user exploration notes with Grumpy's assessment
 

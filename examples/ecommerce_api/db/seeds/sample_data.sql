@@ -15,7 +15,7 @@ INSERT INTO categories (id, name, slug, description, parent_id) VALUES
 -- Products
 INSERT INTO products (id, sku, name, slug, description, short_description, category_id, brand, tags, is_featured) VALUES
 -- Laptops
-('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380b11', 'LAPTOP-001', 'ProBook 15 Professional Laptop', 'probook-15-professional', 
+('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380b11', 'LAPTOP-001', 'ProBook 15 Professional Laptop', 'probook-15-professional',
  'High-performance laptop with Intel Core i7 processor, 16GB RAM, and 512GB SSD. Perfect for professionals and power users.',
  'Professional laptop with i7, 16GB RAM, 512GB SSD',
  'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'TechPro', ARRAY['laptop', 'computer', 'professional', 'intel'], true),

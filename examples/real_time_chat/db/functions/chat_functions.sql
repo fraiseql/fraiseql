@@ -18,21 +18,21 @@ BEGIN
     IF EXISTS (SELECT 1 FROM rooms WHERE slug = p_slug) THEN
         RAISE EXCEPTION 'Room slug already exists';
     END IF;
-    
+
     -- Validate room type
     IF p_type NOT IN ('public', 'private', 'direct') THEN
         RAISE EXCEPTION 'Invalid room type';
     END IF;
-    
+
     -- Create room
     INSERT INTO rooms (name, slug, description, type, owner_id, max_members, settings)
     VALUES (p_name, p_slug, p_description, p_type, p_owner_id, p_max_members, p_settings)
     RETURNING id INTO v_room_id;
-    
+
     -- Add owner as admin member
     INSERT INTO room_members (room_id, user_id, role)
     VALUES (v_room_id, p_owner_id, 'owner');
-    
+
     RETURN json_build_object(
         'success', true,
         'room_id', v_room_id,
@@ -59,38 +59,38 @@ DECLARE
 BEGIN
     -- Get room info
     SELECT * INTO v_room FROM rooms WHERE id = p_room_id AND is_active = true;
-    
+
     IF v_room IS NULL THEN
         RAISE EXCEPTION 'Room not found or inactive';
     END IF;
-    
+
     -- Check if already a member
     IF EXISTS (
-        SELECT 1 FROM room_members 
+        SELECT 1 FROM room_members
         WHERE room_id = p_room_id AND user_id = p_user_id
     ) THEN
         RAISE EXCEPTION 'User is already a member';
     END IF;
-    
+
     -- Check room capacity
     SELECT COUNT(*) INTO v_member_count
     FROM room_members
     WHERE room_id = p_room_id AND is_banned = false;
-    
+
     IF v_member_count >= v_room.max_members THEN
         RAISE EXCEPTION 'Room is at maximum capacity';
     END IF;
-    
+
     -- For private rooms, check if user has permission (simplified)
     IF v_room.type = 'private' THEN
         -- In a real implementation, you'd check invitations or permissions
         NULL;
     END IF;
-    
+
     -- Add user to room
     INSERT INTO room_members (room_id, user_id, role)
     VALUES (p_room_id, p_user_id, p_role);
-    
+
     -- Create system message
     INSERT INTO messages (room_id, user_id, content, message_type, metadata)
     VALUES (
@@ -100,7 +100,7 @@ BEGIN
         'system',
         json_build_object('action', 'user_joined')::jsonb
     );
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Successfully joined room'
@@ -131,30 +131,30 @@ BEGIN
     SELECT * INTO v_room_member
     FROM room_members
     WHERE room_id = p_room_id AND user_id = p_user_id AND is_banned = false;
-    
+
     IF v_room_member IS NULL THEN
         RAISE EXCEPTION 'User is not a member of this room or is banned';
     END IF;
-    
+
     -- Validate message type
     IF p_message_type NOT IN ('text', 'image', 'file', 'system') THEN
         RAISE EXCEPTION 'Invalid message type';
     END IF;
-    
+
     -- Insert message
     INSERT INTO messages (room_id, user_id, content, message_type, parent_message_id, metadata)
     VALUES (p_room_id, p_user_id, p_content, p_message_type, p_parent_message_id, p_metadata)
     RETURNING id INTO v_message_id;
-    
+
     -- Update last read timestamp for sender
     UPDATE room_members
     SET last_read_at = CURRENT_TIMESTAMP
     WHERE room_id = p_room_id AND user_id = p_user_id;
-    
+
     -- Clear any typing indicator for this user
     DELETE FROM typing_indicators
     WHERE room_id = p_room_id AND user_id = p_user_id;
-    
+
     RETURN json_build_object(
         'success', true,
         'message_id', v_message_id,
@@ -182,16 +182,16 @@ BEGIN
     SELECT * INTO v_message
     FROM messages
     WHERE id = p_message_id AND user_id = p_user_id AND is_deleted = false;
-    
+
     IF v_message IS NULL THEN
         RAISE EXCEPTION 'Message not found or you do not have permission to edit it';
     END IF;
-    
+
     -- Check if message is too old to edit (e.g., 1 hour)
     IF v_message.created_at < CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN
         RAISE EXCEPTION 'Message is too old to edit';
     END IF;
-    
+
     -- Update message
     UPDATE messages
     SET content = p_new_content,
@@ -199,14 +199,14 @@ BEGIN
         metadata = jsonb_set(
             COALESCE(metadata, '{}'::jsonb),
             '{edit_history}',
-            COALESCE(metadata->'edit_history', '[]'::jsonb) || 
+            COALESCE(metadata->'edit_history', '[]'::jsonb) ||
             json_build_object(
                 'previous_content', v_message.content,
                 'edited_at', CURRENT_TIMESTAMP
             )::jsonb
         )
     WHERE id = p_message_id;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Message edited successfully'
@@ -234,18 +234,18 @@ BEGIN
     FROM messages m
     LEFT JOIN room_members rm ON rm.room_id = m.room_id AND rm.user_id = p_user_id
     WHERE m.id = p_message_id AND m.is_deleted = false;
-    
+
     IF v_message IS NULL THEN
         RAISE EXCEPTION 'Message not found';
     END IF;
-    
+
     -- Check permissions
-    IF v_message.user_id != p_user_id AND 
-       NOT p_is_moderator AND 
+    IF v_message.user_id != p_user_id AND
+       NOT p_is_moderator AND
        v_message.role NOT IN ('owner', 'admin', 'moderator') THEN
         RAISE EXCEPTION 'You do not have permission to delete this message';
     END IF;
-    
+
     -- Soft delete the message
     UPDATE messages
     SET is_deleted = true,
@@ -259,7 +259,7 @@ BEGIN
             )::jsonb
         )
     WHERE id = p_message_id;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Message deleted successfully'
@@ -284,19 +284,19 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM messages m
         JOIN room_members rm ON rm.room_id = m.room_id
-        WHERE m.id = p_message_id 
-        AND rm.user_id = p_user_id 
+        WHERE m.id = p_message_id
+        AND rm.user_id = p_user_id
         AND rm.is_banned = false
         AND m.is_deleted = false
     ) THEN
         RAISE EXCEPTION 'Message not found or access denied';
     END IF;
-    
+
     -- Add or update reaction
     INSERT INTO message_reactions (message_id, user_id, emoji)
     VALUES (p_message_id, p_user_id, p_emoji)
     ON CONFLICT (message_id, user_id, emoji) DO NOTHING;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Reaction added'
@@ -318,10 +318,10 @@ CREATE OR REPLACE FUNCTION remove_message_reaction(
 ) RETURNS JSON AS $$
 BEGIN
     DELETE FROM message_reactions
-    WHERE message_id = p_message_id 
-    AND user_id = p_user_id 
+    WHERE message_id = p_message_id
+    AND user_id = p_user_id
     AND emoji = p_emoji;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Reaction removed'
@@ -350,13 +350,13 @@ BEGIN
     DO UPDATE SET
         status = EXCLUDED.status,
         last_activity = CURRENT_TIMESTAMP;
-    
+
     -- Also update user status
     UPDATE users
     SET status = p_status,
         last_seen = CASE WHEN p_status = 'offline' THEN CURRENT_TIMESTAMP ELSE last_seen END
     WHERE id = p_user_id;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Presence updated'
@@ -390,7 +390,7 @@ BEGIN
         DELETE FROM typing_indicators
         WHERE room_id = p_room_id AND user_id = p_user_id;
     END IF;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Typing indicator updated'
@@ -420,25 +420,25 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'User is not a member of this room';
     END IF;
-    
+
     -- Get timestamp of the message or use current time
     IF p_up_to_message_id IS NOT NULL THEN
         SELECT created_at INTO v_timestamp
         FROM messages
         WHERE id = p_up_to_message_id AND room_id = p_room_id;
-        
+
         IF v_timestamp IS NULL THEN
             RAISE EXCEPTION 'Message not found in this room';
         END IF;
     ELSE
         v_timestamp := CURRENT_TIMESTAMP;
     END IF;
-    
+
     -- Update last read timestamp
     UPDATE room_members
     SET last_read_at = v_timestamp
     WHERE room_id = p_room_id AND user_id = p_user_id;
-    
+
     -- Add read receipts for messages
     INSERT INTO message_read_receipts (message_id, user_id)
     SELECT m.id, p_user_id
@@ -451,7 +451,7 @@ BEGIN
         WHERE mrr.message_id = m.id AND mrr.user_id = p_user_id
     )
     ON CONFLICT (message_id, user_id) DO NOTHING;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Messages marked as read'
@@ -484,12 +484,12 @@ BEGIN
         v_ordered_user1 := p_user2_id;
         v_ordered_user2 := p_user1_id;
     END IF;
-    
+
     -- Check if conversation already exists
     SELECT room_id INTO v_room_id
     FROM direct_conversations
     WHERE user1_id = v_ordered_user1 AND user2_id = v_ordered_user2;
-    
+
     IF v_room_id IS NOT NULL THEN
         RETURN json_build_object(
             'success', true,
@@ -497,7 +497,7 @@ BEGIN
             'message', 'Direct conversation already exists'
         );
     END IF;
-    
+
     -- Create room for direct conversation
     INSERT INTO rooms (name, slug, type, owner_id, max_members)
     VALUES (
@@ -507,17 +507,17 @@ BEGIN
         v_ordered_user1,
         2
     ) RETURNING id INTO v_room_id;
-    
+
     -- Create conversation record
     INSERT INTO direct_conversations (room_id, user1_id, user2_id)
     VALUES (v_room_id, v_ordered_user1, v_ordered_user2)
     RETURNING id INTO v_conversation_id;
-    
+
     -- Add both users as members
     INSERT INTO room_members (room_id, user_id, role) VALUES
     (v_room_id, v_ordered_user1, 'member'),
     (v_room_id, v_ordered_user2, 'member');
-    
+
     RETURN json_build_object(
         'success', true,
         'room_id', v_room_id,

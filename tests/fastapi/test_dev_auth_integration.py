@@ -241,7 +241,9 @@ class TestDevAuthAppIntegration:
             record.message for record in caplog.records if record.levelname == "WARNING"
         ]
 
-        assert any("Development authentication is enabled" in msg for msg in warning_messages)
+        assert any(
+            "Development authentication is enabled" in msg for msg in warning_messages
+        )
 
     def test_dev_auth_multiple_protected_paths(self, clear_registry):
         """Test that dev auth protects multiple expected paths."""

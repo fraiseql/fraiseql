@@ -19,7 +19,7 @@ class User:
     name: str
     email: str
     created_at: datetime
-    
+
     # Methods become GraphQL fields
     def display_name(self) -> str:
         return f"{self.name} ({self.email})"
@@ -91,8 +91,8 @@ async def get_user(info, id: UUID) -> Optional[User]:
 
 @query
 async def search_users(
-    info, 
-    query: str, 
+    info,
+    query: str,
     limit: int = 10
 ) -> list[User]:
     """Search users by name or email."""
@@ -114,7 +114,7 @@ class QueryRoot:
         """Get user by ID."""
         db = info.context["db"]
         return await db.get_user(id)
-    
+
     @field
     def stats(self, root, info) -> dict[str, int]:
         """Get system statistics."""
@@ -138,7 +138,7 @@ class CreateUser:
     input: CreateUserInput
     success: CreateUserSuccess
     failure: CreateUserFailure
-    
+
     async def execute(self, db, input_data):
         try:
             user = await db.create_user(
@@ -237,7 +237,7 @@ class UpdateProfile:
     input: UpdateProfileInput
     success: UpdateProfileSuccess
     failure: UpdateProfileFailure
-    
+
     @requires_auth
     async def execute(self, db, input_data, user):
         """Update current user's profile."""
@@ -259,18 +259,18 @@ class Post:
     author_id: UUID
     tags: list[str]
     metadata: dict[str, Any]
-    
+
     @field
     async def author(self, root, info) -> User:
         """Resolve post author."""
         db = info.context["db"]
         return await db.get_user(self.author_id)
-    
+
     @field
     def word_count(self, root, info) -> int:
         """Calculate word count."""
         return len(self.content.split())
-    
+
     def is_published(self) -> bool:
         """Check if post is published."""
         return self.metadata.get("status") == "published"

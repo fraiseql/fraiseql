@@ -3,7 +3,7 @@
 
 -- Customer profile view with stats
 CREATE OR REPLACE VIEW customer_profile AS
-SELECT 
+SELECT
     c.*,
     -- Order statistics
     COUNT(DISTINCT o.id) as total_orders,
@@ -20,8 +20,8 @@ SELECT
     AVG(r.rating)::DECIMAL(3,2) as average_rating_given,
     -- Cart status
     EXISTS(
-        SELECT 1 FROM carts 
-        WHERE customer_id = c.id 
+        SELECT 1 FROM carts
+        WHERE customer_id = c.id
         AND status = 'active'
         AND expires_at > CURRENT_TIMESTAMP
     ) as has_active_cart
@@ -35,10 +35,10 @@ GROUP BY c.id;
 
 -- Shopping cart view with items
 CREATE OR REPLACE VIEW shopping_cart AS
-SELECT 
+SELECT
     c.*,
     -- Customer info if logged in
-    CASE 
+    CASE
         WHEN c.customer_id IS NOT NULL THEN
             json_build_object(
                 'id', cust.id,
@@ -86,9 +86,9 @@ LEFT JOIN product_variants pv ON ci.variant_id = pv.id
 LEFT JOIN products p ON pv.product_id = p.id
 LEFT JOIN inventory i ON i.variant_id = pv.id
 LEFT JOIN LATERAL (
-    SELECT url FROM product_images 
-    WHERE product_id = p.id 
-    ORDER BY is_primary DESC, position 
+    SELECT url FROM product_images
+    WHERE product_id = p.id
+    ORDER BY is_primary DESC, position
     LIMIT 1
 ) pi ON true
 WHERE c.status = 'active' AND c.expires_at > CURRENT_TIMESTAMP
@@ -96,7 +96,7 @@ GROUP BY c.id, cust.id, cust.email, cust.first_name, cust.last_name;
 
 -- Order detail view
 CREATE OR REPLACE VIEW order_detail AS
-SELECT 
+SELECT
     o.*,
     -- Customer info
     json_build_object(
@@ -107,7 +107,7 @@ SELECT
         'phone', c.phone
     ) as customer,
     -- Shipping address
-    CASE 
+    CASE
         WHEN sa.id IS NOT NULL THEN
             json_build_object(
                 'first_name', sa.first_name,
@@ -124,7 +124,7 @@ SELECT
         ELSE NULL
     END as shipping_address,
     -- Billing address
-    CASE 
+    CASE
         WHEN ba.id IS NOT NULL THEN
             json_build_object(
                 'first_name', ba.first_name,
@@ -174,22 +174,22 @@ LEFT JOIN order_items oi ON oi.order_id = o.id
 LEFT JOIN product_variants pv ON oi.variant_id = pv.id
 LEFT JOIN products p ON pv.product_id = p.id
 LEFT JOIN LATERAL (
-    SELECT url FROM product_images 
-    WHERE product_id = p.id 
-    ORDER BY is_primary DESC, position 
+    SELECT url FROM product_images
+    WHERE product_id = p.id
+    ORDER BY is_primary DESC, position
     LIMIT 1
 ) pi ON true
 GROUP BY o.id, c.id, c.email, c.first_name, c.last_name, c.phone,
-         sa.id, sa.first_name, sa.last_name, sa.company, sa.address_line1, 
-         sa.address_line2, sa.city, sa.state_province, sa.postal_code, 
+         sa.id, sa.first_name, sa.last_name, sa.company, sa.address_line1,
+         sa.address_line2, sa.city, sa.state_province, sa.postal_code,
          sa.country_code, sa.phone,
-         ba.id, ba.first_name, ba.last_name, ba.company, ba.address_line1, 
-         ba.address_line2, ba.city, ba.state_province, ba.postal_code, 
+         ba.id, ba.first_name, ba.last_name, ba.company, ba.address_line1,
+         ba.address_line2, ba.city, ba.state_province, ba.postal_code,
          ba.country_code, ba.phone;
 
 -- Customer order history
 CREATE OR REPLACE VIEW customer_orders AS
-SELECT 
+SELECT
     o.customer_id,
     o.id as order_id,
     o.order_number,
@@ -200,7 +200,7 @@ SELECT
     SUM(oi.quantity) as total_items,
     -- First item image for preview
     (
-        SELECT pi.url 
+        SELECT pi.url
         FROM order_items oi2
         JOIN product_variants pv ON oi2.variant_id = pv.id
         JOIN product_images pi ON pi.product_id = pv.product_id
@@ -214,7 +214,7 @@ GROUP BY o.id;
 
 -- Review listing view
 CREATE OR REPLACE VIEW product_reviews AS
-SELECT 
+SELECT
     r.*,
     -- Customer info (anonymized if needed)
     json_build_object(
@@ -230,7 +230,7 @@ SELECT
         'slug', p.slug
     ) as product,
     -- Helpfulness ratio
-    CASE 
+    CASE
         WHEN r.helpful_count + r.not_helpful_count > 0 THEN
             r.helpful_count::FLOAT / (r.helpful_count + r.not_helpful_count)
         ELSE NULL
@@ -242,7 +242,7 @@ WHERE r.status = 'approved';
 
 -- Wishlist view
 CREATE OR REPLACE VIEW customer_wishlists AS
-SELECT 
+SELECT
     w.*,
     -- Item count
     COUNT(wi.id) as item_count,
@@ -272,16 +272,16 @@ LEFT JOIN products p ON wi.product_id = p.id AND p.is_active = true
 LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active = true
 LEFT JOIN inventory i ON i.variant_id = pv.id
 LEFT JOIN LATERAL (
-    SELECT url FROM product_images 
-    WHERE product_id = p.id 
-    ORDER BY is_primary DESC, position 
+    SELECT url FROM product_images
+    WHERE product_id = p.id
+    ORDER BY is_primary DESC, position
     LIMIT 1
 ) pi ON true
 GROUP BY w.id;
 
 -- Customer addresses view
 CREATE OR REPLACE VIEW customer_addresses AS
-SELECT 
+SELECT
     a.*,
     -- Format as single line
     CONCAT_WS(', ',
@@ -304,7 +304,7 @@ GROUP BY a.id;
 
 -- Order analytics view
 CREATE OR REPLACE VIEW order_analytics AS
-SELECT 
+SELECT
     DATE_TRUNC('day', created_at) as order_date,
     COUNT(*) as order_count,
     COUNT(DISTINCT customer_id) as unique_customers,
@@ -322,7 +322,7 @@ GROUP BY DATE_TRUNC('day', created_at);
 
 -- Inventory alerts view
 CREATE OR REPLACE VIEW inventory_alerts AS
-SELECT 
+SELECT
     i.*,
     pv.sku as variant_sku,
     pv.name as variant_name,
@@ -330,7 +330,7 @@ SELECT
     p.name as product_name,
     p.sku as product_sku,
     i.quantity - i.reserved_quantity as available_quantity,
-    CASE 
+    CASE
         WHEN i.quantity - i.reserved_quantity <= 0 THEN 'out_of_stock'
         WHEN i.quantity - i.reserved_quantity <= i.low_stock_threshold THEN 'low_stock'
         ELSE 'in_stock'

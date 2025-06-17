@@ -72,7 +72,9 @@ def parse_date_range_value(value: Any) -> str | None:
     start_date_str, end_date_str = match.groups()
 
     if not is_valid_date(start_date_str) or not is_valid_date(end_date_str):
-        msg = f"Invalid date in range: {value}. Dates should be in the format YYYY-MM-DD."
+        msg = (
+            f"Invalid date in range: {value}. Dates should be in the format YYYY-MM-DD."
+        )
         raise GraphQLError(msg)
 
     return value

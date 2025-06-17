@@ -1,7 +1,7 @@
 # Beta Development Log: Subscriptions Planning
-**Date**: 2025-01-16  
-**Time**: 19:15 UTC  
-**Session**: 002  
+**Date**: 2025-01-16
+**Time**: 19:15 UTC
+**Session**: 002
 **Author**: Backend Team Lead (under Viktor's supervision)
 
 ## Objective
@@ -63,7 +63,7 @@ async def task_updates(info, project_id: UUID):
     # Verify access
     if not await has_project_access(info.context["user"], project_id):
         raise PermissionError("No access to project")
-    
+
     # Return async generator
     async for event in task_event_stream(project_id):
         yield event

@@ -3,7 +3,7 @@
 
 -- Room list view with latest message and unread count
 CREATE OR REPLACE VIEW room_list AS
-SELECT 
+SELECT
     r.id,
     r.name,
     r.slug,
@@ -42,7 +42,7 @@ SELECT
         )
         FROM messages m
         JOIN users u ON m.user_id = u.id
-        WHERE m.room_id = r.id 
+        WHERE m.room_id = r.id
         AND m.is_deleted = false
         ORDER BY m.created_at DESC
         LIMIT 1
@@ -56,7 +56,7 @@ GROUP BY r.id, owner.id, owner.username, owner.display_name, owner.avatar_url;
 
 -- Room detail view with members and permissions
 CREATE OR REPLACE VIEW room_detail AS
-SELECT 
+SELECT
     r.*,
     -- Owner info
     json_build_object(
@@ -68,7 +68,7 @@ SELECT
     ) as owner,
     -- Members with roles
     COALESCE(
-        json_agg(DISTINCT 
+        json_agg(DISTINCT
             json_build_object(
                 'id', rm.id,
                 'user_id', rm.user_id,
@@ -102,7 +102,7 @@ GROUP BY r.id, owner.id, owner.username, owner.display_name, owner.avatar_url, o
 
 -- Message thread view with reactions and replies
 CREATE OR REPLACE VIEW message_thread AS
-SELECT 
+SELECT
     m.id,
     m.room_id,
     m.user_id,
@@ -123,7 +123,7 @@ SELECT
     ) as author,
     -- Attachments
     COALESCE(
-        json_agg(DISTINCT 
+        json_agg(DISTINCT
             json_build_object(
                 'id', ma.id,
                 'filename', ma.filename,
@@ -141,7 +141,7 @@ SELECT
     ) as attachments,
     -- Reactions
     COALESCE(
-        json_agg(DISTINCT 
+        json_agg(DISTINCT
             json_build_object(
                 'emoji', mr.emoji,
                 'count', COUNT(*) OVER (PARTITION BY mr.emoji),
@@ -172,7 +172,7 @@ GROUP BY m.id, u.id, u.username, u.display_name, u.avatar_url, u.status;
 
 -- User conversation view (DMs and room memberships)
 CREATE OR REPLACE VIEW user_conversations AS
-SELECT 
+SELECT
     rm.user_id,
     r.id as room_id,
     r.name,
@@ -199,13 +199,13 @@ SELECT
         )
         FROM messages latest
         JOIN users latest_user ON latest.user_id = latest_user.id
-        WHERE latest.room_id = r.id 
+        WHERE latest.room_id = r.id
         AND latest.is_deleted = false
         ORDER BY latest.created_at DESC
         LIMIT 1
     ) as latest_message,
     -- For direct conversations, get the other user
-    CASE 
+    CASE
         WHEN r.type = 'direct' THEN
             (
                 SELECT json_build_object(
@@ -217,7 +217,7 @@ SELECT
                 )
                 FROM room_members other_rm
                 JOIN users other_user ON other_rm.user_id = other_user.id
-                WHERE other_rm.room_id = r.id 
+                WHERE other_rm.room_id = r.id
                 AND other_rm.user_id != rm.user_id
                 LIMIT 1
             )
@@ -241,7 +241,7 @@ SELECT DISTINCT
     u.last_seen,
     -- Rooms where user is online
     COALESCE(
-        json_agg(DISTINCT 
+        json_agg(DISTINCT
             json_build_object(
                 'room_id', up.room_id,
                 'last_activity', up.last_activity
@@ -258,7 +258,7 @@ GROUP BY u.id;
 
 -- Typing indicators view
 CREATE OR REPLACE VIEW active_typing AS
-SELECT 
+SELECT
     ti.room_id,
     json_agg(
         json_build_object(
@@ -276,7 +276,7 @@ GROUP BY ti.room_id;
 
 -- Message search view
 CREATE OR REPLACE VIEW message_search AS
-SELECT 
+SELECT
     m.id,
     m.room_id,
     m.user_id,
@@ -308,7 +308,7 @@ WHERE m.is_deleted = false
 
 -- Room analytics view
 CREATE OR REPLACE VIEW room_analytics AS
-SELECT 
+SELECT
     r.id as room_id,
     r.name,
     r.type,
@@ -328,12 +328,12 @@ FROM rooms r
 LEFT JOIN room_members rm ON rm.room_id = r.id
 LEFT JOIN messages m ON m.room_id = r.id AND m.is_deleted = false
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         DATE_TRUNC('day', created_at) as day,
         COUNT(*) as message_count
-    FROM messages 
-    WHERE room_id = r.id 
-    AND is_deleted = false 
+    FROM messages
+    WHERE room_id = r.id
+    AND is_deleted = false
     AND created_at >= CURRENT_DATE - INTERVAL '30 days'
     GROUP BY DATE_TRUNC('day', created_at)
 ) daily_stats ON true

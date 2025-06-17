@@ -21,5 +21,7 @@ def test_order_by_set_multiple():
         ],
     )
     result = obs.to_sql().as_string(None)
-    expected = "ORDER BY data -> 'profile' ->> 'last_name' ASC, data ->> 'created_at' DESC"
+    expected = (
+        "ORDER BY data -> 'profile' ->> 'last_name' ASC, data ->> 'created_at' DESC"
+    )
     assert result == expected

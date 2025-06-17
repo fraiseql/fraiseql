@@ -1,7 +1,7 @@
 # Beta Development Log: Sprint 2 - Production Monitoring
-**Date**: 2025-01-18  
-**Time**: 14:00 UTC  
-**Session**: 011  
+**Date**: 2025-01-18
+**Time**: 14:00 UTC
+**Session**: 011
 **Author**: DevOps Lead (Viktor wants "total visibility")
 
 ## Production Monitoring & Observability Stack
@@ -200,11 +200,11 @@ business_operations_total = Counter(
 
 class MetricsCollector:
     """Collects and exposes metrics."""
-    
+
     def __init__(self):
         self.process = psutil.Process()
         self._collection_task: Optional[asyncio.Task] = None
-    
+
     async def start(self):
         """Start metrics collection."""
         # Set system info
@@ -213,16 +213,16 @@ class MetricsCollector:
             'python_version': '3.11',
             'environment': 'production'
         })
-        
+
         # Start collection loop
         self._collection_task = asyncio.create_task(self._collect_loop())
-    
+
     async def stop(self):
         """Stop metrics collection."""
         if self._collection_task:
             self._collection_task.cancel()
             await asyncio.gather(self._collection_task, return_exceptions=True)
-    
+
     async def _collect_loop(self):
         """Periodically collect system metrics."""
         while True:
@@ -231,25 +231,25 @@ class MetricsCollector:
                 memory = self.process.memory_info()
                 memory_usage_bytes.labels(type='rss').set(memory.rss)
                 memory_usage_bytes.labels(type='vms').set(memory.vms)
-                
+
                 # CPU metrics
                 cpu_percent = self.process.cpu_percent(interval=1)
                 cpu_usage_percent.set(cpu_percent)
-                
+
                 # Database pool metrics (if available)
                 from fraiseql.fastapi.dependencies import get_db_pool
                 pool = get_db_pool()
                 if pool:
                     database_connections_active.set(pool.size - pool.idle)
                     database_connections_idle.set(pool.idle)
-                
+
                 await asyncio.sleep(10)  # Collect every 10 seconds
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 print(f"Metrics collection error: {e}")
-    
+
     def get_metrics(self) -> bytes:
         """Get Prometheus metrics."""
         return generate_latest(registry)
@@ -292,7 +292,7 @@ tracer = trace.get_tracer("fraiseql")
 
 class GraphQLTracer:
     """Traces GraphQL operations."""
-    
+
     @staticmethod
     def trace_operation(operation_type: str, operation_name: str):
         """Trace a GraphQL operation."""
@@ -316,10 +316,10 @@ class GraphQLTracer:
                         )
                         span.record_exception(e)
                         raise
-            
+
             return wrapper
         return decorator
-    
+
     @staticmethod
     def trace_field(type_name: str, field_name: str):
         """Trace a field resolver."""
@@ -335,19 +335,19 @@ class GraphQLTracer:
                 ) as span:
                     try:
                         result = await func(*args, **kwargs)
-                        
+
                         # Add result metadata
                         if isinstance(result, list):
                             span.set_attribute("result.count", len(result))
-                        
+
                         return result
                     except Exception as e:
                         span.record_exception(e)
                         raise
-            
+
             return wrapper
         return decorator
-    
+
     @staticmethod
     def trace_dataloader(loader_type: str):
         """Trace DataLoader operations."""
@@ -364,7 +364,7 @@ class GraphQLTracer:
                 ) as span:
                     try:
                         result = await func(self, keys)
-                        
+
                         # Record cache efficiency
                         cache_hits = getattr(self, '_cache_hits', 0)
                         cache_total = getattr(self, '_cache_total', 0)
@@ -373,12 +373,12 @@ class GraphQLTracer:
                                 "dataloader.cache.hit_rate",
                                 cache_hits / cache_total
                             )
-                        
+
                         return result
                     except Exception as e:
                         span.record_exception(e)
                         raise
-            
+
             return wrapper
         return decorator
 
@@ -387,7 +387,7 @@ def instrument_fraiseql():
     """Instrument FraiseQL with OpenTelemetry."""
     # Instrument AsyncPG
     AsyncPGInstrumentor().instrument()
-    
+
     # Instrument FastAPI
     def request_hook(span: trace.Span, scope: dict):
         """Add custom attributes to HTTP spans."""
@@ -395,7 +395,7 @@ def instrument_fraiseql():
             # Add user info if available
             if "user" in scope:
                 span.set_attribute("user.id", scope["user"].get("id"))
-    
+
     FastAPIInstrumentor.instrument(
         request_hook=request_hook
     )
@@ -444,23 +444,23 @@ trace_id_var: ContextVar[Optional[str]] = ContextVar('trace_id', default=None)
 
 class ContextualFormatter(jsonlogger.JsonFormatter):
     """Adds contextual information to log records."""
-    
+
     def add_fields(self, log_record: Dict[str, Any], record: logging.LogRecord, message_dict: Dict[str, Any]):
         super().add_fields(log_record, record, message_dict)
-        
+
         # Add timestamp
         log_record['timestamp'] = datetime.utcnow().isoformat()
-        
+
         # Add contextual data
         log_record['request_id'] = request_id_var.get()
         log_record['user_id'] = user_id_var.get()
         log_record['trace_id'] = trace_id_var.get()
-        
+
         # Add service metadata
         log_record['service'] = 'fraiseql'
         log_record['environment'] = 'production'
         log_record['version'] = '0.1.0a3'
-        
+
         # Add error details if present
         if record.exc_info:
             log_record['error_type'] = record.exc_info[0].__name__
@@ -472,13 +472,13 @@ def setup_logging(level: str = "INFO", json_output: bool = True):
     # Create logger
     logger = logging.getLogger('fraiseql')
     logger.setLevel(getattr(logging, level.upper()))
-    
+
     # Remove existing handlers
     logger.handlers.clear()
-    
+
     # Create handler
     handler = logging.StreamHandler(sys.stdout)
-    
+
     if json_output:
         # JSON formatter for production
         formatter = ContextualFormatter(
@@ -489,10 +489,10 @@ def setup_logging(level: str = "INFO", json_output: bool = True):
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
-    
+
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    
+
     return logger
 
 
@@ -502,7 +502,7 @@ logger = setup_logging()
 
 class GraphQLLogger:
     """Specialized logger for GraphQL operations."""
-    
+
     @staticmethod
     def log_query(
         operation_type: str,
@@ -523,7 +523,7 @@ class GraphQLLogger:
                 "error_count": len(errors) if errors else 0,
             }
         )
-    
+
     @staticmethod
     def log_field_error(
         type_name: str,
@@ -541,7 +541,7 @@ class GraphQLLogger:
             },
             exc_info=True
         )
-    
+
     @staticmethod
     def log_n1_detected(query_pattern: str, count: int):
         """Log N+1 query detection."""
@@ -557,7 +557,7 @@ class GraphQLLogger:
 
 class DatabaseLogger:
     """Specialized logger for database operations."""
-    
+
     @staticmethod
     def log_query(
         query: str,
@@ -573,7 +573,7 @@ class DatabaseLogger:
                 "rows_affected": rows_affected,
             }
         )
-    
+
     @staticmethod
     def log_slow_query(
         query: str,
@@ -630,27 +630,27 @@ class HealthCheckResult:
 
 class HealthChecker:
     """Manages health checks."""
-    
+
     def __init__(self):
         self._checks: Dict[str, Callable] = {}
-    
+
     def register_check(self, name: str, check_func: Callable):
         """Register a health check."""
         self._checks[name] = check_func
-    
+
     async def check_all(self) -> Dict[str, Any]:
         """Run all health checks."""
         results = []
         overall_status = HealthStatus.HEALTHY
-        
+
         # Run checks concurrently
         check_tasks = []
         for name, check_func in self._checks.items():
             task = asyncio.create_task(self._run_check(name, check_func))
             check_tasks.append(task)
-        
+
         check_results = await asyncio.gather(*check_tasks, return_exceptions=True)
-        
+
         # Process results
         for result in check_results:
             if isinstance(result, Exception):
@@ -665,13 +665,13 @@ class HealthChecker:
                 overall_status = HealthStatus.UNHEALTHY
             else:
                 results.append(result)
-                
+
                 # Update overall status
                 if result.status == HealthStatus.UNHEALTHY:
                     overall_status = HealthStatus.UNHEALTHY
                 elif result.status == HealthStatus.DEGRADED and overall_status == HealthStatus.HEALTHY:
                     overall_status = HealthStatus.DEGRADED
-        
+
         return {
             "status": overall_status.value,
             "checks": [
@@ -686,15 +686,15 @@ class HealthChecker:
             ],
             "timestamp": time.time()
         }
-    
+
     async def _run_check(self, name: str, check_func: Callable) -> HealthCheckResult:
         """Run a single health check."""
         start = time.time()
-        
+
         try:
             result = await check_func()
             duration = (time.time() - start) * 1000
-            
+
             return HealthCheckResult(
                 name=name,
                 status=result.get("status", HealthStatus.HEALTHY),
@@ -704,7 +704,7 @@ class HealthChecker:
             )
         except Exception as e:
             duration = (time.time() - start) * 1000
-            
+
             return HealthCheckResult(
                 name=name,
                 status=HealthStatus.UNHEALTHY,
@@ -718,23 +718,23 @@ class HealthChecker:
 async def check_database():
     """Check database connectivity."""
     from fraiseql.fastapi.dependencies import get_db_pool
-    
+
     pool = get_db_pool()
     if not pool:
         return {
             "status": HealthStatus.UNHEALTHY,
             "message": "No database pool available"
         }
-    
+
     try:
         async with pool.acquire() as conn:
             start = time.time()
             await conn.execute("SELECT 1")
             query_time = time.time() - start
-        
+
         # Check pool health
         pool_usage = (pool.size - pool.idle) / pool.size
-        
+
         if query_time > 1.0:
             status = HealthStatus.DEGRADED
             message = "Database responding slowly"
@@ -744,7 +744,7 @@ async def check_database():
         else:
             status = HealthStatus.HEALTHY
             message = "Database healthy"
-        
+
         return {
             "status": status,
             "message": message,
@@ -765,14 +765,14 @@ async def check_database():
 async def check_memory():
     """Check memory usage."""
     import psutil
-    
+
     process = psutil.Process()
     memory = process.memory_info()
     memory_percent = process.memory_percent()
-    
+
     # Get system memory
     virtual_memory = psutil.virtual_memory()
-    
+
     if memory_percent > 90:
         status = HealthStatus.UNHEALTHY
         message = "Critical memory usage"
@@ -782,7 +782,7 @@ async def check_memory():
     else:
         status = HealthStatus.HEALTHY
         message = "Memory usage normal"
-    
+
     return {
         "status": status,
         "message": message,
@@ -798,17 +798,17 @@ async def check_memory():
 async def check_subscriptions():
     """Check subscription system health."""
     from fraiseql.subscriptions.registry import ConnectionRegistry
-    
+
     registry = ConnectionRegistry.get_current()
     if not registry:
         return {
             "status": HealthStatus.HEALTHY,
             "message": "No active subscription registry"
         }
-    
+
     active_connections = registry.active_connections
     total_subscriptions = registry.total_subscriptions
-    
+
     if active_connections > 10000:
         status = HealthStatus.UNHEALTHY
         message = "Too many active connections"
@@ -818,7 +818,7 @@ async def check_subscriptions():
     else:
         status = HealthStatus.HEALTHY
         message = "Subscription system healthy"
-    
+
     return {
         "status": status,
         "message": message,
@@ -826,7 +826,7 @@ async def check_subscriptions():
             "active_connections": active_connections,
             "total_subscriptions": total_subscriptions,
             "avg_subscriptions_per_connection": (
-                total_subscriptions / active_connections 
+                total_subscriptions / active_connections
                 if active_connections > 0 else 0
             )
         }
@@ -849,11 +849,11 @@ from fraiseql.monitoring.health import HealthChecker
 
 def add_monitoring_routes(app: FastAPI):
     """Add monitoring routes to FastAPI app."""
-    
+
     # Initialize components
     metrics_collector = MetricsCollector()
     health_checker = HealthChecker()
-    
+
     # Register health checks
     from fraiseql.monitoring.health import (
         check_database, check_memory, check_subscriptions
@@ -861,17 +861,17 @@ def add_monitoring_routes(app: FastAPI):
     health_checker.register_check("database", check_database)
     health_checker.register_check("memory", check_memory)
     health_checker.register_check("subscriptions", check_subscriptions)
-    
+
     @app.on_event("startup")
     async def start_monitoring():
         """Start monitoring systems."""
         await metrics_collector.start()
-    
+
     @app.on_event("shutdown")
     async def stop_monitoring():
         """Stop monitoring systems."""
         await metrics_collector.stop()
-    
+
     @app.get("/metrics", response_class=Response)
     async def metrics():
         """Prometheus metrics endpoint."""
@@ -879,21 +879,21 @@ def add_monitoring_routes(app: FastAPI):
             content=metrics_collector.get_metrics(),
             media_type="text/plain"
         )
-    
+
     @app.get("/health")
     async def health():
         """Health check endpoint."""
         return await health_checker.check_all()
-    
+
     @app.get("/health/{check_name}")
     async def health_check(check_name: str):
         """Individual health check."""
         if check_name not in health_checker._checks:
             return {"error": f"Unknown check: {check_name}"}
-        
+
         check_func = health_checker._checks[check_name]
         result = await health_checker._run_check(check_name, check_func)
-        
+
         return {
             "name": result.name,
             "status": result.status.value,
@@ -901,7 +901,7 @@ def add_monitoring_routes(app: FastAPI):
             "details": result.details,
             "duration_ms": result.duration_ms
         }
-    
+
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard():
         """Simple monitoring dashboard."""
@@ -912,11 +912,11 @@ def add_monitoring_routes(app: FastAPI):
             <title>FraiseQL Monitoring</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 20px; }
-                .metric { 
-                    background: #f0f0f0; 
-                    padding: 10px; 
-                    margin: 10px 0; 
-                    border-radius: 5px; 
+                .metric {
+                    background: #f0f0f0;
+                    padding: 10px;
+                    margin: 10px 0;
+                    border-radius: 5px;
                 }
                 .healthy { border-left: 5px solid #4CAF50; }
                 .degraded { border-left: 5px solid #FF9800; }
@@ -927,19 +927,19 @@ def add_monitoring_routes(app: FastAPI):
         </head>
         <body>
             <h1>FraiseQL Monitoring Dashboard</h1>
-            
+
             <h2>Health Status</h2>
             <div id="health"></div>
-            
+
             <h2>Metrics</h2>
             <div id="metrics"></div>
-            
+
             <script>
                 async function updateDashboard() {
                     // Fetch health
                     const healthRes = await fetch('/health');
                     const health = await healthRes.json();
-                    
+
                     const healthDiv = document.getElementById('health');
                     healthDiv.innerHTML = health.checks.map(check => `
                         <div class="metric ${check.status}">
@@ -949,24 +949,24 @@ def add_monitoring_routes(app: FastAPI):
                             <pre>${JSON.stringify(check.details, null, 2)}</pre>
                         </div>
                     `).join('');
-                    
+
                     // Update metrics display
                     const metricsRes = await fetch('/metrics');
                     const metricsText = await metricsRes.text();
-                    
+
                     const metricsDiv = document.getElementById('metrics');
                     const relevantMetrics = metricsText
                         .split('\\n')
-                        .filter(line => 
-                            line.includes('fraiseql_') && 
+                        .filter(line =>
+                            line.includes('fraiseql_') &&
                             !line.startsWith('#')
                         )
                         .slice(0, 20)
                         .join('\\n');
-                    
+
                     metricsDiv.innerHTML = `<pre>${relevantMetrics}</pre>`;
                 }
-                
+
                 // Update every 5 seconds
                 updateDashboard();
                 setInterval(updateDashboard, 5000);
@@ -999,7 +999,7 @@ LOAD TEST RESULTS:
 ```
 10,000 concurrent requests:
 - p50 latency: 12ms
-- p95 latency: 45ms  
+- p95 latency: 45ms
 - p99 latency: 120ms
 - Error rate: 0.02%
 - Memory stable at 450MB

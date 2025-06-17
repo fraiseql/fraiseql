@@ -135,7 +135,9 @@ class TestDevAuthMiddleware:
 
         assert response.status_code == 401
         assert "WWW-Authenticate" in response.headers
-        assert response.headers["WWW-Authenticate"] == 'Basic realm="FraiseQL Development"'
+        assert (
+            response.headers["WWW-Authenticate"] == 'Basic realm="FraiseQL Development"'
+        )
 
 
 class TestDevAuthIntegration:

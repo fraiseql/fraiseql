@@ -15,10 +15,10 @@ from fraiseql import fraise_type
 class Configuration:
     # Plain dict - accepts any JSON object
     settings: dict
-    
+
     # Dict with type parameters - also mapped to JSON
     metadata: dict[str, Any]
-    
+
     # Optional JSON field
     details: dict[str, Any] | None
 ```
@@ -32,7 +32,7 @@ from fraiseql import fraise_type
 class Product:
     # Using the JSON type alias
     attributes: JSON
-    
+
     # Optional JSON
     custom_data: JSON | None
 ```
@@ -159,7 +159,7 @@ class Error:
 @fraise_type
 class Settings:
     """User settings configuration."""
-    
+
     # Well-documented JSON field
     preferences: dict[str, Any] = None
     """

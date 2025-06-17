@@ -3,7 +3,7 @@
 
 -- Product search view with full-text search capabilities
 CREATE OR REPLACE VIEW product_search AS
-SELECT 
+SELECT
     p.id,
     p.sku,
     p.name,
@@ -41,7 +41,7 @@ GROUP BY p.id, c.name, c.slug;
 
 -- Product detail view with all related data
 CREATE OR REPLACE VIEW product_detail AS
-SELECT 
+SELECT
     p.*,
     -- Category info
     json_build_object(
@@ -52,7 +52,7 @@ SELECT
     ) as category,
     -- All images
     COALESCE(
-        json_agg(DISTINCT 
+        json_agg(DISTINCT
             json_build_object(
                 'id', pi.id,
                 'url', pi.url,
@@ -60,12 +60,12 @@ SELECT
                 'position', pi.position,
                 'is_primary', pi.is_primary
             ) ORDER BY pi.position
-        ) FILTER (WHERE pi.id IS NOT NULL), 
+        ) FILTER (WHERE pi.id IS NOT NULL),
         '[]'::json
     ) as images,
     -- Variants with inventory
     COALESCE(
-        json_agg(DISTINCT 
+        json_agg(DISTINCT
             json_build_object(
                 'id', pv.id,
                 'sku', pv.sku,
@@ -106,7 +106,7 @@ GROUP BY p.id, c.id, c.name, c.slug, c.parent_id;
 CREATE OR REPLACE VIEW category_tree AS
 WITH RECURSIVE category_hierarchy AS (
     -- Base case: root categories
-    SELECT 
+    SELECT
         id,
         name,
         slug,
@@ -119,11 +119,11 @@ WITH RECURSIVE category_hierarchy AS (
         name::TEXT as full_path
     FROM categories
     WHERE parent_id IS NULL
-    
+
     UNION ALL
-    
+
     -- Recursive case
-    SELECT 
+    SELECT
         c.id,
         c.name,
         c.slug,
@@ -137,7 +137,7 @@ WITH RECURSIVE category_hierarchy AS (
     FROM categories c
     JOIN category_hierarchy ch ON c.parent_id = ch.id
 )
-SELECT 
+SELECT
     ch.*,
     -- Product count
     COUNT(DISTINCT p.id) as product_count,
@@ -149,7 +149,7 @@ SELECT
                 'name', sub.name,
                 'slug', sub.slug,
                 'product_count', (
-                    SELECT COUNT(*) FROM products 
+                    SELECT COUNT(*) FROM products
                     WHERE category_id = sub.id AND is_active = true
                 )
             )
@@ -159,12 +159,12 @@ SELECT
 FROM category_hierarchy ch
 LEFT JOIN products p ON p.category_id = ch.id AND p.is_active = true
 LEFT JOIN categories sub ON sub.parent_id = ch.id AND sub.is_active = true
-GROUP BY ch.id, ch.name, ch.slug, ch.description, ch.parent_id, 
+GROUP BY ch.id, ch.name, ch.slug, ch.description, ch.parent_id,
          ch.image_url, ch.is_active, ch.level, ch.path, ch.full_path;
 
 -- Featured products view
 CREATE OR REPLACE VIEW featured_products AS
-SELECT 
+SELECT
     p.id,
     p.name,
     p.slug,
@@ -186,7 +186,7 @@ ORDER BY p.created_at DESC;
 
 -- Best sellers view (based on order history)
 CREATE OR REPLACE VIEW best_sellers AS
-SELECT 
+SELECT
     p.id,
     p.name,
     p.slug,
@@ -232,11 +232,11 @@ SELECT DISTINCT
     MIN(pv.price) as price,
     pi.url as image_url,
     -- Relevance score
-    CASE 
+    CASE
         WHEN p1.category_id = p2.category_id THEN 3
         ELSE 0
     END +
-    CASE 
+    CASE
         WHEN p1.brand = p2.brand AND p1.brand IS NOT NULL THEN 2
         ELSE 0
     END +
@@ -251,5 +251,5 @@ WHERE p1.is_active = true
     p1.brand = p2.brand OR
     p1.tags && p2.tags
   )
-GROUP BY p1.id, p2.id, p2.name, p2.slug, p2.short_description, pi.url, 
+GROUP BY p1.id, p2.id, p2.name, p2.slug, p2.short_description, pi.url,
          p1.category_id, p2.category_id, p1.brand, p2.brand, p1.tags, p2.tags;

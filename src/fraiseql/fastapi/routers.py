@@ -62,8 +62,10 @@ def create_development_router(
 
     # Create context dependency based on whether custom context_getter is provided
     if context_getter:
+
         async def get_context(http_request: Request) -> dict[str, Any]:
             return await context_getter(http_request)
+
         context_dependency = Depends(get_context)
     else:
         context_dependency = Depends(build_graphql_context)
@@ -94,7 +96,10 @@ def create_development_router(
                     {
                         "message": error.message,
                         "locations": (
-                            [{"line": loc.line, "column": loc.column} for loc in error.locations]
+                            [
+                                {"line": loc.line, "column": loc.column}
+                                for loc in error.locations
+                            ]
                             if error.locations
                             else None
                         ),
@@ -177,8 +182,10 @@ def create_production_router(
 
     # Create context dependency based on whether custom context_getter is provided
     if context_getter:
+
         async def get_context(http_request: Request) -> dict[str, Any]:
             return await context_getter(http_request)
+
         context_dependency = Depends(get_context)
     else:
         context_dependency = Depends(build_graphql_context)

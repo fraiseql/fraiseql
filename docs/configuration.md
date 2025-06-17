@@ -130,7 +130,7 @@ If you have existing environment variables without the `FRAISEQL_` prefix that y
    ```python
    import os
    from fraiseql.fastapi import create_fraiseql_app
-   
+
    app = create_fraiseql_app(
        database_url=os.getenv("DATABASE_URL"),  # Use existing var
        production=(os.getenv("ENV") == "production"),

@@ -55,7 +55,11 @@ class GraphNoteRouter(Router):
                     variables = json.loads(variables_raw)
                 except json.JSONDecodeError:
                     return JSONResponse(
-                        {"errors": [{"message": "Invalid JSON in variables parameter"}]},
+                        {
+                            "errors": [
+                                {"message": "Invalid JSON in variables parameter"}
+                            ]
+                        },
                         status_code=400,
                     )
             operation_name = request.query_params.get("operationName")
@@ -63,7 +67,9 @@ class GraphNoteRouter(Router):
             try:
                 data = await request.json()
             except json.JSONDecodeError:
-                return JSONResponse({"errors": [{"message": "Invalid JSON"}]}, status_code=400)
+                return JSONResponse(
+                    {"errors": [{"message": "Invalid JSON"}]}, status_code=400
+                )
             query = data.get("query")
             variables = data.get("variables")
             operation_name = data.get("operationName")

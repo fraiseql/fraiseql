@@ -47,7 +47,9 @@ class TestDateScalar:
     def test_parse_date_value_from_date_object(self):
         """Test parsing date from date object raises error."""
         test_date = date(2023, 12, 25)
-        with pytest.raises(GraphQLError, match="Date cannot represent non-string value"):
+        with pytest.raises(
+            GraphQLError, match="Date cannot represent non-string value"
+        ):
             parse_date_value(test_date)
 
     def test_parse_date_value_invalid_format(self):
@@ -62,7 +64,9 @@ class TestDateScalar:
 
     def test_parse_date_value_non_string(self):
         """Test parsing non-string value raises error."""
-        with pytest.raises(GraphQLError, match="Date cannot represent non-string value"):
+        with pytest.raises(
+            GraphQLError, match="Date cannot represent non-string value"
+        ):
             parse_date_value(20231225)
 
     def test_parse_date_value_none(self):
@@ -86,7 +90,9 @@ class TestDateScalar:
     def test_parse_date_literal_non_string_node(self):
         """Test parsing non-string AST node raises error."""
         ast = IntValueNode(value="20231225")
-        with pytest.raises(GraphQLError, match="Date cannot represent non-string literal"):
+        with pytest.raises(
+            GraphQLError, match="Date cannot represent non-string literal"
+        ):
             parse_date_literal(ast)
 
     def test_date_scalar_integration(self):

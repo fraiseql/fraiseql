@@ -152,7 +152,7 @@ def convert_type_to_graphql_input(
             cached_type = _graphql_type_cache[cache_key]
             if isinstance(cached_type, GraphQLInputObjectType):
                 return cached_type
-        
+
         # Use the already collected fields from the decorator
         fields = getattr(typ, "__gql_fields__", {})
         type_hints = getattr(typ, "__gql_type_hints__", {})
@@ -167,12 +167,16 @@ def convert_type_to_graphql_input(
             if field_type == JSONScalar:
                 try:
                     # Assuming the field has some default value to validate
-                    parse_json_value(getattr(typ, name, None))  # Validate the field's default value
+                    parse_json_value(
+                        getattr(typ, name, None)
+                    )  # Validate the field's default value
                 except GraphQLError as e:
                     msg = f"Invalid JSON value in field {name}: {e!s}"
                     raise GraphQLError(msg) from None
 
-            gql_fields[name] = GraphQLInputField(convert_type_to_graphql_input(field_type))
+            gql_fields[name] = GraphQLInputField(
+                convert_type_to_graphql_input(field_type)
+            )
 
         gql_type = GraphQLInputObjectType(name=typ.__name__, fields=gql_fields)
         _graphql_type_cache[cache_key] = gql_type
@@ -195,9 +199,7 @@ def convert_type_to_graphql_input(
         if isinstance(graphql_type, GraphQLEnumType):
             return graphql_type
         # If not decorated, raise error
-        msg = (
-            f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
-        )
+        msg = f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
         raise TypeError(msg)
 
     # Handle scalar types using the existing scalar mapping utility
@@ -276,9 +278,7 @@ def convert_type_to_graphql_output(
         if isinstance(graphql_type, GraphQLEnumType):
             return graphql_type
         # If not decorated, raise error
-        msg = (
-            f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
-        )
+        msg = f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
         raise TypeError(msg)
 
     # Handle built-in scalar types
@@ -340,60 +340,73 @@ def convert_type_to_graphql_output(
                     # Skip if we already have this field from regular processing
                     if attr_name in gql_fields:
                         continue
-                    
+
                     # Skip private/special methods
-                    if attr_name.startswith('_'):
+                    if attr_name.startswith("_"):
                         continue
-                    
+
                     attr = getattr(typ, attr_name)
                     if not callable(attr):
                         continue
-                    
+
                     # Check for field resolver decorators
-                    if hasattr(attr, "__fraiseql_field__") or hasattr(attr, "__fraiseql_dataloader__"):
+                    if hasattr(attr, "__fraiseql_field__") or hasattr(
+                        attr, "__fraiseql_dataloader__"
+                    ):
                         # Get method signature for type information
                         import inspect
                         from typing import get_type_hints
-                        
+
                         try:
                             sig = inspect.signature(attr)
                             hints = get_type_hints(attr)
                             return_type = hints.get("return")
-                            
+
                             if return_type is None:
-                                logger.warning(f"Custom field method {attr_name} missing return type annotation")
+                                logger.warning(
+                                    f"Custom field method {attr_name} missing return type annotation"
+                                )
                                 continue
-                            
+
                             logger.debug(f"Found custom field method: {attr_name}")
-                            
+
                             # Convert return type to GraphQL type
-                            gql_return_type = convert_type_to_graphql_output(return_type)
-                            
+                            gql_return_type = convert_type_to_graphql_output(
+                                return_type
+                            )
+
                             # Create a wrapper that adapts the method signature for GraphQL
                             def make_custom_resolver(method):
                                 async def resolver(obj, info, **kwargs):
                                     # Call the method with the object instance and info
                                     return await method(obj, info, **kwargs)
+
                                 return resolver
-                            
+
                             # Wrap with enum serialization
-                            from fraiseql.gql.enum_serializer import wrap_resolver_with_enum_serialization
-                            wrapped_resolver = wrap_resolver_with_enum_serialization(make_custom_resolver(attr))
-                            
-                            # Get description from decorator or docstring
-                            description = (
-                                getattr(attr, "__fraiseql_field_description__", None) or
-                                getattr(attr, "__doc__", None)
+                            from fraiseql.gql.enum_serializer import (
+                                wrap_resolver_with_enum_serialization,
                             )
-                            
+
+                            wrapped_resolver = wrap_resolver_with_enum_serialization(
+                                make_custom_resolver(attr)
+                            )
+
+                            # Get description from decorator or docstring
+                            description = getattr(
+                                attr, "__fraiseql_field_description__", None
+                            ) or getattr(attr, "__doc__", None)
+
                             gql_fields[attr_name] = GraphQLField(
                                 type_=cast(GraphQLOutputType, gql_return_type),
                                 resolve=wrapped_resolver,
                                 description=description,
                             )
-                            
+
                         except Exception as e:
-                            logger.warning(f"Failed to process custom field {attr_name}: {e}")
+                            logger.warning(
+                                f"Failed to process custom field {attr_name}: {e}"
+                            )
                             continue
 
                 # Get interfaces this type implements

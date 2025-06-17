@@ -78,10 +78,10 @@ async def create_user(info, input: CreateUserInput) -> User:
 app = fraiseql.create_fraiseql_app(
     # Optional: PostgreSQL connection
     database_url="postgresql://user:pass@localhost/dbname",
-    
+
     # Register your types
     types=[User],  # Add all your @fraiseql.type decorated classes
-    
+
     # App configuration
     title="My GraphQL API",
     production=False  # Enables GraphQL Playground
@@ -153,13 +153,13 @@ async def create_post(info, input: CreatePostInput) -> Post:
 # Create and run the app
 if __name__ == "__main__":
     import uvicorn
-    
+
     app = fraiseql.create_fraiseql_app(
         types=[Post],
         title="Blog API",
         production=False
     )
-    
+
     print("GraphQL Playground: http://localhost:8000/playground")
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```

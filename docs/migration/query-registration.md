@@ -86,11 +86,11 @@ async def my_posts(info) -> list[Post]:
 @fraiseql.type
 class QueryRoot:
     """Root query type."""
-    
+
     @fraiseql.field(description="API version")
     def version(self, root, info) -> str:
         return "1.0.0"
-    
+
     @fraiseql.field
     async def stats(self, root, info) -> dict[str, int]:
         db = info.context["db"]
@@ -143,7 +143,7 @@ from fraiseql.fastapi import create_fraiseql_app
 async def get_user(info, id: UUID) -> User:
     pass
 
-# Pattern 2: QueryRoot with fields  
+# Pattern 2: QueryRoot with fields
 @fraiseql.type
 class QueryRoot:
     @fraiseql.field
@@ -223,7 +223,7 @@ Simply add `@fraiseql.query` decorators:
 async def get_user(info, id: UUID) -> User:
     ...
 
-@fraiseql.query  
+@fraiseql.query
 async def get_posts(info) -> list[Post]:
     ...
 

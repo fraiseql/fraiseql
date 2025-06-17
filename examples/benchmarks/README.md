@@ -126,11 +126,11 @@ async def benchmark_simple_query():
         }
     }
     """
-    
+
     start_time = time.time()
     result = await fraiseql.execute(query, {"limit": 100})
     end_time = time.time()
-    
+
     return end_time - start_time
 ```
 
@@ -142,14 +142,14 @@ class BenchmarkRunner:
         self.name = name
         self.executor = executor
         self.results = []
-    
+
     async def run_test(self, query, variables, iterations=1000):
         times = []
         for _ in range(iterations):
             start = time.time()
             await self.executor(query, variables)
             times.append(time.time() - start)
-        
+
         return {
             'avg': sum(times) / len(times),
             'min': min(times),

@@ -1,7 +1,7 @@
 # Beta Development Log: Query Optimization Strategy
-**Date**: 2025-01-16  
-**Time**: 19:20 UTC  
-**Session**: 003  
+**Date**: 2025-01-16
+**Time**: 19:20 UTC
+**Session**: 003
 **Author**: Performance Engineer (with Viktor glaring over shoulder)
 
 ## Objective
@@ -143,10 +143,10 @@ class QueryRoot:
 async def graphql_endpoint(request):
     with QueryProfiler() as profiler:
         result = await execute_query(request)
-        
+
     if profiler.query_count > 10:
         logger.warning(f"High query count: {profiler.query_count}")
-    
+
     return result
 ```
 

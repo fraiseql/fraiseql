@@ -79,7 +79,7 @@ Add custom field resolvers to types:
 @fraiseql.type
 class User:
     id: int
-    
+
     @fraiseql.field
     async def posts(self, info) -> List[Post]:
         # Custom field resolver
@@ -92,7 +92,7 @@ Automatic DataLoader integration (v0.1.0a4+):
 @fraiseql.type
 class Post:
     author_id: int
-    
+
     @fraiseql.dataloader_field(UserDataLoader, key_field="author_id")
     async def author(self, info) -> Optional[User]:
         # Auto-implemented with DataLoader
@@ -125,21 +125,21 @@ Create a FraiseQL FastAPI application:
 app = fraiseql.create_fraiseql_app(
     # Database (optional)
     database_url="postgresql://user:pass@localhost/dbname",
-    
+
     # Type registration
     types=[User, Post, Comment],  # All @fraiseql.type classes
-    
+
     # Configuration
     title="My GraphQL API",
     version="1.0.0",
     description="API description",
-    
+
     # Development settings
     production=False,  # Enables GraphQL Playground
-    
+
     # Authentication (optional)
     auth=Auth0Config(...),  # Or custom AuthProvider
-    
+
     # Advanced options
     context_getter=custom_context_function,  # Custom context
     app=existing_fastapi_app,  # Use existing FastAPI app
@@ -182,19 +182,19 @@ from fraiseql.repository import FraiseQLRepository
 @fraiseql.query
 async def get_user(info, id: int) -> Optional[User]:
     db: FraiseQLRepository = info.context["db"]
-    
+
     # Execute raw SQL
     result = await db.fetch_one(
         "SELECT * FROM users WHERE id = %s",
         (id,)
     )
-    
+
     # Use JSON views
     result = await db.select_from_json_view(
         "v_users",
         where={"id": id}
     )
-    
+
     return User(**result) if result else None
 ```
 
@@ -208,7 +208,7 @@ class UserDataLoader(DataLoader[int, dict]):
     def __init__(self, db):
         super().__init__()
         self.db = db
-    
+
     async def batch_load(self, user_ids: List[int]) -> List[Optional[dict]]:
         # Batch load users
         users = await self.db.fetch_many(
@@ -227,7 +227,7 @@ from fraiseql.optimization import get_loader
 @fraiseql.type
 class Post:
     author_id: int
-    
+
     @fraiseql.field
     async def author(self, info) -> Optional[User]:
         loader = get_loader(UserDataLoader)
@@ -269,7 +269,7 @@ async def users(info, first: int = 10, after: str = None) -> PaginatedResponse[U
     # Implement pagination logic
     users = [...]  # Your data
     total_count = 100
-    
+
     return create_connection(
         nodes=users,
         total_count=total_count,

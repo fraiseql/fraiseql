@@ -23,7 +23,7 @@ app = create_fraiseql_app(
 )
 ```
 
-**What Actually Happened**: 
+**What Actually Happened**:
 - The schema builder threw "Type Query must define one or more fields"
 - The `build_fraiseql_schema` function calls `register_type()` on query functions
 - This suggests queries should be types, not functions
@@ -46,7 +46,7 @@ async def get_context(request: Request) -> dict:
     }
 ```
 
-**Reality**: 
+**Reality**:
 - `create_fraiseql_app()` doesn't accept a `context_getter` parameter
 - The CQRS pattern seems to be injected differently
 - Blog example shows dependency injection but it's not clear how it connects
@@ -103,7 +103,7 @@ class CreateMachine:
     input: CreateMachineInput
     success: CreateMachineSuccess
     failure: CreateMachineError
-    
+
     async def resolve(self, info, input):
         ...
 ```
@@ -189,7 +189,7 @@ Following Test-Driven Development approach, successfully implemented full WebSoc
 
 **Test Coverage**: All 28 subscription tests passing
 - 4 subscription integration tests
-- 8 core subscription tests  
+- 8 core subscription tests
 - 16 WebSocket subscription tests
 
 **Implementation Details**:
@@ -244,7 +244,7 @@ tests/test_websocket_subscriptions.py ................                   [100%]
 
 ### 🚨 CRITICAL BLOCKERS
 
-1. **Query Registration is STILL BROKEN** 
+1. **Query Registration is STILL BROKEN**
    - Users can't even create a basic schema!
    - The blog shows passing functions, code expects types
    - This is embarrassing - fix it NOW
@@ -286,7 +286,7 @@ tests/test_websocket_subscriptions.py ................                   [100%]
 
 Your WebSocket implementation looks solid:
 - ✅ Proper connection lifecycle
-- ✅ Both protocol support  
+- ✅ Both protocol support
 - ✅ Good error handling
 - ✅ Clean async patterns
 
@@ -321,7 +321,7 @@ Now stop patting yourself on the back for WebSockets and FIX THE QUERY REGISTRAT
 ```bash
 $ find src -name "*dataloader*" -o -name "*optimization*"
 src/fraiseql/optimization/dataloader.py
-src/fraiseql/optimization/registry.py  
+src/fraiseql/optimization/registry.py
 src/fraiseql/optimization/loaders.py
 ```
 
@@ -334,7 +334,7 @@ src/fraiseql/optimization/loaders.py
 class DataLoader(ABC, Generic[KeyType, ValueType]):
     async def load(self, key: KeyType) -> Optional[ValueType]:
         # Batching and caching logic...
-    
+
     async def batch_load(self, keys: List[KeyType]) -> List[Optional[ValueType]]:
         # Abstract method for user implementation
 ```
@@ -359,7 +359,7 @@ async def resolve_post_author(post: Post, info) -> Optional[User]:
 
 **Evidence**:
 1. ✅ Core DataLoader implementation is solid (batching, caching, typing)
-2. ❌ FastAPI context doesn't include LoaderRegistry  
+2. ❌ FastAPI context doesn't include LoaderRegistry
 3. ❌ Field resolvers don't use DataLoader
 4. ❌ No automatic integration with @fraiseql.field decorator
 5. ❌ Examples show N+1 query patterns instead of DataLoader usage
@@ -386,10 +386,10 @@ async def resolve_post_author(post: Post, info) -> Optional[User]:
 **Phase 1: Make DataLoader Actually Usable**
 ```python
 # Target: This should work out of the box
-@fraiseql.type  
+@fraiseql.type
 class Post:
     author_id: UUID
-    
+
     @fraiseql.field
     async def author(self, info) -> Optional[User]:
         # Should automatically use DataLoader if available
@@ -403,7 +403,7 @@ class Post:
 @fraiseql.type
 class Post:
     author_id: UUID
-    
+
     @dataloader_field(UserLoader)  # ← New decorator
     async def author(self, info) -> Optional[User]:
         return await self.load_related(self.author_id)
@@ -414,7 +414,7 @@ class Post:
 Based on the real user feedback, the biggest issues are:
 
 1. **"I don't know DataLoader exists"** - No integration examples
-2. **"I can't figure out how to use it"** - Missing FastAPI integration  
+2. **"I can't figure out how to use it"** - Missing FastAPI integration
 3. **"My queries are slow"** - N+1 queries everywhere in examples
 4. **"No guidance on setup"** - LoaderRegistry not in default context
 
@@ -458,10 +458,10 @@ async def build_graphql_context(
     db: Annotated[FraiseQLRepository, Depends(get_db)],
     user: Annotated[UserContext | None, Depends(get_current_user_optional)],
 ) -> dict[str, Any]:
-    # Create a new LoaderRegistry for this request  
+    # Create a new LoaderRegistry for this request
     loader_registry = LoaderRegistry(db=db)
     LoaderRegistry.set_current(loader_registry)
-    
+
     return {
         "db": db,
         "user": user,
@@ -540,7 +540,7 @@ async def resolve_post_author(post: Post, info) -> Optional[User]:
 ```
 
 **Level 2: Decorator (Not implemented)**
-```python 
+```python
 # Target: @dataloader_field decorator
 @fraiseql.type
 class Post:

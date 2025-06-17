@@ -141,7 +141,7 @@ class User:
     role: UserRole
     settings: JSON
     created_at: datetime
-    
+
     # Computed fields can be added as methods
     def display_name(self) -> str:
         return f"{self.name} ({self.email})"
@@ -155,7 +155,7 @@ class Project:
     owner_id: UUID
     metadata: dict[str, Any]  # JSON field
     created_at: datetime
-    
+
     # Related data (resolved separately)
     owner: Optional[User] = None
     task_count: int = 0
@@ -175,11 +175,11 @@ class Task:
     metadata: JSON
     created_at: datetime
     updated_at: datetime
-    
+
     # Related data
     project: Optional[Project] = None
     assignee: Optional[User] = None
-    
+
     def is_overdue(self) -> bool:
         if not self.due_date:
             return False
@@ -247,19 +247,19 @@ from fraiseql.cqrs import CQRSRepository
 
 class TaskRepository(CQRSRepository):
     """Repository for task management operations."""
-    
+
     async def get_user_by_id(self, user_id: UUID) -> Optional[dict]:
         return await self.fetch_one(
             "SELECT * FROM users WHERE id = $1",
             user_id
         )
-    
+
     async def get_user_by_email(self, email: str) -> Optional[dict]:
         return await self.fetch_one(
             "SELECT * FROM users WHERE email = $1",
             email
         )
-    
+
     async def create_user(self, data: dict) -> dict:
         return await self.fetch_one(
             """
@@ -272,7 +272,7 @@ class TaskRepository(CQRSRepository):
             data.get("role", "user"),
             data.get("settings", {})
         )
-    
+
     async def get_projects_for_user(self, user_id: UUID) -> list[dict]:
         return await self.fetch_all(
             """
@@ -285,7 +285,7 @@ class TaskRepository(CQRSRepository):
             """,
             user_id
         )
-    
+
     async def create_project(self, owner_id: UUID, data: dict) -> dict:
         return await self.fetch_one(
             """
@@ -298,7 +298,7 @@ class TaskRepository(CQRSRepository):
             owner_id,
             data.get("metadata", {})
         )
-    
+
     async def get_tasks(
         self,
         filters: dict[str, Any],
@@ -308,31 +308,31 @@ class TaskRepository(CQRSRepository):
         query = "SELECT * FROM tasks WHERE 1=1"
         params = []
         param_count = 0
-        
+
         # Build dynamic filters
         if filters.get("status"):
             param_count += 1
             query += f" AND status = ${param_count}"
             params.append(filters["status"])
-        
+
         if filters.get("priority"):
             param_count += 1
             query += f" AND priority = ${param_count}"
             params.append(filters["priority"])
-        
+
         if filters.get("assignee_id"):
             param_count += 1
             query += f" AND assignee_id = ${param_count}"
             params.append(filters["assignee_id"])
-        
+
         if filters.get("project_id"):
             param_count += 1
             query += f" AND project_id = ${param_count}"
             params.append(filters["project_id"])
-        
+
         if filters.get("overdue"):
             query += " AND due_date < CURRENT_DATE"
-        
+
         # Add ordering and pagination
         query += " ORDER BY created_at DESC"
         param_count += 1
@@ -341,9 +341,9 @@ class TaskRepository(CQRSRepository):
         param_count += 1
         query += f" OFFSET ${param_count}"
         params.append(offset)
-        
+
         return await self.fetch_all(query, *params)
-    
+
     async def create_task(self, data: dict) -> dict:
         return await self.fetch_one(
             """
@@ -363,32 +363,32 @@ class TaskRepository(CQRSRepository):
             data.get("tags", []),
             data.get("metadata", {})
         )
-    
+
     async def update_task(self, task_id: UUID, updates: dict) -> Optional[dict]:
         # Build dynamic update query
         set_parts = []
         params = []
         param_count = 0
-        
+
         for field, value in updates.items():
             if value is not None:
                 param_count += 1
                 set_parts.append(f"{field} = ${param_count}")
                 params.append(value)
-        
+
         if not set_parts:
             return None
-        
+
         param_count += 1
         params.append(task_id)
-        
+
         query = f"""
             UPDATE tasks
             SET {', '.join(set_parts)}
             WHERE id = ${param_count}
             RETURNING *
         """
-        
+
         return await self.fetch_one(query, *params)
 ```
 
@@ -429,7 +429,7 @@ async def me(info) -> Optional[User]:
     """Get the current authenticated user."""
     db: TaskRepository = info.context["db"]
     user_context = info.context["user"]
-    
+
     user_data = await db.get_user_by_email(user_context.email)
     return User(**user_data) if user_data else None
 
@@ -441,10 +441,10 @@ async def my_projects(info) -> list[Project]:
     """Get all projects owned by the current user."""
     db: TaskRepository = info.context["db"]
     user = await me(info)
-    
+
     if not user:
         return []
-    
+
     projects_data = await db.get_projects_for_user(user.id)
     return [Project(**data) for data in projects_data]
 
@@ -457,17 +457,17 @@ async def project(info, id: UUID) -> Optional[Project]:
         "SELECT * FROM projects WHERE id = $1",
         id
     )
-    
+
     if not project_data:
         return None
-    
+
     project = Project(**project_data)
-    
+
     # Resolve owner
     owner_data = await db.get_user_by_id(project.owner_id)
     if owner_data:
         project.owner = User(**owner_data)
-    
+
     return project
 
 
@@ -481,7 +481,7 @@ async def tasks(
 ) -> list[Task]:
     """Get tasks with optional filtering."""
     db: TaskRepository = info.context["db"]
-    
+
     # Convert filters to dict
     filter_dict = {}
     if filters:
@@ -495,7 +495,7 @@ async def tasks(
             filter_dict["project_id"] = filters.project_id
         if filters.overdue is not None:
             filter_dict["overdue"] = filters.overdue
-    
+
     tasks_data = await db.get_tasks(filter_dict, limit, offset)
     return [Task(**data) for data in tasks_data]
 
@@ -508,25 +508,25 @@ async def task(info, id: UUID) -> Optional[Task]:
         "SELECT * FROM tasks WHERE id = $1",
         id
     )
-    
+
     if not task_data:
         return None
-    
+
     task = Task(**task_data)
-    
+
     # Resolve related data
     if task.assignee_id:
         assignee_data = await db.get_user_by_id(task.assignee_id)
         if assignee_data:
             task.assignee = User(**assignee_data)
-    
+
     project_data = await db.fetch_one(
         "SELECT * FROM projects WHERE id = $1",
         task.project_id
     )
     if project_data:
         task.project = Project(**project_data)
-    
+
     return task
 
 
@@ -537,13 +537,13 @@ async def my_task_stats(info) -> dict[str, Any]:
     """Get task statistics for the current user."""
     db: TaskRepository = info.context["db"]
     user = await me(info)
-    
+
     if not user:
         return {"total": 0}
-    
+
     stats = await db.fetch_one(
         """
-        SELECT 
+        SELECT
             COUNT(*) as total,
             COUNT(*) FILTER (WHERE status = 'completed') as completed,
             COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
@@ -554,7 +554,7 @@ async def my_task_stats(info) -> dict[str, Any]:
         """,
         user.id
     )
-    
+
     return dict(stats)
 ```
 
@@ -634,7 +634,7 @@ class CreateUser:
     input: CreateUserInput
     success: CreateUserSuccess
     failure: CreateUserFailure
-    
+
     async def execute(self, db: TaskRepository, input_data: CreateUserInput):
         # Check if user exists
         existing = await db.get_user_by_email(input_data.email)
@@ -643,7 +643,7 @@ class CreateUser:
                 code="USER_EXISTS",
                 message=f"User with email {input_data.email} already exists"
             )
-        
+
         # Create user
         user_data = await db.create_user({
             "email": input_data.email,
@@ -651,7 +651,7 @@ class CreateUser:
             "role": input_data.role.value,
             "settings": input_data.settings or {}
         })
-        
+
         user = User(**user_data)
         return CreateUserSuccess(user=user)
 
@@ -661,7 +661,7 @@ class CreateProject:
     input: CreateProjectInput
     success: CreateProjectSuccess
     failure: CreateProjectFailure
-    
+
     @requires_auth
     async def execute(
         self,
@@ -678,10 +678,10 @@ class CreateProject:
                 "metadata": input_data.metadata or {}
             }
         )
-        
+
         project = Project(**project_data)
         project.owner = user
-        
+
         return CreateProjectSuccess(project=project)
 
 
@@ -690,7 +690,7 @@ class CreateTask:
     input: CreateTaskInput
     success: CreateTaskSuccess
     failure: TaskOperationFailure
-    
+
     @requires_auth
     async def execute(
         self,
@@ -703,15 +703,15 @@ class CreateTask:
             "SELECT * FROM projects WHERE id = $1",
             input_data.project_id
         )
-        
+
         if not project_data:
             return TaskOperationFailure(
                 code="PROJECT_NOT_FOUND",
                 message="Project not found"
             )
-        
+
         # In a real app, check if user has access to the project
-        
+
         # Create task
         task_data = await db.create_task({
             "title": input_data.title,
@@ -723,7 +723,7 @@ class CreateTask:
             "tags": input_data.tags,
             "metadata": input_data.metadata or {}
         })
-        
+
         task = Task(**task_data)
         return CreateTaskSuccess(task=task)
 
@@ -733,7 +733,7 @@ class UpdateTask:
     input: UpdateTaskInput
     success: UpdateTaskSuccess
     failure: TaskOperationFailure
-    
+
     @requires_auth
     async def execute(
         self,
@@ -760,16 +760,16 @@ class UpdateTask:
             updates["tags"] = input_data.tags
         if input_data.metadata is not None:
             updates["metadata"] = input_data.metadata
-        
+
         # Update task
         task_data = await db.update_task(task_id, updates)
-        
+
         if not task_data:
             return TaskOperationFailure(
                 code="TASK_NOT_FOUND",
                 message="Task not found"
             )
-        
+
         task = Task(**task_data)
         return UpdateTaskSuccess(task=task)
 
@@ -779,7 +779,7 @@ class DeleteTask:
     input: UUID  # Just the task ID
     success: DeleteSuccess
     failure: TaskOperationFailure
-    
+
     @requires_auth
     async def execute(
         self,
@@ -788,19 +788,19 @@ class DeleteTask:
         user: User
     ):
         # In a real app, check permissions
-        
+
         # Delete task
         deleted = await db.fetch_one(
             "DELETE FROM tasks WHERE id = $1 RETURNING id",
             task_id
         )
-        
+
         if not deleted:
             return TaskOperationFailure(
                 code="TASK_NOT_FOUND",
                 message="Task not found"
             )
-        
+
         return DeleteSuccess(
             id=task_id,
             message="Task deleted successfully"
@@ -820,7 +820,7 @@ from fraiseql.auth import AuthProvider, UserContext
 
 class MockAuthProvider(AuthProvider):
     """Mock authentication provider for development."""
-    
+
     async def get_user(self, token: str) -> Optional[UserContext]:
         """Mock user authentication."""
         # In production, validate JWT token
@@ -846,17 +846,17 @@ async def custom_context_getter(request: Request) -> dict:
     # Get default context
     from fraiseql.fastapi.dependencies import build_graphql_context
     context = await build_graphql_context()
-    
+
     # Add request info
     context["request"] = request
     context["ip_address"] = request.client.host
-    
+
     # Add feature flags
     context["features"] = {
         "new_ui": True,
         "beta_features": request.headers.get("X-Beta") == "true"
     }
-    
+
     return context
 ```
 
@@ -883,14 +883,14 @@ async def custom_lifespan(app: FastAPI):
     """Setup custom resources."""
     # Initialize cache connection
     app.state.cache = {}  # In production, use Redis
-    
+
     # Initialize background task queue
     app.state.task_queue = []  # In production, use Celery/RQ
-    
+
     print("🚀 Task Management API started")
-    
+
     yield
-    
+
     # Cleanup
     app.state.cache = None
     app.state.task_queue = None
@@ -904,28 +904,28 @@ app = create_fraiseql_app(
         "FRAISEQL_DATABASE_URL",
         "dbname='taskdb' user='postgres' host='localhost'"
     ),
-    
+
     # Types to register
     types=[
         User, Project, Task,
         UserRole, TaskStatus, TaskPriority,
         TaskFilters
     ],
-    
+
     # Auth setup
     auth=MockAuthProvider() if os.getenv("FRAISEQL_ENVIRONMENT") == "development" else None,
-    
+
     # Custom context
     context_getter=custom_context_getter,
-    
+
     # Custom lifespan
     lifespan=custom_lifespan,
-    
+
     # App metadata
     title="Task Management API",
     version="1.0.0",
     description="A complete task management system built with FraiseQL",
-    
+
     # Production mode
     production=os.getenv("FRAISEQL_ENVIRONMENT") == "production"
 )
@@ -948,18 +948,18 @@ async def root():
 async def global_stats():
     """Get global statistics."""
     from fraiseql.fastapi.dependencies import get_db
-    
+
     async with get_db() as db:
         stats = await db.fetch_one(
             """
-            SELECT 
+            SELECT
                 (SELECT COUNT(*) FROM users) as total_users,
                 (SELECT COUNT(*) FROM projects) as total_projects,
                 (SELECT COUNT(*) FROM tasks) as total_tasks,
                 (SELECT COUNT(*) FROM tasks WHERE status = 'completed') as completed_tasks
             """
         )
-    
+
     return dict(stats)
 
 
@@ -968,19 +968,19 @@ async def global_stats():
 async def add_request_id(request, call_next):
     """Add request ID to all requests."""
     import uuid
-    
+
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
     request.state.request_id = request_id
-    
+
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
-    
+
     return response
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "app:app",
         host="0.0.0.0",

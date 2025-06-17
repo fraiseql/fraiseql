@@ -64,7 +64,9 @@ class TestSQLInjectionPrevention:
 
             # The malicious input should be properly quoted/escaped
             # No SQL keywords should be executable
-            assert "DROP TABLE" not in sql_str or "DROP TABLE" in repr(sql_str).replace("\\", "")
+            assert "DROP TABLE" not in sql_str or "DROP TABLE" in repr(sql_str).replace(
+                "\\", ""
+            )
 
     def test_boolean_handling(self):
         """Test that boolean values are correctly converted to strings for JSONB."""
@@ -164,7 +166,9 @@ class TestSQLInjectionPrevention:
         """Test complex injection attempts with multiple fields."""
         where = UserWhere(
             name={"eq": "'; DROP TABLE users; --"},
-            email={"in": ["admin@example.com", "' OR '1'='1", "'; DELETE FROM users; --"]},
+            email={
+                "in": ["admin@example.com", "' OR '1'='1", "'; DELETE FROM users; --"]
+            },
             age={"gt": 18, "lt": 65},
             is_admin={"eq": False},
             user_id={"neq": uuid.UUID("12345678-1234-5678-1234-567812345678")},

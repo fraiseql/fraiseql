@@ -1,7 +1,7 @@
 # Beta Development Log: Sprint 2 - Staging Deployment
-**Date**: 2025-01-19  
-**Time**: 09:00 UTC  
-**Session**: 012  
+**Date**: 2025-01-19
+**Time**: 09:00 UTC
+**Session**: 012
 **Author**: DevOps Lead (Viktor says "show me production readiness")
 
 ## Staging Environment Setup
@@ -24,18 +24,18 @@ terraform {
 # VPC and Networking
 module "vpc" {
   source = "terraform-aws-modules/vpc/aws"
-  
+
   name = "fraiseql-staging-vpc"
   cidr = "10.0.0.0/16"
-  
+
   azs             = ["us-east-1a", "us-east-1b", "us-east-1c"]
   private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
-  
+
   enable_nat_gateway = true
   enable_vpn_gateway = true
   enable_dns_hostnames = true
-  
+
   tags = {
     Environment = "staging"
     Project     = "fraiseql"
@@ -45,27 +45,27 @@ module "vpc" {
 # RDS PostgreSQL
 resource "aws_db_instance" "postgres" {
   identifier = "fraiseql-staging-db"
-  
+
   engine               = "postgres"
   engine_version       = "15.4"
   instance_class       = "db.r6g.xlarge"
   allocated_storage    = 100
   storage_encrypted    = true
-  
+
   db_name  = "fraiseql"
   username = var.db_username
   password = var.db_password
-  
+
   vpc_security_group_ids = [aws_security_group.postgres.id]
   db_subnet_group_name   = aws_db_subnet_group.postgres.name
-  
+
   backup_retention_period = 7
   backup_window          = "03:00-04:00"
   maintenance_window     = "sun:04:00-sun:05:00"
-  
+
   performance_insights_enabled = true
   monitoring_interval         = 60
-  
+
   tags = {
     Environment = "staging"
   }
@@ -74,12 +74,12 @@ resource "aws_db_instance" "postgres" {
 # ECS Cluster
 resource "aws_ecs_cluster" "main" {
   name = "fraiseql-staging"
-  
+
   setting {
     name  = "containerInsights"
     value = "enabled"
   }
-  
+
   tags = {
     Environment = "staging"
   }
@@ -91,24 +91,24 @@ resource "aws_ecs_service" "api" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.api.arn
   desired_count   = 3
-  
+
   deployment_configuration {
     maximum_percent         = 200
     minimum_healthy_percent = 100
   }
-  
+
   network_configuration {
     subnets          = module.vpc.private_subnets
     security_groups  = [aws_security_group.api.id]
     assign_public_ip = false
   }
-  
+
   load_balancer {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "fraiseql"
     container_port   = 8000
   }
-  
+
   service_registries {
     registry_arn = aws_service_discovery_service.api.arn
   }
@@ -120,10 +120,10 @@ resource "aws_lb" "main" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets           = module.vpc.public_subnets
-  
+
   enable_deletion_protection = false
   enable_http2              = true
-  
+
   tags = {
     Environment = "staging"
   }
@@ -144,14 +144,14 @@ resource "aws_appautoscaling_policy" "cpu" {
   resource_id        = aws_appautoscaling_target.ecs.resource_id
   scalable_dimension = aws_appautoscaling_target.ecs.scalable_dimension
   service_namespace  = aws_appautoscaling_target.ecs.service_namespace
-  
+
   target_tracking_scaling_policy_configuration {
     target_value = 70.0
-    
+
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
-    
+
     scale_in_cooldown  = 300
     scale_out_cooldown = 60
   }
@@ -362,26 +362,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install dependencies
       run: |
         pip install -e ".[test]"
-    
+
     - name: Run tests
       run: |
         pytest tests/ -v --cov=fraiseql --cov-report=xml
-    
+
     - name: Run security scan
       run: |
         pip install bandit safety
         bandit -r fraiseql -ll
         safety check
-    
+
     - name: Upload coverage
       uses: codecov/codecov-action@v3
 
@@ -390,21 +390,21 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.image.outputs.image }}
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
-    
+
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
-    
+
     - name: Build and push image
       id: image
       env:
@@ -418,17 +418,17 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
-    
+
     - name: Update ECS task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -436,7 +436,7 @@ jobs:
         task-definition: deploy/ecs/task-definition.json
         container-name: fraiseql
         image: ${{ needs.build.outputs.image }}
-    
+
     - name: Deploy to ECS
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
@@ -444,7 +444,7 @@ jobs:
         service: ${{ env.ECS_SERVICE }}
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
-    
+
     - name: Run smoke tests
       run: |
         python scripts/smoke_tests.py --url https://staging-api.fraiseql.com
@@ -452,16 +452,16 @@ jobs:
   load-test:
     needs: deploy
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Run load tests
       uses: grafana/k6-action@v0.3.0
       with:
         filename: tests/load/staging.js
         flags: --out json=results.json
-    
+
     - name: Upload results
       uses: actions/upload-artifact@v3
       with:
@@ -575,35 +575,35 @@ const queries = [
 export default function() {
   // Pick random query
   const query = queries[Math.floor(Math.random() * queries.length)];
-  
+
   const payload = JSON.stringify({
     query: query.query,
     variables: query.variables,
   });
-  
+
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer test-token',
   };
-  
+
   const res = http.post(GRAPHQL_ENDPOINT, payload, { headers });
-  
+
   // Check response
   const success = check(res, {
     'status is 200': (r) => r.status === 200,
     'no errors': (r) => !JSON.parse(r.body).errors,
     'response time < 500ms': (r) => r.timings.duration < 500,
   });
-  
+
   errorRate.add(!success);
-  
+
   sleep(1);
 }
 
 // WebSocket subscription test
 export function testSubscriptions() {
   const ws = new WebSocket('wss://staging-api.fraiseql.com/graphql-ws');
-  
+
   ws.on('open', () => {
     // Connection init
     ws.send(JSON.stringify({
@@ -611,10 +611,10 @@ export function testSubscriptions() {
       payload: { authorization: 'Bearer test-token' },
     }));
   });
-  
+
   ws.on('message', (data) => {
     const message = JSON.parse(data);
-    
+
     if (message.type === 'connection_ack') {
       // Subscribe
       ws.send(JSON.stringify({
@@ -637,7 +637,7 @@ export function testSubscriptions() {
       }));
     }
   });
-  
+
   // Keep connection for 30 seconds
   sleep(30);
   ws.close();
@@ -663,11 +663,11 @@ groups:
         annotations:
           summary: "High error rate detected"
           description: "Error rate is {{ $value }} errors/sec"
-      
+
       # High latency
       - alert: HighLatency
         expr: |
-          histogram_quantile(0.95, 
+          histogram_quantile(0.95,
             rate(fraiseql_graphql_request_duration_seconds_bucket[5m])
           ) > 0.5
         for: 5m
@@ -677,12 +677,12 @@ groups:
         annotations:
           summary: "High API latency"
           description: "95th percentile latency is {{ $value }}s"
-      
+
       # Database connection pool exhaustion
       - alert: DatabasePoolExhaustion
         expr: |
-          fraiseql_database_connections_idle / 
-          (fraiseql_database_connections_idle + fraiseql_database_connections_active) 
+          fraiseql_database_connections_idle /
+          (fraiseql_database_connections_idle + fraiseql_database_connections_active)
           < 0.1
         for: 5m
         labels:
@@ -691,7 +691,7 @@ groups:
         annotations:
           summary: "Database connection pool nearly exhausted"
           description: "Only {{ $value }}% of connections are idle"
-      
+
       # Memory usage
       - alert: HighMemoryUsage
         expr: |
@@ -703,7 +703,7 @@ groups:
         annotations:
           summary: "High memory usage"
           description: "Memory usage is {{ $value }}GB"
-      
+
       # N+1 queries
       - alert: N1QueriesDetected
         expr: |
@@ -778,7 +778,7 @@ groups:
 
 "Staging deployment... let's see how it handles real infrastructure.
 
-INFRASTRUCTURE: 
+INFRASTRUCTURE:
 - Auto-scaling works perfectly
 - Health checks preventing bad deployments
 - Zero-downtime deployments confirmed

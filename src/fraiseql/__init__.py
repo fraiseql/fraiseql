@@ -11,6 +11,7 @@ from .gql.schema_builder import build_fraiseql_schema
 from .mutations.decorators import failure, result, success
 from .mutations.mutation_decorator import mutation
 from .optimization.decorators import dataloader_field
+from .subscriptions import subscription
 from .types import fraise_input, fraise_type
 from .types.enum import fraise_enum
 from .types.generic import (
@@ -21,7 +22,6 @@ from .types.generic import (
     create_connection,
 )
 from .types.interface import fraise_interface
-from .subscriptions import subscription
 
 # Core aliases
 type = fraise_type

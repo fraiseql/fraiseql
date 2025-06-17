@@ -192,8 +192,8 @@ async def me(info) -> User:
 class Mutation:
     @strawberry.mutation
     async def create_user(
-        self, 
-        name: str, 
+        self,
+        name: str,
         email: str
     ) -> Union[User, UserError]:
         # Implementation
@@ -226,7 +226,7 @@ class CreateUser:
     input: CreateUserInput
     success: CreateUserSuccess
     failure: CreateUserFailure  # Note: 'failure' not 'error'
-    
+
     async def execute(self, db, input_data):
         try:
             user = await db.create_user(
@@ -315,7 +315,7 @@ from strawberry.permission import BasePermission
 
 class IsAuthenticated(BasePermission):
     message = "User is not authenticated"
-    
+
     def has_permission(self, source, info, **kwargs):
         return info.context["user"] is not None
 
@@ -376,7 +376,7 @@ class User:
 @strawberry.type
 class User:
     id: strawberry.ID
-    
+
     @strawberry.field
     async def posts(self) -> list[Post]:
         return await fetch_user_posts(self.id)
@@ -476,7 +476,7 @@ class Query:
     async def users(self) -> List[User]:
         # Fetch from DB
         pass
-    
+
     @strawberry.field
     async def user(self, id: strawberry.ID) -> Optional[User]:
         # Fetch from DB
@@ -486,7 +486,7 @@ class Query:
 class Mutation:
     @strawberry.mutation
     async def create_user(
-        self, 
+        self,
         input: CreateUserInput
     ) -> Union[User, UserError]:
         # Create user
@@ -542,7 +542,7 @@ class CreateUser:
     input: CreateUserInput
     success: CreateUserSuccess
     failure: CreateUserFailure
-    
+
     async def execute(self, db, input_data):
         try:
             user = await db.create_user(

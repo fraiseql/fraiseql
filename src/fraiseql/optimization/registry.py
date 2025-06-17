@@ -1,48 +1,47 @@
 """Registry for managing DataLoader instances per request."""
 
 import inspect
-from typing import Dict, Type, TypeVar, Optional, Any
 from contextvars import ContextVar
+from typing import Any, Dict, Optional, Type, TypeVar
 
 from fraiseql.optimization.dataloader import DataLoader
 
-T = TypeVar('T', bound=DataLoader)
+T = TypeVar("T", bound=DataLoader)
 
 # Context variable for request-scoped registry
-_loader_registry: ContextVar[Optional['LoaderRegistry']] = ContextVar(
-    'loader_registry',
-    default=None
+_loader_registry: ContextVar[Optional["LoaderRegistry"]] = ContextVar(
+    "loader_registry", default=None
 )
 
 
 class LoaderRegistry:
     """Manages DataLoader instances for a request."""
-    
+
     def __init__(self, db: Any):
         self.db = db
         self._loaders: Dict[Type[DataLoader], DataLoader] = {}
         self._custom_loaders: Dict[str, DataLoader] = {}
-    
+
     def get_loader(self, loader_class: Type[T], **kwargs) -> T:
         """Get or create a DataLoader instance."""
         # Check if already exists
         if loader_class in self._loaders:
             return self._loaders[loader_class]
-        
+
         # Create new instance
         loader = loader_class(db=self.db, **kwargs)
         self._loaders[loader_class] = loader
-        
+
         return loader
-    
+
     def register_loader(self, name: str, loader: DataLoader):
         """Register a custom loader instance."""
         self._custom_loaders[name] = loader
-    
+
     def get_custom_loader(self, name: str) -> Optional[DataLoader]:
         """Get a custom loader by name."""
         return self._custom_loaders.get(name)
-    
+
     def clear_all(self):
         """Clear all loader caches."""
         # CRITICAL: Prevent memory leaks by properly clearing all references
@@ -55,14 +54,14 @@ class LoaderRegistry:
             # Force clear dictionaries to prevent memory leaks
             self._loaders.clear()
             self._custom_loaders.clear()
-    
+
     @classmethod
-    def get_current(cls) -> Optional['LoaderRegistry']:
+    def get_current(cls) -> Optional["LoaderRegistry"]:
         """Get the current request's registry."""
         return _loader_registry.get()
-    
+
     @classmethod
-    def set_current(cls, registry: 'LoaderRegistry'):
+    def set_current(cls, registry: "LoaderRegistry"):
         """Set the current request's registry."""
         _loader_registry.set(registry)
 
@@ -77,9 +76,9 @@ def get_loader(loader_class: Type[T], **kwargs) -> T:
             "DataLoader registry was not properly initialized for this request. "
             "Ensure middleware is correctly configured."
         )
-    
+
     # SECURITY: Validate loader class to prevent injection
     if not inspect.isclass(loader_class) or not issubclass(loader_class, DataLoader):
         raise ValueError(f"Invalid loader class: {loader_class}")
-    
+
     return registry.get_loader(loader_class, **kwargs)

@@ -42,7 +42,7 @@ class CreateUser:
     input: CreateUserInput
     success: CreateUserSuccess
     failure: CreateUserFailure  # Can also use 'error' for backwards compatibility
-    
+
     async def execute(self, db, input_data):
         # Mutation logic here
         try:
@@ -126,7 +126,7 @@ class CreateUser:
     input: CreateUserInput
     success: CreateUserSuccess
     failure: CreateUserFailure
-    
+
     async def execute(self, db, input_data):
         # Implementation
 ```

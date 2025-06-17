@@ -11,7 +11,9 @@ def test_fraise_field_with_purpose():
     )
 
     # Assert that the purpose is correctly set
-    assert field.purpose == "input", f"Expected purpose to be 'input', but got {field.purpose}"
+    assert field.purpose == "input", (
+        f"Expected purpose to be 'input', but got {field.purpose}"
+    )
 
 
 def test_fraise_field_with_annotation():
@@ -22,14 +24,18 @@ def test_fraise_field_with_annotation():
     field = ExampleClass.my_field
 
     # Assert that the field_type is correctly set to 'str'
-    assert field.field_type == str, f"Expected field_type to be 'str', but got {field.field_type}"
+    assert field.field_type == str, (
+        f"Expected field_type to be 'str', but got {field.field_type}"
+    )
 
 
 def test_fraise_field_with_default():
     field = fraise_field(field_type=int, default=42)
 
     # Assert that the default value is correctly set
-    assert field.default == 42, f"Expected default value to be 42, but got {field.default}"
+    assert field.default == 42, (
+        f"Expected default value to be 42, but got {field.default}"
+    )
 
 
 def test_fraise_field_with_default_factory():
@@ -40,9 +46,9 @@ def test_fraise_field_with_default_factory():
     field = fraise_field(field_type=int, default_factory=default_value)
 
     # Assert that the default factory is correctly set
-    assert (
-        field.default_factory() == 100
-    ), f"Expected default value to be 100, but got {field.default_factory()}"
+    assert field.default_factory() == 100, (
+        f"Expected default value to be 100, but got {field.default_factory()}"
+    )
 
 
 def test_fraise_field_with_invalid_purpose():

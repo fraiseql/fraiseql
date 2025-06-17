@@ -1,7 +1,7 @@
 """Example of WebSocket subscription endpoint with FastAPI."""
 
 import asyncio
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -9,8 +9,8 @@ from fastapi.responses import HTMLResponse
 
 import fraiseql
 from fraiseql import subscription
-from fraiseql.subscriptions import SubscriptionManager
 from fraiseql.gql.schema_builder import build_fraiseql_schema
+from fraiseql.subscriptions import SubscriptionManager
 
 
 # Define types
@@ -27,6 +27,7 @@ class Task:
 async def current_time(info) -> str:
     """Get current server time."""
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -35,20 +36,20 @@ async def current_time(info) -> str:
 async def task_feed(info) -> AsyncGenerator[Task, None]:
     """Subscribe to new tasks as they're created."""
     print("Starting task feed subscription")
-    
+
     for i in range(10):
         await asyncio.sleep(1)  # Simulate real-time updates
-        
+
         task = Task(
             id=uuid4(),
             title=f"Task {i + 1}",
             status="pending",
-            created_at=f"2025-01-19T10:{i:02d}:00Z"
+            created_at=f"2025-01-19T10:{i:02d}:00Z",
         )
-        
+
         print(f"Yielding task: {task.title}")
         yield task
-    
+
     print("Task feed subscription completed")
 
 
@@ -59,9 +60,7 @@ app = FastAPI()
 subscription_manager = SubscriptionManager()
 
 # Build GraphQL schema
-schema = build_fraiseql_schema(
-    subscription_resolvers=[task_feed]
-)
+schema = build_fraiseql_schema(subscription_resolvers=[task_feed])
 
 # Set schema on manager
 subscription_manager.schema = schema
@@ -83,29 +82,29 @@ async def get():
     <button onclick="subscribe()">Subscribe to Tasks</button>
     <button onclick="disconnect()">Disconnect</button>
     <div id="messages"></div>
-    
+
     <script>
         let ws = null;
         let subId = "sub1";
-        
+
         function connect() {
             ws = new WebSocket("ws://localhost:8000/graphql-ws");
-            
+
             ws.onopen = () => {
                 document.getElementById("status").textContent = "Connected";
                 addMessage("Connected to server");
-                
+
                 // Send connection_init
                 ws.send(JSON.stringify({
                     type: "connection_init",
                     payload: {}
                 }));
             };
-            
+
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
                 console.log("Received:", message);
-                
+
                 if (message.type === "connection_ack") {
                     addMessage("Connection acknowledged");
                 } else if (message.type === "data" && message.id === subId) {
@@ -117,19 +116,19 @@ async def get():
                     addMessage(`Error: ${JSON.stringify(message.payload)}`);
                 }
             };
-            
+
             ws.onclose = () => {
                 document.getElementById("status").textContent = "Disconnected";
                 addMessage("Disconnected from server");
             };
         }
-        
+
         function subscribe() {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 alert("Please connect first");
                 return;
             }
-            
+
             const query = `
                 subscription {
                     task_feed {
@@ -140,7 +139,7 @@ async def get():
                     }
                 }
             `;
-            
+
             ws.send(JSON.stringify({
                 id: subId,
                 type: "subscribe",
@@ -148,16 +147,16 @@ async def get():
                     query: query
                 }
             }));
-            
+
             addMessage("Subscribed to task feed");
         }
-        
+
         function disconnect() {
             if (ws) {
                 ws.close();
             }
         }
-        
+
         function addMessage(text) {
             const messages = document.getElementById("messages");
             const msg = document.createElement("div");
@@ -178,18 +177,18 @@ async def graphql_ws_endpoint(websocket: WebSocket):
     subprotocol = None
     if "graphql-ws" in websocket.headers.get("sec-websocket-protocol", "").split(", "):
         subprotocol = "graphql-ws"
-    elif "graphql-transport-ws" in websocket.headers.get("sec-websocket-protocol", "").split(", "):
+    elif "graphql-transport-ws" in websocket.headers.get(
+        "sec-websocket-protocol", ""
+    ).split(", "):
         subprotocol = "graphql-transport-ws"
-    
+
     await websocket.accept(subprotocol=subprotocol)
-    
+
     # Add connection to manager
     connection = await subscription_manager.add_connection(
-        websocket,
-        subprotocol=subprotocol,
-        context={"websocket": websocket}
+        websocket, subprotocol=subprotocol, context={"websocket": websocket}
     )
-    
+
     try:
         # Handle connection
         await connection.handle()
@@ -202,8 +201,8 @@ async def graphql_ws_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     print("Starting server at http://localhost:8000")
     print("Open http://localhost:8000 in your browser to test WebSocket subscriptions")
-    
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

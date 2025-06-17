@@ -51,7 +51,11 @@ def _serialize_value(value: object, field_type: object = None) -> object:
         }
     elif isinstance(value, list):
         result = [_serialize_value(v) for v in value if v is not UNSET]
-        if not result and field_type and getattr(field_type, "__origin__", None) is list:
+        if (
+            not result
+            and field_type
+            and getattr(field_type, "__origin__", None) is list
+        ):
             args = getattr(field_type, "__args__", [])
             if args and args[0] is uuid.UUID:
                 result = []
@@ -99,7 +103,9 @@ def generate_insert_json_call(
     params = {f"input_{key}": context[key] for key in context_keys if key in context}
     params["input_json"] = Jsonb(json_data)
 
-    placeholders = [sql.Placeholder(f"input_{key}") for key in context_keys if key in context]
+    placeholders = [
+        sql.Placeholder(f"input_{key}") for key in context_keys if key in context
+    ]
     placeholders.append(sql.Placeholder("input_json"))
 
     statement = sql.SQL("SELECT * FROM {}({})").format(

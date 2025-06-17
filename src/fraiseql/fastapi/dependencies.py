@@ -17,7 +17,9 @@ _auth_provider: AuthProvider | None = None
 def get_db_pool():
     """Get the database connection pool."""
     if _db_pool is None:
-        raise RuntimeError("Database pool not initialized. Call create_fraiseql_app first.")
+        raise RuntimeError(
+            "Database pool not initialized. Call create_fraiseql_app first."
+        )
     return _db_pool
 
 
@@ -127,10 +129,10 @@ async def build_graphql_context(
     """Build GraphQL context with database and user info."""
     # Create a new LoaderRegistry for this request
     loader_registry = LoaderRegistry(db=db)
-    
+
     # Set as current registry for this request context
     LoaderRegistry.set_current(loader_registry)
-    
+
     return {
         "db": db,
         "user": user,

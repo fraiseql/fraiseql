@@ -16,15 +16,15 @@ jobs:
     permissions:
       security-events: write
       contents: read
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -33,29 +33,29 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM'
           format: 'sarif'
           output: 'trivy-results.sarif'
-      
+
       - name: Upload Trivy scan results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
-      
+
       - name: Run Bandit security linter
         run: |
           pip install bandit[toml]
           bandit -r src/ -ll -f sarif -o bandit-results.sarif || true
-      
+
       - name: Upload Bandit results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'bandit-results.sarif'
-      
+
       - name: Run pip-audit
         run: |
           pip install pip-audit
           pip-audit --desc --format json --output pip-audit-results.json || true
-      
+
       - name: Upload pip-audit results
         uses: actions/upload-artifact@v4
         if: always()
@@ -81,25 +81,25 @@ jobs:
       actions: read
       contents: read
       security-events: write
-    
+
     strategy:
       fail-fast: false
       matrix:
         language: [ 'python' ]
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
-      
+
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
-      
+
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
@@ -112,7 +112,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: TruffleHog OSS
         uses: trufflesecurity/trufflehog@main
         with:

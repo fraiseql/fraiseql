@@ -17,7 +17,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM customers WHERE email = LOWER(p_email)) THEN
         RAISE EXCEPTION 'Email already registered';
     END IF;
-    
+
     -- Create customer (password should be hashed in application layer)
     INSERT INTO customers (
         email,
@@ -32,12 +32,12 @@ BEGIN
         p_last_name,
         p_phone
     ) RETURNING id INTO v_customer_id;
-    
+
     -- Create default wishlist
     INSERT INTO wishlists (customer_id, name)
     VALUES (v_customer_id, 'My Wishlist')
     RETURNING id INTO v_wishlist_id;
-    
+
     RETURN json_build_object(
         'success', true,
         'customer_id', v_customer_id,
@@ -74,11 +74,11 @@ BEGIN
         metadata = COALESCE(p_metadata, metadata),
         updated_at = CURRENT_TIMESTAMP
     WHERE id = p_customer_id;
-    
+
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Customer not found';
     END IF;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Profile updated successfully',
@@ -123,7 +123,7 @@ BEGIN
         WHERE customer_id = p_customer_id
         AND type = p_type;
     END IF;
-    
+
     -- Create address
     INSERT INTO addresses (
         customer_id,
@@ -154,7 +154,7 @@ BEGIN
         p_phone,
         p_is_default
     ) RETURNING id INTO v_address_id;
-    
+
     RETURN json_build_object(
         'success', true,
         'address_id', v_address_id,
@@ -187,7 +187,7 @@ BEGIN
         SELECT id INTO v_wishlist_id
         FROM wishlists
         WHERE id = p_wishlist_id AND customer_id = p_customer_id;
-        
+
         IF v_wishlist_id IS NULL THEN
             RAISE EXCEPTION 'Wishlist not found or access denied';
         END IF;
@@ -198,7 +198,7 @@ BEGIN
         WHERE customer_id = p_customer_id
         ORDER BY created_at
         LIMIT 1;
-        
+
         IF v_wishlist_id IS NULL THEN
             -- Create default wishlist
             INSERT INTO wishlists (customer_id)
@@ -206,7 +206,7 @@ BEGIN
             RETURNING id INTO v_wishlist_id;
         END IF;
     END IF;
-    
+
     -- Check if already in wishlist
     IF EXISTS (
         SELECT 1 FROM wishlist_items
@@ -216,7 +216,7 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'Product already in wishlist';
     END IF;
-    
+
     -- Add to wishlist
     INSERT INTO wishlist_items (
         wishlist_id,
@@ -231,7 +231,7 @@ BEGIN
         p_priority,
         p_notes
     );
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Added to wishlist',
@@ -263,7 +263,7 @@ BEGIN
     IF p_rating < 1 OR p_rating > 5 THEN
         RAISE EXCEPTION 'Rating must be between 1 and 5';
     END IF;
-    
+
     -- Check if already reviewed
     IF EXISTS (
         SELECT 1 FROM reviews
@@ -273,7 +273,7 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'You have already reviewed this product';
     END IF;
-    
+
     -- Verify purchase if order_id provided
     IF p_order_id IS NOT NULL THEN
         SELECT EXISTS(
@@ -286,7 +286,7 @@ BEGIN
             AND o.status IN ('completed', 'delivered')
         ) INTO v_is_verified_purchase;
     END IF;
-    
+
     -- Create review
     INSERT INTO reviews (
         product_id,
@@ -307,7 +307,7 @@ BEGIN
         v_is_verified_purchase,
         'pending' -- Reviews go through moderation
     ) RETURNING id INTO v_review_id;
-    
+
     RETURN json_build_object(
         'success', true,
         'review_id', v_review_id,
@@ -341,11 +341,11 @@ BEGIN
         SET not_helpful_count = not_helpful_count + 1
         WHERE id = p_review_id AND status = 'approved';
     END IF;
-    
+
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Review not found or not approved';
     END IF;
-    
+
     RETURN json_build_object(
         'success', true,
         'message', 'Thank you for your feedback'

@@ -21,23 +21,23 @@ async def custom_context_getter(request: Request) -> dict[str, Any]:
     # Get default context
     from fraiseql.fastapi.dependencies import build_graphql_context
     context = await build_graphql_context()
-    
+
     # Add custom data
     context["request"] = request
     context["ip_address"] = request.client.host
     context["request_id"] = request.headers.get("X-Request-ID")
-    
+
     # Add feature flags
     context["features"] = {
         "new_ui": True,
         "beta_features": request.headers.get("X-Beta") == "true",
         "debug_mode": request.headers.get("X-Debug") == "true"
     }
-    
+
     # Add custom services
     context["cache"] = app.state.cache
     context["email_service"] = app.state.email_service
-    
+
     return context
 
 app = create_fraiseql_app(
@@ -58,7 +58,7 @@ async def debug_info(info) -> dict[str, Any]:
     """Get debug information (only in debug mode)."""
     if not info.context["features"]["debug_mode"]:
         raise Exception("Debug mode not enabled")
-    
+
     return {
         "request_id": info.context["request_id"],
         "ip_address": info.context["ip_address"],
@@ -80,11 +80,11 @@ class SendEmail:
     input: SendEmailInput
     success: SendEmailSuccess
     failure: SendEmailFailure
-    
+
     async def execute(self, db, input_data, info):
         # Access custom services
         email_service = info.context["email_service"]
-        
+
         # Check feature flags
         if info.context["features"]["new_email_system"]:
             result = await email_service.send_v2(
@@ -98,7 +98,7 @@ class SendEmail:
                 input_data.subject,
                 input_data.body
             )
-        
+
         return SendEmailSuccess(message_id=result.id)
 ```
 
@@ -110,18 +110,18 @@ class SendEmail:
 async def context_with_cache(request: Request) -> dict[str, Any]:
     """Add per-request cache to context."""
     context = await build_graphql_context()
-    
+
     # Create request-specific cache
     context["request_cache"] = {}
-    
+
     # Add cache helper
     async def cached_fetch(key: str, fetcher):
         if key not in context["request_cache"]:
             context["request_cache"][key] = await fetcher()
         return context["request_cache"][key]
-    
+
     context["cached_fetch"] = cached_fetch
-    
+
     return context
 
 # Usage in resolver
@@ -142,10 +142,10 @@ from datetime import datetime
 async def context_with_tracking(request: Request) -> dict[str, Any]:
     """Add request tracking to context."""
     context = await build_graphql_context()
-    
+
     # Generate or get request ID
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-    
+
     # Add tracking info
     context["tracking"] = {
         "request_id": request_id,
@@ -153,7 +153,7 @@ async def context_with_tracking(request: Request) -> dict[str, Any]:
         "user_agent": request.headers.get("User-Agent"),
         "referer": request.headers.get("Referer"),
     }
-    
+
     # Add tracking helper
     async def track_event(event_name: str, data: dict = None):
         await db.execute(
@@ -166,9 +166,9 @@ async def context_with_tracking(request: Request) -> dict[str, Any]:
             data or {},
             datetime.utcnow()
         )
-    
+
     context["track_event"] = track_event
-    
+
     return context
 ```
 
@@ -178,7 +178,7 @@ async def context_with_tracking(request: Request) -> dict[str, Any]:
 async def context_with_tenant(request: Request) -> dict[str, Any]:
     """Add tenant context for multi-tenant apps."""
     context = await build_graphql_context()
-    
+
     # Extract tenant from header, subdomain, or JWT
     tenant_id = request.headers.get("X-Tenant-ID")
     if not tenant_id:
@@ -186,13 +186,13 @@ async def context_with_tenant(request: Request) -> dict[str, Any]:
         host = request.headers.get("Host", "")
         if host.endswith(".myapp.com"):
             tenant_id = host.split(".")[0]
-    
+
     # Add tenant context
     if tenant_id:
         context["tenant_id"] = tenant_id
         # Create tenant-scoped DB connection
         context["tenant_db"] = await get_tenant_db(tenant_id)
-    
+
     return context
 
 # Usage in resolver
@@ -202,7 +202,7 @@ async def tenant_data(info) -> dict[str, Any]:
     tenant_db = info.context.get("tenant_db")
     if not tenant_db:
         raise Exception("No tenant context")
-    
+
     return await tenant_db.fetch_one(
         "SELECT * FROM tenant_settings"
     )

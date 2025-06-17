@@ -51,7 +51,9 @@ def translate_query(
 
         transform_fn = to_snake_case
 
-    field_paths = extract_flat_paths(op.selection_set, fragments, transform_path=transform_fn)
+    field_paths = extract_flat_paths(
+        op.selection_set, fragments, transform_path=transform_fn
+    )
 
     return build_sql_query(
         table=table,

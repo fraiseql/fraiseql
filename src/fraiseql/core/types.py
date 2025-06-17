@@ -1,12 +1,13 @@
 """Core type definitions for FraiseQL."""
 
-from typing import Any, Callable, Dict, Optional, Type
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional, Type
 
 
 @dataclass
 class FieldDefinition:
     """Base field definition."""
+
     name: str
     resolver: Callable
     return_type: Type
@@ -14,19 +15,22 @@ class FieldDefinition:
     description: Optional[str] = None
 
 
-@dataclass  
+@dataclass
 class QueryField(FieldDefinition):
     """Query field definition."""
+
     pass
 
 
 @dataclass
 class MutationField(FieldDefinition):
     """Mutation field definition."""
+
     pass
 
 
 @dataclass
 class SubscriptionField(FieldDefinition):
     """Subscription field definition."""
+
     pass

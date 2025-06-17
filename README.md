@@ -53,7 +53,7 @@ pip install "fraiseql[auth0]"
 ## Documentation
 
 - 📚 [Quick Start Guide](docs/QUICKSTART_GUIDE.md) - Get started in 5 minutes
-- 🔧 [API Reference](docs/API_REFERENCE_QUICK.md) - All decorators and functions  
+- 🔧 [API Reference](docs/API_REFERENCE_QUICK.md) - All decorators and functions
 - ❓ [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 - 💡 [Examples](examples/) - Working code examples
 
@@ -92,12 +92,12 @@ async def post(info, id: int) -> Optional[Post]:
 # Create the app
 if __name__ == "__main__":
     import uvicorn
-    
+
     app = fraiseql.create_fraiseql_app(
         types=[Post],
         production=False  # Enables GraphQL Playground
     )
-    
+
     print("GraphQL Playground: http://localhost:8000/playground")
     uvicorn.run(app, port=8000)
 ```

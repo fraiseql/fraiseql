@@ -73,7 +73,9 @@ def extract_flat_paths(
 
         if field.selection_set:
             result.extend(
-                extract_flat_paths(field.selection_set, fragments, current_path, transform_path),
+                extract_flat_paths(
+                    field.selection_set, fragments, current_path, transform_path
+                ),
             )
         else:
             result.append(FieldPath(alias=alias, path=current_path))

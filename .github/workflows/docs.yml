@@ -23,12 +23,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for git info
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
@@ -36,21 +36,21 @@ jobs:
           key: ${{ runner.os }}-pip-docs-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-pip-docs-
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[docs]"
-      
+
       - name: Build documentation
         run: mkdocs build --strict
-      
+
       - name: Upload documentation artifacts
         uses: actions/upload-artifact@v4
         with:
           name: documentation
           path: site/
-  
+
   deploy:
     name: Deploy to GitHub Pages
     needs: build
@@ -60,16 +60,16 @@ jobs:
       contents: write
       pages: write
       id-token: write
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Download documentation artifacts
         uses: actions/download-artifact@v4
         with:
           name: documentation
           path: site/
-      
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -84,30 +84,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[docs]"
           pip install linkchecker
-      
+
       - name: Build documentation
         run: mkdocs build
-      
+
       - name: Check links
         run: |
           # Start a local server
           python -m http.server 8000 --directory site/ &
           SERVER_PID=$!
           sleep 5
-          
+
           # Check links
           linkchecker http://localhost:8000 --no-warnings --ignore-url=^mailto: || true
-          
+
           # Stop server
           kill $SERVER_PID

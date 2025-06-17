@@ -83,7 +83,7 @@ const ws = new WebSocket('ws://localhost:8000/ws/user123');
 
 ws.onopen = function(event) {
     console.log('Connected to chat');
-    
+
     // Join a room
     ws.send(JSON.stringify({
         type: 'join_room',
@@ -94,7 +94,7 @@ ws.onopen = function(event) {
 ws.onmessage = function(event) {
     const data = JSON.parse(event.data);
     console.log('Received:', data);
-    
+
     switch(data.type) {
         case 'message_event':
             handleNewMessage(data.message);
@@ -362,14 +362,14 @@ import json
 
 async def test_websocket():
     uri = "ws://localhost:8000/ws/test_user"
-    
+
     async with websockets.connect(uri) as websocket:
         # Join a room
         await websocket.send(json.dumps({
             "type": "join_room",
             "room_id": "test_room"
         }))
-        
+
         # Listen for messages
         async for message in websocket:
             data = json.loads(message)

@@ -2,6 +2,8 @@
 
 import os
 
+# Import queries module to ensure @query decorators are registered
+import queries  # noqa: F401
 from models import Comment, Post, User
 from mutations import (
     create_comment,
@@ -10,8 +12,6 @@ from mutations import (
     delete_post,
     update_post,
 )
-# Import queries module to ensure @query decorators are registered
-import queries  # noqa: F401
 
 from fraiseql.fastapi import create_fraiseql_app
 

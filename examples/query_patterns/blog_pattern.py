@@ -4,8 +4,8 @@ This shows how to create a FraiseQL app using only the @query decorator,
 which provides the cleanest and most intuitive API.
 """
 
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
@@ -45,38 +45,42 @@ async def get_post(info, id: UUID) -> Post | None:
                 id=UUID("223e4567-e89b-12d3-a456-426614174001"),
                 name="Jane Developer",
                 email="jane@example.com",
-                bio="GraphQL enthusiast and FraiseQL contributor"
+                bio="GraphQL enthusiast and FraiseQL contributor",
             ),
             published_at=datetime.now(),
-            tags=["graphql", "python", "tutorial"]
+            tags=["graphql", "python", "tutorial"],
         )
     return None
 
 
 @fraiseql.query
-async def list_posts(info, limit: int = 10, offset: int = 0, tag: str | None = None) -> list[Post]:
+async def list_posts(
+    info, limit: int = 10, offset: int = 0, tag: str | None = None
+) -> list[Post]:
     """List blog posts with pagination and optional tag filter."""
     # Sample data - in production, query your database
     posts = []
-    
+
     for i in range(offset, offset + limit):
-        posts.append(Post(
-            id=UUID(f"{i:032x}-0000-0000-0000-000000000000"),
-            title=f"Blog Post {i + 1}",
-            content=f"This is the content of blog post {i + 1}...",
-            author=Author(
-                id=UUID("223e4567-e89b-12d3-a456-426614174001"),
-                name="Jane Developer",
-                email="jane@example.com"
-            ),
-            published_at=datetime.now() if i % 2 == 0 else None,
-            tags=["blog", "tutorial"] if i % 2 == 0 else ["draft"]
-        ))
-    
+        posts.append(
+            Post(
+                id=UUID(f"{i:032x}-0000-0000-0000-000000000000"),
+                title=f"Blog Post {i + 1}",
+                content=f"This is the content of blog post {i + 1}...",
+                author=Author(
+                    id=UUID("223e4567-e89b-12d3-a456-426614174001"),
+                    name="Jane Developer",
+                    email="jane@example.com",
+                ),
+                published_at=datetime.now() if i % 2 == 0 else None,
+                tags=["blog", "tutorial"] if i % 2 == 0 else ["draft"],
+            )
+        )
+
     # Filter by tag if provided
     if tag:
         posts = [p for p in posts if tag in p.tags]
-    
+
     return posts
 
 
@@ -94,10 +98,10 @@ async def search_posts(info, query: str) -> list[Post]:
                 author=Author(
                     id=UUID("223e4567-e89b-12d3-a456-426614174001"),
                     name="Jane Developer",
-                    email="jane@example.com"
+                    email="jane@example.com",
                 ),
                 published_at=datetime.now(),
-                tags=["graphql", "python", "tutorial"]
+                tags=["graphql", "python", "tutorial"],
             )
         ]
     return []
@@ -111,7 +115,7 @@ async def get_author(info, id: UUID) -> Author | None:
             id=id,
             name="Jane Developer",
             email="jane@example.com",
-            bio="GraphQL enthusiast and FraiseQL contributor"
+            bio="GraphQL enthusiast and FraiseQL contributor",
         )
     return None
 
@@ -131,7 +135,7 @@ async def get_context(request):
     return {
         "db": None,  # Your database connection
         "user": None,  # Authenticated user
-        "request": request
+        "request": request,
     }
 
 
@@ -139,13 +143,13 @@ async def get_context(request):
 app_with_context = create_fraiseql_app(
     database_url="postgresql://localhost/blog",
     types=[Author, Post],
-    context_getter=get_context  # Custom context
+    context_getter=get_context,  # Custom context
 )
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     print("🚀 Starting Blog API with FraiseQL")
     print("📍 GraphQL endpoint: http://localhost:8000/graphql")
     print()
@@ -163,7 +167,7 @@ if __name__ == "__main__":
             tags
         }
     }
-    
+
     # List posts with pagination
     query ListPosts {
         list_posts(limit: 5, offset: 0) {
@@ -173,7 +177,7 @@ if __name__ == "__main__":
             tags
         }
     }
-    
+
     # Search posts
     query SearchPosts {
         search_posts(query: "fraiseql") {
@@ -182,5 +186,5 @@ if __name__ == "__main__":
         }
     }
     """)
-    
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

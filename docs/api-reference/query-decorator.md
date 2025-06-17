@@ -63,7 +63,7 @@ async def me(info) -> Optional[User]:
     user_context = info.context.get("user")
     if not user_context:
         return None
-    
+
     db = info.context["db"]
     return await db.get_user(user_context.user_id)
 

@@ -14,6 +14,7 @@ from fraiseql.types import JSON
 @fraise_type
 class ErrorWithDetails:
     """Error type with JSON details field."""
+
     message: str
     code: str
     details: dict[str, Any] | None = None
@@ -22,6 +23,7 @@ class ErrorWithDetails:
 @fraise_type
 class ConfigType:
     """Configuration with plain dict."""
+
     name: str
     settings: dict
 
@@ -29,6 +31,7 @@ class ConfigType:
 @fraise_type
 class MetadataType:
     """Type using JSON alias."""
+
     id: int
     metadata: JSON
 
@@ -42,8 +45,8 @@ async def get_error(info) -> ErrorWithDetails:
         details={
             "field": "username",
             "reason": "already exists",
-            "suggestions": ["try username2", "try username3"]
-        }
+            "suggestions": ["try username2", "try username3"],
+        },
     )
 
 
@@ -51,11 +54,7 @@ async def get_config(info) -> ConfigType:
     """Return configuration."""
     return ConfigType(
         name="app_config",
-        settings={
-            "debug": True,
-            "timeout": 30,
-            "features": ["feature1", "feature2"]
-        }
+        settings={"debug": True, "timeout": 30, "features": ["feature1", "feature2"]},
     )
 
 
@@ -66,11 +65,8 @@ async def get_metadata(info) -> MetadataType:
         metadata={
             "created_by": "admin",
             "tags": ["important", "reviewed"],
-            "nested": {
-                "level": 2,
-                "data": [1, 2, 3]
-            }
-        }
+            "nested": {"level": 2, "data": [1, 2, 3]},
+        },
     )
 
 
@@ -85,18 +81,16 @@ def clear_registry():
 
 def test_dict_str_any_type():
     """Test that dict[str, Any] works properly."""
-    schema = build_fraiseql_schema(
-        query_types=[get_error]
-    )
-    
+    schema = build_fraiseql_schema(query_types=[get_error])
+
     # Check that the schema was built successfully
     assert schema.query_type is not None
-    
+
     # Check that the field is properly typed
     error_type = schema.type_map.get("ErrorWithDetails")
     assert error_type is not None
     assert "details" in error_type.fields
-    
+
     # The type should be JSON (nullable)
     details_field = error_type.fields["details"]
     assert details_field.type.name == "JSON"  # It's nullable, so no wrapper
@@ -104,19 +98,17 @@ def test_dict_str_any_type():
 
 def test_plain_dict_type():
     """Test that plain dict works."""
-    schema = build_fraiseql_schema(
-        query_types=[get_config]
-    )
-    
+    schema = build_fraiseql_schema(query_types=[get_config])
+
     config_type = schema.type_map.get("ConfigType")
     assert config_type is not None
     assert "settings" in config_type.fields
-    
+
     # Should be JSON scalar
     settings_field = config_type.fields["settings"]
     # Check if it's wrapped in NonNull
     field_type = settings_field.type
-    if hasattr(field_type, 'of_type'):
+    if hasattr(field_type, "of_type"):
         assert field_type.of_type.name == "JSON"
     else:
         assert field_type.name == "JSON"
@@ -124,18 +116,16 @@ def test_plain_dict_type():
 
 def test_json_alias_type():
     """Test that JSON alias works."""
-    schema = build_fraiseql_schema(
-        query_types=[get_metadata]
-    )
-    
+    schema = build_fraiseql_schema(query_types=[get_metadata])
+
     metadata_type = schema.type_map.get("MetadataType")
     assert metadata_type is not None
     assert "metadata" in metadata_type.fields
-    
+
     # Should be JSON scalar
     metadata_field = metadata_type.fields["metadata"]
     field_type = metadata_field.type
-    if hasattr(field_type, 'of_type'):
+    if hasattr(field_type, "of_type"):
         assert field_type.of_type.name == "JSON"
     else:
         assert field_type.name == "JSON"
@@ -144,10 +134,8 @@ def test_json_alias_type():
 @pytest.mark.asyncio
 async def test_query_execution_with_json():
     """Test that JSON fields work in query execution."""
-    schema = build_fraiseql_schema(
-        query_types=[get_error, get_config, get_metadata]
-    )
-    
+    schema = build_fraiseql_schema(query_types=[get_error, get_config, get_metadata])
+
     # Query all types
     query = """
         query {
@@ -166,9 +154,9 @@ async def test_query_execution_with_json():
             }
         }
     """
-    
+
     result = await graphql(schema, query, context_value={})
-    
+
     assert result.errors is None
     assert result.data == {
         "get_error": {
@@ -177,45 +165,37 @@ async def test_query_execution_with_json():
             "details": {
                 "field": "username",
                 "reason": "already exists",
-                "suggestions": ["try username2", "try username3"]
-            }
+                "suggestions": ["try username2", "try username3"],
+            },
         },
         "get_config": {
             "name": "app_config",
             "settings": {
                 "debug": True,
                 "timeout": 30,
-                "features": ["feature1", "feature2"]
-            }
+                "features": ["feature1", "feature2"],
+            },
         },
         "get_metadata": {
             "id": 1,
             "metadata": {
                 "created_by": "admin",
                 "tags": ["important", "reviewed"],
-                "nested": {
-                    "level": 2,
-                    "data": [1, 2, 3]
-                }
-            }
-        }
+                "nested": {"level": 2, "data": [1, 2, 3]},
+            },
+        },
     }
 
 
 @pytest.mark.asyncio
 async def test_null_json_field():
     """Test that null JSON fields work properly."""
+
     async def get_error_no_details(info) -> ErrorWithDetails:
-        return ErrorWithDetails(
-            message="Simple error",
-            code="ERR_002",
-            details=None
-        )
-    
-    schema = build_fraiseql_schema(
-        query_types=[get_error_no_details]
-    )
-    
+        return ErrorWithDetails(message="Simple error", code="ERR_002", details=None)
+
+    schema = build_fraiseql_schema(query_types=[get_error_no_details])
+
     query = """
         query {
             get_error_no_details {
@@ -225,14 +205,14 @@ async def test_null_json_field():
             }
         }
     """
-    
+
     result = await graphql(schema, query, context_value={})
-    
+
     assert result.errors is None
     assert result.data == {
         "get_error_no_details": {
             "message": "Simple error",
             "code": "ERR_002",
-            "details": None
+            "details": None,
         }
     }
