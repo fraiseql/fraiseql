@@ -44,19 +44,13 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         dict: JSONScalar,
         uuid.UUID: GraphQLID,
         UUIDField: GraphQLID,
-        datetime.date: GraphQLScalarType(name="Date", serialize=DateScalar.serialize),
-        datetime.datetime: GraphQLScalarType(name="DateTime", serialize=DateTimeScalar.serialize),
+        datetime.date: DateScalar,
+        datetime.datetime: DateTimeScalar,
         datetime.time: GraphQLString,
-        ipaddress.IPv4Address: GraphQLScalarType(
-            name="IpAddress",
-            serialize=IpAddressScalar.serialize,
-        ),
-        ipaddress.IPv4Network: GraphQLScalarType(
-            name="SubnetMask",
-            serialize=SubnetMaskScalar.serialize,
-        ),
-        tuple: GraphQLScalarType(name="DateRange", serialize=DateRangeScalar.serialize),
-        list: GraphQLScalarType(name="LTree", serialize=LTreeScalar.serialize),
+        ipaddress.IPv4Address: IpAddressScalar,
+        ipaddress.IPv4Network: SubnetMaskScalar,
+        # Note: tuple and list are too generic to map to specific scalars
+        # DateRangeScalar and LTreeScalar should be used via specific marker types
     }
 
     if typ in scalar_map:

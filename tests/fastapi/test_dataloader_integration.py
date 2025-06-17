@@ -95,7 +95,7 @@ async def get_posts(info) -> List[Post]:
 
 
 @fraiseql.query
-async def test_get_loader(info) -> str:
+async def get_loader_test(info) -> str:
     """Test query to verify get_loader works."""
     try:
         # Try to get a DataLoader - this should work if LoaderRegistry is in context
@@ -232,7 +232,7 @@ def test_get_loader_function_works():
             json={
                 "query": """
                     query {
-                        test_get_loader
+                        get_loader_test
                     }
                 """
             }
@@ -242,7 +242,7 @@ def test_get_loader_function_works():
         data = response.json()
         
         # Should successfully get a DataLoader instance
-        result = data["data"]["test_get_loader"]
+        result = data["data"]["get_loader_test"]
         assert "Success" in result
         assert "UserDataLoader" in result
 

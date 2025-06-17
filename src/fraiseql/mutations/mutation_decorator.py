@@ -47,10 +47,7 @@ class MutationDefinition:
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
 
-        async def resolver(
-            info: Any,
-            input: Any,
-        ) -> Any:
+        async def resolver(info, input):
             """Auto-generated resolver for PostgreSQL mutation."""
             # Get database connection
             db = info.context.get("db")
@@ -77,6 +74,19 @@ class MutationDefinition:
 
         # Store mutation definition for schema building
         resolver.__fraiseql_mutation__ = self
+        
+        # Set proper annotations for the resolver
+        # We use Union of success and error types as the return type
+        from typing import Union
+        if self.success_type and self.error_type:
+            return_type = Union[self.success_type, self.error_type]
+        else:
+            return_type = self.success_type or self.error_type
+            
+        resolver.__annotations__ = {
+            'input': self.input_type,
+            'return': return_type
+        }
 
         return resolver
 
@@ -110,6 +120,10 @@ def mutation(
     """
 
     def decorator(cls_or_fn: type[T] | Callable[..., Any]) -> type[T] | Callable[..., Any]:
+        # Import here to avoid circular imports
+        from fraiseql.gql.schema_builder import SchemaRegistry
+        registry = SchemaRegistry.get_instance()
+        
         # Check if it's a function (simple mutation pattern)
         if callable(cls_or_fn) and not isinstance(cls_or_fn, type):
             # It's a function-based mutation
@@ -118,6 +132,9 @@ def mutation(
             # Store metadata for schema building
             fn.__fraiseql_mutation__ = True
             fn.__fraiseql_resolver__ = fn
+            
+            # Auto-register with schema
+            registry.register_mutation(fn)
             
             return fn
         
@@ -131,6 +148,9 @@ def mutation(
 
         # Create and store resolver
         cls.__fraiseql_resolver__ = definition.create_resolver()
+        
+        # Auto-register with schema
+        registry.register_mutation(cls)
 
         return cls
 

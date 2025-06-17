@@ -146,6 +146,13 @@ def convert_type_to_graphql_input(
         and hasattr(typ, "__fraiseql_definition__")
         and getattr(typ.__fraiseql_definition__, "kind", None) == "input"
     ):
+        # Check cache first
+        cache_key = (typ.__name__, typ.__module__)
+        if cache_key in _graphql_type_cache:
+            cached_type = _graphql_type_cache[cache_key]
+            if isinstance(cached_type, GraphQLInputObjectType):
+                return cached_type
+        
         # Use the already collected fields from the decorator
         fields = getattr(typ, "__gql_fields__", {})
         type_hints = getattr(typ, "__gql_type_hints__", {})
@@ -167,7 +174,9 @@ def convert_type_to_graphql_input(
 
             gql_fields[name] = GraphQLInputField(convert_type_to_graphql_input(field_type))
 
-        return GraphQLInputObjectType(name=typ.__name__, fields=gql_fields)
+        gql_type = GraphQLInputObjectType(name=typ.__name__, fields=gql_fields)
+        _graphql_type_cache[cache_key] = gql_type
+        return gql_type
 
     # Handle list types like List[str]
     origin = get_origin(typ)

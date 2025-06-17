@@ -473,7 +473,8 @@ def build_fraiseql_schema(
 
     # Only add mutation type if there are mutations
     mutation_type = None
-    if mutation_resolvers:
+    # Check both passed-in mutations and auto-registered ones
+    if mutation_resolvers or registry._mutations:
         mutation_type = registry.build_mutation_type()
     
     # Only add subscription type if there are subscriptions
