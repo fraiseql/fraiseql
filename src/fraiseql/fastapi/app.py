@@ -139,7 +139,7 @@ def create_fraiseql_app(
             """Manage application lifecycle."""
             # Startup
             pool = await create_db_pool(
-                config.database_url,
+                str(config.database_url),
                 min_size=1,
                 max_size=config.database_pool_size,
                 timeout=config.database_pool_timeout,
@@ -164,7 +164,7 @@ def create_fraiseql_app(
             """Wrap user lifespan with FraiseQL resource management."""
             # Startup - initialize database pool
             pool = await create_db_pool(
-                config.database_url,
+                str(config.database_url),
                 min_size=1,
                 max_size=config.database_pool_size,
                 timeout=config.database_pool_timeout,
