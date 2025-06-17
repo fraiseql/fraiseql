@@ -3,8 +3,6 @@
 Exports public API for FraiseQL framework.
 """
 
-from typing import Any
-
 from .decorators import field, query
 from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
@@ -65,6 +63,9 @@ except ImportError:
 # CQRS support
 from .cqrs import CQRSExecutor, CQRSRepository
 
+# Scalar types
+from .types.scalars.json import JSONField as JSON
+
 __version__ = "0.1.0a5"
 
 __all__ = [
@@ -79,6 +80,7 @@ __all__ = [
     "Connection",
     "Edge",
     "FraiseQLConfig",
+    "JSON",
     "PageInfo",
     "PaginatedResponse",
     "UserContext",
