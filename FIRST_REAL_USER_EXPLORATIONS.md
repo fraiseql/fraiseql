@@ -307,3 +307,299 @@ Now stop patting yourself on the back for WebSockets and FIX THE QUERY REGISTRAT
 *Grumpy slams laptop closed*
 
 "And update the version to 0.1.0a3 since you added WebSockets. At least version numbers should reflect reality."
+
+## DataLoader Implementation Analysis (June 2025)
+
+### Current Status Analysis
+
+*Viktor checks his notes and starts reviewing the DataLoader implementation*
+
+"Alright, I see you've got WebSockets working. Good. Now let's talk about this DataLoader situation because N+1 queries will kill any production application..."
+
+*Opens the optimization module*
+
+```bash
+$ find src -name "*dataloader*" -o -name "*optimization*"
+src/fraiseql/optimization/dataloader.py
+src/fraiseql/optimization/registry.py  
+src/fraiseql/optimization/loaders.py
+```
+
+"Wait, what? You already HAVE DataLoader implementation? Let me check this..."
+
+*Reviews the code*
+
+```python
+# From dataloader.py - Core implementation exists
+class DataLoader(ABC, Generic[KeyType, ValueType]):
+    async def load(self, key: KeyType) -> Optional[ValueType]:
+        # Batching and caching logic...
+    
+    async def batch_load(self, keys: List[KeyType]) -> List[Optional[ValueType]]:
+        # Abstract method for user implementation
+```
+
+"The core DataLoader is implemented with proper batching, caching, and generics. Good foundation. But looking at the examples..."
+
+*Checks blog_api/queries.py*
+
+```python
+# Current resolver pattern - NO DataLoader usage!
+async def resolve_post_author(post: Post, info) -> Optional[User]:
+    db: BlogRepository = info.context["db"]
+    user_data = await db.get_user_by_id(UUID(post.author_id))  # ← N+1 QUERY!
+    return User.from_dict(user_data) if user_data else None
+```
+
+"THERE'S THE PROBLEM! You have DataLoader implemented but NOBODY IS USING IT!"
+
+### 🚨 Critical Assessment: Integration Gap
+
+**The Issue**: DataLoader exists but isn't integrated with the GraphQL system.
+
+**Evidence**:
+1. ✅ Core DataLoader implementation is solid (batching, caching, typing)
+2. ❌ FastAPI context doesn't include LoaderRegistry  
+3. ❌ Field resolvers don't use DataLoader
+4. ❌ No automatic integration with @fraiseql.field decorator
+5. ❌ Examples show N+1 query patterns instead of DataLoader usage
+
+### 🎯 Grumpy's Priority Assessment
+
+**CRITICAL (Fix immediately):**
+1. **FastAPI Integration**: LoaderRegistry must be in GraphQL context automatically
+2. **Field Decorator Integration**: `@fraiseql.field` should work seamlessly with DataLoader
+3. **Update Examples**: Blog API must demonstrate DataLoader usage, not N+1 queries
+
+**HIGH PRIORITY (This week):**
+4. **Development Mode N+1 Detection**: Warn developers about potential N+1 queries
+5. **DataLoader Testing Utilities**: Make it easy to test DataLoader integration
+6. **Documentation**: Show real-world DataLoader usage patterns
+
+**MEDIUM PRIORITY (Before production):**
+7. **Performance Monitoring**: Metrics for DataLoader effectiveness
+8. **Auto-generation**: Generate DataLoaders from schema relationships
+9. **Cache Management**: Advanced caching strategies
+
+### 🔧 Required Implementation Plan
+
+**Phase 1: Make DataLoader Actually Usable**
+```python
+# Target: This should work out of the box
+@fraiseql.type  
+class Post:
+    author_id: UUID
+    
+    @fraiseql.field
+    async def author(self, info) -> Optional[User]:
+        # Should automatically use DataLoader if available
+        loader = get_loader(UserLoader, info.context)
+        return await loader.load(self.author_id)
+```
+
+**Phase 2: Make It Automatic**
+```python
+# Target: Even simpler integration
+@fraiseql.type
+class Post:
+    author_id: UUID
+    
+    @dataloader_field(UserLoader)  # ← New decorator
+    async def author(self, info) -> Optional[User]:
+        return await self.load_related(self.author_id)
+```
+
+### 💡 What Users Actually Need
+
+Based on the real user feedback, the biggest issues are:
+
+1. **"I don't know DataLoader exists"** - No integration examples
+2. **"I can't figure out how to use it"** - Missing FastAPI integration  
+3. **"My queries are slow"** - N+1 queries everywhere in examples
+4. **"No guidance on setup"** - LoaderRegistry not in default context
+
+### 📊 Market Reality Check
+
+**Current State**: DataLoader is implemented but hidden/unusable
+**User Expectation**: DataLoader should work automatically like in Strawberry/GraphQL-Core
+**Production Requirement**: Sub-100ms response times require proper DataLoader usage
+
+**Verdict**: Fix the integration gap NOW. The implementation is good, but if users can't easily use it, it's worthless.
+
+*Grumpy adjusts his glasses and points at the examples*
+
+"Look at your own blog example - it's doing N+1 queries! How can you expect users to avoid this if your own examples don't use DataLoader? Fix the integration, update the examples, and make DataLoader the default pattern, not an advanced feature."
+
+## DataLoader Integration Implementation (June 2025 - Update)
+
+### What Got Fixed
+
+*Viktor runs a quick test of the implementation*
+
+```bash
+$ uv run pytest tests/fastapi/test_dataloader_integration.py tests/examples/test_blog_dataloader.py -v
+============================= test session starts ==============================
+collected 12 items
+
+tests/fastapi/test_dataloader_integration.py ......                      [ 50%]
+tests/examples/test_blog_dataloader.py ......                            [100%]
+
+============================== 12 passed in 0.24s ===============================
+```
+
+"Hmm, 12 tests passing. Let me check what actually got implemented..."
+
+*Reviews the changes*
+
+**✅ FIXED: FastAPI Integration**
+```python
+# In dependencies.py - LoaderRegistry automatically added to context
+async def build_graphql_context(
+    db: Annotated[FraiseQLRepository, Depends(get_db)],
+    user: Annotated[UserContext | None, Depends(get_current_user_optional)],
+) -> dict[str, Any]:
+    # Create a new LoaderRegistry for this request  
+    loader_registry = LoaderRegistry(db=db)
+    LoaderRegistry.set_current(loader_registry)
+    
+    return {
+        "db": db,
+        "user": user,
+        "authenticated": user is not None,
+        "loader_registry": loader_registry,
+    }
+```
+
+**✅ FIXED: Blog Example N+1 Queries**
+```python
+# Old pattern (N+1 queries)
+async def resolve_post_author(post: Post, info) -> Optional[User]:
+    db: BlogRepository = info.context["db"]
+    user_data = await db.get_user_by_id(UUID(post.author_id))  # ← N+1!
+    return User.from_dict(user_data) if user_data else None
+
+# New pattern (DataLoader batching)
+async def resolve_post_author(post: Post, info) -> Optional[User]:
+    user_loader = get_loader(UserDataLoader)
+    user_data = await user_loader.load(UUID(post.author_id))  # ← Batched!
+    return User.from_dict(user_data) if user_data else None
+```
+
+**✅ FIXED: Repository Batch Methods**
+```python
+# Added to BlogRepository
+async def get_users_by_ids(self, user_ids: list[str]) -> list[dict[str, Any]]:
+    return await self.select_from_json_view("v_users", where={"id": {"$in": user_ids}})
+
+async def get_comments_by_post_ids(self, post_ids: list[str]) -> list[dict[str, Any]]:
+    return await self.select_from_json_view("v_comments", where={"postId": {"$in": post_ids}})
+```
+
+**✅ FIXED: Complete DataLoader Suite**
+- `UserDataLoader` - Batch user lookups
+- `CommentsByPostDataLoader` - Batch comment lookups by post
+- `PostDataLoader` - Batch post lookups
+
+### 🎯 Assessment: MAJOR IMPROVEMENT
+
+**Before**: DataLoader existed but was completely unusable
+**After**: DataLoader works out of the box with FastAPI integration
+
+### 📊 What This Means for Users
+
+**Old user experience**:
+1. "How do I use DataLoader?" - No idea, no integration
+2. Examples showed N+1 query anti-patterns
+3. Manual setup required, no documentation
+
+**New user experience**:
+1. LoaderRegistry automatically available in GraphQL context
+2. Blog example demonstrates proper DataLoader usage
+3. `get_loader(MyDataLoader)` just works
+4. Clear performance benefits shown in tests
+
+### 🚨 What's Still Missing
+
+**CRITICAL (Still needed for production)**:
+1. **@dataloader_field decorator** - Make it even easier
+2. **N+1 detection in dev mode** - Warn when DataLoader should be used
+3. **Performance metrics** - Show actual performance improvements
+
+**HIGH PRIORITY**:
+4. **Auto-generation from schema** - Generate DataLoaders from relationships
+5. **Documentation examples** - More real-world patterns
+
+### 🔧 Current Developer Experience
+
+**Level 1: Manual (Now Works)**
+```python
+# Field resolver with explicit DataLoader
+async def resolve_post_author(post: Post, info) -> Optional[User]:
+    loader = get_loader(UserDataLoader)
+    return await loader.load(post.author_id)
+```
+
+**Level 2: Decorator (Not implemented)**
+```python 
+# Target: @dataloader_field decorator
+@fraiseql.type
+class Post:
+    @dataloader_field(UserDataLoader)
+    async def author(self, info) -> Optional[User]:
+        return await self.load_related(self.author_id)
+```
+
+**Level 3: Auto-generation (Not implemented)**
+```python
+# Target: Automatic DataLoader generation
+@fraiseql.type
+class Post:
+    author: User = dataloader_relation('author_id')  # Auto-generates DataLoader
+```
+
+### 💡 Grumpy's Updated Verdict
+
+**Progress**: ✅ **GOOD** - The integration gap is fixed
+**Status**: 🟡 **WORKABLE** - Users can now actually use DataLoader
+**Production Ready**: 🔴 **NOT YET** - Still missing developer experience features
+
+**What users can do now**:
+- ✅ Use DataLoader without manual setup
+- ✅ Follow blog example patterns
+- ✅ Get automatic batching and caching
+- ✅ Use get_loader() in any resolver
+
+**What users still can't do easily**:
+- ❌ Get warned about N+1 queries
+- ❌ Use declarative field decorators
+- ❌ Auto-generate DataLoaders from schema
+
+### 📈 Performance Impact
+
+The blog example now demonstrates:
+- **N+1 queries eliminated** in all field resolvers
+- **Batch database queries** for users, posts, comments
+- **Request-scoped caching** preventing duplicate lookups
+- **Proper async concurrency** with DataLoader
+
+**Real-world impact**: For a query loading 100 posts with authors and comments:
+- **Before**: 1 + 100 + 100 = 201 database queries
+- **After**: 1 + 1 + 1 = 3 database queries (99% reduction)
+
+### 🎯 Next Priority
+
+**The @dataloader_field decorator is now the highest priority.** The manual pattern works, but users expect declarative patterns like:
+
+```python
+@fraiseql.type
+class Post:
+    @dataloader_field(UserDataLoader, 'author_id')
+    async def author(self, info) -> User:
+        pass  # Auto-implemented
+```
+
+This would make DataLoader usage as simple as Strawberry or other frameworks.
+
+*Grumpy nods approvingly*
+
+"Finally! Users can actually use DataLoader now. The blog example is no longer embarrassing. But don't get comfortable - we still need that decorator and N+1 detection to make this truly production-ready."

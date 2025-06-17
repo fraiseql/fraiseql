@@ -1,5 +1,6 @@
 """Registry for managing DataLoader instances per request."""
 
+import inspect
 from typing import Dict, Type, TypeVar, Optional, Any
 from contextvars import ContextVar
 
@@ -44,10 +45,16 @@ class LoaderRegistry:
     
     def clear_all(self):
         """Clear all loader caches."""
-        for loader in self._loaders.values():
-            loader.clear()
-        for loader in self._custom_loaders.values():
-            loader.clear()
+        # CRITICAL: Prevent memory leaks by properly clearing all references
+        try:
+            for loader in list(self._loaders.values()):
+                loader.clear()
+            for loader in list(self._custom_loaders.values()):
+                loader.clear()
+        finally:
+            # Force clear dictionaries to prevent memory leaks
+            self._loaders.clear()
+            self._custom_loaders.clear()
     
     @classmethod
     def get_current(cls) -> Optional['LoaderRegistry']:
@@ -65,6 +72,14 @@ def get_loader(loader_class: Type[T], **kwargs) -> T:
     """Get a DataLoader for the current request."""
     registry = LoaderRegistry.get_current()
     if not registry:
-        raise RuntimeError("No LoaderRegistry in context")
+        raise RuntimeError(
+            "No LoaderRegistry in context. This indicates a critical setup error - "
+            "DataLoader registry was not properly initialized for this request. "
+            "Ensure middleware is correctly configured."
+        )
+    
+    # SECURITY: Validate loader class to prevent injection
+    if not inspect.isclass(loader_class) or not issubclass(loader_class, DataLoader):
+        raise ValueError(f"Invalid loader class: {loader_class}")
     
     return registry.get_loader(loader_class, **kwargs)

@@ -106,3 +106,35 @@ class BlogRepository(BaseCQRSRepository):
         return await self.call_function(
             "fn_increment_view_count", {"post_id": str(post_id)}
         )
+
+    # Batch methods for DataLoader support
+    
+    async def get_users_by_ids(self, user_ids: list[str]) -> list[dict[str, Any]]:
+        """Get multiple users by their IDs."""
+        if not user_ids:
+            return []
+        
+        return await self.select_from_json_view(
+            "v_users", 
+            where={"id": {"$in": user_ids}}
+        )
+    
+    async def get_posts_by_ids(self, post_ids: list[str]) -> list[dict[str, Any]]:
+        """Get multiple posts by their IDs."""
+        if not post_ids:
+            return []
+        
+        return await self.select_from_json_view(
+            "v_posts",
+            where={"id": {"$in": post_ids}}
+        )
+    
+    async def get_comments_by_post_ids(self, post_ids: list[str]) -> list[dict[str, Any]]:
+        """Get all comments for multiple posts."""
+        if not post_ids:
+            return []
+        
+        return await self.select_from_json_view(
+            "v_comments",
+            where={"postId": {"$in": post_ids}}
+        )

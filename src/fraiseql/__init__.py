@@ -10,6 +10,7 @@ from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
 from .mutations.decorators import failure, result, success
 from .mutations.mutation_decorator import mutation
+from .optimization.decorators import dataloader_field
 from .types import fraise_input, fraise_type
 from .types.enum import fraise_enum
 from .types.generic import (
@@ -64,7 +65,7 @@ except ImportError:
 # CQRS support
 from .cqrs import CQRSExecutor, CQRSRepository
 
-__version__ = "0.1.0"
+__version__ = "0.1.0a4"
 
 __all__ = [
     "Auth0Config",
@@ -86,6 +87,7 @@ __all__ = [
     "create_connection",
     # FastAPI integration
     "create_fraiseql_app",
+    "dataloader_field",
     "enum",
     "failure",
     "field",

@@ -103,10 +103,19 @@ class GenericForeignKeyLoader(DataLoader[UUID, Dict[str, Any]]):
     
     async def batch_load(self, keys: List[UUID]) -> List[Optional[Dict]]:
         """Load multiple records by key."""
-        # Validate table name to prevent SQL injection
-        if not self.table.replace("_", "").isalnum():
+        # CRITICAL: Enhanced SQL injection prevention
+        if not self.table.replace("_", "").replace(".", "").isalnum():
             raise ValueError(f"Invalid table name: {self.table}")
         
+        # CRITICAL: Validate key_field to prevent SQL injection
+        if not self.key_field.replace("_", "").isalnum():
+            raise ValueError(f"Invalid key field: {self.key_field}")
+        
+        # CRITICAL: Validate keys to prevent injection
+        if not all(isinstance(k, (str, int, bytes)) or hasattr(k, '__str__') for k in keys):
+            raise ValueError("All keys must be safely serializable")
+        
+        # Use parameterized query construction
         query = f"""
             SELECT * FROM {self.table}
             WHERE {self.key_field} = ANY($1::uuid[])

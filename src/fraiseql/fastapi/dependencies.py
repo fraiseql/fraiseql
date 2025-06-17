@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from fraiseql.auth.base import AuthProvider, UserContext
 from fraiseql.db import FraiseQLRepository
+from fraiseql.optimization.registry import LoaderRegistry
 
 # Global instances (will be set by create_app)
 _db_pool = None
@@ -124,8 +125,15 @@ async def build_graphql_context(
     user: Annotated[UserContext | None, Depends(get_current_user_optional)],
 ) -> dict[str, Any]:
     """Build GraphQL context with database and user info."""
+    # Create a new LoaderRegistry for this request
+    loader_registry = LoaderRegistry(db=db)
+    
+    # Set as current registry for this request context
+    LoaderRegistry.set_current(loader_registry)
+    
     return {
         "db": db,
         "user": user,
         "authenticated": user is not None,
+        "loader_registry": loader_registry,
     }

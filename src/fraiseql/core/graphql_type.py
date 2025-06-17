@@ -9,6 +9,7 @@ Supports:
 - Caching for repeated conversions
 """
 
+import logging
 from enum import Enum
 from types import UnionType
 from typing import (
@@ -30,6 +31,7 @@ from graphql import (
     GraphQLInterfaceType,
     GraphQLList,
     GraphQLObjectType,
+    GraphQLOutputType,
     GraphQLScalarType,
     GraphQLType,
     GraphQLUnionType,
@@ -52,6 +54,8 @@ _graphql_type_cache: dict[tuple[str, str], GraphQLType] = {}
 DICT_ARG_LENGTH = 2
 
 T = TypeVar("T", bound=type)
+
+logger = logging.getLogger(__name__)
 
 
 def _convert_fraise_union(
@@ -321,6 +325,67 @@ def convert_type_to_graphql_output(
                             description=field.description,
                             resolve=make_field_resolver(name),
                         )
+
+                # Check for custom field methods (@dataloader_field, @field, etc.)
+                for attr_name in dir(typ):
+                    # Skip if we already have this field from regular processing
+                    if attr_name in gql_fields:
+                        continue
+                    
+                    # Skip private/special methods
+                    if attr_name.startswith('_'):
+                        continue
+                    
+                    attr = getattr(typ, attr_name)
+                    if not callable(attr):
+                        continue
+                    
+                    # Check for field resolver decorators
+                    if hasattr(attr, "__fraiseql_field__") or hasattr(attr, "__fraiseql_dataloader__"):
+                        # Get method signature for type information
+                        import inspect
+                        from typing import get_type_hints
+                        
+                        try:
+                            sig = inspect.signature(attr)
+                            hints = get_type_hints(attr)
+                            return_type = hints.get("return")
+                            
+                            if return_type is None:
+                                logger.warning(f"Custom field method {attr_name} missing return type annotation")
+                                continue
+                            
+                            logger.debug(f"Found custom field method: {attr_name}")
+                            
+                            # Convert return type to GraphQL type
+                            gql_return_type = convert_type_to_graphql_output(return_type)
+                            
+                            # Create a wrapper that adapts the method signature for GraphQL
+                            def make_custom_resolver(method):
+                                async def resolver(obj, info, **kwargs):
+                                    # Call the method with the object instance and info
+                                    return await method(obj, info, **kwargs)
+                                return resolver
+                            
+                            # Wrap with enum serialization
+                            from fraiseql.gql.enum_serializer import wrap_resolver_with_enum_serialization
+                            wrapped_resolver = wrap_resolver_with_enum_serialization(make_custom_resolver(attr))
+                            
+                            # Get description from decorator or docstring
+                            description = (
+                                getattr(attr, "__fraiseql_field_description__", None) or
+                                getattr(attr, "__doc__", None)
+                            )
+                            
+                            gql_fields[attr_name] = GraphQLField(
+                                type_=cast(GraphQLOutputType, gql_return_type),
+                                resolve=wrapped_resolver,
+                                description=description,
+                            )
+                            
+                        except Exception as e:
+                            logger.warning(f"Failed to process custom field {attr_name}: {e}")
+                            continue
 
                 # Get interfaces this type implements
                 interfaces = []

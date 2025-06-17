@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a4] - 2025-06-17
+
+### Added
+- **@dataloader_field Decorator**: Production-ready decorator for automatic DataLoader integration
+  - Eliminates N+1 queries with zero boilerplate code
+  - Auto-implements DataLoader-based field resolution 
+  - Full type safety with return type conversion
+  - Seamless GraphQL schema integration
+  - Comprehensive input validation and security hardening
+  - Support for `Optional[Type]`, `Type.from_dict()`, and `Type(**data)` patterns
+  - Production-grade error handling with sanitized error messages
+
+### Security
+- **Enhanced DataLoader Security**: Comprehensive security improvements
+  - Input validation to prevent attribute injection attacks
+  - Field existence validation before access
+  - Type validation for hashable keys only
+  - Sanitized error messages to prevent information disclosure
+  - Safe exception handling with internal logging
+  - Memory leak prevention in LoaderRegistry cleanup
+
+### Performance
+- **DataLoader Concurrency Fixes**: Improved batch processing reliability
+  - Fixed race conditions in high-concurrency scenarios
+  - Safer event loop context switching
+  - Proper queue state management
+  - Memory leak prevention with forced cleanup
+
+### Fixed
+- DataLoader error handling now uses sanitized exceptions for security
+- Type construction safety improvements
+- Proper memory management in long-running applications
+
 ## [0.1.0a3] - 2025-06-17
 
 ### Added

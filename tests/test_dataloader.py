@@ -91,8 +91,8 @@ class TestDataLoader:
         
         loader = TestLoader()
         
-        # All loads should fail with same error
-        with pytest.raises(ValueError, match="Batch load failed"):
+        # All loads should fail with sanitized error for security
+        with pytest.raises(RuntimeError, match="DataLoader batch operation failed"):
             await asyncio.gather(
                 loader.load(1),
                 loader.load(2)

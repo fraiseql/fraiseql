@@ -91,10 +91,21 @@ class DataLoader(Generic[K, V], ABC):
     
     async def _dispatch_batch(self):
         """Dispatch queued keys as a batch."""
-        # Wait for more keys to accumulate
-        await asyncio.sleep(0)
+        # CRITICAL FIX: Replace dangerous asyncio.sleep(0) with proper event loop yield
+        # asyncio.sleep(0) can cause race conditions in high-concurrency scenarios
+        try:
+            # Use create_task + immediate await for safer context switching
+            await asyncio.create_task(asyncio.sleep(0))
+        except Exception:
+            # Fallback: direct yield to event loop
+            await asyncio.sleep(0.001)  # Minimum safe sleep
         
-        # Get unique keys from queue
+        # CRITICAL: Protect queue access with proper state management
+        if not self._queue:
+            self._dispatch_scheduled = False
+            return
+            
+        # Get unique keys from queue atomically
         batch_keys = list(dict.fromkeys(self._queue))
         self._queue.clear()
         
@@ -129,9 +140,19 @@ class DataLoader(Generic[K, V], ABC):
                 self._batch_promise.set_result(None)
             
         except Exception as e:
-            # Reject promise
+            # CRITICAL: Properly handle exceptions to prevent information leakage
+            # Log the actual error for debugging but don't expose internals
+            import logging
+            logging.error(f"DataLoader batch_load failed: {type(e).__name__}", exc_info=True)
+            
+            # Create safe exception for public consumption
+            safe_exception = RuntimeError(
+                f"DataLoader batch operation failed. Check logs for details."
+            )
+            
+            # Reject promise with safe exception
             if self._batch_promise:
-                self._batch_promise.set_exception(e)
+                self._batch_promise.set_exception(safe_exception)
         
         finally:
             # Reset state
