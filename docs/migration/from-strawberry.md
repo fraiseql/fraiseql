@@ -267,7 +267,341 @@ class Query:
         return User.from_dict(user_data)
 ```
 
-## Phase 7: Application Migration
+## Phase 7: Field Resolver Migration
+
+### Converting Strawberry Field Resolvers
+
+```python
+# Before: Strawberry field resolvers
+@strawberry.type
+class User:
+    id: int
+    name: str
+    
+    @strawberry.field
+    async def full_name(self, info) -> str:
+        return f"{self.first_name} {self.last_name}"
+    
+    @strawberry.field
+    async def posts(self, info) -> List["Post"]:
+        # Complex dataloader logic
+        loader = info.context["loaders"]["posts"]
+        return await loader.load(self.id)
+
+# After: FraiseQL field resolvers
+@fraiseql.type
+class User:
+    id: int
+    name: str
+    first_name: str
+    last_name: str
+    
+    @fraiseql.field
+    async def full_name(self, info) -> str:
+        """Computed field for display name."""
+        return f"{self.first_name} {self.last_name}"
+    
+    @fraiseql.field
+    async def posts(self, info) -> List["Post"]:
+        """User's posts with automatic DataLoader optimization."""
+        from fraiseql.optimization.registry import get_loader
+        loader = get_loader(PostDataLoader)
+        return await loader.load(self.id)
+```
+
+## Phase 8: Scalar Type Migration
+
+### Custom Scalars
+
+```python
+# Before: Strawberry scalar
+import strawberry
+from typing import NewType
+from datetime import datetime
+
+@strawberry.scalar(serialize=lambda v: v.isoformat())
+class DateTime:
+    pass
+
+# After: FraiseQL scalar (built-in support)
+import fraiseql
+from datetime import datetime
+
+@fraiseql.type
+class Event:
+    id: int
+    name: str
+    created_at: datetime  # Built-in DateTime scalar support
+    updated_at: datetime
+```
+
+## Phase 9: Enum Migration
+
+### Converting Enums
+
+```python
+# Before: Strawberry enum
+@strawberry.enum
+class UserRole(Enum):
+    ADMIN = "admin"
+    USER = "user"
+    MODERATOR = "moderator"
+
+# After: FraiseQL enum
+@fraiseql.enum
+class UserRole:
+    ADMIN = "admin"
+    USER = "user"
+    MODERATOR = "moderator"
+```
+
+## Phase 10: Interface Migration
+
+### Converting Interfaces
+
+```python
+# Before: Strawberry interface
+@strawberry.interface
+class Node:
+    id: strawberry.ID
+
+@strawberry.type
+class User(Node):
+    name: str
+    email: str
+
+# After: FraiseQL interface
+@fraiseql.interface
+class Node:
+    id: UUID
+
+@fraiseql.type
+class User(Node):
+    name: str
+    email: str
+```
+
+## Phase 11: Subscription Migration
+
+### Converting Subscriptions
+
+```python
+# Before: Strawberry subscription
+@strawberry.type
+class Subscription:
+    @strawberry.subscription
+    async def user_updates(self, info) -> AsyncIterator[User]:
+        # Complex subscription logic
+        async for update in listen_to_user_updates():
+            yield update
+
+# After: FraiseQL subscription
+@fraiseql.subscription
+async def user_updates(info) -> AsyncIterator[User]:
+    """Real-time user updates with WebSocket support."""
+    async for update in listen_to_user_updates():
+        yield update
+```
+
+## Phase 12: Federation Migration
+
+### GraphQL Federation Support
+
+```python
+# Before: Strawberry federation
+import strawberry
+from strawberry.federation import extends, external, provides
+
+@strawberry.federation.type(extend=True)
+class User:
+    id: strawberry.ID = strawberry.federation.field(external=True)
+    reviews: List["Review"] = strawberry.federation.field(
+        provides=["score"]
+    )
+
+# After: FraiseQL federation
+import fraiseql
+from fraiseql.federation import extends, external, provides
+
+@fraiseql.type
+@extends
+class User:
+    id: UUID = external()
+    reviews: List["Review"] = provides(["score"])
+```
+
+## Phase 13: Directive Migration
+
+### Custom Directives
+
+```python
+# Before: Strawberry directive
+import strawberry
+from strawberry.schema_directive import Location
+
+@strawberry.schema_directive(
+    locations=[Location.FIELD_DEFINITION]
+)
+class DeprecatedDirective:
+    reason: str
+
+# After: FraiseQL directive
+import fraiseql
+from fraiseql.directives import directive, Location
+
+@fraiseql.directive(locations=[Location.FIELD_DEFINITION])
+class DeprecatedDirective:
+    reason: str
+```
+
+## Phase 14: Middleware Migration
+
+### Converting Middleware
+
+```python
+# Before: Strawberry middleware
+from strawberry.extensions import Extension
+
+class TimingExtension(Extension):
+    async def resolve(self, next_, root, info, **kwargs):
+        start = time.time()
+        result = await next_(root, info, **kwargs)
+        duration = time.time() - start
+        print(f"Field {info.field_name} took {duration}s")
+        return result
+
+schema = strawberry.Schema(
+    query=Query,
+    extensions=[TimingExtension]
+)
+
+# After: FraiseQL middleware
+from fraiseql.middleware import middleware
+
+@fraiseql.middleware
+async def timing_middleware(info, call_next):
+    """Log execution time for all resolvers."""
+    start = time.time()
+    result = await call_next()
+    duration = time.time() - start
+    print(f"Field {info.field_name} took {duration}s")
+    return result
+
+app = fraiseql.create_fraiseql_app(
+    middleware=[timing_middleware],
+    # ... other config
+)
+```
+
+## Phase 15: Error Handling Migration
+
+### Converting Error Handling
+
+```python
+# Before: Strawberry error handling
+import strawberry
+from strawberry.types import Info
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    async def user(self, info: Info, id: int) -> Optional[User]:
+        try:
+            return await get_user(id)
+        except UserNotFound:
+            raise strawberry.exceptions.GraphQLError(
+                "User not found",
+                extensions={"code": "USER_NOT_FOUND"}
+            )
+
+# After: FraiseQL error handling
+import fraiseql
+from fraiseql.exceptions import GraphQLError
+
+@fraiseql.query
+async def get_user(info, id: int) -> Optional[User]:
+    """Get user by ID with proper error handling."""
+    try:
+        repo = CQRSRepository(info.context["db"])
+        user_data = await repo.get_by_id("v_users", id)
+        return User.from_dict(user_data)
+    except UserNotFound:
+        raise GraphQLError(
+            "User not found",
+            extensions={"code": "USER_NOT_FOUND"}
+        )
+```
+
+## Phase 16: Testing Migration
+
+### Converting Test Suites
+
+```python
+# Before: Strawberry testing
+import strawberry
+from strawberry.test import BaseGraphQLTestClient
+
+def test_user_query():
+    client = BaseGraphQLTestClient(schema)
+    result = client.query("""
+        query {
+            user(id: 1) {
+                id
+                name
+            }
+        }
+    """)
+    assert result.data["user"]["name"] == "John"
+
+# After: FraiseQL testing
+import pytest
+from fastapi.testclient import TestClient
+
+def test_user_query():
+    """Test user query with FraiseQL."""
+    with TestClient(app) as client:
+        response = client.post("/graphql", json={
+            "query": """
+                query {
+                    get_user(id: 1) {
+                        id
+                        name
+                    }
+                }
+            """
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["data"]["get_user"]["name"] == "John"
+```
+
+## Phase 17: Performance Optimization
+
+### DataLoader Migration
+
+```python
+# Before: Strawberry DataLoader
+from strawberry.dataloader import DataLoader
+
+class UserLoader(DataLoader):
+    async def batch_load(self, keys):
+        users = await get_users_by_ids(keys)
+        return [users.get(key) for key in keys]
+
+# After: FraiseQL DataLoader
+from fraiseql.optimization import DataLoader
+
+class UserDataLoader(DataLoader[int, User]):
+    """Optimized user loading with N+1 detection."""
+    
+    async def batch_load(self, user_ids: List[int]) -> List[Optional[User]]:
+        repo = CQRSRepository(self.db)
+        users_data = await repo.get_by_ids("v_users", user_ids)
+        user_map = {u["id"]: User.from_dict(u) for u in users_data}
+        return [user_map.get(uid) for uid in user_ids]
+```
+
+## Phase 18: Application Migration
 
 ### FastAPI Integration
 

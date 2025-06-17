@@ -14,7 +14,7 @@ This release fixes a critical regression introduced in 0.1.0a5 where simple func
 ### Improvements
 
 - **Better error handling**: Fixed PostgresDsn to string conversion for database URLs
-- **Type system improvements**: 
+- **Type system improvements**:
   - Fixed DateTime scalar reuse to prevent duplicate type errors
   - Added caching for GraphQL input types to prevent duplicates
   - Improved type conflict resolution in tests

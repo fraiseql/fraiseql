@@ -3,6 +3,7 @@
 import json
 from collections.abc import Awaitable, Callable
 from typing import Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -12,6 +13,11 @@ from pydantic import BaseModel
 from fraiseql.auth.base import AuthProvider
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.dependencies import build_graphql_context
+from fraiseql.optimization.n_plus_one_detector import (
+    N1QueryDetected,
+    configure_detector,
+    n1_detection_context,
+)
 
 
 class GraphQLRequest(BaseModel):
@@ -60,6 +66,20 @@ def create_development_router(
     """Create development router with full GraphQL features."""
     router = APIRouter(prefix="", tags=["GraphQL"])
 
+    # Configure N+1 detection for development mode
+    # Only configure if not already configured (allows tests to override)
+    from fraiseql.optimization.n_plus_one_detector import get_detector
+
+    detector = get_detector()
+    if not hasattr(detector, "_configured"):
+        configure_detector(
+            threshold=10,  # Warn after 10 similar queries
+            time_window=1.0,  # Within 1 second
+            enabled=True,
+            raise_on_detection=False,  # Just warn, don't raise
+        )
+        detector._configured = True
+
     # Create context dependency based on whether custom context_getter is provided
     if context_getter:
 
@@ -78,14 +98,22 @@ def create_development_router(
     ):
         """Execute GraphQL query with full validation and introspection."""
         try:
-            # Execute query
-            result = await graphql(
-                schema,
-                request.query,
-                variable_values=request.variables,
-                operation_name=request.operationName,
-                context_value=context,
-            )
+            # Generate unique request ID for N+1 detection
+            request_id = str(uuid4())
+
+            # Execute query with N+1 detection
+            async with n1_detection_context(request_id) as detector:
+                # Add detector to context for field resolvers
+                context["n1_detector"] = detector
+
+                # Execute query
+                result = await graphql(
+                    schema,
+                    request.query,
+                    variable_values=request.variables,
+                    operation_name=request.operationName,
+                    context_value=context,
+                )
 
             # Build response
             response: dict[str, Any] = {}
@@ -111,6 +139,26 @@ def create_development_router(
 
             return response
 
+        except N1QueryDetected as e:
+            # N+1 query pattern detected
+            return {
+                "errors": [
+                    {
+                        "message": str(e),
+                        "extensions": {
+                            "code": "N1_QUERY_DETECTED",
+                            "patterns": [
+                                {
+                                    "field": p.field_name,
+                                    "type": p.parent_type,
+                                    "count": p.count,
+                                }
+                                for p in e.patterns
+                            ],
+                        },
+                    }
+                ]
+            }
         except Exception as e:
             # In development, provide detailed error info
             return {
@@ -141,13 +189,13 @@ def create_development_router(
             except json.JSONDecodeError:
                 raise HTTPException(400, "Invalid JSON in variables parameter")
 
-        request = GraphQLRequest(
+        request_obj = GraphQLRequest(
             query=query,
             variables=parsed_variables,
             operationName=operationName,
         )
 
-        return await graphql_endpoint(request, http_request, context)
+        return await graphql_endpoint(request_obj, http_request, context)
 
     if config.enable_playground:
 

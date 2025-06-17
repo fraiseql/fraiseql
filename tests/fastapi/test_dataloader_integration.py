@@ -8,9 +8,9 @@ from fastapi.testclient import TestClient
 
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.optimization.dataloader import DataLoader
 from fraiseql.optimization.registry import get_loader
-from fraiseql.gql.schema_builder import SchemaRegistry
 
 
 @pytest.fixture(autouse=True)
@@ -18,13 +18,14 @@ def clear_registry():
     """Clear registry before each test to avoid type conflicts."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
-    
+
     # Also clear the GraphQL type cache
     from fraiseql.core.graphql_type import _graphql_type_cache
+
     _graphql_type_cache.clear()
-    
+
     yield
-    
+
     registry.clear()
     _graphql_type_cache.clear()
 
@@ -43,7 +44,7 @@ class Post:
     title: str
     content: str
     author_id: UUID
-    
+
     # Add field resolver for author
     @fraiseql.field
     async def author(self, info) -> Optional[User]:
@@ -127,9 +128,9 @@ async def get_loader_test(info) -> str:
 def test_dataloader_registry_in_context():
     """Test that LoaderRegistry is automatically available in GraphQL context."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo", 
+        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
         types=[User, Post],
-        queries=[get_post, get_posts, get_loader_test]
+        queries=[get_post, get_posts, get_loader_test],
     )
 
     with TestClient(app) as client:
@@ -169,9 +170,9 @@ def test_dataloader_batching_works():
     }
 
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo", 
+        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
         types=[User, Post],
-        queries=[get_post, get_posts, get_loader_test]
+        queries=[get_post, get_posts, get_loader_test],
     )
 
     with TestClient(app) as client:
@@ -215,9 +216,9 @@ def test_dataloader_batching_works():
 def test_dataloader_error_handling():
     """Test that DataLoader errors are properly handled."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo", 
+        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
         types=[User, Post],
-        queries=[get_post, get_posts, get_loader_test]
+        queries=[get_post, get_posts, get_loader_test],
     )
 
     with TestClient(app) as client:
@@ -248,9 +249,9 @@ def test_dataloader_error_handling():
 def test_get_loader_function_works():
     """Test that get_loader function works properly with context."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo", 
+        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
         types=[User, Post],
-        queries=[get_post, get_posts, get_loader_test]
+        queries=[get_post, get_posts, get_loader_test],
     )
 
     # This test verifies that get_loader() function can retrieve
@@ -287,9 +288,9 @@ def test_dataloader_caching():
     }
 
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo", 
+        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
         types=[User, Post],
-        queries=[get_post, get_posts, get_loader_test]
+        queries=[get_post, get_posts, get_loader_test],
     )
 
     with TestClient(app) as client:
@@ -333,7 +334,8 @@ async def test_dataloader_field_decorator():
             ]
 
     # Test that @dataloader_field decorator exists
-    if hasattr(fraiseql, 'dataloader_field'):
+    if hasattr(fraiseql, "dataloader_field"):
+
         @fraiseql.type
         class Comment:
             id: UUID
@@ -350,15 +352,92 @@ async def test_dataloader_field_decorator():
         pytest.skip("@dataloader_field decorator not implemented yet")
 
 
-def test_n_plus_one_detection():
+def test_n_plus_one_detection(caplog):
     """Test that N+1 query detection works in development mode."""
+    import logging
+
+    from fraiseql.optimization import configure_detector
+
+    # Create a modified Post type without DataLoader to trigger N+1
+    @fraiseql.type
+    class PostWithoutDataLoader:
+        id: UUID
+        title: str
+        content: str
+        author_id: UUID
+
+        @fraiseql.field
+        async def author(self, info) -> Optional[User]:
+            """Resolve author WITHOUT DataLoader to trigger N+1."""
+            # Simulate individual DB query for each post
+            return User(id=self.author_id, name="Test Author", email="test@example.com")
+
+    # Query that returns multiple posts
+    @fraiseql.query
+    async def get_posts_no_dataloader(info) -> List[PostWithoutDataLoader]:
+        """Get posts without DataLoader optimization."""
+        return [
+            PostWithoutDataLoader(
+                id=UUID(f"00000000-0000-0000-0000-{i:012x}"),
+                title=f"Post {i}",
+                content=f"Content {i}",
+                author_id=UUID("223e4567-e89b-12d3-a456-426614174001"),
+            )
+            for i in range(3)
+        ]
+
     app = create_fraiseql_app(
         database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
-        types=[User, Post],
-        queries=[get_post, get_posts, get_loader_test],
+        types=[User, PostWithoutDataLoader],
+        queries=[get_posts_no_dataloader],
         production=False,  # Development mode
     )
 
-    # This should detect potential N+1 queries and warn or error
-    # This test will be implemented after N+1 detection is added
-    pass
+    # Configure N+1 detector with low threshold for testing (after app creation)
+    configure_detector(
+        threshold=2,  # Low threshold to trigger with just 3 posts
+        enabled=True,
+        raise_on_detection=False,
+    )
+
+    with TestClient(app) as client:
+        with caplog.at_level(logging.WARNING):
+            # Query that should trigger N+1 detection
+            response = client.post(
+                "/graphql",
+                json={
+                    "query": """
+                        query {
+                            get_posts_no_dataloader {
+                                id
+                                title
+                                author {
+                                    id
+                                    name
+                                }
+                            }
+                        }
+                    """
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Query should succeed
+            assert "data" in data
+            assert len(data["data"]["get_posts_no_dataloader"]) == 3
+
+            # Check for N+1 warning
+            n1_warning_found = any(
+                "N+1 query pattern detected" in record.message
+                for record in caplog.records
+            )
+            assert n1_warning_found, "Expected N+1 warning not found"
+
+            # Check for DataLoader suggestion
+            suggestion_found = any(
+                "Consider using a DataLoader" in record.message
+                for record in caplog.records
+            )
+            assert suggestion_found, "DataLoader suggestion not found"
