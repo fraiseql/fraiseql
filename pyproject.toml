@@ -137,3 +137,8 @@ packages = ["src/fraiseql"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/fraiseql"]
+
+[dependency-groups]
+dev = [
+    "twine>=6.1.0",
+]

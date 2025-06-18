@@ -442,7 +442,7 @@ wheels = [
 
 [[package]]
 name = "fraiseql"
-version = "0.1.0a8"
+version = "0.1.0a9"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -487,6 +487,11 @@ docs = [
     { name = "pymdown-extensions" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "twine" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=25.0.1" },
@@ -523,6 +528,9 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.34.3" },
 ]
 provides-extras = ["dev", "auth0", "docs"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "twine", specifier = ">=6.1.0" }]
 
 [[package]]
 name = "ghp-import"
