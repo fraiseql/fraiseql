@@ -1,7 +1,7 @@
 """Global registry for FraiseQL types and fields."""
 
 from threading import Lock
-from typing import Any, Optional
+from typing import Any
 
 from fraiseql.core.types import MutationField, QueryField, SubscriptionField
 
@@ -9,7 +9,7 @@ from fraiseql.core.types import MutationField, QueryField, SubscriptionField
 class TypeRegistry:
     """Global registry for GraphQL types and fields."""
 
-    _instance: Optional["TypeRegistry"] = None
+    _instance: "TypeRegistry" | None = None
     _lock = Lock()
 
     def __new__(cls):

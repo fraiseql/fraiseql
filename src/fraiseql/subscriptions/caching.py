@@ -7,7 +7,7 @@ import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -29,7 +29,7 @@ class SubscriptionCache:
     def __init__(self):
         self._cache: dict[str, CacheEntry] = {}
         self._locks: dict[str, asyncio.Lock] = {}
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_task: asyncio.Task | None = None
 
     async def start(self):
         """Start cache cleanup task."""

@@ -10,7 +10,6 @@ import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Optional
 
 from graphql import GraphQLResolveInfo
 
@@ -73,7 +72,7 @@ class N1QueryDetector:
         # Track query patterns
         self._patterns: dict[str, QueryPattern] = {}
         self._pattern_timestamps: dict[str, list[float]] = defaultdict(list)
-        self._current_request_id: Optional[str] = None
+        self._current_request_id: str | None = None
         self._lock = asyncio.Lock()
 
     def start_request(self, request_id: str) -> None:
@@ -197,7 +196,7 @@ class N1QueryDetected(Exception):
 
 
 # Global detector instance
-_detector: Optional[N1QueryDetector] = None
+_detector: N1QueryDetector | None = None
 
 
 def get_detector() -> N1QueryDetector:

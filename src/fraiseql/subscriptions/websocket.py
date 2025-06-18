@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from graphql import GraphQLSchema, parse, subscribe
@@ -63,8 +63,8 @@ class GraphQLWSMessage:
     """GraphQL WebSocket message."""
 
     type: str
-    id: Optional[str] = None
-    payload: Optional[dict[str, Any]] = None
+    id: str | None = None
+    payload: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for sending."""
@@ -97,7 +97,7 @@ class WebSocketConnection:
     def __init__(
         self,
         websocket: Any,
-        connection_id: Optional[str] = None,
+        connection_id: str | None = None,
         subprotocol: SubProtocol = SubProtocol.GRAPHQL_WS,
         connection_init_timeout: float = 10.0,
         keep_alive_interval: float = 30.0,
@@ -109,13 +109,13 @@ class WebSocketConnection:
         self.keep_alive_interval = keep_alive_interval
 
         self.state = ConnectionState.CONNECTING
-        self.schema: Optional[GraphQLSchema] = None
+        self.schema: GraphQLSchema | None = None
         self.context: dict[str, Any] = {}
         self.subscriptions: dict[str, asyncio.Task] = {}
-        self.connection_params: Optional[dict[str, Any]] = None
-        self.initialized_at: Optional[datetime] = None
+        self.connection_params: dict[str, Any] | None = None
+        self.initialized_at: datetime | None = None
 
-        self._keep_alive_task: Optional[asyncio.Task] = None
+        self._keep_alive_task: asyncio.Task | None = None
         self._message_queue: asyncio.Queue = asyncio.Queue()
 
     async def handle(self):
@@ -325,7 +325,7 @@ class WebSocketConnection:
         """Handle ping message."""
         await self.send_message(GraphQLWSMessage(type=MessageType.PONG, payload=message.payload))
 
-    async def _send_error(self, subscription_id: Optional[str], error: Any):
+    async def _send_error(self, subscription_id: str | None, error: Any):
         """Send error message."""
         payload = {"errors": [str(error)]} if isinstance(error, str) else error
 
@@ -392,14 +392,14 @@ class SubscriptionManager:
 
     def __init__(self):
         self.connections: dict[str, WebSocketConnection] = {}
-        self.schema: Optional[GraphQLSchema] = None
+        self.schema: GraphQLSchema | None = None
         self._lock = asyncio.Lock()
 
     async def add_connection(
         self,
         websocket: Any,
-        subprotocol: Optional[str] = None,
-        context: Optional[dict[str, Any]] = None,
+        subprotocol: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> WebSocketConnection:
         """Add a new WebSocket connection."""
         # Determine subprotocol
@@ -434,8 +434,8 @@ class SubscriptionManager:
     async def broadcast(
         self,
         message: GraphQLWSMessage,
-        subscription_id: Optional[str] = None,
-        filter_fn: Optional[Any] = None,
+        subscription_id: str | None = None,
+        filter_fn: Any | None = None,
     ):
         """Broadcast message to all connections."""
         # Get active connections

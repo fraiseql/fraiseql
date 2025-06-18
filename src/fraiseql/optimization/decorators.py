@@ -29,7 +29,7 @@ def dataloader_field(
             author_id: UUID
 
             @fraiseql.dataloader_field(UserDataLoader, key_field="author_id")
-            async def author(self, info) -> Optional[User]:
+            async def author(self, info) -> User | None:
                 '''Load post author using DataLoader.'''
                 pass  # Implementation is auto-generated
 

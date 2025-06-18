@@ -2,14 +2,14 @@
 
 import inspect
 from contextvars import ContextVar
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 from fraiseql.optimization.dataloader import DataLoader
 
 T = TypeVar("T", bound=DataLoader)
 
 # Context variable for request-scoped registry
-_loader_registry: ContextVar[Optional["LoaderRegistry"]] = ContextVar(
+_loader_registry: ContextVar["LoaderRegistry" | None] = ContextVar(
     "loader_registry", default=None
 )
 
@@ -38,7 +38,7 @@ class LoaderRegistry:
         """Register a custom loader instance."""
         self._custom_loaders[name] = loader
 
-    def get_custom_loader(self, name: str) -> Optional[DataLoader]:
+    def get_custom_loader(self, name: str) -> DataLoader | None:
         """Get a custom loader by name."""
         return self._custom_loaders.get(name)
 
@@ -56,7 +56,7 @@ class LoaderRegistry:
             self._custom_loaders.clear()
 
     @classmethod
-    def get_current(cls) -> Optional["LoaderRegistry"]:
+    def get_current(cls) -> "LoaderRegistry" | None:
         """Get the current request's registry."""
         return _loader_registry.get()
 
