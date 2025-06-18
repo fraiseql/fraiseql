@@ -59,7 +59,7 @@ class Article:
 
 # Query that will trigger N+1
 @fraiseql.query
-async def getArticles(info) -> List[Article]:
+async def get_articles(info) -> List[Article]:
     """Get multiple articles - this will trigger N+1 when fetching authors."""
     # Return 15 articles with different authors
     articles = []
@@ -70,7 +70,7 @@ async def getArticles(info) -> List[Article]:
                 id=uuid4(),
                 title=f"Article {i}",
                 content=f"Content for article {i}",
-                author_id=authorId,
+                authorId=authorId,
             )
         )
     return articles
@@ -78,13 +78,13 @@ async def getArticles(info) -> List[Article]:
 
 # Query that won't trigger N+1 (single item)
 @fraiseql.query
-async def getArticle(info, id: UUID) -> Optional[Article]:
+async def get_article(info, id: UUID) -> Optional[Article]:
     """Get a single article."""
     return Article(
         id=id,
         title="Single Article",
         content="This is a single article",
-        author_id=uuid4(),
+        authorId=uuid4(),
     )
 
 
@@ -345,10 +345,10 @@ def test_field_decorator_without_n1_tracking():
             json={
                 "query": """
                     query {
-                        get_products {
+                        getProducts {
                             id
                             name
-                            expensive_calculation
+                            expensiveCalculation
                         }
                     }
                 """
@@ -361,4 +361,4 @@ def test_field_decorator_without_n1_tracking():
         # Should succeed without N+1 errors
         assert "data" in data
         assert "errors" not in data
-        assert len(data["data"]["get_products"]) == 20
+        assert len(data["data"]["getProducts"]) == 20
