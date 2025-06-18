@@ -168,9 +168,7 @@ class CQRSRepository:
 
             return [row[0] for row in results]
 
-    async def query_raw(
-        self, query: str, params: list[Any] | None = None
-    ) -> list[dict[str, Any]]:
+    async def query_raw(self, query: str, params: list[Any] | None = None) -> list[dict[str, Any]]:
         """Execute a raw query and return results.
 
         Args:

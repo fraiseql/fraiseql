@@ -79,7 +79,9 @@ class SubscriptionLifecycle:
 
 
 def with_lifecycle(
-    on_start: Callable | None = None, on_event: Callable | None = None, on_complete: Callable | None = None
+    on_start: Callable | None = None,
+    on_event: Callable | None = None,
+    on_complete: Callable | None = None,
 ):
     """
     Add lifecycle hooks to subscription.

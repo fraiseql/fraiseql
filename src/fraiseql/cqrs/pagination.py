@@ -206,9 +206,7 @@ class CursorPaginator:
             "total_count": total_count,
         }
 
-    async def _get_total_count(
-        self, view_name: str, filters: dict[str, Any] | None = None
-    ) -> int:
+    async def _get_total_count(self, view_name: str, filters: dict[str, Any] | None = None) -> int:
         """Get total count of items matching filters.
 
         Args:
