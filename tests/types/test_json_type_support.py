@@ -4,7 +4,7 @@ Following TDD: these tests will initially fail, then we'll implement
 the features to make them pass.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 import pytest
@@ -43,7 +43,7 @@ class TestJSONTypeSupport:
             id: UUID
             name: str
             settings: dict[str, Any]  # Should work as JSON type
-            metadata: Dict[str, Any]  # Both syntaxes should work
+            metadata: dict[str, Any]  # Both syntaxes should work
 
         @fraiseql.query
         async def get_config(info) -> ConfigData:
@@ -153,14 +153,14 @@ class TestJSONTypeSupport:
         class CreateDocumentInput:
             title: str
             content: dict[str, Any]
-            tags: List[str]
+            tags: list[str]
 
         @fraiseql.type
         class Document:
             id: UUID
             title: str
             content: dict[str, Any]
-            tags: List[str]
+            tags: list[str]
 
         @fraiseql.mutation
         async def create_document(info, input: CreateDocumentInput) -> Document:
@@ -295,10 +295,10 @@ class TestJSONTypeSupport:
             id: UUID
             name: str
             preferences: Optional[dict[str, Any]] = None
-            metadata: Optional[Dict[str, Any]] = None
+            metadata: Optional[dict[str, Any]] = None
 
         @fraiseql.query
-        async def get_users(info) -> List[User]:
+        async def get_users(info) -> list[User]:
             return [
                 User(
                     id=UUID("123e4567-e89b-12d3-a456-426614174000"),

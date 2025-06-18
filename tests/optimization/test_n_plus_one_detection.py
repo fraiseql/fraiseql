@@ -1,7 +1,7 @@
 """Tests for N+1 query detection."""
 
 import logging
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID, uuid4
 
 import pytest
@@ -59,7 +59,7 @@ class Article:
 
 # Query that will trigger N+1
 @fraiseql.query
-async def get_articles(info) -> List[Article]:
+async def get_articles(info) -> list[Article]:
     """Get multiple articles - this will trigger N+1 when fetching authors."""
     # Return 15 articles with different authors
     articles = []
@@ -323,7 +323,7 @@ def test_field_decorator_without_n1_tracking():
             return f"Expensive result for {self.name}"
 
     @fraiseql.query
-    async def get_products(info) -> List[Product]:
+    async def get_products(info) -> list[Product]:
         return [Product(id=uuid4(), name=f"Product {i}") for i in range(20)]
 
     configure_detector(threshold=5, enabled=True, raise_on_detection=True)

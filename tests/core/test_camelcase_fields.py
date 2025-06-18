@@ -1,9 +1,8 @@
 """Test automatic snake_case to camelCase field conversion."""
 
-import pytest
 from graphql import graphql_sync
 
-from fraiseql import field, query, type
+from fraiseql import query, type
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
@@ -273,8 +272,9 @@ def test_input_type_camelcase(clear_registry):
 
 def test_enum_value_preservation(clear_registry):
     """Test that enum values are not converted."""
-    from fraiseql import fraise_enum
     from enum import Enum
+
+    from fraiseql import fraise_enum
 
     @fraise_enum
     class UserStatus(Enum):

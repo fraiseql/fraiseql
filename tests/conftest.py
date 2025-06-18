@@ -1,7 +1,7 @@
 import pytest
 
-from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.config.schema_config import SchemaConfig
+from fraiseql.gql.schema_builder import SchemaRegistry
 
 # Import database fixtures
 from .database_conftest import *  # noqa: F403

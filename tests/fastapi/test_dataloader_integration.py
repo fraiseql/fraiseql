@@ -1,6 +1,6 @@
 """Test DataLoader integration with FastAPI and GraphQL context."""
 
-from typing import Dict, List, Optional
+from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -55,10 +55,10 @@ class Post:
 
 
 # Test DataLoader
-class UserDataLoader(DataLoader[UUID, Dict]):
+class UserDataLoader(DataLoader[UUID, dict]):
     """DataLoader for loading users by ID."""
 
-    def __init__(self, db, users_db: Dict[UUID, Dict] = None):
+    def __init__(self, db, users_db: dict[UUID, dict] = None):
         super().__init__()
         self.db = db
         self.users_db = users_db or {
@@ -70,7 +70,7 @@ class UserDataLoader(DataLoader[UUID, Dict]):
         }
         self.load_calls = []  # Track batch calls for testing
 
-    async def batch_load(self, user_ids: List[UUID]) -> List[Optional[Dict]]:
+    async def batch_load(self, user_ids: list[UUID]) -> list[Optional[dict]]:
         """Batch load users by IDs."""
         self.load_calls.append(list(user_ids))  # Track the call
 
@@ -99,7 +99,7 @@ async def get_post(info, id: UUID) -> Optional[Post]:
 
 
 @fraiseql.query
-async def get_posts(info) -> List[Post]:
+async def get_posts(info) -> list[Post]:
     """Get multiple posts - should trigger DataLoader batching."""
     posts = []
     for i in range(3):
@@ -325,8 +325,8 @@ async def test_dataloader_field_decorator():
     """Test @dataloader_field decorator for automatic DataLoader integration."""
 
     # Define PostDataLoader first
-    class PostDataLoader(DataLoader[UUID, Dict]):
-        async def batch_load(self, post_ids: List[UUID]) -> List[Optional[Dict]]:
+    class PostDataLoader(DataLoader[UUID, dict]):
+        async def batch_load(self, post_ids: list[UUID]) -> list[Optional[dict]]:
             # Mock implementation
             return [{"id": pid, "title": f"Post {pid}", "content": "Content"} for pid in post_ids]
 
@@ -372,7 +372,7 @@ def test_n_plus_one_detection(caplog):
 
     # Query that returns multiple posts
     @fraiseql.query
-    async def get_posts_no_dataloader(info) -> List[PostWithoutDataLoader]:
+    async def get_posts_no_dataloader(info) -> list[PostWithoutDataLoader]:
         """Get posts without DataLoader optimization."""
         return [
             PostWithoutDataLoader(

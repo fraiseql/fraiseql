@@ -7,7 +7,6 @@ import sys
 blog_api_path = os.path.join(os.path.dirname(__file__), "../../examples/blog_api")
 sys.path.insert(0, blog_api_path)
 
-from typing import Dict, List
 from unittest.mock import Mock
 from uuid import UUID
 
@@ -90,15 +89,15 @@ def mock_blog_db():
             # Track batch calls for testing
             self.batch_calls = []
 
-        async def get_users_by_ids(self, user_ids: List[str]) -> List[Dict]:
+        async def get_users_by_ids(self, user_ids: list[str]) -> list[dict]:
             self.batch_calls.append(("users", user_ids))
             return [self.users[uid] for uid in user_ids if uid in self.users]
 
-        async def get_posts_by_ids(self, post_ids: List[str]) -> List[Dict]:
+        async def get_posts_by_ids(self, post_ids: list[str]) -> list[dict]:
             self.batch_calls.append(("posts", post_ids))
             return [self.posts[pid] for pid in post_ids if pid in self.posts]
 
-        async def get_comments_by_post_ids(self, post_ids: List[str]) -> List[Dict]:
+        async def get_comments_by_post_ids(self, post_ids: list[str]) -> list[dict]:
             self.batch_calls.append(("comments", post_ids))
             return [c for c in self.comments if c["postId"] in post_ids]
 

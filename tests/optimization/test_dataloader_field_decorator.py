@@ -1,6 +1,6 @@
 """Test @dataloader_field decorator for automatic DataLoader integration."""
 
-from typing import Dict, List, Optional
+from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -37,7 +37,7 @@ def register_test_queries():
 
 
 # Test DataLoaders
-class UserDataLoader(DataLoader[UUID, Dict]):
+class UserDataLoader(DataLoader[UUID, dict]):
     """DataLoader for loading users by ID."""
 
     def __init__(self, db):
@@ -45,7 +45,7 @@ class UserDataLoader(DataLoader[UUID, Dict]):
         self.db = db
         self.load_calls = []  # Track batch calls for testing
 
-    async def batch_load(self, user_ids: List[UUID]) -> List[Optional[Dict]]:
+    async def batch_load(self, user_ids: list[UUID]) -> list[Optional[dict]]:
         """Batch load users by IDs."""
         self.load_calls.append(list(user_ids))  # Track the call
 
@@ -71,14 +71,14 @@ class UserDataLoader(DataLoader[UUID, Dict]):
         return results
 
 
-class PostDataLoader(DataLoader[UUID, Dict]):
+class PostDataLoader(DataLoader[UUID, dict]):
     """DataLoader for loading posts by ID."""
 
     def __init__(self, db):
         super().__init__()
         self.db = db
 
-    async def batch_load(self, post_ids: List[UUID]) -> List[Optional[Dict]]:
+    async def batch_load(self, post_ids: list[UUID]) -> list[Optional[dict]]:
         """Batch load posts by IDs."""
         # Mock data
         posts_db = {

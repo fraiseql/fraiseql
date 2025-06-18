@@ -7,7 +7,7 @@ initially and we'll implement the migration features to make them pass.
 
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -277,7 +277,7 @@ class TestStrawberryDataLoaderMigration:
                 super().__init__()
                 self.db = db
 
-            async def batch_load(self, user_ids: List[UUID]) -> List[Optional[User]]:
+            async def batch_load(self, user_ids: list[UUID]) -> list[Optional[User]]:
                 # Simulate database batch fetch (like in Strawberry)
                 return [
                     User(
@@ -303,7 +303,7 @@ class TestStrawberryDataLoaderMigration:
                 return await loader.load(self.authorId)
 
         @fraiseql.query
-        async def get_posts(info) -> List[Post]:
+        async def get_posts(info) -> list[Post]:
             return [
                 Post(
                     id=UUID(f"00000000-0000-0000-0000-{i:012x}"),

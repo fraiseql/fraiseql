@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -33,7 +33,7 @@ class MockWebSocket:
             raise RuntimeError("WebSocket is closed")
         self.sent_messages.append(json.loads(message))
 
-    async def receive(self) -> Dict[str, Any]:
+    async def receive(self) -> dict[str, Any]:
         """Mock receiving a message."""
         if self.closed:
             raise RuntimeError("WebSocket is closed")
@@ -49,7 +49,7 @@ class MockWebSocket:
         """Mock accepting the connection."""
         self.subprotocol = subprotocol
 
-    def add_incoming_message(self, message: Dict[str, Any]):
+    def add_incoming_message(self, message: dict[str, Any]):
         """Add a message to be received."""
         self._receive_queue.put_nowait({"type": "websocket.receive", "text": json.dumps(message)})
 
@@ -270,7 +270,7 @@ class TestWebSocketConnection:
 
         try:
             await handle_task
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
 
