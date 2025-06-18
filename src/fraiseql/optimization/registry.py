@@ -1,5 +1,7 @@
 """Registry for managing DataLoader instances per request."""
 
+from __future__ import annotations
+
 import inspect
 from contextvars import ContextVar
 from typing import Any, TypeVar
