@@ -69,6 +69,7 @@ from .types.scalars.json import JSONField as JSON
 __version__ = "0.1.0a8"
 
 __all__ = [
+    "JSON",
     # Auth integration
     "Auth0Config",
     "Auth0Provider",
@@ -80,7 +81,6 @@ __all__ = [
     "Connection",
     "Edge",
     "FraiseQLConfig",
-    "JSON",
     "PageInfo",
     "PaginatedResponse",
     "UserContext",

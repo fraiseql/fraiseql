@@ -126,7 +126,7 @@ class DataLoader(Generic[K, V], ABC):
                 # Validate results
                 if len(results) != len(batch):
                     raise ValueError(
-                        f"batch_load must return {len(batch)} results, " f"got {len(results)}"
+                        f"batch_load must return {len(batch)} results, got {len(results)}"
                     )
 
                 # Cache results

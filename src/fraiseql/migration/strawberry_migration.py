@@ -50,7 +50,7 @@ def _analyze_file(file_path: Path) -> list[MigrationIssue]:
 
     try:
         content = file_path.read_text(encoding="utf-8")
-        lines = content.splitlines()
+        content.splitlines()
 
         # Check for Strawberry imports
         strawberry_imports = _find_strawberry_imports(content, str(file_path))

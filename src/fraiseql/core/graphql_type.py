@@ -374,7 +374,6 @@ def convert_type_to_graphql_output(
                         attr, "__fraiseql_dataloader__"
                     ):
                         # Get method signature for type information
-                        import inspect
                         from typing import get_type_hints
 
                         try:

@@ -83,7 +83,7 @@ def dataloader_field(
                 return None
 
             # SECURITY: Validate key_value type to prevent injection
-            if not isinstance(key_value, (str, int, bytes, type(None))) and not hasattr(
+            if not isinstance(key_value, str | int | bytes | type(None)) and not hasattr(
                 key_value, "__hash__"
             ):
                 raise ValueError(f"Key field '{key_field}' must be hashable, got {type(key_value)}")

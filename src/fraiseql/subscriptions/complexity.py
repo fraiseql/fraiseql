@@ -94,7 +94,7 @@ class SubscriptionComplexityAnalyzer:
         return total_cost
 
 
-def complexity(score: int = None, max_depth: int = None):
+def complexity(score: int | None = None, max_depth: int | None = None):
     """
     Decorator to set complexity limits for subscriptions.
 

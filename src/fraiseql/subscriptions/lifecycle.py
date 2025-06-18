@@ -46,7 +46,7 @@ class SubscriptionLifecycle:
                 and info.context
                 and info.context.get("debug_subscriptions")
             ):
-                print(f"Subscription {info.context.get('subscription_id')} " f"emitted: {event}")
+                print(f"Subscription {info.context.get('subscription_id')} emitted: {event}")
 
             return result
 
@@ -79,7 +79,7 @@ class SubscriptionLifecycle:
 
 
 def with_lifecycle(
-    on_start: Callable = None, on_event: Callable = None, on_complete: Callable = None
+    on_start: Callable | None = None, on_event: Callable | None = None, on_complete: Callable | None = None
 ):
     """
     Add lifecycle hooks to subscription.

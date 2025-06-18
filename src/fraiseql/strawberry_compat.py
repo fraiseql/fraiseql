@@ -17,7 +17,7 @@ class StrawberryCompatibility:
     """Compatibility layer that mimics Strawberry's API using FraiseQL."""
 
     @staticmethod
-    def type(cls: type = None, **kwargs) -> Any:
+    def type(cls: type | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.type compatibility."""
         if cls is None:
             # Called with arguments: @strawberry.type(name="CustomName")
@@ -69,8 +69,8 @@ class StrawberryCompatibility:
     def field(
         fn: F = None,
         *,
-        resolver: Callable[..., Any] = None,
-        description: str = None,
+        resolver: Callable[..., Any] | None = None,
+        description: str | None = None,
         **kwargs,
     ) -> Any:
         """Strawberry @strawberry.field compatibility."""

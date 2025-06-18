@@ -239,6 +239,6 @@ async def typed_query(info: Info[GraphQLContext]) -> str:
 
 ## See Also
 
-- [Authentication](../authentication.md) - How user context is added
+- [Authentication](authentication.md) - How user context is added
 - [Lifespan Management](./lifecycle-management.md) - Initialize context resources
 - [Query Decorator](../api-reference/query-decorator.md) - Using context in queries
