@@ -83,7 +83,7 @@ async def test_json_field_in_mutation():
     # Proceed with your schema building
     schema = build_fraiseql_schema(
         query_types=[QueryRoot],
-        mutation_resolvers=[create_user],
+        mutation_resolvers=[createUser],
     )
 
     logger.debug("Schema successfully built.")

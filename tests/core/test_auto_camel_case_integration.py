@@ -21,15 +21,15 @@ class TestAutoCamelCaseIntegration:
             is_active: bool = fraiseql.fraise_field(description="Active status")
             created_at: str = fraiseql.fraise_field(description="Creation time")
 
-        # Verify that fields were created with snake_case names
+        # Verify that fields were created with snake_case names (in Python)
         assert hasattr(User, "__gql_fields__")
         fields = User.__gql_fields__
-        assert "userId" in fields
+        assert "user_id" in fields
         assert "first_name" in fields
         assert "last_name" in fields
         assert "email_address" in fields
-        assert "isActive" in fields
-        assert "createdAt" in fields
+        assert "is_active" in fields
+        assert "created_at" in fields
 
         # Test GraphQL query with camelCase field names
         query = """

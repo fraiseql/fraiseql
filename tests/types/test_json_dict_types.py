@@ -50,7 +50,7 @@ async def get_error(info) -> ErrorWithDetails:
     )
 
 
-async def getConfig(info) -> ConfigType:
+async def get_config(info) -> ConfigType:
     """Return configuration."""
     return ConfigType(
         name="app_config",
@@ -139,7 +139,7 @@ async def test_query_execution_with_json():
     # Query all types
     query = """
         query {
-            get_error {
+            getError {
                 message
                 code
                 details
@@ -148,7 +148,7 @@ async def test_query_execution_with_json():
                 name
                 settings
             }
-            get_metadata {
+            getMetadata {
                 id
                 metadata
             }
@@ -159,7 +159,7 @@ async def test_query_execution_with_json():
 
     assert result.errors is None
     assert result.data == {
-        "get_error": {
+        "getError": {
             "message": "Something went wrong",
             "code": "ERR_001",
             "details": {
@@ -168,7 +168,7 @@ async def test_query_execution_with_json():
                 "suggestions": ["try username2", "try username3"],
             },
         },
-        "get_config": {
+        "getConfig": {
             "name": "app_config",
             "settings": {
                 "debug": True,
@@ -176,7 +176,7 @@ async def test_query_execution_with_json():
                 "features": ["feature1", "feature2"],
             },
         },
-        "get_metadata": {
+        "getMetadata": {
             "id": 1,
             "metadata": {
                 "created_by": "admin",
@@ -198,7 +198,7 @@ async def test_null_json_field():
 
     query = """
         query {
-            get_error_no_details {
+            getErrorNoDetails {
                 message
                 code
                 details
@@ -210,7 +210,7 @@ async def test_null_json_field():
 
     assert result.errors is None
     assert result.data == {
-        "get_error_no_details": {
+        "getErrorNoDetails": {
             "message": "Simple error",
             "code": "ERR_002",
             "details": None,

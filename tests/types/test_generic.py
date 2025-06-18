@@ -123,8 +123,8 @@ class TestGenericTypes:
         # Should have the expected fields
         fields = graphql_type.fields
         assert "edges" in fields
-        assert "page_info" in fields  # FraiseQL uses snake_case field names
-        assert "total_count" in fields
+        assert "pageInfo" in fields  # FraiseQL uses camelCase field names now
+        assert "totalCount" in fields
 
     def test_nested_generic_conversion(self, clear_registry):
         """Test that nested generics like list[Edge[T]] work correctly."""

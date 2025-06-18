@@ -162,5 +162,5 @@ def test_schema_builder_handles_both_patterns():
     assert mutation_type is not None
 
     fields = mutation_type.fields
-    assert "create_user_simple" in fields
-    assert "create_user_class_based" in fields
+    assert "createUserSimple" in fields
+    assert "createUserClassBased" in fields

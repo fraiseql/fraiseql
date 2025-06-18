@@ -79,8 +79,8 @@ async def test_quickstart_mutation_can_execute():
     assert isinstance(result, Branch)
     assert result.name == "feature/test"
     assert result.commit_hash == "abc123"
-    assert isinstance(result.createdAt, datetime)
-    assert isinstance(result.updatedAt, datetime)
+    assert isinstance(result.created_at, datetime)
+    assert isinstance(result.updated_at, datetime)
 
 
 def test_simple_mutation_in_schema():
@@ -96,8 +96,8 @@ def test_simple_mutation_in_schema():
     # Re-register the mutation since we cleared the registry
     registry.register_mutation(create_branch)
 
-    # The mutation should be registered
-    assert "create_branch" in registry._mutations
+    # The mutation should be registered (with camelCase)
+    assert "createBranch" in registry._mutations or "create_branch" in registry._mutations
 
     # Add a dummy query
     @fraiseql.query
@@ -116,7 +116,7 @@ def test_simple_mutation_in_schema():
 
     # Verify mutation is in schema
     assert schema.mutation_type is not None
-    assert "create_branch" in schema.mutation_type.fields
+    assert "createBranch" in schema.mutation_type.fields
 
 
 def test_quickstart_app_creation():

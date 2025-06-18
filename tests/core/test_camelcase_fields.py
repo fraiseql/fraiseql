@@ -13,10 +13,10 @@ def test_automatic_snake_to_camel_conversion(clear_registry):
     @type
     class Repository:
         id: int
-        defaultBranch: str
-        totalCommits: int
-        isPrivate: bool
-        createdAtTimestamp: float
+        default_branch: str
+        total_commits: int
+        is_private: bool
+        created_at_timestamp: float
         
     @query
     def get_repository(info) -> Repository:
@@ -29,7 +29,7 @@ def test_automatic_snake_to_camel_conversion(clear_registry):
         )
     
     schema = build_fraiseql_schema(
-        query_types=[Repository]
+        query_types=[get_repository]
     )
     
     # Test querying with camelCase fields
@@ -97,7 +97,7 @@ def test_camelcase_conversion_with_config(clear_registry):
     
     # Test with camelCase enabled (default)
     schema = build_fraiseql_schema(
-        query_types=[User],
+        query_types=[current_user],
         camel_case_fields=True
     )
     
@@ -116,7 +116,7 @@ def test_camelcase_conversion_with_config(clear_registry):
     
     # Test with camelCase disabled
     schema_snake = build_fraiseql_schema(
-        query_types=[User],
+        query_types=[current_user],
         camel_case_fields=False
     )
     
@@ -124,14 +124,14 @@ def test_camelcase_conversion_with_config(clear_registry):
     query {
         current_user {
             user_name
-            firstName
+            first_name
             last_login_time
         }
     }
     """)
     
     assert result.errors is None
-    assert result.data["currentUser"]["user_name"] == "john_doe"
+    assert result.data["current_user"]["user_name"] == "john_doe"
 
 
 def test_explicit_graphql_name(clear_registry):

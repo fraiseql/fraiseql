@@ -76,7 +76,7 @@ class UserDataLoader(DataLoader[UUID, Dict]):
 
         # Simulate database lookup
         results = []
-        for userId in user_ids:
+        for user_id in user_ids:
             user_data = self.users_db.get(user_id)
             results.append(user_data)
 
@@ -85,7 +85,7 @@ class UserDataLoader(DataLoader[UUID, Dict]):
 
 # Test queries
 @fraiseql.query
-async def getPost(info, id: UUID) -> Optional[Post]:
+async def get_post(info, id: UUID) -> Optional[Post]:
     """Get a post by ID."""
     # Mock post data
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
@@ -99,7 +99,7 @@ async def getPost(info, id: UUID) -> Optional[Post]:
 
 
 @fraiseql.query
-async def getPosts(info) -> List[Post]:
+async def get_posts(info) -> List[Post]:
     """Get multiple posts - should trigger DataLoader batching."""
     posts = []
     for i in range(3):
@@ -115,7 +115,7 @@ async def getPosts(info) -> List[Post]:
 
 
 @fraiseql.query
-async def getLoaderTest(info) -> str:
+async def get_loader_test(info) -> str:
     """Test query to verify get_loader works."""
     try:
         # Try to get a DataLoader - this should work if LoaderRegistry is in context

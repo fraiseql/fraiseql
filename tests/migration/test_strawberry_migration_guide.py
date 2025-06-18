@@ -193,7 +193,7 @@ class TestStrawberryCompatibilityLayer:
                             getUser {
                                 id
                                 name
-                                display_name
+                                displayName
                             }
                         }
                     """
@@ -247,7 +247,7 @@ class TestStrawberryCompatibilityLayer:
                 json={
                     "query": """
                         query {
-                            get_current_user {
+                            getCurrentUser {
                                 id
                                 name
                             }
@@ -259,7 +259,7 @@ class TestStrawberryCompatibilityLayer:
             assert response.status_code == 200
             data = response.json()
             assert "data" in data
-            assert data["data"]["get_current_user"]["name"] == "Context User"
+            assert data["data"]["getCurrentUser"]["name"] == "Context User"
 
 
 class TestStrawberryDataLoaderMigration:
@@ -385,14 +385,14 @@ class TestStrawberryMutationMigration:
 
         # Need at least one query
         @fraiseql.query
-        async def get_version(info) -> str:
+        async def getVersion(info) -> str:
             return "1.0.0"
 
         app = create_fraiseql_app(
             database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
             types=[User],
-            queries=[get_version],
-            mutations=[create_user],
+            queries=[getVersion],
+            mutations=[createUser],
             production=False,
         )
 
