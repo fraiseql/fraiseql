@@ -1,7 +1,7 @@
 """Common DataLoader implementations."""
 
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from fraiseql.optimization.dataloader import DataLoader
@@ -14,7 +14,7 @@ class UserLoader(DataLoader[UUID, dict[str, Any]]):
         super().__init__()
         self.db = db
 
-    async def batch_load(self, user_ids: list[UUID]) -> list[Optional[dict]]:
+    async def batch_load(self, user_ids: list[UUID]) -> list[dict | None]:
         """Load multiple users in one query."""
         # Single query for all users
         rows = await self.db.fetch_all(
@@ -39,7 +39,7 @@ class ProjectLoader(DataLoader[UUID, dict[str, Any]]):
         super().__init__()
         self.db = db
 
-    async def batch_load(self, project_ids: list[UUID]) -> list[Optional[dict]]:
+    async def batch_load(self, project_ids: list[UUID]) -> list[dict | None]:
         """Load multiple projects in one query."""
         rows = await self.db.fetch_all(
             """
@@ -101,7 +101,7 @@ class GenericForeignKeyLoader(DataLoader[UUID, dict[str, Any]]):
         self.table = table
         self.key_field = key_field
 
-    async def batch_load(self, keys: list[UUID]) -> list[Optional[dict]]:
+    async def batch_load(self, keys: list[UUID]) -> list[dict | None]:
         """Load multiple records by key."""
         # CRITICAL: Enhanced SQL injection prevention
         if not self.table.replace("_", "").replace(".", "").isalnum():

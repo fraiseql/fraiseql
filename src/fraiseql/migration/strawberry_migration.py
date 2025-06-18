@@ -6,7 +6,6 @@ Tools to help migrate from Strawberry GraphQL to FraiseQL.
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -17,7 +16,7 @@ class MigrationIssue:
     line_number: int
     issue_type: str
     description: str
-    suggestion: Optional[str] = None
+    suggestion: str | None = None
 
 
 def check_strawberry_compatibility(project_path: str) -> list[MigrationIssue]:

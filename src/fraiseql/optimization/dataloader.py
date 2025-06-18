@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 from typing import (
     Any,
     Generic,
-    Optional,
     TypeVar,
 )
 
@@ -24,10 +23,10 @@ class DataLoader(Generic[K, V], ABC):
 
     def __init__(
         self,
-        batch_load_fn: Optional[Callable] = None,
+        batch_load_fn: Callable | None = None,
         max_batch_size: int = 1000,
         cache: bool = True,
-        context: Optional[dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ):
         self._batch_load_fn = batch_load_fn
         self._max_batch_size = max_batch_size
@@ -36,11 +35,11 @@ class DataLoader(Generic[K, V], ABC):
         # Per-request state
         self._cache: dict[K, V] = {}
         self._queue: list[K] = []
-        self._batch_promise: Optional[asyncio.Future] = None
+        self._batch_promise: asyncio.Future | None = None
         self._dispatch_scheduled = False
 
     @abstractmethod
-    async def batch_load(self, keys: list[K]) -> list[Optional[V]]:
+    async def batch_load(self, keys: list[K]) -> list[V | None]:
         """
         Load multiple keys in a single batch.
 
@@ -51,7 +50,7 @@ class DataLoader(Generic[K, V], ABC):
             return await self._batch_load_fn(keys)
         raise NotImplementedError("Must implement batch_load method")
 
-    async def load(self, key: K) -> Optional[V]:
+    async def load(self, key: K) -> V | None:
         """Load a single key, batching with other loads."""
         # Check cache first
         if self._cache_enabled and key in self._cache:
@@ -74,7 +73,7 @@ class DataLoader(Generic[K, V], ABC):
         # Return from cache
         return self._cache.get(key)
 
-    async def load_many(self, keys: list[K]) -> list[Optional[V]]:
+    async def load_many(self, keys: list[K]) -> list[V | None]:
         """Load multiple keys."""
         tasks = [self.load(key) for key in keys]
         return await asyncio.gather(*tasks)
@@ -84,7 +83,7 @@ class DataLoader(Generic[K, V], ABC):
         if self._cache_enabled:
             self._cache[key] = value
 
-    def clear(self, key: Optional[K] = None):
+    def clear(self, key: K | None = None):
         """Clear cache for a key or all keys."""
         if key is not None:
             self._cache.pop(key, None)
@@ -163,7 +162,7 @@ class DataLoader(Generic[K, V], ABC):
 
     def sort_by_keys(
         self, items: list[dict[str, Any]], keys: list[K], key_field: str = "id"
-    ) -> list[Optional[V]]:
+    ) -> list[V | None]:
         """Helper to sort results to match key order."""
         # Create lookup map
         item_map = {item[key_field]: item for item in items}
