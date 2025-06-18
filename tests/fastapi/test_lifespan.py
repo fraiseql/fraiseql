@@ -50,9 +50,9 @@ def test_default_lifespan():
 
     # The app should work with default lifespan
     with TestClient(app) as client:
-        response = client.post("/graphql", json={"query": "{ get_status { message } }"})
+        response = client.post("/graphql", json={"query": "{ getStatus { message } }"})
         assert response.status_code == 200
-        assert response.json()["data"]["get_status"]["message"] == "Running"
+        assert response.json()["data"]["getStatus"]["message"] == "Running"
 
 
 def test_custom_lifespan():
@@ -102,13 +102,13 @@ def test_custom_lifespan():
 
         # Make a request
         response = client.post(
-            "/graphql", json={"query": "{ get_status { message custom_resource } }"}
+            "/graphql", json={"query": "{ getStatus { message customResource } }"}
         )
         assert response.status_code == 200
 
         # Note: custom_resource won't be visible in GraphQL context
         # because it's in app.state, not in the GraphQL context
-        data = response.json()["data"]["get_status"]
+        data = response.json()["data"]["getStatus"]
         assert data["message"] == "Running"
 
     # Verify shutdown was called
@@ -149,7 +149,7 @@ def test_custom_lifespan_with_context_getter():
         assert app.state.shared_data == {"initialized": True, "count": 0}
 
         # Make request - the context getter should provide access to shared data
-        response = client.post("/graphql", json={"query": "{ get_status { message } }"})
+        response = client.post("/graphql", json={"query": "{ getStatus { message } }"})
         assert response.status_code == 200
 
 
@@ -204,5 +204,5 @@ def test_lifespan_with_existing_app():
     with TestClient(app) as client:
         assert app.state.from_existing is True
 
-        response = client.post("/graphql", json={"query": "{ get_status { message } }"})
+        response = client.post("/graphql", json={"query": "{ getStatus { message } }"})
         assert response.status_code == 200

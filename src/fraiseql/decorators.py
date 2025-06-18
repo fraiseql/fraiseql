@@ -98,13 +98,21 @@ def field(
         # Wrap the resolver to track N+1 queries
         if asyncio.iscoroutinefunction(func):
 
-            async def wrapped_resolver(self, info, *args, **kwargs):
+            async def wrapped_resolver(root, info, *args, **kwargs):
                 # Check if N+1 detector is available in context
-                detector = info.context.get("n1_detector")
+                detector = (
+                    getattr(info.context, "get", lambda x: None)("n1_detector")
+                    if info.context
+                    else None
+                )
                 if detector and detector.enabled:
                     start_time = time.time()
                     try:
-                        result = await func(self, info, *args, **kwargs)
+                        # Call the original method - if it's a bound method, use root as self
+                        if hasattr(func, "__self__"):
+                            result = await func(info, *args, **kwargs)
+                        else:
+                            result = await func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
                         await detector.track_field_resolution(
                             info, info.field_name, execution_time
@@ -116,17 +124,28 @@ def field(
                             info, info.field_name, execution_time
                         )
                         raise
+                # Call the original method - if it's a bound method, use root as self
+                elif hasattr(func, "__self__"):
+                    return await func(info, *args, **kwargs)
                 else:
-                    return await func(self, info, *args, **kwargs)
+                    return await func(root, info, *args, **kwargs)
         else:
 
-            def wrapped_resolver(self, info, *args, **kwargs):
+            def wrapped_resolver(root, info, *args, **kwargs):
                 # Check if N+1 detector is available in context
-                detector = info.context.get("n1_detector")
+                detector = (
+                    getattr(info.context, "get", lambda x: None)("n1_detector")
+                    if info.context
+                    else None
+                )
                 if detector and detector.enabled:
                     start_time = time.time()
                     try:
-                        result = func(self, info, *args, **kwargs)
+                        # Call the original method - if it's a bound method, use root as self
+                        if hasattr(func, "__self__"):
+                            result = func(info, *args, **kwargs)
+                        else:
+                            result = func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
                         # Create task to track asynchronously
                         asyncio.create_task(
@@ -143,8 +162,11 @@ def field(
                             )
                         )
                         raise
+                # Call the original method - if it's a bound method, use root as self
+                elif hasattr(func, "__self__"):
+                    return func(info, *args, **kwargs)
                 else:
-                    return func(self, info, *args, **kwargs)
+                    return func(root, info, *args, **kwargs)
 
         # Copy over the metadata
         wrapped_resolver.__fraiseql_field__ = True

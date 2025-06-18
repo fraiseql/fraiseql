@@ -66,7 +66,7 @@ from .cqrs import CQRSExecutor, CQRSRepository
 # Scalar types
 from .types.scalars.json import JSONField as JSON
 
-__version__ = "0.1.0a7"
+__version__ = "0.1.0a8"
 
 __all__ = [
     "Auth0Config",

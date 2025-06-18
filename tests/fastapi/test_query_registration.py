@@ -22,18 +22,18 @@ class User:
 class Post:
     id: UUID
     title: str
-    author_id: UUID
+    authorId: UUID
 
 
 # Define queries using @query decorator
 @fraiseql.query
-async def get_user(info, id: UUID) -> User:
+async def getUser(info, id: UUID) -> User:
     """Get user by ID."""
     return User(id=id, name="Test User", email="test@example.com")
 
 
 @fraiseql.query
-async def list_users(info) -> list[User]:
+async def listUsers(info) -> list[User]:
     """List all users."""
     return [
         User(
@@ -50,10 +50,10 @@ async def list_users(info) -> list[User]:
 
 
 # Define a query without decorator for explicit registration
-async def get_post(info, id: UUID) -> Post:
+async def getPost(info, id: UUID) -> Post:
     """Get post by ID."""
     return Post(
-        id=id, title="Test Post", author_id=UUID("123e4567-e89b-12d3-a456-426614174000")
+        id=id, title="Test Post", authorId=UUID("123e4567-e89b-12d3-a456-426614174000")
     )
 
 
@@ -63,7 +63,7 @@ class QueryRoot:
     """Root query type."""
 
     @fraiseql.field
-    async def api_version(self, root, info) -> str:
+    def api_version(self, root, info) -> str:
         """Get API version."""
         return "1.0.0"
 
@@ -81,8 +81,8 @@ def clear_registry():
 
     # Re-register the decorated queries after clearing
     # This simulates what happens at import time
-    registry.register_query(get_user)
-    registry.register_query(list_users)
+    registry.register_query(getUser)
+    registry.register_query(listUsers)
     registry.register_type(QueryRoot)
 
     yield
@@ -104,7 +104,7 @@ def test_query_decorator_auto_registration():
             json={
                 "query": """
                     query GetUser($id: ID!) {
-                        get_user(id: $id) {
+                        getUser(id: $id) {
                             id
                             name
                             email
@@ -117,7 +117,7 @@ def test_query_decorator_auto_registration():
 
         assert response.status_code == 200
         data = response.json()
-        assert data["data"]["get_user"]["name"] == "Test User"
+        assert data["data"]["getUser"]["name"] == "Test User"
 
         # Test list query
         response = client.post(
@@ -125,7 +125,7 @@ def test_query_decorator_auto_registration():
             json={
                 "query": """
                     query {
-                        list_users {
+                        listUsers {
                             id
                             name
                         }
@@ -136,7 +136,7 @@ def test_query_decorator_auto_registration():
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data["data"]["list_users"]) == 2
+        assert len(data["data"]["listUsers"]) == 2
 
 
 def test_explicit_query_registration():
@@ -144,7 +144,7 @@ def test_explicit_query_registration():
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
         types=[User, Post],
-        queries=[get_post],  # Explicitly pass non-decorated function
+        queries=[getPost],  # Explicitly pass non-decorated function
     )
 
     with TestClient(app) as client:
@@ -154,10 +154,10 @@ def test_explicit_query_registration():
             json={
                 "query": """
                     query GetPost($id: ID!) {
-                        get_post(id: $id) {
+                        getPost(id: $id) {
                             id
                             title
-                            author_id
+                            authorId
                         }
                     }
                 """,
@@ -167,13 +167,13 @@ def test_explicit_query_registration():
 
         assert response.status_code == 200
         data = response.json()
-        assert data["data"]["get_post"]["title"] == "Test Post"
+        assert data["data"]["getPost"]["title"] == "Test Post"
 
         # Decorated queries should also be available
-        response = client.post("/graphql", json={"query": "{ list_users { id } }"})
+        response = client.post("/graphql", json={"query": "{ listUsers { id } }"})
 
         assert response.status_code == 200
-        assert "list_users" in response.json()["data"]
+        assert "listUsers" in response.json()["data"]
 
 
 def test_query_root_with_field_decorator():
@@ -190,8 +190,8 @@ def test_query_root_with_field_decorator():
             json={
                 "query": """
                     query {
-                        api_version
-                        post_count
+                        apiVersion
+                        postCount
                     }
                 """
             },
@@ -199,14 +199,18 @@ def test_query_root_with_field_decorator():
 
         assert response.status_code == 200
         data = response.json()
-        assert data["data"]["api_version"] == "1.0.0"
-        assert data["data"]["post_count"] == 42
+        # Debug print
+        if "errors" in data:
+            print(f"GraphQL errors: {data['errors']}")
+        print(f"Response data: {data}")
+        assert data["data"]["apiVersion"] == "1.0.0"
+        assert data["data"]["postCount"] == 42
 
         # Auto-registered queries should also work
-        response = client.post("/graphql", json={"query": "{ list_users { name } }"})
+        response = client.post("/graphql", json={"query": "{ listUsers { name } }"})
 
         assert response.status_code == 200
-        assert "list_users" in response.json()["data"]
+        assert "listUsers" in response.json()["data"]
 
 
 def test_mixed_registration_patterns():
@@ -214,7 +218,7 @@ def test_mixed_registration_patterns():
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
         types=[User, Post, QueryRoot],  # QueryRoot with @field
-        queries=[get_post],  # Explicit function
+        queries=[getPost],  # Explicit function
         # @query decorated functions are auto-registered
     )
 
@@ -244,11 +248,11 @@ def test_mixed_registration_patterns():
         ]
 
         # Should have all queries
-        assert "get_user" in field_names  # @query decorator
-        assert "list_users" in field_names  # @query decorator
-        assert "get_post" in field_names  # Explicit registration
-        assert "api_version" in field_names  # @field decorator
-        assert "post_count" in field_names  # @field decorator
+        assert "getUser" in field_names  # @query decorator
+        assert "listUsers" in field_names  # @query decorator
+        assert "getPost" in field_names  # Explicit registration
+        assert "apiVersion" in field_names  # @field decorator
+        assert "postCount" in field_names  # @field decorator
 
 
 def test_empty_queries_uses_auto_registered():
@@ -261,11 +265,11 @@ def test_empty_queries_uses_auto_registered():
 
     with TestClient(app) as client:
         # Auto-registered queries should still work
-        response = client.post("/graphql", json={"query": "{ list_users { id name } }"})
+        response = client.post("/graphql", json={"query": "{ listUsers { id name } }"})
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data["data"]["list_users"]) == 2
+        assert len(data["data"]["listUsers"]) == 2
 
 
 def test_no_queries_parameter_uses_auto_registered():
@@ -284,7 +288,7 @@ def test_no_queries_parameter_uses_auto_registered():
             json={
                 "query": """
                     query {
-                        get_user(id: "123e4567-e89b-12d3-a456-426614174000") {
+                        getUser(id: "123e4567-e89b-12d3-a456-426614174000") {
                             name
                             email
                         }
@@ -295,4 +299,4 @@ def test_no_queries_parameter_uses_auto_registered():
 
         assert response.status_code == 200
         data = response.json()
-        assert data["data"]["get_user"]["name"] == "Test User"
+        assert data["data"]["getUser"]["name"] == "Test User"

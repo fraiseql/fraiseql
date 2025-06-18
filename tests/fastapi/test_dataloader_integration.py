@@ -140,10 +140,10 @@ def test_dataloader_registry_in_context():
             json={
                 "query": """
                     query {
-                        get_post(id: "123e4567-e89b-12d3-a456-426614174000") {
+                        getPost(id: "123e4567-e89b-12d3-a456-426614174000") {
                             id
                             title
-                            author_id
+                            authorId
                         }
                     }
                 """
@@ -155,7 +155,7 @@ def test_dataloader_registry_in_context():
 
         # Should work without errors
         assert "errors" not in data or not data["errors"]
-        assert data["data"]["get_post"]["title"] == "Test Post"
+        assert data["data"]["getPost"]["title"] == "Test Post"
 
 
 def test_dataloader_batching_works():
@@ -182,7 +182,7 @@ def test_dataloader_batching_works():
             json={
                 "query": """
                     query {
-                        get_posts {
+                        getPosts {
                             id
                             title
                             author {
@@ -205,7 +205,7 @@ def test_dataloader_batching_works():
             print(f"Full response: {data}")
 
         # Should successfully resolve all authors
-        posts = data["data"]["get_posts"]
+        posts = data["data"]["getPosts"]
         assert len(posts) == 3
 
         # All posts should have the same author
@@ -228,7 +228,7 @@ def test_dataloader_error_handling():
             json={
                 "query": """
                     query {
-                        get_post(id: "invalid-id") {
+                        getPost(id: "invalid-id") {
                             id
                             author {
                                 name
@@ -243,7 +243,7 @@ def test_dataloader_error_handling():
         data = response.json()
 
         # Should return null for non-existent post, not error
-        assert data["data"]["get_post"] is None
+        assert data["data"]["getPost"] is None
 
 
 def test_get_loader_function_works():
@@ -262,7 +262,7 @@ def test_get_loader_function_works():
             json={
                 "query": """
                     query {
-                        get_loader_test
+                        getLoaderTest
                     }
                 """
             },
@@ -272,7 +272,7 @@ def test_get_loader_function_works():
         data = response.json()
 
         # Should successfully get a DataLoader instance
-        result = data["data"]["get_loader_test"]
+        result = data["data"]["getLoaderTest"]
         assert "Success" in result
         assert "UserDataLoader" in result
 
@@ -408,7 +408,7 @@ def test_n_plus_one_detection(caplog):
                 json={
                     "query": """
                         query {
-                            get_posts_no_dataloader {
+                            getPostsNoDataloader {
                                 id
                                 title
                                 author {
@@ -426,7 +426,7 @@ def test_n_plus_one_detection(caplog):
 
             # Query should succeed
             assert "data" in data
-            assert len(data["data"]["get_posts_no_dataloader"]) == 3
+            assert len(data["data"]["getPostsNoDataloader"]) == 3
 
             # Check for N+1 warning
             n1_warning_found = any(

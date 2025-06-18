@@ -215,13 +215,13 @@ def test_dataloader_integration_with_get_loader():
     app = create_fraiseql_app(database_url="postgresql://test/test", types=[TestUser])
 
     with TestClient(app) as client:
-        response = client.post("/graphql", json={"query": "{ test_loader_query }"})
+        response = client.post("/graphql", json={"query": "{ testLoaderQuery }"})
 
         assert response.status_code == 200
         data = response.json()
 
         # Should successfully get a DataLoader
-        result = data["data"]["test_loader_query"]
+        result = data["data"]["testLoaderQuery"]
         assert "Success" in result
         assert "UserDataLoader" in result
 

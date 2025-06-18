@@ -104,7 +104,7 @@ class TestJSONValidation:
         # Test with invalid JSON string in the mutation
         mutation = """
         mutation CreateItem($input: CreateItemInput!) {
-            create_item(input: $input) {
+            createItem(input: $input) {
                 id
                 name
                 metadata
@@ -131,7 +131,7 @@ class TestJSONValidation:
         )
 
         assert result.errors is None
-        assert result.data["create_item"]["metadata"] == {"valid": "json"}
+        assert result.data["createItem"]["metadata"] == {"valid": "json"}
 
         # Test 2: Non-serializable objects should fail
         class NonSerializable:

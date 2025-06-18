@@ -93,19 +93,19 @@ def test_query_functions_registration():
 
     # Verify query fields exist
     query_fields = schema.query_type.fields
-    assert "get_user" in query_fields
-    assert "get_post" in query_fields
-    assert "get_posts" in query_fields
+    assert "getUser" in query_fields
+    assert "getPost" in query_fields
+    assert "getPosts" in query_fields
 
     # Verify field types
     # Handle both nullable and non-nullable types
-    user_type = query_fields["get_user"].type
+    user_type = query_fields["getUser"].type
     if hasattr(user_type, "of_type"):
         assert user_type.of_type.name == "User"
     else:
         assert user_type.name == "User"
 
-    post_type = query_fields["get_post"].type
+    post_type = query_fields["getPost"].type
     if hasattr(post_type, "of_type"):
         assert post_type.of_type.name == "Post"
     else:
@@ -114,15 +114,15 @@ def test_query_functions_registration():
     # List type for get_posts
     from graphql import GraphQLList
 
-    posts_type = query_fields["get_posts"].type
+    posts_type = query_fields["getPosts"].type
     # The type should be a GraphQLList
     assert isinstance(posts_type, GraphQLList)
     assert posts_type.of_type.name == "Post"
 
     # Verify arguments
-    assert "id" in query_fields["get_user"].args
-    assert "id" in query_fields["get_post"].args
-    assert "limit" in query_fields["get_posts"].args
+    assert "id" in query_fields["getUser"].args
+    assert "id" in query_fields["getPost"].args
+    assert "limit" in query_fields["getPosts"].args
 
 
 @pytest.mark.asyncio
@@ -134,7 +134,7 @@ async def test_query_execution():
     # Execute a query
     query = """
         query GetUser($id: ID!) {
-            get_user(id: $id) {
+            getUser(id: $id) {
                 id
                 name
                 email
@@ -151,7 +151,7 @@ async def test_query_execution():
 
     assert result.errors is None
     assert result.data == {
-        "get_user": {
+        "getUser": {
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "name": "John Doe",
             "email": "john@example.com",
@@ -177,14 +177,14 @@ async def test_mixed_queries_and_types():
     # Verify all fields exist
     query_fields = schema.query_type.fields
     assert "version" in query_fields  # From QueryRoot
-    assert "get_user" in query_fields  # From function
-    assert "get_posts" in query_fields  # From function
+    assert "getUser" in query_fields  # From function
+    assert "getPosts" in query_fields  # From function
 
     # Execute a query for version
     query = """
         query {
             version
-            get_posts(limit: 1) {
+            getPosts(limit: 1) {
                 title
             }
         }
@@ -193,4 +193,4 @@ async def test_mixed_queries_and_types():
     result = await graphql(schema, query, context_value={})
 
     assert result.errors is None
-    assert result.data == {"version": "1.0.0", "get_posts": [{"title": "Hello World"}]}
+    assert result.data == {"version": "1.0.0", "getPosts": [{"title": "Hello World"}]}

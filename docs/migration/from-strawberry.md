@@ -277,11 +277,11 @@ class Query:
 class User:
     id: int
     name: str
-    
+
     @strawberry.field
     async def full_name(self, info) -> str:
         return f"{self.first_name} {self.last_name}"
-    
+
     @strawberry.field
     async def posts(self, info) -> List["Post"]:
         # Complex dataloader logic
@@ -295,12 +295,12 @@ class User:
     name: str
     first_name: str
     last_name: str
-    
+
     @fraiseql.field
     async def full_name(self, info) -> str:
         """Computed field for display name."""
         return f"{self.first_name} {self.last_name}"
-    
+
     @fraiseql.field
     async def posts(self, info) -> List["Post"]:
         """User's posts with automatic DataLoader optimization."""
@@ -593,7 +593,7 @@ from fraiseql.optimization import DataLoader
 
 class UserDataLoader(DataLoader[int, User]):
     """Optimized user loading with N+1 detection."""
-    
+
     async def batch_load(self, user_ids: List[int]) -> List[Optional[User]]:
         repo = CQRSRepository(self.db)
         users_data = await repo.get_by_ids("v_users", user_ids)

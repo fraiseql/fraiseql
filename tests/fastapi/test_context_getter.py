@@ -56,9 +56,9 @@ def test_custom_context_getter(app_with_custom_context):
 
     query = """
         query {
-            get_test {
+            getTest {
                 id
-                custom_value
+                customValue
             }
         }
     """
@@ -68,8 +68,8 @@ def test_custom_context_getter(app_with_custom_context):
     assert response.status_code == 200
     data = response.json()
 
-    assert data["data"]["get_test"]["id"] == 1
-    assert data["data"]["get_test"]["custom_value"] == "from_custom_context"
+    assert data["data"]["getTest"]["id"] == 1
+    assert data["data"]["getTest"]["customValue"] == "from_custom_context"
 
 
 def test_custom_context_getter_with_get_request(app_with_custom_context):
@@ -78,9 +78,9 @@ def test_custom_context_getter_with_get_request(app_with_custom_context):
 
     query = """
         query {
-            get_test {
+            getTest {
                 id
-                custom_value
+                customValue
             }
         }
     """
@@ -90,8 +90,8 @@ def test_custom_context_getter_with_get_request(app_with_custom_context):
     assert response.status_code == 200
     data = response.json()
 
-    assert data["data"]["get_test"]["id"] == 1
-    assert data["data"]["get_test"]["custom_value"] == "from_custom_context"
+    assert data["data"]["getTest"]["id"] == 1
+    assert data["data"]["getTest"]["customValue"] == "from_custom_context"
 
 
 def test_default_context_without_custom_getter():
@@ -119,9 +119,9 @@ def test_default_context_without_custom_getter():
 
     query = """
         query {
-            get_test {
+            getTest {
                 id
-                custom_value
+                customValue
             }
         }
     """
@@ -132,5 +132,5 @@ def test_default_context_without_custom_getter():
     data = response.json()
 
     # Without custom context, should get default value
-    assert data["data"]["get_test"]["id"] == 1
-    assert data["data"]["get_test"]["custom_value"] == "default"
+    assert data["data"]["getTest"]["id"] == 1
+    assert data["data"]["getTest"]["customValue"] == "default"

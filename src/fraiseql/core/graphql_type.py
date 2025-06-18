@@ -38,6 +38,7 @@ from graphql import (
 )
 from psycopg.sql import SQL, Composed
 
+from fraiseql.config.schema_config import SchemaConfig
 from fraiseql.core.translate_query import translate_query
 from fraiseql.mutations.decorators import FraiseUnion
 from fraiseql.sql.where_generator import DynamicType
@@ -48,6 +49,7 @@ from fraiseql.utils.annotations import (
     is_optional_type,
     unwrap_annotated,
 )
+from fraiseql.utils.naming import snake_to_camel
 
 _graphql_type_cache: dict[tuple[str, str], GraphQLType] = {}
 
@@ -174,7 +176,16 @@ def convert_type_to_graphql_input(
                     msg = f"Invalid JSON value in field {name}: {e!s}"
                     raise GraphQLError(msg) from None
 
-            gql_fields[name] = GraphQLInputField(
+            # Use explicit graphql_name if provided, otherwise convert to camelCase if configured
+            config = SchemaConfig.get_instance()
+            if field.graphql_name:
+                graphql_field_name = field.graphql_name
+            else:
+                graphql_field_name = (
+                    snake_to_camel(name) if config.camel_case_fields else name
+                )
+
+            gql_fields[graphql_field_name] = GraphQLInputField(
                 convert_type_to_graphql_input(field_type)
             )
 
@@ -329,7 +340,18 @@ def convert_type_to_graphql_output(
 
                             return resolve_field
 
-                        gql_fields[name] = GraphQLField(
+                        # Use explicit graphql_name if provided, otherwise convert to camelCase if configured
+                        config = SchemaConfig.get_instance()
+                        if field.graphql_name:
+                            graphql_field_name = field.graphql_name
+                        else:
+                            graphql_field_name = (
+                                snake_to_camel(name)
+                                if config.camel_case_fields
+                                else name
+                            )
+
+                        gql_fields[graphql_field_name] = GraphQLField(
                             type_=convert_type_to_graphql_output(field_type),
                             description=field.description,
                             resolve=make_field_resolver(name),
@@ -397,7 +419,15 @@ def convert_type_to_graphql_output(
                                 attr, "__fraiseql_field_description__", None
                             ) or getattr(attr, "__doc__", None)
 
-                            gql_fields[attr_name] = GraphQLField(
+                            # Convert field name to camelCase if configured
+                            config = SchemaConfig.get_instance()
+                            graphql_field_name = (
+                                snake_to_camel(attr_name)
+                                if config.camel_case_fields
+                                else attr_name
+                            )
+
+                            gql_fields[graphql_field_name] = GraphQLField(
                                 type_=cast(GraphQLOutputType, gql_return_type),
                                 resolve=wrapped_resolver,
                                 description=description,
@@ -443,7 +473,18 @@ def convert_type_to_graphql_output(
                 for name, field in fields.items():
                     field_type = field.field_type or type_hints.get(name)
                     if field_type is not None:
-                        gql_fields[name] = GraphQLField(
+                        # Use explicit graphql_name if provided, otherwise convert to camelCase if configured
+                        config = SchemaConfig.get_instance()
+                        if field.graphql_name:
+                            graphql_field_name = field.graphql_name
+                        else:
+                            graphql_field_name = (
+                                snake_to_camel(name)
+                                if config.camel_case_fields
+                                else name
+                            )
+
+                        gql_fields[graphql_field_name] = GraphQLField(
                             type_=convert_type_to_graphql_output(field_type),
                             description=field.description,
                         )

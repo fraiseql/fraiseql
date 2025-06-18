@@ -90,7 +90,7 @@ async def test_json_field_in_mutation():
 
     mutation = """
     mutation CreateUser($input: CreateUserInputTestGQLConversion!) {
-        create_user(input: $input) {
+        createUser(input: $input) {
             ... on CreateUserSuccess {
                 status
                 message

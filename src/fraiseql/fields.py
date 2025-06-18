@@ -36,6 +36,7 @@ class FraiseQLField:
     purpose: str
     field_type: type[Any] | None = None
     description: str | None
+    graphql_name: str | None = None
     __fraiseql_field__: bool = True
 
     def __init__(
@@ -49,6 +50,7 @@ class FraiseQLField:
         compare: bool = True,
         purpose: FraiseQLFieldPurpose = "both",
         description: str | None = None,
+        graphql_name: str | None = None,
     ) -> None:
         """Missing docstring."""
         if default is not FRAISE_MISSING and default_factory is not None:
@@ -63,6 +65,7 @@ class FraiseQLField:
         self.compare = compare
         self.purpose = purpose
         self.description = description
+        self.graphql_name = graphql_name
 
     def has_default(self) -> bool:
         """Return True if a default value or factory is present."""
@@ -84,6 +87,7 @@ def fraise_field(
     compare: bool = True,
     purpose: FraiseQLFieldPurpose = "both",
     description: str | None = None,
+    graphql_name: str | None = None,
     inferred_type: type | None = None,  # Added this for automatic annotation inference
 ) -> FraiseQLField:
     """Create a new FraiseQLField with metadata for schema building and codegen."""
@@ -108,4 +112,5 @@ def fraise_field(
         compare=compare,
         purpose=purpose,
         description=description,
+        graphql_name=graphql_name,
     )

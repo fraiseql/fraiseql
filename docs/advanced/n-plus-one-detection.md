@@ -81,7 +81,7 @@ class Post:
     id: UUID
     title: str
     author_id: UUID
-    
+
     @fraiseql.field
     async def author(self, info) -> User:
         # This executes a separate query for each post!
@@ -118,7 +118,7 @@ class UserLoader(DataLoader[UUID, User]):
     def __init__(self, db):
         super().__init__()
         self.db = db
-    
+
     async def batch_load(self, user_ids: List[UUID]) -> List[Optional[User]]:
         # Fetch all users in one query
         users = await self.db.get_users_by_ids(user_ids)
@@ -131,7 +131,7 @@ class Post:
     id: UUID
     title: str
     author_id: UUID
-    
+
     @fraiseql.field
     async def author(self, info) -> User:
         # Use DataLoader instead of direct query
@@ -147,7 +147,7 @@ Some fields might legitimately need to execute multiple times. You can disable N
 @fraiseql.type
 class Report:
     id: UUID
-    
+
     @fraiseql.field(track_n1=False)
     async def complex_calculation(self, info) -> float:
         # This won't trigger N+1 warnings
@@ -180,12 +180,12 @@ def test_posts_query_uses_dataloader():
         threshold=5,
         raise_on_detection=True
     )
-    
+
     # This test will fail if N+1 is detected
     response = client.post("/graphql", json={
         "query": "{ get_posts { author { name } } }"
     })
-    
+
     assert response.status_code == 200
     assert "errors" not in response.json()
 ```

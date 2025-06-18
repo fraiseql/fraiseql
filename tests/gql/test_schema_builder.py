@@ -342,7 +342,7 @@ def test_mutation_through_graphql(clear_registry) -> None:
 
     mutation = """
     mutation CreateUser($input: CreateUserInput!) {
-        create_user(input: $input) {
+        createUser(input: $input) {
             ... on CreateUserSuccess {
                 status
                 message
@@ -372,7 +372,7 @@ def test_mutation_through_graphql(clear_registry) -> None:
     assert result.errors is None
     assert result.data is not None
 
-    payload = result.data["create_user"]
+    payload = result.data["createUser"]
     assert payload["status"] == "ok"
     assert payload["message"] == "User created"
     assert payload["user"]["email"] == "hello@example.com"

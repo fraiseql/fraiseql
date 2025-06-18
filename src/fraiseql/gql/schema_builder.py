@@ -26,6 +26,7 @@ from graphql import (
     GraphQLSchema,
 )
 
+from fraiseql.config.schema_config import SchemaConfig
 from fraiseql.core.graphql_type import (
     convert_type_to_graphql_input,
     convert_type_to_graphql_output,
@@ -33,6 +34,7 @@ from fraiseql.core.graphql_type import (
 from fraiseql.gql.enum_serializer import wrap_resolver_with_enum_serialization
 from fraiseql.mutations.decorators import resolve_union_annotation
 from fraiseql.types.coercion import wrap_resolver_with_input_coercion
+from fraiseql.utils.naming import snake_to_camel
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -48,6 +50,7 @@ class SchemaRegistry:
 
         This method clears:
         - SchemaRegistry's internal types and mutations
+        - SchemaConfig settings
         - Registered enums
         - Mutation decorator registries (_success_registry, _failure_registry, _union_registry)
         - Any other internal caches to ensure clean state between tests
@@ -69,6 +72,14 @@ class SchemaRegistry:
         from fraiseql.mutations.decorators import clear_mutation_registries
 
         clear_mutation_registries()
+
+        # Reset SchemaConfig to defaults
+        SchemaConfig.reset()
+
+        # Clear GraphQL type cache since field names might change
+        from fraiseql.core.graphql_type import _graphql_type_cache
+
+        _graphql_type_cache.clear()
 
     def __init__(self) -> None:
         """Initialize empty registries for types, mutations, enums, and interfaces."""
@@ -208,20 +219,44 @@ class SchemaRegistry:
                     continue
                 # Use convert_type_to_graphql_input for input arguments
                 gql_input_type = convert_type_to_graphql_input(param_type)
-                gql_args[param_name] = GraphQLArgument(gql_input_type)
+                # Convert argument name to camelCase if configured
+                config = SchemaConfig.get_instance()
+                graphql_arg_name = (
+                    snake_to_camel(param_name)
+                    if config.camel_case_fields
+                    else param_name
+                )
+                gql_args[graphql_arg_name] = GraphQLArgument(gql_input_type)
 
             # Create a wrapper that adapts the GraphQL resolver signature
             def make_resolver(fn):
-                async def resolver(root, info, **kwargs):
-                    # Call the original function without the root argument
-                    return await fn(info, **kwargs)
+                import asyncio
 
-                return resolver
+                if asyncio.iscoroutinefunction(fn):
+
+                    async def async_resolver(root, info, **kwargs):
+                        # Call the original function without the root argument
+                        return await fn(info, **kwargs)
+
+                    return async_resolver
+                else:
+
+                    def sync_resolver(root, info, **kwargs):
+                        # Call the original function without the root argument
+                        return fn(info, **kwargs)
+
+                    return sync_resolver
 
             wrapped_resolver = make_resolver(fn)
             wrapped_resolver = wrap_resolver_with_enum_serialization(wrapped_resolver)
 
-            fields[name] = GraphQLField(
+            # Convert field name to camelCase if configured
+            config = SchemaConfig.get_instance()
+            graphql_field_name = (
+                snake_to_camel(name) if config.camel_case_fields else name
+            )
+
+            fields[graphql_field_name] = GraphQLField(
                 type_=cast(GraphQLOutputType, gql_return_type),
                 args=gql_args,
                 resolve=wrapped_resolver,
@@ -260,10 +295,24 @@ class SchemaRegistry:
 
                     logger.debug(f"Found @field decorated method: {attr_name}")
                     gql_type = convert_type_to_graphql_output(return_type)
-                    method = getattr(query_instance, attr_name)
-                    wrapped_resolver = wrap_resolver_with_enum_serialization(method)
 
-                    fields[attr_name] = GraphQLField(
+                    # Get the bound method from the instance
+                    bound_method = getattr(query_instance, attr_name)
+
+                    # The bound method should already have the wrapped resolver from the decorator
+                    wrapped_resolver = wrap_resolver_with_enum_serialization(
+                        bound_method
+                    )
+
+                    # Convert field name to camelCase if configured
+                    config = SchemaConfig.get_instance()
+                    graphql_field_name = (
+                        snake_to_camel(attr_name)
+                        if config.camel_case_fields
+                        else attr_name
+                    )
+
+                    fields[graphql_field_name] = GraphQLField(
                         type_=cast(GraphQLOutputType, gql_type),
                         resolve=wrapped_resolver,
                         description=getattr(
@@ -308,7 +357,15 @@ class SchemaRegistry:
                 # Wrap resolver to handle enum serialization
                 wrapped_resolver = wrap_resolver_with_enum_serialization(resolver)
 
-                fields[field_name] = GraphQLField(
+                # Convert field name to camelCase if configured
+                config = SchemaConfig.get_instance()
+                graphql_field_name = (
+                    snake_to_camel(field_name)
+                    if config.camel_case_fields
+                    else field_name
+                )
+
+                fields[graphql_field_name] = GraphQLField(
                     type_=cast(GraphQLOutputType, gql_type),
                     resolve=wrapped_resolver,
                     description=field_def.description,
@@ -348,11 +405,26 @@ class SchemaRegistry:
                     continue
                 # Use convert_type_to_graphql_input for input arguments
                 gql_input_type = convert_type_to_graphql_input(param_type)
-                gql_args[param_name] = GraphQLArgument(GraphQLNonNull(gql_input_type))
+                # Convert argument name to camelCase if configured
+                config = SchemaConfig.get_instance()
+                graphql_arg_name = (
+                    snake_to_camel(param_name)
+                    if config.camel_case_fields
+                    else param_name
+                )
+                gql_args[graphql_arg_name] = GraphQLArgument(
+                    GraphQLNonNull(gql_input_type)
+                )
 
             resolver = wrap_resolver_with_input_coercion(fn)
 
-            fields[name] = GraphQLField(
+            # Convert field name to camelCase if configured
+            config = SchemaConfig.get_instance()
+            graphql_field_name = (
+                snake_to_camel(name) if config.camel_case_fields else name
+            )
+
+            fields[graphql_field_name] = GraphQLField(
                 type_=cast(GraphQLOutputType, gql_return_type),
                 args=gql_args,
                 resolve=resolver,
@@ -387,7 +459,14 @@ class SchemaRegistry:
                     continue
                 # Use convert_type_to_graphql_input for input arguments
                 gql_input_type = convert_type_to_graphql_input(param_type)
-                gql_args[param_name] = GraphQLArgument(gql_input_type)
+                # Convert argument name to camelCase if configured
+                config = SchemaConfig.get_instance()
+                graphql_arg_name = (
+                    snake_to_camel(param_name)
+                    if config.camel_case_fields
+                    else param_name
+                )
+                gql_args[graphql_arg_name] = GraphQLArgument(gql_input_type)
 
             # Create a wrapper that adapts the GraphQL subscription signature
             def make_subscription(fn):
@@ -400,7 +479,13 @@ class SchemaRegistry:
 
             wrapped_resolver = make_subscription(fn)
 
-            fields[name] = GraphQLField(
+            # Convert field name to camelCase if configured
+            config = SchemaConfig.get_instance()
+            graphql_field_name = (
+                snake_to_camel(name) if config.camel_case_fields else name
+            )
+
+            fields[graphql_field_name] = GraphQLField(
                 type_=cast(GraphQLOutputType, gql_return_type),
                 args=gql_args,
                 subscribe=wrapped_resolver,
@@ -459,6 +544,7 @@ def build_fraiseql_schema(
     query_types: list[type | Callable[..., Any]] | None = None,
     mutation_resolvers: list[type | Callable[..., Any]] | None = None,
     subscription_resolvers: list[Callable[..., Any]] | None = None,
+    camel_case_fields: bool = True,
 ) -> GraphQLSchema:
     """Compose a full GraphQL schema from query types, mutation resolvers, and subscriptions.
 
@@ -466,6 +552,7 @@ def build_fraiseql_schema(
         query_types: Optional list of Python types or query functions to register.
         mutation_resolvers: Optional list of mutation classes or resolver functions.
         subscription_resolvers: Optional list of subscription functions to register.
+        camel_case_fields: Whether to convert snake_case field names to camelCase in GraphQL schema.
 
     Returns:
         A GraphQLSchema combining the registered query, mutation, and subscription types.
@@ -476,6 +563,14 @@ def build_fraiseql_schema(
         query_types = []
     if subscription_resolvers is None:
         subscription_resolvers = []
+
+    # Set the camelCase configuration
+    SchemaConfig.set_config(camel_case_fields=camel_case_fields)
+
+    # Clear GraphQL type cache since field names might change
+    from fraiseql.core.graphql_type import _graphql_type_cache
+
+    _graphql_type_cache.clear()
 
     registry = SchemaRegistry.get_instance()
 
