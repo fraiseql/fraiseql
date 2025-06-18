@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-type JSONType = dict[str, object]
+JSONType = dict[str, object]
 
 
 @dataclass
