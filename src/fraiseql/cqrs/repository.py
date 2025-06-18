@@ -1,6 +1,6 @@
 """CQRS Repository base class for FraiseQL."""
 
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 from uuid import UUID
 
 from psycopg import AsyncConnection
@@ -78,7 +78,7 @@ class CQRSRepository:
 
     # Query methods (read operations from views)
 
-    async def get_by_id(self, view_name: str, entity_id: UUID) -> Optional[dict[str, Any]]:
+    async def get_by_id(self, view_name: str, entity_id: UUID) -> dict[str, Any] | None:
         """Get an entity by ID from the read view.
 
         Args:
@@ -103,8 +103,8 @@ class CQRSRepository:
     async def query(
         self,
         view_name: str,
-        filters: Optional[dict[str, Any]] = None,
-        order_by: Optional[str] = None,
+        filters: dict[str, Any] | None = None,
+        order_by: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
@@ -169,7 +169,7 @@ class CQRSRepository:
             return [row[0] for row in results]
 
     async def query_raw(
-        self, query: str, params: Optional[list[Any]] = None
+        self, query: str, params: list[Any] | None = None
     ) -> list[dict[str, Any]]:
         """Execute a raw query and return results.
 
@@ -191,9 +191,9 @@ class CQRSRepository:
         self,
         view_name: str,
         *,
-        where: Optional[dict[str, Any]] = None,
-        order_by: Optional[str] = None,
-        limit: Optional[int] = None,
+        where: dict[str, Any] | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         """Select from a JSON view with optional filtering.
@@ -227,8 +227,8 @@ class CQRSRepository:
         )
 
     async def select_one_from_json_view(
-        self, view_name: str, *, where: Optional[dict[str, Any]] = None
-    ) -> Optional[dict[str, Any]]:
+        self, view_name: str, *, where: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """Select a single record from a JSON view.
 
         Args:
@@ -251,9 +251,9 @@ class CQRSRepository:
         self,
         interface_view_name: str,
         *,
-        filters: Optional[dict[str, Any]] = None,
-        order_by: Optional[str] = None,
-        limit: Optional[int] = None,
+        filters: dict[str, Any] | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         """Query from an interface view (UNION ALL view) with polymorphic type information.
@@ -351,8 +351,8 @@ class CQRSRepository:
         self,
         interface_view_name: str,
         entity_id: UUID,
-        type_mapping: Optional[dict[str, type]] = None,
-    ) -> Optional[Any]:
+        type_mapping: dict[str, type] | None = None,
+    ) -> Any | None:
         """Get a polymorphic entity by ID from an interface view.
 
         Args:
@@ -396,11 +396,11 @@ class CQRSRepository:
         self,
         view_name: str,
         *,
-        first: Optional[int] = None,
-        after: Optional[str] = None,
-        last: Optional[int] = None,
-        before: Optional[str] = None,
-        filters: Optional[dict[str, Any]] = None,
+        first: int | None = None,
+        after: str | None = None,
+        last: int | None = None,
+        before: str | None = None,
+        filters: dict[str, Any] | None = None,
         order_by: str = "id",
         order_direction: str = "ASC",
         include_total: bool = True,

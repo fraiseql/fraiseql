@@ -5,7 +5,7 @@ returning results in the Connection[T] format for GraphQL compatibility.
 """
 
 import base64
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Identifier, Literal
@@ -28,10 +28,10 @@ class PaginationParams:
 
     def __init__(
         self,
-        first: Optional[int] = None,
-        after: Optional[str] = None,
-        last: Optional[int] = None,
-        before: Optional[str] = None,
+        first: int | None = None,
+        after: str | None = None,
+        last: int | None = None,
+        before: str | None = None,
         order_by: str = "id",
         order_direction: str = "ASC",
     ):
@@ -82,7 +82,7 @@ class CursorPaginator:
         self,
         view_name: str,
         params: PaginationParams,
-        filters: Optional[dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         include_total: bool = True,
     ) -> dict[str, Any]:
         """Paginate query results using PostgreSQL cursors.
@@ -207,7 +207,7 @@ class CursorPaginator:
         }
 
     async def _get_total_count(
-        self, view_name: str, filters: Optional[dict[str, Any]] = None
+        self, view_name: str, filters: dict[str, Any] | None = None
     ) -> int:
         """Get total count of items matching filters.
 
@@ -247,11 +247,11 @@ async def paginate_query(
     repository,
     view_name: str,
     *,
-    first: Optional[int] = None,
-    after: Optional[str] = None,
-    last: Optional[int] = None,
-    before: Optional[str] = None,
-    filters: Optional[dict[str, Any]] = None,
+    first: int | None = None,
+    after: str | None = None,
+    last: int | None = None,
+    before: str | None = None,
+    filters: dict[str, Any] | None = None,
     order_by: str = "id",
     order_direction: str = "ASC",
     include_total: bool = True,

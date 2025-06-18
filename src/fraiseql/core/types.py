@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -13,7 +13,7 @@ class FieldDefinition:
     resolver: Callable
     return_type: type
     args: dict[str, Any]
-    description: Optional[str] = None
+    description: str | None = None
 
 
 @dataclass
