@@ -27,7 +27,7 @@ class TestFraiseInterface:
         assert hasattr(Node, "__gql_fields__")
         fields = Node.__gql_fields__
         assert "id" in fields
-        assert "createdAt" in fields
+        assert "created_at" in fields
 
     def test_type_implementing_interface(self, clear_registry):
         """Test a type implementing an interface."""

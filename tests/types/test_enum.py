@@ -200,18 +200,18 @@ class TestFraiseEnum:
 
         mutation = """
         mutation UpdateOrder($input: UpdateOrderInput!) {
-            update_order(input: $input) {
+            updateOrder(input: $input) {
                 id
                 status
             }
         }
         """
 
-        variables = {"input": {"order_id": "123", "status": "SHIPPED"}}
+        variables = {"input": {"orderId": "123", "status": "SHIPPED"}}
 
         result = asyncio.run(graphql(schema, mutation, variable_values=variables))
         assert result.errors is None
-        assert result.data == {"update_order": {"id": "123", "status": "SHIPPED"}}
+        assert result.data == {"updateOrder": {"id": "123", "status": "SHIPPED"}}
 
     def test_optional_enum_field(self, clear_registry):
         """Test optional enum fields."""

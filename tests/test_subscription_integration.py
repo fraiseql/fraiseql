@@ -88,7 +88,7 @@ class TestSubscriptionIntegration:
         # Test message stream subscription
         subscription_query = """
             subscription MessageStream($channel: String!) {
-                message_stream(channel: $channel) {
+                messageStream(channel: $channel) {
                     id
                     text
                     channel
@@ -108,7 +108,7 @@ class TestSubscriptionIntegration:
             context_value=context,
         ):
             if not result.errors and result.data:
-                results.append(result.data["message_stream"])
+                results.append(result.data["messageStream"])
 
         assert len(results) == 3
         assert all(r["channel"] == "general" for r in results)
@@ -122,7 +122,7 @@ class TestSubscriptionIntegration:
 
         subscription_query = """
             subscription {
-                message_stream(channel: "private") {
+                messageStream(channel: "private") {
                     id
                     text
                 }
@@ -153,7 +153,7 @@ class TestSubscriptionIntegration:
         # Subscribe to both message stream and channel stats
         message_sub = """
             subscription {
-                message_stream(channel: "general") {
+                messageStream(channel: "general") {
                     id
                     text
                 }
@@ -179,7 +179,7 @@ class TestSubscriptionIntegration:
                 schema, parse(message_sub), context_value=context
             ):
                 if not result.errors:
-                    results.append(result.data["message_stream"])
+                    results.append(result.data["messageStream"])
             return results
 
         async def collect_stats():
