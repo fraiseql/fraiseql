@@ -128,7 +128,7 @@ class TestStrawberryCompatibilityLayer:
             email: str
 
         @fraiseql.query
-        async def getUser(info, id: UUID) -> User:
+        async def get_user(info, id: UUID) -> User:
             return User(id=id, name="Test User", email="test@example.com")
 
         app = create_fraiseql_app(
@@ -174,7 +174,7 @@ class TestStrawberryCompatibilityLayer:
                 return f"User: {self.name}"
 
         @fraiseql.query
-        async def getUser(info) -> User:
+        async def get_user(info) -> User:
             return User(id=UUID("123e4567-e89b-12d3-a456-426614174000"), name="John")
 
         app = create_fraiseql_app(
@@ -300,7 +300,7 @@ class TestStrawberryDataLoaderMigration:
         class Post:
             id: UUID
             title: str
-            author_id: UUID
+            authorId: UUID
 
             @fraiseql.field
             async def author(self, info) -> Optional[User]:
@@ -308,15 +308,15 @@ class TestStrawberryDataLoaderMigration:
                 from fraiseql.optimization.registry import get_loader
 
                 loader = get_loader(UserDataLoader)
-                return await loader.load(self.author_id)
+                return await loader.load(self.authorId)
 
         @fraiseql.query
-        async def getPosts(info) -> List[Post]:
+        async def get_posts(info) -> List[Post]:
             return [
                 Post(
                     id=UUID(f"00000000-0000-0000-0000-{i:012x}"),
                     title=f"Post {i}",
-                    author_id=UUID("123e4567-e89b-12d3-a456-426614174000"),
+                    authorId=UUID("123e4567-e89b-12d3-a456-426614174000"),
                 )
                 for i in range(3)
             ]
@@ -488,7 +488,7 @@ class TestStrawberryFeatureParity:
             role: UserRole
 
         @fraiseql.query
-        async def getUser(info) -> User:
+        async def get_user(info) -> User:
             return User(
                 id=UUID("123e4567-e89b-12d3-a456-426614174000"),
                 name="Admin User",
