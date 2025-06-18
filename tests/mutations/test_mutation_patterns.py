@@ -1,6 +1,6 @@
 """Test both simple and class-based mutation patterns."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -44,7 +44,7 @@ class CreateUserInput:
 @fraiseql.mutation
 async def create_user_simple(info, input: CreateUserInput) -> User:
     """Simple mutation that returns the type directly."""
-    return User(id=1, name=input.name, email=input.email, created_at=datetime.now())
+    return User(id=1, name=input.name, email=input.email, created_at=datetime.now(UTC))
 
 
 # Test 2: Class-based mutation with success/error pattern

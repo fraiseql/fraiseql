@@ -448,7 +448,7 @@ class TestMigrationUtilities:
     def test_automated_migration_script_exists(self):
         """Test that an automated migration script exists."""
         # Check for CLI command
-        migration_script = Path("src/fraiseql/cli/commands/migrate_from_strawberry.py")
+        Path("src/fraiseql/cli/commands/migrate_from_strawberry.py")
 
         # For now, just check that we have a migration command structure
         cli_commands_dir = Path("src/fraiseql/cli/commands")

@@ -87,7 +87,7 @@ def clear_registry():
 def test_query_decorator_registration():
     """Test that @query decorator registers functions."""
     # Functions should already be registered via decorator
-    registry = SchemaRegistry.get_instance()
+    SchemaRegistry.get_instance()
 
     # Build schema without passing queries
     schema = build_fraiseql_schema(query_types=[QueryRoot])  # Only need to pass types

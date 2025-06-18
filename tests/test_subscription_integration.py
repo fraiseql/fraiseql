@@ -137,10 +137,12 @@ class TestSubscriptionIntegration:
             result = await subscribe(schema, parse(subscription_query), context_value=context)
 
             # The subscription should fail immediately
-            first_result = await result.__anext__()
-            assert False, "Expected PermissionError but subscription succeeded"
+            await result.__anext__()
+            raise AssertionError("Expected PermissionError but subscription succeeded")
         except PermissionError as e:
-            assert "Filter condition not met" in str(e)
+            # Verify the error message contains expected text
+            if "Filter condition not met" not in str(e):
+                raise AssertionError(f"Expected 'Filter condition not met' in error, got: {e}")
 
     async def test_multiple_subscriptions(self):
         """Test multiple concurrent subscriptions."""
@@ -225,7 +227,9 @@ class TestSubscriptionIntegration:
                     results.append(result.data["failing_subscription"])
         except ValueError as e:
             got_error = True
-            assert "Subscription error!" in str(e)
+            # Verify the error message contains expected text
+            if "Subscription error!" not in str(e):
+                raise AssertionError(f"Expected 'Subscription error!' in error, got: {e}")
 
         # Should get first result then error
         assert len(results) == 1

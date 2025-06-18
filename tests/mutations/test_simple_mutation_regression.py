@@ -1,6 +1,6 @@
 """Regression test for simple mutations in quickstart examples."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -50,8 +50,8 @@ async def create_branch(info, input: CreateBranchInput) -> Branch:
     return Branch(
         name=input.name,
         commit_hash=input.commit_hash,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -160,8 +160,8 @@ def test_both_mutation_styles_in_same_app():
         return Branch(
             name=name,
             commit_hash="test",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
 
     # Class-based mutation

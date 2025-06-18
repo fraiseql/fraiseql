@@ -64,7 +64,7 @@ class UserDataLoader(DataLoader[UUID, dict]):
         }
 
         results = []
-        for userId in user_ids:
+        for _userId in user_ids:
             user_data = users_db.get(user_id)
             results.append(user_data)
 
@@ -381,7 +381,7 @@ def test_dataloader_field_with_custom_resolver(register_test_queries):
             return None
 
     # Test that custom logic works
-    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, CustomPost])
+    create_fraiseql_app(database_url="postgresql://test/test", types=[User, CustomPost])
 
     # This test verifies the decorator doesn't interfere with custom logic
     assert True  # Would need actual query test when implemented

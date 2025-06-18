@@ -306,7 +306,7 @@ class TestSubscriptionManager:
 
         # Add multiple connections
         connections = []
-        for i in range(3):
+        for _i in range(3):
             ws = MockWebSocket()
             conn = await manager.add_connection(ws, subprotocol="graphql-ws")
             conn.state = ConnectionState.READY  # Mark as ready
@@ -320,13 +320,13 @@ class TestSubscriptionManager:
         )
 
         # Add subscription to each connection
-        for ws, conn in connections:
+        for _ws, conn in connections:
             conn.subscriptions["broadcast1"] = Mock()  # Mock subscription task
 
         await manager.broadcast(message, subscription_id="broadcast1")
 
         # Check all connections received the message
-        for ws, conn in connections:
+        for ws, _conn in connections:
             assert len(ws.sent_messages) == 1
             assert ws.sent_messages[0]["type"] == MessageType.NEXT
             assert ws.sent_messages[0]["payload"]["data"]["announcement"] == "Hello everyone!"
