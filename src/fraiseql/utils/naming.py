@@ -7,13 +7,13 @@ import re
 
 def snake_to_camel(name: str) -> str:
     """Convert snake_case to camelCase.
-    
+
     Examples:
         snake_to_camel("user_name") -> "userName"
         snake_to_camel("get_user_by_id") -> "getUserById"
         snake_to_camel("is_active") -> "isActive"
         snake_to_camel("created_at_timestamp") -> "createdAtTimestamp"
-        
+
     Special cases:
         - Already camelCase/PascalCase strings are preserved
         - All uppercase (e.g., "URL", "API") are preserved
@@ -22,16 +22,16 @@ def snake_to_camel(name: str) -> str:
     # If there are no underscores and the name has mixed case, preserve it
     if "_" not in name and not name.islower() and not name.isupper():
         return name
-    
+
     # If it's all uppercase and has no underscores, preserve it
     if name.isupper() and "_" not in name:
         return name
-    
+
     # Split by underscores
     parts = name.split("_")
     if not parts:
         return name
-    
+
     # First part stays lowercase, rest are capitalized
     result = parts[0].lower()
     for part in parts[1:]:
@@ -41,13 +41,13 @@ def snake_to_camel(name: str) -> str:
                 result += part
             else:
                 result += part.capitalize()
-    
+
     return result
 
 
 def camel_to_snake(name: str) -> str:
     """Convert camelCase or PascalCase to snake_case.
-    
+
     Examples:
         camel_to_snake("userName") -> "user_name"
         camel_to_snake("getUserById") -> "get_user_by_id"
@@ -55,17 +55,17 @@ def camel_to_snake(name: str) -> str:
         camel_to_snake("HTTPTimeout") -> "http_timeout"
     """
     # Handle sequences of capitals followed by a lowercase letter
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
     # Handle lowercase followed by capital
-    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+    s2 = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1)
     return s2.lower()
 
 
 def is_snake_case(name: str) -> bool:
     """Check if a name is in snake_case format."""
-    return bool(re.match(r'^[a-z][a-z0-9_]*$', name))
+    return bool(re.match(r"^[a-z][a-z0-9_]*$", name))
 
 
 def is_camel_case(name: str) -> bool:
     """Check if a name is in camelCase format."""
-    return bool(re.match(r'^[a-z][a-zA-Z0-9]*$', name)) and not name.islower()
+    return bool(re.match(r"^[a-z][a-zA-Z0-9]*$", name)) and not name.islower()

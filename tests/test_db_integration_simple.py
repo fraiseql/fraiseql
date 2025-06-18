@@ -158,12 +158,8 @@ class TestFraiseQLRepositoryIntegration:
         # Test
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
-            statement=SQL(
-                "INSERT INTO users (data) VALUES (%(data)s::jsonb) RETURNING id, data"
-            ),
-            params={
-                "data": '{"name": "New User", "email": "new@example.com", "active": true}'
-            },
+            statement=SQL("INSERT INTO users (data) VALUES (%(data)s::jsonb) RETURNING id, data"),
+            params={"data": '{"name": "New User", "email": "new@example.com", "active": true}'},
             fetch_result=True,
         )
         result = await repository.run(query)
@@ -302,9 +298,7 @@ class TestFraiseQLRepositoryIntegration:
                 )
 
                 # This should fail (invalid foreign key)
-                await conn.execute(
-                    "INSERT INTO posts (userId, data) VALUES (999, '{}'::jsonb)"
-                )
+                await conn.execute("INSERT INTO posts (userId, data) VALUES (999, '{}'::jsonb)")
 
                 # Should not reach here
                 await conn.commit()

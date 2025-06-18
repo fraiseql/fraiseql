@@ -134,9 +134,7 @@ class TestSubscriptionIntegration:
 
         # Should get permission error
         try:
-            result = await subscribe(
-                schema, parse(subscription_query), context_value=context
-            )
+            result = await subscribe(schema, parse(subscription_query), context_value=context)
 
             # The subscription should fail immediately
             first_result = await result.__anext__()
@@ -175,18 +173,14 @@ class TestSubscriptionIntegration:
         # Run both subscriptions concurrently
         async def collect_messages():
             results = []
-            async for result in await subscribe(
-                schema, parse(message_sub), context_value=context
-            ):
+            async for result in await subscribe(schema, parse(message_sub), context_value=context):
                 if not result.errors:
                     results.append(result.data["messageStream"])
             return results
 
         async def collect_stats():
             results = []
-            async for result in await subscribe(
-                schema, parse(channel_sub), context_value=context
-            ):
+            async for result in await subscribe(schema, parse(channel_sub), context_value=context):
                 if not result.errors:
                     results.append(result.data["channel_stats"])
             return results

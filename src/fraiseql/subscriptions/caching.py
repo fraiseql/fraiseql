@@ -7,7 +7,7 @@ import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -27,8 +27,8 @@ class SubscriptionCache:
     """Caches subscription results to reduce load."""
 
     def __init__(self):
-        self._cache: Dict[str, CacheEntry] = {}
-        self._locks: Dict[str, asyncio.Lock] = {}
+        self._cache: dict[str, CacheEntry] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
 
     async def start(self):
@@ -41,7 +41,7 @@ class SubscriptionCache:
             self._cleanup_task.cancel()
             await asyncio.gather(self._cleanup_task, return_exceptions=True)
 
-    def _make_key(self, func_name: str, args: Dict[str, Any]) -> str:
+    def _make_key(self, func_name: str, args: dict[str, Any]) -> str:
         """Generate cache key from function and arguments."""
         key_data = {"func": func_name, "args": args}
         key_bytes = pickle.dumps(key_data, protocol=pickle.HIGHEST_PROTOCOL)
@@ -72,9 +72,7 @@ class SubscriptionCache:
             # Generate new value
             async for value in generator:
                 # Cache the value
-                self._cache[key] = CacheEntry(
-                    value=value, timestamp=time.time(), ttl=ttl
-                )
+                self._cache[key] = CacheEntry(value=value, timestamp=time.time(), ttl=ttl)
                 yield value
 
     async def _cleanup_loop(self):

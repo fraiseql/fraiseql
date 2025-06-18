@@ -1,7 +1,8 @@
 """Core type definitions for FraiseQL."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Optional
 
 
 @dataclass
@@ -10,8 +11,8 @@ class FieldDefinition:
 
     name: str
     resolver: Callable
-    return_type: Type
-    args: Dict[str, Any]
+    return_type: type
+    args: dict[str, Any]
     description: Optional[str] = None
 
 

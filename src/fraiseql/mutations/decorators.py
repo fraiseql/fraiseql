@@ -47,12 +47,8 @@ def resolve_union_annotation(annotation: object) -> object:
         return annotation
 
     args = get_args(annotation)
-    success = next(
-        (a for a in args if getattr(a, "__name__", "").endswith("Success")), None
-    )
-    error = next(
-        (a for a in args if getattr(a, "__name__", "").endswith("Error")), None
-    )
+    success = next((a for a in args if getattr(a, "__name__", "").endswith("Success")), None)
+    error = next((a for a in args if getattr(a, "__name__", "").endswith("Error")), None)
 
     if not success or not error:
         return annotation
@@ -61,9 +57,7 @@ def resolve_union_annotation(annotation: object) -> object:
     union_name = f"{base_name}Result"
 
     if union_name not in _union_registry:
-        _union_registry[union_name] = Annotated[
-            success | error, FraiseUnion(union_name)
-        ]
+        _union_registry[union_name] = Annotated[success | error, FraiseUnion(union_name)]
 
     return _union_registry[union_name]
 

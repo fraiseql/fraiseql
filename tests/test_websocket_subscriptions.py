@@ -51,9 +51,7 @@ class MockWebSocket:
 
     def add_incoming_message(self, message: Dict[str, Any]):
         """Add a message to be received."""
-        self._receive_queue.put_nowait(
-            {"type": "websocket.receive", "text": json.dumps(message)}
-        )
+        self._receive_queue.put_nowait({"type": "websocket.receive", "text": json.dumps(message)})
 
     def add_disconnect(self):
         """Add a disconnect message."""
@@ -165,9 +163,7 @@ class TestWebSocketConnection:
 
             # Filter out non-data messages
             data_messages = [
-                msg
-                for msg in messages
-                if msg["type"] in (MessageType.NEXT, MessageType.DATA)
+                msg for msg in messages if msg["type"] in (MessageType.NEXT, MessageType.DATA)
             ]
 
             assert len(data_messages) >= 3
@@ -247,9 +243,7 @@ class TestWebSocketConnection:
         await asyncio.sleep(0.1)
 
         # Check pong response
-        pong_messages = [
-            msg for msg in ws.sent_messages if msg.get("type") == MessageType.PONG
-        ]
+        pong_messages = [msg for msg in ws.sent_messages if msg.get("type") == MessageType.PONG]
         assert len(pong_messages) == 1
 
         # Clean up
@@ -335,10 +329,7 @@ class TestSubscriptionManager:
         for ws, conn in connections:
             assert len(ws.sent_messages) == 1
             assert ws.sent_messages[0]["type"] == MessageType.NEXT
-            assert (
-                ws.sent_messages[0]["payload"]["data"]["announcement"]
-                == "Hello everyone!"
-            )
+            assert ws.sent_messages[0]["payload"]["data"]["announcement"] == "Hello everyone!"
 
     async def test_connection_cleanup_on_error(self):
         """Test connection cleanup when error occurs."""
@@ -407,9 +398,7 @@ class TestSubscriptionManager:
                     yield ExecutionResult(data={sub_id: i})
                     await asyncio.sleep(0.01)
 
-            task = asyncio.create_task(
-                conn._handle_subscription_generator(sub_id, sub_generator())
-            )
+            task = asyncio.create_task(conn._handle_subscription_generator(sub_id, sub_generator()))
             conn.subscriptions[sub_id] = task
 
         # Wait for subscriptions to complete

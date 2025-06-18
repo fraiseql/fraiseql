@@ -116,9 +116,7 @@ class TestSuccessfulResults:
             "extra_metadata": {
                 "entity": "affected_orders",
                 "processing_time_ms": 150.5,
-                "skipped_orders": [
-                    {"id": "3", "order_number": "ORD-003", "total": 50.0}
-                ],
+                "skipped_orders": [{"id": "3", "order_number": "ORD-003", "total": 50.0}],
             },
         }
 
@@ -285,9 +283,7 @@ class TestComplexScenarios:
             "status": "success",
             "message": "Task completed",
             "object_data": None,
-            "extra_metadata": {
-                "user": {"id": "123", "name": "Test", "email": "test@example.com"}
-            },
+            "extra_metadata": {"user": {"id": "123", "name": "Test", "email": "test@example.com"}},
         }
 
         parsed = parse_mutation_result(result, CreateUserSuccess, CreateUserError)

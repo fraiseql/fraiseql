@@ -22,9 +22,7 @@ def collect_annotations(cls: type) -> dict[str, Any]:
         if base is object:
             continue
         base_hints = get_type_hints(base, include_extras=True)
-        annotations.update(
-            {k: v for k, v in base_hints.items() if not k.startswith("__")}
-        )
+        annotations.update({k: v for k, v in base_hints.items() if not k.startswith("__")})
     return annotations
 
 
@@ -173,9 +171,7 @@ def collect_fraise_fields(
     return gql_fields, annotations
 
 
-def make_init(
-    fields: dict[str, FraiseQLField], *, kw_only: bool = True
-) -> Callable[..., None]:
+def make_init(fields: dict[str, FraiseQLField], *, kw_only: bool = True) -> Callable[..., None]:
     """Create a custom __init__ method from FraiseQL fields."""
     sorted_fields = sorted(fields.values(), key=lambda f: f.index or 0)
 
@@ -221,7 +217,9 @@ def make_init(
                 final_value = field.default_factory()
             setattr(self, name, final_value)
 
-    _fraiseql_init.__signature__ = inspect.Signature(parameters=params)  # pyright: ignore[reportFunctionMemberAccess]
+    _fraiseql_init.__signature__ = inspect.Signature(
+        parameters=params
+    )  # pyright: ignore[reportFunctionMemberAccess]
     return _fraiseql_init
 
 

@@ -1,8 +1,8 @@
 """Subscription decorator for GraphQL subscriptions."""
 
 import inspect
-from collections.abc import AsyncGenerator
-from typing import Any, Callable, TypeVar
+from collections.abc import AsyncGenerator, Callable
+from typing import Any, TypeVar
 
 from fraiseql.core.types import SubscriptionField
 

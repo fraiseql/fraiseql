@@ -164,16 +164,12 @@ class TestConvertTypeToGraphQLInput:
 
     def test_union_types_raise_error(self):
         """Test that Union types raise TypeError."""
-        with pytest.raises(
-            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
-        ):
+        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(Union[str, int])  # type: ignore
 
     def test_annotated_union_types_raise_error(self):
         """Test that Annotated Union types raise TypeError."""
-        with pytest.raises(
-            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
-        ):
+        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(Annotated[str | int, "some annotation"])  # type: ignore
 
     def test_invalid_type_raises_error(self):
@@ -182,9 +178,7 @@ class TestConvertTypeToGraphQLInput:
         class RegularClass:
             pass
 
-        with pytest.raises(
-            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
-        ):
+        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(RegularClass)
 
     def test_non_input_fraise_type_raises_error(self):
@@ -194,9 +188,7 @@ class TestConvertTypeToGraphQLInput:
         class OutputType:
             name: str
 
-        with pytest.raises(
-            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
-        ):
+        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(OutputType)
 
 
@@ -334,11 +326,11 @@ class TestConvertTypeToGraphQLOutput:
         # Check for camelCase field names (default behavior)
         assert "requiredName" in fields or "required_name" in fields
         assert "optionalAge" in fields or "optional_age" in fields
-        
+
         # Get the actual field names
         name_field = fields.get("requiredName") or fields.get("required_name")
         age_field = fields.get("optionalAge") or fields.get("optional_age")
-        
+
         assert name_field.type == GraphQLString
         assert age_field.type == GraphQLInt  # Optional wrapper should be removed
 
@@ -447,10 +439,10 @@ class TestEdgeCases:
         # Check for camelCase (default) or snake_case field names
         nested_field = fields.get("nested") or fields.get("nested")
         nested_list_field = fields.get("nestedList") or fields.get("nested_list")
-        
+
         assert nested_field is not None
         assert nested_list_field is not None
-        
+
         assert isinstance(nested_field.type, GraphQLInputObjectType)
         assert isinstance(nested_list_field.type, GraphQLList)
         assert isinstance(nested_list_field.type.of_type, GraphQLInputObjectType)
@@ -500,9 +492,7 @@ class TestRecursiveJSONField:
         result = convert_type_to_graphql_input(RecursiveInput)
         assert isinstance(result, GraphQLInputObjectType)
         assert "field" in result.fields
-        assert isinstance(
-            result.fields["field"].type, GraphQLScalarType
-        )  # JSON scalar type
+        assert isinstance(result.fields["field"].type, GraphQLScalarType)  # JSON scalar type
 
 
 class TestMissingFieldsInComplexTypes:

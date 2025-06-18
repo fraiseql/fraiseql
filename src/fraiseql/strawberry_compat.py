@@ -4,7 +4,8 @@ This module provides compatibility imports and adapters to ease migration
 from Strawberry GraphQL to FraiseQL.
 """
 
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import fraiseql
 

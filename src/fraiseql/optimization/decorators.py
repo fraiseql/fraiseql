@@ -1,8 +1,8 @@
 """Decorators for DataLoader integration."""
 
 import inspect
-from collections.abc import Awaitable
-from typing import Any, Callable, Type, TypeVar, get_type_hints
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar, get_type_hints
 
 from fraiseql.optimization.dataloader import DataLoader
 from fraiseql.optimization.registry import get_loader
@@ -11,7 +11,7 @@ F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
 
 
 def dataloader_field(
-    loader_class: Type[DataLoader], *, key_field: str, description: str | None = None
+    loader_class: type[DataLoader], *, key_field: str, description: str | None = None
 ) -> Callable[[F], F]:
     """Decorator to automatically use DataLoader for field resolution.
 
@@ -86,9 +86,7 @@ def dataloader_field(
             if not isinstance(key_value, (str, int, bytes, type(None))) and not hasattr(
                 key_value, "__hash__"
             ):
-                raise ValueError(
-                    f"Key field '{key_field}' must be hashable, got {type(key_value)}"
-                )
+                raise ValueError(f"Key field '{key_field}' must be hashable, got {type(key_value)}")
 
             # Get the DataLoader instance
             loader = get_loader(loader_class)
@@ -110,9 +108,7 @@ def dataloader_field(
                     if args:
                         target_type = args[0]
                         # SECURITY: Only allow safe type construction
-                        if hasattr(target_type, "from_dict") and callable(
-                            target_type.from_dict
-                        ):
+                        if hasattr(target_type, "from_dict") and callable(target_type.from_dict):
                             if isinstance(result_data, dict):
                                 return target_type.from_dict(result_data)
                         elif hasattr(target_type, "__annotations__") and isinstance(
@@ -127,19 +123,13 @@ def dataloader_field(
                     return result_data
 
                 # Handle direct type construction
-                elif hasattr(return_type, "from_dict") and callable(
-                    return_type.from_dict
-                ):
+                elif hasattr(return_type, "from_dict") and callable(return_type.from_dict):
                     if isinstance(result_data, dict):
                         return return_type.from_dict(result_data)
-                elif hasattr(return_type, "__annotations__") and isinstance(
-                    result_data, dict
-                ):
+                elif hasattr(return_type, "__annotations__") and isinstance(result_data, dict):
                     # Only construct if we have annotations (dataclass-like)
                     annotations = getattr(return_type, "__annotations__", {})
-                    filtered_data = {
-                        k: v for k, v in result_data.items() if k in annotations
-                    }
+                    filtered_data = {k: v for k, v in result_data.items() if k in annotations}
                     return return_type(**filtered_data)
 
                 # Fallback: return raw data (safer than arbitrary construction)
@@ -153,9 +143,7 @@ def dataloader_field(
 
         # Preserve method metadata
         auto_resolver.__name__ = method.__name__
-        auto_resolver.__doc__ = (
-            method.__doc__ or f"Auto-generated DataLoader field for {key_field}"
-        )
+        auto_resolver.__doc__ = method.__doc__ or f"Auto-generated DataLoader field for {key_field}"
         auto_resolver.__annotations__ = method.__annotations__
 
         # Add DataLoader metadata for schema building

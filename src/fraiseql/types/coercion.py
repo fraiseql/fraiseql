@@ -44,9 +44,7 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
     args = get_args(field_type)
 
     # Case 1: direct FraiseQL object
-    if isinstance(
-        field_type, HasFraiseDefinition
-    ) and field_type.__fraiseql_definition__.kind in {
+    if isinstance(field_type, HasFraiseDefinition) and field_type.__fraiseql_definition__.kind in {
         "input",
         "type",
         "success",
@@ -64,9 +62,7 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
                     "success",
                     "failure",
                 }:
-                    return coerce_input(
-                        cast(type, arg), cast(dict[str, object], raw_value)
-                    )
+                    return coerce_input(cast(type, arg), cast(dict[str, object], raw_value))
 
     # Case 3: List of FraiseQL objects
     if origin is list and args and hasattr(args[0], "__fraiseql_definition__"):
@@ -105,9 +101,7 @@ def coerce_input(cls: type, raw: dict[str, object]) -> object:
                 raw_key = camel_name
 
         if raw_key is not None:
-            coerced_data[name] = _coerce_field_value(
-                raw[raw_key], type_hints.get(name, object)
-            )
+            coerced_data[name] = _coerce_field_value(raw[raw_key], type_hints.get(name, object))
         elif field.default is not FRAISE_MISSING:
             coerced_data[name] = field.default
         elif field.default_factory is not None:

@@ -69,9 +69,9 @@ from .types.scalars.json import JSONField as JSON
 __version__ = "0.1.0a8"
 
 __all__ = [
+    # Auth integration
     "Auth0Config",
     "Auth0Provider",
-    # Auth integration
     "AuthProvider",
     # CQRS support
     "CQRSExecutor",

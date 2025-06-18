@@ -1,8 +1,9 @@
 """Lifecycle hooks for subscriptions."""
 
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 
 class SubscriptionLifecycle:
@@ -45,10 +46,7 @@ class SubscriptionLifecycle:
                 and info.context
                 and info.context.get("debug_subscriptions")
             ):
-                print(
-                    f"Subscription {info.context.get('subscription_id')} "
-                    f"emitted: {event}"
-                )
+                print(f"Subscription {info.context.get('subscription_id')} " f"emitted: {event}")
 
             return result
 

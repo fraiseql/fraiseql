@@ -24,9 +24,7 @@ class TestPsycopg2ToUrl:
 
     def test_password_special_chars(self):
         """Test password with special characters."""
-        conn_str = (
-            "dbname='mydb' user='myuser' password='my@pass#word!' host='localhost'"
-        )
+        conn_str = "dbname='mydb' user='myuser' password='my@pass#word!' host='localhost'"
         result = psycopg2_to_url(conn_str)
         # Password should be URL-encoded
         assert result == "postgresql://myuser:my%40pass%23word%21@localhost:5432/mydb"
@@ -45,11 +43,12 @@ class TestPsycopg2ToUrl:
 
     def test_extra_parameters(self):
         """Test with extra parameters like sslmode."""
-        conn_str = "dbname='mydb' user='myuser' host='localhost' sslmode='require' connect_timeout='10'"
+        conn_str = (
+            "dbname='mydb' user='myuser' host='localhost' sslmode='require' connect_timeout='10'"
+        )
         result = psycopg2_to_url(conn_str)
         assert (
-            result
-            == "postgresql://myuser@localhost:5432/mydb?sslmode=require&connect_timeout=10"
+            result == "postgresql://myuser@localhost:5432/mydb?sslmode=require&connect_timeout=10"
         )
 
     def test_real_world_example(self):
@@ -79,15 +78,12 @@ class TestUrlToPsycopg2:
         url = "postgresql://myuser:mypass@localhost:5432/mydb"
         result = url_to_psycopg2(url)
         assert (
-            result
-            == "dbname='mydb' user='myuser' password='mypass' host='localhost' port='5432'"
+            result == "dbname='mydb' user='myuser' password='mypass' host='localhost' port='5432'"
         )
 
     def test_with_query_params(self):
         """Test URL with query parameters."""
-        url = (
-            "postgresql://myuser@localhost:5432/mydb?sslmode=require&connect_timeout=10"
-        )
+        url = "postgresql://myuser@localhost:5432/mydb?sslmode=require&connect_timeout=10"
         result = url_to_psycopg2(url)
         assert (
             result

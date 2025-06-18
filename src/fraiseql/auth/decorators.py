@@ -38,9 +38,7 @@ def requires_auth(
         user = context.get("user")
 
         if not user or not isinstance(user, UserContext):
-            raise GraphQLError(
-                "Authentication required", extensions={"code": "UNAUTHENTICATED"}
-            )
+            raise GraphQLError("Authentication required", extensions={"code": "UNAUTHENTICATED"})
 
         return await func(*args, **kwargs)
 
@@ -49,9 +47,7 @@ def requires_auth(
 
 def requires_permission(
     permission: str,
-) -> Callable[
-    [Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]
-]:
+) -> Callable[[Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]]:
     """Decorator to require a specific permission for a resolver.
 
     Usage:
@@ -97,9 +93,7 @@ def requires_permission(
 
 def requires_role(
     role: str,
-) -> Callable[
-    [Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]
-]:
+) -> Callable[[Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]]:
     """Decorator to require a specific role for a resolver.
 
     Usage:
@@ -145,9 +139,7 @@ def requires_role(
 
 def requires_any_permission(
     *permissions: str,
-) -> Callable[
-    [Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]
-]:
+) -> Callable[[Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]]:
     """Decorator to require any of the specified permissions.
 
     Usage:
@@ -196,9 +188,7 @@ def requires_any_permission(
 
 def requires_any_role(
     *roles: str,
-) -> Callable[
-    [Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]
-]:
+) -> Callable[[Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]]:
     """Decorator to require any of the specified roles.
 
     Usage:

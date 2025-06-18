@@ -52,9 +52,7 @@ async def listUsers(info) -> list[User]:
 # Define a query without decorator for explicit registration
 async def getPost(info, id: UUID) -> Post:
     """Get post by ID."""
-    return Post(
-        id=id, title="Test Post", authorId=UUID("123e4567-e89b-12d3-a456-426614174000")
-    )
+    return Post(id=id, title="Test Post", authorId=UUID("123e4567-e89b-12d3-a456-426614174000"))
 
 
 # Define queries using QueryRoot pattern with @field
@@ -243,9 +241,7 @@ def test_mixed_registration_patterns():
 
         assert response.status_code == 200
         data = response.json()
-        field_names = [
-            f["name"] for f in data["data"]["__schema"]["queryType"]["fields"]
-        ]
+        field_names = [f["name"] for f in data["data"]["__schema"]["queryType"]["fields"]]
 
         # Should have all queries
         assert "getUser" in field_names  # @query decorator

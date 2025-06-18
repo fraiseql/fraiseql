@@ -58,9 +58,7 @@ def build_sql_query(
         object_pairs.append(sql.Literal(typename))
 
     if json_output:
-        select_clause = SQL("jsonb_build_object({}) AS result").format(
-            SQL(", ").join(object_pairs)
-        )
+        select_clause = SQL("jsonb_build_object({}) AS result").format(SQL(", ").join(object_pairs))
     else:
         select_items = [
             SQL("{} AS {}{}").format(expr, Identifier(field.alias), SQL(""))

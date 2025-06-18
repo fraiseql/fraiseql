@@ -392,9 +392,7 @@ class TestFraiseInterface:
 
         @fraiseql.type
         class QueryRoot:
-            search_results: list[SearchResult] = fraiseql.fraise_field(
-                default_factory=list
-            )
+            search_results: list[SearchResult] = fraiseql.fraise_field(default_factory=list)
 
         schema = build_fraiseql_schema(query_types=[QueryRoot])
 

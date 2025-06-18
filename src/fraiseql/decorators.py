@@ -114,21 +114,18 @@ def field(
                         else:
                             result = await func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
-                        await detector.track_field_resolution(
-                            info, info.field_name, execution_time
-                        )
+                        await detector.track_field_resolution(info, info.field_name, execution_time)
                         return result
                     except Exception:
                         execution_time = time.time() - start_time
-                        await detector.track_field_resolution(
-                            info, info.field_name, execution_time
-                        )
+                        await detector.track_field_resolution(info, info.field_name, execution_time)
                         raise
                 # Call the original method - if it's a bound method, use root as self
                 elif hasattr(func, "__self__"):
                     return await func(info, *args, **kwargs)
                 else:
                     return await func(root, info, *args, **kwargs)
+
         else:
 
             def wrapped_resolver(root, info, *args, **kwargs):
@@ -149,17 +146,13 @@ def field(
                         execution_time = time.time() - start_time
                         # Create task to track asynchronously
                         asyncio.create_task(
-                            detector.track_field_resolution(
-                                info, info.field_name, execution_time
-                            )
+                            detector.track_field_resolution(info, info.field_name, execution_time)
                         )
                         return result
                     except Exception:
                         execution_time = time.time() - start_time
                         asyncio.create_task(
-                            detector.track_field_resolution(
-                                info, info.field_name, execution_time
-                            )
+                            detector.track_field_resolution(info, info.field_name, execution_time)
                         )
                         raise
                 # Call the original method - if it's a bound method, use root as self

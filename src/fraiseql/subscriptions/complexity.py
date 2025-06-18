@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Dict
+from typing import Any
 
 from fraiseql.core.exceptions import ComplexityLimitExceeded
 
@@ -13,7 +13,7 @@ class ComplexityConfig:
 
     max_complexity: int = 1000
     max_depth: int = 10
-    field_costs: Dict[str, int] = None
+    field_costs: dict[str, int] = None
 
     def __post_init__(self):
         if self.field_costs is None:
@@ -31,14 +31,10 @@ class SubscriptionComplexityAnalyzer:
     def __init__(self, config: ComplexityConfig = None):
         self.config = config or ComplexityConfig()
 
-    def calculate_complexity(
-        self, info: Any, field_name: str, args: Dict[str, Any]
-    ) -> int:
+    def calculate_complexity(self, info: Any, field_name: str, args: dict[str, Any]) -> int:
         """Calculate complexity score for a subscription."""
         # Base cost
-        cost = self.config.field_costs.get(
-            field_name, self.config.field_costs["default"]
-        )
+        cost = self.config.field_costs.get(field_name, self.config.field_costs["default"])
 
         # Multipliers based on arguments
         if "first" in args or "last" in args:
@@ -72,9 +68,7 @@ class SubscriptionComplexityAnalyzer:
         max_depth = current_depth
         for selection in selection_set.selections:
             if hasattr(selection, "selection_set"):
-                depth = self._calculate_depth(
-                    selection.selection_set, current_depth + 1
-                )
+                depth = self._calculate_depth(selection.selection_set, current_depth + 1)
                 max_depth = max(max_depth, depth)
 
         return max_depth
@@ -95,9 +89,7 @@ class SubscriptionComplexityAnalyzer:
 
                 # Recursive cost for nested selections
                 if hasattr(selection, "selection_set"):
-                    total_cost += self._calculate_selection_cost(
-                        selection.selection_set, fragments
-                    )
+                    total_cost += self._calculate_selection_cost(selection.selection_set, fragments)
 
         return total_cost
 
@@ -121,11 +113,7 @@ def complexity(score: int = None, max_depth: int = None):
         @wraps(func)
         async def wrapper(info: Any, **kwargs):
             # Get analyzer from context
-            analyzer = (
-                info.context.get("complexity_analyzer")
-                if hasattr(info, "context")
-                else None
-            )
+            analyzer = info.context.get("complexity_analyzer") if hasattr(info, "context") else None
             if not analyzer:
                 analyzer = SubscriptionComplexityAnalyzer()
 
@@ -136,9 +124,7 @@ def complexity(score: int = None, max_depth: int = None):
                 analyzer.config.max_depth = max_depth
 
             # Calculate complexity
-            complexity_score = analyzer.calculate_complexity(
-                info, func.__name__, kwargs
-            )
+            complexity_score = analyzer.calculate_complexity(info, func.__name__, kwargs)
 
             # Check limit
             if complexity_score > analyzer.config.max_complexity:

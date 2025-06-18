@@ -2,7 +2,7 @@
 
 import inspect
 from contextvars import ContextVar
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Optional, TypeVar
 
 from fraiseql.optimization.dataloader import DataLoader
 
@@ -19,10 +19,10 @@ class LoaderRegistry:
 
     def __init__(self, db: Any):
         self.db = db
-        self._loaders: Dict[Type[DataLoader], DataLoader] = {}
-        self._custom_loaders: Dict[str, DataLoader] = {}
+        self._loaders: dict[type[DataLoader], DataLoader] = {}
+        self._custom_loaders: dict[str, DataLoader] = {}
 
-    def get_loader(self, loader_class: Type[T], **kwargs) -> T:
+    def get_loader(self, loader_class: type[T], **kwargs) -> T:
         """Get or create a DataLoader instance."""
         # Check if already exists
         if loader_class in self._loaders:
@@ -67,7 +67,7 @@ class LoaderRegistry:
 
 
 # Helper function for resolvers
-def get_loader(loader_class: Type[T], **kwargs) -> T:
+def get_loader(loader_class: type[T], **kwargs) -> T:
     """Get a DataLoader for the current request."""
     registry = LoaderRegistry.get_current()
     if not registry:

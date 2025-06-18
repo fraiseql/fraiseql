@@ -1,20 +1,20 @@
 """Common DataLoader implementations."""
 
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from fraiseql.optimization.dataloader import DataLoader
 
 
-class UserLoader(DataLoader[UUID, Dict[str, Any]]):
+class UserLoader(DataLoader[UUID, dict[str, Any]]):
     """DataLoader for loading users by ID."""
 
     def __init__(self, db):
         super().__init__()
         self.db = db
 
-    async def batch_load(self, user_ids: List[UUID]) -> List[Optional[Dict]]:
+    async def batch_load(self, user_ids: list[UUID]) -> list[Optional[dict]]:
         """Load multiple users in one query."""
         # Single query for all users
         rows = await self.db.fetch_all(
@@ -32,14 +32,14 @@ class UserLoader(DataLoader[UUID, Dict[str, Any]]):
         return self.sort_by_keys(users, user_ids)
 
 
-class ProjectLoader(DataLoader[UUID, Dict[str, Any]]):
+class ProjectLoader(DataLoader[UUID, dict[str, Any]]):
     """DataLoader for loading projects by ID."""
 
     def __init__(self, db):
         super().__init__()
         self.db = db
 
-    async def batch_load(self, project_ids: List[UUID]) -> List[Optional[Dict]]:
+    async def batch_load(self, project_ids: list[UUID]) -> list[Optional[dict]]:
         """Load multiple projects in one query."""
         rows = await self.db.fetch_all(
             """
@@ -53,7 +53,7 @@ class ProjectLoader(DataLoader[UUID, Dict[str, Any]]):
         return self.sort_by_keys(projects, project_ids)
 
 
-class TasksByProjectLoader(DataLoader[UUID, List[Dict[str, Any]]]):
+class TasksByProjectLoader(DataLoader[UUID, list[dict[str, Any]]]):
     """DataLoader for loading tasks by project ID."""
 
     def __init__(self, db, limit: int = 100):
@@ -61,7 +61,7 @@ class TasksByProjectLoader(DataLoader[UUID, List[Dict[str, Any]]]):
         self.db = db
         self.limit = limit
 
-    async def batch_load(self, project_ids: List[UUID]) -> List[List[Dict]]:
+    async def batch_load(self, project_ids: list[UUID]) -> list[list[dict]]:
         """Load tasks for multiple projects."""
         # Use window function for efficient loading
         rows = await self.db.fetch_all(
@@ -92,7 +92,7 @@ class TasksByProjectLoader(DataLoader[UUID, List[Dict[str, Any]]]):
         return [tasks_by_project.get(pid, []) for pid in project_ids]
 
 
-class GenericForeignKeyLoader(DataLoader[UUID, Dict[str, Any]]):
+class GenericForeignKeyLoader(DataLoader[UUID, dict[str, Any]]):
     """Generic loader for foreign key relationships."""
 
     def __init__(self, db, table: str, key_field: str = "id"):
@@ -101,7 +101,7 @@ class GenericForeignKeyLoader(DataLoader[UUID, Dict[str, Any]]):
         self.table = table
         self.key_field = key_field
 
-    async def batch_load(self, keys: List[UUID]) -> List[Optional[Dict]]:
+    async def batch_load(self, keys: list[UUID]) -> list[Optional[dict]]:
         """Load multiple records by key."""
         # CRITICAL: Enhanced SQL injection prevention
         if not self.table.replace("_", "").replace(".", "").isalnum():
@@ -112,9 +112,7 @@ class GenericForeignKeyLoader(DataLoader[UUID, Dict[str, Any]]):
             raise ValueError(f"Invalid key field: {self.key_field}")
 
         # CRITICAL: Validate keys to prevent injection
-        if not all(
-            isinstance(k, (str, int, bytes)) or hasattr(k, "__str__") for k in keys
-        ):
+        if not all(isinstance(k, (str, int, bytes)) or hasattr(k, "__str__") for k in keys):
             raise ValueError("All keys must be safely serializable")
 
         # Use parameterized query construction

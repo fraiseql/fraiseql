@@ -1,7 +1,7 @@
 """Global registry for FraiseQL types and fields."""
 
 from threading import Lock
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fraiseql.core.types import MutationField, QueryField, SubscriptionField
 
@@ -23,10 +23,10 @@ class TypeRegistry:
         if self._initialized:
             return
 
-        self._queries: Dict[str, QueryField] = {}
-        self._mutations: Dict[str, MutationField] = {}
-        self._subscriptions: Dict[str, SubscriptionField] = {}
-        self._types: Dict[str, Any] = {}
+        self._queries: dict[str, QueryField] = {}
+        self._mutations: dict[str, MutationField] = {}
+        self._subscriptions: dict[str, SubscriptionField] = {}
+        self._types: dict[str, Any] = {}
         self._initialized = True
 
     def register_query(self, field: QueryField):
@@ -45,19 +45,19 @@ class TypeRegistry:
         """Register a GraphQL type."""
         self._types[name] = type_def
 
-    def get_queries(self) -> Dict[str, QueryField]:
+    def get_queries(self) -> dict[str, QueryField]:
         """Get all registered queries."""
         return self._queries.copy()
 
-    def get_mutations(self) -> Dict[str, MutationField]:
+    def get_mutations(self) -> dict[str, MutationField]:
         """Get all registered mutations."""
         return self._mutations.copy()
 
-    def get_subscriptions(self) -> Dict[str, SubscriptionField]:
+    def get_subscriptions(self) -> dict[str, SubscriptionField]:
         """Get all registered subscriptions."""
         return self._subscriptions.copy()
 
-    def get_types(self) -> Dict[str, Any]:
+    def get_types(self) -> dict[str, Any]:
         """Get all registered types."""
         return self._types.copy()
 

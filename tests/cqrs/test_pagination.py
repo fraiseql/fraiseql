@@ -129,9 +129,7 @@ async def db_connection():
     try:
         conn = await psycopg.AsyncConnection.connect(**db_config)
     except Exception as e:
-        pytest.skip(
-            f"PostgreSQL database not available: {e}. Run 'podman-compose up -d' first."
-        )
+        pytest.skip(f"PostgreSQL database not available: {e}. Run 'podman-compose up -d' first.")
         return
 
     # Create test table and view
@@ -223,9 +221,7 @@ class TestCursorPaginator:
         await self.setup_test_data(db_connection)
 
         paginator = CursorPaginator(db_connection)
-        params = PaginationParams(
-            first=2, after=encode_cursor("2024-01-02"), order_by="createdAt"
-        )
+        params = PaginationParams(first=2, after=encode_cursor("2024-01-02"), order_by="createdAt")
         result = await paginator.paginate("v_items", params, include_total=False)
 
         # Should return items 3 and 4
@@ -240,9 +236,7 @@ class TestCursorPaginator:
         await self.setup_test_data(db_connection)
 
         paginator = CursorPaginator(db_connection)
-        params = PaginationParams(
-            last=2, before=encode_cursor("2024-01-04"), order_by="createdAt"
-        )
+        params = PaginationParams(last=2, before=encode_cursor("2024-01-04"), order_by="createdAt")
         result = await paginator.paginate("v_items", params, include_total=False)
 
         # Should return items 2 and 3 (in forward order after reversal)
@@ -276,9 +270,7 @@ class TestCursorPaginator:
         params = PaginationParams(first=10, order_by="createdAt")
 
         # Filter for special items
-        result = await paginator.paginate(
-            "v_items", params, filters={"special": "true"}
-        )
+        result = await paginator.paginate("v_items", params, filters={"special": "true"})
 
         assert len(result["edges"]) == 1
         assert result["edges"][0]["node"]["name"] == "Special Item"

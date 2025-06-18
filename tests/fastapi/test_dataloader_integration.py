@@ -328,10 +328,7 @@ async def test_dataloader_field_decorator():
     class PostDataLoader(DataLoader[UUID, Dict]):
         async def batch_load(self, post_ids: List[UUID]) -> List[Optional[Dict]]:
             # Mock implementation
-            return [
-                {"id": pid, "title": f"Post {pid}", "content": "Content"}
-                for pid in post_ids
-            ]
+            return [{"id": pid, "title": f"Post {pid}", "content": "Content"} for pid in post_ids]
 
     # Test that @dataloader_field decorator exists
     if hasattr(fraiseql, "dataloader_field"):
@@ -347,6 +344,7 @@ async def test_dataloader_field_decorator():
             async def post(self, info) -> Optional[Post]:
                 """Load the post this comment belongs to."""
                 pass  # Implementation is handled by the decorator
+
     else:
         # Skip test if decorator doesn't exist yet
         pytest.skip("@dataloader_field decorator not implemented yet")
@@ -430,14 +428,12 @@ def test_n_plus_one_detection(caplog):
 
             # Check for N+1 warning
             n1_warning_found = any(
-                "N+1 query pattern detected" in record.message
-                for record in caplog.records
+                "N+1 query pattern detected" in record.message for record in caplog.records
             )
             assert n1_warning_found, "Expected N+1 warning not found"
 
             # Check for DataLoader suggestion
             suggestion_found = any(
-                "Consider using a DataLoader" in record.message
-                for record in caplog.records
+                "Consider using a DataLoader" in record.message for record in caplog.records
             )
             assert suggestion_found, "DataLoader suggestion not found"

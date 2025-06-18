@@ -10,7 +10,7 @@ import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Optional
 
 from graphql import GraphQLResolveInfo
 
@@ -26,7 +26,7 @@ class QueryPattern:
     field_name: str
     resolver_name: str
     count: int = 0
-    execution_times: List[float] = field(default_factory=list)
+    execution_times: list[float] = field(default_factory=list)
 
     @property
     def avg_execution_time(self) -> float:
@@ -41,8 +41,8 @@ class N1DetectionResult:
     """Result of N+1 query detection."""
 
     detected: bool
-    patterns: List[QueryPattern]
-    suggestions: List[str]
+    patterns: list[QueryPattern]
+    suggestions: list[str]
     total_queries: int
     threshold_exceeded: bool
 
@@ -71,8 +71,8 @@ class N1QueryDetector:
         self.raise_on_detection = raise_on_detection
 
         # Track query patterns
-        self._patterns: Dict[str, QueryPattern] = {}
-        self._pattern_timestamps: Dict[str, List[float]] = defaultdict(list)
+        self._patterns: dict[str, QueryPattern] = {}
+        self._pattern_timestamps: dict[str, list[float]] = defaultdict(list)
         self._current_request_id: Optional[str] = None
         self._lock = asyncio.Lock()
 
@@ -129,9 +129,7 @@ class N1QueryDetector:
 
         # Log warnings if patterns detected
         if detected:
-            logger.warning(
-                f"N+1 query pattern detected in request {self._current_request_id}:"
-            )
+            logger.warning(f"N+1 query pattern detected in request {self._current_request_id}:")
             for suggestion in suggestions:
                 logger.warning(f"  - {suggestion}")
 
@@ -193,7 +191,7 @@ class N1QueryDetector:
 class N1QueryDetected(Exception):
     """Exception raised when N+1 query pattern is detected."""
 
-    def __init__(self, message: str, patterns: List[QueryPattern]):
+    def __init__(self, message: str, patterns: list[QueryPattern]):
         super().__init__(message)
         self.patterns = patterns
 

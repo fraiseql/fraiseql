@@ -62,10 +62,7 @@ def parse_mutation_result(
                 "status": status,
                 "message": message,
             }
-            if (
-                hasattr(result_cls, "__annotations__")
-                and "data" in result_cls.__annotations__
-            ):
+            if hasattr(result_cls, "__annotations__") and "data" in result_cls.__annotations__:
                 kwargs["data"] = result_row.get("data")
             return result_cls(**kwargs)  # type: ignore[call-arg]
 

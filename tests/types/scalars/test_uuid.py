@@ -57,16 +57,12 @@ class TestUUIDScalar:
 
     def test_parse_uuid_value_non_string(self):
         """Test parsing non-string value raises error."""
-        with pytest.raises(
-            GraphQLError, match="UUID cannot represent non-string value"
-        ):
+        with pytest.raises(GraphQLError, match="UUID cannot represent non-string value"):
             parse_uuid_value(12345)
 
     def test_parse_uuid_value_none(self):
         """Test parsing None value."""
-        with pytest.raises(
-            GraphQLError, match="UUID cannot represent non-string value"
-        ):
+        with pytest.raises(GraphQLError, match="UUID cannot represent non-string value"):
             parse_uuid_value(None)
 
     def test_parse_uuid_literal_valid(self):
@@ -86,9 +82,7 @@ class TestUUIDScalar:
     def test_parse_uuid_literal_non_string_node(self):
         """Test parsing non-string AST node raises error."""
         ast = IntValueNode(value="123")
-        with pytest.raises(
-            GraphQLError, match="UUID cannot represent non-string literal"
-        ):
+        with pytest.raises(GraphQLError, match="UUID cannot represent non-string literal"):
             parse_uuid_literal(ast)
 
     def test_uuid_scalar_integration(self):

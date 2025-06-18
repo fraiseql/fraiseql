@@ -25,11 +25,11 @@ def use_snake_case():
     """Fixture to use snake_case field names in tests."""
     # Save current config
     original_config = SchemaConfig.get_instance().camel_case_fields
-    
+
     # Set to snake_case
     SchemaConfig.set_config(camel_case_fields=False)
-    
+
     yield
-    
+
     # Restore original config
     SchemaConfig.set_config(camel_case_fields=original_config)

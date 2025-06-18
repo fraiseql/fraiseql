@@ -166,9 +166,7 @@ def _make_filter_field_composed(
             continue
         try:
             # Build the JSONB path expression
-            path_sql = Composed(
-                [SQL("("), SQL(json_path), SQL(" ->> "), Literal(name), SQL(")")]
-            )
+            path_sql = Composed([SQL("("), SQL(json_path), SQL(" ->> "), Literal(name), SQL(")")])
             condition = build_operator_composed(path_sql, op, val)
             conditions.append(condition)
         except ValueError:
@@ -209,9 +207,7 @@ def _build_where_to_sql(fields: list[str]) -> Callable[[object], Composed | None
                 if sql:
                     conditions.append(sql)
             elif isinstance(val, dict):
-                cond = _make_filter_field_composed(
-                    name, cast(dict[str, object], val), "data"
-                )
+                cond = _make_filter_field_composed(name, cast(dict[str, object], val), "data")
                 if cond:
                     conditions.append(cond)
 

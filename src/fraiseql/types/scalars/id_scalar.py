@@ -22,9 +22,7 @@ class ID:
                 msg = f"Invalid UUID string: {value}"
                 raise TypeError(msg) from exc
         else:
-            msg = (
-                f"ID must be initialized with a UUID or str, not {type(value).__name__}"
-            )
+            msg = f"ID must be initialized with a UUID or str, not {type(value).__name__}"
             raise TypeError(msg)
 
     @classmethod

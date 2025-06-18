@@ -71,9 +71,7 @@ class TestWrapResolver:
         assert field.resolve != create_user  # It should be wrapped
 
     @pytest.mark.asyncio
-    async def test_wrapped_resolver_execution(
-        self, sample_input_type, sample_output_type
-    ):
+    async def test_wrapped_resolver_execution(self, sample_input_type, sample_output_type):
         """Test executing a wrapped resolver."""
 
         async def create_user(
@@ -87,9 +85,7 @@ class TestWrapResolver:
         mock_info = MagicMock(spec=GraphQLResolveInfo)
 
         # Execute the wrapped resolver
-        result = await field.resolve(
-            None, mock_info, input={"name": "John", "age": 30}
-        )  # root
+        result = await field.resolve(None, mock_info, input={"name": "John", "age": 30})  # root
 
         # Check result
         assert result.id == "123"
@@ -166,9 +162,7 @@ class TestWrapResolver:
     async def test_wrapped_resolver_error_handling(self, sample_input_type):
         """Test error handling in wrapped resolver."""
 
-        async def failing_resolver(
-            info: GraphQLResolveInfo, input: sample_input_type
-        ) -> Any:
+        async def failing_resolver(info: GraphQLResolveInfo, input: sample_input_type) -> Any:
             raise ValueError("Something went wrong")
 
         field = wrap_resolver(failing_resolver)

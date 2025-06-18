@@ -2,7 +2,7 @@
 
 import ast
 from functools import wraps
-from typing import Any, Dict
+from typing import Any
 
 from fraiseql.core.exceptions import FilterError
 
@@ -38,7 +38,7 @@ class FilterExpressionEvaluator:
         "context",
     }
 
-    def __init__(self, context: Dict[str, Any]):
+    def __init__(self, context: dict[str, Any]):
         self.context = context
 
     def evaluate(self, expression: str) -> bool:
@@ -120,11 +120,7 @@ def filter(expression: str):
             }
 
             # Load related objects if needed
-            if (
-                "project_id" in kwargs
-                and hasattr(info, "context")
-                and "db" in info.context
-            ):
+            if "project_id" in kwargs and hasattr(info, "context") and "db" in info.context:
                 db = info.context["db"]
                 project = await db.fetch_one(
                     "SELECT * FROM projects WHERE id = $1", kwargs["project_id"]

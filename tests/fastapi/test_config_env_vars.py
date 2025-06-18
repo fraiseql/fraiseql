@@ -30,9 +30,7 @@ def test_config_ignores_non_prefixed_env_vars(monkeypatch):
 def test_config_uses_prefixed_env_vars(monkeypatch):
     """Test that config correctly uses FRAISEQL_ prefixed variables."""
     # Set prefixed environment variables
-    monkeypatch.setenv(
-        "FRAISEQL_DATABASE_URL", "postgresql://dbuser:dbpass@dbhost/dbname"
-    )
+    monkeypatch.setenv("FRAISEQL_DATABASE_URL", "postgresql://dbuser:dbpass@dbhost/dbname")
     monkeypatch.setenv("FRAISEQL_ENVIRONMENT", "production")
     monkeypatch.setenv("FRAISEQL_APP_NAME", "My FraiseQL App")
     monkeypatch.setenv("FRAISEQL_DATABASE_POOL_SIZE", "50")
@@ -42,10 +40,7 @@ def test_config_uses_prefixed_env_vars(monkeypatch):
     config = FraiseQLConfig()
 
     # Verify values from environment
-    assert (
-        config.database_url.unicode_string()
-        == "postgresql://dbuser:dbpass@dbhost/dbname"
-    )
+    assert config.database_url.unicode_string() == "postgresql://dbuser:dbpass@dbhost/dbname"
     assert config.environment == "production"
     assert config.app_name == "My FraiseQL App"
     assert config.database_pool_size == 50

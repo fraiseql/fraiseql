@@ -22,9 +22,7 @@ class CQRSRepository:
 
     # Command methods (write operations via SQL functions)
 
-    async def create(
-        self, entity_type: str, input_data: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def create(self, entity_type: str, input_data: dict[str, Any]) -> dict[str, Any]:
         """Create an entity using SQL function.
 
         Args:
@@ -37,9 +35,7 @@ class CQRSRepository:
         function_name = f"fn_create_{entity_type.lower()}"
         return await self.executor.execute_function(function_name, input_data)
 
-    async def update(
-        self, entity_type: str, input_data: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def update(self, entity_type: str, input_data: dict[str, Any]) -> dict[str, Any]:
         """Update an entity using SQL function.
 
         Args:
@@ -63,13 +59,9 @@ class CQRSRepository:
             Result dictionary from SQL function
         """
         function_name = f"fn_delete_{entity_type.lower()}"
-        return await self.executor.execute_function(
-            function_name, {"id": str(entity_id)}
-        )
+        return await self.executor.execute_function(function_name, {"id": str(entity_id)})
 
-    async def call_function(
-        self, function_name: str, input_data: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def call_function(self, function_name: str, input_data: dict[str, Any]) -> dict[str, Any]:
         """Call a custom SQL function.
 
         Args:
@@ -86,9 +78,7 @@ class CQRSRepository:
 
     # Query methods (read operations from views)
 
-    async def get_by_id(
-        self, view_name: str, entity_id: UUID
-    ) -> Optional[dict[str, Any]]:
+    async def get_by_id(self, view_name: str, entity_id: UUID) -> Optional[dict[str, Any]]:
         """Get an entity by ID from the read view.
 
         Args:
@@ -140,14 +130,10 @@ class CQRSRepository:
         if filters:
             for key, value in filters.items():
                 if isinstance(value, list):
-                    query_parts.append(
-                        SQL(" AND data->{} ?| %s").format(SQL(f"'{key}'"))
-                    )
+                    query_parts.append(SQL(" AND data->{} ?| %s").format(SQL(f"'{key}'")))
                     params.append(value)
                 else:
-                    query_parts.append(
-                        SQL(" AND data->>{} = %s").format(SQL(f"'{key}'"))
-                    )
+                    query_parts.append(SQL(" AND data->>{} = %s").format(SQL(f"'{key}'")))
                     params.append(str(value))
 
         # Apply ordering
@@ -304,9 +290,7 @@ class CQRSRepository:
             )
         """
         # Build query using SQL composition
-        query_parts = [
-            SQL("SELECT data FROM {} WHERE 1=1").format(SQL(interface_view_name))
-        ]
+        query_parts = [SQL("SELECT data FROM {} WHERE 1=1").format(SQL(interface_view_name))]
         params = []
 
         # Apply filters
@@ -316,34 +300,22 @@ class CQRSRepository:
                     # Handle operators like $gt, $lt, etc
                     for op, val in value.items():
                         if op == "$gt":
-                            query_parts.append(
-                                SQL(" AND data->>{} > %s").format(SQL(f"'{key}'"))
-                            )
+                            query_parts.append(SQL(" AND data->>{} > %s").format(SQL(f"'{key}'")))
                             params.append(str(val))
                         elif op == "$lt":
-                            query_parts.append(
-                                SQL(" AND data->>{} < %s").format(SQL(f"'{key}'"))
-                            )
+                            query_parts.append(SQL(" AND data->>{} < %s").format(SQL(f"'{key}'")))
                             params.append(str(val))
                         elif op == "$gte":
-                            query_parts.append(
-                                SQL(" AND data->>{} >= %s").format(SQL(f"'{key}'"))
-                            )
+                            query_parts.append(SQL(" AND data->>{} >= %s").format(SQL(f"'{key}'")))
                             params.append(str(val))
                         elif op == "$lte":
-                            query_parts.append(
-                                SQL(" AND data->>{} <= %s").format(SQL(f"'{key}'"))
-                            )
+                            query_parts.append(SQL(" AND data->>{} <= %s").format(SQL(f"'{key}'")))
                             params.append(str(val))
                 elif isinstance(value, list):
-                    query_parts.append(
-                        SQL(" AND data->{} ?| %s").format(SQL(f"'{key}'"))
-                    )
+                    query_parts.append(SQL(" AND data->{} ?| %s").format(SQL(f"'{key}'")))
                     params.append(value)
                 else:
-                    query_parts.append(
-                        SQL(" AND data->>{} = %s").format(SQL(f"'{key}'"))
-                    )
+                    query_parts.append(SQL(" AND data->>{} = %s").format(SQL(f"'{key}'")))
                     params.append(str(value))
 
         # Apply ordering
@@ -400,9 +372,7 @@ class CQRSRepository:
         """
         async with self.connection.cursor() as cursor:
             await cursor.execute(
-                SQL("SELECT data FROM {} WHERE id = %s").format(
-                    SQL(interface_view_name)
-                ),
+                SQL("SELECT data FROM {} WHERE id = %s").format(SQL(interface_view_name)),
                 (entity_id,),
             )
             result = await cursor.fetchone()

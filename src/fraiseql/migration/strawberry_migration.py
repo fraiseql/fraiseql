@@ -6,7 +6,7 @@ Tools to help migrate from Strawberry GraphQL to FraiseQL.
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -20,7 +20,7 @@ class MigrationIssue:
     suggestion: Optional[str] = None
 
 
-def check_strawberry_compatibility(project_path: str) -> List[MigrationIssue]:
+def check_strawberry_compatibility(project_path: str) -> list[MigrationIssue]:
     """Check a project for Strawberry GraphQL patterns that need migration.
 
     Args:
@@ -44,7 +44,7 @@ def check_strawberry_compatibility(project_path: str) -> List[MigrationIssue]:
     return issues
 
 
-def _analyze_file(file_path: Path) -> List[MigrationIssue]:
+def _analyze_file(file_path: Path) -> list[MigrationIssue]:
     """Analyze a single Python file for Strawberry patterns."""
     issues = []
 
@@ -78,15 +78,13 @@ def _analyze_file(file_path: Path) -> List[MigrationIssue]:
     return issues
 
 
-def _find_strawberry_imports(content: str, file_path: str) -> List[MigrationIssue]:
+def _find_strawberry_imports(content: str, file_path: str) -> list[MigrationIssue]:
     """Find Strawberry import statements."""
     issues = []
     lines = content.splitlines()
 
     for line_no, line in enumerate(lines, 1):
-        if re.search(r"import\s+strawberry", line) or re.search(
-            r"from\s+strawberry", line
-        ):
+        if re.search(r"import\s+strawberry", line) or re.search(r"from\s+strawberry", line):
             issues.append(
                 MigrationIssue(
                     file_path=file_path,
@@ -100,7 +98,7 @@ def _find_strawberry_imports(content: str, file_path: str) -> List[MigrationIssu
     return issues
 
 
-def _find_strawberry_decorators(content: str, file_path: str) -> List[MigrationIssue]:
+def _find_strawberry_decorators(content: str, file_path: str) -> list[MigrationIssue]:
     """Find Strawberry decorator usage."""
     issues = []
     lines = content.splitlines()
@@ -131,7 +129,7 @@ def _find_strawberry_decorators(content: str, file_path: str) -> List[MigrationI
     return issues
 
 
-def _find_strawberry_patterns(content: str, file_path: str) -> List[MigrationIssue]:
+def _find_strawberry_patterns(content: str, file_path: str) -> list[MigrationIssue]:
     """Find Strawberry-specific patterns that need attention."""
     issues = []
     lines = content.splitlines()
@@ -161,12 +159,10 @@ def _find_strawberry_patterns(content: str, file_path: str) -> List[MigrationIss
     return issues
 
 
-def generate_migration_report(issues: List[MigrationIssue]) -> str:
+def generate_migration_report(issues: list[MigrationIssue]) -> str:
     """Generate a human-readable migration report."""
     if not issues:
-        return (
-            "✅ No Strawberry patterns found. Your codebase appears ready for FraiseQL!"
-        )
+        return "✅ No Strawberry patterns found. Your codebase appears ready for FraiseQL!"
 
     report = f"🔍 Found {len(issues)} migration issues:\n\n"
 

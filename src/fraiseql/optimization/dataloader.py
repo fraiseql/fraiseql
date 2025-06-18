@@ -2,14 +2,11 @@
 
 import asyncio
 from abc import ABC, abstractmethod
-from collections.abc import Hashable
+from collections.abc import Callable, Hashable
 from contextlib import asynccontextmanager
 from typing import (
     Any,
-    Callable,
-    Dict,
     Generic,
-    List,
     Optional,
     TypeVar,
 )
@@ -30,20 +27,20 @@ class DataLoader(Generic[K, V], ABC):
         batch_load_fn: Optional[Callable] = None,
         max_batch_size: int = 1000,
         cache: bool = True,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         self._batch_load_fn = batch_load_fn
         self._max_batch_size = max_batch_size
         self._cache_enabled = cache
 
         # Per-request state
-        self._cache: Dict[K, V] = {}
-        self._queue: List[K] = []
+        self._cache: dict[K, V] = {}
+        self._queue: list[K] = []
         self._batch_promise: Optional[asyncio.Future] = None
         self._dispatch_scheduled = False
 
     @abstractmethod
-    async def batch_load(self, keys: List[K]) -> List[Optional[V]]:
+    async def batch_load(self, keys: list[K]) -> list[Optional[V]]:
         """
         Load multiple keys in a single batch.
 
@@ -77,7 +74,7 @@ class DataLoader(Generic[K, V], ABC):
         # Return from cache
         return self._cache.get(key)
 
-    async def load_many(self, keys: List[K]) -> List[Optional[V]]:
+    async def load_many(self, keys: list[K]) -> list[Optional[V]]:
         """Load multiple keys."""
         tasks = [self.load(key) for key in keys]
         return await asyncio.gather(*tasks)
@@ -129,8 +126,7 @@ class DataLoader(Generic[K, V], ABC):
                 # Validate results
                 if len(results) != len(batch):
                     raise ValueError(
-                        f"batch_load must return {len(batch)} results, "
-                        f"got {len(results)}"
+                        f"batch_load must return {len(batch)} results, " f"got {len(results)}"
                     )
 
                 # Cache results
@@ -149,9 +145,7 @@ class DataLoader(Generic[K, V], ABC):
             # Log the actual error for debugging but don't expose internals
             import logging
 
-            logging.error(
-                f"DataLoader batch_load failed: {type(e).__name__}", exc_info=True
-            )
+            logging.error(f"DataLoader batch_load failed: {type(e).__name__}", exc_info=True)
 
             # Create safe exception for public consumption
             safe_exception = RuntimeError(
@@ -168,8 +162,8 @@ class DataLoader(Generic[K, V], ABC):
             self._dispatch_scheduled = False
 
     def sort_by_keys(
-        self, items: List[Dict[str, Any]], keys: List[K], key_field: str = "id"
-    ) -> List[Optional[V]]:
+        self, items: list[dict[str, Any]], keys: list[K], key_field: str = "id"
+    ) -> list[Optional[V]]:
         """Helper to sort results to match key order."""
         # Create lookup map
         item_map = {item[key_field]: item for item in items}

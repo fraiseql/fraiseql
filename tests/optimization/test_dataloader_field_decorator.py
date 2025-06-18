@@ -188,9 +188,7 @@ def test_dataloader_field_adds_metadata():
 
 def test_dataloader_field_generates_schema_field(register_test_queries):
     """Test that @dataloader_field decorated methods appear in GraphQL schema."""
-    app = create_fraiseql_app(
-        database_url="postgresql://test/test", types=[User, Post, Comment]
-    )
+    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 
     with TestClient(app) as client:
         # Test introspection to verify field exists
@@ -216,18 +214,14 @@ def test_dataloader_field_generates_schema_field(register_test_queries):
         data = response.json()
 
         # Should have author field from @dataloader_field
-        fields = {
-            f["name"]: f["type"]["name"] for f in data["data"]["__type"]["fields"]
-        }
+        fields = {f["name"]: f["type"]["name"] for f in data["data"]["__type"]["fields"]}
         assert "author" in fields
         assert fields["author"] == "User"
 
 
 def test_dataloader_field_automatic_resolution(register_test_queries):
     """Test that @dataloader_field automatically resolves using DataLoader."""
-    app = create_fraiseql_app(
-        database_url="postgresql://test/test", types=[User, Post, Comment]
-    )
+    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 
     with TestClient(app) as client:
         # Query that should automatically use DataLoader for author resolution
@@ -262,9 +256,7 @@ def test_dataloader_field_automatic_resolution(register_test_queries):
 
 def test_dataloader_field_batching(register_test_queries):
     """Test that @dataloader_field properly batches multiple field resolutions."""
-    app = create_fraiseql_app(
-        database_url="postgresql://test/test", types=[User, Post, Comment]
-    )
+    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 
     # We need a way to track DataLoader calls to verify batching
     # This would require access to the actual DataLoader instance
@@ -300,9 +292,7 @@ def test_dataloader_field_batching(register_test_queries):
 
 def test_dataloader_field_with_multiple_loaders(register_test_queries):
     """Test @dataloader_field works with different DataLoader types."""
-    app = create_fraiseql_app(
-        database_url="postgresql://test/test", types=[User, Post, Comment]
-    )
+    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 
     with TestClient(app) as client:
         # Query that uses both UserDataLoader and PostDataLoader
@@ -354,9 +344,7 @@ def test_dataloader_field_error_handling():
 
 def test_dataloader_field_without_key_field():
     """Test that @dataloader_field requires key_field parameter."""
-    with pytest.raises(
-        TypeError, match="missing 1 required keyword-only argument: 'key_field'"
-    ):
+    with pytest.raises(TypeError, match="missing 1 required keyword-only argument: 'key_field'"):
 
         @fraiseql.type
         class InvalidType:
@@ -393,9 +381,7 @@ def test_dataloader_field_with_custom_resolver(register_test_queries):
             return None
 
     # Test that custom logic works
-    app = create_fraiseql_app(
-        database_url="postgresql://test/test", types=[User, CustomPost]
-    )
+    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, CustomPost])
 
     # This test verifies the decorator doesn't interfere with custom logic
     assert True  # Would need actual query test when implemented
@@ -403,9 +389,7 @@ def test_dataloader_field_with_custom_resolver(register_test_queries):
 
 def test_dataloader_field_schema_introspection(register_test_queries):
     """Test that @dataloader_field decorated fields show up in schema introspection."""
-    app = create_fraiseql_app(
-        database_url="postgresql://test/test", types=[User, Post, Comment]
-    )
+    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 
     with TestClient(app) as client:
         # Get full schema to verify all fields are present
