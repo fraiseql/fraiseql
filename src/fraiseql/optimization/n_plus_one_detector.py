@@ -308,7 +308,7 @@ def track_resolver_execution(func):
 
                 # Create a task to track asynchronously
                 field_name = info.field_name
-                task = asyncio.create_task(
+                _ = asyncio.create_task(  # noqa: RUF006
                     detector.track_field_resolution(info, field_name, execution_time)
                 )
 
@@ -316,7 +316,7 @@ def track_resolver_execution(func):
             except Exception:
                 execution_time = time.time() - start_time
                 field_name = info.field_name
-                task = asyncio.create_task(
+                _ = asyncio.create_task(  # noqa: RUF006
                     detector.track_field_resolution(info, field_name, execution_time)
                 )
                 raise

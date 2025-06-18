@@ -63,7 +63,7 @@ class DataLoader(Generic[K, V], ABC):
         # Schedule batch dispatch
         if not self._dispatch_scheduled:
             self._dispatch_scheduled = True
-            task = asyncio.create_task(self._dispatch_batch())
+            _ = asyncio.create_task(self._dispatch_batch())  # noqa: RUF006
 
         # Wait for batch to complete
         if not self._batch_promise:

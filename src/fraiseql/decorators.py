@@ -145,13 +145,13 @@ def field(
                             result = func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
                         # Create task to track asynchronously
-                        task = asyncio.create_task(
+                        _ = asyncio.create_task(  # noqa: RUF006
                             detector.track_field_resolution(info, info.field_name, execution_time)
                         )
                         return result
                     except Exception:
                         execution_time = time.time() - start_time
-                        task = asyncio.create_task(
+                        _ = asyncio.create_task(  # noqa: RUF006
                             detector.track_field_resolution(info, info.field_name, execution_time)
                         )
                         raise
