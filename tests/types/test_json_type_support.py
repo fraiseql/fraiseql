@@ -72,7 +72,7 @@ class TestJSONTypeSupport:
                 json={
                     "query": """
                         query {
-                            get_config {
+                            getConfig {
                                 id
                                 name
                                 settings
@@ -87,7 +87,7 @@ class TestJSONTypeSupport:
             data = response.json()
             assert "data" in data
 
-            config = data["data"]["get_config"]
+            config = data["data"]["getConfig"]
             assert config["settings"]["theme"] == "dark"
             assert config["settings"]["features"] == ["feature1", "feature2"]
             assert config["metadata"]["version"] == "1.0.0"
@@ -128,7 +128,7 @@ class TestJSONTypeSupport:
                 json={
                     "query": """
                         query {
-                            get_document {
+                            getDocument {
                                 id
                                 title
                                 content
@@ -142,7 +142,7 @@ class TestJSONTypeSupport:
             data = response.json()
             assert "data" in data
 
-            doc = data["data"]["get_document"]
+            doc = data["data"]["getDocument"]
             assert len(doc["content"]["sections"]) == 2
             assert doc["content"]["metadata"]["author"] == "John Doe"
 
@@ -189,7 +189,7 @@ class TestJSONTypeSupport:
                 json={
                     "query": """
                         mutation {
-                            create_document(input: {
+                            createDocument(input: {
                                 title: "New Document"
                                 content: {
                                     text: "Hello World"
@@ -214,7 +214,7 @@ class TestJSONTypeSupport:
             data = response.json()
             assert "data" in data
 
-            doc = data["data"]["create_document"]
+            doc = data["data"]["createDocument"]
             assert doc["title"] == "New Document"
             assert doc["content"]["text"] == "Hello World"
             assert doc["content"]["metadata"]["created"] == "2024-01-01"
@@ -266,7 +266,7 @@ class TestJSONTypeSupport:
                 json={
                     "query": """
                         query {
-                            get_api_response {
+                            getApiResponse {
                                 status
                                 data
                             }
@@ -279,7 +279,7 @@ class TestJSONTypeSupport:
             data = response.json()
             assert "data" in data
 
-            api_response = data["data"]["get_api_response"]
+            api_response = data["data"]["getApiResponse"]
             assert api_response["status"] == "success"
 
             # Test nested access
@@ -301,7 +301,7 @@ class TestJSONTypeSupport:
             metadata: Optional[Dict[str, Any]] = None
 
         @fraiseql.query
-        async def getUsers(info) -> List[User]:
+        async def get_users(info) -> List[User]:
             return [
                 User(
                     id=UUID("123e4567-e89b-12d3-a456-426614174000"),
@@ -392,7 +392,7 @@ class TestJSONTypeSupport:
                 json={
                     "query": """
                         query {
-                            get_product {
+                            getProduct {
                                 id
                                 name
                                 specifications
@@ -406,7 +406,7 @@ class TestJSONTypeSupport:
             data = response.json()
             assert "data" in data
 
-            product = data["data"]["get_product"]
+            product = data["data"]["getProduct"]
             specs = product["specifications"]
             assert specs["dimensions"]["width"] == 10
             assert "plastic" in specs["materials"]
@@ -456,8 +456,8 @@ class TestJSONValidation:
                 json={
                     "query": """
                         mutation {
-                            update_settings(input: {
-                                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                            updateSettings(input: {
+                                userId: "123e4567-e89b-12d3-a456-426614174000"
                                 settings: {
                                     theme: "dark"
                                     language: "en"
@@ -473,7 +473,8 @@ class TestJSONValidation:
 
             assert response.status_code == 200
             data = response.json()
-            assert data["data"]["update_settings"]["success"] is True
+            assert "data" in data, f"Response had errors: {data}"
+            assert data["data"]["updateSettings"]["success"] is True
 
             # Test with invalid settings
             response = client.post(
@@ -481,8 +482,8 @@ class TestJSONValidation:
                 json={
                     "query": """
                         mutation {
-                            update_settings(input: {
-                                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                            updateSettings(input: {
+                                userId: "123e4567-e89b-12d3-a456-426614174000"
                                 settings: {
                                     language: "en"
                                 }
@@ -497,6 +498,6 @@ class TestJSONValidation:
 
             assert response.status_code == 200
             data = response.json()
-            result = data["data"]["update_settings"]
+            result = data["data"]["updateSettings"]
             assert result["success"] is False
             assert "theme" in result["message"]

@@ -50,7 +50,7 @@ async def get_error(info) -> ErrorWithDetails:
     )
 
 
-async def get_config(info) -> ConfigType:
+async def getConfig(info) -> ConfigType:
     """Return configuration."""
     return ConfigType(
         name="app_config",
@@ -144,7 +144,7 @@ async def test_query_execution_with_json():
                 code
                 details
             }
-            get_config {
+            getConfig {
                 name
                 settings
             }

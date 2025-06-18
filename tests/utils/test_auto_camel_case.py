@@ -15,7 +15,7 @@ class TestAutoCamelCase:
         field_paths = [
             FieldPath(alias="firstName", path=["first_name"]),  # path is transformed
             FieldPath(alias="lastName", path=["last_name"]),  # path is transformed
-            FieldPath(alias="isActive", path=["isActive"]),  # path is transformed
+            FieldPath(alias="isActive", path=["is_active"]),  # path is transformed
         ]
 
         sql = build_sql_query(
@@ -57,8 +57,8 @@ class TestAutoCamelCase:
         """Test JSON output with camelCase to snake_case conversion."""
         # Field paths should already be transformed by extract_flat_paths
         field_paths = [
-            FieldPath(alias="userId", path=["userId"]),
-            FieldPath(alias="createdAt", path=["createdAt"]),
+            FieldPath(alias="userId", path=["user_id"]),
+            FieldPath(alias="createdAt", path=["created_at"]),
         ]
 
         sql = build_sql_query(
@@ -152,7 +152,7 @@ class TestAutoCamelCase:
         """Test that already snake_case fields are not affected."""
         field_paths = [
             FieldPath(alias="user_name", path=["user_name"]),
-            FieldPath(alias="createdAt", path=["createdAt"]),
+            FieldPath(alias="createdAt", path=["created_at"]),
         ]
 
         sql = build_sql_query(
@@ -164,7 +164,7 @@ class TestAutoCamelCase:
         sql_str = sql.as_string(None)
         # Should remain unchanged
         assert "data->>'user_name' AS \"user_name\"" in sql_str
-        assert "data->>'created_at' AS \"created_at\"" in sql_str
+        assert "data->>'created_at' AS \"createdAt\"" in sql_str
 
     def test_special_cases(self):
         """Test special cases in camelCase to snake_case conversion."""
