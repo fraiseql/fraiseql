@@ -169,11 +169,11 @@ class TestCursorPaginator:
         async with conn.cursor() as cursor:
             # Insert test items
             test_data = [
-                {"id": "id1", "name": "Item 1", "created_at": "2024-01-01"},
-                {"id": "id2", "name": "Item 2", "created_at": "2024-01-02"},
-                {"id": "id3", "name": "Item 3", "created_at": "2024-01-03"},
-                {"id": "id4", "name": "Item 4", "created_at": "2024-01-04"},
-                {"id": "id5", "name": "Item 5", "created_at": "2024-01-05"},
+                {"id": "id1", "name": "Item 1", "createdAt": "2024-01-01"},
+                {"id": "id2", "name": "Item 2", "createdAt": "2024-01-02"},
+                {"id": "id3", "name": "Item 3", "createdAt": "2024-01-03"},
+                {"id": "id4", "name": "Item 4", "createdAt": "2024-01-04"},
+                {"id": "id5", "name": "Item 5", "createdAt": "2024-01-05"},
             ]
 
             for item in test_data:
@@ -193,7 +193,7 @@ class TestCursorPaginator:
         await self.setup_test_data(db_connection)
 
         paginator = CursorPaginator(db_connection)
-        params = PaginationParams(first=2, order_by="created_at")
+        params = PaginationParams(first=2, order_by="createdAt")
         result = await paginator.paginate("v_items", params)
 
         # Check structure
@@ -224,7 +224,7 @@ class TestCursorPaginator:
 
         paginator = CursorPaginator(db_connection)
         params = PaginationParams(
-            first=2, after=encode_cursor("2024-01-02"), order_by="created_at"
+            first=2, after=encode_cursor("2024-01-02"), order_by="createdAt"
         )
         result = await paginator.paginate("v_items", params, include_total=False)
 
@@ -241,7 +241,7 @@ class TestCursorPaginator:
 
         paginator = CursorPaginator(db_connection)
         params = PaginationParams(
-            last=2, before=encode_cursor("2024-01-04"), order_by="created_at"
+            last=2, before=encode_cursor("2024-01-04"), order_by="createdAt"
         )
         result = await paginator.paginate("v_items", params, include_total=False)
 
@@ -264,7 +264,7 @@ class TestCursorPaginator:
                     psycopg.types.json.Json(
                         {
                             "name": "Special Item",
-                            "created_at": "2024-01-06",
+                            "createdAt": "2024-01-06",
                             "special": True,
                         }
                     ),
@@ -273,7 +273,7 @@ class TestCursorPaginator:
             await db_connection.commit()
 
         paginator = CursorPaginator(db_connection)
-        params = PaginationParams(first=10, order_by="created_at")
+        params = PaginationParams(first=10, order_by="createdAt")
 
         # Filter for special items
         result = await paginator.paginate(
@@ -309,7 +309,7 @@ class TestRepositoryIntegration:
         # Set up test data
         async with db_connection.cursor() as cursor:
             test_items = [
-                {"id": f"id{i}", "name": f"Item {i}", "created_at": f"2024-01-{i:02d}"}
+                {"id": f"id{i}", "name": f"Item {i}", "createdAt": f"2024-01-{i:02d}"}
                 for i in range(1, 11)
             ]
 
@@ -326,7 +326,7 @@ class TestRepositoryIntegration:
         # Test pagination through repository
         repo = CQRSRepository(db_connection)
         result = await repo.paginate(
-            "v_items", first=5, order_by="created_at", order_direction="DESC"
+            "v_items", first=5, order_by="createdAt", order_direction="DESC"
         )
 
         # Should return items in descending order

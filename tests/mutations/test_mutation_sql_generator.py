@@ -155,9 +155,9 @@ class TestGenerateInsertJsonCall:
 
         query = generate_insert_json_call(
             input_object=input_obj,
-            context={"org_id": "org_123", "user_id": "user_456"},
+            context={"org_id": "org_123", "userId": "user_456"},
             sql_function_name="update_user",
-            context_keys=("org_id", "user_id"),  # Custom keys instead of default
+            context_keys=("org_id", "userId"),  # Custom keys instead of default
         )
 
         # Check custom context parameters are included

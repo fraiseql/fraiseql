@@ -128,7 +128,7 @@ class TestStrawberryCompatibilityLayer:
             email: str
 
         @fraiseql.query
-        async def get_user(info, id: UUID) -> User:
+        async def getUser(info, id: UUID) -> User:
             return User(id=id, name="Test User", email="test@example.com")
 
         app = create_fraiseql_app(
@@ -174,7 +174,7 @@ class TestStrawberryCompatibilityLayer:
                 return f"User: {self.name}"
 
         @fraiseql.query
-        async def get_user(info) -> User:
+        async def getUser(info) -> User:
             return User(id=UUID("123e4567-e89b-12d3-a456-426614174000"), name="John")
 
         app = create_fraiseql_app(
@@ -216,20 +216,20 @@ class TestStrawberryCompatibilityLayer:
         @fraiseql.query
         async def get_current_user(info) -> Optional[User]:
             # Should work like Strawberry's info.context
-            # In Strawberry: user_id = info.context["request"].user.id
+            # In Strawberry: userId = info.context["request"].user.id
             # In FraiseQL: should work similarly
             context = info.context
 
-            # For this test, we'll simulate a user_id in context
-            if "user_id" in context:
-                return User(id=context["user_id"], name="Context User")
+            # For this test, we'll simulate a userId in context
+            if "userId" in context:
+                return User(id=context["userId"], name="Context User")
             return None
 
         # Custom context that mimics Strawberry patterns
         async def get_context(request):
             return {
                 "request": request,
-                "user_id": UUID("123e4567-e89b-12d3-a456-426614174000"),
+                "userId": UUID("123e4567-e89b-12d3-a456-426614174000"),
                 # Other Strawberry-like context items
             }
 
@@ -289,11 +289,11 @@ class TestStrawberryDataLoaderMigration:
                 # Simulate database batch fetch (like in Strawberry)
                 return [
                     User(
-                        id=user_id,
-                        name=f"User {user_id}",
-                        email=f"user-{user_id}@example.com",
+                        id=userId,
+                        name=f"User {userId}",
+                        email=f"user-{userId}@example.com",
                     )
-                    for user_id in user_ids
+                    for userId in user_ids
                 ]
 
         @fraiseql.type
@@ -311,7 +311,7 @@ class TestStrawberryDataLoaderMigration:
                 return await loader.load(self.author_id)
 
         @fraiseql.query
-        async def get_posts(info) -> List[Post]:
+        async def getPosts(info) -> List[Post]:
             return [
                 Post(
                     id=UUID(f"00000000-0000-0000-0000-{i:012x}"),
@@ -333,8 +333,7 @@ class TestStrawberryDataLoaderMigration:
                 "/graphql",
                 json={
                     "query": """
-                        query {
-                            get_posts {
+                        query { getPosts {
                                 id
                                 title
                                 author {
@@ -350,10 +349,10 @@ class TestStrawberryDataLoaderMigration:
             assert response.status_code == 200
             data = response.json()
             assert "data" in data
-            assert len(data["data"]["get_posts"]) == 3
+            assert len(data["data"]["getPosts"]) == 3
 
             # Should use DataLoader (no N+1)
-            for post in data["data"]["get_posts"]:
+            for post in data["data"]["getPosts"]:
                 assert post["author"]["name"].startswith("User")
 
 
@@ -376,7 +375,7 @@ class TestStrawberryMutationMigration:
 
         # This should work like Strawberry mutations
         @fraiseql.mutation
-        async def create_user(info, input: CreateUserInput) -> User:
+        async def createUser(info, input: CreateUserInput) -> User:
             """Migrated from Strawberry mutation style."""
             return User(
                 id=UUID("123e4567-e89b-12d3-a456-426614174000"),
@@ -402,8 +401,7 @@ class TestStrawberryMutationMigration:
                 "/graphql",
                 json={
                     "query": """
-                        mutation {
-                            create_user(input: {
+                        mutation { createUser(input: {
                                 name: "John Doe"
                                 email: "john@example.com"
                             }) {
@@ -419,8 +417,8 @@ class TestStrawberryMutationMigration:
             assert response.status_code == 200
             data = response.json()
             assert "data" in data
-            assert data["data"]["create_user"]["name"] == "John Doe"
-            assert data["data"]["create_user"]["email"] == "john@example.com"
+            assert data["data"]["createUser"]["name"] == "John Doe"
+            assert data["data"]["createUser"]["email"] == "john@example.com"
 
 
 class TestMigrationUtilities:
@@ -490,7 +488,7 @@ class TestStrawberryFeatureParity:
             role: UserRole
 
         @fraiseql.query
-        async def get_user(info) -> User:
+        async def getUser(info) -> User:
             return User(
                 id=UUID("123e4567-e89b-12d3-a456-426614174000"),
                 name="Admin User",

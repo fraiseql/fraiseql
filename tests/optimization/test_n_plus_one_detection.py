@@ -43,7 +43,7 @@ class Article:
     id: UUID
     title: str
     content: str
-    author_id: UUID
+    authorId: UUID
 
     @fraiseql.field
     async def author(self, info) -> Optional[Author]:
@@ -51,26 +51,26 @@ class Article:
         # This simulates a database query - in real app would hit DB
         # For testing, just return mock data
         return Author(
-            id=self.author_id,
-            name=f"Author {self.author_id}",
-            email=f"author-{self.author_id}@example.com",
+            id=self.authorId,
+            name=f"Author {self.authorId}",
+            email=f"author-{self.authorId}@example.com",
         )
 
 
 # Query that will trigger N+1
 @fraiseql.query
-async def get_articles(info) -> List[Article]:
+async def getArticles(info) -> List[Article]:
     """Get multiple articles - this will trigger N+1 when fetching authors."""
     # Return 15 articles with different authors
     articles = []
     for i in range(15):
-        author_id = uuid4()
+        authorId = uuid4()
         articles.append(
             Article(
                 id=uuid4(),
                 title=f"Article {i}",
                 content=f"Content for article {i}",
-                author_id=author_id,
+                author_id=authorId,
             )
         )
     return articles
@@ -78,7 +78,7 @@ async def get_articles(info) -> List[Article]:
 
 # Query that won't trigger N+1 (single item)
 @fraiseql.query
-async def get_article(info, id: UUID) -> Optional[Article]:
+async def getArticle(info, id: UUID) -> Optional[Article]:
     """Get a single article."""
     return Article(
         id=id,
@@ -109,7 +109,7 @@ def test_n1_detection_triggers_warning(caplog):
                 json={
                     "query": """
                         query {
-                            get_articles {
+                            getArticles {
                                 id
                                 title
                                 author {
@@ -128,7 +128,7 @@ def test_n1_detection_triggers_warning(caplog):
 
             # Query should succeed
             assert "data" in data
-            assert len(data["data"]["get_articles"]) == 15
+            assert len(data["data"]["getArticles"]) == 15
 
             # Check for N+1 warning in logs
             warning_found = any(
@@ -164,7 +164,7 @@ def test_n1_detection_with_raise_enabled():
             json={
                 "query": """
                     query {
-                        get_articles {
+                        getArticles {
                             id
                             title
                             author {
@@ -212,7 +212,7 @@ def test_n1_detection_respects_threshold():
             json={
                 "query": """
                     query {
-                        get_articles {
+                        getArticles {
                             id
                             author {
                                 name
@@ -247,7 +247,7 @@ def test_n1_detection_disabled_in_production():
             json={
                 "query": """
                     query {
-                        get_articles {
+                        getArticles {
                             id
                             author {
                                 name
@@ -290,7 +290,7 @@ def test_n1_detection_single_query_no_warning(caplog):
                 json={
                     "query": f"""
                         query {{
-                            get_article(id: "{article_id}") {{
+                            getArticle(id: "{article_id}") {{
                                 id
                                 title
                                 author {{

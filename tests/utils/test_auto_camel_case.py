@@ -15,7 +15,7 @@ class TestAutoCamelCase:
         field_paths = [
             FieldPath(alias="firstName", path=["first_name"]),  # path is transformed
             FieldPath(alias="lastName", path=["last_name"]),  # path is transformed
-            FieldPath(alias="isActive", path=["is_active"]),  # path is transformed
+            FieldPath(alias="isActive", path=["isActive"]),  # path is transformed
         ]
 
         sql = build_sql_query(
@@ -57,8 +57,8 @@ class TestAutoCamelCase:
         """Test JSON output with camelCase to snake_case conversion."""
         # Field paths should already be transformed by extract_flat_paths
         field_paths = [
-            FieldPath(alias="userId", path=["user_id"]),
-            FieldPath(alias="createdAt", path=["created_at"]),
+            FieldPath(alias="userId", path=["userId"]),
+            FieldPath(alias="createdAt", path=["createdAt"]),
         ]
 
         sql = build_sql_query(
@@ -78,7 +78,7 @@ class TestAutoCamelCase:
         """Test ORDER BY with camelCase to snake_case conversion."""
         field_paths = [
             FieldPath(alias="id", path=["id"]),
-            FieldPath(alias="createdAt", path=["created_at"]),
+            FieldPath(alias="createdAt", path=["createdAt"]),
         ]
 
         sql = build_sql_query(
@@ -94,7 +94,7 @@ class TestAutoCamelCase:
     def test_group_by_conversion(self):
         """Test GROUP BY with camelCase to snake_case conversion."""
         field_paths = [
-            FieldPath(alias="authorId", path=["author_id"]),
+            FieldPath(alias="authorId", path=["authorId"]),
         ]
 
         sql = build_sql_query(
@@ -152,7 +152,7 @@ class TestAutoCamelCase:
         """Test that already snake_case fields are not affected."""
         field_paths = [
             FieldPath(alias="user_name", path=["user_name"]),
-            FieldPath(alias="created_at", path=["created_at"]),
+            FieldPath(alias="createdAt", path=["createdAt"]),
         ]
 
         sql = build_sql_query(

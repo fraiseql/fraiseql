@@ -105,7 +105,7 @@ def test_order_by_single_field():
             FieldPath(alias="name", path=["name"]),
             FieldPath(alias="email", path=["email"]),
         ],
-        order_by=[("created_at", "desc")],
+        order_by=[("createdAt", "desc")],
     )
 
     sql_str = query.as_string(None)
@@ -238,7 +238,7 @@ def test_json_output_with_order_by():
         ],
         json_output=True,
         typename="User",
-        order_by=[("profile.fullName", "asc"), ("created_at", "desc")],
+        order_by=[("profile.fullName", "asc"), ("createdAt", "desc")],
     )
 
     sql_str = query.as_string(None)

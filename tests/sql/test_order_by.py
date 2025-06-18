@@ -17,7 +17,7 @@ def test_order_by_set_multiple():
     obs = OrderBySet(
         [
             OrderBy(field="profile.last_name", direction="asc"),
-            OrderBy(field="created_at", direction="desc"),
+            OrderBy(field="createdAt", direction="desc"),
         ],
     )
     result = obs.to_sql().as_string(None)

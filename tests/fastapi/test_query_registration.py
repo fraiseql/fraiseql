@@ -68,7 +68,7 @@ class QueryRoot:
         return "1.0.0"
 
     @fraiseql.field
-    async def post_count(self, root, info) -> int:
+    async def postCount(self, root, info) -> int:
         """Get total post count."""
         return 42
 

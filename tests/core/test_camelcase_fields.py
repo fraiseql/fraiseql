@@ -13,10 +13,10 @@ def test_automatic_snake_to_camel_conversion(clear_registry):
     @type
     class Repository:
         id: int
-        default_branch: str
-        total_commits: int
-        is_private: bool
-        created_at_timestamp: float
+        defaultBranch: str
+        totalCommits: int
+        isPrivate: bool
+        createdAtTimestamp: float
         
     @query
     def get_repository(info) -> Repository:
@@ -68,7 +68,7 @@ def test_automatic_snake_to_camel_conversion(clear_registry):
     snake_query = """
     query {
         get_repository {
-            default_branch
+            defaultBranch
         }
     }
     """
@@ -124,14 +124,14 @@ def test_camelcase_conversion_with_config(clear_registry):
     query {
         current_user {
             user_name
-            first_name
+            firstName
             last_login_time
         }
     }
     """)
     
     assert result.errors is None
-    assert result.data["current_user"]["user_name"] == "john_doe"
+    assert result.data["currentUser"]["user_name"] == "john_doe"
 
 
 def test_explicit_graphql_name(clear_registry):

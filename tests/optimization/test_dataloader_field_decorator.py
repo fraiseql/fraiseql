@@ -30,8 +30,8 @@ def register_test_queries():
     registry = SchemaRegistry.get_instance()
 
     # Re-register the query functions
-    registry.register_query(get_post)
-    registry.register_query(get_comment)
+    registry.register_query(getPost)
+    registry.register_query(getComment)
 
     return registry
 
@@ -64,7 +64,7 @@ class UserDataLoader(DataLoader[UUID, Dict]):
         }
 
         results = []
-        for user_id in user_ids:
+        for userId in user_ids:
             user_data = users_db.get(user_id)
             results.append(user_data)
 
@@ -86,7 +86,7 @@ class PostDataLoader(DataLoader[UUID, Dict]):
                 "id": UUID("123e4567-e89b-12d3-a456-426614174000"),
                 "title": "Test Post",
                 "content": "Test content",
-                "author_id": UUID("223e4567-e89b-12d3-a456-426614174001"),
+                "authorId": UUID("223e4567-e89b-12d3-a456-426614174001"),
             }
         }
 
@@ -111,9 +111,9 @@ class Post:
     id: UUID
     title: str
     content: str
-    author_id: UUID
+    authorId: UUID
 
-    @fraiseql.dataloader_field(UserDataLoader, key_field="author_id")
+    @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
     async def author(self, info) -> Optional[User]:
         """Load author using DataLoader automatically."""
         # This should be auto-implemented by the decorator
@@ -124,15 +124,15 @@ class Post:
 class Comment:
     id: UUID
     content: str
-    author_id: UUID
-    post_id: UUID
+    authorId: UUID
+    postId: UUID
 
-    @fraiseql.dataloader_field(UserDataLoader, key_field="author_id")
+    @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
     async def author(self, info) -> Optional[User]:
         """Load comment author using DataLoader."""
         pass
 
-    @fraiseql.dataloader_field(PostDataLoader, key_field="post_id")
+    @fraiseql.dataloader_field(PostDataLoader, key_field="postId")
     async def post(self, info) -> Optional[Post]:
         """Load comment post using DataLoader."""
         pass
@@ -140,27 +140,27 @@ class Comment:
 
 # Test queries
 @fraiseql.query
-async def get_post(info, id: UUID) -> Optional[Post]:
+async def getPost(info, id: UUID) -> Optional[Post]:
     """Get a post by ID."""
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
         return Post(
             id=id,
             title="Test Post",
             content="Test content",
-            author_id=UUID("223e4567-e89b-12d3-a456-426614174001"),
+            authorId=UUID("223e4567-e89b-12d3-a456-426614174001"),
         )
     return None
 
 
 @fraiseql.query
-async def get_comment(info, id: UUID) -> Optional[Comment]:
+async def getComment(info, id: UUID) -> Optional[Comment]:
     """Get a comment by ID."""
     if str(id) == "323e4567-e89b-12d3-a456-426614174002":
         return Comment(
             id=id,
             content="Great post!",
-            author_id=UUID("323e4567-e89b-12d3-a456-426614174002"),
-            post_id=UUID("123e4567-e89b-12d3-a456-426614174000"),
+            authorId=UUID("323e4567-e89b-12d3-a456-426614174002"),
+            postId=UUID("123e4567-e89b-12d3-a456-426614174000"),
         )
     return None
 
@@ -183,7 +183,7 @@ def test_dataloader_field_adds_metadata():
 
     metadata = Post.author.__fraiseql_dataloader__
     assert metadata["loader_class"] == UserDataLoader
-    assert metadata["key_field"] == "author_id"
+    assert metadata["key_field"] == "authorId"
 
 
 def test_dataloader_field_generates_schema_field(register_test_queries):
@@ -236,7 +236,7 @@ def test_dataloader_field_automatic_resolution(register_test_queries):
             json={
                 "query": """
                     query {
-                        get_post(id: "123e4567-e89b-12d3-a456-426614174000") {
+                        getPost(id: "123e4567-e89b-12d3-a456-426614174000") {
                             id
                             title
                             author {
@@ -254,7 +254,7 @@ def test_dataloader_field_automatic_resolution(register_test_queries):
         data = response.json()
 
         # Should successfully resolve author using DataLoader
-        post = data["data"]["get_post"]
+        post = data["data"]["getPost"]
         assert post["title"] == "Test Post"
         assert post["author"]["name"] == "John Doe"
         assert post["author"]["email"] == "john@example.com"
@@ -275,10 +275,10 @@ def test_dataloader_field_batching(register_test_queries):
             json={
                 "query": """
                     query {
-                        post: get_post(id: "123e4567-e89b-12d3-a456-426614174000") {
+                        post: getPost(id: "123e4567-e89b-12d3-a456-426614174000") {
                             author { name }
                         }
-                        comment: get_comment(id: "323e4567-e89b-12d3-a456-426614174002") {
+                        comment: getComment(id: "323e4567-e89b-12d3-a456-426614174002") {
                             author { name }
                             post {
                                 author { name }
@@ -311,7 +311,7 @@ def test_dataloader_field_with_multiple_loaders(register_test_queries):
             json={
                 "query": """
                     query {
-                        get_comment(id: "323e4567-e89b-12d3-a456-426614174002") {
+                        getComment(id: "323e4567-e89b-12d3-a456-426614174002") {
                             id
                             content
                             author {
@@ -333,7 +333,7 @@ def test_dataloader_field_with_multiple_loaders(register_test_queries):
         assert response.status_code == 200
         data = response.json()
 
-        comment = data["data"]["get_comment"]
+        comment = data["data"]["getComment"]
         assert comment["content"] == "Great post!"
         assert comment["author"]["name"] == "Jane Smith"
         assert comment["post"]["title"] == "Test Post"
@@ -371,18 +371,18 @@ def test_dataloader_field_with_custom_resolver(register_test_queries):
     @fraiseql.type
     class CustomPost:
         id: UUID
-        author_id: UUID
+        authorId: UUID
 
-        @fraiseql.dataloader_field(UserDataLoader, key_field="author_id")
+        @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
         async def author(self, info) -> Optional[User]:
             """Custom logic before DataLoader."""
-            if not self.author_id:
+            if not self.authorId:
                 return None
 
             # Custom logic can be added here
             # The decorator should still handle the DataLoader call
             loader = get_loader(UserDataLoader)
-            user_data = await loader.load(self.author_id)
+            user_data = await loader.load(self.authorId)
 
             if user_data:
                 # Custom processing

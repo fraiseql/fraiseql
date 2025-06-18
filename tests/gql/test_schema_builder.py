@@ -63,7 +63,7 @@ def test_schema_introspection_v2(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
+    async def createUser(
         info, input: CreateUserInput
     ) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
@@ -120,7 +120,7 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
+    async def createUser(
         info, input: CreateUserInput
     ) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
@@ -141,7 +141,7 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
 
     info = MockInfo(context_value={"tenant_id": "demo", "contact_id": "test"})
     user_input = CreateUserInput(email="hello@fraise.dev")
-    result = await create_user(info, user_input)
+    result = await createUser(info, user_input)
 
     assert isinstance(result, CreateUserSuccess), (
         f"Expected success but got: {type(result).__name__} with fields: {vars(result)}"
@@ -204,7 +204,7 @@ def test_schema_structure(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
+    async def createUser(
         info, input: CreateUserInput
     ) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(
@@ -260,7 +260,7 @@ async def test_manual_mutation_execution_v3(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
+    async def createUser(
         info, input: CreateUserInput
     ) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
@@ -281,7 +281,7 @@ async def test_manual_mutation_execution_v3(clear_registry) -> None:
 
     info = MockInfo(context_value={"tenant_id": "demo", "contact_id": "test"})
     user_input = CreateUserInput(email="hello@example.com")
-    result = await create_user(info, user_input)
+    result = await createUser(info, user_input)
 
     assert isinstance(result, CreateUserSuccess)
     assert result.status == "ok"
@@ -319,7 +319,7 @@ def test_mutation_through_graphql(clear_registry) -> None:
         message: str
         code: int
 
-    async def create_user(
+    async def createUser(
         info, input: CreateUserInput
     ) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(

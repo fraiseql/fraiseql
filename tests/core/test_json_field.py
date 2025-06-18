@@ -72,7 +72,7 @@ async def test_json_field_in_mutation():
     class CreateUserError(BaseResult):
         duplicate_user: GQLUser | None = None
 
-    async def create_user(
+    async def createUser(
         info: Any, input: CreateUserInputTestGQLConversion
     ) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(
@@ -125,7 +125,7 @@ async def test_json_field_in_mutation():
 
     assert not result.errors, f"GraphQL errors: {result.errors}"
     assert result.data is not None
-    data = result.data["create_user"]
+    data = result.data["createUser"]  # Changed to camelCase
     # The test passes if we can execute the mutation without errors
     assert data is not None
 

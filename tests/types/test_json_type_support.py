@@ -301,7 +301,7 @@ class TestJSONTypeSupport:
             metadata: Optional[Dict[str, Any]] = None
 
         @fraiseql.query
-        async def get_users(info) -> List[User]:
+        async def getUsers(info) -> List[User]:
             return [
                 User(
                     id=UUID("123e4567-e89b-12d3-a456-426614174000"),
@@ -329,8 +329,7 @@ class TestJSONTypeSupport:
                 "/graphql",
                 json={
                     "query": """
-                        query {
-                            get_users {
+                        query { getUsers {
                                 id
                                 name
                                 preferences
@@ -345,7 +344,7 @@ class TestJSONTypeSupport:
             data = response.json()
             assert "data" in data
 
-            users = data["data"]["get_users"]
+            users = data["data"]["getUsers"]
             assert len(users) == 2
 
             # First user has preferences

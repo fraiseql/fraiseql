@@ -43,7 +43,7 @@ async def setup_test_data(conn):
 
     await conn.execute(
         """
-        INSERT INTO posts (user_id, data, published_at) VALUES
+        INSERT INTO posts (userId, data, published_at) VALUES
         (1, '{"title": "First Post", "content": "Hello World"}'::jsonb, '2024-01-01'),
         (1, '{"title": "Second Post", "content": "More content"}'::jsonb, '2024-01-02'),
         (2, '{"title": "Jane''s Post", "content": "Jane''s thoughts"}'::jsonb, NULL)
@@ -264,7 +264,7 @@ class TestFraiseQLRepositoryIntegration:
                     p.data->>'title' as post_title,
                     p.published_at
                 FROM users u
-                JOIN posts p ON u.id = p.user_id
+                JOIN posts p ON u.id = p.userId
                 WHERE p.published_at IS NOT NULL
                 ORDER BY p.published_at
             """
@@ -303,7 +303,7 @@ class TestFraiseQLRepositoryIntegration:
 
                 # This should fail (invalid foreign key)
                 await conn.execute(
-                    "INSERT INTO posts (user_id, data) VALUES (999, '{}'::jsonb)"
+                    "INSERT INTO posts (userId, data) VALUES (999, '{}'::jsonb)"
                 )
 
                 # Should not reach here

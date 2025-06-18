@@ -79,8 +79,8 @@ async def test_quickstart_mutation_can_execute():
     assert isinstance(result, Branch)
     assert result.name == "feature/test"
     assert result.commit_hash == "abc123"
-    assert isinstance(result.created_at, datetime)
-    assert isinstance(result.updated_at, datetime)
+    assert isinstance(result.createdAt, datetime)
+    assert isinstance(result.updatedAt, datetime)
 
 
 def test_simple_mutation_in_schema():

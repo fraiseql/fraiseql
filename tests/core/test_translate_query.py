@@ -93,7 +93,7 @@ class TestTranslateQuery:
             query=query,
             table="products",
             typename="Product",
-            order_by=[("created_at", "desc"), ("name", "asc")],
+            order_by=[("createdAt", "desc"), ("name", "asc")],
         )
 
         sql_str = result.as_string(None)

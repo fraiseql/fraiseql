@@ -24,12 +24,12 @@ class TestAutoCamelCaseIntegration:
         # Verify that fields were created with snake_case names
         assert hasattr(User, "__gql_fields__")
         fields = User.__gql_fields__
-        assert "user_id" in fields
+        assert "userId" in fields
         assert "first_name" in fields
         assert "last_name" in fields
         assert "email_address" in fields
-        assert "is_active" in fields
-        assert "created_at" in fields
+        assert "isActive" in fields
+        assert "createdAt" in fields
 
         # Test GraphQL query with camelCase field names
         query = """

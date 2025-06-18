@@ -43,14 +43,14 @@ class Post:
     id: UUID
     title: str
     content: str
-    author_id: UUID
+    authorId: UUID
 
     # Add field resolver for author
     @fraiseql.field
     async def author(self, info) -> Optional[User]:
         """Resolve post author using DataLoader."""
         loader = get_loader(UserDataLoader)
-        user_data = await loader.load(self.author_id)
+        user_data = await loader.load(self.authorId)
         return User(**user_data) if user_data else None
 
 
@@ -76,7 +76,7 @@ class UserDataLoader(DataLoader[UUID, Dict]):
 
         # Simulate database lookup
         results = []
-        for user_id in user_ids:
+        for userId in user_ids:
             user_data = self.users_db.get(user_id)
             results.append(user_data)
 
@@ -85,7 +85,7 @@ class UserDataLoader(DataLoader[UUID, Dict]):
 
 # Test queries
 @fraiseql.query
-async def get_post(info, id: UUID) -> Optional[Post]:
+async def getPost(info, id: UUID) -> Optional[Post]:
     """Get a post by ID."""
     # Mock post data
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
@@ -93,13 +93,13 @@ async def get_post(info, id: UUID) -> Optional[Post]:
             id=id,
             title="Test Post",
             content="Test content",
-            author_id=UUID("223e4567-e89b-12d3-a456-426614174001"),
+            authorId=UUID("223e4567-e89b-12d3-a456-426614174001"),
         )
     return None
 
 
 @fraiseql.query
-async def get_posts(info) -> List[Post]:
+async def getPosts(info) -> List[Post]:
     """Get multiple posts - should trigger DataLoader batching."""
     posts = []
     for i in range(3):
@@ -108,14 +108,14 @@ async def get_posts(info) -> List[Post]:
                 id=UUID(f"00000000-0000-0000-0000-{i:012x}"),
                 title=f"Post {i}",
                 content=f"Content {i}",
-                author_id=UUID("223e4567-e89b-12d3-a456-426614174001"),  # Same author
+                authorId=UUID("223e4567-e89b-12d3-a456-426614174001"),  # Same author
             )
         )
     return posts
 
 
 @fraiseql.query
-async def get_loader_test(info) -> str:
+async def getLoaderTest(info) -> str:
     """Test query to verify get_loader works."""
     try:
         # Try to get a DataLoader - this should work if LoaderRegistry is in context
@@ -300,10 +300,10 @@ def test_dataloader_caching():
             json={
                 "query": """
                     query {
-                        post1: get_post(id: "123e4567-e89b-12d3-a456-426614174000") {
+                        post1: getPost(id: "123e4567-e89b-12d3-a456-426614174000") {
                             author { name }
                         }
-                        post2: get_post(id: "123e4567-e89b-12d3-a456-426614174000") {
+                        post2: getPost(id: "123e4567-e89b-12d3-a456-426614174000") {
                             author { name }
                         }
                     }
@@ -364,13 +364,13 @@ def test_n_plus_one_detection(caplog):
         id: UUID
         title: str
         content: str
-        author_id: UUID
+        authorId: UUID
 
         @fraiseql.field
         async def author(self, info) -> Optional[User]:
             """Resolve author WITHOUT DataLoader to trigger N+1."""
             # Simulate individual DB query for each post
-            return User(id=self.author_id, name="Test Author", email="test@example.com")
+            return User(id=self.authorId, name="Test Author", email="test@example.com")
 
     # Query that returns multiple posts
     @fraiseql.query
@@ -381,7 +381,7 @@ def test_n_plus_one_detection(caplog):
                 id=UUID(f"00000000-0000-0000-0000-{i:012x}"),
                 title=f"Post {i}",
                 content=f"Content {i}",
-                author_id=UUID("223e4567-e89b-12d3-a456-426614174001"),
+                authorId=UUID("223e4567-e89b-12d3-a456-426614174001"),
             )
             for i in range(3)
         ]
