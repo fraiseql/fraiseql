@@ -4,7 +4,7 @@ Following TDD: these tests will initially fail, then we'll implement
 the features to make them pass.
 """
 
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 import pytest
@@ -294,8 +294,8 @@ class TestJSONTypeSupport:
         class User:
             id: UUID
             name: str
-            preferences: Optional[dict[str, Any]] = None
-            metadata: Optional[dict[str, Any]] = None
+            preferences: dict[str, Any] | None = None
+            metadata: dict[str, Any] | None = None
 
         @fraiseql.query
         async def get_users(info) -> list[User]:

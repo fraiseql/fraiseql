@@ -1,6 +1,5 @@
 """Tests for automatic from_dict functionality in FraiseQL types."""
 
-from typing import Optional
 from uuid import UUID, uuid4
 
 from fraiseql import fraise_field, fraise_type
@@ -43,7 +42,7 @@ def test_from_dict_with_nested_types():
     class User:
         id: UUID = fraise_field(description="User's ID")
         name: str = fraise_field(description="User's name")
-        primary_address: Optional[Address] = fraise_field(description="Primary address")
+        primary_address: Address | None = fraise_field(description="Primary address")
 
     # Test with nested camelCase data
     user_data = {
@@ -69,8 +68,8 @@ def test_from_dict_with_optional_fields():
     @fraise_type
     class Profile:
         id: UUID = fraise_field(description="Profile ID")
-        bio: Optional[str] = fraise_field(description="User bio", default=None)
-        website: Optional[str] = fraise_field(description="Website URL", default=None)
+        bio: str | None = fraise_field(description="User bio", default=None)
+        website: str | None = fraise_field(description="Website URL", default=None)
         follower_count: int = fraise_field(description="Number of followers", default=0)
 
     # Test with missing optional fields

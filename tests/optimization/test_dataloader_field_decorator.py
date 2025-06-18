@@ -1,6 +1,5 @@
 """Test @dataloader_field decorator for automatic DataLoader integration."""
 
-from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -45,7 +44,7 @@ class UserDataLoader(DataLoader[UUID, dict]):
         self.db = db
         self.load_calls = []  # Track batch calls for testing
 
-    async def batch_load(self, user_ids: list[UUID]) -> list[Optional[dict]]:
+    async def batch_load(self, user_ids: list[UUID]) -> list[dict | None]:
         """Batch load users by IDs."""
         self.load_calls.append(list(user_ids))  # Track the call
 
@@ -64,7 +63,7 @@ class UserDataLoader(DataLoader[UUID, dict]):
         }
 
         results = []
-        for _userId in user_ids:
+        for user_id in user_ids:
             user_data = users_db.get(user_id)
             results.append(user_data)
 
@@ -78,7 +77,7 @@ class PostDataLoader(DataLoader[UUID, dict]):
         super().__init__()
         self.db = db
 
-    async def batch_load(self, post_ids: list[UUID]) -> list[Optional[dict]]:
+    async def batch_load(self, post_ids: list[UUID]) -> list[dict | None]:
         """Batch load posts by IDs."""
         # Mock data
         posts_db = {
@@ -114,7 +113,7 @@ class Post:
     authorId: UUID
 
     @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
-    async def author(self, info) -> Optional[User]:
+    async def author(self, info) -> User | None:
         """Load author using DataLoader automatically."""
         # This should be auto-implemented by the decorator
         pass
@@ -128,19 +127,19 @@ class Comment:
     postId: UUID
 
     @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
-    async def author(self, info) -> Optional[User]:
+    async def author(self, info) -> User | None:
         """Load comment author using DataLoader."""
         pass
 
     @fraiseql.dataloader_field(PostDataLoader, key_field="postId")
-    async def post(self, info) -> Optional[Post]:
+    async def post(self, info) -> Post | None:
         """Load comment post using DataLoader."""
         pass
 
 
 # Test queries
 @fraiseql.query
-async def getPost(info, id: UUID) -> Optional[Post]:
+async def getPost(info, id: UUID) -> Post | None:
     """Get a post by ID."""
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
         return Post(
@@ -153,7 +152,7 @@ async def getPost(info, id: UUID) -> Optional[Post]:
 
 
 @fraiseql.query
-async def getComment(info, id: UUID) -> Optional[Comment]:
+async def getComment(info, id: UUID) -> Comment | None:
     """Get a comment by ID."""
     if str(id) == "323e4567-e89b-12d3-a456-426614174002":
         return Comment(
@@ -362,7 +361,7 @@ def test_dataloader_field_with_custom_resolver(register_test_queries):
         authorId: UUID
 
         @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
-        async def author(self, info) -> Optional[User]:
+        async def author(self, info) -> User | None:
             """Custom logic before DataLoader."""
             if not self.authorId:
                 return None

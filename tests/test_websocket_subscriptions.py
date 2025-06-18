@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -45,7 +45,7 @@ class MockWebSocket:
         self.close_code = code
         self.close_reason = reason
 
-    async def accept(self, subprotocol: Optional[str] = None):
+    async def accept(self, subprotocol: str | None = None):
         """Mock accepting the connection."""
         self.subprotocol = subprotocol
 

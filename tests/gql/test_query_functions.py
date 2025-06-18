@@ -1,6 +1,5 @@
 """Test query functions registration and schema building."""
 
-from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -27,7 +26,7 @@ class Post:
 
 
 # Sample query functions (like in the blog example)
-async def get_user(info, id: UUID) -> Optional[User]:
+async def get_user(info, id: UUID) -> User | None:
     """Get a user by ID."""
     # Mock implementation
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
@@ -35,7 +34,7 @@ async def get_user(info, id: UUID) -> Optional[User]:
     return None
 
 
-async def get_post(info, id: UUID) -> Optional[Post]:
+async def get_post(info, id: UUID) -> Post | None:
     """Get a post by ID."""
     # Mock implementation
     if str(id) == "123e4567-e89b-12d3-a456-426614174001":

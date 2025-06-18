@@ -7,7 +7,6 @@ initially and we'll implement the migration features to make them pass.
 
 import re
 from pathlib import Path
-from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -206,7 +205,7 @@ class TestStrawberryCompatibilityLayer:
             name: str
 
         @fraiseql.query
-        async def get_current_user(info) -> Optional[User]:
+        async def get_current_user(info) -> User | None:
             # Should work like Strawberry's info.context
             # In Strawberry: userId = info.context["request"].user.id
             # In FraiseQL: should work similarly
@@ -277,7 +276,7 @@ class TestStrawberryDataLoaderMigration:
                 super().__init__()
                 self.db = db
 
-            async def batch_load(self, user_ids: list[UUID]) -> list[Optional[User]]:
+            async def batch_load(self, user_ids: list[UUID]) -> list[User | None]:
                 # Simulate database batch fetch (like in Strawberry)
                 return [
                     User(
@@ -295,7 +294,7 @@ class TestStrawberryDataLoaderMigration:
             authorId: UUID
 
             @fraiseql.field
-            async def author(self, info) -> Optional[User]:
+            async def author(self, info) -> User | None:
                 # Migrate from Strawberry's dataloader pattern
                 from fraiseql.optimization.registry import get_loader
 

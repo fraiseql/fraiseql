@@ -1,7 +1,6 @@
 """Tests for N+1 query detection."""
 
 import logging
-from typing import Optional
 from uuid import UUID, uuid4
 
 import pytest
@@ -46,7 +45,7 @@ class Article:
     authorId: UUID
 
     @fraiseql.field
-    async def author(self, info) -> Optional[Author]:
+    async def author(self, info) -> Author | None:
         """Simulate a database query for author."""
         # This simulates a database query - in real app would hit DB
         # For testing, just return mock data
@@ -78,7 +77,7 @@ async def get_articles(info) -> list[Article]:
 
 # Query that won't trigger N+1 (single item)
 @fraiseql.query
-async def get_article(info, id: UUID) -> Optional[Article]:
+async def get_article(info, id: UUID) -> Article | None:
     """Get a single article."""
     return Article(
         id=id,

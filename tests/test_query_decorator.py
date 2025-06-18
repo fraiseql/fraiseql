@@ -1,6 +1,5 @@
 """Test the @query and @field decorators."""
 
-from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -27,7 +26,7 @@ class Post:
 
 # Use @query decorator
 @fraiseql.query
-async def getUser(info, id: UUID) -> Optional[User]:
+async def getUser(info, id: UUID) -> User | None:
     """Get a user by ID."""
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
         return User(id=id, name="John Doe", email="john@example.com")
@@ -177,7 +176,7 @@ def test_mixed_decorators_and_explicit_queries():
     """Test mixing @query decorator with explicit query list."""
 
     # Define a non-decorated query
-    async def getPost(info, id: UUID) -> Optional[Post]:
+    async def getPost(info, id: UUID) -> Post | None:
         if str(id) == "323e4567-e89b-12d3-a456-426614174002":
             return Post(id=id, title="Test Post", content="Test content")
         return None
