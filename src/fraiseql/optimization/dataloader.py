@@ -63,7 +63,7 @@ class DataLoader(Generic[K, V], ABC):
         # Schedule batch dispatch
         if not self._dispatch_scheduled:
             self._dispatch_scheduled = True
-            asyncio.create_task(self._dispatch_batch())
+            task = asyncio.create_task(self._dispatch_batch())
 
         # Wait for batch to complete
         if not self._batch_promise:
@@ -145,7 +145,7 @@ class DataLoader(Generic[K, V], ABC):
             # Log the actual error for debugging but don't expose internals
             import logging
 
-            logging.error(f"DataLoader batch_load failed: {type(e).__name__}", exc_info=True)
+            logging.exception(f"DataLoader batch_load failed: {type(e).__name__}")
 
             # Create safe exception for public consumption
             safe_exception = RuntimeError(

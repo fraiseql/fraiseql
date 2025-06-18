@@ -1,7 +1,7 @@
 """Lifecycle hooks for subscriptions."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Any
 
@@ -16,7 +16,7 @@ class SubscriptionLifecycle:
         @wraps(func)
         async def wrapper(info, **kwargs):
             # Record start
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             subscription_id = f"{func.__name__}_{id(info)}"
 
             # Call hook
@@ -64,7 +64,7 @@ class SubscriptionLifecycle:
                 start_time = info.context.get("subscription_start")
 
             if start_time:
-                duration = (datetime.utcnow() - start_time).total_seconds()
+                duration = (datetime.now(timezone.utc) - start_time).total_seconds()
                 print(f"Subscription duration: {duration}s")
 
             # Call hook
@@ -107,7 +107,7 @@ def with_lifecycle(
                 async for value in func(info, **kwargs):
                     # Call on_event
                     if on_event:
-                        value = await on_event(info, value)
+                        value = await on_event(info, value)  # noqa: PLW2901
 
                     yield value
 
