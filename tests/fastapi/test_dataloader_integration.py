@@ -1,6 +1,5 @@
 """Test DataLoader integration with FastAPI and GraphQL context."""
 
-from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -47,7 +46,7 @@ class Post:
 
     # Add field resolver for author
     @fraiseql.field
-    async def author(self, info) -> Optional[User]:
+    async def author(self, info) -> User | None:
         """Resolve post author using DataLoader."""
         loader = get_loader(UserDataLoader)
         user_data = await loader.load(self.authorId)
@@ -58,7 +57,7 @@ class Post:
 class UserDataLoader(DataLoader[UUID, dict]):
     """DataLoader for loading users by ID."""
 
-    def __init__(self, db, users_db: dict[UUID, dict] = None):
+    def __init__(self, db, users_db: dict[UUID, dict] | None = None):
         super().__init__()
         self.db = db
         self.users_db = users_db or {
@@ -70,7 +69,7 @@ class UserDataLoader(DataLoader[UUID, dict]):
         }
         self.load_calls = []  # Track batch calls for testing
 
-    async def batch_load(self, user_ids: list[UUID]) -> list[Optional[dict]]:
+    async def batch_load(self, user_ids: list[UUID]) -> list[dict | None]:
         """Batch load users by IDs."""
         self.load_calls.append(list(user_ids))  # Track the call
 
@@ -85,7 +84,7 @@ class UserDataLoader(DataLoader[UUID, dict]):
 
 # Test queries
 @fraiseql.query
-async def get_post(info, id: UUID) -> Optional[Post]:
+async def get_post(info, id: UUID) -> Post | None:
     """Get a post by ID."""
     # Mock post data
     if str(id) == "123e4567-e89b-12d3-a456-426614174000":
@@ -160,14 +159,6 @@ def test_dataloader_registry_in_context():
 
 def test_dataloader_batching_works():
     """Test that DataLoader properly batches multiple loads."""
-    # Mock user database
-    users_db = {
-        UUID("223e4567-e89b-12d3-a456-426614174001"): {
-            "id": UUID("223e4567-e89b-12d3-a456-426614174001"),
-            "name": "John Doe",
-            "email": "john@example.com",
-        }
-    }
 
     app = create_fraiseql_app(
         database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
@@ -279,13 +270,6 @@ def test_get_loader_function_works():
 
 def test_dataloader_caching():
     """Test that DataLoader caches results within a request."""
-    users_db = {
-        UUID("223e4567-e89b-12d3-a456-426614174001"): {
-            "id": UUID("223e4567-e89b-12d3-a456-426614174001"),
-            "name": "Cached User",
-            "email": "cached@example.com",
-        }
-    }
 
     app = create_fraiseql_app(
         database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
@@ -326,7 +310,7 @@ async def test_dataloader_field_decorator():
 
     # Define PostDataLoader first
     class PostDataLoader(DataLoader[UUID, dict]):
-        async def batch_load(self, post_ids: list[UUID]) -> list[Optional[dict]]:
+        async def batch_load(self, post_ids: list[UUID]) -> list[dict | None]:
             # Mock implementation
             return [{"id": pid, "title": f"Post {pid}", "content": "Content"} for pid in post_ids]
 
@@ -341,7 +325,7 @@ async def test_dataloader_field_decorator():
 
             # This decorator should automatically use DataLoader
             @fraiseql.dataloader_field(PostDataLoader, key_field="post_id")
-            async def post(self, info) -> Optional[Post]:
+            async def post(self, info) -> Post | None:
                 """Load the post this comment belongs to."""
                 pass  # Implementation is handled by the decorator
 
@@ -365,7 +349,7 @@ def test_n_plus_one_detection(caplog):
         authorId: UUID
 
         @fraiseql.field
-        async def author(self, info) -> Optional[User]:
+        async def author(self, info) -> User | None:
             """Resolve author WITHOUT DataLoader to trigger N+1."""
             # Simulate individual DB query for each post
             return User(id=self.authorId, name="Test Author", email="test@example.com")

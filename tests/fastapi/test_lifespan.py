@@ -31,7 +31,7 @@ async def get_status(info) -> Status:
 @pytest.fixture(autouse=True)
 def reset_events():
     """Reset lifecycle events before each test."""
-    global lifecycle_events
+    global lifecycle_events  # noqa: PLW0603
     lifecycle_events = []
     yield
     lifecycle_events = []
@@ -161,8 +161,8 @@ def test_lifespan_error_handling():
         raise RuntimeError("Startup failed!")
         yield  # Never reached
 
-    # This should raise an error during app creation
-    with pytest.raises(RuntimeError, match="Startup failed!"):
+    def create_failing_app():
+        """Create app with failing lifespan."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
             types=[Status],
@@ -170,10 +170,13 @@ def test_lifespan_error_handling():
             lifespan=failing_lifespan,
             production=False,
         )
-
         # Try to use the app - should fail
         with TestClient(app):
             pass
+
+    # This should raise an error during app creation
+    with pytest.raises(RuntimeError, match="Startup failed!"):
+        create_failing_app()
 
 
 def test_lifespan_with_existing_app():
