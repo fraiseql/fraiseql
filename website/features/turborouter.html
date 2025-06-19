@@ -15,6 +15,7 @@
                 <div class="nav-links">
                     <a href="/docs">Docs</a>
                     <a href="/features">Features</a>
+                    <a href="/status">Status</a>
                     <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
                     <a href="https://pypi.org/project/fraiseql/">PyPI</a>
                 </div>
@@ -25,14 +26,14 @@
     <section class="hero-feature">
         <div class="container">
             <h1>🏎️ TurboRouter</h1>
-            <p class="subtitle">Skip GraphQL overhead entirely. Execute pre-registered queries with near-zero latency.</p>
+            <p class="subtitle">Reduce GraphQL overhead by caching query execution plans. Execute pre-registered queries 15% faster.</p>
         </div>
     </section>
 
     <section class="feature-detail">
         <div class="container">
             <h2>What is TurboRouter?</h2>
-            <p>TurboRouter is FraiseQL's high-performance query execution engine that bypasses GraphQL parsing and validation for pre-registered queries. In production mode, it delivers sub-millisecond response times by executing SQL directly.</p>
+            <p>TurboRouter is FraiseQL's query optimization engine that bypasses GraphQL parsing and validation for pre-registered queries. In production mode, it reduces overhead by approximately 1ms per request by executing SQL directly.</p>
 
             <div class="performance-chart">
                 <h3>Execution Path Comparison</h3>
@@ -159,8 +160,8 @@ registry.register(user_query)</code></pre>
             <h2>Benefits</h2>
             <div class="benefit-grid">
                 <div class="benefit">
-                    <h3>⚡ 50-80% Latency Reduction</h3>
-                    <p>Eliminate GraphQL overhead for your most critical queries</p>
+                    <h3>⚡ 12-17% Latency Reduction</h3>
+                    <p>Skip GraphQL parsing and validation for registered queries</p>
                 </div>
                 <div class="benefit">
                     <h3>🎯 Predictable Performance</h3>
@@ -208,7 +209,7 @@ config = FraiseQLConfig(
                 <li>✅ Mobile app backends requiring low latency</li>
                 <li>✅ Dashboard and analytics queries</li>
                 <li>✅ Authentication and user profile queries</li>
-                <li>✅ Any query executed more than 100 times per hour</li>
+                <li>✅ Any query executed more than 1000 times per hour</li>
             </ul>
         </div>
     </section>

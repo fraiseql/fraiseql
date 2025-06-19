@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Readiness Status - FraiseQL</title>
+    <meta name="description" content="Current production readiness status, known limitations, and roadmap for FraiseQL.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <a href="/" class="logo">🍓 FraiseQL</a>
+                <div class="nav-links">
+                    <a href="/docs">Docs</a>
+                    <a href="/features">Features</a>
+                    <a href="/status" class="active">Status</a>
+                    <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
+                    <a href="https://pypi.org/project/fraiseql/">PyPI</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="status-hero">
+        <div class="container">
+            <h1>Production Readiness Status</h1>
+            <div class="version-info">
+                <span class="version-badge alpha">Alpha v0.1.0a10</span>
+                <span class="warning">⚠️ Not recommended for production use</span>
+            </div>
+            <p class="subtitle">Transparent progress tracking towards production-ready releases</p>
+        </div>
+    </section>
+
+    <section class="readiness-overview">
+        <div class="container">
+            <h2>Overall Readiness Assessment</h2>
+            
+            <div class="assessment-grid">
+                <div class="assessment-card">
+                    <h3>🔐 Security</h3>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 60%"></div>
+                    </div>
+                    <span class="score">6/10</span>
+                    <ul>
+                        <li class="done">✅ SQL injection prevention</li>
+                        <li class="done">✅ Input validation framework</li>
+                        <li class="done">✅ Auth0 integration</li>
+                        <li class="missing">❌ Rate limiting</li>
+                        <li class="missing">❌ Security headers</li>
+                        <li class="missing">❌ CSRF protection</li>
+                    </ul>
+                </div>
+
+                <div class="assessment-card">
+                    <h3>🚀 DevOps</h3>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 70%"></div>
+                    </div>
+                    <span class="score">7/10</span>
+                    <ul>
+                        <li class="done">✅ Docker support</li>
+                        <li class="done">✅ Health checks</li>
+                        <li class="done">✅ Prometheus metrics</li>
+                        <li class="missing">❌ Database migrations</li>
+                        <li class="missing">❌ Backup strategies</li>
+                        <li class="missing">❌ Secrets management</li>
+                    </ul>
+                </div>
+
+                <div class="assessment-card">
+                    <h3>⚡ Performance</h3>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 65%"></div>
+                    </div>
+                    <span class="score">6.5/10</span>
+                    <ul>
+                        <li class="done">✅ TurboRouter</li>
+                        <li class="done">✅ Connection pooling</li>
+                        <li class="done">✅ N+1 detection</li>
+                        <li class="missing">❌ Result caching</li>
+                        <li class="missing">❌ Query complexity limits</li>
+                        <li class="missing">❌ Load test data</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="critical-gaps">
+        <div class="container">
+            <h2>⚠️ Critical Gaps for Production</h2>
+            
+            <div class="gap-list">
+                <div class="gap-item critical">
+                    <h3>🚨 No Rate Limiting</h3>
+                    <p>Application is vulnerable to DoS attacks. No request throttling or query complexity analysis.</p>
+                </div>
+                
+                <div class="gap-item critical">
+                    <h3>🚨 Missing Database Migrations</h3>
+                    <p>No automated migration tooling. Manual SQL scripts only. No rollback mechanisms.</p>
+                </div>
+                
+                <div class="gap-item critical">
+                    <h3>🚨 No Backup Strategy</h3>
+                    <p>No documented backup procedures or disaster recovery plans.</p>
+                </div>
+                
+                <div class="gap-item high">
+                    <h3>⚠️ Limited Error Handling</h3>
+                    <p>Stack traces may leak in production. No correlation IDs for debugging.</p>
+                </div>
+                
+                <div class="gap-item high">
+                    <h3>⚠️ No Result Caching</h3>
+                    <p>TurboRouter only caches query plans, not results. No Redis integration.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="roadmap">
+        <div class="container">
+            <h2>🗺️ Roadmap to Production</h2>
+            
+            <div class="timeline">
+                <div class="milestone current">
+                    <h3>Alpha (Current)</h3>
+                    <span class="version">v0.1.0a10</span>
+                    <ul>
+                        <li>Core functionality</li>
+                        <li>Basic security</li>
+                        <li>Docker support</li>
+                        <li>TurboRouter</li>
+                    </ul>
+                </div>
+                
+                <div class="milestone">
+                    <h3>Beta (Q1 2025)</h3>
+                    <span class="version">v0.2.0b1</span>
+                    <ul>
+                        <li>Rate limiting</li>
+                        <li>Database migrations</li>
+                        <li>Security headers</li>
+                        <li>Result caching</li>
+                        <li>Error correlation</li>
+                    </ul>
+                </div>
+                
+                <div class="milestone">
+                    <h3>RC (Q2 2025)</h3>
+                    <span class="version">v0.9.0rc1</span>
+                    <ul>
+                        <li>Production testing</li>
+                        <li>Performance baseline</li>
+                        <li>Security audit</li>
+                        <li>Documentation complete</li>
+                    </ul>
+                </div>
+                
+                <div class="milestone">
+                    <h3>Stable (Q3 2025)</h3>
+                    <span class="version">v1.0.0</span>
+                    <ul>
+                        <li>Production ready</li>
+                        <li>API stability</li>
+                        <li>Enterprise features</li>
+                        <li>SLA support</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="current-limitations">
+        <div class="container">
+            <h2>📋 Current Limitations</h2>
+            
+            <div class="limitations-grid">
+                <div class="limitation-category">
+                    <h3>Database</h3>
+                    <ul>
+                        <li>PostgreSQL 13+ only</li>
+                        <li>No multi-database support</li>
+                        <li>JSONB performance overhead</li>
+                        <li>No automatic indexing</li>
+                    </ul>
+                </div>
+                
+                <div class="limitation-category">
+                    <h3>Features</h3>
+                    <ul>
+                        <li>No GraphQL subscriptions</li>
+                        <li>No real-time updates</li>
+                        <li>Limited file upload support</li>
+                        <li>No federation support</li>
+                    </ul>
+                </div>
+                
+                <div class="limitation-category">
+                    <h3>Performance</h3>
+                    <ul>
+                        <li>No query result caching</li>
+                        <li>Limited to single PostgreSQL instance</li>
+                        <li>No automatic query optimization</li>
+                        <li>Memory limits not enforced</li>
+                    </ul>
+                </div>
+                
+                <div class="limitation-category">
+                    <h3>Operations</h3>
+                    <ul>
+                        <li>No built-in monitoring dashboards</li>
+                        <li>Limited deployment documentation</li>
+                        <li>No automated scaling</li>
+                        <li>Missing operational runbooks</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="when-to-use">
+        <div class="container">
+            <h2>When to Use FraiseQL Today</h2>
+            
+            <div class="use-cases">
+                <div class="use-case good">
+                    <h3>✅ Good Fit</h3>
+                    <ul>
+                        <li>Proof of concept projects</li>
+                        <li>Internal tools with known users</li>
+                        <li>Development and testing</li>
+                        <li>Learning GraphQL + PostgreSQL</li>
+                        <li>Small-scale applications</li>
+                    </ul>
+                </div>
+                
+                <div class="use-case bad">
+                    <h3>❌ Not Ready For</h3>
+                    <ul>
+                        <li>Production customer-facing apps</li>
+                        <li>High-traffic services</li>
+                        <li>Financial or healthcare systems</li>
+                        <li>Multi-tenant SaaS</li>
+                        <li>Mission-critical applications</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Want to Help?</h2>
+            <p>FraiseQL is open source and welcomes contributions</p>
+            <div class="cta-buttons">
+                <a href="https://github.com/fraiseql/fraiseql/issues" class="btn btn-primary">View Issues</a>
+                <a href="https://github.com/fraiseql/fraiseql/blob/main/CONTRIBUTING.md" class="btn btn-secondary">Contributing Guide</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>FraiseQL is <a href="https://github.com/fraiseql/fraiseql/blob/main/LICENSE">MIT licensed</a>. Made with 🍓 by <a href="https://github.com/lionel-rowe">Lionel Hamayon</a>.</p>
+        </div>
+    </footer>
+</body>
+</html>

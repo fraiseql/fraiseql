@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Getting Started - FraiseQL</title>
+    <meta name="description" content="Important information before getting started with FraiseQL alpha.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <a href="/" class="logo">🍓 FraiseQL</a>
+                <div class="nav-links">
+                    <a href="/docs">Docs</a>
+                    <a href="/features">Features</a>
+                    <a href="/status">Status</a>
+                    <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
+                    <a href="https://pypi.org/project/fraiseql/">PyPI</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="getting-started-hero">
+        <div class="container">
+            <h1>Before You Start</h1>
+            <div class="version-info">
+                <span class="version-badge alpha">Alpha Software</span>
+                <span class="warning">⚠️ Please read carefully</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="important-notice">
+        <div class="container">
+            <div class="notice-box critical">
+                <h2>⚠️ Alpha Software Notice</h2>
+                <p>FraiseQL is currently in <strong>alpha stage</strong> (v0.1.0a10). This means:</p>
+                <ul>
+                    <li>APIs may change without notice</li>
+                    <li>Features may be incomplete or buggy</li>
+                    <li>Not suitable for production use</li>
+                    <li>Limited documentation and examples</li>
+                    <li>Security features are incomplete</li>
+                </ul>
+                <p><strong>We recommend using FraiseQL only for:</strong></p>
+                <ul>
+                    <li>Learning and experimentation</li>
+                    <li>Proof of concept projects</li>
+                    <li>Contributing to development</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="requirements">
+        <div class="container">
+            <h2>Requirements</h2>
+            
+            <div class="requirement-cards">
+                <div class="requirement-card">
+                    <h3>PostgreSQL 13+</h3>
+                    <p>FraiseQL requires PostgreSQL 13 or higher with JSONB support.</p>
+                    <p class="note">Other databases are not supported and there are no plans to add support.</p>
+                </div>
+                
+                <div class="requirement-card">
+                    <h3>Python 3.11+</h3>
+                    <p>Full type hints support requires Python 3.11 or higher.</p>
+                    <p class="note">Python 3.10 may work but is not officially supported.</p>
+                </div>
+                
+                <div class="requirement-card">
+                    <h3>Basic SQL Knowledge</h3>
+                    <p>You'll need to write PostgreSQL views and functions.</p>
+                    <p class="note">FraiseQL doesn't generate database schemas automatically.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="missing-features">
+        <div class="container">
+            <h2>What's NOT Ready</h2>
+            
+            <div class="missing-grid">
+                <div class="missing-item">
+                    <h3>🚨 Security</h3>
+                    <ul>
+                        <li>No rate limiting</li>
+                        <li>No CSRF protection</li>
+                        <li>No security headers</li>
+                        <li>Limited error handling</li>
+                    </ul>
+                </div>
+                
+                <div class="missing-item">
+                    <h3>📊 Performance</h3>
+                    <ul>
+                        <li>No result caching</li>
+                        <li>No query complexity limits</li>
+                        <li>Limited connection pooling options</li>
+                        <li>No production benchmarks</li>
+                    </ul>
+                </div>
+                
+                <div class="missing-item">
+                    <h3>🔧 Operations</h3>
+                    <ul>
+                        <li>No database migrations</li>
+                        <li>No backup strategies</li>
+                        <li>Limited deployment docs</li>
+                        <li>No monitoring dashboards</li>
+                    </ul>
+                </div>
+                
+                <div class="missing-item">
+                    <h3>✨ Features</h3>
+                    <ul>
+                        <li>No GraphQL subscriptions</li>
+                        <li>No real-time updates</li>
+                        <li>No file uploads</li>
+                        <li>No federation</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="if-you-continue">
+        <div class="container">
+            <h2>If You Want to Continue...</h2>
+            
+            <div class="continue-steps">
+                <div class="step">
+                    <h3>1. Install Alpha Version</h3>
+                    <pre><code>pip install fraiseql==0.1.0a10</code></pre>
+                    <p class="note">Pin to specific alpha version to avoid breaking changes</p>
+                </div>
+                
+                <div class="step">
+                    <h3>2. Use Development Mode Only</h3>
+                    <pre><code>app = create_fraiseql_app(
+    database_url="postgresql://localhost/test",
+    types=[User],
+    production=False  # Never use True in alpha
+)</code></pre>
+                </div>
+                
+                <div class="step">
+                    <h3>3. Expect Breaking Changes</h3>
+                    <p>Follow the <a href="https://github.com/fraiseql/fraiseql/releases">release notes</a> carefully. APIs will change between alpha releases.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="alternatives">
+        <div class="container">
+            <h2>Production-Ready Alternatives</h2>
+            <p>If you need a production GraphQL solution today, consider:</p>
+            
+            <div class="alternative-grid">
+                <div class="alternative">
+                    <h3><a href="https://hasura.io">Hasura</a></h3>
+                    <p>Auto-generated GraphQL from database schema. Production ready with enterprise support.</p>
+                </div>
+                
+                <div class="alternative">
+                    <h3><a href="https://www.graphile.org/postgraphile/">PostGraphile</a></h3>
+                    <p>Instant GraphQL API from PostgreSQL schema. Mature and battle-tested.</p>
+                </div>
+                
+                <div class="alternative">
+                    <h3><a href="https://strawberry.rocks/">Strawberry GraphQL</a></h3>
+                    <p>Python GraphQL library with great DX. What FraiseQL's API is inspired by.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="help-us">
+        <div class="container">
+            <h2>Want to Help?</h2>
+            <p>FraiseQL needs contributors to reach production readiness!</p>
+            <div class="cta-buttons">
+                <a href="https://github.com/fraiseql/fraiseql/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22" class="btn btn-primary">Good First Issues</a>
+                <a href="https://github.com/fraiseql/fraiseql/blob/main/CONTRIBUTING.md" class="btn btn-secondary">Contributing Guide</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>FraiseQL is <a href="https://github.com/fraiseql/fraiseql/blob/main/LICENSE">MIT licensed</a>. Made with 🍓 by <a href="https://github.com/lionel-rowe">Lionel Hamayon</a>.</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -15,6 +15,7 @@
                 <div class="nav-links">
                     <a href="/docs">Docs</a>
                     <a href="/features">Features</a>
+                    <a href="/status">Status</a>
                     <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
                     <a href="https://pypi.org/project/fraiseql/">PyPI</a>
                 </div>
@@ -25,7 +26,11 @@
     <section class="hero">
         <div class="container">
             <h1>GraphQL to PostgreSQL.<br>No middleman.</h1>
-            <p class="subtitle">Transform GraphQL queries into optimized PostgreSQL. One query. No N+1. Pure speed.</p>
+            <div class="version-banner">
+                <span class="version-badge alpha">Alpha v0.1.0a10</span>
+                <span class="status-link"><a href="/status">View production readiness →</a></span>
+            </div>
+            <p class="subtitle">Transform GraphQL queries into optimized PostgreSQL. One query. No N+1. Better performance.</p>
             
             <div class="code-example">
                 <div class="code-block">
@@ -57,8 +62,8 @@
             </div>
 
             <div class="cta-buttons">
-                <a href="/docs/getting-started" class="btn btn-primary">Get Started</a>
-                <a href="https://github.com/fraiseql/fraiseql" class="btn btn-secondary">View on GitHub</a>
+                <a href="/getting-started" class="btn btn-primary">Get Started</a>
+                <a href="/status" class="btn btn-secondary">View Status</a>
             </div>
         </div>
     </section>
@@ -124,10 +129,11 @@ async def users(info) -> list[User]:
                     <h3>Run</h3>
                     <pre><code>from fraiseql.fastapi import create_app
 
+# Note: Alpha software - APIs may change
 app = create_fraiseql_app(
     database_url="postgresql://localhost/mydb",
     types=[User],
-    production=True  # Enables TurboRouter
+    production=False  # Don't use production mode in alpha
 )</code></pre>
                 </div>
             </div>
@@ -149,27 +155,27 @@ app = create_fraiseql_app(
                 <tbody>
                     <tr>
                         <td>Nested data (3 levels)</td>
-                        <td>~50 queries</td>
-                        <td>1 query</td>
-                        <td class="improvement">50x fewer</td>
+                        <td>Multiple queries (N+1)</td>
+                        <td>Single query</td>
+                        <td class="improvement">No N+1</td>
                     </tr>
                     <tr>
-                        <td>Response time (1000 users)</td>
-                        <td>~800ms</td>
-                        <td>~45ms</td>
-                        <td class="improvement">17x faster</td>
+                        <td>Average response time</td>
+                        <td>~100-200ms</td>
+                        <td>~30-50ms</td>
+                        <td class="improvement">2-3x faster</td>
                     </tr>
                     <tr>
-                        <td>TurboRouter cached query</td>
-                        <td>~5ms</td>
-                        <td>~0.5ms</td>
-                        <td class="improvement">10x faster</td>
+                        <td>With TurboRouter</td>
+                        <td>~30-50ms</td>
+                        <td>~25-40ms</td>
+                        <td class="improvement">15% faster</td>
                     </tr>
                     <tr>
                         <td>Memory usage</td>
-                        <td>~120MB</td>
-                        <td>~25MB</td>
-                        <td class="improvement">5x less</td>
+                        <td>~80-120MB</td>
+                        <td>~40-60MB</td>
+                        <td class="improvement">~50% less</td>
                     </tr>
                 </tbody>
             </table>
@@ -181,10 +187,12 @@ app = create_fraiseql_app(
             <h2>When NOT to Use FraiseQL</h2>
             <p>We believe in honest engineering. FraiseQL isn't for everyone:</p>
             <ul>
-                <li>❌ Need multiple database support (we're PostgreSQL only)</li>
-                <li>❌ Complex business logic in GraphQL layer</li>
+                <li>❌ Production applications (still in alpha)</li>
+                <li>❌ Need multiple database support (PostgreSQL 13+ only)</li>
+                <li>❌ Require GraphQL subscriptions (not implemented)</li>
+                <li>❌ Need rate limiting or advanced security (coming in beta)</li>
                 <li>❌ Existing large codebase with different patterns</li>
-                <li>❌ Need for microservices architecture</li>
+                <li>❌ High-traffic services (no result caching yet)</li>
             </ul>
             <p>If these are deal-breakers, check out <a href="https://hasura.io">Hasura</a> or <a href="https://www.graphile.org/postgraphile/">PostGraphile</a>.</p>
         </div>
