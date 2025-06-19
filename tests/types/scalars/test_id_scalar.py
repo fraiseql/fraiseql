@@ -29,9 +29,7 @@ class TestIDClass:
 
     def test_init_with_invalid_type(self):
         """Test initializing ID with invalid type raises error."""
-        with pytest.raises(
-            TypeError, match="ID must be initialized with a UUID or str"
-        ):
+        with pytest.raises(TypeError, match="ID must be initialized with a UUID or str"):
             ID(123)
 
     def test_coerce_from_id(self):

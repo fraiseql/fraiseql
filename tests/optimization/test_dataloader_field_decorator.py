@@ -182,9 +182,9 @@ def test_dataloader_field_decorator_exists():
 def test_dataloader_field_adds_metadata():
     """Test that @dataloader_field decorator adds proper metadata to methods."""
     # Check that the decorator adds metadata we can use for field resolution
-    assert hasattr(Post.author, "__fraiseql_dataloader__"), (
-        f"Post.author attributes: {dir(Post.author)}"
-    )
+    assert hasattr(
+        Post.author, "__fraiseql_dataloader__"
+    ), f"Post.author attributes: {dir(Post.author)}"
 
     metadata = Post.author.__fraiseql_dataloader__
     assert metadata["loader_class"] == UserDataLoader
@@ -193,9 +193,7 @@ def test_dataloader_field_adds_metadata():
 
 def test_dataloader_field_generates_schema_field(register_test_queries):
     """Test that @dataloader_field decorated methods appear in GraphQL schema."""
-    app = create_fraiseql_app(
-        database_url="postgresql://test/test", types=[User, Post, Comment]
-    )
+    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 
     with TestClient(app) as client:
         # Test introspection to verify field exists
@@ -221,16 +219,12 @@ def test_dataloader_field_generates_schema_field(register_test_queries):
         data = response.json()
 
         # Should have author field from @dataloader_field
-        fields = {
-            f["name"]: f["type"]["name"] for f in data["data"]["__type"]["fields"]
-        }
+        fields = {f["name"]: f["type"]["name"] for f in data["data"]["__type"]["fields"]}
         assert "author" in fields
         assert fields["author"] == "User"
 
 
-def test_dataloader_field_automatic_resolution(
-    register_test_queries, test_database_url
-):
+def test_dataloader_field_automatic_resolution(register_test_queries, test_database_url):
     """Test that @dataloader_field automatically resolves using DataLoader."""
     app = create_fraiseql_app(
         database_url=test_database_url,
@@ -311,15 +305,13 @@ def test_dataloader_field_batching(register_test_queries, test_database_url):
         # Both should resolve authors (would be batched in real implementation)
         assert data["data"]["post"]["author"]["name"] == "John Doe"
         assert data["data"]["comment"]["author"]["name"] == "Jane Smith"
-        assert data["data"]["comment"]["post"] is not None, (
-            f"Comment post is None! Full comment: {data['data']['comment']}"
-        )
+        assert (
+            data["data"]["comment"]["post"] is not None
+        ), f"Comment post is None! Full comment: {data['data']['comment']}"
         assert data["data"]["comment"]["post"]["author"]["name"] == "John Doe"
 
 
-def test_dataloader_field_with_multiple_loaders(
-    register_test_queries, test_database_url
-):
+def test_dataloader_field_with_multiple_loaders(register_test_queries, test_database_url):
     """Test @dataloader_field works with different DataLoader types."""
     app = create_fraiseql_app(
         database_url=test_database_url,
@@ -376,9 +368,7 @@ def test_dataloader_field_error_handling():
 
 def test_dataloader_field_without_key_field():
     """Test that @dataloader_field requires key_field parameter."""
-    with pytest.raises(
-        TypeError, match="missing 1 required keyword-only argument: 'key_field'"
-    ):
+    with pytest.raises(TypeError, match="missing 1 required keyword-only argument: 'key_field'"):
 
         @fraiseql.type
         class InvalidType:
@@ -423,9 +413,7 @@ def test_dataloader_field_with_custom_resolver(register_test_queries):
 
 def test_dataloader_field_schema_introspection(register_test_queries):
     """Test that @dataloader_field decorated fields show up in schema introspection."""
-    app = create_fraiseql_app(
-        database_url="postgresql://test/test", types=[User, Post, Comment]
-    )
+    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 
     with TestClient(app) as client:
         # Get full schema to verify all fields are present

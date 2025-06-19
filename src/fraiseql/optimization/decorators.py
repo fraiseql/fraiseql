@@ -86,12 +86,10 @@ def dataloader_field(
                 return None
 
             # SECURITY: Validate key_value type to prevent injection
-            if not isinstance(
-                key_value, str | int | bytes | type(None)
-            ) and not hasattr(key_value, "__hash__"):
-                raise ValueError(
-                    f"Key field '{key_field}' must be hashable, got {type(key_value)}"
-                )
+            if not isinstance(key_value, str | int | bytes | type(None)) and not hasattr(
+                key_value, "__hash__"
+            ):
+                raise ValueError(f"Key field '{key_field}' must be hashable, got {type(key_value)}")
 
             # Get the DataLoader instance
             loader = get_loader(loader_class)
@@ -114,21 +112,15 @@ def dataloader_field(
                     args = getattr(return_type, "__args__", ())
                     if args:
                         # Get the non-None type
-                        target_type = next(
-                            (arg for arg in args if arg is not type(None)), None
-                        )
+                        target_type = next((arg for arg in args if arg is not type(None)), None)
                         if target_type:
                             if hasattr(target_type, "__annotations__") and isinstance(
                                 result_data, dict
                             ):
                                 # Only construct if we have annotations (dataclass-like)
-                                annotations = getattr(
-                                    target_type, "__annotations__", {}
-                                )
+                                annotations = getattr(target_type, "__annotations__", {})
                                 filtered_data = {
-                                    k: v
-                                    for k, v in result_data.items()
-                                    if k in annotations
+                                    k: v for k, v in result_data.items() if k in annotations
                                 }
                                 return target_type(**filtered_data)
                             elif hasattr(target_type, "from_dict") and callable(
@@ -153,26 +145,18 @@ def dataloader_field(
                                 k: v for k, v in result_data.items() if k in annotations
                             }
                             return target_type(**filtered_data)
-                        elif hasattr(target_type, "from_dict") and callable(
-                            target_type.from_dict
-                        ):
+                        elif hasattr(target_type, "from_dict") and callable(target_type.from_dict):
                             if isinstance(result_data, dict):
                                 return target_type.from_dict(result_data)
                     return result_data
 
                 # Handle direct type construction
-                elif hasattr(return_type, "__annotations__") and isinstance(
-                    result_data, dict
-                ):
+                elif hasattr(return_type, "__annotations__") and isinstance(result_data, dict):
                     # Only construct if we have annotations (dataclass-like)
                     annotations = getattr(return_type, "__annotations__", {})
-                    filtered_data = {
-                        k: v for k, v in result_data.items() if k in annotations
-                    }
+                    filtered_data = {k: v for k, v in result_data.items() if k in annotations}
                     return return_type(**filtered_data)
-                elif hasattr(return_type, "from_dict") and callable(
-                    return_type.from_dict
-                ):
+                elif hasattr(return_type, "from_dict") and callable(return_type.from_dict):
                     if isinstance(result_data, dict):
                         return return_type.from_dict(result_data)
 
@@ -185,15 +169,11 @@ def dataloader_field(
 
                 # For debugging, include more info about the return type
                 type_info = f"{return_type}" if return_type else "unknown type"
-                raise RuntimeError(
-                    f"DataLoader type conversion failed for {type_info}"
-                ) from None
+                raise RuntimeError(f"DataLoader type conversion failed for {type_info}") from None
 
         # Preserve method metadata
         auto_resolver.__name__ = method.__name__
-        auto_resolver.__doc__ = (
-            method.__doc__ or f"Auto-generated DataLoader field for {key_field}"
-        )
+        auto_resolver.__doc__ = method.__doc__ or f"Auto-generated DataLoader field for {key_field}"
         auto_resolver.__annotations__ = method.__annotations__
 
         # Add DataLoader metadata for schema building

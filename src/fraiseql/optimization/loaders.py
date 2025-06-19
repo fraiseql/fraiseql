@@ -112,9 +112,7 @@ class GenericForeignKeyLoader(DataLoader[UUID, dict[str, Any]]):
             raise ValueError(f"Invalid key field: {self.key_field}")
 
         # CRITICAL: Validate keys to prevent injection
-        if not all(
-            isinstance(k, str | int | bytes) or hasattr(k, "__str__") for k in keys
-        ):
+        if not all(isinstance(k, str | int | bytes) or hasattr(k, "__str__") for k in keys):
             raise ValueError("All keys must be safely serializable")
 
         # Use parameterized query construction

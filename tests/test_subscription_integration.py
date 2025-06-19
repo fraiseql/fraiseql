@@ -157,15 +157,11 @@ class TestSubscriptionIntegration:
             # It's an AsyncIterator, try to get the first result which should fail
             try:
                 await subscription_result.__anext__()
-                raise AssertionError(
-                    "Expected PermissionError but subscription succeeded"
-                )
+                raise AssertionError("Expected PermissionError but subscription succeeded")
             except PermissionError as e:
                 # Verify the error message contains expected text
                 if "Filter condition not met" not in str(e):
-                    raise AssertionError(
-                        f"Expected 'Filter condition not met' in error, got: {e}"
-                    )
+                    raise AssertionError(f"Expected 'Filter condition not met' in error, got: {e}")
 
     async def test_multiple_subscriptions(self):
         """Test multiple concurrent subscriptions."""
@@ -198,13 +194,9 @@ class TestSubscriptionIntegration:
         # Run both subscriptions concurrently
         async def collect_messages():
             results = []
-            subscription_result = await subscribe(
-                schema, parse(message_sub), context_value=context
-            )
+            subscription_result = await subscribe(schema, parse(message_sub), context_value=context)
             if hasattr(subscription_result, "errors"):
-                raise AssertionError(
-                    f"Message subscription failed: {subscription_result.errors}"
-                )
+                raise AssertionError(f"Message subscription failed: {subscription_result.errors}")
             async for result in subscription_result:
                 if not result.errors:
                     results.append(result.data["messageStream"])
@@ -212,13 +204,9 @@ class TestSubscriptionIntegration:
 
         async def collect_stats():
             results = []
-            subscription_result = await subscribe(
-                schema, parse(channel_sub), context_value=context
-            )
+            subscription_result = await subscribe(schema, parse(channel_sub), context_value=context)
             if hasattr(subscription_result, "errors"):
-                raise AssertionError(
-                    f"Stats subscription failed: {subscription_result.errors}"
-                )
+                raise AssertionError(f"Stats subscription failed: {subscription_result.errors}")
             async for result in subscription_result:
                 if not result.errors:
                     results.append(result.data["channelStats"])
@@ -261,9 +249,7 @@ class TestSubscriptionIntegration:
         try:
             subscription_result = await subscribe(schema, parse(subscription_query))
             if hasattr(subscription_result, "errors"):
-                raise AssertionError(
-                    f"Subscription failed: {subscription_result.errors}"
-                )
+                raise AssertionError(f"Subscription failed: {subscription_result.errors}")
 
             async for result in subscription_result:
                 if result.data:
@@ -272,9 +258,7 @@ class TestSubscriptionIntegration:
             got_error = True
             # Verify the error message contains expected text
             if "Subscription error!" not in str(e):
-                raise AssertionError(
-                    f"Expected 'Subscription error!' in error, got: {e}"
-                )
+                raise AssertionError(f"Expected 'Subscription error!' in error, got: {e}")
 
         # Should get first result then error
         assert len(results) == 1

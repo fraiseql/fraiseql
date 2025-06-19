@@ -120,11 +120,7 @@ def filter(expression: str):
             }
 
             # Load related objects if needed
-            if (
-                "project_id" in kwargs
-                and hasattr(info, "context")
-                and "db" in info.context
-            ):
+            if "project_id" in kwargs and hasattr(info, "context") and "db" in info.context:
                 db = info.context["db"]
                 project = await db.fetch_one(
                     "SELECT * FROM projects WHERE id = $1", kwargs["project_id"]

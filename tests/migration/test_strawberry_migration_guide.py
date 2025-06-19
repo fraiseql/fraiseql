@@ -44,9 +44,7 @@ class TestMigrationGuideExists:
 
         # File should not be empty
         content = migration_guide_path.read_text()
-        assert len(content) > 1000, (
-            "Migration guide should be comprehensive (>1000 chars)"
-        )
+        assert len(content) > 1000, "Migration guide should be comprehensive (>1000 chars)"
 
     def test_migration_guide_covers_key_topics(self):
         """Test that migration guide covers all essential migration topics."""
@@ -94,9 +92,7 @@ class TestMigrationGuideExists:
             re.findall(r"```python.*?fraiseql", content, re.DOTALL | re.IGNORECASE)
         )
 
-        assert strawberry_examples >= 5, (
-            "Should have at least 5 Strawberry code examples"
-        )
+        assert strawberry_examples >= 5, "Should have at least 5 Strawberry code examples"
         assert fraiseql_examples >= 5, "Should have at least 5 FraiseQL code examples"
 
     def test_migration_guide_has_comparison_table(self):
@@ -105,12 +101,8 @@ class TestMigrationGuideExists:
         content = migration_guide_path.read_text()
 
         # Should have a table with Strawberry vs FraiseQL
-        assert "| Strawberry" in content or "| Feature" in content, (
-            "Should have comparison table"
-        )
-        assert "| FraiseQL" in content, (
-            "Comparison table should include FraiseQL column"
-        )
+        assert "| Strawberry" in content or "| Feature" in content, "Should have comparison table"
+        assert "| FraiseQL" in content, "Comparison table should include FraiseQL column"
 
 
 class TestStrawberryCompatibilityLayer:

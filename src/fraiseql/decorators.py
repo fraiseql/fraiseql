@@ -102,9 +102,7 @@ def field(
                 # Check if N+1 detector is available in context
                 detector = None
                 if info and hasattr(info, "context") and info.context:
-                    detector = getattr(info.context, "get", lambda x: None)(
-                        "n1_detector"
-                    )
+                    detector = getattr(info.context, "get", lambda x: None)("n1_detector")
                 if detector and detector.enabled:
                     start_time = time.time()
                     try:
@@ -114,15 +112,11 @@ def field(
                         else:
                             result = await func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
-                        await detector.track_field_resolution(
-                            info, info.field_name, execution_time
-                        )
+                        await detector.track_field_resolution(info, info.field_name, execution_time)
                         return result
                     except Exception:
                         execution_time = time.time() - start_time
-                        await detector.track_field_resolution(
-                            info, info.field_name, execution_time
-                        )
+                        await detector.track_field_resolution(info, info.field_name, execution_time)
                         raise
                 # Call the original method - if it's a bound method, use root as self
                 elif hasattr(func, "__self__"):
@@ -138,9 +132,7 @@ def field(
                 # Check if N+1 detector is available in context
                 detector = None
                 if info and hasattr(info, "context") and info.context:
-                    detector = getattr(info.context, "get", lambda x: None)(
-                        "n1_detector"
-                    )
+                    detector = getattr(info.context, "get", lambda x: None)("n1_detector")
                 if detector and detector.enabled:
                     start_time = time.time()
                     try:
@@ -152,17 +144,13 @@ def field(
                         execution_time = time.time() - start_time
                         # Create task to track asynchronously
                         _ = asyncio.create_task(  # noqa: RUF006
-                            detector.track_field_resolution(
-                                info, info.field_name, execution_time
-                            )
+                            detector.track_field_resolution(info, info.field_name, execution_time)
                         )
                         return result
                     except Exception:
                         execution_time = time.time() - start_time
                         _ = asyncio.create_task(  # noqa: RUF006
-                            detector.track_field_resolution(
-                                info, info.field_name, execution_time
-                            )
+                            detector.track_field_resolution(info, info.field_name, execution_time)
                         )
                         raise
                 # Call the original method - if it's a bound method, use root as self

@@ -75,9 +75,7 @@ class TestInitCommand:
     def test_init_custom_database_url(self, cli_runner, temp_project_dir):
         """Test custom database URL in .env file."""
         custom_url = "postgresql://user:pass@host:5432/mydb"
-        result = cli_runner.invoke(
-            cli, ["init", "myproject", "--database-url", custom_url]
-        )
+        result = cli_runner.invoke(cli, ["init", "myproject", "--database-url", custom_url])
 
         assert result.exit_code == 0
 

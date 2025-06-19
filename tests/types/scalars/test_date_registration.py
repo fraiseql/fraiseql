@@ -65,9 +65,7 @@ def test_multiple_date_fields_in_single_type():
     @fraiseql.query
     async def get_event(info) -> Event:
         today = datetime.date.today()  # noqa: DTZ011
-        return Event(
-            name="Conference", start_date=today, end_date=today, created_date=today
-        )
+        return Event(name="Conference", start_date=today, end_date=today, created_date=today)
 
     # Should not raise duplicate type error
     registry = SchemaRegistry.get_instance()

@@ -61,9 +61,7 @@ def parse_datetime_literal(
     _ = variables
     if isinstance(ast, StringValueNode):
         return parse_datetime_value(ast.value)
-    msg = (
-        f"DateTime cannot represent non-string literal: {getattr(ast, 'value', None)!r}"
-    )
+    msg = f"DateTime cannot represent non-string literal: {getattr(ast, 'value', None)!r}"
     raise GraphQLError(
         msg,
     )

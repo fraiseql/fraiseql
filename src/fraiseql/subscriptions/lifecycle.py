@@ -46,9 +46,7 @@ class SubscriptionLifecycle:
                 and info.context
                 and info.context.get("debug_subscriptions")
             ):
-                print(
-                    f"Subscription {info.context.get('subscription_id')} emitted: {event}"
-                )
+                print(f"Subscription {info.context.get('subscription_id')} emitted: {event}")
 
             return result
 

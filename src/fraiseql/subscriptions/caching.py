@@ -72,9 +72,7 @@ class SubscriptionCache:
             # Generate new value
             async for value in generator:
                 # Cache the value
-                self._cache[key] = CacheEntry(
-                    value=value, timestamp=time.time(), ttl=ttl
-                )
+                self._cache[key] = CacheEntry(value=value, timestamp=time.time(), ttl=ttl)
                 yield value
 
     async def _cleanup_loop(self):

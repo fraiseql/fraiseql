@@ -97,9 +97,7 @@ def test_simple_mutation_in_schema():
     registry.register_mutation(create_branch)
 
     # The mutation should be registered (with camelCase)
-    assert (
-        "createBranch" in registry._mutations or "create_branch" in registry._mutations
-    )
+    assert "createBranch" in registry._mutations or "create_branch" in registry._mutations
 
     # Add a dummy query
     @fraiseql.query

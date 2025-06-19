@@ -17,9 +17,7 @@ _auth_provider: AuthProvider | None = None
 def get_db_pool():
     """Get the database connection pool."""
     if _db_pool is None:
-        raise RuntimeError(
-            "Database pool not initialized. Call create_fraiseql_app first."
-        )
+        raise RuntimeError("Database pool not initialized. Call create_fraiseql_app first.")
     return _db_pool
 
 

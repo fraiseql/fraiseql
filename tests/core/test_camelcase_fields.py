@@ -87,9 +87,7 @@ def test_camelcase_conversion_with_config(clear_registry):
 
     @query
     def current_user(info) -> User:
-        return User(
-            user_name="john_doe", first_name="John", last_login_time=1234567890.0
-        )
+        return User(user_name="john_doe", first_name="John", last_login_time=1234567890.0)
 
     # Test with camelCase enabled (default)
     schema = build_fraiseql_schema(query_types=[current_user], camel_case_fields=True)
@@ -111,9 +109,7 @@ def test_camelcase_conversion_with_config(clear_registry):
     assert result.data["currentUser"]["userName"] == "john_doe"
 
     # Test with camelCase disabled
-    schema_snake = build_fraiseql_schema(
-        query_types=[current_user], camel_case_fields=False
-    )
+    schema_snake = build_fraiseql_schema(query_types=[current_user], camel_case_fields=False)
 
     result = graphql_sync(
         schema_snake,
@@ -146,9 +142,7 @@ def test_explicit_graphql_name(clear_registry):
 
     @query
     def get_product(info) -> Product:
-        return Product(
-            internal_id=1, product_name="Widget", price_usd=9.99, stock_quantity=50
-        )
+        return Product(internal_id=1, product_name="Widget", price_usd=9.99, stock_quantity=50)
 
     schema = build_fraiseql_schema(query_types=[Product])
 

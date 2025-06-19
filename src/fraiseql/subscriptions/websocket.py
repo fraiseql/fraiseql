@@ -148,18 +148,14 @@ class WebSocketConnection:
             try:
                 # Wait for message with timeout
                 remaining = deadline - asyncio.get_event_loop().time()
-                message = await asyncio.wait_for(
-                    self._receive_message(), timeout=remaining
-                )
+                message = await asyncio.wait_for(self._receive_message(), timeout=remaining)
 
                 if message.type == MessageType.CONNECTION_INIT:
                     self.connection_params = message.payload or {}
                     self.initialized_at = datetime.now(UTC)
 
                     # Send connection_ack
-                    await self.send_message(
-                        GraphQLWSMessage(type=MessageType.CONNECTION_ACK)
-                    )
+                    await self.send_message(GraphQLWSMessage(type=MessageType.CONNECTION_ACK))
 
                     self.state = ConnectionState.READY
                     logger.info(f"Connection {self.connection_id} initialized")
@@ -242,9 +238,7 @@ class WebSocketConnection:
             return
 
         if message.id in self.subscriptions:
-            await self._send_error(
-                message.id, f"Subscription {message.id} already exists"
-            )
+            await self._send_error(message.id, f"Subscription {message.id} already exists")
             return
 
         try:
@@ -267,9 +261,7 @@ class WebSocketConnection:
 
             if isinstance(result, AsyncIterator):
                 # Start subscription task
-                task = asyncio.create_task(
-                    self._handle_subscription_generator(message.id, result)
-                )
+                task = asyncio.create_task(self._handle_subscription_generator(message.id, result))
                 self.subscriptions[message.id] = task
             else:
                 # Single error result
@@ -331,18 +323,14 @@ class WebSocketConnection:
 
     async def _handle_ping(self, message: GraphQLWSMessage):
         """Handle ping message."""
-        await self.send_message(
-            GraphQLWSMessage(type=MessageType.PONG, payload=message.payload)
-        )
+        await self.send_message(GraphQLWSMessage(type=MessageType.PONG, payload=message.payload))
 
     async def _send_error(self, subscription_id: str | None, error: Any):
         """Send error message."""
         payload = {"errors": [str(error)]} if isinstance(error, str) else error
 
         await self.send_message(
-            GraphQLWSMessage(
-                type=MessageType.ERROR, id=subscription_id, payload=payload
-            )
+            GraphQLWSMessage(type=MessageType.ERROR, id=subscription_id, payload=payload)
         )
 
     async def _keep_alive(self):

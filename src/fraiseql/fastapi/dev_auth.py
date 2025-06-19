@@ -91,9 +91,7 @@ class DevAuthMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
         ]
 
-        return any(
-            path.startswith(protected_path) for protected_path in protected_paths
-        )
+        return any(path.startswith(protected_path) for protected_path in protected_paths)
 
     def _extract_credentials(self, request: Request) -> HTTPBasicCredentials | None:
         """Extract HTTP Basic Auth credentials from request.
