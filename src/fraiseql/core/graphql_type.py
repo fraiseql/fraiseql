@@ -299,13 +299,13 @@ def convert_type_to_graphql_output(
             key = (f"scalar_{typ.__name__}", typ.__module__)
             if key in _graphql_type_cache:
                 return cast(GraphQLScalarType, _graphql_type_cache[key])
-        
+
         scalar_gql = convert_scalar_to_graphql(typ)
-        
+
         # Cache scalar types to prevent duplicate registrations
         if isinstance(typ, type):
             _graphql_type_cache[key] = scalar_gql
-            
+
         return scalar_gql
     except TypeError:
         pass  # Not a scalar — continue

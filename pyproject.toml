@@ -121,7 +121,8 @@ per-file-ignores = { "**/*.pyi" = [
   "UP037",
   "UP007",
 ], "tests/**/*.py" = [
-  "S101",
+  "S101",    # Use of assert
+  "DTZ011",  # Use of datetime.date.today() in tests is acceptable
 ] }
 
 [tool.ruff.lint.pydocstyle]
