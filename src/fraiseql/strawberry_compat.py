@@ -5,7 +5,7 @@ from Strawberry GraphQL to FraiseQL.
 """
 
 from collections.abc import Callable
-from typing import Any, TypeVar, cast, Type
+from typing import Any, TypeVar, cast
 
 import fraiseql
 
@@ -17,11 +17,11 @@ class StrawberryCompatibility:
     """Compatibility layer that mimics Strawberry's API using FraiseQL."""
 
     @staticmethod
-    def type(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
+    def type(cls_arg: type | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.type compatibility."""
         if cls_arg is None:
             # Called with arguments: @strawberry.type(name="CustomName")
-            def decorator(cls: Type[Any]) -> Type[Any]:
+            def decorator(cls: type) -> type:
                 return fraiseql.type(cls)
 
             return decorator
@@ -30,11 +30,11 @@ class StrawberryCompatibility:
             return fraiseql.type(cls_arg)
 
     @staticmethod
-    def input(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
+    def input(cls_arg: type | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.input compatibility."""
         if cls_arg is None:
 
-            def decorator(cls: Type[Any]) -> Type[Any]:
+            def decorator(cls: type) -> type:
                 return fraiseql.input(cls)
 
             return decorator
@@ -42,11 +42,11 @@ class StrawberryCompatibility:
             return fraiseql.input(cls_arg)
 
     @staticmethod
-    def enum(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
+    def enum(cls_arg: type | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.enum compatibility."""
         if cls_arg is None:
 
-            def decorator(cls: Type[Any]) -> Type[Any]:
+            def decorator(cls: type) -> type:
                 return fraiseql.enum(cls)
 
             return decorator
@@ -54,11 +54,11 @@ class StrawberryCompatibility:
             return fraiseql.enum(cls_arg)
 
     @staticmethod
-    def interface(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
+    def interface(cls_arg: type | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.interface compatibility."""
         if cls_arg is None:
 
-            def decorator(cls: Type[Any]) -> Type[Any]:
+            def decorator(cls: type) -> type:
                 return fraiseql.interface(cls)
 
             return decorator
