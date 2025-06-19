@@ -44,8 +44,8 @@ class FraiseQLConfig(BaseSettings):
     # Performance settings
     enable_query_caching: bool = True
     cache_ttl: int = 300  # seconds
-    enable_query_compilation: bool = False
-    compiled_queries_path: str | None = None
+    enable_turbo_router: bool = True  # Enable TurboRouter for registered queries
+    turbo_router_cache_size: int = 1000  # Max number of queries to cache
 
     # CORS settings
     cors_enabled: bool = True

@@ -14,6 +14,9 @@ Comprehensive security guide covering SQL injection prevention, input validation
 ## [Performance Optimization](./performance.md)
 Optimize your FraiseQL API for production with materialized views, connection pooling, query caching, and monitoring.
 
+## [TurboRouter](./turbo-router.md)
+Learn about FraiseQL's high-performance query execution engine that bypasses GraphQL overhead for registered queries.
+
 ## [Pagination](./pagination.md)
 Implement efficient pagination using cursor-based and offset-based approaches, following the GraphQL Relay specification.
 
@@ -39,7 +42,7 @@ FraiseQL provides two distinct execution modes optimized for different environme
 - Bypasses GraphQL validation for known queries
 - Direct SQL execution with minimal overhead
 - No schema introspection for security
-- Pre-compiled query cache for maximum performance
+- Query result caching for maximum performance
 
 ```python
 # Enable production mode

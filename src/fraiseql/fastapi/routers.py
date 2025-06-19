@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from fraiseql.auth.base import AuthProvider
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.dependencies import build_graphql_context
+from fraiseql.fastapi.turbo import TurboRegistry, TurboRouter
 from fraiseql.optimization.n_plus_one_detector import (
     N1QueryDetected,
     configure_detector,
@@ -28,20 +29,6 @@ class GraphQLRequest(BaseModel):
     operationName: str | None = None
 
 
-class CompiledQuery:
-    """Represents a pre-compiled GraphQL query."""
-
-    def __init__(
-        self,
-        query_string: str,
-        sql_template: str,
-        param_mapping: dict[str, str],
-        operation_name: str | None = None,
-    ):
-        self.query_string = query_string
-        self.sql_template = sql_template
-        self.param_mapping = param_mapping
-        self.operation_name = operation_name
 
 
 def create_graphql_router(
@@ -49,10 +36,11 @@ def create_graphql_router(
     config: FraiseQLConfig,
     auth_provider: AuthProvider | None = None,
     context_getter: Callable[[Request], Awaitable[dict[str, Any]]] | None = None,
+    turbo_registry: TurboRegistry | None = None,
 ) -> APIRouter:
     """Create appropriate router based on environment."""
-    if config.environment == "production" and config.enable_query_compilation:
-        return create_production_router(schema, config, auth_provider, context_getter)
+    if config.environment == "production":
+        return create_production_router(schema, config, auth_provider, context_getter, turbo_registry)
     else:
         return create_development_router(schema, config, auth_provider, context_getter)
 
@@ -213,17 +201,21 @@ def create_production_router(
     config: FraiseQLConfig,
     auth_provider: AuthProvider | None = None,
     context_getter: Callable[[Request], Awaitable[dict[str, Any]]] | None = None,
-    compiled_queries: dict[str, CompiledQuery] | None = None,
+    turbo_registry: TurboRegistry | None = None,
 ) -> APIRouter:
     """Create production router with optimizations.
 
     Features:
-    - Query whitelisting (only pre-compiled queries allowed)
-    - Direct SQL execution bypassing GraphQL validation
+    - TurboRouter for registered queries
+    - Optimized query execution
     - Minimal error information
     - No introspection
+    - No playground
     """
     router = APIRouter(prefix="", tags=["GraphQL"])
+    
+    # Create TurboRouter if registry provided
+    turbo_router = TurboRouter(turbo_registry) if turbo_registry else None
 
     # Create context dependency based on whether custom context_getter is provided
     if context_getter:
@@ -235,11 +227,6 @@ def create_production_router(
     else:
         context_dependency = Depends(build_graphql_context)
 
-    # Load compiled queries if path provided
-    if config.compiled_queries_path and compiled_queries is None:
-        compiled_queries = load_compiled_queries(config.compiled_queries_path)
-
-    compiled_queries = compiled_queries or {}
 
     @router.post("/graphql")
     async def graphql_endpoint(
@@ -247,60 +234,44 @@ def create_production_router(
         http_request: Request,
         context: dict[str, Any] = context_dependency,
     ):
-        """Execute GraphQL query using pre-compiled queries when possible."""
+        """Execute GraphQL query in production mode."""
         try:
-            # Try to find compiled query
-            query_hash = hash_query(request.query)
-            compiled = compiled_queries.get(query_hash)
-
-            if compiled:
-                # Execute pre-compiled query directly
-                # This bypasses GraphQL validation for performance
-                result = await execute_compiled_query(
-                    compiled,
-                    request.variables or {},
-                    context,
+            # Try TurboRouter first for registered queries
+            if turbo_router:
+                turbo_result = await turbo_router.execute(
+                    query=request.query,
+                    variables=request.variables or {},
+                    context=context
                 )
-                return {"data": result}
-
-            else:
-                # Fallback to regular GraphQL execution
-                # In strict production mode, this could be disabled
-                if config.get("strict_production_mode", False):
+                if turbo_result is not None:
+                    return turbo_result
+            
+            # Fall back to standard GraphQL execution
+            # Parse and validate first to fail fast
+            try:
+                document = parse(request.query)
+                errors = validate(schema, document)
+                if errors:
                     return {
                         "errors": [
                             {
-                                "message": "Query not found",
-                                "extensions": {"code": "FORBIDDEN"},
+                                "message": error.message,
+                                "extensions": {"code": "GRAPHQL_VALIDATION_FAILED"},
+                            }
+                            for error in errors
+                        ]
+                    }
+            except Exception:
+                return {
+                    "errors": [
+                        {
+                            "message": "Invalid query",
+                            "extensions": {"code": "GRAPHQL_PARSE_FAILED"},
                             }
                         ]
                     }
 
-                # Parse and validate first to fail fast
-                try:
-                    document = parse(request.query)
-                    errors = validate(schema, document)
-                    if errors:
-                        return {
-                            "errors": [
-                                {
-                                    "message": error.message,
-                                    "extensions": {"code": "GRAPHQL_VALIDATION_FAILED"},
-                                }
-                                for error in errors
-                            ]
-                        }
-                except Exception:
-                    return {
-                        "errors": [
-                            {
-                                "message": "Invalid query",
-                                "extensions": {"code": "GRAPHQL_PARSE_FAILED"},
-                            }
-                        ]
-                    }
-
-                # Execute query
+            # Execute query
                 result = await graphql(
                     schema,
                     request.query,
@@ -346,42 +317,6 @@ def create_production_router(
     return router
 
 
-async def execute_compiled_query(
-    compiled: CompiledQuery,
-    variables: dict[str, Any],
-    context: dict[str, Any],
-) -> dict[str, Any]:
-    """Execute a pre-compiled query directly against the database.
-
-    This bypasses GraphQL validation and execution for maximum performance.
-    """
-    db = context["db"]
-
-    # Map GraphQL variables to SQL parameters
-    sql_params = {}
-    for gql_var, sql_param in compiled.param_mapping.items():
-        if gql_var in variables:
-            sql_params[sql_param] = variables[gql_var]
-
-    # Execute SQL directly
-    result = await db.run(compiled.sql_template, sql_params)
-
-    # The SQL should already return properly formatted JSON
-    return result[0] if result else {}
-
-
-def hash_query(query: str) -> str:
-    """Generate a hash for a GraphQL query for lookup."""
-    # Remove whitespace and normalize
-    normalized = " ".join(query.split())
-    return str(hash(normalized))
-
-
-def load_compiled_queries(path: str) -> dict[str, CompiledQuery]:
-    """Load pre-compiled queries from disk."""
-    # This would load compiled queries from a JSON file or similar
-    # For now, return empty dict
-    return {}
 
 
 # GraphQL Playground HTML

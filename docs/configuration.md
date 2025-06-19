@@ -80,8 +80,8 @@ Auth provider options:
 |---------------------|-------------|---------|
 | `FRAISEQL_ENABLE_QUERY_CACHING` | Enable query result caching | `true` |
 | `FRAISEQL_CACHE_TTL` | Cache TTL (seconds) | `300` |
-| `FRAISEQL_ENABLE_QUERY_COMPILATION` | Enable query compilation | `false` |
-| `FRAISEQL_COMPILED_QUERIES_PATH` | Path to compiled queries | `null` |
+| `FRAISEQL_ENABLE_TURBO_ROUTER` | Enable TurboRouter for registered queries | `true` |
+| `FRAISEQL_TURBO_ROUTER_CACHE_SIZE` | Max number of queries in TurboRouter cache | `1000` |
 
 ### CORS Settings
 

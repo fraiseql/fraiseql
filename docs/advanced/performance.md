@@ -18,7 +18,7 @@ app = fraiseql.create_fraiseql_app(
 Production mode provides:
 - **Bypassed GraphQL validation** - Direct SQL execution
 - **No schema introspection** - Reduced overhead and better security
-- **Query caching** - Pre-compiled queries for repeat requests
+- **Query caching** - Cached query execution plans for repeat requests
 - **Optimized error handling** - Minimal error details for security
 
 ## Database Optimizations

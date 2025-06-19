@@ -13,6 +13,7 @@ from fraiseql.auth.base import AuthProvider
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.dependencies import get_db_pool, set_auth_provider, set_db_pool
 from fraiseql.fastapi.routers import create_graphql_router
+from fraiseql.fastapi.turbo import TurboRegistry
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.utils import normalize_database_url
 
@@ -41,7 +42,6 @@ def create_fraiseql_app(
     description: str | None = None,
     # Environment
     production: bool = False,
-    compiled_queries_path: str | None = None,
     # Development auth configuration
     dev_auth_username: str | None = None,
     dev_auth_password: str | None = None,
@@ -63,7 +63,6 @@ def create_fraiseql_app(
         version: API version
         description: API description
         production: Whether to use production optimizations
-        compiled_queries_path: Path to compiled queries for production mode
         dev_auth_username: Override username for development auth (defaults to env var or "admin")
         dev_auth_password: Override password for development auth (defaults to env var)
         app: Existing FastAPI app to extend (creates new if None)
@@ -106,8 +105,6 @@ def create_fraiseql_app(
             config_kwargs["app_name"] = title
         if version is not None:
             config_kwargs["app_version"] = version
-        if compiled_queries_path is not None:
-            config_kwargs["compiled_queries_path"] = compiled_queries_path
         if dev_auth_username is not None:
             config_kwargs["dev_auth_username"] = dev_auth_username
         if dev_auth_password is not None:
@@ -214,7 +211,13 @@ def create_fraiseql_app(
     schema = build_fraiseql_schema(
         query_types=list(queries) or list(types),
         mutation_resolvers=list(mutations),
+        camel_case_fields=config.auto_camel_case,
     )
+    
+    # Create TurboRegistry if enabled
+    turbo_registry = None
+    if production and config.enable_turbo_router:
+        turbo_registry = TurboRegistry(max_size=config.turbo_router_cache_size)
 
     # Create and mount GraphQL router
     graphql_router = create_graphql_router(
@@ -222,6 +225,7 @@ def create_fraiseql_app(
         config=config,
         auth_provider=auth_provider,
         context_getter=context_getter,
+        turbo_registry=turbo_registry,
     )
 
     app.include_router(graphql_router)
