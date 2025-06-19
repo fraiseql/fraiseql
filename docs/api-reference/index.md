@@ -54,13 +54,13 @@ Flexible authentication system with multiple providers:
 - Custom authentication provider support
 - Role-based access control
 
-## [TestFoundry](./testfoundry.md)
-Automated test generation for database operations and GraphQL mutations.
+## TurboRouter
+High-performance query execution engine:
 
-- Automatic pgTAP test generation
-- Constraint violation testing
-- Authorization testing
-- Custom scenario support
+- `TurboQuery` - Define pre-validated queries with SQL templates
+- `TurboRegistry` - Manage registered queries with LRU cache
+- `TurboRouter` - Execute registered queries with minimal overhead
+- Automatic fallback to standard GraphQL execution
 
 ## Quick Reference
 
@@ -130,7 +130,9 @@ class CreateUserError:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FRAISEQL_PRODUCTION` | `false` | Enable production mode |
-| `FRAISEQL_AUTO_CAMEL_CASE` | `true` | Auto convert snake_case to camelCase |
+| `FRAISEQL_AUTO_CAMEL_CASE` | `false` | Auto convert snake_case to camelCase |
 | `FRAISEQL_DEV_PASSWORD` | - | Development authentication password |
 | `FRAISEQL_DEV_USERNAME` | `admin` | Development authentication username |
+| `FRAISEQL_ENABLE_TURBO_ROUTER` | `true` | Enable TurboRouter for registered queries |
+| `FRAISEQL_TURBO_ROUTER_CACHE_SIZE` | `1000` | Max number of queries in TurboRouter cache |
 | `DATABASE_URL` | - | PostgreSQL connection string |

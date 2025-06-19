@@ -37,8 +37,8 @@ This means your GraphQL queries become simple `SELECT` statements from views, wh
 - 🔐 **Type-Safe** - Full type hints with Python 3.11+ and runtime validation
 - 🛡️ **SQL Injection Safe** - All queries use parameterized SQL
 - 🔌 **Pluggable Auth** - Modular authentication system (Auth0 provider included)
-- 🧪 **TestFoundry** - Generate pgTAP tests for your database operations
 - ⚡ **FastAPI Integration** - Production-ready ASGI application
+- 🏎️ **TurboRouter** - Near-zero overhead for registered queries (< 0.1ms)
 - 📊 **5-10x Faster** - Benchmarked performance advantage over traditional GraphQL
 
 ## Installation
@@ -289,15 +289,6 @@ fraiseql generate crud User
 fraiseql generate schema --output schema.graphql
 ```
 
-### TestFoundry Integration
-
-```bash
-# Generate pgTAP tests for your database
-fraiseql testfoundry generate User
-
-# Run tests
-fraiseql testfoundry run
-```
 
 ## Query Your API
 
@@ -431,29 +422,6 @@ app = create_fraiseql_app(
     types=[User, Query],
 )
 ```
-
-## TestFoundry: Database Test Generation
-
-TestFoundry helps generate comprehensive database tests:
-
-```python
-from fraiseql.extensions.testfoundry import FoundryGenerator
-
-# Generate pgTAP tests for your mutations
-generator = FoundryGenerator(repository)
-tests = await generator.generate_tests_for_entity(
-    entity_name="users",
-    table_name="tb_users",
-    input_type_name="user_input"
-)
-```
-
-This generates tests for:
-
-- Valid operations (happy path)
-- Constraint violations (unique, foreign key, check)
-- Edge cases and boundary conditions
-- Authorization rules
 
 ## LLM-Friendly Architecture
 

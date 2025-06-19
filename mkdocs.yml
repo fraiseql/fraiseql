@@ -83,6 +83,7 @@ nav:
     - Configuration: advanced/configuration.md
     - Authentication: advanced/authentication.md
     - Performance: advanced/performance.md
+    - TurboRouter: advanced/turbo-router.md
     - Pagination: advanced/pagination.md
     - Security: advanced/security.md
     - Domain-Driven Database: advanced/domain-driven-database.md
