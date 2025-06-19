@@ -100,11 +100,9 @@ def field(
 
             async def async_wrapped_resolver(root, info, *args, **kwargs):
                 # Check if N+1 detector is available in context
-                detector = (
-                    getattr(info.context, "get", lambda x: None)("n1_detector")
-                    if info.context
-                    else None
-                )
+                detector = None
+                if info and hasattr(info, "context") and info.context:
+                    detector = getattr(info.context, "get", lambda x: None)("n1_detector")
                 if detector and detector.enabled:
                     start_time = time.time()
                     try:
@@ -132,11 +130,9 @@ def field(
 
             def sync_wrapped_resolver(root, info, *args, **kwargs):
                 # Check if N+1 detector is available in context
-                detector = (
-                    getattr(info.context, "get", lambda x: None)("n1_detector")
-                    if info.context
-                    else None
-                )
+                detector = None
+                if info and hasattr(info, "context") and info.context:
+                    detector = getattr(info.context, "get", lambda x: None)("n1_detector")
                 if detector and detector.enabled:
                     start_time = time.time()
                     try:

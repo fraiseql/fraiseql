@@ -69,11 +69,12 @@ def parse_json_literal(
 
     if isinstance(ast, StringValueNode):
         # If it's a string, try to parse it as JSON
-        # If it fails, return it as a plain string
+        # If it fails, raise an error for non-JSON strings
         try:
             return json.loads(ast.value)
         except json.JSONDecodeError:
-            return ast.value
+            msg = f"JSON cannot represent non-JSON string: {ast.value!r}"
+            raise GraphQLError(msg)
 
     if isinstance(ast, IntValueNode):
         # IntValueNode stores the value as a string, convert to int
@@ -92,17 +93,16 @@ def parse_json_literal(
         return None
 
     if isinstance(ast, ObjectValueNode):
-        # Parse GraphQL object literal to Python dict
-        result = {}
-        for field in ast.fields:
-            field_name = field.name.value
-            field_value = parse_json_literal(field.value, variables)
-            result[field_name] = field_value
-        return result
+        # JSON scalar should only accept string literals containing JSON,
+        # not GraphQL object notation
+        msg = "Use a String literal containing JSON, not GraphQL object notation"
+        raise GraphQLError(msg)
 
     if isinstance(ast, ListValueNode):
-        # Parse GraphQL list literal to Python list
-        return [parse_json_literal(value, variables) for value in ast.values]
+        # JSON scalar should only accept string literals containing JSON,
+        # not GraphQL list notation
+        msg = "Use a String literal containing JSON, not GraphQL list notation"
+        raise GraphQLError(msg)
 
     msg = f"JSON cannot represent literal of type {type(ast).__name__}"
     raise GraphQLError(msg)
