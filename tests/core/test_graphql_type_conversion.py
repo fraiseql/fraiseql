@@ -164,12 +164,16 @@ class TestConvertTypeToGraphQLInput:
 
     def test_union_types_raise_error(self):
         """Test that Union types raise TypeError."""
-        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
+        with pytest.raises(
+            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
+        ):
             convert_type_to_graphql_input(Union[str, int])  # type: ignore
 
     def test_annotated_union_types_raise_error(self):
         """Test that Annotated Union types raise TypeError."""
-        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
+        with pytest.raises(
+            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
+        ):
             convert_type_to_graphql_input(Annotated[str | int, "some annotation"])  # type: ignore
 
     def test_invalid_type_raises_error(self):
@@ -178,7 +182,9 @@ class TestConvertTypeToGraphQLInput:
         class RegularClass:
             pass
 
-        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
+        with pytest.raises(
+            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
+        ):
             convert_type_to_graphql_input(RegularClass)
 
     def test_non_input_fraise_type_raises_error(self):
@@ -188,7 +194,9 @@ class TestConvertTypeToGraphQLInput:
         class OutputType:
             name: str
 
-        with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
+        with pytest.raises(
+            TypeError, match="Invalid type passed to convert_type_to_graphql_input"
+        ):
             convert_type_to_graphql_input(OutputType)
 
 
@@ -492,7 +500,9 @@ class TestRecursiveJSONField:
         result = convert_type_to_graphql_input(RecursiveInput)
         assert isinstance(result, GraphQLInputObjectType)
         assert "field" in result.fields
-        assert isinstance(result.fields["field"].type, GraphQLScalarType)  # JSON scalar type
+        assert isinstance(
+            result.fields["field"].type, GraphQLScalarType
+        )  # JSON scalar type
 
 
 class TestMissingFieldsInComplexTypes:

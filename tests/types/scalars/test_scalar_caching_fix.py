@@ -97,7 +97,9 @@ def test_complex_scenario_with_caching():
     @fraiseql.query
     async def get_events(info) -> list[Event]:
         today = datetime.date.today()  # noqa: DTZ011
-        return [Event(title="Test", start_date=today, end_date=today, created_date=today)]
+        return [
+            Event(title="Test", start_date=today, end_date=today, created_date=today)
+        ]
 
     @fraiseql.mutation
     async def create_event(info, input: CreateEventInput) -> Event:
@@ -110,7 +112,8 @@ def test_complex_scenario_with_caching():
 
     # Build schema - this should not fail with duplicate Date registrations
     schema = build_fraiseql_schema(
-        query_types=[User, Event, Order, get_users, get_events], mutation_resolvers=[create_event]
+        query_types=[User, Event, Order, get_users, get_events],
+        mutation_resolvers=[create_event],
     )
 
     # Verify Date scalar is present and unique

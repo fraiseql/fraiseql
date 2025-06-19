@@ -169,7 +169,9 @@ def convert_type_to_graphql_input(
             if field_type == JSONScalar:
                 try:
                     # Assuming the field has some default value to validate
-                    parse_json_value(getattr(typ, name, None))  # Validate the field's default value
+                    parse_json_value(
+                        getattr(typ, name, None)
+                    )  # Validate the field's default value
                 except GraphQLError as e:
                     msg = f"Invalid JSON value in field {name}: {e!s}"
                     raise GraphQLError(msg) from None
@@ -179,7 +181,9 @@ def convert_type_to_graphql_input(
             if field.graphql_name:
                 graphql_field_name = field.graphql_name
             else:
-                graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
+                graphql_field_name = (
+                    snake_to_camel(name) if config.camel_case_fields else name
+                )
 
             gql_fields[graphql_field_name] = GraphQLInputField(
                 convert_type_to_graphql_input(field_type)
@@ -206,9 +210,7 @@ def convert_type_to_graphql_input(
         if isinstance(graphql_type, GraphQLEnumType):
             return graphql_type
         # If not decorated, raise error
-        msg = (
-            f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
-        )
+        msg = f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
         raise TypeError(msg)
 
     # Handle scalar types using the existing scalar mapping utility
@@ -287,9 +289,7 @@ def convert_type_to_graphql_output(
         if isinstance(graphql_type, GraphQLEnumType):
             return graphql_type
         # If not decorated, raise error
-        msg = (
-            f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
-        )
+        msg = f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
         raise TypeError(msg)
 
     # Handle built-in scalar types with caching
@@ -358,7 +358,9 @@ def convert_type_to_graphql_output(
                             graphql_field_name = field.graphql_name
                         else:
                             graphql_field_name = (
-                                snake_to_camel(name) if config.camel_case_fields else name
+                                snake_to_camel(name)
+                                if config.camel_case_fields
+                                else name
                             )
 
                         gql_fields[graphql_field_name] = GraphQLField(
@@ -401,7 +403,9 @@ def convert_type_to_graphql_output(
                             logger.debug(f"Found custom field method: {attr_name}")
 
                             # Convert return type to GraphQL type
-                            gql_return_type = convert_type_to_graphql_output(return_type)
+                            gql_return_type = convert_type_to_graphql_output(
+                                return_type
+                            )
 
                             # Create a wrapper that adapts the method signature for GraphQL
                             def make_custom_resolver(method):
@@ -428,7 +432,9 @@ def convert_type_to_graphql_output(
                             # Convert field name to camelCase if configured
                             config = SchemaConfig.get_instance()
                             graphql_field_name = (
-                                snake_to_camel(attr_name) if config.camel_case_fields else attr_name
+                                snake_to_camel(attr_name)
+                                if config.camel_case_fields
+                                else attr_name
                             )
 
                             gql_fields[graphql_field_name] = GraphQLField(
@@ -438,7 +444,9 @@ def convert_type_to_graphql_output(
                             )
 
                         except Exception as e:
-                            logger.warning(f"Failed to process custom field {attr_name}: {e}")
+                            logger.warning(
+                                f"Failed to process custom field {attr_name}: {e}"
+                            )
                             continue
 
                 # Get interfaces this type implements
@@ -481,7 +489,9 @@ def convert_type_to_graphql_output(
                             graphql_field_name = field.graphql_name
                         else:
                             graphql_field_name = (
-                                snake_to_camel(name) if config.camel_case_fields else name
+                                snake_to_camel(name)
+                                if config.camel_case_fields
+                                else name
                             )
 
                         gql_fields[graphql_field_name] = GraphQLField(

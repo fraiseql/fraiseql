@@ -83,7 +83,9 @@ def _find_strawberry_imports(content: str, file_path: str) -> list[MigrationIssu
     lines = content.splitlines()
 
     for line_no, line in enumerate(lines, 1):
-        if re.search(r"import\s+strawberry", line) or re.search(r"from\s+strawberry", line):
+        if re.search(r"import\s+strawberry", line) or re.search(
+            r"from\s+strawberry", line
+        ):
             issues.append(
                 MigrationIssue(
                     file_path=file_path,
@@ -161,7 +163,9 @@ def _find_strawberry_patterns(content: str, file_path: str) -> list[MigrationIss
 def generate_migration_report(issues: list[MigrationIssue]) -> str:
     """Generate a human-readable migration report."""
     if not issues:
-        return "✅ No Strawberry patterns found. Your codebase appears ready for FraiseQL!"
+        return (
+            "✅ No Strawberry patterns found. Your codebase appears ready for FraiseQL!"
+        )
 
     report = f"🔍 Found {len(issues)} migration issues:\n\n"
 

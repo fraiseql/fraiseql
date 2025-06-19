@@ -11,7 +11,9 @@ from fraiseql.optimization.dataloader import DataLoader
 T = TypeVar("T", bound=DataLoader)
 
 # Context variable for request-scoped registry
-_loader_registry: ContextVar[LoaderRegistry | None] = ContextVar("loader_registry", default=None)
+_loader_registry: ContextVar[LoaderRegistry | None] = ContextVar(
+    "loader_registry", default=None
+)
 
 
 class LoaderRegistry:

@@ -279,7 +279,10 @@ class TestJSONTypeSupport:
             # Test nested access
             users = api_response["data"]["users"]
             assert users[0]["preferences"]["notifications"]["push"]["enabled"] is True
-            assert "updates" in users[0]["preferences"]["notifications"]["push"]["categories"]
+            assert (
+                "updates"
+                in users[0]["preferences"]["notifications"]["push"]["categories"]
+            )
 
     def test_optional_json_fields(self):
         """Test that Optional JSON fields work correctly."""
@@ -366,7 +369,9 @@ class TestJSONTypeSupport:
 
         @fraiseql.query
         async def get_product(info) -> Product:
-            return Product(id=UUID("123e4567-e89b-12d3-a456-426614174000"), name="Widget Pro")
+            return Product(
+                id=UUID("123e4567-e89b-12d3-a456-426614174000"), name="Widget Pro"
+            )
 
         app = create_fraiseql_app(
             database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",

@@ -182,7 +182,9 @@ def test_mixed_decorators_and_explicit_queries():
         return None
 
     # Build schema with both decorated and explicit queries
-    schema = build_fraiseql_schema(query_types=[QueryRoot, getPost])  # Mix types and functions
+    schema = build_fraiseql_schema(
+        query_types=[QueryRoot, getPost]
+    )  # Mix types and functions
 
     query_fields = schema.query_type.fields
     # Should have all queries

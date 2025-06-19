@@ -131,13 +131,15 @@ def test_n1_detection_triggers_warning(caplog):
 
             # Check for N+1 warning in logs
             warning_found = any(
-                "N+1 query pattern detected" in record.message for record in caplog.records
+                "N+1 query pattern detected" in record.message
+                for record in caplog.records
             )
             assert warning_found, "N+1 detection warning not found in logs"
 
             # Check for specific suggestion
             suggestion_found = any(
-                "Consider using a DataLoader" in record.message for record in caplog.records
+                "Consider using a DataLoader" in record.message
+                for record in caplog.records
             )
             assert suggestion_found, "DataLoader suggestion not found in logs"
 
@@ -303,7 +305,8 @@ def test_n1_detection_single_query_no_warning(caplog):
 
             # No N+1 warning should be logged
             warning_found = any(
-                "N+1 query pattern detected" in record.message for record in caplog.records
+                "N+1 query pattern detected" in record.message
+                for record in caplog.records
             )
             assert not warning_found
 

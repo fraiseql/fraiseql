@@ -87,7 +87,9 @@ def test_camelcase_conversion_with_config(clear_registry):
 
     @query
     def current_user(info) -> User:
-        return User(user_name="john_doe", first_name="John", last_login_time=1234567890.0)
+        return User(
+            user_name="john_doe", first_name="John", last_login_time=1234567890.0
+        )
 
     # Test with camelCase enabled (default)
     schema = build_fraiseql_schema(query_types=[current_user], camel_case_fields=True)
@@ -109,7 +111,9 @@ def test_camelcase_conversion_with_config(clear_registry):
     assert result.data["currentUser"]["userName"] == "john_doe"
 
     # Test with camelCase disabled
-    schema_snake = build_fraiseql_schema(query_types=[current_user], camel_case_fields=False)
+    schema_snake = build_fraiseql_schema(
+        query_types=[current_user], camel_case_fields=False
+    )
 
     result = graphql_sync(
         schema_snake,
@@ -142,7 +146,9 @@ def test_explicit_graphql_name(clear_registry):
 
     @query
     def get_product(info) -> Product:
-        return Product(internal_id=1, product_name="Widget", price_usd=9.99, stock_quantity=50)
+        return Product(
+            internal_id=1, product_name="Widget", price_usd=9.99, stock_quantity=50
+        )
 
     schema = build_fraiseql_schema(query_types=[Product])
 
@@ -179,7 +185,10 @@ def test_mixed_case_preservation(clear_registry):
     @query
     def config(info) -> APIConfig:
         return APIConfig(
-            api_key="secret123", APIVersion="v2", httpTimeout=30, URL="https://api.example.com"
+            api_key="secret123",
+            APIVersion="v2",
+            httpTimeout=30,
+            URL="https://api.example.com",
         )
 
     schema = build_fraiseql_schema(query_types=[APIConfig])
@@ -331,7 +340,9 @@ def test_nested_types_camelcase(clear_registry):
             company_name="Acme Corp",
             employee_count=100,
             head_office=Address(
-                street_line_1="123 Main St", street_line_2="Suite 400", postal_code="12345"
+                street_line_1="123 Main St",
+                street_line_2="Suite 400",
+                postal_code="12345",
             ),
         )
 

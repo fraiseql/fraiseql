@@ -56,7 +56,9 @@ class TestFraiseQLRepository:
         self._setup_mocks(mock_pool, mock_cursor)
 
         # Run query
-        query = DatabaseQuery(statement=SQL("SELECT * FROM users"), params={}, fetch_result=True)
+        query = DatabaseQuery(
+            statement=SQL("SELECT * FROM users"), params={}, fetch_result=True
+        )
         result = await repository.run(query)
 
         # Assertions
@@ -132,7 +134,9 @@ class TestFraiseQLRepository:
         # Make the connection raise an error
         mock_pool.connection.side_effect = Exception("Connection pool error")
 
-        query = DatabaseQuery(statement=SQL("SELECT * FROM users"), params={}, fetch_result=True)
+        query = DatabaseQuery(
+            statement=SQL("SELECT * FROM users"), params={}, fetch_result=True
+        )
 
         with pytest.raises(Exception, match="Connection pool error"):
             await repository.run(query)
@@ -167,7 +171,9 @@ class TestFraiseQLRepository:
 
         mock_connection = self._setup_mocks(mock_pool, mock_cursor)
 
-        query = DatabaseQuery(statement=SQL("SELECT id FROM users"), params={}, fetch_result=True)
+        query = DatabaseQuery(
+            statement=SQL("SELECT id FROM users"), params={}, fetch_result=True
+        )
         await repository.run(query)
 
         # Verify dict_row factory was used
@@ -185,7 +191,9 @@ class TestFraiseQLRepository:
 
         # Query with JSONB operations
         query = DatabaseQuery(
-            statement=SQL("SELECT data->>'name' as name FROM users WHERE data @> %(filter)s"),
+            statement=SQL(
+                "SELECT data->>'name' as name FROM users WHERE data @> %(filter)s"
+            ),
             params={"filter": '{"active": true}'},
             fetch_result=True,
         )

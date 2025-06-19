@@ -48,7 +48,10 @@ class TestAutoCamelCase:
 
         sql_str = sql.as_string(None)
         assert "data->'user_profile'->>'phone_number' AS \"phoneNumber\"" in sql_str
-        assert "data->'user_profile'->'address'->>'street_address' AS \"streetAddress\"" in sql_str
+        assert (
+            "data->'user_profile'->'address'->>'street_address' AS \"streetAddress\""
+            in sql_str
+        )
 
     def test_json_output_with_conversion(self):
         """Test JSON output with camelCase to snake_case conversion."""
@@ -167,9 +170,13 @@ class TestAutoCamelCase:
         """Test special cases in camelCase to snake_case conversion."""
         # Test the actual to_snake_case function behavior
         assert to_snake_case("apiKey") == "api_key"
-        assert to_snake_case("APIKey") == "a_p_i_key"  # Current behavior for consecutive caps
+        assert (
+            to_snake_case("APIKey") == "a_p_i_key"
+        )  # Current behavior for consecutive caps
         assert to_snake_case("page2Content") == "page2_content"
-        assert to_snake_case("HTTPSConnection") == "h_t_t_p_s_connection"  # Current behavior
+        assert (
+            to_snake_case("HTTPSConnection") == "h_t_t_p_s_connection"
+        )  # Current behavior
         assert to_snake_case("id") == "id"
         assert to_snake_case("ID") == "i_d"  # Current behavior
 

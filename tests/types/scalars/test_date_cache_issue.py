@@ -45,7 +45,9 @@ def test_date_scalar_with_schema_builder():
         return Event(name="Conference", start_date=today, end_date=today)
 
     # Build schema using the helper function
-    schema = build_fraiseql_schema(query_types=[Event, get_event], camel_case_fields=True)
+    schema = build_fraiseql_schema(
+        query_types=[Event, get_event], camel_case_fields=True
+    )
 
     # Check that Date scalar is present and unique
     assert "Date" in schema.type_map

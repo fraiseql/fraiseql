@@ -17,7 +17,9 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.utils import normalize_database_url
 
 
-async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.AsyncConnectionPool:
+async def create_db_pool(
+    database_url: str, **pool_kwargs: Any
+) -> psycopg_pool.AsyncConnectionPool:
     """Create async database connection pool."""
     return psycopg_pool.AsyncConnectionPool(database_url, **pool_kwargs)
 
@@ -95,7 +97,9 @@ def create_fraiseql_app(
         # Build config kwargs, only including explicitly provided values
         # This allows environment variables to be loaded for unprovided fields
         # Normalize database URL to handle both formats
-        normalized_url = normalize_database_url(database_url or "postgresql://localhost/fraiseql")
+        normalized_url = normalize_database_url(
+            database_url or "postgresql://localhost/fraiseql"
+        )
         config_kwargs: dict[str, Any] = {
             "database_url": normalized_url,
             "environment": "production" if production else "development",

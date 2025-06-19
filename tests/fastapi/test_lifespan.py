@@ -24,7 +24,9 @@ class Status:
 async def get_status(info) -> Status:
     """Get application status."""
     # Check if custom resource was set in context
-    custom_resource = getattr(info.context.get("app", {}), "state", {}).get("custom_resource")
+    custom_resource = getattr(info.context.get("app", {}), "state", {}).get(
+        "custom_resource"
+    )
     return Status(message="Running", custom_resource=custom_resource)
 
 
