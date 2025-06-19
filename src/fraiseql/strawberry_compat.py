@@ -7,7 +7,7 @@ from Strawberry GraphQL to FraiseQL.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar, cast
+from typing import Any, Type, TypeVar, cast
 
 import fraiseql
 
@@ -32,7 +32,7 @@ class StrawberryCompatibility:
             return fraiseql.type(cls_arg)
 
     @staticmethod
-    def input(cls_arg: type | None = None, **kwargs) -> Any:
+    def input(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.input compatibility."""
         if cls_arg is None:
 
@@ -44,7 +44,7 @@ class StrawberryCompatibility:
             return fraiseql.input(cls_arg)
 
     @staticmethod
-    def enum(cls_arg: type | None = None, **kwargs) -> Any:
+    def enum(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.enum compatibility."""
         if cls_arg is None:
 
@@ -56,7 +56,7 @@ class StrawberryCompatibility:
             return fraiseql.enum(cls_arg)
 
     @staticmethod
-    def interface(cls_arg: type | None = None, **kwargs) -> Any:
+    def interface(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.interface compatibility."""
         if cls_arg is None:
 
@@ -69,7 +69,7 @@ class StrawberryCompatibility:
 
     @staticmethod
     def field(
-        fn: F = None,
+        fn: Callable[..., Any] | None = None,
         *,
         resolver: Callable[..., Any] | None = None,
         description: str | None = None,
@@ -78,44 +78,44 @@ class StrawberryCompatibility:
         """Strawberry @strawberry.field compatibility."""
         if fn is None:
 
-            def decorator(fn: F) -> F:
-                return cast(F, fraiseql.field(fn, resolver=resolver, description=description))
+            def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+                return fraiseql.field(fn, resolver=resolver, description=description)
 
             return decorator
         else:
             return fraiseql.field(fn, resolver=resolver, description=description)
 
     @staticmethod
-    def mutation(fn: F = None, **kwargs) -> Any:
+    def mutation(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.mutation compatibility."""
         if fn is None:
 
-            def decorator(fn: F) -> F:
-                return cast(F, fraiseql.mutation(fn))
+            def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+                return fraiseql.mutation(fn)
 
             return decorator
         else:
             return fraiseql.mutation(fn)
 
     @staticmethod
-    def query(fn: F = None, **kwargs) -> Any:
+    def query(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.query compatibility."""
         if fn is None:
 
-            def decorator(fn: F) -> F:
-                return cast(F, fraiseql.query(fn))
+            def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+                return fraiseql.query(fn)
 
             return decorator
         else:
             return fraiseql.query(fn)
 
     @staticmethod
-    def subscription(fn: F = None, **kwargs) -> Any:
+    def subscription(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.subscription compatibility."""
         if fn is None:
 
-            def decorator(fn: F) -> F:
-                return cast(F, fraiseql.subscription(fn))
+            def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+                return fraiseql.subscription(fn)
 
             return decorator
         else:
