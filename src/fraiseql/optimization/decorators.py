@@ -159,6 +159,6 @@ def dataloader_field(
         auto_resolver.__fraiseql_field__ = True
         auto_resolver.__fraiseql_field_description__ = description
 
-        return auto_resolver
+        return auto_resolver  # type: ignore[return-value]
 
     return decorator

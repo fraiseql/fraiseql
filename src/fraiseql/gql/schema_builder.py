@@ -221,7 +221,7 @@ class SchemaRegistry:
                 gql_args[graphql_arg_name] = GraphQLArgument(gql_input_type)
 
             # Create a wrapper that adapts the GraphQL resolver signature
-            def make_resolver(fn):
+            def create_gql_resolver(fn):
                 import asyncio
 
                 if asyncio.iscoroutinefunction(fn):
@@ -239,7 +239,7 @@ class SchemaRegistry:
 
                     return sync_resolver
 
-            wrapped_resolver = make_resolver(fn)
+            wrapped_resolver = create_gql_resolver(fn)
             wrapped_resolver = wrap_resolver_with_enum_serialization(wrapped_resolver)
 
             # Convert field name to camelCase if configured

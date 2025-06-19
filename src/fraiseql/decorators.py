@@ -98,7 +98,7 @@ def field(
         # Wrap the resolver to track N+1 queries
         if asyncio.iscoroutinefunction(func):
 
-            async def wrapped_resolver(root, info, *args, **kwargs):
+            async def async_wrapped_resolver(root, info, *args, **kwargs):
                 # Check if N+1 detector is available in context
                 detector = (
                     getattr(info.context, "get", lambda x: None)("n1_detector")
@@ -126,9 +126,11 @@ def field(
                 else:
                     return await func(root, info, *args, **kwargs)
 
+            wrapped_func = async_wrapped_resolver
+
         else:
 
-            def wrapped_resolver(root, info, *args, **kwargs):
+            def sync_wrapped_resolver(root, info, *args, **kwargs):
                 # Check if N+1 detector is available in context
                 detector = (
                     getattr(info.context, "get", lambda x: None)("n1_detector")
@@ -161,18 +163,20 @@ def field(
                 else:
                     return func(root, info, *args, **kwargs)
 
+            wrapped_func = sync_wrapped_resolver
+
         # Copy over the metadata
-        wrapped_resolver.__fraiseql_field__ = True
-        wrapped_resolver.__fraiseql_field_resolver__ = resolver or wrapped_resolver
-        wrapped_resolver.__fraiseql_field_description__ = description
-        wrapped_resolver.__name__ = func.__name__
-        wrapped_resolver.__doc__ = func.__doc__
+        wrapped_func.__fraiseql_field__ = True
+        wrapped_func.__fraiseql_field_resolver__ = resolver or wrapped_func
+        wrapped_func.__fraiseql_field_description__ = description
+        wrapped_func.__name__ = func.__name__
+        wrapped_func.__doc__ = func.__doc__
 
         # Copy type annotations
         if hasattr(func, "__annotations__"):
-            wrapped_resolver.__annotations__ = func.__annotations__.copy()
+            wrapped_func.__annotations__ = func.__annotations__.copy()
 
-        return wrapped_resolver
+        return wrapped_func  # type: ignore[return-value]
 
     if method is None:
         return decorator

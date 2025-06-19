@@ -168,7 +168,7 @@ class DataLoader(Generic[K, V], ABC):
         item_map = {item[key_field]: item for item in items}
 
         # Return in key order
-        return [item_map.get(key) for key in keys]
+        return [item_map.get(key) for key in keys]  # type: ignore[return-value]
 
 
 @asynccontextmanager
