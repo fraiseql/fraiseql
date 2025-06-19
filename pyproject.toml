@@ -112,6 +112,8 @@ ignore = [
   "D203",    # One-blank-line-before-class
   "D213",    # Multi-line-summary-second-line
   "TC006",   # Unquoted cast
+  "UP035",   # typing.Type is deprecated - conflicts with pyright
+  "UP006",   # Use type instead of Type - conflicts with pyright
 ]
 per-file-ignores = { "**/*.pyi" = [
   "ANN401",
