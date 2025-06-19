@@ -260,7 +260,7 @@ class TestFraiseQLRepositoryIntegration:
                     p.data->>'title' as post_title,
                     p.published_at
                 FROM users u
-                JOIN posts p ON u.id = p.userId
+                JOIN posts p ON u.id = p.user_id
                 WHERE p.published_at IS NOT NULL
                 ORDER BY p.published_at
             """
