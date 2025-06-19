@@ -17,11 +17,11 @@ class StrawberryCompatibility:
     """Compatibility layer that mimics Strawberry's API using FraiseQL."""
 
     @staticmethod
-    def type(cls_arg: type | None = None, **kwargs) -> Any:
+    def type(cls_arg: Any = None, **kwargs) -> Any:
         """Strawberry @strawberry.type compatibility."""
         if cls_arg is None:
             # Called with arguments: @strawberry.type(name="CustomName")
-            def decorator(cls: type) -> type:
+            def decorator(cls: Any) -> Any:
                 return fraiseql.type(cls)
 
             return decorator
@@ -34,7 +34,7 @@ class StrawberryCompatibility:
         """Strawberry @strawberry.input compatibility."""
         if cls_arg is None:
 
-            def decorator(cls: type) -> type:
+            def decorator(cls: Any) -> Any:
                 return fraiseql.input(cls)
 
             return decorator
@@ -46,7 +46,7 @@ class StrawberryCompatibility:
         """Strawberry @strawberry.enum compatibility."""
         if cls_arg is None:
 
-            def decorator(cls: type) -> type:
+            def decorator(cls: Any) -> Any:
                 return fraiseql.enum(cls)
 
             return decorator
@@ -58,7 +58,7 @@ class StrawberryCompatibility:
         """Strawberry @strawberry.interface compatibility."""
         if cls_arg is None:
 
-            def decorator(cls: type) -> type:
+            def decorator(cls: Any) -> Any:
                 return fraiseql.interface(cls)
 
             return decorator
