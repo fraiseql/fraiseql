@@ -57,7 +57,7 @@ def test_schema_introspection_v2(clear_registry) -> None:
         message: str
         code: int
 
-    async def createUser(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
             return CreateUserError(message="Blocked domain", code=403)
         return CreateUserSuccess(user=GQLUser(id=str(uuid.uuid4()), email=input.email))
@@ -112,7 +112,7 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
         message: str
         code: int
 
-    async def createUser(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
             return CreateUserError(message="Blocked domain", code=403)
 
@@ -131,7 +131,7 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
 
     info = MockInfo(context_value={"tenant_id": "demo", "contact_id": "test"})
     user_input = CreateUserInput(email="hello@fraise.dev")
-    result = await createUser(info, user_input)
+    result = await create_user(info, user_input)
 
     assert isinstance(
         result, CreateUserSuccess
@@ -194,7 +194,7 @@ def test_schema_structure(clear_registry) -> None:
         message: str
         code: int
 
-    async def createUser(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(
             user=GQLUser(id="abc", email=input.email),
             status="ok",
@@ -216,7 +216,7 @@ def test_schema_structure(clear_registry) -> None:
 
     assert schema.query_type.name == "Query"
     assert schema.mutation_type.name == "Mutation"
-    assert "create_user" in schema.mutation_type.fields
+    assert "createUser" in schema.mutation_type.fields
 
 
 @pytest.mark.asyncio
@@ -248,7 +248,7 @@ async def test_manual_mutation_execution_v3(clear_registry) -> None:
         message: str
         code: int
 
-    async def createUser(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         if input.email.endswith("@example.com"):
             return CreateUserSuccess(
                 id_=uuid.uuid4(),
@@ -267,7 +267,7 @@ async def test_manual_mutation_execution_v3(clear_registry) -> None:
 
     info = MockInfo(context_value={"tenant_id": "demo", "contact_id": "test"})
     user_input = CreateUserInput(email="hello@example.com")
-    result = await createUser(info, user_input)
+    result = await create_user(info, user_input)
 
     assert isinstance(result, CreateUserSuccess)
     assert result.status == "ok"
@@ -305,7 +305,7 @@ def test_mutation_through_graphql(clear_registry) -> None:
         message: str
         code: int
 
-    async def createUser(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
+    async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(
             id_=uuid.uuid4(),
             user=GQLUser(id=str(uuid.uuid4()), email=input.email),

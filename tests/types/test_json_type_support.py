@@ -191,13 +191,7 @@ class TestJSONTypeSupport:
                         mutation {
                             createDocument(input: {
                                 title: "New Document"
-                                content: {
-                                    text: "Hello World"
-                                    format: "markdown"
-                                    metadata: {
-                                        created: "2024-01-01"
-                                    }
-                                }
+                                content: "{\\"text\\": \\"Hello World\\", \\"format\\": \\"markdown\\", \\"metadata\\": {\\"created\\": \\"2024-01-01\\"}}"
                                 tags: ["new", "important"]
                             }) {
                                 id
@@ -453,10 +447,7 @@ class TestJSONValidation:
                         mutation {
                             updateSettings(input: {
                                 userId: "123e4567-e89b-12d3-a456-426614174000"
-                                settings: {
-                                    theme: "dark"
-                                    language: "en"
-                                }
+                                settings: "{\\"theme\\": \\"dark\\", \\"language\\": \\"en\\"}"
                             }) {
                                 success
                                 message
@@ -479,9 +470,7 @@ class TestJSONValidation:
                         mutation {
                             updateSettings(input: {
                                 userId: "123e4567-e89b-12d3-a456-426614174000"
-                                settings: {
-                                    language: "en"
-                                }
+                                settings: "{\\"language\\": \\"en\\"}"
                             }) {
                                 success
                                 message

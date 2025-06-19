@@ -1,0 +1,50 @@
+# ABOUTME: All-in-one Dockerfile with PostgreSQL and Python tests
+# ABOUTME: Runs PostgreSQL and tests in same container via Unix socket
+
+FROM postgres:16
+
+# Install Python and build dependencies
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    build-essential \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user for running tests
+RUN useradd -m testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Install uv using the proper method for Debian
+RUN python3 -m pip install --break-system-packages uv
+
+# PostgreSQL configuration will be handled at runtime
+
+# Switch to testuser for Python setup
+USER testuser
+WORKDIR /home/testuser/app
+
+# Copy project files
+COPY --chown=testuser:testuser pyproject.toml uv.lock ./
+COPY --chown=testuser:testuser README.md ./README.md
+COPY --chown=testuser:testuser src/ ./src/
+COPY --chown=testuser:testuser tests/ ./tests/
+COPY --chown=testuser:testuser conftest.py ./
+
+# Create virtual environment and install dependencies including dev
+RUN python3.11 -m venv .venv && \
+    . .venv/bin/activate && \
+    uv sync --frozen --all-extras
+
+# Copy and setup entrypoint script
+COPY --chown=testuser:testuser scripts/test-all-in-one-entrypoint.sh /home/testuser/entrypoint.sh
+RUN chmod +x /home/testuser/entrypoint.sh
+
+# Switch back to root to start services
+USER root
+
+ENTRYPOINT ["/home/testuser/entrypoint.sh"]

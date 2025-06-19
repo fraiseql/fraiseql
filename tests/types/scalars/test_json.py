@@ -75,11 +75,11 @@ class TestJSONScalar:
         assert result == {"key": "value"}
 
     def test_parse_json_literal_invalid_json(self):
-        """Test parsing invalid JSON literal returns as string."""
+        """Test parsing invalid JSON literal raises error."""
         ast = StringValueNode(value="{invalid}")
-        # Invalid JSON strings are returned as-is, not raised as errors
-        result = parse_json_literal(ast)
-        assert result == "{invalid}"
+        # Invalid JSON strings should raise an error
+        with pytest.raises(GraphQLError, match="JSON cannot represent non-JSON string"):
+            parse_json_literal(ast)
 
     def test_parse_json_literal_non_string_node(self):
         """Test parsing non-string AST nodes."""

@@ -1,0 +1,46 @@
+# ABOUTME: Docker Compose configuration for test environment
+# ABOUTME: Sets up PostgreSQL and test runner with Unix socket communication
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fraiseql_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust  # Allow socket connections without password
+    volumes:
+      - postgres-socket:/var/run/postgresql
+    command: >
+      postgres
+      -c unix_socket_directories='/var/run/postgresql'
+      -c listen_addresses=''
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - postgres-socket:/var/run/postgresql
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ./uv.lock:/app/uv.lock:ro
+      - ./conftest.py:/app/conftest.py:ro
+    environment:
+      TEST_DATABASE_URL: "postgresql://postgres@/fraiseql_test?host=/var/run/postgresql"
+      PYTEST_ARGS: "${PYTEST_ARGS:-}"
+    command: ["/usr/local/bin/run-tests", "${PYTEST_ARGS:-}"]
+
+volumes:
+  postgres-socket:

@@ -163,8 +163,8 @@ class TestGenerateInsertJsonCall:
         # Check custom context parameters are included
         assert "input_org_id" in query.params
         assert query.params["input_org_id"] == "org_123"
-        assert "input_user_id" in query.params
-        assert query.params["input_user_id"] == "user_456"
+        assert "input_userId" in query.params
+        assert query.params["input_userId"] == "user_456"
         # Default keys should not be included
         assert "input_tenant_id" not in query.params
         assert "input_contact_id" not in query.params

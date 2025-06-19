@@ -35,10 +35,18 @@ def register_test_queries():
     return registry
 
 
-# Test DataLoaders
+# Test types
+@fraiseql.type
+class User:
+    id: UUID
+    name: str
+    email: str
+
+
+# Test DataLoaders - need to be defined after User
 class UserDataLoader(DataLoader[UUID, dict]):
     """DataLoader for loading users by ID."""
-
+    
     def __init__(self, db):
         super().__init__()
         self.db = db
@@ -48,15 +56,15 @@ class UserDataLoader(DataLoader[UUID, dict]):
         """Batch load users by IDs."""
         self.load_calls.append(list(user_ids))  # Track the call
 
-        # Mock data
+        # Mock data - return dicts that match User constructor expectations
         users_db = {
             UUID("223e4567-e89b-12d3-a456-426614174001"): {
-                "id": UUID("223e4567-e89b-12d3-a456-426614174001"),
+                "id": UUID("223e4567-e89b-12d3-a456-426614174001"),  # UUID object as expected by User
                 "name": "John Doe",
                 "email": "john@example.com",
             },
             UUID("323e4567-e89b-12d3-a456-426614174002"): {
-                "id": UUID("323e4567-e89b-12d3-a456-426614174002"),
+                "id": UUID("323e4567-e89b-12d3-a456-426614174002"),  # UUID object as expected by User
                 "name": "Jane Smith",
                 "email": "jane@example.com",
             },
@@ -68,41 +76,6 @@ class UserDataLoader(DataLoader[UUID, dict]):
             results.append(user_data)
 
         return results
-
-
-class PostDataLoader(DataLoader[UUID, dict]):
-    """DataLoader for loading posts by ID."""
-
-    def __init__(self, db):
-        super().__init__()
-        self.db = db
-
-    async def batch_load(self, post_ids: list[UUID]) -> list[dict | None]:
-        """Batch load posts by IDs."""
-        # Mock data
-        posts_db = {
-            UUID("123e4567-e89b-12d3-a456-426614174000"): {
-                "id": UUID("123e4567-e89b-12d3-a456-426614174000"),
-                "title": "Test Post",
-                "content": "Test content",
-                "authorId": UUID("223e4567-e89b-12d3-a456-426614174001"),
-            }
-        }
-
-        results = []
-        for post_id in post_ids:
-            post_data = posts_db.get(post_id)
-            results.append(post_data)
-
-        return results
-
-
-# Test types with @dataloader_field decorator
-@fraiseql.type
-class User:
-    id: UUID
-    name: str
-    email: str
 
 
 @fraiseql.type
@@ -117,6 +90,33 @@ class Post:
         """Load author using DataLoader automatically."""
         # This should be auto-implemented by the decorator
         pass
+
+
+class PostDataLoader(DataLoader[UUID, dict]):
+    """DataLoader for loading posts by ID."""
+    
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+
+    async def batch_load(self, post_ids: list[UUID]) -> list[dict | None]:
+        """Batch load posts by IDs."""
+        # Mock data that matches Post constructor
+        posts_db = {
+            UUID("123e4567-e89b-12d3-a456-426614174000"): {
+                "id": UUID("123e4567-e89b-12d3-a456-426614174000"),  
+                "title": "Test Post",
+                "content": "Test content",
+                "authorId": UUID("223e4567-e89b-12d3-a456-426614174001"),
+            }
+        }
+
+        results = []
+        for post_id in post_ids:
+            post_data = posts_db.get(post_id)
+            results.append(post_data)
+
+        return results
 
 
 @fraiseql.type
@@ -135,6 +135,8 @@ class Comment:
     async def post(self, info) -> Post | None:
         """Load comment post using DataLoader."""
         pass
+
+
 
 
 # Test queries
@@ -178,7 +180,7 @@ def test_dataloader_field_decorator_exists():
 def test_dataloader_field_adds_metadata():
     """Test that @dataloader_field decorator adds proper metadata to methods."""
     # Check that the decorator adds metadata we can use for field resolution
-    assert hasattr(Post.author, "__fraiseql_dataloader__")
+    assert hasattr(Post.author, "__fraiseql_dataloader__"), f"Post.author attributes: {dir(Post.author)}"
 
     metadata = Post.author.__fraiseql_dataloader__
     assert metadata["loader_class"] == UserDataLoader
@@ -218,9 +220,12 @@ def test_dataloader_field_generates_schema_field(register_test_queries):
         assert fields["author"] == "User"
 
 
-def test_dataloader_field_automatic_resolution(register_test_queries):
+def test_dataloader_field_automatic_resolution(register_test_queries, test_database_url):
     """Test that @dataloader_field automatically resolves using DataLoader."""
-    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
+    app = create_fraiseql_app(
+        database_url=test_database_url, 
+        types=[User, Post, Comment],
+    )
 
     with TestClient(app) as client:
         # Query that should automatically use DataLoader for author resolution
@@ -245,17 +250,24 @@ def test_dataloader_field_automatic_resolution(register_test_queries):
 
         assert response.status_code == 200
         data = response.json()
+        
+        # Debug: print the response
+        print(f"Response data: {data}")
 
         # Should successfully resolve author using DataLoader
         post = data["data"]["getPost"]
         assert post["title"] == "Test Post"
+        assert post["author"] is not None, f"Author is None! Full post data: {post}"
         assert post["author"]["name"] == "John Doe"
         assert post["author"]["email"] == "john@example.com"
 
 
-def test_dataloader_field_batching(register_test_queries):
+def test_dataloader_field_batching(register_test_queries, test_database_url):
     """Test that @dataloader_field properly batches multiple field resolutions."""
-    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
+    app = create_fraiseql_app(
+        database_url=test_database_url, 
+        types=[User, Post, Comment],
+    )
 
     # We need a way to track DataLoader calls to verify batching
     # This would require access to the actual DataLoader instance
@@ -283,15 +295,22 @@ def test_dataloader_field_batching(register_test_queries):
         assert response.status_code == 200
         data = response.json()
 
+        # Debug output
+        print(f"Response data: {data}")
+        
         # Both should resolve authors (would be batched in real implementation)
         assert data["data"]["post"]["author"]["name"] == "John Doe"
         assert data["data"]["comment"]["author"]["name"] == "Jane Smith"
+        assert data["data"]["comment"]["post"] is not None, f"Comment post is None! Full comment: {data['data']['comment']}"
         assert data["data"]["comment"]["post"]["author"]["name"] == "John Doe"
 
 
-def test_dataloader_field_with_multiple_loaders(register_test_queries):
+def test_dataloader_field_with_multiple_loaders(register_test_queries, test_database_url):
     """Test @dataloader_field works with different DataLoader types."""
-    app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
+    app = create_fraiseql_app(
+        database_url=test_database_url, 
+        types=[User, Post, Comment],
+    )
 
     with TestClient(app) as client:
         # Query that uses both UserDataLoader and PostDataLoader

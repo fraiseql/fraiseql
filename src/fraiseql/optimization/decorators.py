@@ -1,11 +1,14 @@
 """Decorators for DataLoader integration."""
 
 import inspect
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar, get_type_hints
 
 from fraiseql.optimization.dataloader import DataLoader
 from fraiseql.optimization.registry import get_loader
+
+logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
 
@@ -102,16 +105,35 @@ def dataloader_field(
                 return None
 
             try:
-                # Handle Optional[Type] and similar generic types
-                if hasattr(return_type, "__origin__"):
+                # Handle Python 3.10+ UnionType (Type | None)
+                import types
+                if isinstance(return_type, types.UnionType):
+                    args = getattr(return_type, "__args__", ())
+                    if args:
+                        # Get the non-None type
+                        target_type = next((arg for arg in args if arg is not type(None)), None)
+                        if target_type:
+                            if hasattr(target_type, "__annotations__") and isinstance(
+                                result_data, dict
+                            ):
+                                # Only construct if we have annotations (dataclass-like)
+                                annotations = getattr(target_type, "__annotations__", {})
+                                filtered_data = {
+                                    k: v for k, v in result_data.items() if k in annotations
+                                }
+                                return target_type(**filtered_data)
+                            elif hasattr(target_type, "from_dict") and callable(target_type.from_dict):
+                                if isinstance(result_data, dict):
+                                    return target_type.from_dict(result_data)
+                    return result_data
+                
+                # Handle Optional[Type] and similar generic types (typing module)
+                elif hasattr(return_type, "__origin__"):
                     args = getattr(return_type, "__args__", ())
                     if args:
                         target_type = args[0]
                         # SECURITY: Only allow safe type construction
-                        if hasattr(target_type, "from_dict") and callable(target_type.from_dict):
-                            if isinstance(result_data, dict):
-                                return target_type.from_dict(result_data)
-                        elif hasattr(target_type, "__annotations__") and isinstance(
+                        if hasattr(target_type, "__annotations__") and isinstance(
                             result_data, dict
                         ):
                             # Only construct if we have annotations (dataclass-like)
@@ -120,25 +142,32 @@ def dataloader_field(
                                 k: v for k, v in result_data.items() if k in annotations
                             }
                             return target_type(**filtered_data)
+                        elif hasattr(target_type, "from_dict") and callable(target_type.from_dict):
+                            if isinstance(result_data, dict):
+                                return target_type.from_dict(result_data)
                     return result_data
 
                 # Handle direct type construction
-                elif hasattr(return_type, "from_dict") and callable(return_type.from_dict):
-                    if isinstance(result_data, dict):
-                        return return_type.from_dict(result_data)
                 elif hasattr(return_type, "__annotations__") and isinstance(result_data, dict):
                     # Only construct if we have annotations (dataclass-like)
                     annotations = getattr(return_type, "__annotations__", {})
                     filtered_data = {k: v for k, v in result_data.items() if k in annotations}
                     return return_type(**filtered_data)
+                elif hasattr(return_type, "from_dict") and callable(return_type.from_dict):
+                    if isinstance(result_data, dict):
+                        return return_type.from_dict(result_data)
 
                 # Fallback: return raw data (safer than arbitrary construction)
                 return result_data
 
-            except Exception:
+            except Exception as e:
                 # CRITICAL: Never expose internal errors to prevent information leakage
+                logger.exception(f"DataLoader type conversion failed: {e}")
+                
+                # For debugging, include more info about the return type
+                type_info = f"{return_type}" if return_type else "unknown type"
                 raise RuntimeError(
-                    f"DataLoader type conversion failed for {return_type.__name__ if hasattr(return_type, '__name__') else 'unknown type'}"
+                    f"DataLoader type conversion failed for {type_info}"
                 ) from None
 
         # Preserve method metadata

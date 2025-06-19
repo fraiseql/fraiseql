@@ -4,6 +4,8 @@ This module provides compatibility imports and adapters to ease migration
 from Strawberry GraphQL to FraiseQL.
 """
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
@@ -124,6 +126,19 @@ class StrawberryCompatibility:
 strawberry = StrawberryCompatibility()
 
 # For more direct compatibility, also expose individual functions
+# Note: 'type' shadows built-in, so we use '__all__' to control exports
+__all__ = [
+    "strawberry",
+    "type",
+    "input", 
+    "enum",
+    "interface",
+    "field",
+    "mutation",
+    "query",
+    "subscription",
+]
+
 type = strawberry.type
 input = strawberry.input
 enum = strawberry.enum

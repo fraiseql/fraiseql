@@ -1,0 +1,35 @@
+# ABOUTME: Dockerfile for self-contained test environment with PostgreSQL
+# ABOUTME: Runs tests inside container with database on socket connection
+
+FROM python:3.11-slim
+
+# Install PostgreSQL client and build dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    build-essential \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster dependency management
+RUN pip install uv
+
+# Set working directory
+WORKDIR /app
+
+# Copy project files
+COPY pyproject.toml uv.lock ./
+COPY src/ ./src/
+COPY tests/ ./tests/
+COPY conftest.py ./
+
+# Install dependencies
+RUN uv sync --frozen
+
+# Copy test runner script
+COPY scripts/run-tests-in-container.sh /usr/local/bin/run-tests
+RUN chmod +x /usr/local/bin/run-tests
+
+# Default command runs tests
+CMD ["run-tests"]
