@@ -202,10 +202,6 @@ class CreatePostInput:
     content: str
     published: bool = False
 
-@result
-class CreatePostResult:
-    """Result of creating a post"""
-
 @success
 class CreatePostSuccess:
     post: Post = fraise_field(description="The created post")
@@ -213,6 +209,9 @@ class CreatePostSuccess:
 @failure
 class CreatePostError:
     message: str = fraise_field(description="Error message")
+
+# Note: The result union type is automatically created when using @success and @failure decorators
+# You don't need to explicitly define CreatePostResult
 
 @fraiseql.type
 class Mutation:

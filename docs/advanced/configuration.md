@@ -76,8 +76,6 @@ export FRAISEQL_CORS_ORIGINS="http://localhost:3000,https://myapp.com"
 export FRAISEQL_DATABASE_POOL_SIZE="20"
 export FRAISEQL_DATABASE_POOL_TIMEOUT="30"
 
-# Query Compilation
-export FRAISEQL_COMPILED_QUERIES_PATH="/app/compiled_queries"
 ```
 
 ## Configuration Options
@@ -128,7 +126,6 @@ export FRAISEQL_COMPILED_QUERIES_PATH="/app/compiled_queries"
 
 | Setting | Type | Default | Environment Variable | Description |
 |---------|------|---------|---------------------|-------------|
-| `compiled_queries_path` | str | None | `FRAISEQL_COMPILED_QUERIES_PATH` | Path to compiled queries (production) |
 | `query_cache_size` | int | 1000 | `FRAISEQL_QUERY_CACHE_SIZE` | Query cache entries |
 | `enable_query_logging` | bool | False | `FRAISEQL_ENABLE_QUERY_LOGGING` | Log SQL queries |
 

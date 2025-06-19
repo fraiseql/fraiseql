@@ -308,15 +308,28 @@ class TestJSONScalarCoercion:
             result = JSONScalar.serialize(value)
             assert result == value
 
-        # The serialize function doesn't validate - it just passes through
-        # This is because GraphQL serialization happens after the value is already
-        # in memory, so it should already be valid.
-        # Non-JSON-serializable values would cause issues when actually converting
-        # to JSON for the response, but not at this stage.
+        # The serialize function now validates JSON-serializability
+        # This prevents non-serializable objects from causing issues later
+        # in the serialization pipeline.
 
-        # Test that it passes through even invalid values
-        result = JSONScalar.serialize({1, 2, 3})
-        assert isinstance(result, set)
+        # Test that it rejects non-JSON-serializable values
+        with pytest.raises(GraphQLError) as exc_info:
+            JSONScalar.serialize({1, 2, 3})
+        assert "not JSON-serializable" in str(exc_info.value)
+        assert "set" in str(exc_info.value)
+        
+        # Test other non-serializable types
+        class CustomObject:
+            pass
+        
+        with pytest.raises(GraphQLError) as exc_info:
+            JSONScalar.serialize(CustomObject())
+        assert "not JSON-serializable" in str(exc_info.value)
+        
+        # Test function
+        with pytest.raises(GraphQLError) as exc_info:
+            JSONScalar.serialize(lambda x: x)
+        assert "not JSON-serializable" in str(exc_info.value)
 
     def test_json_scalar_parse_value(self):
         """Test JSONScalar parse_value (from variables)."""

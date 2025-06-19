@@ -284,12 +284,9 @@ class Query:
 Define GraphQL unions for result types:
 
 ```python
-from fraiseql import result, success, failure
+from fraiseql import success, failure
 
-@result
-class CreateUserResult:
-    """Result of user creation"""
-
+# Define success and error types with decorators
 @success
 class CreateUserSuccess:
     user: User
@@ -299,6 +296,13 @@ class CreateUserSuccess:
 class CreateUserError:
     code: str
     message: str
+
+# The union type (CreateUserSuccess | CreateUserError) is automatically created
+# when you use @success and @failure decorators together
+
+# If you need to manually create a result union type, use the result function:
+# from fraiseql import result
+# CreateUserResult = result(CreateUserSuccess, CreateUserError)
 ```
 
 ## Type Registration

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FraiseQL - Lightning Fast GraphQL to PostgreSQL</title>
+    <meta name="description" content="Transform GraphQL queries into optimized PostgreSQL queries. Eliminate N+1 problems and ORM overhead with direct SQL translation.">
+    <style>
+        /* Reset and Base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --strawberry: #e74c3c;
+            --strawberry-dark: #c0392b;
+            --text: #2c3e50;
+            --text-light: #7f8c8d;
+            --bg: #ffffff;
+            --bg-alt: #f8f9fa;
+            --code-bg: #2c3e50;
+            --border: #ecf0f1;
+            --max-width: 1200px;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg);
+        }
+        
+        /* Typography */
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+        }
+        
+        h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            margin-top: 3rem;
+        }
+        
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-light);
+        }
+        
+        a {
+            color: var(--strawberry);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            color: var(--strawberry-dark);
+            text-decoration: underline;
+        }
+        
+        /* Layout */
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+        
+        header {
+            padding: 2rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        
+        /* Hero Section */
+        .hero {
+            padding: 4rem 0;
+            text-align: center;
+        }
+        
+        .tagline {
+            font-size: 1.5rem;
+            color: var(--strawberry);
+            margin-bottom: 1rem;
+        }
+        
+        .description {
+            font-size: 1.125rem;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+        
+        .install-command {
+            display: inline-block;
+            background: var(--code-bg);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.25rem;
+            font-family: "Consolas", "Monaco", monospace;
+            margin-bottom: 1rem;
+        }
+        
+        .badges {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-alt);
+            border: 1px solid var(--border);
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+        }
+        
+        /* Code Example */
+        .code-example {
+            background: var(--bg-alt);
+            padding: 3rem 0;
+            margin: 3rem 0;
+        }
+        
+        pre {
+            background: var(--code-bg);
+            color: #ecf0f1;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-size: 0.875rem;
+            line-height: 1.4;
+        }
+        
+        /* Features Grid */
+        .features {
+            padding: 3rem 0;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .feature {
+            padding: 1.5rem;
+            background: var(--bg-alt);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+        }
+        
+        .feature h3 {
+            color: var(--strawberry);
+        }
+        
+        /* Problem/Solution */
+        .problem-solution {
+            padding: 3rem 0;
+        }
+        
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            margin-top: 2rem;
+        }
+        
+        .comparison-side {
+            text-align: center;
+        }
+        
+        .comparison-side h3 {
+            margin-bottom: 1rem;
+        }
+        
+        .metric {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--strawberry);
+        }
+        
+        /* CTA Section */
+        .cta {
+            background: var(--bg-alt);
+            padding: 3rem 0;
+            text-align: center;
+            margin-top: 3rem;
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 0.75rem 2rem;
+            background: var(--strawberry);
+            color: white;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        
+        .button:hover {
+            background: var(--strawberry-dark);
+            text-decoration: none;
+        }
+        
+        /* Footer */
+        footer {
+            padding: 3rem 0;
+            border-top: 1px solid var(--border);
+            margin-top: 4rem;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            list-style: none;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-links {
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <strong>🍓 FraiseQL</strong>
+            </div>
+            <ul class="nav-links">
+                <li><a href="/docs/">Documentation</a></li>
+                <li><a href="/benchmarks/">Benchmarks</a></li>
+                <li><a href="https://github.com/lionel/fraiseql">GitHub</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>FraiseQL</h1>
+                <p class="tagline">GraphQL to PostgreSQL. No middleman.</p>
+                <p class="description">
+                    Transform GraphQL queries into optimized PostgreSQL queries.<br>
+                    No ORM overhead. No N+1 problems. Just pure SQL performance.
+                </p>
+                <code class="install-command">$ pip install fraiseql</code>
+                <div class="badges">
+                    <span class="badge">✓ Test Coverage: 84.5%</span>
+                    <span class="badge">✓ CI: Passing</span>
+                    <span class="badge">Version: 0.1.0a10</span>
+                </div>
+            </div>
+        </section>
+        
+        <section class="code-example">
+            <div class="container">
+                <h2>Simple. Powerful. Fast.</h2>
+                <pre><code>from fraiseql import FraiseQL
+
+# Define your schema
+fql = FraiseQL(schema="""
+  type User {
+    id: ID!
+    name: String!
+    posts: [Post!]!
+  }
+  
+  type Post {
+    id: ID!
+    title: String!
+    author: User!
+  }
+""")
+
+# GraphQL query becomes optimized SQL
+query = """
+  query GetUserWithPosts($id: ID!) {
+    user(id: $id) {
+      name
+      posts {
+        title
+      }
+    }
+  }
+"""
+
+# Single SQL query with JSONB aggregation - no N+1!
+result = fql.execute(query, variables={"id": 1})</code></pre>
+            </div>
+        </section>
+        
+        <section class="problem-solution">
+            <div class="container">
+                <h2>The ORM Tax You're Paying</h2>
+                <div class="comparison">
+                    <div class="comparison-side">
+                        <h3>❌ Traditional ORM</h3>
+                        <p>Simple GraphQL query triggers cascade of database hits</p>
+                        <div class="metric">50+ queries</div>
+                        <p>150ms response time</p>
+                    </div>
+                    <div class="comparison-side">
+                        <h3>✓ FraiseQL</h3>
+                        <p>Direct translation to single optimized SQL query</p>
+                        <div class="metric">1 query</div>
+                        <p>3ms response time</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section class="features">
+            <div class="container">
+                <h2>Built for Real-World Performance</h2>
+                <div class="features-grid">
+                    <div class="feature">
+                        <h3>Zero Configuration</h3>
+                        <p>No servers to run. No services to scale. Just a Python library that works.</p>
+                    </div>
+                    <div class="feature">
+                        <h3>JSONB Powered</h3>
+                        <p>Leverages PostgreSQL's native JSON capabilities for efficient aggregation.</p>
+                    </div>
+                    <div class="feature">
+                        <h3>CQRS Architecture</h3>
+                        <p>Separate read/write paths with event-driven subscriptions for real-time updates.</p>
+                    </div>
+                    <div class="feature">
+                        <h3>Pure SQL Control</h3>
+                        <p>See generated queries. Optimize when needed. No black box magic.</p>
+                    </div>
+                    <div class="feature">
+                        <h3>Framework Agnostic</h3>
+                        <p>Works with FastAPI, Django, Flask, or any Python web framework.</p>
+                    </div>
+                    <div class="feature">
+                        <h3>Production Ready</h3>
+                        <p>Comprehensive test suite. Performance monitored. Security focused.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section class="cta">
+            <div class="container">
+                <h2>Ready to Eliminate N+1 Queries?</h2>
+                <p>Get started in 5 minutes with our quickstart guide.</p>
+                <a href="/docs/quickstart/" class="button">Read the Quickstart →</a>
+            </div>
+        </section>
+    </main>
+    
+    <footer>
+        <div class="container">
+            <ul class="footer-links">
+                <li><a href="/docs/">Documentation</a></li>
+                <li><a href="https://github.com/lionel/fraiseql">GitHub</a></li>
+                <li><a href="https://pypi.org/project/fraiseql/">PyPI</a></li>
+                <li><a href="/benchmarks/">Benchmarks</a></li>
+                <li><a href="/security/">Security</a></li>
+                <li><a href="/docs/limitations/">Limitations</a></li>
+            </ul>
+        </div>
+    </footer>
+</body>
+</html>

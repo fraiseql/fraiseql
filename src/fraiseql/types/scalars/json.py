@@ -24,8 +24,20 @@ JSONData = str | int | float | bool | None | dict[str, "JSONData"] | list["JSOND
 def serialize_json(
     value: Any,
 ) -> str | dict[str, Any] | list[Any] | int | float | bool | None:
-    """Serialize JSON-compatible data."""
-    return value
+    """Serialize JSON-compatible data.
+    
+    Validates that the value is JSON-serializable before returning it.
+    This prevents non-serializable objects from causing issues later
+    in the serialization pipeline.
+    """
+    # Check if the value is JSON-serializable
+    try:
+        # Use json.dumps to validate serializability
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError) as e:
+        msg = f"Value is not JSON-serializable: {type(value).__name__} - {e}"
+        raise GraphQLError(msg)
 
 
 def parse_json_value(

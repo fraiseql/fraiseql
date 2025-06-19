@@ -38,7 +38,6 @@ app = create_fraiseql_app(
 - **`version`** (str | None): API version.
 - **`description`** (str | None): API description.
 - **`production`** (bool): Enable production optimizations. Default: False.
-- **`compiled_queries_path`** (str | None): Path to compiled queries for production mode.
 
 #### Development Configuration
 

@@ -163,12 +163,6 @@ class Update{type_name}Input:
     name: str | None = fraise_field(description="Name")
 
 
-@fraiseql.result
-class {type_name}Result:
-    """Result type for {type_name} mutations."""
-    pass
-
-
 @fraiseql.success
 class {type_name}Success:
     """{type_name} mutation succeeded."""

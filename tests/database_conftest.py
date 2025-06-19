@@ -22,13 +22,18 @@ except ImportError:
     HAS_DOCKER = False
     PostgresContainer = None
 
-# Try to detect if Docker is actually available
+# Try to detect if Docker/Podman is actually available
 if HAS_DOCKER:
     try:
         import docker
 
-        client = docker.from_env()
-        client.ping()
+        # Check for Podman socket first
+        if os.environ.get("TESTCONTAINERS_PODMAN", "false").lower() == "true":
+            # For Podman, skip the docker client check
+            HAS_DOCKER = True
+        else:
+            client = docker.from_env()
+            client.ping()
     except Exception:
         HAS_DOCKER = False
 

@@ -9,7 +9,6 @@ The `fraiseql generate` command provides several generators:
 - **Migrations**: Generate SQL migrations from your Python types
 - **CRUD Operations**: Generate complete Create, Read, Update, Delete mutations
 - **GraphQL Schema**: Export your schema for documentation or tooling
-- **TestFoundry Tests**: Generate pgTAP tests for your database operations
 
 ## Migration Generation
 
@@ -124,7 +123,6 @@ Generate multiple resources at once:
 # Generate everything for a new entity
 fraiseql generate migration User
 fraiseql generate crud User
-fraiseql testfoundry generate User
 ```
 
 ### Template Customization
@@ -179,6 +177,5 @@ FraiseQL uses Jinja2 templates for code generation. You can customize them by cr
 
 ## Next Steps
 
-- Learn about [TestFoundry](../api-reference/testfoundry.md) for automated testing
 - Explore [custom mutations](../mutations/index.md) for complex business logic
 - Read about [performance optimization](../advanced/performance.md) for generated code

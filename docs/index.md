@@ -37,7 +37,6 @@ Detailed reference for all FraiseQL APIs and decorators.
 
 - [Decorators](./api-reference/decorators.md)
 - [Application](./api-reference/application.md)
-- [TestFoundry](./api-reference/testfoundry.md) - Automated test generation
 
 ### 🎓 [Tutorials](./tutorials/index.md)
 Learn by building real-world applications with FraiseQL.

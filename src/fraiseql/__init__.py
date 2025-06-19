@@ -64,11 +64,16 @@ except ImportError:
 from .cqrs import CQRSExecutor, CQRSRepository
 
 # Scalar types
+from .types.scalars.date import DateField as Date
+from .types.scalars.email_address import EmailAddressField as EmailAddress
 from .types.scalars.json import JSONField as JSON
 
 __version__ = "0.1.0a8"
 
 __all__ = [
+    # Scalar types
+    "Date",
+    "EmailAddress",
     "JSON",
     # Auth integration
     "Auth0Config",

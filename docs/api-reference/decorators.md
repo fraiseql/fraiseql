@@ -160,6 +160,56 @@ class CreateUserError:
     suggested_email: Optional[str] = None
 ```
 
+### @fraiseql.result
+
+The `result` function (not a decorator) manually creates a GraphQL union type from success and error classes:
+
+```python
+from fraiseql import result
+
+# Define success and error types (without decorators)
+class CreateUserSuccess:
+    """Successful user creation."""
+    message: str
+    user: User
+
+class CreateUserError:
+    """Failed user creation."""
+    message: str
+    code: str
+
+# Create the union type
+CreateUserResult = result(CreateUserSuccess, CreateUserError)
+
+# Use in a mutation
+@fraiseql.mutation
+class CreateUser:
+    """Create a new user account."""
+    input: CreateUserInput
+    success: CreateUserSuccess
+    error: CreateUserError
+```
+
+#### Usage
+
+The `result` function is useful when:
+- You need to create a union type without using the `@success` and `@failure` decorators
+- You want to reuse existing classes as result types
+- You need more control over union type creation
+
+#### Parameters
+
+- **success_cls**: The class to use for successful results
+- **error_cls**: The class to use for error results
+
+#### Returns
+
+A GraphQL union type that can be used as a return type annotation.
+
+#### Note
+
+In most cases, using `@fraiseql.success` and `@fraiseql.failure` decorators is preferred as they automatically handle union registration. Use `result()` only when you need manual control over the union creation.
+
 ### Complete Example
 
 ```python
