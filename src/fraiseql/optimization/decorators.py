@@ -107,6 +107,7 @@ def dataloader_field(
             try:
                 # Handle Python 3.10+ UnionType (Type | None)
                 import types
+
                 if isinstance(return_type, types.UnionType):
                     args = getattr(return_type, "__args__", ())
                     if args:
@@ -122,11 +123,13 @@ def dataloader_field(
                                     k: v for k, v in result_data.items() if k in annotations
                                 }
                                 return target_type(**filtered_data)
-                            elif hasattr(target_type, "from_dict") and callable(target_type.from_dict):
+                            elif hasattr(target_type, "from_dict") and callable(
+                                target_type.from_dict
+                            ):
                                 if isinstance(result_data, dict):
                                     return target_type.from_dict(result_data)
                     return result_data
-                
+
                 # Handle Optional[Type] and similar generic types (typing module)
                 elif hasattr(return_type, "__origin__"):
                     args = getattr(return_type, "__args__", ())
@@ -163,12 +166,10 @@ def dataloader_field(
             except Exception as e:
                 # CRITICAL: Never expose internal errors to prevent information leakage
                 logger.exception(f"DataLoader type conversion failed: {e}")
-                
+
                 # For debugging, include more info about the return type
                 type_info = f"{return_type}" if return_type else "unknown type"
-                raise RuntimeError(
-                    f"DataLoader type conversion failed for {type_info}"
-                ) from None
+                raise RuntimeError(f"DataLoader type conversion failed for {type_info}") from None
 
         # Preserve method metadata
         auto_resolver.__name__ = method.__name__

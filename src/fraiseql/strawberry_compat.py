@@ -128,15 +128,15 @@ strawberry = StrawberryCompatibility()
 # For more direct compatibility, also expose individual functions
 # Note: 'type' shadows built-in, so we use '__all__' to control exports
 __all__ = [
-    "strawberry",
-    "type",
-    "input", 
     "enum",
-    "interface",
     "field",
+    "input",
+    "interface",
     "mutation",
     "query",
+    "strawberry",
     "subscription",
+    "type",
 ]
 
 type = strawberry.type
