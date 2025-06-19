@@ -1,0 +1,599 @@
+:root {
+    --primary: #FF006E;
+    --dark: #0A0A0A;
+    --light: #FAFAFA;
+    --gray: #6B7280;
+    --code-bg: #1E1E1E;
+    --max-width: 1200px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    color: var(--dark);
+    background: var(--light);
+}
+
+.container {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+/* Header */
+header {
+    background: white;
+    border-bottom: 1px solid #E5E7EB;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+nav {
+    padding: 1rem 0;
+}
+
+nav .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-decoration: none;
+    color: var(--dark);
+}
+
+.nav-links {
+    display: flex;
+    gap: 2rem;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: var(--gray);
+    transition: color 0.2s;
+}
+
+.nav-links a:hover {
+    color: var(--primary);
+}
+
+/* Hero */
+.hero {
+    padding: 5rem 0;
+    text-align: center;
+}
+
+.hero h1 {
+    font-size: 3.5rem;
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 1rem;
+}
+
+.subtitle {
+    font-size: 1.25rem;
+    color: var(--gray);
+    margin-bottom: 3rem;
+}
+
+/* Code Example */
+.code-example {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 2rem;
+    align-items: center;
+    margin: 3rem 0;
+}
+
+.code-block {
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    text-align: left;
+}
+
+.code-header {
+    background: #2D2D2D;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: #9CA3AF;
+}
+
+.code-block pre {
+    padding: 1rem;
+    overflow-x: auto;
+}
+
+.code-block code {
+    color: #E5E7EB;
+    font-family: "Fira Code", monospace;
+    font-size: 0.875rem;
+}
+
+.arrow {
+    font-size: 2rem;
+    color: var(--primary);
+}
+
+/* Buttons */
+.cta-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.btn {
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #E60063;
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: white;
+    color: var(--dark);
+    border: 2px solid #E5E7EB;
+}
+
+.btn-secondary:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* Features */
+.features {
+    padding: 5rem 0;
+    background: white;
+}
+
+.features h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 3rem;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+}
+
+.feature {
+    padding: 2rem;
+    border-radius: 8px;
+    background: var(--light);
+}
+
+.feature h3 {
+    margin-bottom: 0.5rem;
+}
+
+/* Quick Start */
+.quickstart {
+    padding: 5rem 0;
+}
+
+.quickstart h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 3rem;
+}
+
+.steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.step {
+    position: relative;
+    padding: 2rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #E5E7EB;
+}
+
+.step-number {
+    position: absolute;
+    top: -1rem;
+    left: 2rem;
+    background: var(--primary);
+    color: white;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.step pre {
+    background: var(--code-bg);
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin-top: 1rem;
+}
+
+.step code {
+    color: #E5E7EB;
+    font-size: 0.875rem;
+}
+
+/* Comparison Table */
+.comparison {
+    padding: 5rem 0;
+    background: white;
+}
+
+.comparison h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 3rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 auto;
+    max-width: 800px;
+}
+
+th, td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+th {
+    background: var(--light);
+    font-weight: 600;
+}
+
+.improvement {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* When Not Section */
+.when-not {
+    padding: 5rem 0;
+    background: #FEF2F2;
+}
+
+.when-not h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+}
+
+.when-not ul {
+    list-style: none;
+    max-width: 600px;
+    margin: 2rem auto;
+}
+
+.when-not li {
+    padding: 0.5rem 0;
+    font-size: 1.1rem;
+}
+
+/* Footer */
+footer {
+    padding: 3rem 0;
+    background: var(--dark);
+    color: white;
+    text-align: center;
+}
+
+footer a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* Features Page Styles */
+.hero-feature {
+    padding: 3rem 0;
+    text-align: center;
+    background: linear-gradient(135deg, #FF006E 0%, #E60063 100%);
+    color: white;
+}
+
+.hero-feature h1 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.hero-feature .subtitle {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.feature-detail {
+    padding: 4rem 0;
+}
+
+.feature-detail h2 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.performance-chart {
+    margin: 3rem 0;
+}
+
+.execution-comparison {
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.execution-comparison .time {
+    font-family: "Fira Code", monospace;
+    text-align: right;
+}
+
+.execution-comparison .optimized {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+.execution-comparison .total {
+    background: var(--light);
+    font-weight: bold;
+}
+
+/* Feature Cards */
+.features-hero {
+    padding: 3rem 0;
+    text-align: center;
+    background: var(--light);
+}
+
+.feature-cards {
+    padding: 4rem 0;
+}
+
+.feature-card {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.feature-card.highlight {
+    border: 2px solid var(--primary);
+}
+
+.feature-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.feature-card h2 {
+    margin-bottom: 1rem;
+}
+
+.feature-card ul {
+    list-style: none;
+    margin: 1rem 0;
+}
+
+.feature-card li {
+    padding: 0.25rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.feature-card li:before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: var(--primary);
+}
+
+.feature-link {
+    display: inline-block;
+    margin-top: 1rem;
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.feature-link:hover {
+    text-decoration: underline;
+}
+
+/* Turbo Flow */
+.turbo-flow {
+    display: grid;
+    gap: 3rem;
+    margin: 3rem 0;
+}
+
+.flow-step {
+    background: white;
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.flow-step h3 {
+    margin-bottom: 1rem;
+}
+
+.flow-step pre {
+    background: var(--code-bg);
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.flow-step code {
+    color: #E5E7EB;
+    font-size: 0.875rem;
+    font-family: "Fira Code", monospace;
+}
+
+/* Benefits */
+.benefits {
+    padding: 4rem 0;
+    background: var(--light);
+}
+
+.benefit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.benefit {
+    text-align: center;
+    padding: 2rem;
+}
+
+.benefit h3 {
+    margin-bottom: 0.5rem;
+}
+
+/* Configuration */
+.configuration {
+    padding: 4rem 0;
+}
+
+.configuration pre {
+    background: var(--code-bg);
+    padding: 1.5rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin-top: 1rem;
+}
+
+.configuration code {
+    color: #E5E7EB;
+    font-family: "Fira Code", monospace;
+}
+
+/* Use Cases */
+.use-cases {
+    padding: 4rem 0;
+    background: var(--light);
+}
+
+.use-case-list {
+    list-style: none;
+    max-width: 600px;
+    margin: 2rem auto;
+}
+
+.use-case-list li {
+    padding: 0.75rem 0;
+    font-size: 1.1rem;
+}
+
+/* Feature Comparison Table */
+.feature-comparison {
+    margin-top: 2rem;
+}
+
+.feature-comparison .check {
+    color: #10B981;
+}
+
+.feature-comparison .cross {
+    color: #EF4444;
+}
+
+.feature-comparison .partial {
+    color: #F59E0B;
+}
+
+/* CTA Section */
+.cta-section {
+    padding: 4rem 0;
+    text-align: center;
+    background: white;
+}
+
+.cta-section h2 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+/* Active Navigation */
+.nav-links a.active {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+/* Code Example Section */
+.code-example-section {
+    padding: 4rem 0;
+    background: var(--light);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hero h1 {
+        font-size: 2.5rem;
+    }
+    
+    .code-example {
+        grid-template-columns: 1fr;
+    }
+    
+    .arrow {
+        transform: rotate(90deg);
+    }
+    
+    .cta-buttons {
+        flex-direction: column;
+    }
+    
+    .nav-links {
+        gap: 1rem;
+    }
+    
+    .feature-card {
+        margin-bottom: 1rem;
+    }
+    
+    .benefit-grid {
+        grid-template-columns: 1fr;
+    }
+}

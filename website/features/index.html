@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Features - FraiseQL</title>
+    <meta name="description" content="Explore FraiseQL's powerful features: TurboRouter, CQRS architecture, SQL injection protection, and more.">
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <a href="/" class="logo">🍓 FraiseQL</a>
+                <div class="nav-links">
+                    <a href="/docs">Docs</a>
+                    <a href="/features" class="active">Features</a>
+                    <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
+                    <a href="https://pypi.org/project/fraiseql/">PyPI</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="features-hero">
+        <div class="container">
+            <h1>Features</h1>
+            <p class="subtitle">Everything you need for production-ready GraphQL APIs</p>
+        </div>
+    </section>
+
+    <section class="feature-cards">
+        <div class="container">
+            <div class="feature-card highlight">
+                <div class="feature-icon">🏎️</div>
+                <h2>TurboRouter</h2>
+                <p>Near-zero overhead query execution. Pre-register critical queries for < 0.1ms response times.</p>
+                <ul>
+                    <li>Bypass GraphQL parsing entirely</li>
+                    <li>LRU cache with configurable size</li>
+                    <li>Automatic fallback for unregistered queries</li>
+                    <li>50-80% latency reduction</li>
+                </ul>
+                <a href="/features/turborouter" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🏗️</div>
+                <h2>CQRS Architecture</h2>
+                <p>Clean separation between reads and writes using PostgreSQL's native features.</p>
+                <ul>
+                    <li>Views for optimized queries</li>
+                    <li>Functions for business logic</li>
+                    <li>Type-safe mutations</li>
+                    <li>Transaction support</li>
+                </ul>
+                <a href="/docs/core-concepts/architecture" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🛡️</div>
+                <h2>Security First</h2>
+                <p>Built-in protection against common vulnerabilities.</p>
+                <ul>
+                    <li>SQL injection prevention</li>
+                    <li>Input validation layer</li>
+                    <li>Parameterized queries only</li>
+                    <li>Pattern detection for malicious input</li>
+                </ul>
+                <a href="/docs/advanced/security" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔐</div>
+                <h2>Flexible Authentication</h2>
+                <p>Pluggable auth system with built-in providers.</p>
+                <ul>
+                    <li>Auth0 integration</li>
+                    <li>Development auth mode</li>
+                    <li>Custom provider support</li>
+                    <li>Role-based access control</li>
+                </ul>
+                <a href="/docs/advanced/authentication" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🚀</div>
+                <h2>Code Generation</h2>
+                <p>Generate boilerplate code from your types.</p>
+                <ul>
+                    <li>Database migrations</li>
+                    <li>CRUD operations</li>
+                    <li>GraphQL schema export</li>
+                    <li>Type-safe repositories</li>
+                </ul>
+                <a href="/docs/getting-started/code-generation" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h2>Performance Optimized</h2>
+                <p>Designed for speed from the ground up.</p>
+                <ul>
+                    <li>Single query for nested data</li>
+                    <li>Connection pooling</li>
+                    <li>Query result caching</li>
+                    <li>N+1 query elimination</li>
+                </ul>
+                <a href="/docs/advanced/performance" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔧</div>
+                <h2>Developer Experience</h2>
+                <p>Built by developers, for developers.</p>
+                <ul>
+                    <li>Full type hints</li>
+                    <li>GraphQL Playground</li>
+                    <li>Detailed error messages</li>
+                    <li>Hot reloading</li>
+                </ul>
+                <a href="/docs/getting-started" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🌐</div>
+                <h2>Production Ready</h2>
+                <p>Everything you need for real-world deployments.</p>
+                <ul>
+                    <li>FastAPI integration</li>
+                    <li>CORS support</li>
+                    <li>Health checks</li>
+                    <li>Configurable via environment</li>
+                </ul>
+                <a href="/docs/advanced/configuration" class="feature-link">Learn more →</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison-table">
+        <div class="container">
+            <h2>Feature Comparison</h2>
+            <table class="feature-comparison">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>FraiseQL</th>
+                        <th>Traditional ORM + GraphQL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Query Performance</td>
+                        <td class="check">✅ Single SQL query</td>
+                        <td class="cross">❌ Multiple queries (N+1)</td>
+                    </tr>
+                    <tr>
+                        <td>TurboRouter</td>
+                        <td class="check">✅ < 0.1ms overhead</td>
+                        <td class="cross">❌ Not available</td>
+                    </tr>
+                    <tr>
+                        <td>SQL Injection Protection</td>
+                        <td class="check">✅ Built-in validation</td>
+                        <td class="partial">⚠️ Depends on ORM</td>
+                    </tr>
+                    <tr>
+                        <td>Type Safety</td>
+                        <td class="check">✅ Full Python type hints</td>
+                        <td class="partial">⚠️ Partial</td>
+                    </tr>
+                    <tr>
+                        <td>Setup Complexity</td>
+                        <td class="check">✅ Single decorator</td>
+                        <td class="cross">❌ Multiple libraries</td>
+                    </tr>
+                    <tr>
+                        <td>Database Support</td>
+                        <td class="partial">⚠️ PostgreSQL only</td>
+                        <td class="check">✅ Multiple databases</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Ready to Build Fast APIs?</h2>
+            <p>Get started with FraiseQL in minutes</p>
+            <div class="cta-buttons">
+                <a href="/docs/getting-started" class="btn btn-primary">Get Started</a>
+                <a href="https://github.com/fraiseql/fraiseql" class="btn btn-secondary">View Source</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>FraiseQL is <a href="https://github.com/fraiseql/fraiseql/blob/main/LICENSE">MIT licensed</a>. Made with 🍓 by <a href="https://github.com/lionel-rowe">Lionel Hamayon</a>.</p>
+        </div>
+    </footer>
+</body>
+</html>

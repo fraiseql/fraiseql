@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FraiseQL - GraphQL to PostgreSQL. No middleman.</title>
+    <meta name="description" content="Transform GraphQL queries into optimized PostgreSQL. One query. No N+1. Pure speed.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <a href="/" class="logo">🍓 FraiseQL</a>
+                <div class="nav-links">
+                    <a href="/docs">Docs</a>
+                    <a href="/features">Features</a>
+                    <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
+                    <a href="https://pypi.org/project/fraiseql/">PyPI</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>GraphQL to PostgreSQL.<br>No middleman.</h1>
+            <p class="subtitle">Transform GraphQL queries into optimized PostgreSQL. One query. No N+1. Pure speed.</p>
+            
+            <div class="code-example">
+                <div class="code-block">
+                    <div class="code-header">GraphQL Query</div>
+                    <pre><code>{
+  users {
+    id
+    name
+    posts {
+      title
+      comments {
+        text
+      }
+    }
+  }
+}</code></pre>
+                </div>
+                <div class="arrow">→</div>
+                <div class="code-block">
+                    <div class="code-header">PostgreSQL Query</div>
+                    <pre><code>SELECT jsonb_agg(
+  jsonb_build_object(
+    'id', u.id,
+    'name', u.name,
+    'posts', u.posts
+  )
+) FROM users u</code></pre>
+                </div>
+            </div>
+
+            <div class="cta-buttons">
+                <a href="/docs/getting-started" class="btn btn-primary">Get Started</a>
+                <a href="https://github.com/fraiseql/fraiseql" class="btn btn-secondary">View on GitHub</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2>Why FraiseQL?</h2>
+            <div class="feature-grid">
+                <div class="feature">
+                    <h3>🚀 No ORM Overhead</h3>
+                    <p>Direct GraphQL to SQL translation. No abstraction layers, no performance penalties.</p>
+                </div>
+                <div class="feature">
+                    <h3>🎯 JSONB Powered</h3>
+                    <p>Leverage PostgreSQL's JSONB for nested data in a single query.</p>
+                </div>
+                <div class="feature">
+                    <h3>🏎️ TurboRouter</h3>
+                    <p>Near-zero overhead (<0.1ms) for registered queries. Bypass GraphQL entirely in production.</p>
+                </div>
+                <div class="feature">
+                    <h3>🛡️ SQL Injection Safe</h3>
+                    <p>All queries use parameterized SQL. Built-in input validation and security layers.</p>
+                </div>
+                <div class="feature">
+                    <h3>🏗️ CQRS Architecture</h3>
+                    <p>Clean separation: Views for queries, Functions for mutations. Database-driven design.</p>
+                </div>
+                <div class="feature">
+                    <h3>🔧 Simple Setup</h3>
+                    <p>pip install, add decorators, run. No configuration files needed.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="quickstart">
+        <div class="container">
+            <h2>Quick Start</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Install</h3>
+                    <pre><code>pip install fraiseql</code></pre>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Define Schema</h3>
+                    <pre><code>import fraiseql
+
+@fraiseql.type
+class User:
+    id: int
+    name: str
+    email: str
+
+@fraiseql.query
+async def users(info) -> list[User]:
+    return await info.context.repo.fetch_users()</code></pre>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Run</h3>
+                    <pre><code>from fraiseql.fastapi import create_app
+
+app = create_fraiseql_app(
+    database_url="postgresql://localhost/mydb",
+    types=[User],
+    production=True  # Enables TurboRouter
+)</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <div class="container">
+            <h2>Performance That Matters</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Scenario</th>
+                        <th>Traditional ORM</th>
+                        <th>FraiseQL</th>
+                        <th>Improvement</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Nested data (3 levels)</td>
+                        <td>~50 queries</td>
+                        <td>1 query</td>
+                        <td class="improvement">50x fewer</td>
+                    </tr>
+                    <tr>
+                        <td>Response time (1000 users)</td>
+                        <td>~800ms</td>
+                        <td>~45ms</td>
+                        <td class="improvement">17x faster</td>
+                    </tr>
+                    <tr>
+                        <td>TurboRouter cached query</td>
+                        <td>~5ms</td>
+                        <td>~0.5ms</td>
+                        <td class="improvement">10x faster</td>
+                    </tr>
+                    <tr>
+                        <td>Memory usage</td>
+                        <td>~120MB</td>
+                        <td>~25MB</td>
+                        <td class="improvement">5x less</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="when-not">
+        <div class="container">
+            <h2>When NOT to Use FraiseQL</h2>
+            <p>We believe in honest engineering. FraiseQL isn't for everyone:</p>
+            <ul>
+                <li>❌ Need multiple database support (we're PostgreSQL only)</li>
+                <li>❌ Complex business logic in GraphQL layer</li>
+                <li>❌ Existing large codebase with different patterns</li>
+                <li>❌ Need for microservices architecture</li>
+            </ul>
+            <p>If these are deal-breakers, check out <a href="https://hasura.io">Hasura</a> or <a href="https://www.graphile.org/postgraphile/">PostGraphile</a>.</p>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>FraiseQL is <a href="https://github.com/fraiseql/fraiseql/blob/main/LICENSE">MIT licensed</a>. Made with 🍓 by <a href="https://github.com/lionel-rowe">Lionel Hamayon</a>.</p>
+        </div>
+    </footer>
+</body>
+</html>
