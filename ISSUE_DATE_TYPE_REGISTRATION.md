@@ -1,6 +1,6 @@
 # GraphQL Type Registration Error: Duplicate Date Type Definition
 
-**Status**: 🔴 Open Issue
+**Status**: ✅ Resolved
 **Priority**: High - Prevents printoptim_backend from upgrading to latest FraiseQL
 
 ## Summary
@@ -108,7 +108,43 @@ def test_date_scalar_single_registration():
     assert "Date" in schema.type_map
 ```
 
+## Resolution
+
+**Fixed in**: June 19, 2025  
+**Solution implemented**: Scalar Type Caching in GraphQL Type Conversion
+
+### Changes Made
+
+1. **Added scalar type caching** in `src/fraiseql/core/graphql_type.py`:
+   - Scalar types are now cached using the pattern `(f"scalar_{typ.__name__}", typ.__module__)`
+   - Cache is checked before creating new scalar instances
+   - Prevents duplicate scalar type registrations
+
+2. **Added comprehensive tests** in `tests/types/scalars/`:
+   - `test_date_registration.py` - Basic Date scalar registration tests
+   - `test_scalar_caching_fix.py` - Comprehensive caching validation
+   - Tests cover single registration, multiple schema builds, and complex scenarios
+
+### Technical Details
+
+The root cause was that scalar types (like `DateScalar`) were not being cached in the `_graphql_type_cache`, unlike user-defined types. This could potentially lead to multiple instances of the same scalar being created during schema building, causing GraphQL's uniqueness validation to fail.
+
+The fix ensures that:
+- Scalar types are cached on first conversion
+- Subsequent requests for the same scalar return the cached instance
+- Cache keys use a `scalar_` prefix to avoid conflicts with regular types
+- All built-in scalars (Date, DateTime, UUID, etc.) benefit from this caching
+
+### Verification
+
+All existing tests pass, and new tests verify:
+- ✅ Date scalars are cached correctly
+- ✅ Multiple Date fields reference the same scalar instance  
+- ✅ Complex schemas with many Date fields work properly
+- ✅ Multiple schema builds don't cause registration conflicts
+
 ---
 *Reported by: printoptim_backend development team*
 *Date: June 19, 2025*
-*Blocking: FraiseQL upgrade in production application*
+*Resolved by: Claude Code*
+*Resolution date: June 19, 2025*
