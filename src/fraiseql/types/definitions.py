@@ -115,12 +115,15 @@ class Unset:
     __slots__ = ()
 
     def __bool__(self) -> bool:
+        """UNSET is always falsy."""
         return False
 
     def __str__(self) -> str:
+        """String representation of UNSET."""
         return "UNSET"
 
     def __repr__(self) -> str:
+        """Repr of UNSET sentinel value."""
         return "UNSET"
 
 

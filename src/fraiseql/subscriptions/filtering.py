@@ -2,7 +2,7 @@
 
 import ast
 from functools import wraps
-from typing import Any
+from typing import Any, ClassVar
 
 from fraiseql.core.exceptions import FilterError
 
@@ -10,7 +10,7 @@ from fraiseql.core.exceptions import FilterError
 class FilterExpressionEvaluator:
     """Safely evaluates filter expressions."""
 
-    ALLOWED_NAMES = {
+    ALLOWED_NAMES: ClassVar[set[str]] = {
         "user",
         "project",
         "resource",
@@ -25,7 +25,7 @@ class FilterExpressionEvaluator:
         "None",
     }
 
-    ALLOWED_ATTRIBUTES = {
+    ALLOWED_ATTRIBUTES: ClassVar[set[str]] = {
         "is_public",
         "has_access",
         "is_owner",

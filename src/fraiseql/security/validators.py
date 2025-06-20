@@ -7,7 +7,7 @@ to add an additional layer of protection against injection attacks.
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ class ValidationResult:
     warnings: list[str] = None
 
     def __post_init__(self):
+        """Initialize warnings list if not provided."""
         if self.warnings is None:
             self.warnings = []
 
@@ -37,7 +38,7 @@ class InputValidator:
     """
 
     # Patterns that might indicate injection attempts
-    SUSPICIOUS_SQL_PATTERNS = [
+    SUSPICIOUS_SQL_PATTERNS: ClassVar[list[tuple[str, str]]] = [
         # SQL comments
         (r"(--|#|/\*|\*/)", "SQL comment syntax detected"),
         # Common SQL injection keywords (case-insensitive)
@@ -52,7 +53,7 @@ class InputValidator:
     ]
 
     # XSS patterns (for fields that might be displayed)
-    XSS_PATTERNS = [
+    XSS_PATTERNS: ClassVar[list[tuple[str, str]]] = [
         (r"<script[^>]*>.*?</script>", "Script tag detected"),
         (r"javascript:", "JavaScript URL detected"),
         (r"on\w+\s*=", "Event handler attribute detected"),
@@ -60,7 +61,7 @@ class InputValidator:
     ]
 
     # Suspicious file path patterns
-    PATH_TRAVERSAL_PATTERNS = [
+    PATH_TRAVERSAL_PATTERNS: ClassVar[list[tuple[str, str]]] = [
         (r"\.\./", "Path traversal attempt"),
         (r"\.\.\\", "Path traversal attempt (Windows)"),
         (r"/etc/passwd", "Suspicious system file access"),
@@ -68,7 +69,7 @@ class InputValidator:
     ]
 
     # Maximum reasonable lengths for different field types
-    MAX_LENGTHS = {
+    MAX_LENGTHS: ClassVar[dict[str, int]] = {
         "name": 255,
         "email": 255,
         "description": 5000,

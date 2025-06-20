@@ -16,6 +16,7 @@ class ComplexityConfig:
     field_costs: dict[str, int] = None
 
     def __post_init__(self):
+        """Initialize field costs with defaults if not provided."""
         if self.field_costs is None:
             self.field_costs = {
                 "default": 1,
