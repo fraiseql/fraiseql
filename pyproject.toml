@@ -107,7 +107,6 @@ fix = true
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-  "PLR0913", # Too many function arguments
   "D203",    # One-blank-line-before-class
   "D213",    # Multi-line-summary-second-line
   "TC006",   # Unquoted cast
@@ -127,6 +126,9 @@ per-file-ignores = { "**/*.pyi" = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.pylint]
+max-args = 8  # Increased from default 5
 
 [tool.setuptools_scm]
 version_scheme = "python-simplified-semver"
