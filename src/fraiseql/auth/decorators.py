@@ -73,7 +73,7 @@ def requires_permission(
             # Type guard to ensure info is GraphQLResolveInfo
             if not isinstance(info, GraphQLResolveInfo):
                 msg = "First argument must be GraphQLResolveInfo"
-                raise ValueError(msg)
+                raise TypeError(msg)
 
             context = info.context
             user = context.get("user")
@@ -124,7 +124,7 @@ def requires_role(
             # Type guard to ensure info is GraphQLResolveInfo
             if not isinstance(info, GraphQLResolveInfo):
                 msg = "First argument must be GraphQLResolveInfo"
-                raise ValueError(msg)
+                raise TypeError(msg)
 
             context = info.context
             user = context.get("user")
@@ -175,7 +175,7 @@ def requires_any_permission(
             # Type guard to ensure info is GraphQLResolveInfo
             if not isinstance(info, GraphQLResolveInfo):
                 msg = "First argument must be GraphQLResolveInfo"
-                raise ValueError(msg)
+                raise TypeError(msg)
 
             context = info.context
             user = context.get("user")
@@ -229,7 +229,7 @@ def requires_any_role(
             # Type guard to ensure info is GraphQLResolveInfo
             if not isinstance(info, GraphQLResolveInfo):
                 msg = "First argument must be GraphQLResolveInfo"
-                raise ValueError(msg)
+                raise TypeError(msg)
 
             context = info.context
             user = context.get("user")
