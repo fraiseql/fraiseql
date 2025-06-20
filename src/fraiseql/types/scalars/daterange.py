@@ -38,7 +38,10 @@ def serialize_date_range(value: Any) -> str:
     if isinstance(value, str):
         # Add validation logic here if needed
         return value
-    msg = (\n        f"DateRange cannot represent non-string value: {value!r}. "\n        f"Expected a valid date range string."\n    )
+    msg = (
+        f"DateRange cannot represent non-string value: {value!r}. "
+        f"Expected a valid date range string."
+    )
     raise GraphQLError(msg)
 
 
@@ -58,7 +61,10 @@ def parse_date_range_value(value: Any) -> str | None:
         return None
 
     if not isinstance(value, str):
-        msg = (\n        f"DateRange cannot represent non-string value: {value!r}. "\n        f"Expected a valid date range string."\n    )
+        msg = (
+        f"DateRange cannot represent non-string value: {value!r}. "
+        f"Expected a valid date range string."
+    )
         raise GraphQLError(msg)
 
     # Regular expression to match the date range pattern

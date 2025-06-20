@@ -494,9 +494,9 @@ def create_csp_report_handler(webhook_url: str | None = None):
             violation = report.get("csp-report", {})
             logger.warning(
                 "CSP Violation: %s blocked %s on %s",
-                violation.get('violated-directive'),
-                violation.get('blocked-uri'),
-                violation.get('document-uri'),
+                violation.get("violated-directive"),
+                violation.get("blocked-uri"),
+                violation.get("document-uri"),
             )
 
             # Send to webhook if configured

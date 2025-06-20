@@ -79,7 +79,10 @@ def _convert_fraise_union(
     for arg in args:
         gql = convert_type_to_graphql_output(arg)
         if not isinstance(gql, GraphQLObjectType):
-            msg = (\n                f"GraphQLUnionType can only include GraphQLObjectType members, "\n                f"got: {type(gql)} from {arg!r}"\n            )
+            msg = (
+                f"GraphQLUnionType can only include GraphQLObjectType members, "
+                f"got: {type(gql)} from {arg!r}"
+            )
             raise TypeError(msg)
         gql_object_types.append(gql)
 
@@ -526,7 +529,10 @@ def translate_query_from_type(
         or not hasattr(root_type, "__gql_table__")
         or root_type.__gql_table__ is None
     ):
-        msg = (\n            f"{root_type.__name__} must be a FraiseQL output type decorated "\n            f"with @fraise_type and linked to a SQL table"\n        )
+        msg = (
+            f"{root_type.__name__} must be a FraiseQL output type decorated "
+            f"with @fraise_type and linked to a SQL table"
+        )
         raise ValueError(
             msg,
         )

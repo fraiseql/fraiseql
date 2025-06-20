@@ -205,7 +205,7 @@ class SchemaRegistry:
             logger.debug(
                 "Query %s: return type %s converted to %s",
                 name,
-                hints['return'],
+                hints["return"],
                 gql_return_type,
             )
             gql_args: dict[str, GraphQLArgument] = {}
