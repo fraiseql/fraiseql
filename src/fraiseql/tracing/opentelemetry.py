@@ -16,7 +16,9 @@ try:
     from opentelemetry import context as otel_context  # type: ignore
     from opentelemetry import trace  # type: ignore
     from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # type: ignore
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+        OTLPSpanExporter,  # type: ignore
+    )
     from opentelemetry.exporter.zipkin.json import ZipkinExporter  # type: ignore
     from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor  # type: ignore
     from opentelemetry.propagate import extract, inject  # type: ignore
@@ -159,7 +161,7 @@ class FraiseQLTracer:
         """Create appropriate span exporter based on configuration."""
         if not OPENTELEMETRY_AVAILABLE:
             return None
-            
+
         if self.config.export_format == "otlp" and OTLPSpanExporter:
             return OTLPSpanExporter(
                 endpoint=self.config.export_endpoint,

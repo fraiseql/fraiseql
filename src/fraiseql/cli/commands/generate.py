@@ -176,6 +176,12 @@ class {type_name}Error:
     code: str
 
 
+@fraiseql.result
+class {type_name}Result:
+    """{type_name} mutation result."""
+    pass
+
+
 @fraiseql.mutation
 async def create_{type_name.lower()}(
     input: Create{type_name}Input,
