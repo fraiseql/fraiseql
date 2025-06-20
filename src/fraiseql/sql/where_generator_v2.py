@@ -55,7 +55,8 @@ def safe_create_where_type_with_validation(cls: type[object]) -> type[DynamicTyp
 
             logger = logging.getLogger(__name__)
             logger.warning(
-                f"Suspicious patterns detected in WHERE clause: {validation_result.warnings}",
+                "Suspicious patterns detected in WHERE clause: %s",
+                validation_result.warnings,
             )
 
         # If validation passes, generate SQL using original method
@@ -200,7 +201,7 @@ class WhereBuilder:
             import logging
 
             logger = logging.getLogger(__name__)
-            logger.warning(f"WHERE clause warnings: {self._warnings}")
+            logger.warning("WHERE clause warnings: %s", self._warnings)
 
         # Create WHERE type instance
         where_type = safe_create_where_type_with_validation(self.cls)

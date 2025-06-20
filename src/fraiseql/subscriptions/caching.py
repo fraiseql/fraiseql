@@ -100,7 +100,7 @@ class SubscriptionCache:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.exception(f"Cache cleanup error: {e}")
+                logger.exception("Cache cleanup error: %s", e)
 
 
 def cache(ttl: float = 5.0):

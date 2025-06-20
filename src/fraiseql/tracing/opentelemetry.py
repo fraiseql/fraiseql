@@ -43,7 +43,7 @@ except ImportError:
         return {}
     def inject(*args, **kwargs):  # type: ignore
         """Placeholder for inject when opentelemetry is not available."""
-        return None
+        return
     Resource = None  # type: ignore
     TracerProvider = None  # type: ignore
     BatchSpanProcessor = None  # type: ignore

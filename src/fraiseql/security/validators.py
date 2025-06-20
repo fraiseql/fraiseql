@@ -176,7 +176,9 @@ class InputValidator:
         # Log warnings for monitoring
         if warnings:
             logger.warning(
-                f"Suspicious patterns detected in {field_name}: {warnings}",
+                "Suspicious patterns detected in %s: %s",
+                field_name,
+                warnings,
                 extra={"field": field_name, "warnings": warnings},
             )
 

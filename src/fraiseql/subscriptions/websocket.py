@@ -132,9 +132,9 @@ class WebSocketConnection:
             await self._message_loop()
 
         except asyncio.CancelledError:
-            logger.info(f"Connection {self.connection_id} cancelled")
+            logger.info("Connection %s cancelled", self.connection_id)
         except Exception as e:
-            logger.exception(f"Connection {self.connection_id} error: {e}")
+            logger.exception("Connection %s error: %s", self.connection_id, e)
             await self._send_error(None, str(e))
         finally:
             await self._cleanup()
@@ -158,7 +158,7 @@ class WebSocketConnection:
                     await self.send_message(GraphQLWSMessage(type=MessageType.CONNECTION_ACK))
 
                     self.state = ConnectionState.READY
-                    logger.info(f"Connection {self.connection_id} initialized")
+                    logger.info("Connection %s initialized", self.connection_id)
                     return
                 # Unexpected message before init
                 await self._close(
@@ -183,7 +183,7 @@ class WebSocketConnection:
                 if "disconnect" in str(e).lower():
                     # Normal disconnect
                     break
-                logger.exception(f"Message handling error: {e}")
+                logger.exception("Message handling error: %s", e)
                 await self._send_error(None, str(e))
 
     async def _receive_message(self) -> GraphQLWSMessage:
@@ -211,7 +211,7 @@ class WebSocketConnection:
         try:
             await self.websocket.send(json.dumps(message.to_dict()))
         except Exception as e:
-            logger.exception(f"Failed to send message: {e}")
+            logger.exception("Failed to send message: %s", e)
             self.state = ConnectionState.CLOSING
             raise
 
@@ -228,7 +228,7 @@ class WebSocketConnection:
         if handler:
             await handler(message)
         else:
-            logger.warning(f"Unknown message type: {message.type}")
+            logger.warning("Unknown message type: %s", message.type)
 
     async def _handle_subscribe(self, message: GraphQLWSMessage):
         """Handle subscription request."""
@@ -267,7 +267,7 @@ class WebSocketConnection:
                 await self._send_error(message.id, result)
 
         except Exception as e:
-            logger.exception(f"Subscription error: {e}")
+            logger.exception("Subscription error: %s", e)
             await self._send_error(message.id, str(e))
 
     async def _handle_subscription_generator(
@@ -304,7 +304,7 @@ class WebSocketConnection:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            logger.exception(f"Subscription {subscription_id} error: {e}")
+            logger.exception("Subscription %s error: %s", subscription_id, e)
             await self._send_error(subscription_id, str(e))
         finally:
             # Clean up
@@ -315,7 +315,7 @@ class WebSocketConnection:
         if message.id and message.id in self.subscriptions:
             task = self.subscriptions.pop(message.id)
             task.cancel()
-            logger.info(f"Subscription {message.id} completed")
+            logger.info("Subscription %s completed", message.id)
 
     async def _handle_terminate(self, message: GraphQLWSMessage):
         """Handle connection termination request."""
@@ -351,7 +351,7 @@ class WebSocketConnection:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.exception(f"Keep-alive error: {e}")
+                logger.exception("Keep-alive error: %s", e)
                 break
 
     async def _close(self, code: int = 1000, reason: str = ""):
@@ -364,7 +364,7 @@ class WebSocketConnection:
         try:
             await self.websocket.close(code=code, reason=reason)
         except Exception as e:
-            logger.exception(f"Error closing WebSocket: {e}")
+            logger.exception("Error closing WebSocket: %s", e)
 
         self.state = ConnectionState.CLOSED
 
@@ -385,7 +385,7 @@ class WebSocketConnection:
         self.subscriptions.clear()
         self.state = ConnectionState.CLOSED
 
-        logger.info(f"Connection {self.connection_id} cleaned up")
+        logger.info("Connection %s cleaned up", self.connection_id)
 
 
 class SubscriptionManager:
@@ -420,7 +420,7 @@ class SubscriptionManager:
         async with self._lock:
             self.connections[connection.connection_id] = connection
 
-        logger.info(f"Added connection {connection.connection_id}")
+        logger.info("Added connection %s", connection.connection_id)
         return connection
 
     async def remove_connection(self, connection_id: str):
@@ -430,7 +430,7 @@ class SubscriptionManager:
 
         if connection:
             await connection._cleanup()
-            logger.info(f"Removed connection {connection_id}")
+            logger.info("Removed connection %s", connection_id)
 
     async def broadcast(
         self,

@@ -204,7 +204,7 @@ Your GraphQL API will be available at http://localhost:8000/graphql
         try:
             subprocess.run(["git", "init", "-q"], check=True)  # noqa: S603, S607
             subprocess.run(["git", "add", "."], check=True)  # noqa: S603, S607
-            subprocess.run(  # noqa: S603, S607
+            subprocess.run(  # noqa: S603
                 ["git", "commit", "-q", "-m", "Initial commit from FraiseQL CLI"],
                 check=True,
             )

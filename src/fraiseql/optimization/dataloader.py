@@ -143,7 +143,7 @@ class DataLoader(Generic[K, V], ABC):
         except Exception as e:
             # CRITICAL: Properly handle exceptions to prevent information leakage
             # Log the actual error for debugging but don't expose internals
-            logger.exception(f"DataLoader batch_load failed: {type(e).__name__}")
+            logger.exception("DataLoader batch_load failed: %s", type(e).__name__)
 
             # Create safe exception for public consumption
             safe_exception = RuntimeError(

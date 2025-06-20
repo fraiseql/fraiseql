@@ -203,7 +203,10 @@ class SchemaRegistry:
             # Use convert_type_to_graphql_output for the return type
             gql_return_type = convert_type_to_graphql_output(hints["return"])
             logger.debug(
-                f"Query {name}: return type {hints['return']} converted to {gql_return_type}",
+                "Query %s: return type %s converted to %s",
+                name,
+                hints['return'],
+                gql_return_type,
             )
             gql_args: dict[str, GraphQLArgument] = {}
 
@@ -277,10 +280,10 @@ class SchemaRegistry:
                     sig = inspect.signature(attr)
                     return_type = sig.return_annotation
                     if return_type == inspect.Signature.empty:
-                        logger.warning(f"Field method {attr_name} missing return type annotation")
+                        logger.warning("Field method %s missing return type annotation", attr_name)
                         continue
 
-                    logger.debug(f"Found @field decorated method: {attr_name}")
+                    logger.debug("Found @field decorated method: %s", attr_name)
                     gql_type = convert_type_to_graphql_output(return_type)
 
                     # Get the bound method from the instance

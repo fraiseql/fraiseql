@@ -128,9 +128,9 @@ class N1QueryDetector:
 
         # Log warnings if patterns detected
         if detected:
-            logger.warning(f"N+1 query pattern detected in request {self._current_request_id}:")
+            logger.warning("N+1 query pattern detected in request %s:", self._current_request_id)
             for suggestion in suggestions:
-                logger.warning(f"  - {suggestion}")
+                logger.warning("  - %s", suggestion)
 
         # Optionally raise exception
         if self.raise_on_detection and threshold_exceeded:
