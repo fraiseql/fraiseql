@@ -237,7 +237,7 @@ def _find_main_field(
                 return field
 
     # Find first non-message field
-    for field, _ in annotations.items():
+    for field in annotations.keys():
         if field != "message":
             return field
 

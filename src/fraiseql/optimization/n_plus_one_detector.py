@@ -100,7 +100,7 @@ class N1QueryDetector:
         suggestions = []
         total_queries = 0
 
-        for _pattern_key, pattern in self._patterns.items():
+        for pattern in self._patterns.values():
             total_queries += pattern.count
 
             # Check if pattern exceeds threshold

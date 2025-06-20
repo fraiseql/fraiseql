@@ -61,7 +61,7 @@ class LoaderRegistry:
         return _loader_registry.get()
 
     @classmethod
-    def set_current(cls, registry: LoaderRegistry):
+    def set_current(cls, registry: LoaderRegistry) -> None:
         """Set the current request's registry."""
         _loader_registry.set(registry)
 
