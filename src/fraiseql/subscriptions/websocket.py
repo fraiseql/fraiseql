@@ -201,7 +201,7 @@ class WebSocketConnection:
             data = json.loads(text)
             return GraphQLWSMessage.from_dict(data)
         except (json.JSONDecodeError, ValueError) as e:
-            raise WebSocketError(f"Invalid message format: {e}")
+            raise WebSocketError(f"Invalid message format: {e}") from e
 
     async def send_message(self, message: GraphQLWSMessage):
         """Send a message to the client."""

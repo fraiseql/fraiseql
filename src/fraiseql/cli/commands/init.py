@@ -202,10 +202,10 @@ Your GraphQL API will be available at http://localhost:8000/graphql
         original_cwd = Path.cwd()
         os.chdir(project_path)
         try:
-            subprocess.run(["git", "init", "-q"], check=True)  # noqa: S607
-            subprocess.run(["git", "add", "."], check=True)  # noqa: S607
-            subprocess.run(
-                ["git", "commit", "-q", "-m", "Initial commit from FraiseQL CLI"],  # noqa: S607
+            subprocess.run(["git", "init", "-q"], check=True)  # noqa: S603, S607
+            subprocess.run(["git", "add", "."], check=True)  # noqa: S603, S607
+            subprocess.run(  # noqa: S603, S607
+                ["git", "commit", "-q", "-m", "Initial commit from FraiseQL CLI"],
                 check=True,
             )
             click.echo("✅ Initialized git repository")

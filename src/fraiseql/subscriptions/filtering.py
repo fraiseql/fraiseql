@@ -55,7 +55,7 @@ class FilterExpressionEvaluator:
             return eval(code, {"__builtins__": {}}, self.context)  # noqa: S307 - sandboxed eval with AST validation
 
         except Exception as e:
-            raise FilterError(f"Invalid filter expression: {e}")
+            raise FilterError(f"Invalid filter expression: {e}") from e
 
     def _validate_ast(self, node):
         """Validate AST nodes for safety."""

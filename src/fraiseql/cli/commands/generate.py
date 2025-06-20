@@ -50,7 +50,7 @@ def schema(output: str):
 
     except Exception as e:
         click.echo(f"Error generating schema: {e}", err=True)
-        raise click.ClickException(str(e))
+        raise click.ClickException(str(e)) from e
 
 
 @generate.command()

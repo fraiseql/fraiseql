@@ -170,8 +170,8 @@ def create_development_router(
         if variables:
             try:
                 parsed_variables = json.loads(variables)
-            except json.JSONDecodeError:
-                raise HTTPException(400, "Invalid JSON in variables parameter")
+            except json.JSONDecodeError as e:
+                raise HTTPException(400, "Invalid JSON in variables parameter") from e
 
         request_obj = GraphQLRequest(
             query=query,
