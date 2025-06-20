@@ -82,7 +82,7 @@ def safe_create_where_type_with_validation(cls: type[object]) -> type[DynamicTyp
     base_type.__name__ = f"{cls.__name__}WhereValidated"
     base_type.__qualname__ = f"{cls.__name__}WhereValidated"
 
-    return base_type
+    return base_type  # type: ignore[return-value]
 
 
 def create_secure_where_builder(cls: type[object]) -> "WhereBuilder":
@@ -206,7 +206,10 @@ class WhereBuilder:
         where_type = safe_create_where_type_with_validation(self.cls)
         where_instance = where_type(**self.conditions)
 
-        return where_instance.to_sql()
+        result = where_instance.to_sql()
+        if result is None:
+            raise ValueError("No conditions to build")
+        return result
 
     def validate(self) -> ValidationResult:
         """Validate current conditions without building SQL."""

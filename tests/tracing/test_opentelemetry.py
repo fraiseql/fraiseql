@@ -5,6 +5,9 @@ from unittest.mock import Mock, patch, MagicMock
 import asyncio
 from typing import Optional
 
+# Skip tests if opentelemetry is not installed
+pytest.importorskip("opentelemetry")
+
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor

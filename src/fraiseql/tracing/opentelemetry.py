@@ -113,14 +113,14 @@ class FraiseQLTracer:
         self.tracer = self._setup_tracer()
 
         # Instrument psycopg automatically
-        if self.config.enabled:
+        if self.config.enabled and OPENTELEMETRY_AVAILABLE and PsycopgInstrumentor is not None:
             PsycopgInstrumentor().instrument()
 
-    def _setup_tracer(self) -> trace.Tracer:
+    def _setup_tracer(self) -> "trace.Tracer":
         """Set up OpenTelemetry tracer with configured exporter."""
-        if not self.config.enabled:
-            # Return no-op tracer when disabled
-            return trace.get_tracer(__name__)
+        if not self.config.enabled or not OPENTELEMETRY_AVAILABLE:
+            # Return no-op tracer when disabled or not available
+            return trace.get_tracer(__name__) if trace else None  # type: ignore
 
         # Create resource with service information
         resource = Resource.create(
@@ -133,16 +133,19 @@ class FraiseQLTracer:
         )
 
         # Create sampler
-        sampler = TraceIdRatioBased(self.config.sample_rate)
+        sampler = TraceIdRatioBased(self.config.sample_rate) if TraceIdRatioBased else None
 
         # Create tracer provider
-        provider = TracerProvider(resource=resource, sampler=sampler)
+        provider = TracerProvider(resource=resource, sampler=sampler) if TracerProvider else None
+        if not provider:
+            return trace.get_tracer(__name__) if trace else None  # type: ignore
 
         # Add span processor with appropriate exporter
-        if self.config.export_endpoint:
+        if self.config.export_endpoint and BatchSpanProcessor:
             exporter = self._create_exporter()
-            processor = BatchSpanProcessor(exporter)
-            provider.add_span_processor(processor)
+            if exporter:
+                processor = BatchSpanProcessor(exporter)
+                provider.add_span_processor(processor)
 
         # Set as global tracer provider
         trace.set_tracer_provider(provider)
@@ -154,12 +157,15 @@ class FraiseQLTracer:
 
     def _create_exporter(self):
         """Create appropriate span exporter based on configuration."""
-        if self.config.export_format == "otlp":
+        if not OPENTELEMETRY_AVAILABLE:
+            return None
+            
+        if self.config.export_format == "otlp" and OTLPSpanExporter:
             return OTLPSpanExporter(
                 endpoint=self.config.export_endpoint,
                 timeout=self.config.export_timeout_ms,
             )
-        if self.config.export_format == "jaeger":
+        if self.config.export_format == "jaeger" and JaegerExporter:
             # Parse endpoint for Jaeger
             if self.config.export_endpoint and ":" in self.config.export_endpoint:
                 host, port = self.config.export_endpoint.split(":")
@@ -168,7 +174,7 @@ class FraiseQLTracer:
                     agent_port=int(port),
                 )
             return JaegerExporter(agent_host_name=self.config.export_endpoint)
-        if self.config.export_format == "zipkin":
+        if self.config.export_format == "zipkin" and ZipkinExporter:
             return ZipkinExporter(endpoint=self.config.export_endpoint)
         # Return None for console exporter
         return None
