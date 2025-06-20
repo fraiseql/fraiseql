@@ -18,7 +18,7 @@ import statistics
 import string
 import time
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import asyncpg
@@ -558,8 +558,8 @@ class PerformanceBenchmark:
                 """,
                 "variables": {
                     "userId": "00000000-0000-0000-0000-000000000001",
-                    "startDate": (datetime.now() - timedelta(days=30)).isoformat(),
-                    "endDate": datetime.now().isoformat(),
+                    "startDate": (datetime.now(tz=timezone.utc) - timedelta(days=30)).isoformat(),
+                    "endDate": datetime.now(tz=timezone.utc).isoformat(),
                 },
             },
             # 5. Full text search
@@ -710,7 +710,7 @@ class PerformanceBenchmark:
         output_path = Path("benchmark_results.json")
         with output_path.open("w") as f:
             json.dump(
-                {"timestamp": datetime.now().isoformat(), "results": results_data}, f, indent=2
+                {"timestamp": datetime.now(tz=timezone.utc).isoformat(), "results": results_data}, f, indent=2
             )
 
         print("\n\n📄 Full results saved to benchmark_results.json")

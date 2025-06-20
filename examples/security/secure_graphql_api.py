@@ -13,7 +13,7 @@ Usage:
 """
 
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -187,8 +187,8 @@ async def create_post(
         content=input.content,
         author_id=user_id,
         published=input.published,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=datetime.now(tz=UTC),
+        updated_at=datetime.now(tz=UTC),
     )
 
     return PostResult(success=PostSuccess(
@@ -254,7 +254,7 @@ async def create_comment(
         content=input.content,
         post_id=input.post_id,
         author_id=user_id,
-        created_at=datetime.now(),
+        created_at=datetime.now(tz=UTC),
     )
 
 

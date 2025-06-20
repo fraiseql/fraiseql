@@ -14,7 +14,7 @@ import statistics
 import subprocess
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -489,7 +489,7 @@ class FrameworkBenchmarkRunner:
         # Save detailed results
         output_path = Path("framework_comparison_results.json")
         with output_path.open("w") as f:
-            json.dump({"timestamp": datetime.now().isoformat(), "results": results}, f, indent=2)
+            json.dump({"timestamp": datetime.now(tz=timezone.utc).isoformat(), "results": results}, f, indent=2)
 
         print("\n\n📄 Detailed results saved to framework_comparison_results.json")
 

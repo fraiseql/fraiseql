@@ -10,7 +10,7 @@ import asyncio
 import json
 import time
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from statistics import mean, median, quantiles, stdev
 from typing import Any
@@ -501,7 +501,7 @@ async def main():
     print("=" * 80)
     print("🏆 FRAISEQL COMPLEX DOMAIN BENCHMARK")
     print("=" * 80)
-    print(f"Timestamp: {datetime.now().isoformat()}")
+    print(f"Timestamp: {datetime.now(tz=timezone.utc).isoformat()}")
     print("\nThis benchmark tests:")
     print("1. Simple queries (baseline performance)")
     print("2. Complex nested queries (FraiseQL's strength)")
@@ -560,14 +560,14 @@ async def main():
                     await asyncio.sleep(1)
 
     # Save results
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"benchmark_complex_results_{timestamp}.json"
 
     output_path = Path(filename)
     with output_path.open("w") as f:
         json.dump(
             {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
                 "description": "Complex domain benchmark comparing FraiseQL and Strawberry",
                 "results": all_results,
             },

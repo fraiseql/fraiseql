@@ -4,7 +4,7 @@ Performance benchmark results analyzer and report generator
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -196,7 +196,7 @@ class BenchmarkAnalyzer:
         """Generate comprehensive markdown report"""
         report = []
         report.append("# FraiseQL Performance Benchmark Report")
-        report.append(f"\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        report.append(f"\nGenerated: {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         report.append("\n## Executive Summary")
 
         # Find the best performer for each metric
@@ -302,7 +302,7 @@ class BenchmarkAnalyzer:
         report = self.generate_markdown_report(results)
 
         report_path = (
-            self.reports_dir / f"benchmark_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            self.reports_dir / f"benchmark_report_{datetime.now(tz=timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
         )
         with report_path.open("w") as f:
             f.write(report)

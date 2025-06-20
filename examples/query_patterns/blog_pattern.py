@@ -4,7 +4,7 @@ This shows how to create a FraiseQL app using only the @query decorator,
 which provides the cleanest and most intuitive API.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 import fraiseql
@@ -47,7 +47,7 @@ async def get_post(info, id: UUID) -> Post | None:
                 email="jane@example.com",
                 bio="GraphQL enthusiast and FraiseQL contributor",
             ),
-            published_at=datetime.now(),
+            published_at=datetime.now(tz=UTC),
             tags=["graphql", "python", "tutorial"],
         )
     return None
@@ -72,7 +72,7 @@ async def list_posts(
                     name="Jane Developer",
                     email="jane@example.com",
                 ),
-                published_at=datetime.now() if i % 2 == 0 else None,
+                published_at=datetime.now(tz=UTC) if i % 2 == 0 else None,
                 tags=["blog", "tutorial"] if i % 2 == 0 else ["draft"],
             ),
         )
@@ -100,7 +100,7 @@ async def search_posts(info, query: str) -> list[Post]:
                     name="Jane Developer",
                     email="jane@example.com",
                 ),
-                published_at=datetime.now(),
+                published_at=datetime.now(tz=UTC),
                 tags=["graphql", "python", "tutorial"],
             ),
         ]

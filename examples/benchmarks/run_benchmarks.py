@@ -6,7 +6,7 @@ import asyncio
 import json
 import statistics
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -320,13 +320,13 @@ def print_results(results: Dict[str, Dict[str, Dict]]):
 def save_results(results: Dict, filename: str | None = None):
     """Save benchmark results to JSON file"""
     if not filename:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"benchmark_results_{timestamp}.json"
 
     output_path = Path(filename)
     with output_path.open("w") as f:
         json.dump(
-            {"timestamp": datetime.now().isoformat(), "results": results}, f, indent=2,
+            {"timestamp": datetime.now(tz=UTC).isoformat(), "results": results}, f, indent=2,
         )
 
 

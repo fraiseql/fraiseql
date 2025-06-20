@@ -7,7 +7,7 @@ This tests Strawberry under its absolute best conditions.
 import asyncio
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean, median, quantiles
 from typing import Any
@@ -350,7 +350,7 @@ async def main():
     print("=" * 80)
     print("🍓 ULTRA-OPTIMIZED STRAWBERRY GRAPHQL BENCHMARK")
     print("=" * 80)
-    print(f"Timestamp: {datetime.now().isoformat()}")
+    print(f"Timestamp: {datetime.now(tz=timezone.utc).isoformat()}")
     print("\nTesting Strawberry GraphQL under optimal conditions:")
     print("- DataLoaders for N+1 query elimination")
     print("- Connection pooling for database efficiency")
@@ -405,14 +405,14 @@ async def main():
     await get_performance_stats()
 
     # Save results
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"strawberry_optimized_results_{timestamp}.json"
 
     output_path = Path(filename)
     with output_path.open("w") as f:
         json.dump(
             {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
                 "framework": "Strawberry GraphQL (Ultra-Optimized)",
                 "optimizations": [
                     "DataLoaders for N+1 elimination",

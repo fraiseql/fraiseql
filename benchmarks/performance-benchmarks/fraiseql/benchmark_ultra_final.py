@@ -9,7 +9,7 @@ Final benchmark comparing:
 import asyncio
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean, median, quantiles, stdev
 from typing import Any
@@ -204,7 +204,7 @@ async def main():
     print("=" * 80)
     print("🏆 FINAL ULTRA-OPTIMIZED FRAISEQL BENCHMARK")
     print("=" * 80)
-    print(f"Timestamp: {datetime.now().isoformat()}")
+    print(f"Timestamp: {datetime.now(tz=timezone.utc).isoformat()}")
 
     # Check service health
     print("\n🔍 Checking services...")
@@ -247,14 +247,14 @@ async def main():
             await asyncio.sleep(1)
 
     # Save results
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"benchmark_final_results_{timestamp}.json"
 
     output_path = Path(filename)
     with output_path.open("w") as f:
         json.dump(
             {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
                 "configurations": {
                     "fraiseql_ultra": "Multi-tier pools + Multi-level cache + Projection tables",
                     "fraiseql_replicas": "Ultra + Read replicas + Nginx load balancing",

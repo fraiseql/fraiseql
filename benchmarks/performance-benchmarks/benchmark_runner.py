@@ -9,7 +9,7 @@ import os
 import statistics
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Configuration from environment
@@ -324,7 +324,7 @@ def main():
             results[service_name] = {"error": str(e)}
 
     # Save results
-    timestamp = datetime.now().isoformat()
+    timestamp = datetime.now(tz=timezone.utc).isoformat()
     filename = f"benchmark_results_{timestamp.replace(':', '-')}.json"
 
     # Load profile info if available
