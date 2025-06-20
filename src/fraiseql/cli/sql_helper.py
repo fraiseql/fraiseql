@@ -91,8 +91,9 @@ class ViewGenerator:
                     for field in join["target_fields"]
                 ]
 
+                join_obj_str = ',\n'.join(join_obj_fields)
                 join_fields.append(
-                    f"        '{join['field']}', jsonb_build_object(\n{',\\n'.join(join_obj_fields)}\n        )",
+                    f"        '{join['field']}', jsonb_build_object(\n{join_obj_str}\n        )",
                 )
 
         # Combine all fields

@@ -67,30 +67,25 @@ except ImportError:
 __version__ = "0.1.0a8"
 
 __all__ = [
-    "JSON",
-    # Auth integration
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
-    # CQRS support
     "CQRSExecutor",
     "CQRSRepository",
-    # Generic types
     "Connection",
-    # Scalar types
     "Date",
     "Edge",
     "EmailAddress",
     "FraiseQLConfig",
+    "JSON",
     "PageInfo",
     "PaginatedResponse",
     "UserContext",
-    # Core functionality
     "build_fraiseql_schema",
     "create_connection",
-    # FastAPI integration
     "create_fraiseql_app",
     "dataloader_field",
+    "enum",
     "failure",
     "field",
     "fraise_enum",
@@ -98,10 +93,8 @@ __all__ = [
     "fraise_input",
     "fraise_interface",
     "fraise_type",
-    "enum",
     "input",
     "interface",
-    "type",
     "mutation",
     "query",
     "requires_auth",
@@ -110,4 +103,5 @@ __all__ = [
     "result",
     "subscription",
     "success",
+    "type",
 ]

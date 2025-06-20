@@ -90,11 +90,14 @@ class Auth0Provider(AuthProvider):
             )
 
         except jwt.ExpiredSignatureError as e:
-            raise TokenExpiredError("Token has expired") from e
+            msg = "Token has expired"
+            raise TokenExpiredError(msg) from e
         except jwt.InvalidTokenError as e:
-            raise InvalidTokenError(f"Invalid token: {e!s}") from e
+            msg = f"Invalid token: {e!s}"
+            raise InvalidTokenError(msg) from e
         except Exception as e:
-            raise AuthenticationError(f"Token validation failed: {e!s}") from e
+            msg = f"Token validation failed: {e!s}"
+            raise AuthenticationError(msg) from e
 
     async def get_user_from_token(self, token: str) -> UserContext:
         """Get user context from Auth0 token.
@@ -171,8 +174,10 @@ class Auth0Provider(AuthProvider):
             headers={"Authorization": f"Bearer {access_token}"},
         )
 
-        if response.status_code != 200:
-            raise AuthenticationError(f"Failed to fetch user profile: {response.text}")
+        HTTP_OK = 200
+        if response.status_code != HTTP_OK:
+            msg = f"Failed to fetch user profile: {response.text}"
+            raise AuthenticationError(msg)
 
         return response.json()
 
@@ -193,8 +198,10 @@ class Auth0Provider(AuthProvider):
             headers={"Authorization": f"Bearer {access_token}"},
         )
 
-        if response.status_code != 200:
-            raise AuthenticationError(f"Failed to fetch user roles: {response.text}")
+        HTTP_OK = 200
+        if response.status_code != HTTP_OK:
+            msg = f"Failed to fetch user roles: {response.text}"
+            raise AuthenticationError(msg)
 
         return response.json()
 
