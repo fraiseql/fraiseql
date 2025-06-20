@@ -129,8 +129,7 @@ class WhereClauseMixin:
             path = SQL(self._config.table_prefix)
             for _i, part in enumerate(parts[:-1]):
                 path = SQL("{}->{}").format(path, Literal(part))
-            path = SQL("{}->>{}").format(path, Literal(parts[-1]))
-            return path
+            return SQL("{}->>{}").format(path, Literal(parts[-1]))
         return SQL("{}->>{}").format(SQL(self._config.table_prefix), Literal(mapped_name))
 
     def _get_typed_field_path(self, field_name: str, field_type: type) -> SQL:
@@ -175,7 +174,7 @@ class WhereClauseMixin:
                 return SQL("{} IS NULL").format(field_path)
             return SQL("{} IS NOT NULL").format(field_path)
 
-        if operator == "contains" or operator == "starts_with" or operator == "ends_with":
+        if operator in ("contains", "starts_with", "ends_with"):
             return SQL("{} ILIKE {}").format(field_path, Placeholder())
 
         if operator == "in":
@@ -377,10 +376,8 @@ def create_where_type(cls: type, config: WhereGeneratorConfig | None = None) -> 
     attributes["_and"] = None
 
     # Create the WHERE class
-    where_class = type(
+    return type(
         f"{cls.__name__}Where",
         (WhereClauseMixin,),
         attributes,
     )
-
-    return where_class

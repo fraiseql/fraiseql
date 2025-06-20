@@ -80,15 +80,13 @@ class Auth0Provider(AuthProvider):
             signing_key = self.jwks_client.get_signing_key_from_jwt(token)
 
             # Decode and verify token
-            payload = jwt.decode(
+            return jwt.decode(
                 token,
                 signing_key.key,
                 algorithms=self.algorithms,
                 audience=self.api_identifier,
                 issuer=self.issuer,
             )
-
-            return payload
 
         except jwt.ExpiredSignatureError as e:
             raise TokenExpiredError("Token has expired") from e

@@ -86,9 +86,10 @@ class ViewGenerator:
                 join_sql += f"\n    LEFT JOIN {join['target_table']} ON {table_name}.{join['join_column']} = {join['target_table']}.id"
 
                 # Build nested object for join
-                join_obj_fields = []
-                for field in join["target_fields"]:
-                    join_obj_fields.append(f"            '{field}', {join['target_table']}.{field}")
+                join_obj_fields = [
+                    f"            '{field}', {join['target_table']}.{field}"
+                    for field in join["target_fields"]
+                ]
 
                 join_fields.append(
                     f"        '{join['field']}', jsonb_build_object(\n{',\\n'.join(join_obj_fields)}\n        )",
