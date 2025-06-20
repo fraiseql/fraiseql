@@ -3,7 +3,7 @@
 from .caching import cache
 from .complexity import complexity
 from .decorator import subscription
-from .filtering import filter
+from .filtering import filter as subscription_filter
 from .lifecycle import with_lifecycle
 from .websocket import (
     ConnectionState,
@@ -23,7 +23,7 @@ __all__ = [
     "WebSocketConnection",
     "cache",
     "complexity",
-    "filter",
     "subscription",
+    "subscription_filter",
     "with_lifecycle",
 ]

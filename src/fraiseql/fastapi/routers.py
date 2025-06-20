@@ -162,7 +162,7 @@ def create_development_router(
         query: str,
         http_request: Request,
         variables: str | None = None,
-        operationName: str | None = None,
+        operationName: str | None = None,  # noqa: N803 - GraphQL spec requires this name
         context: dict[str, Any] = context_dependency,
     ):
         """Handle GraphQL GET requests."""

@@ -1,6 +1,7 @@
 """DataLoader implementation for batch loading and caching."""
 
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable
 from contextlib import asynccontextmanager
@@ -12,6 +13,8 @@ from typing import (
 
 K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
+
+logger = logging.getLogger(__name__)
 
 
 class DataLoader(Generic[K, V], ABC):
@@ -140,9 +143,7 @@ class DataLoader(Generic[K, V], ABC):
         except Exception as e:
             # CRITICAL: Properly handle exceptions to prevent information leakage
             # Log the actual error for debugging but don't expose internals
-            import logging
-
-            logging.exception(f"DataLoader batch_load failed: {type(e).__name__}")
+            logger.exception(f"DataLoader batch_load failed: {type(e).__name__}")
 
             # Create safe exception for public consumption
             safe_exception = RuntimeError(

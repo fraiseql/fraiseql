@@ -49,7 +49,7 @@ async def get_db() -> FraiseQLRepository:
 
 
 async def get_token(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
 ) -> str | None:
     """Extract bearer token from request."""
     if credentials is None:
