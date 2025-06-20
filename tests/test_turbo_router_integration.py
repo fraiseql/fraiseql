@@ -1,6 +1,5 @@
 """Integration tests for TurboRouter with FastAPI."""
 
-
 import psycopg_pool
 import pytest
 import pytest_asyncio
@@ -15,6 +14,7 @@ from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry
 @fraise_type
 class User:
     """User type for testing."""
+
     id: int
     name: str = fraise_field(description="User's name")
     email: str = fraise_field(description="User's email")
@@ -40,7 +40,8 @@ class TestTurboRouterIntegration:
 
         # Create tables
         async with pool.connection() as conn:
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE users (
                     id SERIAL PRIMARY KEY,
                     data JSONB NOT NULL DEFAULT '{}',
@@ -48,15 +49,18 @@ class TestTurboRouterIntegration:
                     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                     deleted_at TIMESTAMPTZ
                 )
-            """)
+            """
+            )
 
             # Insert test data
-            await conn.execute("""
+            await conn.execute(
+                """
                 INSERT INTO users (data) VALUES 
                 ('{"name": "Alice", "email": "alice@example.com"}'::jsonb),
                 ('{"name": "Bob", "email": "bob@example.com"}'::jsonb),
                 ('{"name": "Charlie", "email": "charlie@example.com"}'::jsonb)
-            """)
+            """
+            )
 
             await conn.commit()
 
@@ -120,6 +124,7 @@ class TestTurboRouterIntegration:
         """Create FastAPI app with TurboRouter enabled."""
         # Mock the database pool in the app
         from fraiseql.fastapi.dependencies import set_db_pool
+
         set_db_pool(db_pool)
 
         # Create app with TurboRouter

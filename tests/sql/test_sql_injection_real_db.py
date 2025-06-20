@@ -25,12 +25,14 @@ class User:
 
 async def setup_test_users(conn):
     """Create users table and test data."""
-    await conn.execute("""
+    await conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             data JSONB NOT NULL DEFAULT '{}'
         )
-    """)
+    """
+    )
 
     # Insert test data
     test_users = [
@@ -132,8 +134,7 @@ class TestSQLInjectionPrevention:
 
         # Should only match exact values, not execute injection
         assert all(
-            r["data"]["role"] in ["user", "admin"]
-            for r in results
+            r["data"]["role"] in ["user", "admin"] for r in results
         ), "IN operator allowed injection"
 
         # Verify table integrity
@@ -159,12 +160,12 @@ class TestSQLInjectionPrevention:
         # Special characters that might be used in injection attempts
         special_inputs = [
             "user\\'; DROP TABLE users; --",  # Backslash
-            "user`; DROP TABLE users; --",    # Backtick
-            'user"; DROP TABLE users; --',   # Double quote
-            "user\n; DROP TABLE users; --",   # Newline
-            "user\r\n; DROP TABLE users; --", # CRLF
-            "user\x00; DROP TABLE users; --", # Null byte
-            "user/*comment*/name",            # SQL comment
+            "user`; DROP TABLE users; --",  # Backtick
+            'user"; DROP TABLE users; --',  # Double quote
+            "user\n; DROP TABLE users; --",  # Newline
+            "user\r\n; DROP TABLE users; --",  # CRLF
+            "user\x00; DROP TABLE users; --",  # Null byte
+            "user/*comment*/name",  # SQL comment
         ]
 
         for special in special_inputs:
@@ -232,11 +233,13 @@ class TestSQLInjectionPrevention:
         # Verify parameterization by checking that the table still exists
         # and has the correct structure
         async with db_pool.connection() as conn:
-            table_check_result = await conn.execute("""
+            table_check_result = await conn.execute(
+                """
                 SELECT COUNT(*)
                 FROM information_schema.columns
                 WHERE table_name = 'users'
-            """)
+            """
+            )
             table_check = await table_check_result.fetchone()
             assert table_check[0] == 2, "Table structure was modified"
 
@@ -285,12 +288,14 @@ class TestSQLInjectionPrevention:
 
         # Verify database is intact
         async with db_pool.connection() as conn:
-            verify_result = await conn.execute("""
+            verify_result = await conn.execute(
+                """
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_name = 'users'
                 )
-            """)
+            """
+            )
             exists = await verify_result.fetchone()
             assert exists[0] is True, "Table was dropped via SQL injection"
 

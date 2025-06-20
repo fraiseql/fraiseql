@@ -52,7 +52,8 @@ class TestWrapResolver:
         """Test wrapping a simple async resolver."""
 
         async def create_user(
-            info: GraphQLResolveInfo, input: sample_input_type,
+            info: GraphQLResolveInfo,
+            input: sample_input_type,
         ) -> sample_output_type:
             return sample_output_type(id="123", name=input.name, age=input.age)
 
@@ -75,7 +76,8 @@ class TestWrapResolver:
         """Test executing a wrapped resolver."""
 
         async def create_user(
-            info: GraphQLResolveInfo, input: sample_input_type,
+            info: GraphQLResolveInfo,
+            input: sample_input_type,
         ) -> sample_output_type:
             return sample_output_type(id="123", name=input.name, age=input.age or 0)
 
@@ -94,12 +96,15 @@ class TestWrapResolver:
 
     @pytest.mark.asyncio
     async def test_wrapped_resolver_with_missing_optional_field(
-        self, sample_input_type, sample_output_type,
+        self,
+        sample_input_type,
+        sample_output_type,
     ):
         """Test wrapped resolver with missing optional fields."""
 
         async def create_user(
-            info: GraphQLResolveInfo, input: sample_input_type,
+            info: GraphQLResolveInfo,
+            input: sample_input_type,
         ) -> sample_output_type:
             return sample_output_type(id="456", name=input.name, age=input.age)
 
@@ -179,7 +184,8 @@ class TestWrapResolver:
         received_input = None
 
         async def create_user(
-            info: GraphQLResolveInfo, input: sample_input_type,
+            info: GraphQLResolveInfo,
+            input: sample_input_type,
         ) -> sample_output_type:
             nonlocal received_input
             received_input = input

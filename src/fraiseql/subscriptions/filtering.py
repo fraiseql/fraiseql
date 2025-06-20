@@ -52,7 +52,9 @@ class FilterExpressionEvaluator:
 
             # Compile and evaluate
             code = compile(tree, "<filter>", "eval")
-            return eval(code, {"__builtins__": {}}, self.context)  # noqa: S307 - sandboxed eval with AST validation
+            return eval(
+                code, {"__builtins__": {}}, self.context
+            )  # noqa: S307 - sandboxed eval with AST validation
 
         except Exception as e:
             raise FilterError(f"Invalid filter expression: {e}") from e

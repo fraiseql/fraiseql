@@ -29,16 +29,40 @@ def test_serialize_non_datetime():
 def test_parse_datetime_value():
     # Test parsing valid ISO 8601 strings with various timezone notations
     assert parse_datetime_value("2023-01-01T12:00:00Z") == datetime(
-        2023, 1, 1, 12, 0, 0, tzinfo=UTC,
+        2023,
+        1,
+        1,
+        12,
+        0,
+        0,
+        tzinfo=UTC,
     )
     assert parse_datetime_value("2023-01-01T12:00:00+00:00") == datetime(
-        2023, 1, 1, 12, 0, 0, tzinfo=UTC,
+        2023,
+        1,
+        1,
+        12,
+        0,
+        0,
+        tzinfo=UTC,
     )
     assert parse_datetime_value("2023-01-01T12:00:00+02:00") == datetime(
-        2023, 1, 1, 10, 0, 0, tzinfo=UTC,
+        2023,
+        1,
+        1,
+        10,
+        0,
+        0,
+        tzinfo=UTC,
     )  # UTC equivalent
     assert parse_datetime_value("2023-01-01T12:00:00-05:00") == datetime(
-        2023, 1, 1, 17, 0, 0, tzinfo=UTC,
+        2023,
+        1,
+        1,
+        17,
+        0,
+        0,
+        tzinfo=UTC,
     )  # UTC equivalent
 
 

@@ -318,7 +318,10 @@ class TestRepositoryIntegration:
         # Test pagination through repository
         repo = CQRSRepository(db_connection)
         result = await repo.paginate(
-            "v_items", first=5, order_by="createdAt", order_direction="DESC",
+            "v_items",
+            first=5,
+            order_by="createdAt",
+            order_direction="DESC",
         )
 
         # Should return items in descending order

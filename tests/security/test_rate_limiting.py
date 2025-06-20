@@ -292,6 +292,7 @@ class TestRateLimitMiddleware:
     @pytest.mark.asyncio
     async def test_is_exempt_custom_function(self, app, rate_limit_store):
         """Test exemption with custom function."""
+
         def exempt_admin(request):
             return getattr(request.state, "is_admin", False)
 

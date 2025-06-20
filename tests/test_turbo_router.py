@@ -107,7 +107,9 @@ class TestTurboRouter:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_turbo_router_execution_registered_query(self, turbo_registry, sample_query, sample_sql):
+    async def test_turbo_router_execution_registered_query(
+        self, turbo_registry, sample_query, sample_sql
+    ):
         """Test executing a registered turbo query."""
         # Register a turbo query
         turbo_query = TurboQuery(
@@ -119,7 +121,9 @@ class TestTurboRouter:
         turbo_registry.register(turbo_query)
 
         # Create mock context with database
-        mock_db_result = [{"result": {"id": "123", "name": "Test User", "email": "test@example.com"}}]
+        mock_db_result = [
+            {"result": {"id": "123", "name": "Test User", "email": "test@example.com"}}
+        ]
         mock_db = AsyncMock()
         mock_db.fetch = AsyncMock(return_value=mock_db_result)
 
@@ -138,7 +142,9 @@ class TestTurboRouter:
 
         # Should have executed the SQL directly
         assert result is not None
-        assert result["data"] == {"user": {"id": "123", "name": "Test User", "email": "test@example.com"}}
+        assert result["data"] == {
+            "user": {"id": "123", "name": "Test User", "email": "test@example.com"}
+        }
 
         # Verify SQL was called with correct parameters
         mock_db.fetch.assert_called_once_with(sample_sql, {"id": "123"})
@@ -202,12 +208,16 @@ class TestTurboRouter:
 
         # Mock database
         mock_db = AsyncMock()
-        mock_db.fetch = AsyncMock(return_value=[{
-            "result": [
-                {"id": "1", "name": "Alice", "email": "alice@example.com"},
-                {"id": "2", "name": "Alex", "email": "alex@example.com"},
-            ],
-        }])
+        mock_db.fetch = AsyncMock(
+            return_value=[
+                {
+                    "result": [
+                        {"id": "1", "name": "Alice", "email": "alice@example.com"},
+                        {"id": "2", "name": "Alex", "email": "alex@example.com"},
+                    ],
+                }
+            ]
+        )
 
         context = {"db": mock_db}
         variables = {

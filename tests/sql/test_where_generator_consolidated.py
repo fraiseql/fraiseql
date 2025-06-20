@@ -17,6 +17,7 @@ from fraiseql.sql.where_generator_consolidated import (
 @dataclass
 class User:
     """Test user type."""
+
     id: int
     email: str
     name: str
@@ -28,6 +29,7 @@ class User:
 @dataclass
 class Product:
     """Test product type."""
+
     id: int
     name: str
     price: Decimal
@@ -272,8 +274,10 @@ class TestWhereGeneratorConfig:
 
     def test_custom_operators(self):
         """Test adding custom operators."""
+
         def case_sensitive_eq(path_sql, value):
             from psycopg.sql import SQL, Literal
+
             return SQL("{} = {}").format(path_sql, Literal(value))
 
         config = WhereGeneratorConfig(

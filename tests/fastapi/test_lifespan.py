@@ -100,7 +100,8 @@ def test_custom_lifespan():
 
         # Make a request
         response = client.post(
-            "/graphql", json={"query": "{ getStatus { message customResource } }"},
+            "/graphql",
+            json={"query": "{ getStatus { message customResource } }"},
         )
         assert response.status_code == 200
 

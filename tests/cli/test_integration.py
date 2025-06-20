@@ -120,7 +120,8 @@ class TestCLIIntegration:
         # Create project with custom database URL
         custom_db = "postgresql://custom:pass@remote:5432/customdb"
         result = cli_runner.invoke(
-            cli, ["init", "envtest", "--database-url", custom_db, "--no-git"],
+            cli,
+            ["init", "envtest", "--database-url", custom_db, "--no-git"],
         )
         assert result.exit_code == 0
 

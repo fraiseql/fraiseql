@@ -62,9 +62,9 @@ def parse_date_range_value(value: Any) -> str | None:
 
     if not isinstance(value, str):
         msg = (
-        f"DateRange cannot represent non-string value: {value!r}. "
-        f"Expected a valid date range string."
-    )
+            f"DateRange cannot represent non-string value: {value!r}. "
+            f"Expected a valid date range string."
+        )
         raise GraphQLError(msg)
 
     # Regular expression to match the date range pattern

@@ -21,41 +21,58 @@ try:
         Histogram,
         generate_latest,
     )
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
+
     # Define placeholder classes
     class CollectorRegistry:  # type: ignore
         pass
+
     class Counter:  # type: ignore
         def __init__(self, *args, **kwargs):
             pass
+
         def inc(self, *args, **kwargs):
             pass
+
         def labels(self, *args, **kwargs):
             return self
+
     class Gauge:  # type: ignore
         def __init__(self, *args, **kwargs):
             pass
+
         def set(self, *args, **kwargs):
             pass
+
         def inc(self, *args, **kwargs):
             pass
+
         def dec(self, *args, **kwargs):
             pass
+
         def labels(self, *args, **kwargs):
             return self
+
     class Histogram:  # type: ignore
         def __init__(self, *args, **kwargs):
             pass
+
         def observe(self, *args, **kwargs):
             pass
+
         def labels(self, *args, **kwargs):
             return self
+
     CONTENT_TYPE_LATEST = "text/plain"
+
     def generate_latest(*args, **kwargs):
         """Placeholder for generate_latest when prometheus_client is not available."""
         return b""
+
+
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Global metrics instance
@@ -109,7 +126,9 @@ class FraiseQLMetrics:
     """Prometheus metrics for FraiseQL."""
 
     def __init__(
-        self, config: MetricsConfig | None = None, registry: CollectorRegistry | None = None,
+        self,
+        config: MetricsConfig | None = None,
+        registry: CollectorRegistry | None = None,
     ):
         """Initialize metrics with configuration."""
         self.config = config or MetricsConfig()
@@ -258,12 +277,17 @@ class FraiseQLMetrics:
         )
 
     def record_query(
-        self, operation_type: str, operation_name: str, duration_ms: float, success: bool,
+        self,
+        operation_type: str,
+        operation_name: str,
+        duration_ms: float,
+        success: bool,
     ) -> None:
         """Record a GraphQL query execution."""
         self.query_total.labels(operation_type=operation_type, operation_name=operation_name).inc()
         self.query_duration.labels(
-            operation_type=operation_type, operation_name=operation_name,
+            operation_type=operation_type,
+            operation_name=operation_name,
         ).observe(duration_ms / 1000)
 
         if success:
@@ -295,7 +319,11 @@ class FraiseQLMetrics:
         self.db_connections_total.set(total)
 
     def record_db_query(
-        self, query_type: str, table_name: str, duration_ms: float, rows_affected: int = 0,
+        self,
+        query_type: str,
+        table_name: str,
+        duration_ms: float,
+        rows_affected: int = 0,
     ) -> None:
         """Record a database query execution."""
         self.db_queries_total.labels(query_type=query_type, table_name=table_name).inc()

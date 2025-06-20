@@ -71,7 +71,8 @@ async def test_json_field_in_mutation():
         duplicate_user: GQLUser | None = None
 
     async def createUser(
-        info: Any, input: CreateUserInputTestGQLConversion,
+        info: Any,
+        input: CreateUserInputTestGQLConversion,
     ) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(
             status="ok",

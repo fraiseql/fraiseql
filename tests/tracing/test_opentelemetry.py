@@ -149,7 +149,9 @@ class TestFraiseQLTracer:
         with self.tracer.trace_graphql_query("getUsers", "{ users { id } }") as query_span:
             query_span.set_attribute("test", "parent")
 
-            with self.tracer.trace_database_query("SELECT", "users", "SELECT * FROM users") as db_span:
+            with self.tracer.trace_database_query(
+                "SELECT", "users", "SELECT * FROM users"
+            ) as db_span:
                 db_span.set_attribute("test", "child")
 
         self.provider.force_flush()
@@ -293,7 +295,7 @@ class TestTracingMiddleware:
         await self.middleware.process_request(request, mock_call_next)
 
         # Should extract trace ID from header
-        assert captured_trace_id == 0x0af7651916cd43dd8448eb211c80319c
+        assert captured_trace_id == 0x0AF7651916CD43DD8448EB211C80319C
 
     @pytest.mark.asyncio
     async def test_middleware_handles_errors(self):

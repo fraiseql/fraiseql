@@ -163,7 +163,8 @@ class TestGenerateMigration:
             return_value="20250610120000",
         ):
             result = cli_runner.invoke(
-                cli, ["generate", "migration", "Post", "--table", "blog_posts"],
+                cli,
+                ["generate", "migration", "Post", "--table", "blog_posts"],
             )
 
             assert result.exit_code == 0

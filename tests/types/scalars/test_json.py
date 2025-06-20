@@ -94,7 +94,8 @@ class TestJSONScalar:
 
         ast_var = VariableNode(name={"value": "myVar"})
         with pytest.raises(
-            GraphQLError, match="JSON cannot represent literal of type VariableNode",
+            GraphQLError,
+            match="JSON cannot represent literal of type VariableNode",
         ):
             parse_json_literal(ast_var)
 

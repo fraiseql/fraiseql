@@ -134,7 +134,8 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
     result = await create_user(info, user_input)
 
     assert isinstance(
-        result, CreateUserSuccess,
+        result,
+        CreateUserSuccess,
     ), f"Expected success but got: {type(result).__name__} with fields: {vars(result)}"
     assert result.status == "ok"
     assert result.message == "User created"

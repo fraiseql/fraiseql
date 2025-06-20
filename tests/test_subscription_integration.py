@@ -142,7 +142,9 @@ class TestSubscriptionIntegration:
 
         # Should get permission error
         subscription_result = await subscribe(
-            schema, parse(subscription_query), context_value=context,
+            schema,
+            parse(subscription_query),
+            context_value=context,
         )
 
         # Check if it's an ExecutionResult with errors

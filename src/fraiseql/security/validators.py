@@ -151,7 +151,10 @@ class InputValidator:
             for key, val in value.items():
                 # Validate the key itself
                 key_result = cls.validate_field_value(
-                    f"{field_name}.key", key, "key", allow_html=False,
+                    f"{field_name}.key",
+                    key,
+                    "key",
+                    allow_html=False,
                 )
                 errors.extend(key_result.errors)
 
@@ -244,7 +247,9 @@ class InputValidator:
 
     @classmethod
     def validate_mutation_input(
-        cls, input_dict: dict, input_type: type | None = None,
+        cls,
+        input_dict: dict,
+        input_type: type | None = None,
     ) -> ValidationResult:
         """Validate mutation input data.
 

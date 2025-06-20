@@ -175,7 +175,10 @@ ORDER BY {order_clause};"""
 
     @staticmethod
     def relationship(
-        parent_table: str, child_table: str, relationship_field: str, foreign_key: str,
+        parent_table: str,
+        child_table: str,
+        relationship_field: str,
+        foreign_key: str,
     ) -> str:
         """Generate relationship query pattern."""
         return f"""-- One-to-many relationship: {parent_table}.{relationship_field}
@@ -451,7 +454,10 @@ class SQLHelper:
         return "\n".join(parts)
 
     def generate_migration(
-        self, cls: type, existing_schema: dict, field_mapping: dict[str, str],
+        self,
+        cls: type,
+        existing_schema: dict,
+        field_mapping: dict[str, str],
     ) -> str:
         """Generate migration SQL from existing table to FraiseQL view.
 
@@ -517,7 +523,8 @@ class SQLHelper:
 
         # Check view naming convention
         if "create view" in sql.lower() and not re.search(
-            r"create\s+(or\s+replace\s+)?view\s+v_\w+", sql.lower(),
+            r"create\s+(or\s+replace\s+)?view\s+v_\w+",
+            sql.lower(),
         ):
             result.warnings.append("View name should follow convention: v_tablename")
 
@@ -543,7 +550,9 @@ class SQLHelper:
 
             if "CREATE VIEW" in line_stripped.upper():
                 view_match = re.search(
-                    r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)", line_stripped, re.IGNORECASE,
+                    r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)",
+                    line_stripped,
+                    re.IGNORECASE,
                 )
                 if view_match:
                     explanations.append(f"This SQL creates a view named '{view_match.group(1)}'")

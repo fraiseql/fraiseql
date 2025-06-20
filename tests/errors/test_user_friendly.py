@@ -1,6 +1,5 @@
 """Tests for user-friendly error messages."""
 
-
 from fraiseql.errors.user_friendly import (
     FraiseQLError,
     InvalidFieldTypeError,

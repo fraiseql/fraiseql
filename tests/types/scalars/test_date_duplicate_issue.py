@@ -28,7 +28,9 @@ def test_date_scalar_in_fastapi_app():
     # This might trigger duplicate registration if there's an issue
     try:
         app = create_fraiseql_app(
-            database_url="postgresql://test/test", types=[Event], queries=[get_event],
+            database_url="postgresql://test/test",
+            types=[Event],
+            queries=[get_event],
         )
         # If we get here, no duplicate registration occurred
         assert app is not None

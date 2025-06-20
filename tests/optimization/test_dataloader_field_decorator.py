@@ -180,7 +180,8 @@ def test_dataloader_field_adds_metadata():
     """Test that @dataloader_field decorator adds proper metadata to methods."""
     # Check that the decorator adds metadata we can use for field resolution
     assert hasattr(
-        Post.author, "__fraiseql_dataloader__",
+        Post.author,
+        "__fraiseql_dataloader__",
     ), f"Post.author attributes: {dir(Post.author)}"
 
     metadata = Post.author.__fraiseql_dataloader__

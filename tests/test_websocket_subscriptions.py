@@ -254,7 +254,9 @@ class TestWebSocketConnection:
         """Test connection initialization timeout."""
         ws = MockWebSocket()
         conn = WebSocketConnection(
-            ws, subprotocol=SubProtocol.GRAPHQL_WS, connection_init_timeout=0.1,
+            ws,
+            subprotocol=SubProtocol.GRAPHQL_WS,
+            connection_init_timeout=0.1,
         )
 
         # Don't send connection_init
@@ -418,7 +420,9 @@ class TestGraphQLWSMessage:
     def test_message_serialization(self):
         """Test message serialization."""
         msg = GraphQLWSMessage(
-            type=MessageType.NEXT, id="sub1", payload={"data": {"hello": "world"}},
+            type=MessageType.NEXT,
+            id="sub1",
+            payload={"data": {"hello": "world"}},
         )
 
         serialized = msg.to_dict()

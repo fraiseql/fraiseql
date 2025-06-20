@@ -1,6 +1,5 @@
 """Tests for security headers middleware."""
 
-
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
@@ -302,6 +301,7 @@ class TestSecurityHeadersMiddleware:
 
     def test_conditional_headers(self, app):
         """Test conditional headers based on request."""
+
         def add_api_headers(request: Request) -> dict:
             if request.url.path.startswith("/api"):
                 return {"X-API-Version": "v1"}

@@ -20,9 +20,19 @@ class TestDockerfile:
         """Test Dockerfile syntax is valid."""
         # This will be validated when we build the image
         result = subprocess.run(
-            ["docker", "build", "--no-cache", "-f", "Dockerfile", "-t", "fraiseql-test-syntax", "."],
+            [
+                "docker",
+                "build",
+                "--no-cache",
+                "-f",
+                "Dockerfile",
+                "-t",
+                "fraiseql-test-syntax",
+                ".",
+            ],
             capture_output=True,
-            text=True, check=False,
+            text=True,
+            check=False,
         )
         assert result.returncode == 0, f"Dockerfile syntax error: {result.stderr}"
 
@@ -75,7 +85,11 @@ class TestDockerfile:
 
         # Check for proper layer caching
         assert "COPY requirements.txt" in content or "COPY pyproject.toml" in content
-        assert content.index("COPY requirements") < content.index("COPY src/") if "COPY src/" in content else True
+        assert (
+            content.index("COPY requirements") < content.index("COPY src/")
+            if "COPY src/" in content
+            else True
+        )
 
         # Check for security scanning comment
         assert "hadolint" in content or "# docker run --rm -i hadolint/hadolint" in content
@@ -93,7 +107,8 @@ class TestDockerBuild:
         result = subprocess.run(
             ["docker", "build", "-t", image_name, "."],
             capture_output=True,
-            text=True, check=False,
+            text=True,
+            check=False,
         )
 
         assert result.returncode == 0, f"Docker build failed: {result.stderr}"
@@ -108,7 +123,8 @@ class TestDockerBuild:
         result = subprocess.run(
             ["docker", "images", docker_image, "--format", "{{.Size}}"],
             capture_output=True,
-            text=True, check=False,
+            text=True,
+            check=False,
         )
 
         size_str = result.stdout.strip()
@@ -123,7 +139,8 @@ class TestDockerBuild:
         result = subprocess.run(
             ["docker", "inspect", docker_image],
             capture_output=True,
-            text=True, check=False,
+            text=True,
+            check=False,
         )
 
         image_data = json.loads(result.stdout)[0]
@@ -136,22 +153,33 @@ class TestDockerBuild:
         """Test that health check endpoint works."""
         # Start container
         container_name = "fraiseql-health-test"
-        subprocess.run([
-            "docker", "run", "-d", "--name", container_name,
-            "-p", "8000:8000",
-            docker_image,
-        ], capture_output=True, check=False)
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                container_name,
+                "-p",
+                "8000:8000",
+                docker_image,
+            ],
+            capture_output=True,
+            check=False,
+        )
 
         try:
             # Wait for startup
             import time
+
             time.sleep(5)
 
             # Check health endpoint
             result = subprocess.run(
                 ["docker", "exec", container_name, "curl", "-f", "http://localhost:8000/health"],
                 capture_output=True,
-                text=True, check=False,
+                text=True,
+                check=False,
             )
 
             assert result.returncode == 0, "Health check failed"
@@ -184,7 +212,9 @@ class TestDockerSecurity:
     def test_security_scanning_setup(self):
         """Test that security scanning is documented."""
         # Check for security scanning in CI or documentation
-        ci_files = list(Path(".github/workflows").glob("*.yml")) + list(Path(".github/workflows").glob("*.yaml"))
+        ci_files = list(Path(".github/workflows").glob("*.yml")) + list(
+            Path(".github/workflows").glob("*.yaml")
+        )
 
         has_security_scan = False
         for ci_file in ci_files:
@@ -194,8 +224,9 @@ class TestDockerSecurity:
                     has_security_scan = True
                     break
 
-        assert has_security_scan or Path("docs/deployment/docker-security.md").exists(), \
-            "Should have security scanning in CI or documentation"
+        assert (
+            has_security_scan or Path("docs/deployment/docker-security.md").exists()
+        ), "Should have security scanning in CI or documentation"
 
 
 class TestDockerCompose:

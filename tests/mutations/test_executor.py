@@ -148,7 +148,10 @@ class TestRunFraiseQLMutation:
 
     @pytest.mark.asyncio
     async def test_successful_mutation(
-        self, mock_repository, sample_input_type, sample_result_types,
+        self,
+        mock_repository,
+        sample_input_type,
+        sample_result_types,
     ):
         """Test running a successful mutation."""
         success_cls, error_cls = sample_result_types
@@ -176,7 +179,10 @@ class TestRunFraiseQLMutation:
 
     @pytest.mark.asyncio
     async def test_mutation_with_empty_input(
-        self, mock_repository, sample_input_type, sample_result_types,
+        self,
+        mock_repository,
+        sample_input_type,
+        sample_result_types,
     ):
         """Test mutation with empty input (no fields to update)."""
         from fraiseql.types.definitions import UNSET
@@ -212,7 +218,10 @@ class TestRunFraiseQLMutation:
 
     @pytest.mark.asyncio
     async def test_mutation_database_error(
-        self, mock_repository, sample_input_type, sample_result_types,
+        self,
+        mock_repository,
+        sample_input_type,
+        sample_result_types,
     ):
         """Test mutation with database error."""
         success_cls, error_cls = sample_result_types
@@ -241,7 +250,10 @@ class TestRunFraiseQLMutation:
 
     @pytest.mark.asyncio
     async def test_mutation_unexpected_error(
-        self, mock_repository, sample_input_type, sample_result_types,
+        self,
+        mock_repository,
+        sample_input_type,
+        sample_result_types,
     ):
         """Test mutation with unexpected error."""
         success_cls, error_cls = sample_result_types
@@ -269,7 +281,10 @@ class TestRunFraiseQLMutation:
 
     @pytest.mark.asyncio
     async def test_mutation_no_result(
-        self, mock_repository, sample_input_type, sample_result_types,
+        self,
+        mock_repository,
+        sample_input_type,
+        sample_result_types,
     ):
         """Test mutation that returns no result."""
         success_cls, error_cls = sample_result_types
@@ -295,7 +310,10 @@ class TestRunFraiseQLMutation:
 
     @pytest.mark.asyncio
     async def test_mutation_with_data_response(
-        self, mock_repository, sample_input_type, sample_result_types,
+        self,
+        mock_repository,
+        sample_input_type,
+        sample_result_types,
     ):
         """Test mutation that returns data in response."""
         success_cls, error_cls = sample_result_types

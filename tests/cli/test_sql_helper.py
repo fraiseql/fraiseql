@@ -16,6 +16,7 @@ from fraiseql.cli.sql_helper import (
 @dataclass
 class User:
     """Test user type."""
+
     id: int
     email: str
     name: str
@@ -26,6 +27,7 @@ class User:
 @dataclass
 class Post:
     """Test post type."""
+
     id: int
     title: str
     content: str
@@ -37,6 +39,7 @@ class Post:
 @dataclass
 class Product:
     """Test product type."""
+
     id: int
     name: str
     price: Decimal
@@ -195,7 +198,7 @@ OFFSET 40;"""
 
         expected_parts = [
             "-- One-to-many relationship: users.posts",
-            "SELECT jsonb_build_object(",
+            "u.data || jsonb_build_object(",
             "'posts', COALESCE(",
             "SELECT jsonb_agg(p.data",
             "FROM v_posts p",

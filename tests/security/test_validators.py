@@ -1,6 +1,5 @@
 """Tests for security validators."""
 
-
 from fraiseql.security.validators import InputValidator
 
 
@@ -143,6 +142,7 @@ class TestInputValidator:
 
     def test_validate_mutation_input(self):
         """Test mutation input validation."""
+
         # Define a simple input type for testing
         class CreateUserInput:
             __annotations__ = {
@@ -182,8 +182,10 @@ class TestInputValidator:
         for path in path_traversal_attempts:
             result = InputValidator.validate_field_value("filepath", path, field_type="path")
             assert not result.is_valid
-            assert any("path traversal" in error.lower() or "suspicious" in error.lower()
-                      for error in result.errors)
+            assert any(
+                "path traversal" in error.lower() or "suspicious" in error.lower()
+                for error in result.errors
+            )
 
     def test_list_validation(self):
         """Test validation of list values."""

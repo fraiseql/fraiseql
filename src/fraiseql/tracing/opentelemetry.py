@@ -28,6 +28,7 @@ try:
     from opentelemetry.sdk.trace.sampling import TraceIdRatioBased  # type: ignore
     from opentelemetry.semconv.trace import SpanAttributes  # type: ignore
     from opentelemetry.trace import Status, StatusCode  # type: ignore
+
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False
@@ -38,29 +39,37 @@ except ImportError:
     OTLPSpanExporter = None  # type: ignore
     ZipkinExporter = None  # type: ignore
     PsycopgInstrumentor = None  # type: ignore
+
     def extract(*args, **kwargs):  # type: ignore
         """Placeholder for extract when opentelemetry is not available."""
         return {}
+
     def inject(*args, **kwargs):  # type: ignore
         """Placeholder for inject when opentelemetry is not available."""
         return
+
     Resource = None  # type: ignore
     TracerProvider = None  # type: ignore
     BatchSpanProcessor = None  # type: ignore
     TraceIdRatioBased = None  # type: ignore
+
     class SpanAttributes:  # type: ignore
         HTTP_METHOD = "http.method"
         HTTP_URL = "http.url"
         HTTP_STATUS_CODE = "http.status_code"
         GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
         GRAPHQL_OPERATION_NAME = "graphql.operation.name"
+
     class StatusCode:  # type: ignore
         OK = "OK"
         ERROR = "ERROR"
+
     class Status:  # type: ignore
         def __init__(self, code, description=""):
             self.code = code
             self.description = description
+
+
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Global tracer instance
@@ -215,7 +224,10 @@ class FraiseQLTracer:
 
     @contextmanager
     def trace_graphql_mutation(
-        self, operation_name: str, query: str, variables: dict | None = None,
+        self,
+        operation_name: str,
+        query: str,
+        variables: dict | None = None,
     ):
         """Trace a GraphQL mutation operation."""
         with self.tracer.start_as_current_span(
