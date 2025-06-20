@@ -278,8 +278,7 @@ async def auth_middleware(request: Request, call_next):
         request.state.user_id = None
         request.state.is_authenticated = False
 
-    response = await call_next(request)
-    return response
+    return await call_next(request)
 
 
 def create_app() -> FastAPI:
@@ -303,9 +302,9 @@ def create_app() -> FastAPI:
                 import redis.asyncio as redis
                 redis_client = redis.from_url(REDIS_URL)
             except ImportError:
-                print("Warning: redis not installed, using in-memory rate limiting")
+                pass
 
-        security_middleware = setup_production_security(
+        setup_production_security(
             app=app,
             secret_key=SECRET_KEY,
             domain=DOMAIN,
@@ -313,23 +312,14 @@ def create_app() -> FastAPI:
             redis_client=redis_client,
         )
 
-        print("✅ Production security enabled:")
-        print(f"  - Rate limiting: {'Redis' if redis_client else 'In-memory'}")
-        print("  - CSRF protection: Enabled")
-        print("  - Security headers: Strict")
-        print(f"  - Trusted origins: {TRUSTED_ORIGINS}")
 
     elif ENVIRONMENT == "development":
         # Development security setup (more permissive)
-        security_middleware = setup_development_security(
+        setup_development_security(
             app=app,
             secret_key=SECRET_KEY,
         )
 
-        print("🔧 Development security enabled:")
-        print("  - Rate limiting: Permissive")
-        print("  - CSRF protection: Relaxed")
-        print("  - Security headers: Development-friendly")
 
     else:
         # Custom security setup for GraphQL
@@ -340,13 +330,12 @@ def create_app() -> FastAPI:
             enable_introspection=(ENVIRONMENT != "production"),
         )
 
-        security_middleware = setup_security(
+        setup_security(
             app=app,
             secret_key=SECRET_KEY,
             custom_config=config,
         )
 
-        print("🔒 Custom GraphQL security enabled")
 
     # Create FraiseQL app
     fraiseql_app = fraiseql.create_fraiseql_app(
@@ -397,40 +386,11 @@ def main():
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
 
-    print("\n🚀 Starting Secure GraphQL API")
-    print(f"   Environment: {ENVIRONMENT}")
-    print(f"   GraphQL endpoint: http://{host}:{port}/graphql")
-    print(f"   Health check: http://{host}:{port}/health")
 
     if ENVIRONMENT != "production":
-        print(f"   GraphQL Playground: http://{host}:{port}/graphql")
-        print(f"   Security info: http://{host}:{port}/security-info")
-        print(f"   CSRF token: http://{host}:{port}/csrf-token")
+        pass
 
-    print("\n🔐 Security Features Enabled:")
-    print("   ✅ Rate limiting (GraphQL operation-aware)")
-    print("   ✅ CSRF protection for mutations")
-    print("   ✅ Comprehensive security headers")
-    print("   ✅ Input validation and sanitization")
-    print("   ✅ Authentication middleware")
 
-    print("\n📚 Example Requests:")
-    print("""
-   # Get CSRF token (development)
-   curl http://localhost:8000/csrf-token
-   
-   # Query posts (no auth required)
-   curl -X POST http://localhost:8000/graphql \\
-     -H "Content-Type: application/json" \\
-     -d '{"query": "{ posts { id title } }"}'
-   
-   # Create post (requires auth + CSRF token)
-   curl -X POST http://localhost:8000/graphql \\
-     -H "Content-Type: application/json" \\
-     -H "Authorization: Bearer valid-token" \\
-     -H "X-CSRF-Token: YOUR_CSRF_TOKEN" \\
-     -d '{"query": "mutation { createPost(input: {title: \\"Test\\", content: \\"Hello World\\"}) { ... on PostSuccess { post { id title } message } ... on PostError { message code } } }"}'
-    """)
 
     uvicorn.run(
         app,

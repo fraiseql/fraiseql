@@ -141,14 +141,5 @@ minimal_app = create_fraiseql_app(
 if __name__ == "__main__":
     import uvicorn
 
-    print("Starting FraiseQL example server...")
-    print("Visit http://localhost:8000/graphql to explore the API")
-    print()
-    print("Available queries:")
-    print("  - get_user(id: ID!): User")
-    print("  - list_users(role: String): [User!]!")
-    print("  - search_posts(query: String!, published_only: Boolean): [Post!]!")
-    print("  - api_version: String!")
-    print("  - stats: JSONObject!")
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Generate benchmark visualization charts for FraiseQL marketing materials
-"""
+"""Generate benchmark visualization charts for FraiseQL marketing materials"""
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +27,7 @@ def create_performance_comparison():
     bars2 = ax.bar(x + width/2, java_orm, width, label="Java + ORM", color="#95a5a6", alpha=0.8)
 
     # Add improvement percentages on top
-    for i, (bar1, improvement) in enumerate(zip(bars1, improvements, strict=False)):
+    for _i, (bar1, improvement) in enumerate(zip(bars1, improvements, strict=False)):
         height = bar1.get_height()
         ax.text(bar1.get_x() + bar1.get_width()/2., height + 5,
                 f"-{improvement:.0f}%", ha="center", va="bottom",
@@ -58,7 +57,6 @@ def create_performance_comparison():
     # Save the figure
     plt.savefig("marketing/performance_comparison.png", dpi=300, bbox_inches="tight", facecolor="white")
     plt.savefig("marketing/performance_comparison.svg", bbox_inches="tight", facecolor="white")
-    print("Performance comparison chart saved!")
 
     return fig
 
@@ -121,7 +119,6 @@ def create_detailed_benchmark():
     # Save the figure
     plt.savefig("marketing/detailed_benchmarks.png", dpi=300, bbox_inches="tight", facecolor="white")
     plt.savefig("marketing/detailed_benchmarks.svg", bbox_inches="tight", facecolor="white")
-    print("Detailed benchmark chart saved!")
 
     return fig
 
@@ -178,7 +175,6 @@ def create_architecture_benefits():
     # Save the figure
     plt.savefig("marketing/architecture_benefits.png", dpi=300, bbox_inches="tight", facecolor="white")
     plt.savefig("marketing/architecture_benefits.svg", bbox_inches="tight", facecolor="white")
-    print("Architecture benefits chart saved!")
 
     return fig
 
@@ -202,7 +198,7 @@ def create_token_usage_comparison():
 
     # Add value labels
     for bars in [bars1, bars2]:
-        for i, bar in enumerate(bars):
+        for _i, bar in enumerate(bars):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + 50,
                     f"{height:,}", ha="center", va="bottom", fontsize=10)
@@ -212,7 +208,7 @@ def create_token_usage_comparison():
             bars1[-1].get_height() + 500,
             f"-{total_reduction:.0f}%", ha="center", va="bottom",
             fontsize=14, fontweight="bold", color="#27ae60",
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="#27ae60"))
+            bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "edgecolor": "#27ae60"})
 
     # Customize
     ax.set_xlabel("Composants", fontsize=12)
@@ -232,13 +228,11 @@ def create_token_usage_comparison():
     # Save
     plt.savefig("marketing/token_usage_comparison.png", dpi=300, bbox_inches="tight", facecolor="white")
     plt.savefig("marketing/token_usage_comparison.svg", bbox_inches="tight", facecolor="white")
-    print("Token usage comparison chart saved!")
 
     return fig
 
 if __name__ == "__main__":
     # Create all visualizations
-    print("Generating FraiseQL benchmark visualizations...")
 
     # Create the main performance comparison
     fig1 = create_performance_comparison()
@@ -252,12 +246,6 @@ if __name__ == "__main__":
     # Create token usage comparison
     fig4 = create_token_usage_comparison()
 
-    print("\nAll charts generated successfully!")
-    print("Files saved in marketing/ directory:")
-    print("- performance_comparison.png/svg")
-    print("- detailed_benchmarks.png/svg")
-    print("- architecture_benefits.png/svg")
-    print("- token_usage_comparison.png/svg")
 
     # Show the plots (optional)
     # plt.show()

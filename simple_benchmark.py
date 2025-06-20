@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Simple benchmark to test Java GraphQL implementations
-"""
+"""Simple benchmark to test Java GraphQL implementations"""
 
+import contextlib
 import statistics
 import time
 from typing import Dict
@@ -11,22 +11,18 @@ import requests
 
 def benchmark_endpoint(url: str, query: Dict, name: str, num_requests: int = 100) -> Dict:
     """Run a simple benchmark against an endpoint"""
-    print(f"\nBenchmarking {name}...")
-
     response_times = []
     errors = 0
 
     # Warm up
     for _ in range(5):
-        try:
+        with contextlib.suppress(Exception):
             requests.post(url, json=query)
-        except:
-            pass
 
     # Run benchmark
     start_time = time.time()
 
-    for i in range(num_requests):
+    for _i in range(num_requests):
         try:
             req_start = time.perf_counter()
             response = requests.post(url, json=query)
@@ -36,10 +32,8 @@ def benchmark_endpoint(url: str, query: Dict, name: str, num_requests: int = 100
                 response_times.append(response_time)
             else:
                 errors += 1
-                print(f"Error: {response.status_code}")
-        except Exception as e:
+        except Exception:
             errors += 1
-            print(f"Request error: {e}")
 
     total_time = time.time() - start_time
 
@@ -77,27 +71,7 @@ def main():
         "variables": {"id": "1"},
     }
 
-    user_with_posts_query = {
-        "query": """
-            query GetUserWithPosts($id: ID!) {
-                user(id: $id) {
-                    id
-                    name
-                    email
-                    posts {
-                        id
-                        title
-                        content
-                    }
-                }
-            }
-        """,
-        "variables": {"id": "1"},
-    }
 
-    print("="*60)
-    print("GraphQL Performance Benchmark")
-    print("="*60)
 
     # Test Java ORM endpoint
     java_orm_url = "http://localhost:8080/graphql"
@@ -107,7 +81,6 @@ def main():
     java_opt_url = "http://localhost:8080/optimized/user/1"
     try:
         # For the optimized endpoint, we use GET
-        print("\nBenchmarking Java Optimized (Direct SQL)...")
         response_times = []
         start_time = time.time()
 
@@ -133,41 +106,22 @@ def main():
         java_opt_result = {"name": "Java Optimized", "status": f"Failed: {e}"}
 
     # Print results
-    print("\n" + "="*80)
-    print("BENCHMARK RESULTS")
-    print("="*80)
-    print(f"{'Implementation':<30} {'Avg (ms)':<10} {'P50 (ms)':<10} {'P95 (ms)':<10} {'RPS':<10}")
-    print("-"*80)
 
     for result in [java_orm_result, java_opt_result]:
         if "avg_response_time_ms" in result:
-            print(f"{result['name']:<30} {result['avg_response_time_ms']:<10.2f} "
-                  f"{result['p50_ms']:<10.2f} {result['p95_ms']:<10.2f} "
-                  f"{result['requests_per_second']:<10.2f}")
+            pass
         else:
-            print(f"{result['name']:<30} {result.get('status', 'Failed')}")
+            pass
 
     # Add FraiseQL expected performance based on benchmarks
-    print("\n" + "="*80)
-    print("EXPECTED FRAISEQL PERFORMANCE (from benchmarks)")
-    print("="*80)
-    print("Simple Query: ~3.8ms avg response time")
-    print("With TurboRouter: ~3.2ms avg response time")
-    print("Complex Nested Query: ~18ms avg response time")
 
-    print("\n" + "="*80)
-    print("PERFORMANCE COMPARISON")
-    print("="*80)
 
     if "avg_response_time_ms" in java_orm_result:
-        print(f"\nJava ORM avg response time: {java_orm_result['avg_response_time_ms']:.2f}ms")
         fraiseql_expected = 3.8
-        speedup = java_orm_result["avg_response_time_ms"] / fraiseql_expected
-        print(f"FraiseQL expected to be {speedup:.1f}x faster than Java ORM")
+        java_orm_result["avg_response_time_ms"] / fraiseql_expected
 
     if "avg_response_time_ms" in java_opt_result:
-        print(f"\nJava Optimized avg response time: {java_opt_result['avg_response_time_ms']:.2f}ms")
-        print("This should be comparable to FraiseQL (both use direct SQL)")
+        pass
 
 if __name__ == "__main__":
     main()

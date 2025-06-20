@@ -137,10 +137,10 @@ async def health_check():
 @app.get("/api/products/search")
 async def search_products(
     q: str,
-    category: str = None,
-    min_price: float = None,
-    max_price: float = None,
-    in_stock: bool = None,
+    category: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    in_stock: bool | None = None,
     limit: int = 20,
     offset: int = 0,
 ):
@@ -148,7 +148,10 @@ async def search_products(
     Demonstrates integration with FraiseQL's query system
     """
     query = """
-    query SearchProducts($q: String!, $category: String, $minPrice: Float, $maxPrice: Float, $inStock: Boolean, $limit: Int, $offset: Int) {
+    query SearchProducts(
+        $q: String!, $category: String, $minPrice: Float, $maxPrice: Float, 
+        $inStock: Boolean, $limit: Int, $offset: Int
+    ) {
         productSearch(
             where: {
                 _and: [
@@ -195,8 +198,7 @@ async def search_products(
 
 @app.get("/api/categories/tree")
 async def get_category_tree():
-    """REST endpoint for category tree
-    """
+    """REST endpoint for category tree"""
     query = """
     query GetCategoryTree {
         categoryTree(

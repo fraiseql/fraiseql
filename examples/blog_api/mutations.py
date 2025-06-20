@@ -1,9 +1,9 @@
 """Example blog API mutations using FraiseQL with CQRS."""
 
 import hashlib
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from db import BlogRepository
 from models import (
     Comment,
     CreateCommentInput,
@@ -21,6 +21,9 @@ from models import (
 )
 
 from fraiseql.auth import requires_auth, requires_permission
+
+if TYPE_CHECKING:
+    from db import BlogRepository
 
 
 async def create_user(

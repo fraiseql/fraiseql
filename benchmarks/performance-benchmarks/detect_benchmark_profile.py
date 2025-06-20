@@ -3,6 +3,7 @@
 Detect system CPU capabilities and determine appropriate benchmark profile.
 """
 
+import contextlib
 import json
 import multiprocessing
 import re
@@ -60,10 +61,8 @@ def get_cpu_info():
 
     # Get memory info
     if HAS_PSUTIL:
-        try:
+        with contextlib.suppress(Exception):
             info["memory_gb"] = round(psutil.virtual_memory().total / (1024**3), 1)
-        except:
-            pass
 
     if info["memory_gb"] == 0:
         try:
@@ -75,7 +74,7 @@ def get_cpu_info():
                         kb = int(re.search(r"(\d+)", line).group(1))
                         info["memory_gb"] = round(kb / (1024**2), 1)
                         break
-        except:
+        except Exception:
             pass
 
     return info

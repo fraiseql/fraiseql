@@ -117,19 +117,17 @@ class Application:
 # users/mutations.py
 def setup_user_mutations(registry: ScopedResultRegistry):
     """Set up user-related mutations."""
-    builder = create_mutations(registry)
+    return create_mutations(registry)
 
     # Register user mutations...
-    return builder
 
 
 # posts/mutations.py
 def setup_post_mutations(registry: ScopedResultRegistry):
     """Set up post-related mutations."""
-    builder = create_mutations(registry)
+    return create_mutations(registry)
 
     # Register post mutations...
-    return builder
 
 
 # main.py
@@ -211,4 +209,3 @@ if __name__ == "__main__":
     asyncio.run(test_user_mutations())
     asyncio.run(test_with_mock_registry())
 
-    print("✅ Explicit registration examples completed")

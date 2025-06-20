@@ -36,8 +36,6 @@ async def current_time(info) -> str:
 @subscription
 async def task_feed(info) -> AsyncGenerator[Task]:
     """Subscribe to new tasks as they're created."""
-    print("Starting task feed subscription")
-
     for i in range(10):
         await asyncio.sleep(1)  # Simulate real-time updates
 
@@ -48,10 +46,8 @@ async def task_feed(info) -> AsyncGenerator[Task]:
             created_at=f"2025-01-19T10:{i:02d}:00Z",
         )
 
-        print(f"Yielding task: {task.title}")
         yield task
 
-    print("Task feed subscription completed")
 
 
 # Create FastAPI app
@@ -194,7 +190,7 @@ async def graphql_ws_endpoint(websocket: WebSocket):
         # Handle connection
         await connection.handle()
     except WebSocketDisconnect:
-        print(f"Client {connection.connection_id} disconnected")
+        pass
     finally:
         # Remove connection
         await subscription_manager.remove_connection(connection.connection_id)
@@ -203,7 +199,5 @@ async def graphql_ws_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     import uvicorn
 
-    print("Starting server at http://localhost:8000")
-    print("Open http://localhost:8000 in your browser to test WebSocket subscriptions")
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

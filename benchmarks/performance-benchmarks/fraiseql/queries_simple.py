@@ -1,6 +1,5 @@
 """FraiseQL benchmark queries - simplified version."""
 
-from typing import List
 
 from models import Category, Order, PopularProduct, Product, ProductsByCategory, User, UserStats
 
@@ -12,10 +11,10 @@ class Query:
     """Root query type for the benchmark API."""
 
     # Try without field() to see if it works
-    users: List[User]
-    products: List[Product]
-    orders: List[Order]
-    categories: List[Category]
-    popular_products: List[PopularProduct]
-    products_by_category: List[ProductsByCategory]
-    user_stats: List[UserStats]
+    users: list[User]
+    products: list[Product]
+    orders: list[Order]
+    categories: list[Category]
+    popular_products: list[PopularProduct]
+    products_by_category: list[ProductsByCategory]
+    user_stats: list[UserStats]

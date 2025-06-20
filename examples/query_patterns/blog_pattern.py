@@ -150,41 +150,5 @@ app_with_context = create_fraiseql_app(
 if __name__ == "__main__":
     import uvicorn
 
-    print("🚀 Starting Blog API with FraiseQL")
-    print("📍 GraphQL endpoint: http://localhost:8000/graphql")
-    print()
-    print("Try these queries:")
-    print("""
-    # Get a specific post
-    query GetPost {
-        get_post(id: "123e4567-e89b-12d3-a456-426614174000") {
-            title
-            content
-            author {
-                name
-                bio
-            }
-            tags
-        }
-    }
-
-    # List posts with pagination
-    query ListPosts {
-        list_posts(limit: 5, offset: 0) {
-            id
-            title
-            published_at
-            tags
-        }
-    }
-
-    # Search posts
-    query SearchPosts {
-        search_posts(query: "fraiseql") {
-            title
-            content
-        }
-    }
-    """)
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

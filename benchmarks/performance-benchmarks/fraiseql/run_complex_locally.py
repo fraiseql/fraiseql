@@ -35,7 +35,7 @@ try:
             )
             await conn.close()
             return True
-        except:
+        except Exception:
             return False
 
     if not asyncio.run(check_db()):
@@ -59,7 +59,7 @@ try:
     r = redis.Redis(host="localhost", port=6379)
     r.ping()
     print("✅ Redis connection successful")
-except:
+except Exception:
     print("⚠️  Redis not accessible - will run without caching")
 
 # Start the FraiseQL complex app

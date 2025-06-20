@@ -6,7 +6,7 @@ Performance benchmark results analyzer and report generator
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +22,7 @@ class BenchmarkAnalyzer:
         self.frameworks = ["fraiseql", "strawberry-sqlalchemy", "graphene-sqlalchemy", "ariadne"]
         self.test_types = ["simple-queries", "nested-queries", "load-test"]
 
-    def load_results(self) -> Dict[str, Dict[str, Any]]:
+    def load_results(self) -> dict[str, dict[str, Any]]:
         """Load all benchmark results from JSON files"""
         results = {}
 
@@ -42,7 +42,7 @@ class BenchmarkAnalyzer:
 
         return results
 
-    def generate_comparison_table(self, results: Dict[str, Dict[str, Any]]) -> str:
+    def generate_comparison_table(self, results: dict[str, dict[str, Any]]) -> str:
         """Generate a comparison table of key metrics"""
         table_data = []
         headers = [
@@ -72,7 +72,7 @@ class BenchmarkAnalyzer:
 
         return tabulate(table_data, headers=headers, tablefmt="pipe")
 
-    def generate_response_time_chart(self, results: Dict[str, Dict[str, Any]]):
+    def generate_response_time_chart(self, results: dict[str, dict[str, Any]]):
         """Generate response time comparison charts"""
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -111,7 +111,7 @@ class BenchmarkAnalyzer:
         plt.savefig(self.reports_dir / "response_time_comparison.png", dpi=300)
         plt.close()
 
-    def generate_throughput_chart(self, results: Dict[str, Dict[str, Any]]):
+    def generate_throughput_chart(self, results: dict[str, dict[str, Any]]):
         """Generate throughput comparison chart"""
         fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -149,7 +149,7 @@ class BenchmarkAnalyzer:
         plt.savefig(self.reports_dir / "throughput_comparison.png", dpi=300)
         plt.close()
 
-    def generate_error_rate_chart(self, results: Dict[str, Dict[str, Any]]):
+    def generate_error_rate_chart(self, results: dict[str, dict[str, Any]]):
         """Generate error rate comparison chart"""
         fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -192,7 +192,7 @@ class BenchmarkAnalyzer:
         plt.savefig(self.reports_dir / "error_rate_comparison.png", dpi=300)
         plt.close()
 
-    def generate_markdown_report(self, results: Dict[str, Dict[str, Any]]) -> str:
+    def generate_markdown_report(self, results: dict[str, dict[str, Any]]) -> str:
         """Generate comprehensive markdown report"""
         report = []
         report.append("# FraiseQL Performance Benchmark Report")

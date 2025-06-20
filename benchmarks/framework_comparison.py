@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import docker
 import httpx
@@ -181,7 +181,7 @@ class FrameworkBenchmarkRunner:
         try:
             if config.docker_image:
                 # Use Docker for Hasura/PostGraphile
-                container = self.docker_client.containers.run(
+                self.docker_client.containers.run(
                     config.docker_image,
                     name=f"bench_{framework_key}",
                     ports={
@@ -203,7 +203,7 @@ class FrameworkBenchmarkRunner:
 
                 # Health check
                 async with httpx.AsyncClient() as client:
-                    for i in range(30):
+                    for _i in range(30):
                         try:
                             response = await client.get(
                                 config.endpoint.replace("/graphql", "/health")
@@ -211,7 +211,7 @@ class FrameworkBenchmarkRunner:
                             if response.status_code == 200:
                                 print(f"   ✅ {config.name} is ready!")
                                 return True
-                        except:
+                        except Exception:
                             pass
                         await asyncio.sleep(1)
             else:
@@ -262,7 +262,7 @@ class FrameworkBenchmarkRunner:
         query_key: str,
         concurrent_users: int = 100,
         total_requests: int = 1000,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Benchmark a specific framework with a query."""
         config = self.frameworks[framework_key]
         query_info = self.test_queries[query_key]
@@ -338,7 +338,7 @@ class FrameworkBenchmarkRunner:
         else:
             return {"framework": config.name, "query": query_key, "error": "All requests failed"}
 
-    def _percentile(self, data: List[float], percentile: float) -> float:
+    def _percentile(self, data: list[float], percentile: float) -> float:
         """Calculate percentile."""
         if not data:
             return 0
@@ -392,7 +392,7 @@ class FrameworkBenchmarkRunner:
         # Generate comparison report
         self.generate_comparison_report(all_results)
 
-    def generate_comparison_report(self, results: List[Dict[str, Any]]):
+    def generate_comparison_report(self, results: list[dict[str, Any]]):
         """Generate detailed comparison report."""
         print("\n\n" + "=" * 80)
         print("FRAMEWORK COMPARISON RESULTS")

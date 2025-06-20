@@ -3,7 +3,7 @@
 import json
 import os
 import time
-from typing import List, Optional
+from typing import Optional
 
 import redis.asyncio as redis
 
@@ -69,7 +69,7 @@ class Query:
     health: str = fraise_field(default="healthy", description="Health check endpoint")
 
     # High-performance user queries with caching
-    users: List[User] = fraise_field(
+    users: list[User] = fraise_field(
         default_factory=list,
         description="List users with projection table optimization and caching",
     )
@@ -145,7 +145,7 @@ class Query:
             )
             return result
 
-    products: List[Product] = fraise_field(
+    products: list[Product] = fraise_field(
         default_factory=list,
         description="List products with projection table optimization and caching",
     )
@@ -221,7 +221,7 @@ class Query:
             )
             return result
 
-    orders: List[Order] = fraise_field(
+    orders: list[Order] = fraise_field(
         default_factory=list,
         description="List orders with projection table optimization and caching",
     )
@@ -398,7 +398,7 @@ async def health_check():
         redis_conn = await get_redis()
         await redis_conn.ping()
         redis_status = "connected"
-    except:
+    except Exception:
         pass
 
     return {

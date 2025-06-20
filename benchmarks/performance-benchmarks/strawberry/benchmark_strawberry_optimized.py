@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from statistics import mean, median, quantiles
-from typing import Any, Dict
+from typing import Any
 
 import aiohttp
 
@@ -128,8 +128,8 @@ CREATE_PROJECT_MUTATION = """
 
 
 async def make_graphql_request(
-    session: aiohttp.ClientSession, query: str, variables: Dict = None
-) -> Dict[str, Any]:
+    session: aiohttp.ClientSession, query: str, variables: dict = None
+) -> dict[str, Any]:
     """Make a GraphQL request and measure latency."""
     start_time = time.time()
 
@@ -159,8 +159,8 @@ async def make_graphql_request(
 
 
 async def run_query_benchmark(
-    query_name: str, query: str, variables: Dict, num_requests: int
-) -> Dict[str, Any]:
+    query_name: str, query: str, variables: dict, num_requests: int
+) -> dict[str, Any]:
     """Run benchmark for a specific GraphQL query."""
     print(f"\n🍓 Running Strawberry {query_name} benchmark: x{num_requests}")
 
@@ -230,7 +230,7 @@ async def run_query_benchmark(
     return stats
 
 
-async def run_mutation_benchmark(num_requests: int) -> Dict[str, Any]:
+async def run_mutation_benchmark(num_requests: int) -> dict[str, Any]:
     """Run mutation benchmark."""
     print(f"\n🍓 Running Strawberry mutation benchmark: x{num_requests}")
 
@@ -298,21 +298,20 @@ async def run_mutation_benchmark(num_requests: int) -> Dict[str, Any]:
 async def check_health() -> bool:
     """Check if Strawberry service is healthy."""
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{STRAWBERRY_URL}/health", timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    print(f"✅ Strawberry is healthy: {data.get('status', 'unknown')}")
-                    print(f"   Optimizations: {', '.join(data.get('optimizations', []))}")
+        async with aiohttp.ClientSession() as session, session.get(
+            f"{STRAWBERRY_URL}/health", timeout=aiohttp.ClientTimeout(total=5)
+        ) as response:
+            if response.status == 200:
+                data = await response.json()
+                print(f"✅ Strawberry is healthy: {data.get('status', 'unknown')}")
+                print(f"   Optimizations: {', '.join(data.get('optimizations', []))}")
 
-                    pool_info = data.get("connection_pool", {})
-                    print(
-                        f"   Connection Pool: {pool_info.get('size', 0)}/{pool_info.get('max_size', 0)}"
-                    )
-                    print(f"   Redis: {'✅' if data.get('redis_available') else '❌'}")
-                    return True
+                pool_info = data.get("connection_pool", {})
+                print(
+                    f"   Connection Pool: {pool_info.get('size', 0)}/{pool_info.get('max_size', 0)}"
+                )
+                print(f"   Redis: {'✅' if data.get('redis_available') else '❌'}")
+                return True
     except Exception as e:
         print(f"❌ Strawberry health check failed: {e}")
     return False

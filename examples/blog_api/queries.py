@@ -1,15 +1,17 @@
 """Example blog API queries using FraiseQL with CQRS."""
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
 from dataloaders import CommentsByPostDataLoader, PostDataLoader, UserDataLoader
-from db import BlogRepository
 from models import Comment, Post, PostFilters, PostOrderBy, User
 
 import fraiseql
 from fraiseql.auth import requires_auth
 from fraiseql.optimization.registry import get_loader
+
+if TYPE_CHECKING:
+    from db import BlogRepository
 
 
 @fraiseql.query

@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from statistics import mean, median, quantiles, stdev
-from typing import Any, Dict
+from typing import Any
 
 import aiohttp
 
@@ -32,7 +32,7 @@ TEST_CONFIGS = [
 ]
 
 
-async def make_request(session: aiohttp.ClientSession, url: str, query: str) -> Dict[str, Any]:
+async def make_request(session: aiohttp.ClientSession, url: str, query: str) -> dict[str, Any]:
     """Make a single GraphQL request and measure latency."""
     start_time = time.time()
 
@@ -61,7 +61,7 @@ async def make_request(session: aiohttp.ClientSession, url: str, query: str) -> 
 
 async def run_benchmark(
     framework: str, base_url: str, query_type: str, num_requests: int, limit: int = 100
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run benchmark for a specific framework and query."""
     print(f"\n🏃 Running {framework} benchmark: {query_type} x{num_requests} (limit={limit})")
 
@@ -185,16 +185,15 @@ async def run_benchmark(
 async def check_health(name: str, url: str) -> bool:
     """Check if service is healthy."""
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{url}/health", timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    print(f"✅ {name} is healthy: {data.get('status', 'unknown')}")
-                    if "optimizations" in data:
-                        print(f"   Optimizations: {', '.join(data['optimizations'])}")
-                    return True
+        async with aiohttp.ClientSession() as session, session.get(
+            f"{url}/health", timeout=aiohttp.ClientTimeout(total=5)
+        ) as response:
+            if response.status == 200:
+                data = await response.json()
+                print(f"✅ {name} is healthy: {data.get('status', 'unknown')}")
+                if "optimizations" in data:
+                    print(f"   Optimizations: {', '.join(data['optimizations'])}")
+                return True
     except Exception as e:
         print(f"❌ {name} health check failed: {e}")
     return False
@@ -294,7 +293,7 @@ async def main():
             # Sort by performance
             config_results.sort(key=lambda x: x["requests_per_second"], reverse=True)
 
-            best_rps = config_results[0]["requests_per_second"]
+            config_results[0]["requests_per_second"]
 
             for i, result in enumerate(config_results):
                 rps = result["requests_per_second"]

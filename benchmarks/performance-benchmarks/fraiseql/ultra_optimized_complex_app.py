@@ -5,7 +5,7 @@ import time
 from collections import deque
 from datetime import date
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import asyncpg
 import redis.asyncio as redis
@@ -20,7 +20,7 @@ DATABASE_URL = os.environ.get(
 )
 
 # Global connection pools
-connection_pools: Dict[str, asyncpg.Pool] = {}
+connection_pools: dict[str, asyncpg.Pool] = {}
 redis_pool: Optional[redis.ConnectionPool] = None
 redis_client: Optional[redis.Redis] = None
 
@@ -88,7 +88,7 @@ class MultiLevelCache:
 
     def l1_invalidate_pattern(self, pattern: str):
         """Invalidate cache entries matching a pattern (for mutations)."""
-        keys_to_remove = [k for k in self.l1_cache.keys() if pattern in k]
+        keys_to_remove = [k for k in self.l1_cache if pattern in k]
         for key in keys_to_remove:
             self.l1_cache.pop(key, None)
 
@@ -431,7 +431,7 @@ async def startup_event():
     """Initialize all optimizations on startup."""
     print("🚀 Starting ultra-optimized FraiseQL complex domain benchmark app...")
 
-    pools = await get_connection_pools()
+    await get_connection_pools()
     print("✅ Database connection pools initialized for complex queries")
 
     redis_conn = await get_redis()
@@ -450,7 +450,7 @@ async def shutdown_event():
     """Clean up all resources."""
     global connection_pools, redis_client, redis_pool
 
-    for pool_name, pool in connection_pools.items():
+    for pool in connection_pools.values():
         if pool:
             await pool.close()
 
@@ -667,7 +667,7 @@ async def benchmark_create_project(project: CreateProjectInput):
             pattern = "projects*"
             async for key in redis_conn.scan_iter(match=pattern):
                 await redis_conn.delete(key)
-        except:
+        except Exception:
             pass
 
     monitor.record_request("write", is_mutation=True)
@@ -766,11 +766,10 @@ async def benchmark_batch_create_tasks(project_id: str, count: int = 10):
 
     # Create tasks in batch
     task_ids = []
-    async with pools["write"].acquire() as conn:
-        async with conn.transaction():
-            for i in range(count):
-                task_id = await conn.fetchval(
-                    """
+    async with pools["write"].acquire() as conn, conn.transaction():
+        for i in range(count):
+            task_id = await conn.fetchval(
+                """
                     INSERT INTO tasks (
                         project_id, assigned_to_id, title, description,
                         status, priority, estimated_hours, due_date
@@ -779,15 +778,15 @@ async def benchmark_batch_create_tasks(project_id: str, count: int = 10):
                         CURRENT_DATE + INTERVAL '30 days'
                     ) RETURNING id
                     """,
-                    project_id,
-                    employee_ids[i % len(employee_ids)]["employee_id"],
-                    f"Batch Task {i + 1} - {time.time()}",
-                    f"Description for batch task {i + 1}",
-                    "todo",
-                    (i % 5) + 1,
-                    8.0,
-                )
-                task_ids.append(str(task_id))
+                project_id,
+                employee_ids[i % len(employee_ids)]["employee_id"],
+                f"Batch Task {i + 1} - {time.time()}",
+                f"Description for batch task {i + 1}",
+                "todo",
+                (i % 5) + 1,
+                8.0,
+            )
+            task_ids.append(str(task_id))
 
     # Invalidate caches
     cache.l1_invalidate_pattern(f"projects_full:{project_id}")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Integration test for FraiseQL security middleware with FastAPI.
-"""
+"""Integration test for FraiseQL security middleware with FastAPI."""
 
+import contextlib
 import sys
 from pathlib import Path
 
@@ -10,8 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 def test_middleware_integration():
     """Test that security middleware can be added to FastAPI apps."""
-    print("🧪 Testing Security Middleware Integration...")
-
     try:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -26,7 +24,6 @@ def test_middleware_integration():
             setup_development_security,
         )
 
-        print("  ✓ All imports successful")
 
         # Test 1: Create FastAPI app and add security
         app = FastAPI()
@@ -41,11 +38,9 @@ def test_middleware_integration():
 
         # Add security middleware
         try:
-            security = setup_development_security(app, "test-secret-key")
-            print("  ✓ Development security setup successful")
-        except Exception as e:
+            setup_development_security(app, "test-secret-key")
+        except Exception:
             # If setup fails due to middleware conflicts, try individual components
-            print(f"  ⚠️  Full setup failed ({e}), testing individual components...")
 
             # Test individual middleware
             from fraiseql.security.csrf_protection import CSRFProtectionMiddleware
@@ -60,7 +55,6 @@ def test_middleware_integration():
                 store=RateLimitStore(),
                 rules=[],
             )
-            print("  ✓ Rate limiting middleware added")
 
             # CSRF protection
             csrf_config = create_development_csrf_config("test-secret")
@@ -68,7 +62,6 @@ def test_middleware_integration():
                 CSRFProtectionMiddleware,
                 config=csrf_config,
             )
-            print("  ✓ CSRF protection middleware added")
 
             # Security headers
             headers_config = create_development_security_config()
@@ -76,7 +69,6 @@ def test_middleware_integration():
                 SecurityHeadersMiddleware,
                 config=headers_config,
             )
-            print("  ✓ Security headers middleware added")
 
         # Test 2: Create test client and verify responses
         client = TestClient(app)
@@ -84,7 +76,6 @@ def test_middleware_integration():
         # Test GET request (should work)
         response = client.get("/test")
         assert response.status_code == 200
-        print("  ✓ GET request works")
 
         # Check for security headers
         headers = response.headers
@@ -95,22 +86,17 @@ def test_middleware_integration():
             ]
         )
         if security_headers_present:
-            print("  ✓ Security headers are being added")
+            pass
         else:
-            print("  ⚠️  Security headers not detected (may be due to test setup)")
+            pass
 
         # Test POST request (may be blocked by CSRF in strict mode)
-        try:
+        with contextlib.suppress(Exception):
             response = client.post("/test")
-            print(f"  ✓ POST request handled (status: {response.status_code})")
-        except Exception as e:
-            print(f"  ⚠️  POST request handling: {e}")
 
-        print("✅ Security Middleware Integration: Tests passed!")
         return True
 
-    except Exception as e:
-        print(f"❌ Security Middleware Integration: Test failed - {e}")
+    except Exception:
         import traceback
         traceback.print_exc()
         return False
@@ -118,8 +104,6 @@ def test_middleware_integration():
 
 def test_security_example():
     """Test the security example can be imported and initialized."""
-    print("\n🧪 Testing Security Example...")
-
     try:
         # Add examples to path
         sys.path.insert(0, str(Path(__file__).parent / "examples" / "security"))
@@ -145,32 +129,26 @@ def test_security_example():
             try:
                 # Load the module (this will test imports)
                 spec.loader.exec_module(module)
-                print("  ✓ Security example imports successful")
 
                 # Test that we can access the create_app function
                 if hasattr(module, "create_app"):
-                    print("  ✓ create_app function available")
+                    pass
                 else:
-                    print("  ⚠️  create_app function not found")
+                    pass
 
             finally:
                 # Restore environment
                 os.environ.clear()
                 os.environ.update(old_env)
 
-        print("✅ Security Example: Tests passed!")
         return True
 
-    except Exception as e:
-        print(f"❌ Security Example: Test failed - {e}")
+    except Exception:
         return False
 
 
 def main():
     """Run integration tests."""
-    print("🚀 Running FraiseQL Security Integration Tests")
-    print("=" * 50)
-
     results = []
 
     # Run integration tests
@@ -178,20 +156,13 @@ def main():
     results.append(test_security_example())
 
     # Summary
-    print("\n" + "=" * 50)
-    print("📊 Integration Test Results:")
 
     passed = sum(results)
     total = len(results)
 
-    print(f"  ✅ Passed: {passed}/{total}")
-    print(f"  ❌ Failed: {total - passed}/{total}")
 
     if passed == total:
-        print("\n🎉 All integration tests passed!")
-        print("The security middleware integration is working correctly.")
         return 0
-    print(f"\n⚠️  {total - passed} test(s) failed.")
     return 1
 
 

@@ -224,13 +224,13 @@ class TestAuthMutations:
         email = f"login_{uuid4()}@example.com"
         password = "password123"
 
-        register_mutation = """
-        mutation {
-            register(input: {email: "%s", password: "%s", name: "Test"}) {
-                ... on AuthSuccess { user { id } }
-            }
-        }
-        """ % (email, password)
+        register_mutation = f"""
+        mutation {{
+            register(input: {{email: "{email}", password: "{password}", name: "Test"}}) {{
+                ... on AuthSuccess {{ user {{ id }} }}
+            }}
+        }}
+        """
 
         client.execute(register_mutation)
 

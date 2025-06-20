@@ -13,7 +13,7 @@ import uuid
 from datetime import date, datetime
 from pathlib import Path
 from statistics import mean, median, quantiles, stdev
-from typing import Any, Dict
+from typing import Any
 
 import aiohttp
 
@@ -58,9 +58,9 @@ async def make_request(
     session: aiohttp.ClientSession,
     url: str,
     method: str = "GET",
-    json_data: Dict = None,
+    json_data: dict = None,
     query: str = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Make a single request and measure latency."""
     start_time = time.time()
 
@@ -94,7 +94,7 @@ async def make_request(
 async def get_test_data(session: aiohttp.ClientSession, base_url: str):
     """Get IDs for testing."""
     # Get organization IDs
-    org_response = await make_request(
+    await make_request(
         session, f"{base_url}/benchmark/stats" if "8000" in base_url else f"{base_url}/stats"
     )
 
@@ -271,7 +271,7 @@ def generate_strawberry_query(query_type: str, limit: int = 10) -> str:
     return queries.get(query_type, queries["organizations_simple"])
 
 
-def generate_strawberry_mutation(mutation_type: str, data: Dict) -> str:
+def generate_strawberry_mutation(mutation_type: str, data: dict) -> str:
     """Generate GraphQL mutation for Strawberry."""
     mutations = {
         "create_project": f"""
@@ -322,7 +322,7 @@ def generate_strawberry_mutation(mutation_type: str, data: Dict) -> str:
 
 async def run_query_benchmark(
     framework: str, base_url: str, query_type: str, num_requests: int, limit: int = 10
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run query benchmark for a specific framework."""
     print(f"\n🏃 Running {framework} {query_type} benchmark: x{num_requests}")
 
@@ -402,7 +402,7 @@ async def run_query_benchmark(
 
 async def run_mutation_benchmark(
     framework: str, base_url: str, mutation_type: str, num_requests: int, **kwargs
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run mutation benchmark."""
     print(f"\n🏃 Running {framework} {mutation_type} mutation benchmark: x{num_requests}")
 
@@ -485,13 +485,12 @@ async def run_mutation_benchmark(
 async def check_health(name: str, url: str) -> bool:
     """Check if service is healthy."""
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{url}/health", timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                if response.status == 200:
-                    print(f"✅ {name} is healthy")
-                    return True
+        async with aiohttp.ClientSession() as session, session.get(
+            f"{url}/health", timeout=aiohttp.ClientTimeout(total=5)
+        ) as response:
+            if response.status == 200:
+                print(f"✅ {name} is healthy")
+                return True
     except Exception as e:
         print(f"❌ {name} health check failed: {e}")
     return False
@@ -595,7 +594,7 @@ async def main():
 
         if category_results:
             # Group by test type
-            test_types = set(r.get("query_type", r.get("mutation_type")) for r in category_results)
+            test_types = {r.get("query_type", r.get("mutation_type")) for r in category_results}
 
             for test_type in test_types:
                 print(f"\n  📌 {test_type}")

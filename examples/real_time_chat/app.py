@@ -5,8 +5,8 @@ Demonstrates FraiseQL's real-time capabilities with WebSocket subscriptions
 import asyncio
 import json
 import os
-from contextlib import asynccontextmanager
-from typing import Dict, Set
+from contextlib import asynccontextmanager, suppress
+from typing import Annotated, Dict, Set
 
 import asyncpg
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -48,7 +48,7 @@ class ConnectionManager:
         # websocket -> user_id
         self.connection_users: Dict[WebSocket, str] = {}
 
-    async def connect(self, websocket: WebSocket, user_id: str, room_id: str = None):
+    async def connect(self, websocket: WebSocket, user_id: str, room_id: str | None = None):
         """Connect a WebSocket and associate with user/room"""
         await websocket.accept()
 
@@ -64,7 +64,6 @@ class ConnectionManager:
                 self.room_connections[room_id] = set()
             self.room_connections[room_id].add(websocket)
 
-        print(f"User {user_id} connected via WebSocket")
 
     def disconnect(self, websocket: WebSocket):
         """Disconnect a WebSocket"""
@@ -76,10 +75,9 @@ class ConnectionManager:
                 del self.user_connections[user_id]
 
         # Remove from room connections
-        for room_id, connections in self.room_connections.items():
+        for connections in self.room_connections.values():
             connections.discard(websocket)
 
-        print(f"User {user_id} disconnected")
 
     async def send_to_room(self, room_id: str, message: dict):
         """Send message to all connections in a room"""
@@ -129,10 +127,8 @@ async def lifespan(app: FastAPI):
 
     # Cancel the listen task and close connection pool
     listen_task.cancel()
-    try:
+    with suppress(asyncio.CancelledError):
         await listen_task
-    except asyncio.CancelledError:
-        pass
     await app.state.db_pool.close()
 
 
@@ -168,8 +164,8 @@ async def handle_message_event(connection, pid, channel, payload):
         }
 
         await manager.send_to_room(str(room_id), event)
-    except Exception as e:
-        print(f"Error handling message event: {e}")
+    except Exception:
+        pass
 
 
 async def handle_typing_event(connection, pid, channel, payload):
@@ -186,8 +182,8 @@ async def handle_typing_event(connection, pid, channel, payload):
         }
 
         await manager.send_to_room(str(room_id), event)
-    except Exception as e:
-        print(f"Error handling typing event: {e}")
+    except Exception:
+        pass
 
 
 async def handle_presence_event(connection, pid, channel, payload):
@@ -208,8 +204,8 @@ async def handle_presence_event(connection, pid, channel, payload):
 
         if data.get("room_id"):
             await manager.send_to_room(str(data["room_id"]), event)
-    except Exception as e:
-        print(f"Error handling presence event: {e}")
+    except Exception:
+        pass
 
 
 async def fetch_message_data(connection, message_id):
@@ -379,11 +375,10 @@ async def get_room_messages(
     room_id: str,
     limit: int = 50,
     offset: int = 0,
-    before: str = None,
+    before: str | None = None,
     user_id: str = Depends(get_current_user),
 ):
-    """REST endpoint for fetching room messages with pagination
-    """
+    """REST endpoint for fetching room messages with pagination"""
     query = """
     query GetRoomMessages($roomId: UUID!, $limit: Int!, $offset: Int!, $before: DateTime) {
         messageThread(
@@ -416,10 +411,9 @@ async def get_room_messages(
 
 @app.get("/api/users/{user_id}/conversations")
 async def get_user_conversations(
-    user_id: str, current_user: str = Depends(get_current_user),
+    user_id: str, current_user: Annotated[str, Depends(get_current_user)],
 ):
-    """REST endpoint for fetching user's conversations
-    """
+    """REST endpoint for fetching user's conversations"""
     if user_id != current_user:
         raise HTTPException(status_code=403, detail="Access denied")
 

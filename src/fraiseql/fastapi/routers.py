@@ -328,11 +328,11 @@ PLAYGROUND_HTML = """
 <html>
 <head>
     <title>FraiseQL Playground</title>
-    <link rel="stylesheet" 
+    <link rel="stylesheet"
           href="https://unpkg.com/graphql-playground-react/build/static/css/index.css" />
-    <link rel="shortcut icon" 
+    <link rel="shortcut icon"
           href="https://unpkg.com/graphql-playground-react/build/favicon.png" />
-    <script 
+    <script
         src="https://unpkg.com/graphql-playground-react/build/static/js/middleware.js"></script>
 </head>
 <body>

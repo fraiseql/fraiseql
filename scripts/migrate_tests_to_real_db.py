@@ -135,15 +135,10 @@ def main():
     # Find all test files
     test_dir = Path("tests")
     if not test_dir.exists():
-        print("Error: tests directory not found")
         sys.exit(1)
 
     test_files = list(test_dir.rglob("test_*.py"))
 
-    print("# Test Migration Analysis\n")
-    print(
-        "This analysis identifies test files using mocks that could benefit from real database testing.\n",
-    )
 
     files_with_mocks = []
 
@@ -153,36 +148,20 @@ def main():
             files_with_mocks.append((test_file, mock_info))
 
     if not files_with_mocks:
-        print("No test files with database mocks found!")
         return
 
-    print(f"Found {len(files_with_mocks)} test files with mocks:\n")
 
     for test_file, _ in files_with_mocks:
-        print(f"- {test_file}")
+        pass
 
-    print("\n---\n")
 
     # Generate detailed suggestions
     for test_file, mock_info in files_with_mocks:
         suggestions = generate_migration_suggestions(test_file, mock_info)
         if suggestions:
-            print(suggestions)
-            print("\n---\n")
+            pass
 
     # General guidance
-    print("## General Migration Steps:\n")
-    print("1. Install testcontainers: `pip install testcontainers[postgres]`")
-    print("2. Update test files to use `@pytest.mark.database` for integration tests")
-    print("3. Keep unit tests with mocks for testing business logic without database")
-    print("4. Create integration test variants for critical database operations")
-    print("5. Use `--no-db` flag to skip database tests when needed")
-    print()
-    print("## Running Tests:\n")
-    print("- All tests: `pytest`")
-    print("- Only database tests: `pytest -m database`")
-    print("- Skip database tests: `pytest --no-db`")
-    print("- With Podman: `TESTCONTAINERS_PODMAN=true pytest`")
 
 
 if __name__ == "__main__":

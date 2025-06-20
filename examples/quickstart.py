@@ -209,44 +209,6 @@ if __name__ == "__main__":
         production=False,
     )
 
-    print("🚀 Starting pgGit GraphQL API...")
-    print("📊 GraphQL Playground available at: http://localhost:8000/playground")
-    print("🔍 GraphQL endpoint at: http://localhost:8000/graphql")
-    print("\nTry these queries in the playground:")
-    print("""
-    # Get all commits
-    query {
-      commits(limit: 10) {
-        hash
-        message
-        author
-        timestamp
-      }
-    }
-
-    # Get a specific commit
-    query {
-      commit(hash: "abc123") {
-        hash
-        message
-        author
-        parentHash
-      }
-    }
-
-    # Create a new commit
-    mutation {
-      createCommit(input: {
-        message: "Fix critical bug"
-        author: "dev@example.com"
-        parentHash: "abc123"
-      }) {
-        hash
-        message
-        timestamp
-      }
-    }
-    """)
 
     # Run the server
     uvicorn.run(app, host="0.0.0.0", port=8000)

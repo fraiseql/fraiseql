@@ -143,10 +143,8 @@ async def ready():
 @app.on_event("startup")
 async def startup():
     """Initialize application on startup."""
-    print(f"Starting E-commerce API in {ENVIRONMENT} mode")
-    print("GraphQL endpoint: /graphql")
     if not is_production:
-        print("GraphQL Playground: /playground")
+        pass
 
 # Example queries for documentation
 EXAMPLE_QUERIES = """

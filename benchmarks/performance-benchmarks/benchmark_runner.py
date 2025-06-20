@@ -11,7 +11,6 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
 
 # Configuration from environment
 ITERATIONS = int(os.environ.get("BENCHMARK_ITERATIONS", 30))
@@ -103,7 +102,7 @@ def print_progress_bar(current: int, total: int, width: int = 30):
     print(f"\r  [{bar}] {current}/{total} ({percent * 100:.0f}%)", end="", flush=True)
 
 
-def benchmark_service(service_name: str, config: Dict) -> Dict:
+def benchmark_service(service_name: str, config: dict) -> dict:
     """Run benchmark on a service."""
     url = config["url"]
     color = config["color"]
@@ -185,7 +184,7 @@ def benchmark_service(service_name: str, config: Dict) -> Dict:
     return results
 
 
-def print_comparison(results: Dict):
+def print_comparison(results: dict):
     """Print performance comparison."""
     if len(results) < 2:
         return
@@ -202,7 +201,7 @@ def print_comparison(results: Dict):
     fraiseql_wins = 0
     strawberry_wins = 0
 
-    for query_name, query_info in QUERIES.items():
+    for query_name in QUERIES:
         first = True
         query_results = []
 

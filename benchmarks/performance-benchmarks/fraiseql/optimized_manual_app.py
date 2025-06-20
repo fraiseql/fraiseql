@@ -73,7 +73,7 @@ async def health():
         try:
             await redis_conn.ping()
             redis_status = "connected"
-        except:
+        except Exception:
             pass
 
     return {
