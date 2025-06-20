@@ -146,7 +146,7 @@ class TestFraiseQLRepository:
         self._setup_mocks(mock_pool, mock_cursor)
 
         query = DatabaseQuery(
-            statement=SQL("SELECT * FROM invalid_table"), params={}, fetch_result=True
+            statement=SQL("SELECT * FROM invalid_table"), params={}, fetch_result=True,
         )
 
         with pytest.raises(Exception, match="Query execution error"):

@@ -41,7 +41,7 @@ def test_date_scalar_with_schema_builder():
 
     @fraiseql.query
     async def get_event(info) -> Event:
-        today = datetime.date.today()  # noqa: DTZ011
+        today = datetime.date.today()
         return Event(name="Conference", start_date=today, end_date=today)
 
     # Build schema using the helper function
@@ -77,7 +77,7 @@ def test_multiple_schema_builds_with_date():
 
     @fraiseql.query
     async def query1(info) -> Model1:
-        return Model1(date1=datetime.date.today())  # noqa: DTZ011
+        return Model1(date1=datetime.date.today())
 
     schema1 = build_fraiseql_schema(query_types=[Model1, query1])
     assert "Date" in schema1.type_map
@@ -89,7 +89,7 @@ def test_multiple_schema_builds_with_date():
 
     @fraiseql.query
     async def query2(info) -> Model2:
-        return Model2(date2=datetime.date.today())  # noqa: DTZ011
+        return Model2(date2=datetime.date.today())
 
     schema2 = build_fraiseql_schema(query_types=[Model2, query2])
     assert "Date" in schema2.type_map

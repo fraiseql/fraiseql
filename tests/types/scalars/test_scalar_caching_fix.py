@@ -91,12 +91,12 @@ def test_complex_scenario_with_caching():
     # Queries and mutations
     @fraiseql.query
     async def get_users(info) -> list[User]:
-        today = datetime.date.today()  # noqa: DTZ011
+        today = datetime.date.today()
         return [User(name="Test", birth_date=today, registration_date=today)]
 
     @fraiseql.query
     async def get_events(info) -> list[Event]:
-        today = datetime.date.today()  # noqa: DTZ011
+        today = datetime.date.today()
         return [Event(title="Test", start_date=today, end_date=today, created_date=today)]
 
     @fraiseql.mutation
@@ -105,7 +105,7 @@ def test_complex_scenario_with_caching():
             title=input.title,
             start_date=input.start_date,
             end_date=input.end_date,
-            created_date=datetime.date.today(),  # noqa: DTZ011
+            created_date=datetime.date.today(),
         )
 
     # Build schema - this should not fail with duplicate Date registrations
@@ -158,7 +158,7 @@ def test_cache_behavior_across_schema_builds():
 
     @fraiseql.query
     async def query1(info) -> Model1:
-        return Model1(date_field=datetime.date.today())  # noqa: DTZ011
+        return Model1(date_field=datetime.date.today())
 
     schema1 = build_fraiseql_schema(query_types=[Model1, query1])
     date_type1 = schema1.type_map["Date"]
@@ -175,7 +175,7 @@ def test_cache_behavior_across_schema_builds():
 
     @fraiseql.query
     async def query2(info) -> Model2:
-        return Model2(another_date=datetime.date.today())  # noqa: DTZ011
+        return Model2(another_date=datetime.date.today())
 
     schema2 = build_fraiseql_schema(query_types=[Model2, query2])
     date_type2 = schema2.type_map["Date"]

@@ -40,7 +40,7 @@ class TestJSONScalar:
                 "name": "John",
                 "tags": ["admin", "user"],
                 "metadata": {"created": "2023-01-01", "active": True},
-            }
+            },
         }
         result = serialize_json(data)
         assert result == data
@@ -94,7 +94,7 @@ class TestJSONScalar:
 
         ast_var = VariableNode(name={"value": "myVar"})
         with pytest.raises(
-            GraphQLError, match="JSON cannot represent literal of type VariableNode"
+            GraphQLError, match="JSON cannot represent literal of type VariableNode",
         ):
             parse_json_literal(ast_var)
 

@@ -279,4 +279,3 @@ def test_actual_database_execution():
     """
     # This test is a placeholder - actual database testing would be done
     # in integration tests with proper database fixtures
-    pass

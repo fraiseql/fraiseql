@@ -60,14 +60,14 @@ class UserDataLoader(DataLoader[UUID, dict]):
         users_db = {
             UUID("223e4567-e89b-12d3-a456-426614174001"): {
                 "id": UUID(
-                    "223e4567-e89b-12d3-a456-426614174001"
+                    "223e4567-e89b-12d3-a456-426614174001",
                 ),  # UUID object as expected by User
                 "name": "John Doe",
                 "email": "john@example.com",
             },
             UUID("323e4567-e89b-12d3-a456-426614174002"): {
                 "id": UUID(
-                    "323e4567-e89b-12d3-a456-426614174002"
+                    "323e4567-e89b-12d3-a456-426614174002",
                 ),  # UUID object as expected by User
                 "name": "Jane Smith",
                 "email": "jane@example.com",
@@ -93,7 +93,6 @@ class Post:
     async def author(self, info) -> User | None:
         """Load author using DataLoader automatically."""
         # This should be auto-implemented by the decorator
-        pass
 
 
 class PostDataLoader(DataLoader[UUID, dict]):
@@ -112,7 +111,7 @@ class PostDataLoader(DataLoader[UUID, dict]):
                 "title": "Test Post",
                 "content": "Test content",
                 "authorId": UUID("223e4567-e89b-12d3-a456-426614174001"),
-            }
+            },
         }
 
         results = []
@@ -133,12 +132,10 @@ class Comment:
     @fraiseql.dataloader_field(UserDataLoader, key_field="authorId")
     async def author(self, info) -> User | None:
         """Load comment author using DataLoader."""
-        pass
 
     @fraiseql.dataloader_field(PostDataLoader, key_field="postId")
     async def post(self, info) -> Post | None:
         """Load comment post using DataLoader."""
-        pass
 
 
 # Test queries
@@ -183,7 +180,7 @@ def test_dataloader_field_adds_metadata():
     """Test that @dataloader_field decorator adds proper metadata to methods."""
     # Check that the decorator adds metadata we can use for field resolution
     assert hasattr(
-        Post.author, "__fraiseql_dataloader__"
+        Post.author, "__fraiseql_dataloader__",
     ), f"Post.author attributes: {dir(Post.author)}"
 
     metadata = Post.author.__fraiseql_dataloader__
@@ -211,7 +208,7 @@ def test_dataloader_field_generates_schema_field(register_test_queries):
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -248,7 +245,7 @@ def test_dataloader_field_automatic_resolution(register_test_queries, test_datab
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -292,7 +289,7 @@ def test_dataloader_field_batching(register_test_queries, test_database_url):
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -340,7 +337,7 @@ def test_dataloader_field_with_multiple_loaders(register_test_queries, test_data
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -434,7 +431,7 @@ def test_dataloader_field_schema_introspection(register_test_queries):
                             }
                         }
                     }
-                """
+                """,
             },
         )
 

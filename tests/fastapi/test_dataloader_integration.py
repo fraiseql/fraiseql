@@ -65,7 +65,7 @@ class UserDataLoader(DataLoader[UUID, dict]):
                 "id": UUID("223e4567-e89b-12d3-a456-426614174001"),
                 "name": "John Doe",
                 "email": "john@example.com",
-            }
+            },
         }
         self.load_calls = []  # Track batch calls for testing
 
@@ -108,7 +108,7 @@ async def get_posts(info) -> list[Post]:
                 title=f"Post {i}",
                 content=f"Content {i}",
                 authorId=UUID("223e4567-e89b-12d3-a456-426614174001"),  # Same author
-            )
+            ),
         )
     return posts
 
@@ -145,7 +145,7 @@ def test_dataloader_registry_in_context():
                             authorId
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -159,7 +159,6 @@ def test_dataloader_registry_in_context():
 
 def test_dataloader_batching_works():
     """Test that DataLoader properly batches multiple loads."""
-
     app = create_fraiseql_app(
         database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
         types=[User, Post],
@@ -182,7 +181,7 @@ def test_dataloader_batching_works():
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -226,7 +225,7 @@ def test_dataloader_error_handling():
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -255,7 +254,7 @@ def test_get_loader_function_works():
                     query {
                         getLoaderTest
                     }
-                """
+                """,
             },
         )
 
@@ -270,7 +269,6 @@ def test_get_loader_function_works():
 
 def test_dataloader_caching():
     """Test that DataLoader caches results within a request."""
-
     app = create_fraiseql_app(
         database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
         types=[User, Post],
@@ -291,7 +289,7 @@ def test_dataloader_caching():
                             author { name }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -327,7 +325,7 @@ async def test_dataloader_field_decorator():
             @fraiseql.dataloader_field(PostDataLoader, key_field="post_id")
             async def post(self, info) -> Post | None:
                 """Load the post this comment belongs to."""
-                pass  # Implementation is handled by the decorator
+                # Implementation is handled by the decorator
 
     else:
         # Skip test if decorator doesn't exist yet
@@ -399,7 +397,7 @@ def test_n_plus_one_detection(caplog):
                                 }
                             }
                         }
-                    """
+                    """,
                 },
             )
 

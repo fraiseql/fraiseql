@@ -190,12 +190,11 @@ class TestFraiseInterface:
                     "price": 999.99,
                 },
                 {"id": "u2", "__typename": "User", "name": "Bob"},
-            ]
+            ],
         }
 
     def test_interface_with_complex_types(self, clear_registry):
         """Test interface with complex field types."""
-
         from enum import Enum
 
         @fraiseql.enum
@@ -232,7 +231,7 @@ class TestFraiseInterface:
                         title="Report",
                         metadata=Metadata(tags=["important", "quarterly"], version=2),
                         status=Status.ACTIVE,
-                    )
+                    ),
                 ]
 
         schema = build_fraiseql_schema(query_types=[QueryRoot])
@@ -260,8 +259,8 @@ class TestFraiseInterface:
                     "title": "Report",
                     "metadata": {"tags": ["important", "quarterly"], "version": 2},
                     "status": "ACTIVE",
-                }
-            ]
+                },
+            ],
         }
 
     def test_interface_inheritance(self, clear_registry):
@@ -362,7 +361,7 @@ class TestFraiseInterface:
             "products": [
                 {"id": "1", "name": "Widget", "description": "A useful widget"},
                 {"id": "2", "name": "Gadget", "description": None},
-            ]
+            ],
         }
 
     def test_interface_in_schema_introspection(self, clear_registry):

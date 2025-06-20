@@ -59,7 +59,7 @@ def test_automatic_snake_to_camel_conversion(clear_registry):
             "totalCommits": 100,
             "isPrivate": False,
             "createdAtTimestamp": 1234567890.0,
-        }
+        },
     }
 
     # Verify snake_case fields don't work
@@ -162,7 +162,7 @@ def test_explicit_graphql_name(clear_registry):
 
     assert result.errors is None
     assert result.data == {
-        "getProduct": {"id": 1, "name": "Widget", "price": 9.99, "stockQuantity": 50}
+        "getProduct": {"id": 1, "name": "Widget", "price": 9.99, "stockQuantity": 50},
     }
 
 
@@ -208,7 +208,7 @@ def test_mixed_case_preservation(clear_registry):
             "APIVersion": "v2",
             "httpTimeout": 30,
             "URL": "https://api.example.com",
-        }
+        },
     }
 
 
@@ -269,7 +269,7 @@ def test_input_type_camelcase(clear_registry):
             "userName": "john_doe",
             "emailAddress": "john@example.com",
             "isAdmin": True,
-        }
+        },
     }
 
 
@@ -369,5 +369,5 @@ def test_nested_types_camelcase(clear_registry):
                 "streetLine2": "Suite 400",
                 "postalCode": "12345",
             },
-        }
+        },
     }

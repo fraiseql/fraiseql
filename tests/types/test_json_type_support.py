@@ -79,7 +79,7 @@ class TestJSONTypeSupport:
                                 metadata
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -134,7 +134,7 @@ class TestJSONTypeSupport:
                                 content
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -200,7 +200,7 @@ class TestJSONTypeSupport:
                                 tags
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -239,9 +239,9 @@ class TestJSONTypeSupport:
                                         "enabled": True,
                                         "categories": ["updates", "alerts"],
                                     },
-                                }
+                                },
                             },
-                        }
+                        },
                     ],
                     "pagination": {"page": 1, "total": 100, "per_page": 10},
                 },
@@ -265,7 +265,7 @@ class TestJSONTypeSupport:
                                 data
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -327,7 +327,7 @@ class TestJSONTypeSupport:
                                 metadata
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -387,7 +387,7 @@ class TestJSONTypeSupport:
                                 specifications
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -453,7 +453,7 @@ class TestJSONValidation:
                                 message
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -476,7 +476,7 @@ class TestJSONValidation:
                                 message
                             }
                         }
-                    """
+                    """,
                 },
             )
 

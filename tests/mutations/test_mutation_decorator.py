@@ -178,7 +178,7 @@ class TestMutationResolver:
 
         # Verify database function was called
         mock_db.execute_function.assert_called_once_with(
-            "graphql.create_user", {"name": "John Doe", "email": "john@example.com"}
+            "graphql.create_user", {"name": "John Doe", "email": "john@example.com"},
         )
 
         # Verify result type

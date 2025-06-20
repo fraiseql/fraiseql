@@ -105,7 +105,7 @@ class TestCLIIntegration:
 
             with patch("fraiseql.extensions.testfoundry.FoundryGenerator") as mock_gen:
                 mock_gen.return_value.generate_tests_for_entity = AsyncMock(
-                    return_value={"happy_path": "-- test"}
+                    return_value={"happy_path": "-- test"},
                 )
                 mock_gen.return_value.write_tests_to_files = AsyncMock()
 
@@ -120,7 +120,7 @@ class TestCLIIntegration:
         # Create project with custom database URL
         custom_db = "postgresql://custom:pass@remote:5432/customdb"
         result = cli_runner.invoke(
-            cli, ["init", "envtest", "--database-url", custom_db, "--no-git"]
+            cli, ["init", "envtest", "--database-url", custom_db, "--no-git"],
         )
         assert result.exit_code == 0
 

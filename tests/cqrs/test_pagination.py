@@ -140,14 +140,14 @@ async def db_connection():
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 data JSONB NOT NULL
             )
-        """
+        """,
         )
 
         await cursor.execute(
             """
             CREATE OR REPLACE VIEW v_items AS
             SELECT id, data FROM items
-        """
+        """,
         )
 
         # Clear any existing data
@@ -260,7 +260,7 @@ class TestCursorPaginator:
                             "name": "Special Item",
                             "createdAt": "2024-01-06",
                             "special": True,
-                        }
+                        },
                     ),
                 ),
             )
@@ -318,7 +318,7 @@ class TestRepositoryIntegration:
         # Test pagination through repository
         repo = CQRSRepository(db_connection)
         result = await repo.paginate(
-            "v_items", first=5, order_by="createdAt", order_direction="DESC"
+            "v_items", first=5, order_by="createdAt", order_direction="DESC",
         )
 
         # Should return items in descending order

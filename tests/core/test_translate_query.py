@@ -71,7 +71,7 @@ class TestTranslateQuery:
         """
 
         result = translate_query(
-            query=query, table="users", typename="User", where_clause=where_clause
+            query=query, table="users", typename="User", where_clause=where_clause,
         )
 
         sql_str = result.as_string(None)

@@ -128,7 +128,7 @@ def test_query_decorator_auto_registration():
                             name
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -191,7 +191,7 @@ def test_query_root_with_field_decorator():
                         apiVersion
                         postCount
                     }
-                """
+                """,
             },
         )
 
@@ -235,7 +235,7 @@ def test_mixed_registration_patterns():
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -289,7 +289,7 @@ def test_no_queries_parameter_uses_auto_registered():
                             email
                         }
                     }
-                """
+                """,
             },
         )
 

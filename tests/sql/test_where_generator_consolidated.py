@@ -1,17 +1,17 @@
 """Tests for consolidated WHERE generator with validation."""
 
-import pytest
 from dataclasses import dataclass
-from typing import Optional
-from datetime import datetime, date
+from datetime import datetime
 from decimal import Decimal
 
-from fraiseql.sql.where_generator_consolidated import (
-    create_where_type,
-    WhereGeneratorConfig,
-    ValidationMode,
-)
+import pytest
+
 from fraiseql.errors.user_friendly import SQLGenerationError
+from fraiseql.sql.where_generator_consolidated import (
+    ValidationMode,
+    WhereGeneratorConfig,
+    create_where_type,
+)
 
 
 @dataclass
@@ -20,7 +20,7 @@ class User:
     id: int
     email: str
     name: str
-    age: Optional[int] = None
+    age: int | None = None
     is_active: bool = True
     created_at: datetime = None
 
@@ -41,10 +41,10 @@ class TestWhereGeneratorBasic:
         """Test basic equality filtering."""
         UserWhere = create_where_type(User)
         where = UserWhere(email="test@example.com")
-        
+
         sql = where.to_sql()
         sql_str = sql.as_string(None)
-        
+
         assert "data->>'email' = %s" in sql_str
         assert where._get_params() == ["test@example.com"]
 
@@ -54,12 +54,12 @@ class TestWhereGeneratorBasic:
         where = UserWhere(
             email="test@example.com",
             age_gte=18,
-            is_active=True
+            is_active=True,
         )
-        
+
         sql = where.to_sql()
         sql_str = sql.as_string(None)
-        
+
         assert "data->>'email' = %s" in sql_str
         assert "(data->>'age')::int >= %s" in sql_str
         assert "(data->>'is_active')::boolean = %s" in sql_str
@@ -69,10 +69,10 @@ class TestWhereGeneratorBasic:
         """Test NULL value handling."""
         UserWhere = create_where_type(User)
         where = UserWhere(age_is_null=True)
-        
+
         sql = where.to_sql()
         sql_str = sql.as_string(None)
-        
+
         assert "data->>'age' IS NULL" in sql_str
         assert where._get_params() == []
 
@@ -80,7 +80,7 @@ class TestWhereGeneratorBasic:
         """Test empty filter returns None."""
         UserWhere = create_where_type(User)
         where = UserWhere()
-        
+
         assert where.to_sql() is None
         assert where._get_params() == []
 
@@ -93,12 +93,12 @@ class TestWhereGeneratorOperators:
         ProductWhere = create_where_type(Product)
         where = ProductWhere(
             price_lt=100,
-            price_gte=10
+            price_gte=10,
         )
-        
+
         sql = where.to_sql()
         sql_str = sql.as_string(None)
-        
+
         assert "(data->>'price')::numeric < %s" in sql_str
         assert "(data->>'price')::numeric >= %s" in sql_str
         assert where._get_params() == [100, 10]
@@ -109,12 +109,12 @@ class TestWhereGeneratorOperators:
         where = UserWhere(
             name_contains="john",
             email_starts_with="admin",
-            name_ends_with="son"
+            name_ends_with="son",
         )
-        
+
         sql = where.to_sql()
         sql_str = sql.as_string(None)
-        
+
         assert "data->>'name' ILIKE %s" in sql_str
         assert "data->>'email' ILIKE %s" in sql_str
         assert "%john%" in where._get_params()
@@ -126,12 +126,12 @@ class TestWhereGeneratorOperators:
         ProductWhere = create_where_type(Product)
         where = ProductWhere(
             tags_contains="electronics",
-            id_in=[1, 2, 3]
+            id_in=[1, 2, 3],
         )
-        
+
         sql = where.to_sql()
         sql_str = sql.as_string(None)
-        
+
         assert "data->'tags' @> %s" in sql_str
         assert "(data->>'id')::int = ANY(%s)" in sql_str
         params = where._get_params()
@@ -143,12 +143,12 @@ class TestWhereGeneratorOperators:
         UserWhere = create_where_type(User)
         where = UserWhere(
             email_not="banned@example.com",
-            age_not_in=[13, 14, 15]
+            age_not_in=[13, 14, 15],
         )
-        
+
         sql = where.to_sql()
         sql_str = sql.as_string(None)
-        
+
         assert "data->>'email' != %s" in sql_str
         assert "NOT ((data->>'age')::int = ANY(%s))" in sql_str
 
@@ -160,12 +160,12 @@ class TestWhereGeneratorValidation:
         """Test strict validation rejects suspicious input."""
         config = WhereGeneratorConfig(validation_mode=ValidationMode.STRICT)
         UserWhere = create_where_type(User, config=config)
-        
+
         # Should reject SQL injection attempts
         with pytest.raises(SQLGenerationError) as exc_info:
             where = UserWhere(email="'; DROP TABLE users; --")
             where.to_sql()
-        
+
         assert "SQL injection pattern detected" in str(exc_info.value)
         assert exc_info.value.code == "SQL_GENERATION_ERROR"
 
@@ -173,11 +173,11 @@ class TestWhereGeneratorValidation:
         """Test lenient mode allows suspicious input with sanitization."""
         config = WhereGeneratorConfig(validation_mode=ValidationMode.LENIENT)
         UserWhere = create_where_type(User, config=config)
-        
+
         # Should allow but sanitize
         where = UserWhere(email="test'; DROP TABLE users; --")
         sql = where.to_sql()
-        
+
         # Value should be parameterized safely
         params = where._get_params()
         assert params[0] == "test'; DROP TABLE users; --"
@@ -186,11 +186,11 @@ class TestWhereGeneratorValidation:
         """Test disabled validation mode."""
         config = WhereGeneratorConfig(validation_mode=ValidationMode.DISABLED)
         UserWhere = create_where_type(User, config=config)
-        
+
         # Should allow any input
         where = UserWhere(email="<script>alert('xss')</script>")
         sql = where.to_sql()
-        
+
         params = where._get_params()
         assert params[0] == "<script>alert('xss')</script>"
 
@@ -198,25 +198,25 @@ class TestWhereGeneratorValidation:
         """Test field length limits."""
         config = WhereGeneratorConfig(
             validation_mode=ValidationMode.STRICT,
-            max_string_length=50
+            max_string_length=50,
         )
         UserWhere = create_where_type(User, config=config)
-        
+
         # Should reject very long strings
         with pytest.raises(SQLGenerationError) as exc_info:
             where = UserWhere(name="x" * 100)
             where.to_sql()
-        
+
         assert "exceeds maximum length" in str(exc_info.value)
 
     def test_numeric_validation(self):
         """Test numeric value validation."""
         config = WhereGeneratorConfig(validation_mode=ValidationMode.STRICT)
         UserWhere = create_where_type(User, config=config)
-        
+
         # Should reject infinity
         with pytest.raises(SQLGenerationError):
-            where = UserWhere(age=float('inf'))
+            where = UserWhere(age=float("inf"))
             where.to_sql()
 
 
@@ -227,7 +227,7 @@ class TestWhereGeneratorTypeMapping:
         """Test integer fields get proper casting."""
         UserWhere = create_where_type(User)
         where = UserWhere(age=25)
-        
+
         sql_str = where.to_sql().as_string(None)
         assert "(data->>'age')::int = %s" in sql_str
 
@@ -235,7 +235,7 @@ class TestWhereGeneratorTypeMapping:
         """Test boolean fields get proper casting."""
         UserWhere = create_where_type(User)
         where = UserWhere(is_active=True)
-        
+
         sql_str = where.to_sql().as_string(None)
         assert "(data->>'is_active')::boolean = %s" in sql_str
 
@@ -243,7 +243,7 @@ class TestWhereGeneratorTypeMapping:
         """Test decimal fields get numeric casting."""
         ProductWhere = create_where_type(Product)
         where = ProductWhere(price=Decimal("99.99"))
-        
+
         sql_str = where.to_sql().as_string(None)
         assert "(data->>'price')::numeric = %s" in sql_str
 
@@ -251,7 +251,7 @@ class TestWhereGeneratorTypeMapping:
         """Test datetime field handling."""
         UserWhere = create_where_type(User)
         where = UserWhere(created_at_gte=datetime(2023, 1, 1))
-        
+
         sql_str = where.to_sql().as_string(None)
         assert "(data->>'created_at')::timestamp >= %s" in sql_str
 
@@ -262,11 +262,11 @@ class TestWhereGeneratorConfig:
     def test_custom_field_mapping(self):
         """Test custom field name mapping."""
         config = WhereGeneratorConfig(
-            field_mapping={"email": "user_email"}
+            field_mapping={"email": "user_email"},
         )
         UserWhere = create_where_type(User, config=config)
         where = UserWhere(email="test@example.com")
-        
+
         sql_str = where.to_sql().as_string(None)
         assert "data->>'user_email' = %s" in sql_str
 
@@ -275,23 +275,23 @@ class TestWhereGeneratorConfig:
         def case_sensitive_eq(path_sql, value):
             from psycopg.sql import SQL, Literal
             return SQL("{} = {}").format(path_sql, Literal(value))
-        
+
         config = WhereGeneratorConfig(
-            custom_operators={"exact": case_sensitive_eq}
+            custom_operators={"exact": case_sensitive_eq},
         )
         UserWhere = create_where_type(User, config=config)
         where = UserWhere(email_exact="Test@Example.com")
-        
+
         sql = where.to_sql()
         assert sql is not None  # Custom operator was applied
 
     def test_excluded_fields(self):
         """Test excluding fields from WHERE generation."""
         config = WhereGeneratorConfig(
-            excluded_fields={"created_at", "id"}
+            excluded_fields={"created_at", "id"},
         )
         UserWhere = create_where_type(User, config=config)
-        
+
         # These attributes should not exist
         assert not hasattr(UserWhere, "id")
         assert not hasattr(UserWhere, "created_at")
@@ -305,15 +305,15 @@ class TestWhereGeneratorEdgeCases:
     def test_nested_field_access(self):
         """Test accessing nested JSON fields."""
         config = WhereGeneratorConfig(enable_nested_access=True)
-        
+
         @dataclass
         class UserProfile:
             id: int
             profile: dict  # Contains nested data
-        
+
         ProfileWhere = create_where_type(UserProfile, config=config)
         where = ProfileWhere(profile__city="New York")
-        
+
         sql_str = where.to_sql().as_string(None)
         assert "data->'profile'->>'city' = %s" in sql_str
 
@@ -323,10 +323,10 @@ class TestWhereGeneratorEdgeCases:
         where = UserWhere(
             _or=[
                 {"email": "admin@example.com"},
-                {"name": "Admin User"}
-            ]
+                {"name": "Admin User"},
+            ],
         )
-        
+
         sql_str = where.to_sql().as_string(None)
         assert "(" in sql_str  # Should have grouped conditions
         assert "OR" in sql_str
@@ -337,10 +337,10 @@ class TestWhereGeneratorEdgeCases:
         where = UserWhere(
             _and=[
                 {"age_gte": 18},
-                {"age_lt": 65}
-            ]
+                {"age_lt": 65},
+            ],
         )
-        
+
         sql_str = where.to_sql().as_string(None)
         assert "AND" in sql_str
 
@@ -352,12 +352,12 @@ class TestWhereGeneratorEdgeCases:
                 {
                     "_and": [
                         {"age_gte": 18},
-                        {"is_active": True}
-                    ]
+                        {"is_active": True},
+                    ],
                 },
-                {"email_ends_with": "@admin.com"}
-            ]
+                {"email_ends_with": "@admin.com"},
+            ],
         )
-        
+
         sql = where.to_sql()
         assert sql is not None  # Complex condition should generate SQL

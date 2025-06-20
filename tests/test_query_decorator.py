@@ -130,7 +130,7 @@ async def test_query_decorator_execution():
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "name": "John Doe",
             "email": "john@example.com",
-        }
+        },
     }
 
 
@@ -163,7 +163,7 @@ def test_query_decorator_with_empty_parentheses():
                 id=UUID("323e4567-e89b-12d3-a456-426614174002"),
                 title="Hello World",
                 content="Test content",
-            )
+            ),
         ]
 
     schema = build_fraiseql_schema()

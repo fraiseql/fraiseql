@@ -56,7 +56,7 @@ async def get_posts(info, limit: int = 10) -> list[Post]:
             title="Hello World",
             content="This is a test post",
             author_id=UUID("123e4567-e89b-12d3-a456-426614174000"),
-        )
+        ),
     ]
 
 
@@ -154,7 +154,7 @@ async def test_query_execution():
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "name": "John Doe",
             "email": "john@example.com",
-        }
+        },
     }
 
 

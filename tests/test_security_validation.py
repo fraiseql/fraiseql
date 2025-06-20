@@ -126,7 +126,7 @@ class TestFunctionNameValidation:
 
         for pattern in injection_patterns:
             assert not self.validate_function_name(
-                pattern
+                pattern,
             ), f"Injection pattern '{pattern}' should be blocked"
 
     def test_unicode_and_encoding_attacks(self):
@@ -144,7 +144,7 @@ class TestFunctionNameValidation:
 
         for attack in unicode_attacks:
             assert not self.validate_function_name(
-                attack
+                attack,
             ), f"Unicode attack '{attack}' should be blocked"
 
 

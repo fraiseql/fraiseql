@@ -1,15 +1,13 @@
 """Tests for user-friendly error messages."""
 
-import pytest
-from typing import Optional
 
 from fraiseql.errors.user_friendly import (
     FraiseQLError,
-    MissingTypeHintError,
-    MissingDatabaseViewError,
     InvalidFieldTypeError,
-    SQLGenerationError,
+    MissingDatabaseViewError,
+    MissingTypeHintError,
     MutationNotFoundError,
+    SQLGenerationError,
 )
 
 
@@ -30,9 +28,9 @@ class TestFraiseQLError:
             message="Invalid configuration",
             code="CONFIG_ERROR",
             suggestion="Check your database URL format",
-            doc_link="https://docs.fraiseql.com/errors/config"
+            doc_link="https://docs.fraiseql.com/errors/config",
         )
-        
+
         expected = (
             "Invalid configuration\n"
             "Suggestion: Check your database URL format\n"
@@ -45,7 +43,7 @@ class TestFraiseQLError:
         """Test error with context information."""
         error = FraiseQLError(
             message="Query failed",
-            context={"query_name": "getUsers", "duration": 1.23}
+            context={"query_name": "getUsers", "duration": 1.23},
         )
         assert error.context == {"query_name": "getUsers", "duration": 1.23}
 
@@ -57,9 +55,9 @@ class TestMissingTypeHintError:
         """Test error for missing field type hint."""
         error = MissingTypeHintError(
             class_name="User",
-            field_name="email"
+            field_name="email",
         )
-        
+
         expected = (
             "Field 'email' in class 'User' is missing a type hint.\n"
             "Suggestion: Add a type annotation like: email: str\n"
@@ -73,9 +71,9 @@ class TestMissingTypeHintError:
         error = MissingTypeHintError(
             class_name="Post",
             field_name="created_at",
-            suggested_type="datetime"
+            suggested_type="datetime",
         )
-        
+
         assert "created_at: datetime" in str(error)
 
 
@@ -86,9 +84,9 @@ class TestMissingDatabaseViewError:
         """Test error for missing database view."""
         error = MissingDatabaseViewError(
             type_name="User",
-            expected_view="v_users"
+            expected_view="v_users",
         )
-        
+
         expected = (
             "Database view 'v_users' for type 'User' not found.\n"
             "Suggestion: Create a view named 'v_users' that returns a 'data' JSONB column:\n"
@@ -110,9 +108,9 @@ class TestMissingDatabaseViewError:
         error = MissingDatabaseViewError(
             type_name="Product",
             expected_view="product_catalog",
-            custom_view_name=True
+            custom_view_name=True,
         )
-        
+
         assert "product_catalog" in str(error)
         assert "v_products" not in str(error)
 
@@ -126,9 +124,9 @@ class TestInvalidFieldTypeError:
             class_name="User",
             field_name="metadata",
             field_type="set",
-            supported_types=["dict", "list", "str", "int", "float", "bool"]
+            supported_types=["dict", "list", "str", "int", "float", "bool"],
         )
-        
+
         expected = (
             "Field 'metadata' in class 'User' has unsupported type 'set'.\n"
             "Suggestion: Use one of the supported types: dict, list, str, int, float, bool\n"
@@ -142,9 +140,9 @@ class TestInvalidFieldTypeError:
             class_name="Config",
             field_name="options",
             field_type="set",
-            conversion_hint="Convert to list: options: list[str]"
+            conversion_hint="Convert to list: options: list[str]",
         )
-        
+
         assert "Convert to list: options: list[str]" in str(error)
 
 
@@ -156,9 +154,9 @@ class TestSQLGenerationError:
         error = SQLGenerationError(
             operation="WHERE clause generation",
             reason="Unsupported operator 'regex'",
-            query_info={"field": "email", "operator": "regex", "value": ".*@example.com"}
+            query_info={"field": "email", "operator": "regex", "value": ".*@example.com"},
         )
-        
+
         expected = (
             "Failed to generate SQL for WHERE clause generation: Unsupported operator 'regex'\n"
             "Suggestion: Check the GraphQL query syntax and supported operators\n"
@@ -172,9 +170,9 @@ class TestSQLGenerationError:
         error = SQLGenerationError(
             operation="JOIN generation",
             reason="Circular reference detected",
-            custom_suggestion="Remove the circular reference between User and Post types"
+            custom_suggestion="Remove the circular reference between User and Post types",
         )
-        
+
         assert "Remove the circular reference" in str(error)
 
 
@@ -185,9 +183,9 @@ class TestMutationNotFoundError:
         """Test error for missing mutation function."""
         error = MutationNotFoundError(
             mutation_name="createUser",
-            function_name="graphql.create_user"
+            function_name="graphql.create_user",
         )
-        
+
         expected = (
             "PostgreSQL function 'graphql.create_user' for mutation 'createUser' not found.\n"
             "Suggestion: Create the function in your database:\n"
@@ -212,9 +210,9 @@ class TestMutationNotFoundError:
         error = MutationNotFoundError(
             mutation_name="updateUser",
             function_name="graphql.update_user",
-            available_functions=["graphql.create_user", "graphql.delete_user"]
+            available_functions=["graphql.create_user", "graphql.delete_user"],
         )
-        
+
         result = str(error)
         assert "Available mutations: graphql.create_user, graphql.delete_user" in result
 
@@ -229,7 +227,7 @@ class TestErrorChaining:
         except ValueError as e:
             error = FraiseQLError(
                 message="Failed to execute query",
-                cause=e
+                cause=e,
             )
             assert error.__cause__ == e
             assert "Database connection failed" in str(e)
@@ -239,15 +237,15 @@ class TestErrorChaining:
         original = SQLGenerationError(
             operation="WHERE clause",
             reason="Invalid syntax",
-            query_info={"field": "id", "value": "abc"}
+            query_info={"field": "id", "value": "abc"},
         )
-        
+
         wrapped = FraiseQLError(
             message="Query execution failed",
             cause=original,
-            context={"request_id": "123"}
+            context={"request_id": "123"},
         )
-        
+
         assert wrapped.__cause__ == original
         assert wrapped.context["request_id"] == "123"
         assert original.context["query_info"]["field"] == "id"

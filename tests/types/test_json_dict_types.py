@@ -214,5 +214,5 @@ async def test_null_json_field():
             "message": "Simple error",
             "code": "ERR_002",
             "details": None,
-        }
+        },
     }

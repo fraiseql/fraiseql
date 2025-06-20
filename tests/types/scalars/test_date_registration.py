@@ -32,11 +32,11 @@ def test_date_scalar_single_registration():
 
     @fraiseql.query
     async def get_model1(info) -> Model1:
-        return Model1(name="Test", date1=datetime.date.today())  # noqa: DTZ011
+        return Model1(name="Test", date1=datetime.date.today())
 
     @fraiseql.query
     async def get_model2(info) -> Model2:
-        return Model2(title="Test", date2=datetime.date.today())  # noqa: DTZ011
+        return Model2(title="Test", date2=datetime.date.today())
 
     # This should not raise a duplicate type error
     registry = SchemaRegistry.get_instance()
@@ -64,7 +64,7 @@ def test_multiple_date_fields_in_single_type():
 
     @fraiseql.query
     async def get_event(info) -> Event:
-        today = datetime.date.today()  # noqa: DTZ011
+        today = datetime.date.today()
         return Event(name="Conference", start_date=today, end_date=today, created_date=today)
 
     # Should not raise duplicate type error

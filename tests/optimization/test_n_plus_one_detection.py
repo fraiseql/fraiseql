@@ -70,7 +70,7 @@ async def get_articles(info) -> list[Article]:
                 title=f"Article {i}",
                 content=f"Content for article {i}",
                 authorId=authorId,
-            )
+            ),
         )
     return articles
 
@@ -118,7 +118,7 @@ def test_n1_detection_triggers_warning(caplog):
                                 }
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -170,7 +170,7 @@ def test_n1_detection_with_raise_enabled():
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -216,7 +216,7 @@ def test_n1_detection_respects_threshold():
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -251,7 +251,7 @@ def test_n1_detection_disabled_in_production():
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -295,7 +295,7 @@ def test_n1_detection_single_query_no_warning(caplog):
                                 }}
                             }}
                         }}
-                    """
+                    """,
                 },
             )
 
@@ -347,7 +347,7 @@ def test_field_decorator_without_n1_tracking():
                             expensiveCalculation
                         }
                     }
-                """
+                """,
             },
         )
 

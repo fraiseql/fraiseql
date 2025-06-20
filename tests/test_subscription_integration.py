@@ -40,7 +40,7 @@ async def ping(info) -> str:
 @subscription
 @complexity(score=5)
 @filter("channel in info.context.get('allowed_channels', [])")
-async def message_stream(info, channel: str) -> AsyncGenerator[Message, None]:
+async def message_stream(info, channel: str) -> AsyncGenerator[Message]:
     """Subscribe to messages in a channel."""
     # Simulate real-time messages
     for i in range(3):
@@ -55,7 +55,7 @@ async def message_stream(info, channel: str) -> AsyncGenerator[Message, None]:
 
 @subscription
 @cache(ttl=5.0)
-async def channel_stats(info, channelId: UUID) -> AsyncGenerator[Channel, None]:
+async def channel_stats(info, channelId: UUID) -> AsyncGenerator[Channel]:
     """Subscribe to channel statistics."""
     # Simulate periodic updates
     for i in range(2):
@@ -142,7 +142,7 @@ class TestSubscriptionIntegration:
 
         # Should get permission error
         subscription_result = await subscribe(
-            schema, parse(subscription_query), context_value=context
+            schema, parse(subscription_query), context_value=context,
         )
 
         # Check if it's an ExecutionResult with errors
@@ -151,7 +151,7 @@ class TestSubscriptionIntegration:
             error_messages = [str(e) for e in subscription_result.errors]
             if not any("Filter condition not met" in msg for msg in error_messages):
                 raise AssertionError(
-                    f"Expected 'Filter condition not met' in errors, got: {error_messages}"
+                    f"Expected 'Filter condition not met' in errors, got: {error_messages}",
                 )
         else:
             # It's an AsyncIterator, try to get the first result which should fail
@@ -224,7 +224,7 @@ class TestSubscriptionIntegration:
         """Test subscription error handling."""
 
         @subscription
-        async def failing_subscription(info) -> AsyncGenerator[str, None]:
+        async def failing_subscription(info) -> AsyncGenerator[str]:
             """A subscription that fails."""
             yield "first"
             raise ValueError("Subscription error!")

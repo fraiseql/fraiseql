@@ -317,15 +317,15 @@ class TestJSONScalarCoercion:
             JSONScalar.serialize({1, 2, 3})
         assert "not JSON-serializable" in str(exc_info.value)
         assert "set" in str(exc_info.value)
-        
+
         # Test other non-serializable types
         class CustomObject:
             pass
-        
+
         with pytest.raises(GraphQLError) as exc_info:
             JSONScalar.serialize(CustomObject())
         assert "not JSON-serializable" in str(exc_info.value)
-        
+
         # Test function
         with pytest.raises(GraphQLError) as exc_info:
             JSONScalar.serialize(lambda x: x)

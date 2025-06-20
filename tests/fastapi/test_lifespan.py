@@ -31,7 +31,7 @@ async def get_status(info) -> Status:
 @pytest.fixture(autouse=True)
 def reset_events():
     """Reset lifecycle events before each test."""
-    global lifecycle_events  # noqa: PLW0603
+    global lifecycle_events
     lifecycle_events = []
     yield
     lifecycle_events = []
@@ -100,7 +100,7 @@ def test_custom_lifespan():
 
         # Make a request
         response = client.post(
-            "/graphql", json={"query": "{ getStatus { message customResource } }"}
+            "/graphql", json={"query": "{ getStatus { message customResource } }"},
         )
         assert response.status_code == 200
 

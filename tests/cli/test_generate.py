@@ -47,7 +47,7 @@ class QueryRoot:
         return []
 
 app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
-'''
+''',
         )
 
         result = cli_runner.invoke(cli, ["generate", "schema"])
@@ -88,7 +88,7 @@ class QueryRoot:
         return []
 
 app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
-"""
+""",
         )
 
         result = cli_runner.invoke(cli, ["generate", "schema", "-o", "custom.graphql"])
@@ -122,7 +122,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
 import nonexistent_module
 
 app = None
-"""
+""",
         )
 
         result = cli_runner.invoke(cli, ["generate", "schema"])
@@ -163,7 +163,7 @@ class TestGenerateMigration:
             return_value="20250610120000",
         ):
             result = cli_runner.invoke(
-                cli, ["generate", "migration", "Post", "--table", "blog_posts"]
+                cli, ["generate", "migration", "Post", "--table", "blog_posts"],
             )
 
             assert result.exit_code == 0

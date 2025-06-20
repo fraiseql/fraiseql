@@ -65,7 +65,6 @@ def test_mutation_with_error_still_works():
 
 def test_mutation_without_failure_or_error_fails():
     """Test that mutation without failure/error type fails."""
-
     with pytest.raises(TypeError, match="must define 'failure' type"):
 
         @mutation

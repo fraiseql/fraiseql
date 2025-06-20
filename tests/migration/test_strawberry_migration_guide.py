@@ -86,10 +86,10 @@ class TestMigrationGuideExists:
 
         # Should have code blocks
         strawberry_examples = len(
-            re.findall(r"```python.*?strawberry", content, re.DOTALL | re.IGNORECASE)
+            re.findall(r"```python.*?strawberry", content, re.DOTALL | re.IGNORECASE),
         )
         fraiseql_examples = len(
-            re.findall(r"```python.*?fraiseql", content, re.DOTALL | re.IGNORECASE)
+            re.findall(r"```python.*?fraiseql", content, re.DOTALL | re.IGNORECASE),
         )
 
         assert strawberry_examples >= 5, "Should have at least 5 Strawberry code examples"
@@ -141,7 +141,7 @@ class TestStrawberryCompatibilityLayer:
                                 email
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -187,7 +187,7 @@ class TestStrawberryCompatibilityLayer:
                                 displayName
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -243,7 +243,7 @@ class TestStrawberryCompatibilityLayer:
                                 name
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -333,7 +333,7 @@ class TestStrawberryDataLoaderMigration:
                                 }
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -401,7 +401,7 @@ class TestStrawberryMutationMigration:
                                 email
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -505,7 +505,7 @@ class TestStrawberryFeatureParity:
                                 role
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -552,7 +552,7 @@ class TestStrawberryFeatureParity:
                                 }
                             }
                         }
-                    """
+                    """,
                 },
             )
 

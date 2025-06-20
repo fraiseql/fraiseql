@@ -7,7 +7,6 @@ to ensure parameterization works correctly in practice.
 import json
 
 import pytest
-import pytest_asyncio
 from psycopg.sql import SQL
 
 import fraiseql
@@ -43,9 +42,9 @@ async def setup_test_users(conn):
     for user_data in test_users:
         await conn.execute(
             "INSERT INTO users (data) VALUES (%s::jsonb)",
-            (json.dumps(user_data),)
+            (json.dumps(user_data),),
         )
-    
+
     await conn.commit()
 
 
@@ -65,7 +64,7 @@ class TestSQLInjectionPrevention:
         # Setup
         async with db_pool.connection() as conn:
             await setup_test_users(conn)
-        
+
         repo = FraiseQLRepository(db_pool)
         UserWhere = safe_create_where_type(User)
 
@@ -88,7 +87,7 @@ class TestSQLInjectionPrevention:
             query = DatabaseQuery(
                 statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
                 params={},
-                fetch_result=True
+                fetch_result=True,
             )
 
             # This should execute safely without SQL injection
@@ -102,7 +101,7 @@ class TestSQLInjectionPrevention:
                 result = await conn.execute("SELECT COUNT(*) FROM users")
                 count = await result.fetchone()
                 assert count[0] == 3, f"Table corrupted after injection attempt: {malicious}"
-        
+
         # Cleanup
         async with db_pool.connection() as conn:
             await cleanup_test_users(conn)
@@ -113,7 +112,7 @@ class TestSQLInjectionPrevention:
         # Setup
         async with db_pool.connection() as conn:
             await setup_test_users(conn)
-        
+
         repo = FraiseQLRepository(db_pool)
         UserWhere = safe_create_where_type(User)
 
@@ -126,7 +125,7 @@ class TestSQLInjectionPrevention:
         query = DatabaseQuery(
             statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
             params={},
-            fetch_result=True
+            fetch_result=True,
         )
 
         results = await repo.run(query)
@@ -142,7 +141,7 @@ class TestSQLInjectionPrevention:
             count_result = await conn.execute("SELECT COUNT(*) FROM users")
             count = await count_result.fetchone()
             assert count[0] == 3, "Table corrupted via IN operator injection"
-        
+
         # Cleanup
         async with db_pool.connection() as conn:
             await cleanup_test_users(conn)
@@ -153,7 +152,7 @@ class TestSQLInjectionPrevention:
         # Setup
         async with db_pool.connection() as conn:
             await setup_test_users(conn)
-        
+
         repo = FraiseQLRepository(db_pool)
         UserWhere = safe_create_where_type(User)
 
@@ -161,7 +160,7 @@ class TestSQLInjectionPrevention:
         special_inputs = [
             "user\\'; DROP TABLE users; --",  # Backslash
             "user`; DROP TABLE users; --",    # Backtick
-            "user\"; DROP TABLE users; --",   # Double quote
+            'user"; DROP TABLE users; --',   # Double quote
             "user\n; DROP TABLE users; --",   # Newline
             "user\r\n; DROP TABLE users; --", # CRLF
             "user\x00; DROP TABLE users; --", # Null byte
@@ -176,13 +175,13 @@ class TestSQLInjectionPrevention:
             query = DatabaseQuery(
                 statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
                 params={},
-                fetch_result=True
+                fetch_result=True,
             )
 
             # Should handle special characters safely
             try:
                 results = await repo.run(query)
-                assert len(results) == 0, f"Special character injection with: {repr(special)}"
+                assert len(results) == 0, f"Special character injection with: {special!r}"
             except Exception as e:
                 # Null bytes cause PostgreSQL to raise DataError, which is expected
                 if "\x00" in special and "NUL" in str(e):
@@ -195,8 +194,8 @@ class TestSQLInjectionPrevention:
             async with db_pool.connection() as conn:
                 count_result = await conn.execute("SELECT COUNT(*) FROM users")
                 count = await count_result.fetchone()
-                assert count[0] == 3, f"Database corrupted with special character: {repr(special)}"
-        
+                assert count[0] == 3, f"Database corrupted with special character: {special!r}"
+
         # Cleanup
         async with db_pool.connection() as conn:
             await cleanup_test_users(conn)
@@ -207,21 +206,21 @@ class TestSQLInjectionPrevention:
         # Setup
         async with db_pool.connection() as conn:
             await setup_test_users(conn)
-        
+
         repo = FraiseQLRepository(db_pool)
         UserWhere = safe_create_where_type(User)
 
         # Create a query with potential injection
         where = UserWhere(
             name={"eq": "Admin'; DROP TABLE users; --"},
-            role={"in": ["admin", "user'; DELETE FROM users; --"]}
+            role={"in": ["admin", "user'; DELETE FROM users; --"]},
         )
 
         sql_where = where.to_sql()
         query = DatabaseQuery(
             statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
             params={},
-            fetch_result=True
+            fetch_result=True,
         )
 
         # Execute query
@@ -240,7 +239,7 @@ class TestSQLInjectionPrevention:
             """)
             table_check = await table_check_result.fetchone()
             assert table_check[0] == 2, "Table structure was modified"
-        
+
         # Cleanup
         async with db_pool.connection() as conn:
             await cleanup_test_users(conn)
@@ -255,7 +254,7 @@ class TestSQLInjectionPrevention:
         # Setup
         async with db_pool.connection() as conn:
             await setup_test_users(conn)
-        
+
         repo = FraiseQLRepository(db_pool)
         UserWhere = safe_create_where_type(User)
 
@@ -265,7 +264,7 @@ class TestSQLInjectionPrevention:
         query_normal = DatabaseQuery(
             statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where,
             params={},
-            fetch_result=True
+            fetch_result=True,
         )
 
         results_normal = await repo.run(query_normal)
@@ -278,7 +277,7 @@ class TestSQLInjectionPrevention:
         query_injection = DatabaseQuery(
             statement=SQL("SELECT id, data FROM users WHERE ").format() + sql_where_injection,
             params={},
-            fetch_result=True
+            fetch_result=True,
         )
 
         results_injection = await repo.run(query_injection)
@@ -294,7 +293,7 @@ class TestSQLInjectionPrevention:
             """)
             exists = await verify_result.fetchone()
             assert exists[0] is True, "Table was dropped via SQL injection"
-        
+
         # Cleanup
         async with db_pool.connection() as conn:
             await cleanup_test_users(conn)

@@ -31,7 +31,7 @@ def cli_runner() -> CliRunner:
 
 
 @pytest.fixture
-def temp_project_dir() -> Generator[Path, None, None]:
+def temp_project_dir() -> Generator[Path]:
     """Create a temporary directory for project testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         original_cwd = os.getcwd()

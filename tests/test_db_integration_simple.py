@@ -16,7 +16,7 @@ async def setup_test_data(conn):
             data JSONB NOT NULL DEFAULT '{}'::jsonb,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """
+    """,
     )
 
     # Insert test data
@@ -26,7 +26,7 @@ async def setup_test_data(conn):
         ('{"name": "John Doe", "email": "john@example.com", "active": true}'::jsonb),
         ('{"name": "Jane Smith", "email": "jane@example.com", "active": true}'::jsonb),
         ('{"name": "Bob Wilson", "email": "bob@example.com", "active": false}'::jsonb)
-    """
+    """,
     )
 
     # Create posts table
@@ -38,7 +38,7 @@ async def setup_test_data(conn):
             data JSONB NOT NULL DEFAULT '{}'::jsonb,
             published_at TIMESTAMP
         )
-    """
+    """,
     )
 
     await conn.execute(
@@ -47,7 +47,7 @@ async def setup_test_data(conn):
         (1, '{"title": "First Post", "content": "Hello World"}'::jsonb, '2024-01-01'),
         (1, '{"title": "Second Post", "content": "More content"}'::jsonb, '2024-01-02'),
         (2, '{"title": "Jane''s Post", "content": "Jane''s thoughts"}'::jsonb, NULL)
-    """
+    """,
     )
 
     await conn.commit()
@@ -101,7 +101,7 @@ class TestFraiseQLRepositoryIntegration:
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
             statement=SQL(
-                "SELECT id, data->>'email' as email FROM users WHERE data->>'email' = %(email)s"
+                "SELECT id, data->>'email' as email FROM users WHERE data->>'email' = %(email)s",
             ),
             params={"email": "jane@example.com"},
             fetch_result=True,
@@ -131,7 +131,7 @@ class TestFraiseQLRepositoryIntegration:
                     SQL("SELECT id, data FROM "),
                     Identifier("users"),
                     SQL(" WHERE (data->>'active')::boolean = %(active)s"),
-                ]
+                ],
             ),
             params={"active": True},
             fetch_result=True,
@@ -187,7 +187,7 @@ class TestFraiseQLRepositoryIntegration:
         update_query = DatabaseQuery(
             statement=SQL(
                 "UPDATE users SET data = jsonb_set(data, '{active}', 'true') "
-                "WHERE data->>'name' = %(name)s"
+                "WHERE data->>'name' = %(name)s",
             ),
             params={"name": "Bob Wilson"},
             fetch_result=False,
@@ -263,7 +263,7 @@ class TestFraiseQLRepositoryIntegration:
                 JOIN posts p ON u.id = p.user_id
                 WHERE p.published_at IS NOT NULL
                 ORDER BY p.published_at
-            """
+            """,
             ),
             params={},
             fetch_result=True,
@@ -294,7 +294,7 @@ class TestFraiseQLRepositoryIntegration:
             async with db_pool.connection() as conn:
                 # This should succeed
                 await conn.execute(
-                    'INSERT INTO users (data) VALUES (\'{"name": "Test User"}\'::jsonb)'
+                    'INSERT INTO users (data) VALUES (\'{"name": "Test User"}\'::jsonb)',
                 )
 
                 # This should fail (invalid foreign key)
@@ -373,7 +373,7 @@ class TestFraiseQLRepositoryIntegration:
                     jsonb_agg(data->>'name') as names
                 FROM users
                 GROUP BY (data->>'active')::boolean
-            """
+            """,
             ),
             params={},
             fetch_result=True,

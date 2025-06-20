@@ -43,7 +43,7 @@ class QueryRoot:
         return []
 
 app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
-"""
+""",
         )
 
         result = cli_runner.invoke(cli, ["check"])
@@ -122,7 +122,7 @@ class BadType:
     self: "BadType"
 
 app = fraiseql.create_fraiseql_app(types=[BadType])
-"""
+""",
         )
 
         result = cli_runner.invoke(cli, ["check"])

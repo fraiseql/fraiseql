@@ -162,7 +162,7 @@ class TestFraiseEnum:
             "articles": [
                 {"id": "1", "title": "First", "status": "PUBLISHED"},
                 {"id": "2", "title": "Second", "status": "DRAFT"},
-            ]
+            ],
         }
 
     def test_enum_in_mutation(self, clear_registry):
@@ -253,7 +253,7 @@ class TestFraiseEnum:
             "products": [
                 {"id": "1", "name": "Laptop", "category": "ELECTRONICS"},
                 {"id": "2", "name": "Unknown Item", "category": None},
-            ]
+            ],
         }
 
     def test_list_of_enums(self, clear_registry):
@@ -307,7 +307,7 @@ class TestFraiseEnum:
             "roles": [
                 {"name": "Editor", "permissions": ["READ", "WRITE"]},
                 {"name": "Admin", "permissions": ["READ", "WRITE", "DELETE", "ADMIN"]},
-            ]
+            ],
         }
 
     def test_enum_without_decorator_raises_error(self, clear_registry):
