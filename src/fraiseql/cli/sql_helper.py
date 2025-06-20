@@ -83,7 +83,10 @@ class ViewGenerator:
         join_fields = []
         if options.joins:
             for join in options.joins:
-                join_sql += f"\n    LEFT JOIN {join['target_table']} ON {table_name}.{join['join_column']} = {join['target_table']}.id"
+                join_sql += (
+                    f"\n    LEFT JOIN {join['target_table']} "
+                    f"ON {table_name}.{join['join_column']} = {join['target_table']}.id"
+                )
 
                 # Build nested object for join
                 join_obj_fields = [
@@ -554,7 +557,8 @@ class SQLHelper:
             elif re.match(r"^\s*'(\w+)',\s*(\w+)", line_stripped):
                 match = re.match(r"^\s*'(\w+)',\s*(\w+)", line_stripped)
                 explanations.append(
-                    f"'{match.group(1)}', {match.group(2)}: Maps the '{match.group(2)}' column to JSON field '{match.group(1)}'",
+                    f"'{match.group(1)}', {match.group(2)}: "
+                    f"Maps the '{match.group(2)}' column to JSON field '{match.group(1)}'",
                 )
 
             elif "as data" in line_stripped.lower():

@@ -142,7 +142,7 @@ class InvalidFieldTypeError(FraiseQLError):
             suggestion = "Check the documentation for supported field types"
 
         super().__init__(
-            message=f"Field '{field_name}' in class '{class_name}' has unsupported type '{field_type}'.",
+            message=(\n                f"Field '{field_name}' in class '{class_name}' "\n                f"has unsupported type '{field_type}'."\n            ),
             code="INVALID_FIELD_TYPE",
             suggestion=suggestion,
             doc_link="https://docs.fraiseql.com/errors/invalid-field-type",
@@ -215,7 +215,7 @@ $$ LANGUAGE plpgsql;"""
             suggestion += f"\n\nAvailable mutations: {', '.join(available_functions)}"
 
         super().__init__(
-            message=f"PostgreSQL function '{function_name}' for mutation '{mutation_name}' not found.",
+            message=(\n                f"PostgreSQL function '{function_name}' for mutation "\n                f"'{mutation_name}' not found."\n            ),
             code="MUTATION_NOT_FOUND",
             suggestion=suggestion,
             doc_link="https://docs.fraiseql.com/errors/missing-mutation",
