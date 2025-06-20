@@ -1,0 +1,81 @@
+<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="500" fill="white"/>
+  <defs>
+    <style>
+      .title { font: bold 24px sans-serif; }
+      .label { font: 14px sans-serif; }
+      .value { font: bold 12px sans-serif; }
+      .axis { stroke: #333; stroke-width: 2; }
+      .grid { stroke: #ddd; stroke-width: 1; stroke-dasharray: 5,5; }
+      .fraiseql { fill: #e74c3c; }
+      .java { fill: #007396; }
+      .improvement { fill: #27ae60; font: bold 16px sans-serif; }
+    </style>
+  </defs>
+  
+  <!-- Title -->
+  <text x="400" y="35" text-anchor="middle" class="title">FraiseQL vs Java+ORM : Performance Comparée</text>
+  
+  <!-- Y-axis -->
+  <line x1="100" y1="70" x2="100" y2="400" class="axis"/>
+  
+  <!-- X-axis -->
+  <line x1="100" y1="400" x2="700" y2="400" class="axis"/>
+  
+  <!-- Grid lines -->
+  <line x1="100" y1="350" x2="700" y2="350" class="grid"/>
+  <line x1="100" y1="300" x2="700" y2="300" class="grid"/>
+  <line x1="100" y1="250" x2="700" y2="250" class="grid"/>
+  <line x1="100" y1="200" x2="700" y2="200" class="grid"/>
+  <line x1="100" y1="150" x2="700" y2="150" class="grid"/>
+  <line x1="100" y1="100" x2="700" y2="100" class="grid"/>
+  
+  <!-- Y-axis labels -->
+  <text x="90" y="405" text-anchor="end" class="label">0</text>
+  <text x="90" y="355" text-anchor="end" class="label">50</text>
+  <text x="90" y="305" text-anchor="end" class="label">100</text>
+  <text x="90" y="255" text-anchor="end" class="label">200</text>
+  <text x="90" y="205" text-anchor="end" class="label">300</text>
+  <text x="90" y="155" text-anchor="end" class="label">400</text>
+  <text x="90" y="105" text-anchor="end" class="label">500</text>
+  
+  <!-- Y-axis title -->
+  <text x="40" y="250" text-anchor="middle" class="label" transform="rotate(-90, 40, 250)">Temps de réponse (ms)</text>
+  
+  <!-- Bars for Simple Query -->
+  <rect x="160" y="392" width="60" height="8" class="fraiseql"/>
+  <text x="190" y="385" text-anchor="middle" class="value">3.8 ms</text>
+  <rect x="230" y="380" width="60" height="20" class="java"/>
+  <text x="260" y="373" text-anchor="middle" class="value">10 ms</text>
+  <text x="225" y="365" text-anchor="middle" class="improvement">2.6x plus rapide</text>
+  
+  <!-- Bars for Complex Query -->
+  <rect x="360" y="382" width="60" height="18" class="fraiseql"/>
+  <text x="390" y="375" text-anchor="middle" class="value">18 ms</text>
+  <rect x="430" y="123" width="60" height="277" class="java"/>
+  <text x="460" y="115" text-anchor="middle" class="value">385 ms</text>
+  <text x="425" y="365" text-anchor="middle" class="improvement">21x plus rapide</text>
+  
+  <!-- Bars for Memory Usage -->
+  <rect x="560" y="350" width="60" height="50" class="fraiseql"/>
+  <text x="590" y="343" text-anchor="middle" class="value">50 MB</text>
+  <rect x="630" y="250" width="60" height="150" class="java"/>
+  <text x="660" y="243" text-anchor="middle" class="value">300 MB</text>
+  <text x="625" y="335" text-anchor="middle" class="improvement">6x moins</text>
+  
+  <!-- X-axis labels -->
+  <text x="225" y="425" text-anchor="middle" class="label">Requête Simple</text>
+  <text x="425" y="425" text-anchor="middle" class="label">Requête Complexe</text>
+  <text x="625" y="425" text-anchor="middle" class="label">Mémoire Utilisée</text>
+  
+  <!-- Legend -->
+  <rect x="550" y="85" width="20" height="20" class="fraiseql"/>
+  <text x="575" y="100" class="label">FraiseQL</text>
+  <rect x="550" y="115" width="20" height="20" class="java"/>
+  <text x="575" y="130" class="label">Java + ORM</text>
+  
+  <!-- Architecture note -->
+  <text x="400" y="470" text-anchor="middle" class="label" font-size="12" fill="#666">
+    Architecture PostgreSQL-first vs ORM traditionnel - Benchmarks sur 10,000 requêtes
+  </text>
+</svg>

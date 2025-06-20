@@ -1,0 +1,80 @@
+<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .title { font: bold 24px sans-serif; }
+      .label { font: 14px sans-serif; }
+      .value { font: bold 12px sans-serif; }
+      .axis { stroke: #333; stroke-width: 2; }
+      .grid { stroke: #ddd; stroke-width: 1; stroke-dasharray: 5,5; }
+      .fraiseql { fill: #e74c3c; }
+      .traditional { fill: #95a5a6; }
+      .improvement { fill: #27ae60; font: bold 14px sans-serif; }
+    </style>
+  </defs>
+  
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" class="title">Performance FraiseQL vs Stack Traditionnelle</text>
+  
+  <!-- Y-axis -->
+  <line x1="80" y1="60" x2="80" y2="400" class="axis"/>
+  
+  <!-- X-axis -->
+  <line x1="80" y1="400" x2="720" y2="400" class="axis"/>
+  
+  <!-- Grid lines -->
+  <line x1="80" y1="350" x2="720" y2="350" class="grid"/>
+  <line x1="80" y1="300" x2="720" y2="300" class="grid"/>
+  <line x1="80" y1="250" x2="720" y2="250" class="grid"/>
+  <line x1="80" y1="200" x2="720" y2="200" class="grid"/>
+  <line x1="80" y1="150" x2="720" y2="150" class="grid"/>
+  <line x1="80" y1="100" x2="720" y2="100" class="grid"/>
+  
+  <!-- Y-axis labels -->
+  <text x="70" y="405" text-anchor="end" class="label">0</text>
+  <text x="70" y="355" text-anchor="end" class="label">50</text>
+  <text x="70" y="305" text-anchor="end" class="label">100</text>
+  <text x="70" y="255" text-anchor="end" class="label">150</text>
+  <text x="70" y="205" text-anchor="end" class="label">200</text>
+  <text x="70" y="155" text-anchor="end" class="label">250</text>
+  <text x="70" y="105" text-anchor="end" class="label">300</text>
+  
+  <!-- Y-axis title -->
+  <text x="30" y="250" text-anchor="middle" class="label" transform="rotate(-90, 30, 250)">Temps (ms) / Mémoire (MB)</text>
+  
+  <!-- Bars for Simple Query -->
+  <rect x="140" y="388" width="60" height="12" class="fraiseql"/>
+  <text x="170" y="395" text-anchor="middle" class="value" fill="white">3.8</text>
+  <rect x="210" y="370" width="60" height="30" class="traditional"/>
+  <text x="240" y="390" text-anchor="middle" class="value" fill="white">10</text>
+  <text x="170" y="380" text-anchor="middle" class="improvement">-62%</text>
+  
+  <!-- Bars for Complex Query -->
+  <rect x="360" y="346" width="60" height="54" class="fraiseql"/>
+  <text x="390" y="380" text-anchor="middle" class="value" fill="white">18</text>
+  <rect x="430" y="100" width="60" height="300" class="traditional"/>
+  <text x="460" y="250" text-anchor="middle" class="value" fill="white">385</text>
+  <text x="390" y="336" text-anchor="middle" class="improvement">-95%</text>
+  
+  <!-- Bars for Memory Usage -->
+  <rect x="580" y="300" width="60" height="100" class="fraiseql"/>
+  <text x="610" y="355" text-anchor="middle" class="value" fill="white">50</text>
+  <rect x="650" y="100" width="60" height="300" class="traditional"/>
+  <text x="680" y="250" text-anchor="middle" class="value" fill="white">300</text>
+  <text x="610" y="290" text-anchor="middle" class="improvement">-83%</text>
+  
+  <!-- X-axis labels -->
+  <text x="205" y="420" text-anchor="middle" class="label">Requête Simple</text>
+  <text x="425" y="420" text-anchor="middle" class="label">Requête Complexe</text>
+  <text x="645" y="420" text-anchor="middle" class="label">Utilisation Mémoire</text>
+  
+  <!-- Legend -->
+  <rect x="550" y="70" width="20" height="20" class="fraiseql"/>
+  <text x="575" y="85" class="label">FraiseQL</text>
+  <rect x="550" y="100" width="20" height="20" class="traditional"/>
+  <text x="575" y="115" class="label">Java + ORM</text>
+  
+  <!-- Note -->
+  <text x="400" y="470" text-anchor="middle" class="label" font-size="12" fill="#666">
+    Benchmarks réels sur PostgreSQL 16, moyenne de 1000 requêtes
+  </text>
+</svg>
