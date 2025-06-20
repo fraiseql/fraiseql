@@ -4,22 +4,22 @@ This module provides comprehensive metrics collection for monitoring
 FraiseQL applications in production.
 """
 
-from dataclasses import dataclass, field as dataclass_field
-from typing import Optional, Any
 import time
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from functools import wraps
+from typing import Optional
 
-from prometheus_client import (
-    Counter,
-    Histogram,
-    Gauge,
-    generate_latest,
-    CollectorRegistry,
-    CONTENT_TYPE_LATEST,
-)
 from fastapi import FastAPI, Request, Response
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 from starlette.middleware.base import BaseHTTPMiddleware
-
 
 # Global metrics instance
 _metrics_instance: Optional["FraiseQLMetrics"] = None

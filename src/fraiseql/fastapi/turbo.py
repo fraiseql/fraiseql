@@ -7,7 +7,7 @@ by directly executing pre-validated SQL templates.
 import hashlib
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -16,10 +16,10 @@ class TurboQuery:
     
     graphql_query: str
     sql_template: str
-    param_mapping: Dict[str, str]  # GraphQL variable path -> SQL parameter name
+    param_mapping: dict[str, str]  # GraphQL variable path -> SQL parameter name
     operation_name: Optional[str] = None
     
-    def map_variables(self, graphql_variables: Dict[str, Any]) -> Dict[str, Any]:
+    def map_variables(self, graphql_variables: dict[str, Any]) -> dict[str, Any]:
         """Map GraphQL variables to SQL parameters.
         
         Args:
@@ -137,9 +137,9 @@ class TurboRouter:
     async def execute(
         self,
         query: str,
-        variables: Dict[str, Any],
-        context: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        variables: dict[str, Any],
+        context: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         """Execute a query using the turbo path if registered.
         
         Args:

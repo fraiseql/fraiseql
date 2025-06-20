@@ -1,12 +1,12 @@
 """SQL helper CLI commands."""
 
-import click
 import importlib.util
 import sys
-from pathlib import Path
-from typing import Type
+from typing import Optional
 
-from fraiseql.cli.sql_helper import SQLHelper, ViewOptions, SQLPattern
+import click
+
+from fraiseql.cli.sql_helper import SQLHelper, SQLPattern, ViewOptions
 
 
 @click.group()
@@ -149,8 +149,8 @@ def generate_pattern(pattern_type, table_name, limit, offset, where, order, chil
         # Default aggregates
         aggregates = {
             "count": "COUNT(*)",
-            "total": f"SUM(amount)",
-            "average": f"AVG(amount)"
+            "total": "SUM(amount)",
+            "average": "AVG(amount)"
         }
         
         sql = SQLPattern.aggregation(table_name, group_by, aggregates)
@@ -212,7 +212,7 @@ def explain(sql_file):
             click.echo(click.style(f"  - {issue}", fg="yellow"))
 
 
-def _load_type(type_name: str, module_path: str = None) -> Type:
+def _load_type(type_name: str, module_path: Optional[str] = None) -> type:
     """Load a type from a module.
     
     Args:
@@ -225,7 +225,6 @@ def _load_type(type_name: str, module_path: str = None) -> Type:
     if module_path:
         # Load from specified module
         try:
-            parts = module_path.split(".")
             module = importlib.import_module(module_path)
             return getattr(module, type_name)
         except (ImportError, AttributeError) as e:

@@ -71,9 +71,6 @@ from .types.scalars.json import JSONField as JSON
 __version__ = "0.1.0a8"
 
 __all__ = [
-    # Scalar types
-    "Date",
-    "EmailAddress",
     "JSON",
     # Auth integration
     "Auth0Config",
@@ -84,7 +81,10 @@ __all__ = [
     "CQRSRepository",
     # Generic types
     "Connection",
+    # Scalar types
+    "Date",
     "Edge",
+    "EmailAddress",
     "FraiseQLConfig",
     "PageInfo",
     "PaginatedResponse",

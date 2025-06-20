@@ -4,14 +4,16 @@ This module combines the functionality of where_generator.py and where_generator
 into a single, configurable implementation with better error handling.
 """
 
-from dataclasses import dataclass, field as dataclass_field
-from enum import Enum
-from typing import Any, Callable, Optional, Union, get_type_hints, get_origin, get_args
-from decimal import Decimal
-from datetime import datetime, date
 import json
+from collections.abc import Callable
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
+from typing import Any, Optional, Union, get_args, get_origin, get_type_hints
 
-from psycopg.sql import SQL, Composed, Identifier, Literal, Placeholder
+from psycopg.sql import SQL, Composed, Literal, Placeholder
 
 from fraiseql.errors.user_friendly import SQLGenerationError
 from fraiseql.security.validators import InputValidator
@@ -80,8 +82,9 @@ class WhereClauseMixin:
                     )
         
         # Numeric validation
-        elif isinstance(value, (int, float, Decimal)):
-            if isinstance(value, float) and (value == float('inf') or value == float('-inf') or value != value):
+        elif isinstance(value, int | float | Decimal):
+            import math
+            if isinstance(value, float) and (math.isinf(value) or math.isnan(value)):
                 raise SQLGenerationError(
                     operation="WHERE clause generation",
                     reason=f"Field '{field_name}' contains invalid numeric value",
@@ -119,7 +122,7 @@ class WhereClauseMixin:
             parts = mapped_name.split("__")
             # Build nested JSON access: data->'part1'->'part2'->>'final'
             path = SQL(self._config.table_prefix)
-            for i, part in enumerate(parts[:-1]):
+            for _i, part in enumerate(parts[:-1]):
                 path = SQL("{}->{}").format(path, Literal(part))
             path = SQL("{}->>{}").format(path, Literal(parts[-1]))
             return path
@@ -131,17 +134,17 @@ class WhereClauseMixin:
         base_path = self._get_field_path(field_name)
         
         # Determine casting based on type
-        if field_type in (int, Optional[int]):
+        if field_type is int or field_type == Optional[int]:
             return SQL("({})::int").format(base_path)
-        elif field_type in (float, Optional[float]):
+        elif field_type is float or field_type == Optional[float]:
             return SQL("({})::float").format(base_path)
-        elif field_type in (Decimal, Optional[Decimal]):
+        elif field_type is Decimal or field_type == Optional[Decimal]:
             return SQL("({})::numeric").format(base_path)
-        elif field_type in (bool, Optional[bool]):
+        elif field_type is bool or field_type == Optional[bool]:
             return SQL("({})::boolean").format(base_path)
-        elif field_type in (datetime, Optional[datetime]):
+        elif field_type is datetime or field_type == Optional[datetime]:
             return SQL("({})::timestamp").format(base_path)
-        elif field_type in (date, Optional[date]):
+        elif field_type is date or field_type == Optional[date]:
             return SQL("({})::date").format(base_path)
         else:
             return base_path
@@ -152,7 +155,7 @@ class WhereClauseMixin:
         validated_value = self._validate_value(field_name, value)
         
         # Get the field path with casting
-        if operator in ("contains", "starts_with", "ends_with") or field_type in (str, Optional[str]):
+        if operator in ("contains", "starts_with", "ends_with") or field_type is str or field_type == Optional[str]:
             field_path = self._get_field_path(field_name)
         else:
             field_path = self._get_typed_field_path(field_name, field_type)
@@ -200,7 +203,6 @@ class WhereClauseMixin:
     def _get_params(self) -> list[Any]:
         """Get parameter values in the order they appear in the SQL."""
         params = []
-        type_hints = get_type_hints(self.__class__._original_class)
         
         for key, value in sorted(self._conditions.items()):
             if key.startswith("_"):
@@ -343,20 +345,21 @@ def create_where_type(cls: type, config: Optional[WhereGeneratorConfig] = None) 
         
         # Type-specific operators
         origin = get_origin(field_type)
+        base_type = field_type
         if origin is Union:
             # Handle Optional types
             args = get_args(field_type)
             if len(args) == 2 and type(None) in args:
-                field_type = args[0] if args[1] is type(None) else args[1]
+                base_type = args[0] if args[1] is type(None) else args[1]
         
         # Add operators based on type
-        if field_type in (int, float, Decimal, datetime, date):
+        if base_type in {int, float, Decimal, datetime, date}:
             attributes[f"{field_name}_lt"] = None
             attributes[f"{field_name}_lte"] = None
             attributes[f"{field_name}_gt"] = None
             attributes[f"{field_name}_gte"] = None
         
-        if field_type == str:
+        if base_type is str:
             attributes[f"{field_name}_contains"] = None
             attributes[f"{field_name}_starts_with"] = None
             attributes[f"{field_name}_ends_with"] = None

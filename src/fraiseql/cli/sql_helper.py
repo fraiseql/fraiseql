@@ -5,10 +5,11 @@ how FraiseQL maps GraphQL types to PostgreSQL views.
 """
 
 import re
-from dataclasses import dataclass, field as dataclass_field
-from datetime import datetime, date
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Optional, Type, get_type_hints, get_origin, Union, get_args
+from typing import Any, Optional, Union, get_args, get_origin, get_type_hints
 
 from fraiseql.utils.string import to_snake_case
 
@@ -38,7 +39,7 @@ class ValidationResult:
 class ViewGenerator:
     """Generates SQL views for FraiseQL types."""
     
-    def generate_view(self, cls: Type, options: Optional[ViewOptions] = None) -> str:
+    def generate_view(self, cls: type, options: Optional[ViewOptions] = None) -> str:
         """Generate a SQL view for a FraiseQL type.
         
         Args:
@@ -136,7 +137,7 @@ OFFSET {offset};"""
                 where_parts.append(f"data->>'{field}' = '{value}'")
             elif isinstance(value, bool):
                 where_parts.append(f"(data->>'{field}')::boolean = {str(value).lower()}")
-            elif isinstance(value, (int, float)):
+            elif isinstance(value, int | float):
                 where_parts.append(f"(data->>'{field}')::numeric = {value}")
             else:
                 where_parts.append(f"data->>'{field}' = '{value}'")
@@ -212,7 +213,7 @@ GROUP BY data->>'{group_by}';"""
 class FieldMapping:
     """Utilities for mapping fields between GraphQL and database."""
     
-    def auto_detect(self, cls: Type, db_columns: list[str]) -> dict[str, str]:
+    def auto_detect(self, cls: type, db_columns: list[str]) -> dict[str, str]:
         """Auto-detect field mapping based on column names.
         
         Args:
@@ -239,7 +240,7 @@ class FieldMapping:
             
             # Try with table prefix
             for col in db_columns:
-                if col.endswith(f"_{field_name}") or col.endswith(f"_{snake_name}"):
+                if col.endswith((f"_{field_name}", f"_{snake_name}")):
                     mapping[field_name] = col
                     break
             
@@ -291,7 +292,7 @@ class FieldMapping:
         # Sort by score
         return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
     
-    def is_compatible(self, db_type: str, python_type: Type) -> bool:
+    def is_compatible(self, db_type: str, python_type: type) -> bool:
         """Check if database type is compatible with Python type.
         
         Args:
@@ -335,11 +336,11 @@ class SQLHelper:
         self.generator = ViewGenerator()
         self.mapper = FieldMapping()
     
-    def generate_view(self, cls: Type, options: Optional[ViewOptions] = None) -> str:
+    def generate_view(self, cls: type, options: Optional[ViewOptions] = None) -> str:
         """Generate a view for a FraiseQL type."""
         return self.generator.generate_view(cls, options)
     
-    def generate_setup(self, cls: Type, include_table: bool = False, 
+    def generate_setup(self, cls: type, include_table: bool = False, 
                       include_indexes: bool = False, include_sample_data: bool = False) -> str:
         """Generate complete SQL setup for a type.
         
@@ -367,9 +368,9 @@ class SQLHelper:
                 sql_type = self._python_to_sql_type(field_type)
                 
                 if field_name == "id":
-                    columns.append(f"    id SERIAL PRIMARY KEY")
+                    columns.append("    id SERIAL PRIMARY KEY")
                 elif field_name == "email":
-                    columns.append(f"    email VARCHAR(255) NOT NULL UNIQUE")
+                    columns.append("    email VARCHAR(255) NOT NULL UNIQUE")
                 else:
                     # Handle nullability
                     origin = get_origin(field_type)
@@ -386,7 +387,7 @@ class SQLHelper:
         if include_indexes:
             parts.append("-- Create indexes for better performance")
             
-            for field_name, field_type in type_hints.items():
+            for field_name, _field_type in type_hints.items():
                 if field_name in ("email", "name", "created_at"):
                     parts.append(f"CREATE INDEX idx_{table_name}_{field_name} ON {table_name}({field_name});")
             
@@ -402,7 +403,7 @@ class SQLHelper:
             parts.append("-- Insert sample data")
             parts.append(f"INSERT INTO {table_name} (")
             
-            fields = [f for f in type_hints.keys() if f != "id"]
+            fields = [f for f in type_hints if f != "id"]
             parts.append(f"    {', '.join(fields)}")
             parts.append(") VALUES")
             
@@ -413,16 +414,16 @@ class SQLHelper:
                     if field_name == "id":
                         continue
                     
-                    if field_type == str:
+                    if field_type is str:
                         if field_name == "email":
                             values.append(f"'sample.user{i+1}@example.com'")
                         else:
                             values.append(f"'Sample {field_name.title()} {i+1}'")
-                    elif field_type == bool:
+                    elif field_type is bool:
                         values.append("true")
                     elif field_type in (int, float):
                         values.append(str(i + 1))
-                    elif field_type == Decimal:
+                    elif field_type is Decimal:
                         values.append(f"{(i + 1) * 10.99}")
                     else:
                         values.append("NULL")
@@ -431,7 +432,7 @@ class SQLHelper:
         
         return "\n".join(parts)
     
-    def generate_migration(self, cls: Type, existing_schema: dict, 
+    def generate_migration(self, cls: type, existing_schema: dict, 
                           field_mapping: dict[str, str]) -> str:
         """Generate migration SQL from existing table to FraiseQL view.
         
@@ -448,7 +449,7 @@ class SQLHelper:
         
         parts = []
         parts.append(f"-- Migration script to create FraiseQL view for {type_name}")
-        parts.append(f"-- From existing table with custom field mapping")
+        parts.append("-- From existing table with custom field mapping")
         parts.append("")
         
         # Build view with mapping
@@ -514,35 +515,35 @@ class SQLHelper:
         
         lines = sql.strip().split('\n')
         for line in lines:
-            line = line.strip()
+            line_stripped = line.strip()
             
-            if line.startswith("--"):
+            if line_stripped.startswith("--"):
                 continue
             
-            if "CREATE VIEW" in line.upper():
-                view_match = re.search(r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)", line, re.IGNORECASE)
+            if "CREATE VIEW" in line_stripped.upper():
+                view_match = re.search(r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)", line_stripped, re.IGNORECASE)
                 if view_match:
                     explanations.append(f"This SQL creates a view named '{view_match.group(1)}'")
                     explanations.append("A view is like a saved query that acts as a virtual table")
             
-            elif "jsonb_build_object" in line.lower():
+            elif "jsonb_build_object" in line_stripped.lower():
                 explanations.append("jsonb_build_object: Creates a JSON object from key-value pairs")
             
-            elif re.match(r"^\s*'(\w+)',\s*(\w+)", line):
-                match = re.match(r"^\s*'(\w+)',\s*(\w+)", line)
+            elif re.match(r"^\s*'(\w+)',\s*(\w+)", line_stripped):
+                match = re.match(r"^\s*'(\w+)',\s*(\w+)", line_stripped)
                 explanations.append(f"'{match.group(1)}', {match.group(2)}: Maps the '{match.group(2)}' column to JSON field '{match.group(1)}'")
             
-            elif "as data" in line.lower():
+            elif "as data" in line_stripped.lower():
                 explanations.append("as data: Names the JSON column 'data' (required by FraiseQL)")
             
-            elif re.match(r"FROM\s+(\w+)", line, re.IGNORECASE):
-                match = re.match(r"FROM\s+(\w+)", line, re.IGNORECASE)
+            elif re.match(r"FROM\s+(\w+)", line_stripped, re.IGNORECASE):
+                match = re.match(r"FROM\s+(\w+)", line_stripped, re.IGNORECASE)
                 explanations.append(f"FROM {match.group(1)}: Reads from the '{match.group(1)}' table")
             
-            elif "LEFT JOIN" in line.upper():
+            elif "LEFT JOIN" in line_stripped.upper():
                 explanations.append("LEFT JOIN: Includes related data (keeps all rows from left table)")
             
-            elif "GRANT SELECT" in line.upper():
+            elif "GRANT SELECT" in line_stripped.upper():
                 explanations.append("GRANT SELECT: Gives read permission to a database user/role")
         
         return "\n".join(explanations)
@@ -583,7 +584,7 @@ class SQLHelper:
         
         return issues
     
-    def _python_to_sql_type(self, python_type: Type) -> str:
+    def _python_to_sql_type(self, python_type: type) -> str:
         """Convert Python type to SQL type.
         
         Args:

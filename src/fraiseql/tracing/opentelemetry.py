@@ -4,28 +4,27 @@ This module provides distributed tracing capabilities using OpenTelemetry,
 enabling visibility into GraphQL operations across the entire request lifecycle.
 """
 
-import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from functools import wraps
-from typing import Any, Optional, Dict, Callable
+from typing import Any, Optional
 
 from fastapi import FastAPI, Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
-
-from opentelemetry import trace, context as otel_context
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry import context as otel_context
+from opentelemetry import trace
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.zipkin.json import ZipkinExporter
 from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
 from opentelemetry.propagate import extract, inject
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider, Span
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 from opentelemetry.semconv.trace import SpanAttributes
 from opentelemetry.trace import Status, StatusCode
-
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Global tracer instance
 _tracer_instance: Optional["FraiseQLTracer"] = None
@@ -132,6 +131,8 @@ class FraiseQLTracer:
                 return JaegerExporter(agent_host_name=self.config.export_endpoint)
         elif self.config.export_format == "zipkin":
             return ZipkinExporter(endpoint=self.config.export_endpoint)
+        # Return None for console exporter
+        return None
     
     @contextmanager
     def trace_graphql_query(self, operation_name: str, query: str, variables: Optional[dict] = None):
@@ -225,7 +226,7 @@ class FraiseQLTracer:
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 raise
     
-    def inject_context(self, headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    def inject_context(self, headers: Optional[dict[str, str]] = None) -> dict[str, str]:
         """Inject current trace context into headers."""
         if headers is None:
             headers = {}
@@ -235,7 +236,7 @@ class FraiseQLTracer:
         
         return headers
     
-    def extract_context(self, headers: Dict[str, str]) -> Any:
+    def extract_context(self, headers: dict[str, str]) -> Any:
         """Extract trace context from headers."""
         if self.config.propagate_traces:
             return extract(headers)
