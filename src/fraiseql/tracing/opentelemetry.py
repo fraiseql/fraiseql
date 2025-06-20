@@ -13,19 +13,19 @@ from typing import Any, Optional
 from fastapi import FastAPI, Request, Response
 
 try:
-    from opentelemetry import context as otel_context
-    from opentelemetry import trace
-    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-    from opentelemetry.exporter.zipkin.json import ZipkinExporter
-    from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
-    from opentelemetry.propagate import extract, inject
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
-    from opentelemetry.semconv.trace import SpanAttributes
-    from opentelemetry.trace import Status, StatusCode
+    from opentelemetry import context as otel_context  # type: ignore
+    from opentelemetry import trace  # type: ignore
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # type: ignore
+    from opentelemetry.exporter.zipkin.json import ZipkinExporter  # type: ignore
+    from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor  # type: ignore
+    from opentelemetry.propagate import extract, inject  # type: ignore
+    from opentelemetry.sdk.resources import Resource  # type: ignore
+    from opentelemetry.sdk.trace import TracerProvider  # type: ignore
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
+    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased  # type: ignore
+    from opentelemetry.semconv.trace import SpanAttributes  # type: ignore
+    from opentelemetry.trace import Status, StatusCode  # type: ignore
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False

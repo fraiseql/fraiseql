@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import FastAPI, Request, Response
 
 try:
-    from prometheus_client import (
+    from prometheus_client import (  # type: ignore
         CONTENT_TYPE_LATEST,
         CollectorRegistry,
         Counter,

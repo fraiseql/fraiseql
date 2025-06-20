@@ -31,7 +31,7 @@ def safe_create_where_type_with_validation(cls: type[object]) -> type[DynamicTyp
     original_to_sql = base_type.to_sql
 
     # Create validated version
-    def validated_to_sql(self) -> Composed:
+    def validated_to_sql(self) -> Composed | None:
         """Generate SQL WHERE clause with validation."""
         # Collect all conditions for validation
         conditions = {}
