@@ -38,8 +38,10 @@ except ImportError:
     OTLPSpanExporter = None  # type: ignore
     ZipkinExporter = None  # type: ignore
     PsycopgInstrumentor = None  # type: ignore
-    extract = lambda *args, **kwargs: {}  # type: ignore
-    inject = lambda *args, **kwargs: None  # type: ignore
+    def extract(*args, **kwargs):  # type: ignore
+        return {}
+    def inject(*args, **kwargs):  # type: ignore
+        return None
     Resource = None  # type: ignore
     TracerProvider = None  # type: ignore
     BatchSpanProcessor = None  # type: ignore

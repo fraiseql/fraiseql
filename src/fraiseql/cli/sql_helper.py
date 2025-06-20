@@ -400,11 +400,11 @@ class SQLHelper:
         if include_indexes:
             parts.append("-- Create indexes for better performance")
 
-            for field_name in type_hints.keys():
-                if field_name in ("email", "name", "created_at"):
-                    parts.append(
-                        f"CREATE INDEX idx_{table_name}_{field_name} ON {table_name}({field_name});",
-                    )
+            parts.extend(
+                f"CREATE INDEX idx_{table_name}_{field_name} ON {table_name}({field_name});"
+                for field_name in type_hints
+                if field_name in ("email", "name", "created_at")
+            )
 
             parts.append("")
 

@@ -199,7 +199,7 @@ Your GraphQL API will be available at http://localhost:8000/graphql
     # Initialize git repository
     if not no_git:
         # Change to project directory
-        original_cwd = os.getcwd()
+        original_cwd = Path.cwd()
         os.chdir(project_path)
         try:
             subprocess.run(["git", "init", "-q"], check=True)  # noqa: S607
