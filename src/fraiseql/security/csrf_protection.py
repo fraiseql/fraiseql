@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import time
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from enum import Enum
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 
 class CSRFTokenStorage(Enum):
@@ -367,7 +370,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 if token:
                     return token
             except Exception:
-                pass
+                logger.debug("Failed to extract CSRF token from form data")
 
         # Try cookies
         if self.config.storage == CSRFTokenStorage.COOKIE:

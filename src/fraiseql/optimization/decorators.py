@@ -178,7 +178,7 @@ def dataloader_field(
 
             except Exception as e:
                 # CRITICAL: Never expose internal errors to prevent information leakage
-                logger.exception(f"DataLoader type conversion failed: {e}")
+                logger.exception("DataLoader type conversion failed")
 
                 # For debugging, include more info about the return type
                 type_info = f"{return_type}" if return_type else "unknown type"
