@@ -69,3 +69,11 @@ def is_snake_case(name: str) -> bool:
 def is_camel_case(name: str) -> bool:
     """Check if a name is in camelCase format."""
     return bool(re.match(r"^[a-z][a-zA-Z0-9]*$", name)) and not name.islower()
+
+
+def to_snake_case(name: str) -> str:
+    """Convert any case to snake_case.
+    
+    This is an alias for camel_to_snake that handles any input.
+    """
+    return camel_to_snake(name)

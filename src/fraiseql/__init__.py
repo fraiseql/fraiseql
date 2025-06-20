@@ -26,11 +26,11 @@ from .types.scalars.date import DateField as Date
 from .types.scalars.email_address import EmailAddressField as EmailAddress
 from .types.scalars.json import JSONField as JSON  # noqa: N814
 
-# Core aliases - renamed to avoid shadowing builtins
-fraiseql_type = fraise_type
-fraiseql_input = fraise_input
-fraiseql_enum = fraise_enum
-fraiseql_interface = fraise_interface
+# Core aliases
+type = fraise_type  # noqa: A001
+input = fraise_input  # noqa: A001
+enum = fraise_enum
+interface = fraise_interface
 
 # FastAPI integration (optional)
 try:
@@ -98,10 +98,10 @@ __all__ = [
     "fraise_input",
     "fraise_interface",
     "fraise_type",
-    "fraiseql_enum",
-    "fraiseql_input",
-    "fraiseql_interface",
-    "fraiseql_type",
+    "enum",
+    "input",
+    "interface",
+    "type",
     "mutation",
     "query",
     "requires_auth",
