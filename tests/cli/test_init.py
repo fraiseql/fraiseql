@@ -1,6 +1,6 @@
 """Tests for the init command."""
 
-import os
+from pathlib import Path
 
 from fraiseql.cli.main import cli
 
@@ -36,7 +36,7 @@ class TestInitCommand:
     def test_init_with_existing_directory(self, cli_runner, temp_project_dir) -> None:
         """Test that init fails if directory already exists."""
         # Create directory first
-        os.mkdir("myproject")
+        Path("myproject").mkdir()
 
         result = cli_runner.invoke(cli, ["init", "myproject"])
 

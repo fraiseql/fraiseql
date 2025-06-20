@@ -66,7 +66,8 @@ def url_to_psycopg2(url: str) -> str:
         "postgresql://myuser:mypass@localhost:5432/mydb?sslmode=require"
 
     To:
-        "dbname='mydb' user='myuser' password='mypass' host='localhost' port='5432' sslmode='require'"
+        "dbname='mydb' user='myuser' password='mypass' host='localhost' port='5432' \
+sslmode='require'"
 
     Args:
         url: PostgreSQL URL format string

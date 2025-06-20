@@ -1,5 +1,4 @@
-"""
-Real-time Chat API Mutations
+"""Real-time Chat API Mutations
 Demonstrates FraiseQL's mutation system with real-time features
 """
 
@@ -18,7 +17,7 @@ from .models import (
 
 # Room Management Mutations
 @mutation(
-    name="createRoom", function="create_room", description="Create a new chat room"
+    name="createRoom", function="create_room", description="Create a new chat room",
 )
 async def create_room(
     name: str,
@@ -30,20 +29,18 @@ async def create_room(
     settings: Optional[Dict[str, Any]] = None,
 ) -> RoomMutationResult:
     """Create a new chat room"""
-    pass
 
 
 @mutation(name="joinRoom", function="join_room", description="Join a chat room")
 async def join_room(
-    room_id: UUID, user_id: UUID, role: str = "member"
+    room_id: UUID, user_id: UUID, role: str = "member",
 ) -> MutationResult:
     """Join an existing chat room"""
-    pass
 
 
 # Message Mutations
 @mutation(
-    name="sendMessage", function="send_message", description="Send a message to a room"
+    name="sendMessage", function="send_message", description="Send a message to a room",
 )
 async def send_message(
     room_id: UUID,
@@ -54,27 +51,24 @@ async def send_message(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> MessageMutationResult:
     """Send a message to a chat room"""
-    pass
 
 
 @mutation(
-    name="editMessage", function="edit_message", description="Edit an existing message"
+    name="editMessage", function="edit_message", description="Edit an existing message",
 )
 async def edit_message(
-    message_id: UUID, user_id: UUID, new_content: str
+    message_id: UUID, user_id: UUID, new_content: str,
 ) -> MutationResult:
     """Edit a message (within time limit)"""
-    pass
 
 
 @mutation(
-    name="deleteMessage", function="delete_message", description="Delete a message"
+    name="deleteMessage", function="delete_message", description="Delete a message",
 )
 async def delete_message(
-    message_id: UUID, user_id: UUID, is_moderator: bool = False
+    message_id: UUID, user_id: UUID, is_moderator: bool = False,
 ) -> MutationResult:
     """Delete a message (soft delete)"""
-    pass
 
 
 # Reaction Mutations
@@ -84,10 +78,9 @@ async def delete_message(
     description="Add an emoji reaction to a message",
 )
 async def add_message_reaction(
-    message_id: UUID, user_id: UUID, emoji: str
+    message_id: UUID, user_id: UUID, emoji: str,
 ) -> MutationResult:
     """Add emoji reaction to a message"""
-    pass
 
 
 @mutation(
@@ -96,10 +89,9 @@ async def add_message_reaction(
     description="Remove an emoji reaction from a message",
 )
 async def remove_message_reaction(
-    message_id: UUID, user_id: UUID, emoji: str
+    message_id: UUID, user_id: UUID, emoji: str,
 ) -> MutationResult:
     """Remove emoji reaction from a message"""
-    pass
 
 
 # Presence Mutations
@@ -115,7 +107,6 @@ async def update_user_presence(
     session_id: Optional[str] = None,
 ) -> MutationResult:
     """Update user online presence"""
-    pass
 
 
 @mutation(
@@ -124,10 +115,9 @@ async def update_user_presence(
     description="Set or clear typing indicator",
 )
 async def set_typing_indicator(
-    room_id: UUID, user_id: UUID, is_typing: bool = True
+    room_id: UUID, user_id: UUID, is_typing: bool = True,
 ) -> MutationResult:
     """Set or clear typing indicator"""
-    pass
 
 
 # Read Status Mutations
@@ -137,10 +127,9 @@ async def set_typing_indicator(
     description="Mark messages as read up to a certain point",
 )
 async def mark_messages_read(
-    room_id: UUID, user_id: UUID, up_to_message_id: Optional[UUID] = None
+    room_id: UUID, user_id: UUID, up_to_message_id: Optional[UUID] = None,
 ) -> MutationResult:
     """Mark messages as read in a room"""
-    pass
 
 
 # Direct Message Mutations
@@ -150,7 +139,6 @@ async def mark_messages_read(
     description="Create or get a direct message conversation",
 )
 async def create_direct_conversation(
-    user1_id: UUID, user2_id: UUID
+    user1_id: UUID, user2_id: UUID,
 ) -> ConversationMutationResult:
     """Create or retrieve a direct message conversation"""
-    pass

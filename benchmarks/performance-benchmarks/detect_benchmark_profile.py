@@ -7,6 +7,7 @@ import json
 import multiprocessing
 import re
 import subprocess
+from pathlib import Path
 
 try:
     import psutil
@@ -67,7 +68,8 @@ def get_cpu_info():
     if info["memory_gb"] == 0:
         try:
             # Fallback to /proc/meminfo
-            with open("/proc/meminfo") as f:
+            meminfo_path = Path("/proc/meminfo")
+            with meminfo_path.open() as f:
                 for line in f:
                     if line.startswith("MemTotal:"):
                         kb = int(re.search(r"(\d+)", line).group(1))
@@ -223,8 +225,8 @@ def main():
         },
     }
 
-    config_file = "benchmark_profile.json"
-    with open(config_file, "w") as f:
+    config_file = Path("benchmark_profile.json")
+    with config_file.open("w") as f:
         json.dump(config, f, indent=2)
 
     print(f"\nConfiguration saved to: {config_file}")

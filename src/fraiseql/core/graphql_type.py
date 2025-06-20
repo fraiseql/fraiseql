@@ -172,7 +172,8 @@ def convert_type_to_graphql_input(
             if field_type == JSONScalar:
                 try:
                     # Assuming the field has some default value to validate
-                    parse_json_value(getattr(typ, name, None))  # Validate the field's default value
+                    # Validate the field's default value
+                    parse_json_value(getattr(typ, name, None))
                 except GraphQLError as e:
                     msg = f"Invalid JSON value in field {name}: {e!s}"
                     raise GraphQLError(msg) from None
@@ -182,7 +183,9 @@ def convert_type_to_graphql_input(
             if field.graphql_name:
                 graphql_field_name = field.graphql_name
             else:
-                graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
+                graphql_field_name = (
+                    snake_to_camel(name) if config.camel_case_fields else name
+                )
 
             gql_fields[graphql_field_name] = GraphQLInputField(
                 convert_type_to_graphql_input(field_type),
@@ -210,7 +213,8 @@ def convert_type_to_graphql_input(
             return graphql_type
         # If not decorated, raise error
         msg = (
-            f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
+            f"Enum {typ.__name__} must be decorated with @fraise_enum "
+            "to be used in GraphQL schema"
         )
         raise TypeError(msg)
 
@@ -291,7 +295,8 @@ def convert_type_to_graphql_output(
             return graphql_type
         # If not decorated, raise error
         msg = (
-            f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
+            f"Enum {typ.__name__} must be decorated with @fraise_enum "
+            "to be used in GraphQL schema"
         )
         raise TypeError(msg)
 
@@ -355,7 +360,8 @@ def convert_type_to_graphql_output(
 
                             return resolve_field
 
-                        # Use explicit graphql_name if provided, otherwise convert to camelCase if configured
+                        # Use explicit graphql_name if provided, otherwise convert to
+                        # camelCase if configured
                         config = SchemaConfig.get_instance()
                         if field.graphql_name:
                             graphql_field_name = field.graphql_name
@@ -398,7 +404,8 @@ def convert_type_to_graphql_output(
 
                             if return_type is None:
                                 logger.warning(
-                                    "Custom field method %s missing return type annotation",
+                                    "Custom field method %s missing return type "
+                                    "annotation",
                                     attr_name,
                                 )
                                 continue
@@ -435,7 +442,9 @@ def convert_type_to_graphql_output(
                             # Convert field name to camelCase if configured
                             config = SchemaConfig.get_instance()
                             graphql_field_name = (
-                                snake_to_camel(attr_name) if config.camel_case_fields else attr_name
+                                snake_to_camel(attr_name)
+                                if config.camel_case_fields
+                                else attr_name
                             )
 
                             gql_fields[graphql_field_name] = GraphQLField(
@@ -445,7 +454,9 @@ def convert_type_to_graphql_output(
                             )
 
                         except Exception as e:
-                            logger.warning("Failed to process custom field %s: %s", attr_name, e)
+                            logger.warning(
+                                "Failed to process custom field %s: %s", attr_name, e,
+                            )
                             continue
 
                 # Get interfaces this type implements
@@ -482,7 +493,8 @@ def convert_type_to_graphql_output(
                 for name, field in fields.items():
                     field_type = field.field_type or type_hints.get(name)
                     if field_type is not None:
-                        # Use explicit graphql_name if provided, otherwise convert to camelCase if configured
+                        # Use explicit graphql_name if provided, otherwise convert to
+                        # camelCase if configured
                         config = SchemaConfig.get_instance()
                         if field.graphql_name:
                             graphql_field_name = field.graphql_name

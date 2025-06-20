@@ -55,7 +55,7 @@ async def get_post(info, id: UUID) -> Post | None:
 
 @fraiseql.query
 async def list_posts(
-    info, limit: int = 10, offset: int = 0, tag: str | None = None
+    info, limit: int = 10, offset: int = 0, tag: str | None = None,
 ) -> list[Post]:
     """List blog posts with pagination and optional tag filter."""
     # Sample data - in production, query your database
@@ -74,7 +74,7 @@ async def list_posts(
                 ),
                 published_at=datetime.now() if i % 2 == 0 else None,
                 tags=["blog", "tutorial"] if i % 2 == 0 else ["draft"],
-            )
+            ),
         )
 
     # Filter by tag if provided
@@ -102,7 +102,7 @@ async def search_posts(info, query: str) -> list[Post]:
                 ),
                 published_at=datetime.now(),
                 tags=["graphql", "python", "tutorial"],
-            )
+            ),
         ]
     return []
 

@@ -7,19 +7,19 @@ applications across different GraphQL architectures.
 
 import asyncio
 import json
-import os
 import re
 import sys
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 
 import tiktoken
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
     from benchmarks.llm_config import (
@@ -586,7 +586,8 @@ class TestSuite:
             "recommendations": self._generate_recommendations(),
         }
 
-        with open(output_file, "w") as f:
+        output_path = Path(output_file)
+        with output_path.open("w") as f:
             json.dump(report, f, indent=2)
 
         print(f"\nReport saved to: {output_file}")

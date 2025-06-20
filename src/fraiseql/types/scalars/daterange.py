@@ -55,7 +55,8 @@ def parse_date_range_value(value: Any) -> str | None:
         The parsed date range string.
 
     Raises:
-        GraphQLError: If the value is not a string or None, or if the date range format is invalid.
+        GraphQLError: If the value is not a string or None, or if the date range
+            format is invalid.
     """
     if value is None:
         return None
@@ -101,7 +102,8 @@ def parse_date_range_literal(
         The parsed date range string.
 
     Raises:
-        GraphQLError: If the AST node is not a StringValueNode or if the date range format is invalid.
+        GraphQLError: If the AST node is not a StringValueNode or if the date range
+            format is invalid.
     """
     _ = variables
     if isinstance(ast, StringValueNode):
@@ -141,8 +143,10 @@ DateRangeScalar = GraphQLScalarType(
     Examples of date range formats:
     - Inclusive range: '[YYYY-MM-DD, YYYY-MM-DD]' includes both start and end dates.
     - Exclusive range: '(YYYY-MM-DD, YYYY-MM-DD)' excludes both start and end dates.
-    - Left-inclusive range: '[YYYY-MM-DD, YYYY-MM-DD)' includes the start date but excludes the end date.
-    - Right-inclusive range: '(YYYY-MM-DD, YYYY-MM-DD]' excludes the start date but includes the end date.
+    - Left-inclusive range: '[YYYY-MM-DD, YYYY-MM-DD)' includes the start date but
+      excludes the end date.
+    - Right-inclusive range: '(YYYY-MM-DD, YYYY-MM-DD]' excludes the start date but
+      includes the end date.
     """,
     serialize=serialize_date_range,
     parse_value=parse_date_range_value,

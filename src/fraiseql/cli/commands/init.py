@@ -1,6 +1,5 @@
 """Initialize a new FraiseQL project."""
 
-import os
 import subprocess
 from pathlib import Path
 
@@ -199,19 +198,17 @@ Your GraphQL API will be available at http://localhost:8000/graphql
 
     # Initialize git repository
     if not no_git:
-        # Change to project directory
-        original_cwd = Path.cwd()
-        os.chdir(project_path)
         try:
-            subprocess.run(["git", "init", "-q"], check=True)  # noqa: S603, S607
-            subprocess.run(["git", "add", "."], check=True)  # noqa: S603, S607
-            subprocess.run(  # noqa: S603
+            subprocess.run(["git", "init", "-q"], check=True, cwd=str(project_path))
+            subprocess.run(["git", "add", "."], check=True, cwd=str(project_path))
+            subprocess.run(
                 ["git", "commit", "-q", "-m", "Initial commit from FraiseQL CLI"],
                 check=True,
+                cwd=str(project_path),
             )
             click.echo("✅ Initialized git repository")
-        finally:
-            os.chdir(original_cwd)
+        except subprocess.CalledProcessError as e:
+            click.echo(f"⚠️ Git initialization failed: {e}", err=True)
 
     click.echo(
         f"""

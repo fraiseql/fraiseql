@@ -1,5 +1,4 @@
-"""
-FraiseQL Quick Start Example - pgGit Demo
+"""FraiseQL Quick Start Example - pgGit Demo
 A Git-like version control system for PostgreSQL using FraiseQL
 
 This example shows how to create a GraphQL API with FraiseQL that provides
@@ -148,7 +147,7 @@ async def tags(info) -> List[Tag]:
             commit_hash="abc123",
             message="First stable release",
             created_at=datetime.now(),
-        )
+        ),
     ]
 
 

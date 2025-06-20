@@ -115,7 +115,10 @@ def create_development_router(
                     {
                         "message": error.message,
                         "locations": (
-                            [{"line": loc.line, "column": loc.column} for loc in error.locations]
+                            [
+                                {"line": loc.line, "column": loc.column}
+                                for loc in error.locations
+                            ]
                             if error.locations
                             else None
                         ),
@@ -325,9 +328,12 @@ PLAYGROUND_HTML = """
 <html>
 <head>
     <title>FraiseQL Playground</title>
-    <link rel="stylesheet" href="https://unpkg.com/graphql-playground-react/build/static/css/index.css" />
-    <link rel="shortcut icon" href="https://unpkg.com/graphql-playground-react/build/favicon.png" />
-    <script src="https://unpkg.com/graphql-playground-react/build/static/js/middleware.js"></script>
+    <link rel="stylesheet" 
+          href="https://unpkg.com/graphql-playground-react/build/static/css/index.css" />
+    <link rel="shortcut icon" 
+          href="https://unpkg.com/graphql-playground-react/build/favicon.png" />
+    <script 
+        src="https://unpkg.com/graphql-playground-react/build/static/js/middleware.js"></script>
 </head>
 <body>
     <div id="root"></div>

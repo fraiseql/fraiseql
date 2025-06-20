@@ -5,7 +5,8 @@ Provides decorators and common GraphQL types for FraiseQL.
 Exports:
 - `type`: Decorator to mark a dataclass as a GraphQL object type.
 - `input`: Decorator to mark a dataclass as a GraphQL input type.
-- `fraise_type` and `fraise_input`: Internal decorator implementations to avoid shadowing Python builtins.
+- `fraise_type` and `fraise_input`: Internal decorator implementations to avoid
+  shadowing Python builtins.
 
 Usage:
 

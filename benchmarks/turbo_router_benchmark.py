@@ -14,6 +14,7 @@ import os
 import statistics
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List
 
 import httpx
@@ -569,7 +570,8 @@ class TurboRouterBenchmark:
         print("Would I pay extra for it? No, Redis does this better.'")
 
         # Save detailed results
-        with open("turbo_router_analysis.json", "w") as f:
+        output_path = Path("turbo_router_analysis.json")
+        with output_path.open("w") as f:
             json.dump(
                 {
                     "timestamp": time.time(),

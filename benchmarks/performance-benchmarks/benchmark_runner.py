@@ -10,6 +10,7 @@ import statistics
 import subprocess
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Dict
 
 # Configuration from environment
@@ -329,11 +330,13 @@ def main():
 
     # Load profile info if available
     profile_info = {}
-    if os.path.exists("benchmark_profile.json"):
-        with open("benchmark_profile.json") as f:
+    profile_path = Path("benchmark_profile.json")
+    if profile_path.exists():
+        with profile_path.open() as f:
             profile_info = json.load(f)
 
-    with open(filename, "w") as f:
+    output_path = Path(filename)
+    with output_path.open("w") as f:
         json.dump(
             {
                 "timestamp": timestamp,

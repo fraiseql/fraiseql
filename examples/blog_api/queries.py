@@ -74,7 +74,7 @@ async def get_posts(
 
     # Get posts from view
     posts_data = await db.get_posts(
-        filters=filter_dict, order_by=order_clause, limit=limit, offset=offset
+        filters=filter_dict, order_by=order_clause, limit=limit, offset=offset,
     )
 
     return [Post.from_dict(data) for data in posts_data]

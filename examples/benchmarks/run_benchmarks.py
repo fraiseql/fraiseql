@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Comprehensive benchmark runner for FraiseQL vs competitors
+"""Comprehensive benchmark runner for FraiseQL vs competitors
 """
 
 import argparse
@@ -9,6 +8,7 @@ import json
 import statistics
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List
 
 import aiohttp
@@ -196,7 +196,7 @@ class BenchmarkRunner:
         self.benchmarks[name] = benchmark
 
     async def run_test(
-        self, test_name: str, query: str, variables: Dict = None, iterations: int = 100
+        self, test_name: str, query: str, variables: Dict = None, iterations: int = 100,
     ):
         """Run a test against all benchmarks"""
         results = {}
@@ -243,7 +243,7 @@ class BenchmarkRunner:
             }
             """
             all_results["simple_query"] = await self.run_test(
-                "simple_query", simple_query, {"limit": 100}, iterations
+                "simple_query", simple_query, {"limit": 100}, iterations,
             )
 
             # Test 2: Complex product search
@@ -323,20 +323,20 @@ def print_results(results: Dict[str, Dict[str, Dict]]):
         print(f"\n{test_name.upper()}")
         print("-" * 60)
         print(
-            f"{'Solution':<15} {'Avg (ms)':<10} {'P95 (ms)':<10} {'P99 (ms)':<10} {'RPS':<8} {'Errors':<8}"
+            f"{'Solution':<15} {'Avg (ms)':<10} {'P95 (ms)':<10} {'P99 (ms)':<10} {'RPS':<8} {'Errors':<8}",
         )
         print("-" * 60)
 
         # Sort by average response time
         sorted_results = sorted(
-            test_results.items(), key=lambda x: x[1].get("avg", float("inf"))
+            test_results.items(), key=lambda x: x[1].get("avg", float("inf")),
         )
 
         for solution, stats in sorted_results:
             print(
                 f"{solution:<15} {stats.get('avg', 'N/A'):<10.2f} "
                 f"{stats.get('p95', 'N/A'):<10.2f} {stats.get('p99', 'N/A'):<10.2f} "
-                f"{stats.get('rps', 'N/A'):<8.1f} {stats.get('errors', 'N/A'):<8}"
+                f"{stats.get('rps', 'N/A'):<8.1f} {stats.get('errors', 'N/A'):<8}",
             )
 
 
@@ -346,9 +346,10 @@ def save_results(results: Dict, filename: str = None):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"benchmark_results_{timestamp}.json"
 
-    with open(filename, "w") as f:
+    output_path = Path(filename)
+    with output_path.open("w") as f:
         json.dump(
-            {"timestamp": datetime.now().isoformat(), "results": results}, f, indent=2
+            {"timestamp": datetime.now().isoformat(), "results": results}, f, indent=2,
         )
 
     print(f"\nResults saved to {filename}")
@@ -357,7 +358,7 @@ def save_results(results: Dict, filename: str = None):
 async def main():
     parser = argparse.ArgumentParser(description="Run FraiseQL benchmarks")
     parser.add_argument(
-        "--iterations", type=int, default=100, help="Number of iterations per test"
+        "--iterations", type=int, default=100, help="Number of iterations per test",
     )
     parser.add_argument(
         "--fraiseql-db",
@@ -365,7 +366,7 @@ async def main():
         help="FraiseQL database URL",
     )
     parser.add_argument(
-        "--hasura-endpoint", default="http://localhost:8080", help="Hasura endpoint"
+        "--hasura-endpoint", default="http://localhost:8080", help="Hasura endpoint",
     )
     parser.add_argument(
         "--postgraphile-endpoint",

@@ -10,6 +10,7 @@ import asyncio
 import json
 import time
 from datetime import datetime
+from pathlib import Path
 from statistics import mean, median, quantiles, stdev
 from typing import Any, Dict
 
@@ -250,7 +251,8 @@ async def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"benchmark_final_results_{timestamp}.json"
 
-    with open(filename, "w") as f:
+    output_path = Path(filename)
+    with output_path.open("w") as f:
         json.dump(
             {
                 "timestamp": datetime.now().isoformat(),

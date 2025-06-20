@@ -68,7 +68,10 @@ class WhereClauseMixin:
             if len(value) > self._config.max_string_length:
                 raise SQLGenerationError(
                     operation="WHERE clause generation",
-                    reason=f"Field '{field_name}' exceeds maximum length ({self._config.max_string_length})",
+                    reason=(
+                        f"Field '{field_name}' exceeds maximum length "
+                        f"({self._config.max_string_length})"
+                    ),
                     custom_suggestion=f"Reduce the length of the {field_name} filter",
                 )
 
@@ -80,7 +83,9 @@ class WhereClauseMixin:
                         operation="WHERE clause generation",
                         reason="SQL injection pattern detected",
                         query_info={"field": field_name, "value": value},
-                        custom_suggestion="Remove SQL keywords and special characters from the filter",
+                        custom_suggestion=(
+                            "Remove SQL keywords and special characters from the filter"
+                        ),
                     )
 
         # Numeric validation
@@ -98,7 +103,9 @@ class WhereClauseMixin:
                 raise SQLGenerationError(
                     operation="WHERE clause generation",
                     reason=f"Field '{field_name}' exceeds maximum numeric value",
-                    custom_suggestion=f"Use a value less than {self._config.max_numeric_value}",
+                    custom_suggestion=(
+                        f"Use a value less than {self._config.max_numeric_value}"
+                    ),
                 )
 
         # List validation
@@ -106,7 +113,10 @@ class WhereClauseMixin:
             if len(value) > self._config.max_list_length:
                 raise SQLGenerationError(
                     operation="WHERE clause generation",
-                    reason=f"Field '{field_name}' list exceeds maximum length ({self._config.max_list_length})",
+                    reason=(
+                        f"Field '{field_name}' list exceeds maximum length "
+                        f"({self._config.max_list_length})"
+                    ),
                     custom_suggestion="Reduce the number of items in the filter list",
                 )
 
@@ -189,7 +199,9 @@ class WhereClauseMixin:
 
         if operator == "array_contains":
             # For JSONB array contains
-            json_path = SQL("{}->{}").format(SQL(self._config.table_prefix), Literal(field_name))
+            json_path = SQL("{}->{}").format(
+                SQL(self._config.table_prefix), Literal(field_name),
+            )
             return SQL("{} @> {}").format(json_path, Placeholder())
 
         # Standard operators

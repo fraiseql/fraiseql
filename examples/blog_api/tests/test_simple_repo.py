@@ -2,10 +2,10 @@
 
 import asyncio
 import logging
-import os
 
 # Add parent directory to path
 import sys
+from pathlib import Path
 from uuid import uuid4
 
 import psycopg
@@ -13,7 +13,7 @@ import pytest
 
 logger = logging.getLogger(__name__)
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from db import BlogRepository
 
@@ -23,7 +23,7 @@ async def test_simple_create_user():
     """Test creating a user with direct connection."""
     # Create direct connection
     async with await psycopg.AsyncConnection.connect(
-        "postgresql://localhost/blog_test"
+        "postgresql://localhost/blog_test",
     ) as conn:
         repo = BlogRepository(conn)
 
@@ -36,7 +36,7 @@ async def test_simple_create_user():
                 "email": f"test_{uuid4()}@example.com",
                 "name": "Test User",
                 "bio": "Test bio",
-            }
+            },
         )
 
         assert result["success"] is True
@@ -45,7 +45,7 @@ async def test_simple_create_user():
         # Verify user exists - debug first
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT data FROM v_users WHERE id = %s", (result["user_id"],)
+                "SELECT data FROM v_users WHERE id = %s", (result["user_id"],),
             )
             row = await cur.fetchone()
             logger.debug(f"Raw data from view: {row}")
@@ -60,7 +60,7 @@ async def test_simple_create_user():
             # Get raw data
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT * FROM tb_users WHERE id = %s", (result["user_id"],)
+                    "SELECT * FROM tb_users WHERE id = %s", (result["user_id"],),
                 )
                 raw = await cur.fetchone()
                 logger.debug(f"Raw user data: {raw}")

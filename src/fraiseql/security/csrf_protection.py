@@ -29,7 +29,7 @@ class CSRFConfig:
     """CSRF protection configuration."""
 
     secret_key: str
-    token_name: str = "csrf_token"  # noqa: S105 - not a password
+    token_name: str = "csrf_token"
     header_name: str = "X-CSRF-Token"
     cookie_name: str = "csrf_token"
     cookie_secure: bool = True

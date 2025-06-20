@@ -1,6 +1,5 @@
 """E-commerce data models for FraiseQL example."""
 
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -127,22 +126,22 @@ class Order:
     user_id: UUID = fraise_field(description="Customer who placed order")
     status: OrderStatus = fraise_field(description="Current order status")
     payment_status: PaymentStatus = fraise_field(description="Payment status")
-    
+
     # Addresses
     shipping_address_id: UUID = fraise_field(description="Shipping address")
     billing_address_id: UUID = fraise_field(description="Billing address")
-    
+
     # Amounts
     subtotal: Decimal = fraise_field(description="Subtotal before tax/shipping")
     tax_amount: Decimal = fraise_field(description="Tax amount")
     shipping_amount: Decimal = fraise_field(description="Shipping cost")
     discount_amount: Decimal = fraise_field(default=Decimal("0"), description="Discount applied")
     total: Decimal = fraise_field(description="Total amount")
-    
+
     # Tracking
     tracking_number: Optional[str] = fraise_field(description="Shipping tracking number")
     notes: Optional[str] = fraise_field(description="Order notes")
-    
+
     # Timestamps
     placed_at: datetime = fraise_field(description="When order was placed")
     shipped_at: Optional[datetime] = fraise_field(description="When order shipped")
@@ -150,7 +149,7 @@ class Order:
     cancelled_at: Optional[datetime] = fraise_field(description="When order cancelled")
 
 
-@fraiseql.type  
+@fraiseql.type
 class OrderItem:
     """Item in an order."""
     id: UUID
@@ -295,7 +294,7 @@ class AuthError:
     code: str = "AUTH_ERROR"
 
 
-@fraiseql.success  
+@fraiseql.success
 class CartSuccess:
     """Successful cart operation."""
     cart: Cart

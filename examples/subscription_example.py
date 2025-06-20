@@ -60,7 +60,7 @@ class ProjectTasksLoader(DataLoader[UUID, list[Task]]):
 
 # Define subscriptions
 @subscription
-async def task_updates(info, project_id: UUID) -> AsyncGenerator[Task, None]:
+async def task_updates(info, project_id: UUID) -> AsyncGenerator[Task]:
     """Subscribe to task updates for a project."""
     print(f"Starting task updates subscription for project {project_id}")
 
@@ -82,7 +82,7 @@ async def task_updates(info, project_id: UUID) -> AsyncGenerator[Task, None]:
 
 
 @subscription
-async def project_stats(info) -> AsyncGenerator[dict, None]:
+async def project_stats(info) -> AsyncGenerator[dict]:
     """Subscribe to project statistics updates."""
     print("Starting project stats subscription")
 
@@ -115,7 +115,7 @@ async def demo_dataloader():
         # Load multiple tasks - will batch
         task_ids = [uuid4() for _ in range(5)]
         tasks = await asyncio.gather(
-            *[task_loader.load(task_id) for task_id in task_ids]
+            *[task_loader.load(task_id) for task_id in task_ids],
         )
 
         print(f"Loaded {len(tasks)} tasks")
@@ -123,7 +123,7 @@ async def demo_dataloader():
         # Load tasks for multiple projects - will batch
         project_ids = [uuid4() for _ in range(3)]
         project_tasks = await asyncio.gather(
-            *[project_tasks_loader.load(project_id) for project_id in project_ids]
+            *[project_tasks_loader.load(project_id) for project_id in project_ids],
         )
 
         print(f"Loaded tasks for {len(project_tasks)} projects")

@@ -37,7 +37,7 @@ class BenchmarkAnalyzer:
                 if files:
                     # Get the most recent file
                     latest_file = max(files, key=lambda f: f.stat().st_mtime)
-                    with open(latest_file) as f:
+                    with latest_file.open() as f:
                         results[framework][test_type] = json.load(f)
 
         return results
@@ -304,12 +304,12 @@ class BenchmarkAnalyzer:
         report_path = (
             self.reports_dir / f"benchmark_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
         )
-        with open(report_path, "w") as f:
+        with report_path.open("w") as f:
             f.write(report)
 
         # Also save the latest report
         latest_path = self.reports_dir / "latest_report.md"
-        with open(latest_path, "w") as f:
+        with latest_path.open("w") as f:
             f.write(report)
 
         print(f"Analysis complete! Reports saved to {self.reports_dir}")

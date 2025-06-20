@@ -25,7 +25,7 @@ from fraiseql.core.graphql_type import (
 
 
 def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
-    """Wrap an async resolver function into a GraphQLField with typed arguments and input coercion."""
+    """Wrap an async resolver function into a GraphQLField with typed arguments and input coercion."""  # noqa: E501
     sig = signature(fn)
     args: dict[str, GraphQLArgument] = {}
 
@@ -51,7 +51,8 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
                 isinstance(value, dict)
                 and isclass(expected_type)
                 and (
-                    is_dataclass(expected_type) or hasattr(expected_type, "__fraiseql_definition__")
+                    is_dataclass(expected_type)
+                    or hasattr(expected_type, "__fraiseql_definition__")
                 )
             ):
                 coerced_kwargs[name] = expected_type(**value)

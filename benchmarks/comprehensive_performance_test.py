@@ -19,6 +19,7 @@ import string
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List
 
 import asyncpg
@@ -703,7 +704,8 @@ class PerformanceBenchmark:
 
         # Save results to JSON
         results_data = [asdict(r) for r in self.results]
-        with open("benchmark_results.json", "w") as f:
+        output_path = Path("benchmark_results.json")
+        with output_path.open("w") as f:
             json.dump(
                 {"timestamp": datetime.now().isoformat(), "results": results_data}, f, indent=2
             )

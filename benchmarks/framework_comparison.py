@@ -15,6 +15,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List
 
 import docker
@@ -486,7 +487,8 @@ class FrameworkBenchmarkRunner:
                         print(f"    - Memory: {memory_ratio:.2f}x more efficient")
 
         # Save detailed results
-        with open("framework_comparison_results.json", "w") as f:
+        output_path = Path("framework_comparison_results.json")
+        with output_path.open("w") as f:
             json.dump({"timestamp": datetime.now().isoformat(), "results": results}, f, indent=2)
 
         print("\n\n📄 Detailed results saved to framework_comparison_results.json")

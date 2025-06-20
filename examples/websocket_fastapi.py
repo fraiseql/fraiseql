@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from datetime import UTC
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -26,14 +27,14 @@ class Task:
 @fraiseql.query
 async def current_time(info) -> str:
     """Get current server time."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # Define subscriptions
 @subscription
-async def task_feed(info) -> AsyncGenerator[Task, None]:
+async def task_feed(info) -> AsyncGenerator[Task]:
     """Subscribe to new tasks as they're created."""
     print("Starting task feed subscription")
 
@@ -178,7 +179,7 @@ async def graphql_ws_endpoint(websocket: WebSocket):
     if "graphql-ws" in websocket.headers.get("sec-websocket-protocol", "").split(", "):
         subprotocol = "graphql-ws"
     elif "graphql-transport-ws" in websocket.headers.get(
-        "sec-websocket-protocol", ""
+        "sec-websocket-protocol", "",
     ).split(", "):
         subprotocol = "graphql-transport-ws"
 
@@ -186,7 +187,7 @@ async def graphql_ws_endpoint(websocket: WebSocket):
 
     # Add connection to manager
     connection = await subscription_manager.add_connection(
-        websocket, subprotocol=subprotocol, context={"websocket": websocket}
+        websocket, subprotocol=subprotocol, context={"websocket": websocket},
     )
 
     try:

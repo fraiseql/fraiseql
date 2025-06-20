@@ -1,5 +1,4 @@
-"""
-E-commerce API Application
+"""E-commerce API Application
 Demonstrates FraiseQL's capabilities with a complete e-commerce system
 """
 
@@ -31,7 +30,7 @@ from .mutations import (
 
 # Database configuration
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://user:password@localhost:5432/ecommerce"
+    "DATABASE_URL", "postgresql://user:password@localhost:5432/ecommerce",
 )
 
 
@@ -40,7 +39,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Create connection pool
     app.state.db_pool = await asyncpg.create_pool(
-        DATABASE_URL, min_size=10, max_size=20, command_timeout=60
+        DATABASE_URL, min_size=10, max_size=20, command_timeout=60,
     )
 
     yield
@@ -145,8 +144,7 @@ async def search_products(
     limit: int = 20,
     offset: int = 0,
 ):
-    """
-    REST endpoint for product search
+    """REST endpoint for product search
     Demonstrates integration with FraiseQL's query system
     """
     query = """
@@ -197,8 +195,7 @@ async def search_products(
 
 @app.get("/api/categories/tree")
 async def get_category_tree():
-    """
-    REST endpoint for category tree
+    """REST endpoint for category tree
     """
     query = """
     query GetCategoryTree {

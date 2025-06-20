@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 
 def signal_handler(sig, frame):
@@ -110,7 +111,8 @@ try:
 
         if not exists:
             print("📦 Creating benchmark schema...")
-            with open("init-db-complex.sql") as f:
+            sql_path = Path("init-db-complex.sql")
+            with sql_path.open() as f:
                 schema_sql = f.read()
             await conn.execute(schema_sql)
             print("✅ Complex schema created")
@@ -129,7 +131,8 @@ try:
 
             if org_count == 0:
                 print("⚠️  No data found, initializing...")
-                with open("init-db-complex.sql") as f:
+                sql_path = Path("init-db-complex.sql")
+                with sql_path.open() as f:
                     schema_sql = f.read()
                 await conn.execute(schema_sql)
                 print("✅ Test data loaded")

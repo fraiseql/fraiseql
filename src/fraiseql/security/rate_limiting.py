@@ -17,7 +17,7 @@ class RateLimitStrategy(Enum):
 
     FIXED_WINDOW = "fixed_window"
     SLIDING_WINDOW = "sliding_window"
-    TOKEN_BUCKET = "token_bucket"  # noqa: S105 - not a password
+    TOKEN_BUCKET = "token_bucket"
 
 
 @dataclass

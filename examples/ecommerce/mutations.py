@@ -4,15 +4,26 @@ import fraiseql
 from fraiseql.mutations import mutation
 
 from .models import (
-    # Inputs
-    RegisterInput, LoginInput, AddToCartInput, UpdateCartItemInput,
-    CheckoutInput, CreateAddressInput, CreateReviewInput,
+    AddressError,
+    AddressSuccess,
+    AddToCartInput,
+    AuthError,
     # Success/Error types
-    AuthSuccess, AuthError, CartSuccess, CartError,
-    OrderSuccess, OrderError, AddressSuccess, AddressError,
-    ReviewSuccess, ReviewError
+    AuthSuccess,
+    CartError,
+    CartSuccess,
+    CheckoutInput,
+    CreateAddressInput,
+    CreateReviewInput,
+    LoginInput,
+    OrderError,
+    OrderSuccess,
+    # Inputs
+    RegisterInput,
+    ReviewError,
+    ReviewSuccess,
+    UpdateCartItemInput,
 )
-
 
 # Authentication mutations
 
@@ -128,7 +139,7 @@ class CancelOrderInput:
     reason: fraiseql.Optional[str] = None
 
 
-@fraiseql.input  
+@fraiseql.input
 class UpdateAddressInput:
     """Update address input."""
     address_id: fraiseql.UUID

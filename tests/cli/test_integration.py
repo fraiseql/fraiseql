@@ -49,43 +49,42 @@ class TestCLIIntegration:
 
     def test_blog_template_workflow(self, cli_runner, temp_project_dir) -> None:
         """Test blog template project setup."""
-        import os
-
         # Create blog project
         result = cli_runner.invoke(cli, ["init", "myblog", "--template", "blog", "--no-git"])
         assert result.exit_code == 0
 
-        os.chdir("myblog")
+        # Work in the blog directory
+        blog_path = temp_project_dir / "myblog"
 
         # Verify blog types were created
-        assert Path("src/types/user.py").exists()
-        assert Path("src/types/post.py").exists()
-        assert Path("src/types/comment.py").exists()
+        assert (blog_path / "src/types/user.py").exists()
+        assert (blog_path / "src/types/post.py").exists()
+        assert (blog_path / "src/types/comment.py").exists()
 
         # Generate migrations for each type
         with patch("fraiseql.cli.commands.generate.get_timestamp") as mock_timestamp:
             mock_timestamp.side_effect = ["001", "002", "003"]
 
             for entity in ["User", "Post", "Comment"]:
-                result = cli_runner.invoke(cli, ["generate", "migration", entity])
+                # Run CLI commands with the blog directory as cwd
+                result = cli_runner.invoke(cli, ["generate", "migration", entity], cwd=str(blog_path))
                 assert result.exit_code == 0
 
-            assert Path("migrations/001_create_users.sql").exists()
-            assert Path("migrations/002_create_posts.sql").exists()
-            assert Path("migrations/003_create_comments.sql").exists()
+            assert (blog_path / "migrations/001_create_users.sql").exists()
+            assert (blog_path / "migrations/002_create_posts.sql").exists()
+            assert (blog_path / "migrations/003_create_comments.sql").exists()
 
     @pytest.mark.skip(reason="TestFoundry extension not yet implemented")
     @patch("os.getenv", return_value="postgresql://test/db")
     def test_testfoundry_workflow(self, mock_getenv, cli_runner, temp_project_dir) -> None:
         """Test TestFoundry integration workflow."""
-        import os
         from unittest.mock import AsyncMock
 
         # Create project first
         result = cli_runner.invoke(cli, ["init", "testproject", "--no-git"])
         assert result.exit_code == 0
 
-        os.chdir("testproject")
+        test_path = temp_project_dir / "testproject"
 
         # Mock TestFoundry components
         with patch("fraiseql.cqrs.CQRSRepository") as mock_repo:
@@ -95,7 +94,7 @@ class TestCLIIntegration:
                 mock_setup.return_value.install = AsyncMock()
 
                 # Install TestFoundry
-                result = cli_runner.invoke(cli, ["testfoundry", "install"])
+                result = cli_runner.invoke(cli, ["testfoundry", "install"], cwd=str(test_path))
                 assert result.exit_code == 0
                 assert "TestFoundry installed successfully!" in result.output
 
@@ -109,14 +108,12 @@ class TestCLIIntegration:
                 )
                 mock_gen.return_value.write_tests_to_files = AsyncMock()
 
-                result = cli_runner.invoke(cli, ["testfoundry", "generate", "User"])
+                result = cli_runner.invoke(cli, ["testfoundry", "generate", "User"], cwd=str(test_path))
                 assert result.exit_code == 0
                 assert "Tests generated" in result.output
 
     def test_environment_handling(self, cli_runner, temp_project_dir) -> None:
         """Test that CLI respects environment variables."""
-        import os
-
         # Create project with custom database URL
         custom_db = "postgresql://custom:pass@remote:5432/customdb"
         result = cli_runner.invoke(

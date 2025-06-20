@@ -30,7 +30,7 @@ async def test_testcontainers():
         print(f"   Using {'Podman' if use_podman else 'Docker'}...")
 
         with PostgresContainer(
-            image="postgres:16-alpine", user="test", password="test", dbname="test_db"
+            image="postgres:16-alpine", user="test", password="test", dbname="test_db",
         ) as postgres:
             print("   ✓ Container started successfully")
 
@@ -78,7 +78,7 @@ async def test_connection_pool():
 
             # Create pool
             async with psycopg_pool.AsyncConnectionPool(
-                url, min_size=2, max_size=5
+                url, min_size=2, max_size=5,
             ) as pool:
                 print("   ✓ Connection pool created")
 
@@ -87,7 +87,7 @@ async def test_connection_pool():
                     async with pool.connection() as conn:
                         async with conn.cursor() as cur:
                             await cur.execute(
-                                "SELECT pg_backend_pid(), %s", (query_id,)
+                                "SELECT pg_backend_pid(), %s", (query_id,),
                             )
                             return await cur.fetchone()
 
@@ -145,7 +145,7 @@ async def test_fraiseql_repository():
                     """),
                         params={},
                         fetch_result=False,
-                    )
+                    ),
                 )
                 print("   ✓ Created test table")
 
@@ -159,7 +159,7 @@ async def test_fraiseql_repository():
                     """),
                         params={"data": '{"name": "Test User", "active": true}'},
                         fetch_result=True,
-                    )
+                    ),
                 )
                 print(f"   ✓ Inserted test data: {result[0]}")
 
@@ -173,7 +173,7 @@ async def test_fraiseql_repository():
                     """),
                         params={},
                         fetch_result=True,
-                    )
+                    ),
                 )
                 print(f"   ✓ JSONB query successful: {result[0]}")
 
@@ -199,7 +199,7 @@ async def main():
     print("Environment:")
     print(f"  Python: {sys.version.split()[0]}")
     print(f"  Podman mode: {os.environ.get('TESTCONTAINERS_PODMAN', 'false')}")
-    print(f"  Working directory: {os.getcwd()}\n")
+    print(f"  Working directory: {Path.cwd()}\n")
 
     # Run tests
     results = []
@@ -218,9 +218,8 @@ async def main():
         print("\nFor Podman users:")
         print("  TESTCONTAINERS_PODMAN=true pytest")
         return 0
-    else:
-        print("❌ Some tests failed. Please check the errors above.")
-        return 1
+    print("❌ Some tests failed. Please check the errors above.")
+    return 1
 
 
 if __name__ == "__main__":

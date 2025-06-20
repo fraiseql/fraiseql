@@ -147,7 +147,7 @@ async def demo():
         # 1. Create a new user
         print("1. Creating a new user...")
         create_input = CreateUserInput(
-            name="John Doe", email="john@example.com", role="admin"
+            name="John Doe", email="john@example.com", role="admin",
         )
 
         result = await CreateUser.__fraiseql_resolver__(info, create_input)
@@ -210,7 +210,7 @@ async def demo():
         if isinstance(delete_result, DeleteUserSuccess):
             print(f"✓ Success: {delete_result.message}")
             print(
-                f"  Deleted user: {delete_result.user.name} ({delete_result.user.email})"
+                f"  Deleted user: {delete_result.user.name} ({delete_result.user.email})",
             )
         else:
             print(f"✗ Error: {delete_result.message}")

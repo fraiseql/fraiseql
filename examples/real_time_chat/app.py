@@ -1,5 +1,4 @@
-"""
-Real-time Chat API Application
+"""Real-time Chat API Application
 Demonstrates FraiseQL's real-time capabilities with WebSocket subscriptions
 """
 
@@ -32,7 +31,7 @@ from .mutations import (
 
 # Database configuration
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://user:password@localhost:5432/realtime_chat"
+    "DATABASE_URL", "postgresql://user:password@localhost:5432/realtime_chat",
 )
 
 # Security
@@ -120,7 +119,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Create connection pool
     app.state.db_pool = await asyncpg.create_pool(
-        DATABASE_URL, min_size=10, max_size=20, command_timeout=60
+        DATABASE_URL, min_size=10, max_size=20, command_timeout=60,
     )
 
     # Start PostgreSQL LISTEN task
@@ -328,14 +327,14 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 room_id = message["room_id"]
                 async with app.state.db_pool.acquire() as conn:
                     await conn.execute(
-                        "SELECT set_typing_indicator($1, $2, true)", room_id, user_id
+                        "SELECT set_typing_indicator($1, $2, true)", room_id, user_id,
                     )
 
             elif message["type"] == "typing_stop":
                 room_id = message["room_id"]
                 async with app.state.db_pool.acquire() as conn:
                     await conn.execute(
-                        "SELECT set_typing_indicator($1, $2, false)", room_id, user_id
+                        "SELECT set_typing_indicator($1, $2, false)", room_id, user_id,
                     )
 
     except WebSocketDisconnect:
@@ -383,8 +382,7 @@ async def get_room_messages(
     before: str = None,
     user_id: str = Depends(get_current_user),
 ):
-    """
-    REST endpoint for fetching room messages with pagination
+    """REST endpoint for fetching room messages with pagination
     """
     query = """
     query GetRoomMessages($roomId: UUID!, $limit: Int!, $offset: Int!, $before: DateTime) {
@@ -418,10 +416,9 @@ async def get_room_messages(
 
 @app.get("/api/users/{user_id}/conversations")
 async def get_user_conversations(
-    user_id: str, current_user: str = Depends(get_current_user)
+    user_id: str, current_user: str = Depends(get_current_user),
 ):
-    """
-    REST endpoint for fetching user's conversations
+    """REST endpoint for fetching user's conversations
     """
     if user_id != current_user:
         raise HTTPException(status_code=403, detail="Access denied")

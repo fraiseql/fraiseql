@@ -5,13 +5,11 @@ demonstrating best practices for production applications.
 """
 
 import os
-from pathlib import Path
 
-import fraiseql
 from fraiseql import create_fraiseql_app
 from fraiseql.auth import Auth0Config
-from fraiseql.monitoring import setup_metrics, MetricsConfig
-from fraiseql.tracing import setup_tracing, TracingConfig
+from fraiseql.monitoring import MetricsConfig, setup_metrics
+from fraiseql.tracing import TracingConfig, setup_tracing
 
 # Import models and operations
 from .models import *
@@ -31,56 +29,56 @@ is_production = ENVIRONMENT == "production"
 app = create_fraiseql_app(
     # Database configuration
     database_url=DATABASE_URL,
-    
+
     # GraphQL types
     types=[
         # Core types
         User, Address, Product, Cart, CartItem,
         Order, OrderItem, Review, Coupon, WishlistItem,
-        
+
         # Query types
         ProductConnection, OrderConnection, ReviewConnection,
         CartWithItems, OrderWithDetails, ProductWithReviews,
         DashboardStats,
-        
+
         # Query root
         Query,
     ],
-    
+
     # Mutations
     mutations=[
         # Auth
         Register, Login,
-        
+
         # Cart
         AddToCart, UpdateCartItem, RemoveFromCart, ClearCart,
-        
+
         # Orders
         Checkout, CancelOrder,
-        
+
         # Addresses
         CreateAddress, UpdateAddress, DeleteAddress,
-        
+
         # Reviews
         CreateReview,
     ],
-    
+
     # App configuration
     title="E-commerce API",
     version="1.0.0",
     description="Complete e-commerce GraphQL API built with FraiseQL",
-    
+
     # Environment
     production=is_production,
-    
+
     # Authentication
     auth=(
         Auth0Config(
             domain=AUTH0_DOMAIN,
-            api_identifier=AUTH0_API_IDENTIFIER
+            api_identifier=AUTH0_API_IDENTIFIER,
         ) if AUTH0_DOMAIN else None
     ),
-    
+
     # Development auth (if not using Auth0)
     dev_auth_username="admin" if not is_production else None,
     dev_auth_password="admin123" if not is_production else None,
@@ -93,7 +91,7 @@ if is_production:
         labels={
             "service": "api",
             "environment": ENVIRONMENT,
-        }
+        },
     )
     metrics = setup_metrics(app, metrics_config)
 
@@ -105,16 +103,18 @@ if is_production:
         deployment_environment=ENVIRONMENT,
         sample_rate=0.1,  # 10% sampling
         export_endpoint=os.getenv("TRACING_ENDPOINT"),
-        export_format=os.getenv("TRACING_FORMAT", "otlp")
+        export_format=os.getenv("TRACING_FORMAT", "otlp"),
     )
     tracer = setup_tracing(app, tracing_config)
 
 # Add custom middleware for session handling
 from starlette.middleware.sessions import SessionMiddleware
+
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "dev-secret"))
 
 # Add CORS for frontend
 from starlette.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
@@ -144,9 +144,9 @@ async def ready():
 async def startup():
     """Initialize application on startup."""
     print(f"Starting E-commerce API in {ENVIRONMENT} mode")
-    print(f"GraphQL endpoint: /graphql")
+    print("GraphQL endpoint: /graphql")
     if not is_production:
-        print(f"GraphQL Playground: /playground")
+        print("GraphQL Playground: /playground")
 
 # Example queries for documentation
 EXAMPLE_QUERIES = """
@@ -278,16 +278,15 @@ if not is_production:
     async def seed_data():
         """Seed development data."""
         # This would be implemented to add sample products, users, etc.
-        pass
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Run the application
     uvicorn.run(
         "app:app",
         host="0.0.0.0",
         port=8000,
         reload=not is_production,
-        log_level="info" if is_production else "debug"
+        log_level="info" if is_production else "debug",
     )

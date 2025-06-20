@@ -1,5 +1,4 @@
-"""
-Real-time Chat API Models
+"""Real-time Chat API Models
 Demonstrates FraiseQL's real-time capabilities with WebSocket subscriptions
 """
 

@@ -38,7 +38,10 @@ class MutationDefinition:
             msg = f"Mutation {self.name} must define 'success' type"
             raise TypeError(msg)
         if not self.error_type:
-            msg = f"Mutation {self.name} must define 'failure' type (or 'error' for backwards compatibility)"
+            msg = (
+                f"Mutation {self.name} must define 'failure' type "
+                "(or 'error' for backwards compatibility)"
+            )
             raise TypeError(
                 msg,
             )
@@ -54,7 +57,7 @@ class MutationDefinition:
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
 
-        async def resolver(info, input):  # noqa: A002
+        async def resolver(info, input):
             """Auto-generated resolver for PostgreSQL mutation."""
             # Get database connection
             db = info.context.get("db")

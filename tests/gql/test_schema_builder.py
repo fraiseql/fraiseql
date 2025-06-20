@@ -26,7 +26,7 @@ def test_fraise_field_with_annotation() -> None:
         my_field: str = fraise_field(field_type=str)
 
     field = ExampleClass.my_field
-    assert field.field_type == str, f"Expected field_type to be 'str', but got {field.field_type}"
+    assert field.field_type is str, f"Expected field_type to be 'str', but got {field.field_type}"
 
 
 def test_fraise_field_with_default() -> None:

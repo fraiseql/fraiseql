@@ -1,9 +1,9 @@
 """Strawberry GraphQL + SQLAlchemy benchmark application"""
 
 import json
-import os
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, Response
@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
     engine, async_session = await init_db(settings.database_url)
 
     # Create results directory
-    os.makedirs(settings.results_dir, exist_ok=True)
+    Path(settings.results_dir).mkdir(parents=True, exist_ok=True)
 
     yield
 
@@ -344,9 +344,9 @@ async def metrics():
 async def write_benchmark_result(test_name: str, result: dict):
     """Write benchmark results to file"""
     timestamp = datetime.utcnow().isoformat()
-    result_file = os.path.join(settings.results_dir, f"{test_name}_{timestamp}.json")
+    result_file = Path(settings.results_dir) / f"{test_name}_{timestamp}.json"
 
-    with open(result_file, "w") as f:
+    with result_file.open("w") as f:
         json.dump(
             {
                 "framework": "strawberry-sqlalchemy",

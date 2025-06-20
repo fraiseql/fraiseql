@@ -46,7 +46,7 @@ class FraiseQLField:
         default: Any = FRAISE_MISSING,
         default_factory: Callable[[], Any] | None = None,
         init: bool = True,
-        repr: bool = True,  # noqa: A002
+        repr: bool = True,
         compare: bool = True,
         purpose: FraiseQLFieldPurpose = "both",
         description: str | None = None,
@@ -83,7 +83,7 @@ def fraise_field(
     default: Any = FRAISE_MISSING,
     default_factory: Callable[[], Any] | None = None,
     init: bool = True,
-    repr: bool = True,  # noqa: A002
+    repr: bool = True,
     compare: bool = True,
     purpose: FraiseQLFieldPurpose = "both",
     description: str | None = None,
