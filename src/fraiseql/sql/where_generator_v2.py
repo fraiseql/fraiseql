@@ -9,8 +9,7 @@ from typing import Any
 from psycopg.sql import Composed
 
 from fraiseql.security.validators import InputValidator, ValidationResult
-from fraiseql.sql.where_generator import safe_create_where_type
-from fraiseql.types.type_generator import DynamicType
+from fraiseql.sql.where_generator import DynamicType, safe_create_where_type
 
 
 def safe_create_where_type_with_validation(cls: type[object]) -> type[DynamicType]:

@@ -11,19 +11,50 @@ from functools import wraps
 from typing import Any, Optional
 
 from fastapi import FastAPI, Request, Response
-from opentelemetry import context as otel_context
-from opentelemetry import trace
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.zipkin.json import ZipkinExporter
-from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
-from opentelemetry.propagate import extract, inject
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
-from opentelemetry.semconv.trace import SpanAttributes
-from opentelemetry.trace import Status, StatusCode
+
+try:
+    from opentelemetry import context as otel_context
+    from opentelemetry import trace
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.exporter.zipkin.json import ZipkinExporter
+    from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
+    from opentelemetry.propagate import extract, inject
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+    from opentelemetry.semconv.trace import SpanAttributes
+    from opentelemetry.trace import Status, StatusCode
+    OPENTELEMETRY_AVAILABLE = True
+except ImportError:
+    OPENTELEMETRY_AVAILABLE = False
+    # Define placeholder classes and functions
+    trace = None  # type: ignore
+    otel_context = None  # type: ignore
+    JaegerExporter = None  # type: ignore
+    OTLPSpanExporter = None  # type: ignore
+    ZipkinExporter = None  # type: ignore
+    PsycopgInstrumentor = None  # type: ignore
+    extract = lambda *args, **kwargs: {}  # type: ignore
+    inject = lambda *args, **kwargs: None  # type: ignore
+    Resource = None  # type: ignore
+    TracerProvider = None  # type: ignore
+    BatchSpanProcessor = None  # type: ignore
+    TraceIdRatioBased = None  # type: ignore
+    class SpanAttributes:  # type: ignore
+        HTTP_METHOD = "http.method"
+        HTTP_URL = "http.url"
+        HTTP_STATUS_CODE = "http.status_code"
+        GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
+        GRAPHQL_OPERATION_NAME = "graphql.operation.name"
+    class StatusCode:  # type: ignore
+        OK = "OK"
+        ERROR = "ERROR"
+    class Status:  # type: ignore
+        def __init__(self, code, description=""):
+            self.code = code
+            self.description = description
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Global tracer instance
@@ -130,7 +161,7 @@ class FraiseQLTracer:
             )
         if self.config.export_format == "jaeger":
             # Parse endpoint for Jaeger
-            if ":" in self.config.export_endpoint:
+            if self.config.export_endpoint and ":" in self.config.export_endpoint:
                 host, port = self.config.export_endpoint.split(":")
                 return JaegerExporter(
                     agent_host_name=host,

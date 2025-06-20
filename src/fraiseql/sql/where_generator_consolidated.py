@@ -117,7 +117,7 @@ class WhereClauseMixin:
 
         return value
 
-    def _get_field_path(self, field_name: str) -> SQL:
+    def _get_field_path(self, field_name: str) -> SQL | Composed:
         """Get the SQL path for a field."""
         # Apply field mapping
         mapped_name = self._config.field_mapping.get(field_name, field_name)
@@ -132,7 +132,7 @@ class WhereClauseMixin:
             return SQL("{}->>{}").format(path, Literal(parts[-1]))
         return SQL("{}->>{}").format(SQL(self._config.table_prefix), Literal(mapped_name))
 
-    def _get_typed_field_path(self, field_name: str, field_type: type) -> SQL:
+    def _get_typed_field_path(self, field_name: str, field_type: type) -> SQL | Composed:
         """Get the SQL path with appropriate type casting."""
         base_path = self._get_field_path(field_name)
 

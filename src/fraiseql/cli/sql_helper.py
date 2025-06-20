@@ -11,7 +11,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Union, get_args, get_origin, get_type_hints
 
-from fraiseql.utils.string import to_snake_case
+from fraiseql.utils.naming import to_snake_case
 
 
 @dataclass

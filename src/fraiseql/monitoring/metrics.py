@@ -11,14 +11,50 @@ from functools import wraps
 from typing import Optional
 
 from fastapi import FastAPI, Request, Response
-from prometheus_client import (
-    CONTENT_TYPE_LATEST,
-    CollectorRegistry,
-    Counter,
-    Gauge,
-    Histogram,
-    generate_latest,
-)
+
+try:
+    from prometheus_client import (
+        CONTENT_TYPE_LATEST,
+        CollectorRegistry,
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
+    )
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    # Define placeholder classes
+    class CollectorRegistry:  # type: ignore
+        pass
+    class Counter:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            pass
+        def inc(self, *args, **kwargs):
+            pass
+        def labels(self, *args, **kwargs):
+            return self
+    class Gauge:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            pass
+        def set(self, *args, **kwargs):
+            pass
+        def inc(self, *args, **kwargs):
+            pass
+        def dec(self, *args, **kwargs):
+            pass
+        def labels(self, *args, **kwargs):
+            return self
+    class Histogram:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            pass
+        def observe(self, *args, **kwargs):
+            pass
+        def labels(self, *args, **kwargs):
+            return self
+    CONTENT_TYPE_LATEST = "text/plain"
+    def generate_latest(*args, **kwargs):
+        return b""
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Global metrics instance
