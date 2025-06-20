@@ -8,7 +8,7 @@ from .loaders import (
     UserLoader,
 )
 from .n_plus_one_detector import (
-    N1QueryDetected,
+    N1QueryDetectedError,
     N1QueryDetector,
     configure_detector,
     get_detector,
@@ -21,7 +21,7 @@ __all__ = [
     "DataLoader",
     "GenericForeignKeyLoader",
     "LoaderRegistry",
-    "N1QueryDetected",
+    "N1QueryDetectedError",
     "N1QueryDetector",
     "ProjectLoader",
     "TasksByProjectLoader",

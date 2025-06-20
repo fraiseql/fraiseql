@@ -176,7 +176,7 @@ def dataloader_field(
                 # Fallback: return raw data (safer than arbitrary construction)
                 return result_data
 
-            except Exception as e:
+            except Exception:
                 # CRITICAL: Never expose internal errors to prevent information leakage
                 logger.exception("DataLoader type conversion failed")
 

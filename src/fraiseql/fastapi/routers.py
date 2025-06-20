@@ -15,7 +15,7 @@ from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.dependencies import build_graphql_context
 from fraiseql.fastapi.turbo import TurboRegistry, TurboRouter
 from fraiseql.optimization.n_plus_one_detector import (
-    N1QueryDetected,
+    N1QueryDetectedError,
     configure_detector,
     n1_detection_context,
 )
@@ -123,7 +123,7 @@ def create_development_router(
 
             return response
 
-        except N1QueryDetected as e:
+        except N1QueryDetectedError as e:
             # N+1 query pattern detected
             return {
                 "errors": [

@@ -227,8 +227,8 @@ def create_connection(data: dict[str, Any], node_type: type[T]) -> Any:
         connection = create_connection(result, Post)  # Returns Connection[Post]
     """
     # Create concrete Edge and Connection types
-    EdgeConcrete = get_or_create_concrete_type(Edge, node_type)
-    ConnectionConcrete = get_or_create_concrete_type(Connection, node_type)
+    edge_concrete = get_or_create_concrete_type(Edge, node_type)
+    connection_concrete = get_or_create_concrete_type(Connection, node_type)
 
     # Convert edges
     edges = []
@@ -241,14 +241,14 @@ def create_connection(data: dict[str, Any], node_type: type[T]) -> Any:
             node = node_type(**edge_data["node"])
 
         # Create typed edge
-        edge = EdgeConcrete(node=node, cursor=edge_data["cursor"])
+        edge = edge_concrete(node=node, cursor=edge_data["cursor"])
         edges.append(edge)
 
     # Create page info
     page_info = PageInfo.from_dict(data.get("page_info", {}))
 
     # Create and return typed connection
-    return ConnectionConcrete(
+    return connection_concrete(
         edges=edges,
         page_info=page_info,
         total_count=data.get("total_count"),

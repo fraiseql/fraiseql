@@ -204,8 +204,8 @@ class WhereBuilder:
             logger.warning(f"WHERE clause warnings: {self._warnings}")
 
         # Create WHERE type instance
-        WhereType = safe_create_where_type_with_validation(self.cls)
-        where_instance = WhereType(**self.conditions)
+        where_type = safe_create_where_type_with_validation(self.cls)
+        where_instance = where_type(**self.conditions)
 
         return where_instance.to_sql()
 

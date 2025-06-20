@@ -25,7 +25,7 @@ class ConfigurationError(FraiseQLError):
     """Raised when configuration is invalid."""
 
 
-class ComplexityLimitExceeded(FraiseQLError):
+class ComplexityLimitExceededError(FraiseQLError):
     """Raised when query complexity exceeds limits."""
 
 
@@ -33,7 +33,7 @@ class FilterError(FraiseQLError):
     """Raised when filter expression is invalid."""
 
 
-class N1QueryDetected(FraiseQLError):
+class N1QueryDetectedError(FraiseQLError):
     """Raised when N+1 query pattern is detected."""
 
 

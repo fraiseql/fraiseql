@@ -395,11 +395,12 @@ def convert_type_to_graphql_output(
 
                             if return_type is None:
                                 logger.warning(
-                                    f"Custom field method {attr_name} missing return type annotation",
+                                    "Custom field method %s missing return type annotation",
+                                    attr_name,
                                 )
                                 continue
 
-                            logger.debug(f"Found custom field method: {attr_name}")
+                            logger.debug("Found custom field method: %s", attr_name)
 
                             # Convert return type to GraphQL type
                             gql_return_type = convert_type_to_graphql_output(return_type)
@@ -441,7 +442,7 @@ def convert_type_to_graphql_output(
                             )
 
                         except Exception as e:
-                            logger.warning(f"Failed to process custom field {attr_name}: {e}")
+                            logger.warning("Failed to process custom field %s: %s", attr_name, e)
                             continue
 
                 # Get interfaces this type implements

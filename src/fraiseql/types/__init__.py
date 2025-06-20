@@ -31,9 +31,9 @@ from .scalars.datetime import DateTimeField as DateTime
 from .scalars.email_address import EmailAddressField as EmailAddress
 from .scalars.graphql_utils import convert_scalar_to_graphql
 from .scalars.ip_address import IpAddressField as IpAddress
-from .scalars.json import JSONField as JSON
+from .scalars.json import JSONField as JSON  # noqa: N814
 from .scalars.ltree import LTreeField as LTree
-from .scalars.uuid import UUIDField as UUID
+from .scalars.uuid import UUIDField as UUID  # noqa: N814
 
 # Aliases for decorators
 type = fraise_type

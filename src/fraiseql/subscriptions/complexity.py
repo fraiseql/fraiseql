@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any
 
-from fraiseql.core.exceptions import ComplexityLimitExceeded
+from fraiseql.core.exceptions import ComplexityLimitExceededError
 
 
 @dataclass
@@ -49,7 +49,7 @@ class SubscriptionComplexityAnalyzer:
         if hasattr(info, "field_nodes") and info.field_nodes:
             depth = self._calculate_depth(info.field_nodes[0].selection_set)
             if depth > self.config.max_depth:
-                raise ComplexityLimitExceeded(
+                raise ComplexityLimitExceededError(
                     f"Query depth {depth} exceeds maximum {self.config.max_depth}",
                 )
 
@@ -129,7 +129,7 @@ def complexity(score: int | None = None, max_depth: int | None = None):
 
             # Check limit
             if complexity_score > analyzer.config.max_complexity:
-                raise ComplexityLimitExceeded(
+                raise ComplexityLimitExceededError(
                     f"Subscription complexity {complexity_score} exceeds "
                     f"maximum {analyzer.config.max_complexity}",
                 )
