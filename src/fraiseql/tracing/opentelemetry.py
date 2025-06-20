@@ -39,8 +39,10 @@ except ImportError:
     ZipkinExporter = None  # type: ignore
     PsycopgInstrumentor = None  # type: ignore
     def extract(*args, **kwargs):  # type: ignore
+        """Placeholder for extract when opentelemetry is not available."""
         return {}
     def inject(*args, **kwargs):  # type: ignore
+        """Placeholder for inject when opentelemetry is not available."""
         return None
     Resource = None  # type: ignore
     TracerProvider = None  # type: ignore

@@ -54,6 +54,7 @@ except ImportError:
             return self
     CONTENT_TYPE_LATEST = "text/plain"
     def generate_latest(*args, **kwargs):
+        """Placeholder for generate_latest when prometheus_client is not available."""
         return b""
 from starlette.middleware.base import BaseHTTPMiddleware
 

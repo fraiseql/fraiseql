@@ -131,8 +131,8 @@ __all__ = [
     "type",
 ]
 
-type = strawberry.type
-input = strawberry.input
+type = strawberry.type  # noqa: A001
+input = strawberry.input  # noqa: A001
 enum = strawberry.enum
 interface = strawberry.interface
 field = strawberry.field

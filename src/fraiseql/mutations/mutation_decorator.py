@@ -51,7 +51,7 @@ class MutationDefinition:
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
 
-        async def resolver(info, input):
+        async def resolver(info, input):  # noqa: A002
             """Auto-generated resolver for PostgreSQL mutation."""
             # Get database connection
             db = info.context.get("db")

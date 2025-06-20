@@ -94,7 +94,7 @@ class FilterExpressionEvaluator:
                 raise FilterError(f"Forbidden attribute: {child.attr}")
 
 
-def filter(expression: str):
+def filter(expression: str):  # noqa: A001
     """Decorator for declarative subscription filtering.
 
     Usage:

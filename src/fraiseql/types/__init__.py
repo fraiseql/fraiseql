@@ -36,8 +36,8 @@ from .scalars.ltree import LTreeField as LTree
 from .scalars.uuid import UUIDField as UUID  # noqa: N814
 
 # Aliases for decorators
-type = fraise_type
-input = fraise_input
+type = fraise_type  # noqa: A001
+input = fraise_input  # noqa: A001
 
 __all__ = [
     "JSON",

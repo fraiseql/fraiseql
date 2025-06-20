@@ -124,8 +124,8 @@ def generate_pattern(
     elif pattern_type == "sorting":
         # Parse order fields
         order_by = []
-        for ord in order:
-            parts = ord.split(":")
+        for order_spec in order:
+            parts = order_spec.split(":")
             field = parts[0]
             direction = parts[1] if len(parts) > 1 else "ASC"
             order_by.append((field, direction))
