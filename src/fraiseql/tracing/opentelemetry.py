@@ -13,58 +13,60 @@ from typing import Any, Optional
 from fastapi import FastAPI, Request, Response
 
 try:
-    from opentelemetry import context as otel_context  # type: ignore
-    from opentelemetry import trace  # type: ignore
-    from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore
+    from opentelemetry import context as otel_context  # type: ignore[import-untyped]
+    from opentelemetry import trace  # type: ignore[import-untyped]
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore[import-untyped]
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
-        OTLPSpanExporter,  # type: ignore
+        OTLPSpanExporter,  # type: ignore[import-untyped]
     )
-    from opentelemetry.exporter.zipkin.json import ZipkinExporter  # type: ignore
-    from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor  # type: ignore
-    from opentelemetry.propagate import extract, inject  # type: ignore
-    from opentelemetry.sdk.resources import Resource  # type: ignore
-    from opentelemetry.sdk.trace import TracerProvider  # type: ignore
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
-    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased  # type: ignore
-    from opentelemetry.semconv.trace import SpanAttributes  # type: ignore
-    from opentelemetry.trace import Status, StatusCode  # type: ignore
+    from opentelemetry.exporter.zipkin.json import ZipkinExporter  # type: ignore[import-untyped]
+    from opentelemetry.instrumentation.psycopg import (
+        PsycopgInstrumentor,  # type: ignore[import-untyped]
+    )
+    from opentelemetry.propagate import extract, inject  # type: ignore[import-untyped]
+    from opentelemetry.sdk.resources import Resource  # type: ignore[import-untyped]
+    from opentelemetry.sdk.trace import TracerProvider  # type: ignore[import-untyped]
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore[import-untyped]
+    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased  # type: ignore[import-untyped]
+    from opentelemetry.semconv.trace import SpanAttributes  # type: ignore[import-untyped]
+    from opentelemetry.trace import Status, StatusCode  # type: ignore[import-untyped]
 
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False
     # Define placeholder classes and functions
-    trace = None  # type: ignore
-    otel_context = None  # type: ignore
-    JaegerExporter = None  # type: ignore
-    OTLPSpanExporter = None  # type: ignore
-    ZipkinExporter = None  # type: ignore
-    PsycopgInstrumentor = None  # type: ignore
+    trace = None  # type: ignore[assignment]
+    otel_context = None  # type: ignore[assignment]
+    JaegerExporter = None  # type: ignore[assignment]
+    OTLPSpanExporter = None  # type: ignore[assignment]
+    ZipkinExporter = None  # type: ignore[assignment]
+    PsycopgInstrumentor = None  # type: ignore[assignment]
 
-    def extract(*args, **kwargs):  # type: ignore
+    def extract(*args, **kwargs):  # type: ignore[misc]
         """Placeholder for extract when opentelemetry is not available."""
         return {}
 
-    def inject(*args, **kwargs) -> None:  # type: ignore
+    def inject(*args, **kwargs) -> None:  # type: ignore[misc]
         """Placeholder for inject when opentelemetry is not available."""
         return
 
-    Resource = None  # type: ignore
-    TracerProvider = None  # type: ignore
-    BatchSpanProcessor = None  # type: ignore
-    TraceIdRatioBased = None  # type: ignore
+    Resource = None  # type: ignore[assignment]
+    TracerProvider = None  # type: ignore[assignment]
+    BatchSpanProcessor = None  # type: ignore[assignment]
+    TraceIdRatioBased = None  # type: ignore[assignment]
 
-    class SpanAttributes:  # type: ignore
+    class SpanAttributes:  # type: ignore[misc]
         HTTP_METHOD = "http.method"
         HTTP_URL = "http.url"
         HTTP_STATUS_CODE = "http.status_code"
         GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
         GRAPHQL_OPERATION_NAME = "graphql.operation.name"
 
-    class StatusCode:  # type: ignore
+    class StatusCode:  # type: ignore[misc]
         OK = "OK"
         ERROR = "ERROR"
 
-    class Status:  # type: ignore
+    class Status:  # type: ignore[misc]
         def __init__(self, code, description="") -> None:
             self.code = code
             self.description = description
@@ -137,7 +139,7 @@ class FraiseQLTracer:
         """Set up OpenTelemetry tracer with configured exporter."""
         if not self.config.enabled or not OPENTELEMETRY_AVAILABLE:
             # Return no-op tracer when disabled or not available
-            return trace.get_tracer(__name__) if trace else None  # type: ignore
+            return trace.get_tracer(__name__) if trace else None  # type: ignore[return-value]
 
         # Create resource with service information
         resource = Resource.create(
@@ -155,7 +157,7 @@ class FraiseQLTracer:
         # Create tracer provider
         provider = TracerProvider(resource=resource, sampler=sampler) if TracerProvider else None
         if not provider:
-            return trace.get_tracer(__name__) if trace else None  # type: ignore
+            return trace.get_tracer(__name__) if trace else None  # type: ignore[return-value]
 
         # Add span processor with appropriate exporter
         if self.config.export_endpoint and BatchSpanProcessor:

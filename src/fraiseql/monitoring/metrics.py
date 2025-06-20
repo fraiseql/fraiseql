@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import FastAPI, Request, Response
 
 try:
-    from prometheus_client import (  # type: ignore
+    from prometheus_client import (  # type: ignore[import-untyped]
         CONTENT_TYPE_LATEST,
         CollectorRegistry,
         Counter,
@@ -27,10 +27,10 @@ except ImportError:
     PROMETHEUS_AVAILABLE = False
 
     # Define placeholder classes
-    class CollectorRegistry:  # type: ignore
+    class CollectorRegistry:  # type: ignore[misc]
         pass
 
-    class Counter:  # type: ignore
+    class Counter:  # type: ignore[misc]
         def __init__(self, *args, **kwargs) -> None:
             pass
 
@@ -40,7 +40,7 @@ except ImportError:
         def labels(self, *args, **kwargs):
             return self
 
-    class Gauge:  # type: ignore
+    class Gauge:  # type: ignore[misc]
         def __init__(self, *args, **kwargs) -> None:
             pass
 
@@ -56,7 +56,7 @@ except ImportError:
         def labels(self, *args, **kwargs):
             return self
 
-    class Histogram:  # type: ignore
+    class Histogram:  # type: ignore[misc]
         def __init__(self, *args, **kwargs) -> None:
             pass
 
