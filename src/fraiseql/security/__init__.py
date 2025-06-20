@@ -438,7 +438,7 @@ def setup_production_security(
 
 def setup_development_security(
     app: FastAPI,
-    secret_key: str = "dev-secret-key-change-in-production",
+    secret_key: str = "dev-secret-key-change-in-production",  # noqa: S107 - dev only
 ) -> dict[str, Any]:
     """Set up development security with permissive settings."""
     return setup_security(

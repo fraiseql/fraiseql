@@ -15,6 +15,7 @@ class TypeRegistry:
     _lock = Lock()
 
     def __new__(cls):
+        """Create or return singleton instance."""
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
