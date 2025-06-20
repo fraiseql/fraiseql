@@ -174,8 +174,8 @@ class Auth0Provider(AuthProvider):
             headers={"Authorization": f"Bearer {access_token}"},
         )
 
-        HTTP_OK = 200
-        if response.status_code != HTTP_OK:
+        http_ok = 200
+        if response.status_code != http_ok:
             msg = f"Failed to fetch user profile: {response.text}"
             raise AuthenticationError(msg)
 
@@ -198,8 +198,8 @@ class Auth0Provider(AuthProvider):
             headers={"Authorization": f"Bearer {access_token}"},
         )
 
-        HTTP_OK = 200
-        if response.status_code != HTTP_OK:
+        http_ok = 200
+        if response.status_code != http_ok:
             msg = f"Failed to fetch user roles: {response.text}"
             raise AuthenticationError(msg)
 
@@ -222,8 +222,10 @@ class Auth0Provider(AuthProvider):
             headers={"Authorization": f"Bearer {access_token}"},
         )
 
-        if response.status_code != 200:
-            raise AuthenticationError(f"Failed to fetch user permissions: {response.text}")
+        http_ok = 200
+        if response.status_code != http_ok:
+            msg = f"Failed to fetch user permissions: {response.text}"
+            raise AuthenticationError(msg)
 
         return response.json()
 

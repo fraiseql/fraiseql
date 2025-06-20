@@ -29,16 +29,19 @@ def requires_auth(
         # First argument is always info for GraphQL resolvers
         info = args[0] if args else kwargs.get("info")
         if not info:
-            raise ValueError("GraphQL resolver must have info as first argument")
+            msg = "GraphQL resolver must have info as first argument"
+            raise ValueError(msg)
 
         if not isinstance(info, GraphQLResolveInfo):
-            raise TypeError("First argument must be GraphQLResolveInfo")
+            msg = "First argument must be GraphQLResolveInfo"
+            raise TypeError(msg)
 
         context = info.context
         user = context.get("user")
 
         if not user or not isinstance(user, UserContext):
-            raise GraphQLError("Authentication required", extensions={"code": "UNAUTHENTICATED"})
+            msg = "Authentication required"
+            raise GraphQLError(msg, extensions={"code": "UNAUTHENTICATED"})
 
         return await func(*args, **kwargs)
 
@@ -64,24 +67,28 @@ def requires_permission(
             # First argument is always info for GraphQL resolvers
             info = args[0] if args else kwargs.get("info")
             if not info:
-                raise ValueError("GraphQL resolver must have info as first argument")
+                msg = "GraphQL resolver must have info as first argument"
+                raise ValueError(msg)
 
             # Type guard to ensure info is GraphQLResolveInfo
             if not isinstance(info, GraphQLResolveInfo):
-                raise ValueError("First argument must be GraphQLResolveInfo")
+                msg = "First argument must be GraphQLResolveInfo"
+                raise ValueError(msg)
 
             context = info.context
             user = context.get("user")
 
             if not user or not isinstance(user, UserContext):
+                msg = "Authentication required"
                 raise GraphQLError(
-                    "Authentication required",
+                    msg,
                     extensions={"code": "UNAUTHENTICATED"},
                 )
 
             if not user.has_permission(permission):
+                msg = f"Permission '{permission}' required"
                 raise GraphQLError(
-                    f"Permission '{permission}' required",
+                    msg,
                     extensions={"code": "FORBIDDEN", "required_permission": permission},
                 )
 
@@ -111,24 +118,28 @@ def requires_role(
             # First argument is always info for GraphQL resolvers
             info = args[0] if args else kwargs.get("info")
             if not info:
-                raise ValueError("GraphQL resolver must have info as first argument")
+                msg = "GraphQL resolver must have info as first argument"
+                raise ValueError(msg)
 
             # Type guard to ensure info is GraphQLResolveInfo
             if not isinstance(info, GraphQLResolveInfo):
-                raise ValueError("First argument must be GraphQLResolveInfo")
+                msg = "First argument must be GraphQLResolveInfo"
+                raise ValueError(msg)
 
             context = info.context
             user = context.get("user")
 
             if not user or not isinstance(user, UserContext):
+                msg = "Authentication required"
                 raise GraphQLError(
-                    "Authentication required",
+                    msg,
                     extensions={"code": "UNAUTHENTICATED"},
                 )
 
             if not user.has_role(role):
+                msg = f"Role '{role}' required"
                 raise GraphQLError(
-                    f"Role '{role}' required",
+                    msg,
                     extensions={"code": "FORBIDDEN", "required_role": role},
                 )
 
@@ -158,24 +169,28 @@ def requires_any_permission(
             # First argument is always info for GraphQL resolvers
             info = args[0] if args else kwargs.get("info")
             if not info:
-                raise ValueError("GraphQL resolver must have info as first argument")
+                msg = "GraphQL resolver must have info as first argument"
+                raise ValueError(msg)
 
             # Type guard to ensure info is GraphQLResolveInfo
             if not isinstance(info, GraphQLResolveInfo):
-                raise ValueError("First argument must be GraphQLResolveInfo")
+                msg = "First argument must be GraphQLResolveInfo"
+                raise ValueError(msg)
 
             context = info.context
             user = context.get("user")
 
             if not user or not isinstance(user, UserContext):
+                msg = "Authentication required"
                 raise GraphQLError(
-                    "Authentication required",
+                    msg,
                     extensions={"code": "UNAUTHENTICATED"},
                 )
 
             if not user.has_any_permission(list(permissions)):
+                msg = f"One of these permissions required: {', '.join(permissions)}"
                 raise GraphQLError(
-                    f"One of these permissions required: {', '.join(permissions)}",
+                    msg,
                     extensions={
                         "code": "FORBIDDEN",
                         "required_permissions": list(permissions),
@@ -208,24 +223,28 @@ def requires_any_role(
             # First argument is always info for GraphQL resolvers
             info = args[0] if args else kwargs.get("info")
             if not info:
-                raise ValueError("GraphQL resolver must have info as first argument")
+                msg = "GraphQL resolver must have info as first argument"
+                raise ValueError(msg)
 
             # Type guard to ensure info is GraphQLResolveInfo
             if not isinstance(info, GraphQLResolveInfo):
-                raise ValueError("First argument must be GraphQLResolveInfo")
+                msg = "First argument must be GraphQLResolveInfo"
+                raise ValueError(msg)
 
             context = info.context
             user = context.get("user")
 
             if not user or not isinstance(user, UserContext):
+                msg = "Authentication required"
                 raise GraphQLError(
-                    "Authentication required",
+                    msg,
                     extensions={"code": "UNAUTHENTICATED"},
                 )
 
             if not user.has_any_role(list(roles)):
+                msg = f"One of these roles required: {', '.join(roles)}"
                 raise GraphQLError(
-                    f"One of these roles required: {', '.join(roles)}",
+                    msg,
                     extensions={"code": "FORBIDDEN", "required_roles": list(roles)},
                 )
 
