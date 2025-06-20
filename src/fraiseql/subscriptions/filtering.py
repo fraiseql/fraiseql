@@ -90,9 +90,8 @@ class FilterExpressionEvaluator:
                 raise FilterError(f"Forbidden name: {child.id}")
 
             # Check attributes
-            if isinstance(child, ast.Attribute):
-                if child.attr not in self.ALLOWED_ATTRIBUTES:
-                    raise FilterError(f"Forbidden attribute: {child.attr}")
+            if isinstance(child, ast.Attribute) and child.attr not in self.ALLOWED_ATTRIBUTES:
+                raise FilterError(f"Forbidden attribute: {child.attr}")
 
 
 def filter(expression: str):

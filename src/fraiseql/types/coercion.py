@@ -55,14 +55,17 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
     # Case 2: Union containing a FraiseQL object
     if origin is Union and args:
         for arg in args:
-            if isinstance(arg, HasFraiseDefinition):
-                if arg.__fraiseql_definition__.kind in {
+            if (
+                isinstance(arg, HasFraiseDefinition)
+                and arg.__fraiseql_definition__.kind
+                in {
                     "input",
                     "type",
                     "success",
                     "failure",
-                }:
-                    return coerce_input(cast(type, arg), cast(dict[str, object], raw_value))
+                }
+            ):
+                return coerce_input(cast(type, arg), cast(dict[str, object], raw_value))
 
     # Case 3: List of FraiseQL objects
     if origin is list and args and hasattr(args[0], "__fraiseql_definition__"):

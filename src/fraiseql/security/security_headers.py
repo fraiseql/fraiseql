@@ -1,11 +1,14 @@
 """Security headers middleware for FraiseQL applications."""
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+
+logger = logging.getLogger(__name__)
 
 
 class CSPDirective(Enum):
@@ -489,7 +492,7 @@ def create_csp_report_handler(webhook_url: str | None = None):
 
             # Log violation
             violation = report.get("csp-report", {})
-            print(
+            logger.warning(
                 f"CSP Violation: {violation.get('violated-directive')} "
                 f"blocked {violation.get('blocked-uri')} "
                 f"on {violation.get('document-uri')}",
@@ -505,7 +508,7 @@ def create_csp_report_handler(webhook_url: str | None = None):
             return {"status": "received"}
 
         except Exception as e:
-            print(f"Error handling CSP report: {e}")
+            logger.error(f"Error handling CSP report: {e}")
             return {"status": "error"}
 
     return csp_report_endpoint

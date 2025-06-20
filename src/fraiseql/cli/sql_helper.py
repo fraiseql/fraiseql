@@ -596,9 +596,8 @@ class SQLHelper:
             issues.append("Not using jsonb_build_object - FraiseQL requires JSONB output")
 
         # Check naming convention
-        if "create view" in sql_lower:
-            if not re.search(r"v_\w+", sql):
-                issues.append("View naming convention - consider using 'v_tablename' format")
+        if "create view" in sql_lower and not re.search(r"v_\w+", sql):
+            issues.append("View naming convention - consider using 'v_tablename' format")
 
         # Check for SELECT *
         if "select *" in sql_lower:

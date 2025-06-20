@@ -222,9 +222,8 @@ class InputValidator:
                     if operator in {"in", "nin"}:
                         if not isinstance(value, list):
                             all_errors.append(f"Operator '{operator}' requires a list value")
-                    elif operator == "is_null":
-                        if not isinstance(value, bool):
-                            all_errors.append("Operator 'is_null' requires a boolean value")
+                    elif operator == "is_null" and not isinstance(value, bool):
+                        all_errors.append("Operator 'is_null' requires a boolean value")
 
                     # Validate the actual value
                     result = cls.validate_field_value(field_name, value)

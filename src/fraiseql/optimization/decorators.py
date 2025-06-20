@@ -128,11 +128,12 @@ def dataloader_field(
                                     k: v for k, v in result_data.items() if k in annotations
                                 }
                                 return target_type(**filtered_data)
-                            if hasattr(target_type, "from_dict") and callable(
-                                target_type.from_dict,
+                            if (
+                                hasattr(target_type, "from_dict")
+                                and callable(target_type.from_dict)
+                                and isinstance(result_data, dict)
                             ):
-                                if isinstance(result_data, dict):
-                                    return target_type.from_dict(result_data)
+                                return target_type.from_dict(result_data)
                     return result_data
 
                 # Handle Optional[Type] and similar generic types (typing module)
@@ -151,9 +152,12 @@ def dataloader_field(
                                 k: v for k, v in result_data.items() if k in annotations
                             }
                             return target_type(**filtered_data)
-                        if hasattr(target_type, "from_dict") and callable(target_type.from_dict):
-                            if isinstance(result_data, dict):
-                                return target_type.from_dict(result_data)
+                        if (
+                            hasattr(target_type, "from_dict")
+                            and callable(target_type.from_dict)
+                            and isinstance(result_data, dict)
+                        ):
+                            return target_type.from_dict(result_data)
                     return result_data
 
                 # Handle direct type construction
@@ -162,9 +166,12 @@ def dataloader_field(
                     annotations = getattr(return_type, "__annotations__", {})
                     filtered_data = {k: v for k, v in result_data.items() if k in annotations}
                     return return_type(**filtered_data)
-                if hasattr(return_type, "from_dict") and callable(return_type.from_dict):
-                    if isinstance(result_data, dict):
-                        return return_type.from_dict(result_data)
+                if (
+                    hasattr(return_type, "from_dict")
+                    and callable(return_type.from_dict)
+                    and isinstance(result_data, dict)
+                ):
+                    return return_type.from_dict(result_data)
 
                 # Fallback: return raw data (safer than arbitrary construction)
                 return result_data

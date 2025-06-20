@@ -469,10 +469,7 @@ def setup_rate_limiting(
 ) -> RateLimitMiddleware:
     """Set up rate limiting middleware with sensible defaults."""
     # Choose store based on Redis availability
-    if redis_client:
-        store = RedisRateLimitStore(redis_client)
-    else:
-        store = RateLimitStore()
+    store = RedisRateLimitStore(redis_client) if redis_client else RateLimitStore()
 
     # Use custom rules or defaults
     rules = custom_rules or create_default_rate_limit_rules()

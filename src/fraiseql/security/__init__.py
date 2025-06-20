@@ -25,9 +25,12 @@ Example usage:
     setup_security_headers(app, environment="production")
 """
 
+import logging
 from typing import Any
 
 from fastapi import FastAPI
+
+logger = logging.getLogger(__name__)
 
 # CSRF protection
 from .csrf_protection import (
@@ -242,7 +245,7 @@ def setup_security(
             )
             middleware_instances["rate_limiting"] = rate_limiting_middleware
         except Exception as e:
-            print(f"Warning: Failed to set up rate limiting: {e}")
+            logger.warning(f"Failed to set up rate limiting: {e}")
 
     # 2. Set up CSRF protection
     if config.enable_csrf_protection:
@@ -266,7 +269,7 @@ def setup_security(
             )
             middleware_instances["csrf"] = csrf_middleware
         except Exception as e:
-            print(f"Warning: Failed to set up CSRF protection: {e}")
+            logger.warning(f"Failed to set up CSRF protection: {e}")
 
     # 3. Set up security headers
     if config.enable_security_headers:
@@ -292,7 +295,7 @@ def setup_security(
             )
             middleware_instances["security_headers"] = headers_middleware
         except Exception as e:
-            print(f"Warning: Failed to set up security headers: {e}")
+            logger.warning(f"Failed to set up security headers: {e}")
 
     # 4. Set up input validation (if available)
     if config.enable_input_validation:
@@ -301,7 +304,7 @@ def setup_security(
             # This would be integrated with the FraiseQL query processing
             pass
         except Exception as e:
-            print(f"Warning: Failed to set up input validation: {e}")
+            logger.warning(f"Failed to set up input validation: {e}")
 
     return middleware_instances
 

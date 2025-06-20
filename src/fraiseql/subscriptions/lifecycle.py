@@ -1,9 +1,12 @@
 """Lifecycle hooks for subscriptions."""
 
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class SubscriptionLifecycle:
@@ -46,7 +49,7 @@ class SubscriptionLifecycle:
                 and info.context
                 and info.context.get("debug_subscriptions")
             ):
-                print(f"Subscription {info.context.get('subscription_id')} emitted: {event}")
+                logger.debug(f"Subscription {info.context.get('subscription_id')} emitted: {event}")
 
             return result
 
@@ -65,7 +68,7 @@ class SubscriptionLifecycle:
 
             if start_time:
                 duration = (datetime.now(UTC) - start_time).total_seconds()
-                print(f"Subscription duration: {duration}s")
+                logger.info(f"Subscription duration: {duration}s")
 
             # Call hook
             await func(info, **kwargs)

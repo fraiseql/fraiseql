@@ -66,10 +66,7 @@ class MutationBuilder:
             self.registry.register(result_type, error_type)
 
             # Determine SQL function name
-            if sql_function is None:
-                sql_func_name = f"graphql.{func.__name__}"
-            else:
-                sql_func_name = sql_function
+            sql_func_name = f"graphql.{func.__name__}" if sql_function is None else sql_function
 
             # Store mutation metadata
             metadata = MutationMetadata(

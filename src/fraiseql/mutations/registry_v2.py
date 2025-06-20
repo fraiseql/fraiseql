@@ -100,10 +100,7 @@ class RegistryManager:
         """
         previous = self._current_registry
 
-        if inherit:
-            new_registry = previous.create_child()
-        else:
-            new_registry = ScopedResultRegistry()
+        new_registry = previous.create_child() if inherit else ScopedResultRegistry()
 
         self._current_registry = new_registry
 

@@ -2,12 +2,15 @@
 
 import asyncio
 import hashlib
+import logging
 import pickle
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from functools import wraps
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -97,7 +100,7 @@ class SubscriptionCache:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Cache cleanup error: {e}")
+                logger.error(f"Cache cleanup error: {e}")
 
 
 def cache(ttl: float = 5.0):

@@ -47,11 +47,8 @@ def psycopg2_to_url(conn_string: str) -> str:
             extra_params.append(f"{key}={value}")
 
     # Build URL
-    if password:
-        # URL-encode password to handle special characters
-        auth = f"{user}:{quote_plus(password)}"
-    else:
-        auth = user
+    # URL-encode password to handle special characters
+    auth = f"{user}:{quote_plus(password)}" if password else user
 
     url = f"postgresql://{auth}@{host}:{port}/{dbname}"
 
