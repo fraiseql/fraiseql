@@ -7,7 +7,7 @@ that reduces coupling and makes dependencies explicit.
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 from .registry_v2 import ResultRegistry
 
@@ -22,7 +22,7 @@ class MutationMetadata:
     result_type: type
     error_type: type
     sql_function: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class MutationBuilder:
@@ -46,8 +46,8 @@ class MutationBuilder:
         *,
         result_type: type,
         error_type: type,
-        sql_function: Optional[str] = None,
-        description: Optional[str] = None,
+        sql_function: str | None = None,
+        description: str | None = None,
     ):
         """Explicit mutation decorator with dependency injection.
 
@@ -97,7 +97,7 @@ class MutationBuilder:
         """Get all registered mutations."""
         return self.mutations.copy()
 
-    def get_mutation(self, name: str) -> Optional[MutationMetadata]:
+    def get_mutation(self, name: str) -> MutationMetadata | None:
         """Get a specific mutation by name."""
         return self.mutations.get(name)
 
@@ -148,7 +148,7 @@ class MutationRegistry:
         """Register a single mutation."""
         self._mutations[name] = metadata
 
-    def get_mutation(self, name: str) -> Optional[MutationMetadata]:
+    def get_mutation(self, name: str) -> MutationMetadata | None:
         """Get a mutation by name."""
         return self._mutations.get(name)
 
@@ -193,7 +193,8 @@ def migrate_mutation_decorator(registry: ResultRegistry):
         # This is a simplified version - real implementation would
         # need more sophisticated type inference
         return builder.mutation(
-            result_type=type("DummySuccess", (), {}), error_type=type("DummyError", (), {})
+            result_type=type("DummySuccess", (), {}),
+            error_type=type("DummyError", (), {}),
         )(func)
 
     return mutation

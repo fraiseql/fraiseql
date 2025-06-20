@@ -16,7 +16,9 @@ class CQRSExecutor:
         self.connection = connection
 
     async def execute_function(
-        self, function_name: str, input_data: dict[str, Any]
+        self,
+        function_name: str,
+        input_data: dict[str, Any],
     ) -> dict[str, Any]:
         """Execute a SQL function that returns mutation_result type.
 
@@ -41,7 +43,7 @@ class CQRSExecutor:
                 FROM (
                     SELECT {}(%s::jsonb) as result
                 ) t
-            """
+            """,
             ).format(SQL(function_name))
             await cursor.execute(query, (json.dumps(input_data),))
             result = await cursor.fetchone()

@@ -10,8 +10,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 def subscription(fn: F) -> F:
-    """
-    Decorator to mark a function as a GraphQL subscription.
+    """Decorator to mark a function as a GraphQL subscription.
 
     Example:
         @subscription
@@ -22,7 +21,7 @@ def subscription(fn: F) -> F:
     if not inspect.isasyncgenfunction(fn):
         raise TypeError(
             f"Subscription {fn.__name__} must be an async generator function "
-            f"(use 'async def' and 'yield')"
+            f"(use 'async def' and 'yield')",
         )
 
     # Extract type hints

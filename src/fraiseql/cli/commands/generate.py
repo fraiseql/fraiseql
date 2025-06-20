@@ -9,7 +9,6 @@ import click
 @click.group()
 def generate():
     """Generate code from your FraiseQL schema."""
-    pass
 
 
 @generate.command()

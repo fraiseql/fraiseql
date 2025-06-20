@@ -6,7 +6,7 @@ global state and import order dependencies.
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Optional, Protocol
+from typing import Protocol
 
 
 class ResultRegistry(Protocol):
@@ -16,7 +16,7 @@ class ResultRegistry(Protocol):
         """Register a success/error type pair."""
         ...
 
-    def get_error_type(self, success_cls: type) -> Optional[type]:
+    def get_error_type(self, success_cls: type) -> type | None:
         """Get the error type for a success type."""
         ...
 
@@ -30,13 +30,13 @@ class ScopedResultRegistry:
     """
 
     _mappings: dict[type, type] = field(default_factory=dict)
-    _parent: Optional[ResultRegistry] = None
+    _parent: ResultRegistry | None = None
 
     def register(self, success_cls: type, error_cls: type) -> None:
         """Register a success/error type pair in this scope."""
         self._mappings[success_cls] = error_cls
 
-    def get_error_type(self, success_cls: type) -> Optional[type]:
+    def get_error_type(self, success_cls: type) -> type | None:
         """Get the error type for a success type.
 
         Checks local mappings first, then falls back to parent if available.

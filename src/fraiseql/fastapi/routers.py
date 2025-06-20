@@ -29,8 +29,6 @@ class GraphQLRequest(BaseModel):
     operationName: str | None = None
 
 
-
-
 def create_graphql_router(
     schema: GraphQLSchema,
     config: FraiseQLConfig,
@@ -40,9 +38,10 @@ def create_graphql_router(
 ) -> APIRouter:
     """Create appropriate router based on environment."""
     if config.environment == "production":
-        return create_production_router(schema, config, auth_provider, context_getter, turbo_registry)
-    else:
-        return create_development_router(schema, config, auth_provider, context_getter)
+        return create_production_router(
+            schema, config, auth_provider, context_getter, turbo_registry
+        )
+    return create_development_router(schema, config, auth_provider, context_getter)
 
 
 def create_development_router(
@@ -141,8 +140,8 @@ def create_development_router(
                                 for p in e.patterns
                             ],
                         },
-                    }
-                ]
+                    },
+                ],
             }
         except Exception as e:
             # In development, provide detailed error info
@@ -154,8 +153,8 @@ def create_development_router(
                             "code": "INTERNAL_SERVER_ERROR",
                             "exception": type(e).__name__,
                         },
-                    }
-                ]
+                    },
+                ],
             }
 
     @router.get("/graphql")
@@ -213,7 +212,7 @@ def create_production_router(
     - No playground
     """
     router = APIRouter(prefix="", tags=["GraphQL"])
-    
+
     # Create TurboRouter if registry provided
     turbo_router = TurboRouter(turbo_registry) if turbo_registry else None
 
@@ -226,7 +225,6 @@ def create_production_router(
         context_dependency = Depends(get_context)
     else:
         context_dependency = Depends(build_graphql_context)
-
 
     @router.post("/graphql")
     async def graphql_endpoint(
@@ -241,11 +239,11 @@ def create_production_router(
                 turbo_result = await turbo_router.execute(
                     query=request.query,
                     variables=request.variables or {},
-                    context=context
+                    context=context,
                 )
                 if turbo_result is not None:
                     return turbo_result
-            
+
             # Fall back to standard GraphQL execution
             # Parse and validate first to fail fast
             try:
@@ -259,7 +257,7 @@ def create_production_router(
                                 "extensions": {"code": "GRAPHQL_VALIDATION_FAILED"},
                             }
                             for error in errors
-                        ]
+                        ],
                     }
             except Exception:
                 return {
@@ -267,11 +265,11 @@ def create_production_router(
                         {
                             "message": "Invalid query",
                             "extensions": {"code": "GRAPHQL_PARSE_FAILED"},
-                            }
-                        ]
-                    }
+                        },
+                    ],
+                }
 
-            # Execute query
+                # Execute query
                 result = await graphql(
                     schema,
                     request.query,
@@ -306,8 +304,8 @@ def create_production_router(
                     {
                         "message": "Internal server error",
                         "extensions": {"code": "INTERNAL_SERVER_ERROR"},
-                    }
-                ]
+                    },
+                ],
             }
 
     # No GET endpoint in production
@@ -315,8 +313,6 @@ def create_production_router(
     # No introspection in production
 
     return router
-
-
 
 
 # GraphQL Playground HTML

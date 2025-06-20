@@ -78,7 +78,11 @@ class InputValidator:
 
     @classmethod
     def validate_field_value(
-        cls, field_name: str, value: Any, field_type: str | None = None, allow_html: bool = False
+        cls,
+        field_name: str,
+        value: Any,
+        field_type: str | None = None,
+        allow_html: bool = False,
     ) -> ValidationResult:
         """Validate a single field value.
 
@@ -132,7 +136,10 @@ class InputValidator:
             # Validate each item in the list
             for i, item in enumerate(value):
                 item_result = cls.validate_field_value(
-                    f"{field_name}[{i}]", item, field_type, allow_html
+                    f"{field_name}[{i}]",
+                    item,
+                    field_type,
+                    allow_html,
                 )
                 errors.extend(item_result.errors)
                 warnings.extend(item_result.warnings)
@@ -147,7 +154,10 @@ class InputValidator:
 
                 # Validate the value
                 val_result = cls.validate_field_value(
-                    f"{field_name}.{key}", val, field_type, allow_html
+                    f"{field_name}.{key}",
+                    val,
+                    field_type,
+                    allow_html,
                 )
                 errors.extend(val_result.errors)
                 warnings.extend(val_result.warnings)
@@ -229,7 +239,9 @@ class InputValidator:
         )
 
     @classmethod
-    def validate_mutation_input(cls, input_dict: dict, input_type: type | None = None) -> ValidationResult:
+    def validate_mutation_input(
+        cls, input_dict: dict, input_type: type | None = None
+    ) -> ValidationResult:
         """Validate mutation input data.
 
         Args:
@@ -258,7 +270,9 @@ class InputValidator:
             else:
                 # General validation
                 result = cls.validate_field_value(
-                    field_name, value, str(field_type) if field_type else None
+                    field_name,
+                    value,
+                    str(field_type) if field_type else None,
                 )
                 all_errors.extend(result.errors)
                 all_warnings.extend(result.warnings)
@@ -276,7 +290,9 @@ class InputValidator:
         """Validate email address format."""
         if not isinstance(email, str):
             return ValidationResult(
-                is_valid=False, errors=["Email must be a string"], sanitized_value=email
+                is_valid=False,
+                errors=["Email must be a string"],
+                sanitized_value=email,
             )
 
         # Basic email regex (not comprehensive but catches common issues)
@@ -284,13 +300,17 @@ class InputValidator:
 
         if not re.match(email_pattern, email):
             return ValidationResult(
-                is_valid=False, errors=["Invalid email format"], sanitized_value=email
+                is_valid=False,
+                errors=["Invalid email format"],
+                sanitized_value=email,
             )
 
         # Additional checks
         if len(email) > 255:
             return ValidationResult(
-                is_valid=False, errors=["Email address too long"], sanitized_value=email[:255]
+                is_valid=False,
+                errors=["Email address too long"],
+                sanitized_value=email[:255],
             )
 
         # Check for suspicious patterns in email
@@ -305,5 +325,8 @@ class InputValidator:
                 warnings.append(message)
 
         return ValidationResult(
-            is_valid=True, errors=[], sanitized_value=email.lower().strip(), warnings=warnings
+            is_valid=True,
+            errors=[],
+            sanitized_value=email.lower().strip(),
+            warnings=warnings,
         )

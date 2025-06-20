@@ -48,8 +48,11 @@ class SubscriptionCache:
         return hashlib.sha256(key_bytes).hexdigest()
 
     async def get_or_generate(
-        self, key: str, generator: AsyncGenerator, ttl: float
-    ) -> AsyncGenerator[Any, None]:
+        self,
+        key: str,
+        generator: AsyncGenerator,
+        ttl: float,
+    ) -> AsyncGenerator[Any]:
         """Get cached values or generate new ones."""
         # Check cache
         if key in self._cache:
@@ -98,8 +101,7 @@ class SubscriptionCache:
 
 
 def cache(ttl: float = 5.0):
-    """
-    Decorator to cache subscription results.
+    """Decorator to cache subscription results.
 
     Usage:
         @subscription

@@ -75,7 +75,8 @@ def requires_permission(
 
             if not user or not isinstance(user, UserContext):
                 raise GraphQLError(
-                    "Authentication required", extensions={"code": "UNAUTHENTICATED"}
+                    "Authentication required",
+                    extensions={"code": "UNAUTHENTICATED"},
                 )
 
             if not user.has_permission(permission):
@@ -121,7 +122,8 @@ def requires_role(
 
             if not user or not isinstance(user, UserContext):
                 raise GraphQLError(
-                    "Authentication required", extensions={"code": "UNAUTHENTICATED"}
+                    "Authentication required",
+                    extensions={"code": "UNAUTHENTICATED"},
                 )
 
             if not user.has_role(role):
@@ -167,7 +169,8 @@ def requires_any_permission(
 
             if not user or not isinstance(user, UserContext):
                 raise GraphQLError(
-                    "Authentication required", extensions={"code": "UNAUTHENTICATED"}
+                    "Authentication required",
+                    extensions={"code": "UNAUTHENTICATED"},
                 )
 
             if not user.has_any_permission(list(permissions)):
@@ -216,7 +219,8 @@ def requires_any_role(
 
             if not user or not isinstance(user, UserContext):
                 raise GraphQLError(
-                    "Authentication required", extensions={"code": "UNAUTHENTICATED"}
+                    "Authentication required",
+                    extensions={"code": "UNAUTHENTICATED"},
                 )
 
             if not user.has_any_role(list(roles)):

@@ -96,8 +96,7 @@ class FilterExpressionEvaluator:
 
 
 def filter(expression: str):
-    """
-    Decorator for declarative subscription filtering.
+    """Decorator for declarative subscription filtering.
 
     Usage:
         @subscription
@@ -123,7 +122,8 @@ def filter(expression: str):
             if "project_id" in kwargs and hasattr(info, "context") and "db" in info.context:
                 db = info.context["db"]
                 project = await db.fetch_one(
-                    "SELECT * FROM projects WHERE id = $1", kwargs["project_id"]
+                    "SELECT * FROM projects WHERE id = $1",
+                    kwargs["project_id"],
                 )
                 context["project"] = project
 

@@ -225,7 +225,10 @@ class CQRSRepository:
         )
 
     async def select_one_from_json_view(
-        self, view_name: str, *, where: dict[str, Any] | None = None
+        self,
+        view_name: str,
+        *,
+        where: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Select a single record from a JSON view.
 

@@ -15,8 +15,7 @@ V = TypeVar("V")
 
 
 class DataLoader(Generic[K, V], ABC):
-    """
-    Base class for batch loading and caching data.
+    """Base class for batch loading and caching data.
 
     Prevents N+1 queries by batching and caching loads.
     """
@@ -40,8 +39,7 @@ class DataLoader(Generic[K, V], ABC):
 
     @abstractmethod
     async def batch_load(self, keys: list[K]) -> list[V | None]:
-        """
-        Load multiple keys in a single batch.
+        """Load multiple keys in a single batch.
 
         Must return results in the same order as keys.
         Missing values should be None.
@@ -125,11 +123,11 @@ class DataLoader(Generic[K, V], ABC):
                 # Validate results
                 if len(results) != len(batch):
                     raise ValueError(
-                        f"batch_load must return {len(batch)} results, got {len(results)}"
+                        f"batch_load must return {len(batch)} results, got {len(results)}",
                     )
 
                 # Cache results
-                for key, value in zip(batch, results):
+                for key, value in zip(batch, results, strict=False):
                     if value is not None and self._cache_enabled:
                         self._cache[key] = value
 
@@ -148,7 +146,7 @@ class DataLoader(Generic[K, V], ABC):
 
             # Create safe exception for public consumption
             safe_exception = RuntimeError(
-                "DataLoader batch operation failed. Check logs for details."
+                "DataLoader batch operation failed. Check logs for details.",
             )
 
             # Reject promise with safe exception
@@ -161,7 +159,10 @@ class DataLoader(Generic[K, V], ABC):
             self._dispatch_scheduled = False
 
     def sort_by_keys(
-        self, items: list[dict[str, Any]], keys: list[K], key_field: str = "id"
+        self,
+        items: list[dict[str, Any]],
+        keys: list[K],
+        key_field: str = "id",
     ) -> list[V | None]:
         """Helper to sort results to match key order."""
         # Create lookup map
@@ -173,8 +174,7 @@ class DataLoader(Generic[K, V], ABC):
 
 @asynccontextmanager
 async def dataloader_context():
-    """
-    Context manager for DataLoader usage.
+    """Context manager for DataLoader usage.
 
     Example:
         async with dataloader_context() as ctx:

@@ -182,7 +182,7 @@ def convert_type_to_graphql_input(
                 graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
             gql_fields[graphql_field_name] = GraphQLInputField(
-                convert_type_to_graphql_input(field_type)
+                convert_type_to_graphql_input(field_type),
             )
 
         gql_type = GraphQLInputObjectType(name=typ.__name__, fields=gql_fields)
@@ -342,7 +342,7 @@ def convert_type_to_graphql_output(
                                 # Handle enum serialization at field level
                                 if isinstance(value, Enum):
                                     return value.name
-                                elif isinstance(value, list):
+                                if isinstance(value, list):
                                     # Handle lists of enums
                                     return [
                                         item.name if isinstance(item, Enum) else item
@@ -383,7 +383,8 @@ def convert_type_to_graphql_output(
 
                     # Check for field resolver decorators
                     if hasattr(attr, "__fraiseql_field__") or hasattr(
-                        attr, "__fraiseql_dataloader__"
+                        attr,
+                        "__fraiseql_dataloader__",
                     ):
                         # Get method signature for type information
                         from typing import get_type_hints
@@ -394,7 +395,7 @@ def convert_type_to_graphql_output(
 
                             if return_type is None:
                                 logger.warning(
-                                    f"Custom field method {attr_name} missing return type annotation"
+                                    f"Custom field method {attr_name} missing return type annotation",
                                 )
                                 continue
 
@@ -417,12 +418,14 @@ def convert_type_to_graphql_output(
                             )
 
                             wrapped_resolver = wrap_resolver_with_enum_serialization(
-                                make_custom_resolver(attr)
+                                make_custom_resolver(attr),
                             )
 
                             # Get description from decorator or docstring
                             description = getattr(
-                                attr, "__fraiseql_field_description__", None
+                                attr,
+                                "__fraiseql_field_description__",
+                                None,
                             ) or getattr(attr, "__doc__", None)
 
                             # Convert field name to camelCase if configured
@@ -466,7 +469,7 @@ def convert_type_to_graphql_output(
                 )
                 _graphql_type_cache[key] = gql_type
                 return gql_type
-            elif definition.kind == "interface":
+            if definition.kind == "interface":
                 # Handle interface types
                 fields = getattr(typ, "__gql_fields__", {})
                 type_hints = getattr(typ, "__gql_type_hints__", {})

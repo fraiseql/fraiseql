@@ -83,8 +83,7 @@ def with_lifecycle(
     on_event: Callable | None = None,
     on_complete: Callable | None = None,
 ):
-    """
-    Add lifecycle hooks to subscription.
+    """Add lifecycle hooks to subscription.
 
     Usage:
         @subscription

@@ -138,7 +138,8 @@ def parse_subnet_mask_value(value: Any) -> IPv4Address | None:
 
 
 def parse_subnet_mask_literal(
-    ast: ValueNode, variables: dict[str, Any] | None = None
+    ast: ValueNode,
+    variables: dict[str, Any] | None = None,
 ) -> IPv4Address | None:
     """Parse a literal subnet mask string."""
     _ = variables

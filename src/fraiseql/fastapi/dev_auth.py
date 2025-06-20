@@ -39,7 +39,7 @@ class DevAuthMiddleware(BaseHTTPMiddleware):
         # Log warning that dev auth is enabled
         logger.warning(
             "Development authentication is enabled. "
-            "This should NOT be used in production environments."
+            "This should NOT be used in production environments.",
         )
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -177,7 +177,9 @@ def is_dev_auth_enabled() -> bool:
 
 
 def create_dev_auth_middleware(
-    app, username: str | None = None, password: str | None = None
+    app,
+    username: str | None = None,
+    password: str | None = None,
 ) -> DevAuthMiddleware | None:
     """Create development auth middleware if enabled.
 

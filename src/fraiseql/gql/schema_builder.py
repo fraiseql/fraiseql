@@ -203,7 +203,7 @@ class SchemaRegistry:
             # Use convert_type_to_graphql_output for the return type
             gql_return_type = convert_type_to_graphql_output(hints["return"])
             logger.debug(
-                f"Query {name}: return type {hints['return']} converted to {gql_return_type}"
+                f"Query {name}: return type {hints['return']} converted to {gql_return_type}",
             )
             gql_args: dict[str, GraphQLArgument] = {}
 
@@ -231,13 +231,12 @@ class SchemaRegistry:
                         return await fn(info, **kwargs)
 
                     return async_resolver
-                else:
 
-                    def sync_resolver(root, info, **kwargs):
-                        # Call the original function without the root argument
-                        return fn(info, **kwargs)
+                def sync_resolver(root, info, **kwargs):
+                    # Call the original function without the root argument
+                    return fn(info, **kwargs)
 
-                    return sync_resolver
+                return sync_resolver
 
             wrapped_resolver = create_gql_resolver(fn)
             wrapped_resolver = wrap_resolver_with_enum_serialization(wrapped_resolver)

@@ -20,7 +20,7 @@ public class UserResolver {
     }
     
     @QueryMapping
-    public User user(@Argument Long id) {
+    public User user(@Argument Integer id) {
         return userService.findById(id);
     }
     

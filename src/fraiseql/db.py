@@ -81,7 +81,9 @@ class FraiseQLRepository:
         return self._pool
 
     async def execute_function(
-        self, function_name: str, input_data: dict[str, object]
+        self,
+        function_name: str,
+        input_data: dict[str, object],
     ) -> dict[str, object]:
         """Execute a PostgreSQL function and return the result.
 
@@ -116,7 +118,10 @@ class FraiseQLRepository:
             async with self._pool.acquire() as conn:
                 # Set up JSON codec for asyncpg
                 await conn.set_type_codec(
-                    "jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog"
+                    "jsonb",
+                    encoder=json.dumps,
+                    decoder=json.loads,
+                    schema="pg_catalog",
                 )
                 # Validate function name to prevent SQL injection
                 if not function_name.replace("_", "").replace(".", "").isalnum():

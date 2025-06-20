@@ -23,7 +23,7 @@ def get_db_pool():
 
 def set_db_pool(pool):
     """Set the database connection pool (called by create_app)."""
-    global _db_pool  # noqa: PLW0603
+    global _db_pool
     _db_pool = pool
 
 
@@ -34,7 +34,7 @@ def get_auth_provider() -> AuthProvider | None:
 
 def set_auth_provider(provider: AuthProvider | None):
     """Set the auth provider (called by create_app)."""
-    global _auth_provider  # noqa: PLW0603
+    global _auth_provider
     _auth_provider = provider
 
 

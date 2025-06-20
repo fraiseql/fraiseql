@@ -17,7 +17,7 @@ def parse_mutation_result(
     result: dict[str, Any],
     success_cls: type[S],
     error_cls: type[E],
-) -> Union[S, E]:
+) -> S | E:
     """Parse mutation result from PostgreSQL into typed Success or Error.
 
     Args:
@@ -36,8 +36,7 @@ def parse_mutation_result(
 
     if is_error:
         return _parse_error(mutation_result, error_cls)
-    else:
-        return _parse_success(mutation_result, success_cls)
+    return _parse_success(mutation_result, success_cls)
 
 
 def _is_error_status(status: str) -> bool:
@@ -93,7 +92,10 @@ def _parse_success(
 
         # Try to get value from different sources
         value = _extract_field_value(
-            field_name, field_type, result.object_data, result.extra_metadata
+            field_name,
+            field_type,
+            result.object_data,
+            result.extra_metadata,
         )
 
         if value is not None:

@@ -20,7 +20,8 @@ class HasFraiseQLAttrs(Protocol):
 
 
 def define_fraiseql_type(
-    cls: type[T], kind: Literal["input", "output", "type", "interface"]
+    cls: type[T],
+    kind: Literal["input", "output", "type", "interface"],
 ) -> type[T]:
     """Core logic to define a FraiseQL input or output type.
 

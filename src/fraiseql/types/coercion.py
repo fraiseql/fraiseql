@@ -178,11 +178,10 @@ def wrap_resolver_with_input_coercion(
             return await fn(info, **coerced_args)
 
         return async_wrapper
-    else:
 
-        def sync_wrapper(root: object, info: object, **kwargs: object) -> Any:
-            _ = root
-            coerced_args = coerce_input_arguments(fn, kwargs)
-            return fn(info, **coerced_args)
+    def sync_wrapper(root: object, info: object, **kwargs: object) -> Any:
+        _ = root
+        coerced_args = coerce_input_arguments(fn, kwargs)
+        return fn(info, **coerced_args)
 
-        return sync_wrapper
+    return sync_wrapper

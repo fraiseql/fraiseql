@@ -23,7 +23,7 @@ public class DirectSQLService {
         return jdbcTemplate.queryForMap(sql);
     }
     
-    public Map<String, Object> getUserWithPosts(Long userId) {
+    public Map<String, Object> getUserWithPosts(Integer userId) {
         String sql = """
             SELECT jsonb_build_object(
                 'id', u.id,
@@ -67,7 +67,7 @@ public class DirectSQLService {
         return jdbcTemplate.queryForList(sql);
     }
     
-    public Map<String, Object> getPostWithCommentsAndAuthors(Long postId) {
+    public Map<String, Object> getPostWithCommentsAndAuthors(Integer postId) {
         String sql = """
             SELECT jsonb_build_object(
                 'id', p.id,

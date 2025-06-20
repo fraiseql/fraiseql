@@ -20,18 +20,12 @@ class FieldDefinition:
 class QueryField(FieldDefinition):
     """Query field definition."""
 
-    pass
-
 
 @dataclass
 class MutationField(FieldDefinition):
     """Mutation field definition."""
 
-    pass
-
 
 @dataclass
 class SubscriptionField(FieldDefinition):
     """Subscription field definition."""
-
-    pass

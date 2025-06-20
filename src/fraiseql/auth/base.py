@@ -57,7 +57,6 @@ class AuthProvider(ABC):
         Raises:
             AuthenticationError: If token is invalid
         """
-        pass
 
     @abstractmethod
     async def get_user_from_token(self, token: str) -> UserContext:
@@ -72,7 +71,6 @@ class AuthProvider(ABC):
         Raises:
             AuthenticationError: If token is invalid or user not found
         """
-        pass
 
     async def refresh_token(self, refresh_token: str) -> tuple[str, str]:
         """Refresh an access token using a refresh token.
@@ -104,22 +102,14 @@ class AuthProvider(ABC):
 class AuthenticationError(Exception):
     """Base exception for authentication errors."""
 
-    pass
-
 
 class TokenExpiredError(AuthenticationError):
     """Token has expired."""
-
-    pass
 
 
 class InvalidTokenError(AuthenticationError):
     """Token is invalid or malformed."""
 
-    pass
-
 
 class InsufficientPermissionsError(AuthenticationError):
     """User lacks required permissions."""
-
-    pass

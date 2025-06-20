@@ -11,7 +11,7 @@ from .metrics import (
 
 __all__ = [
     "FraiseQLMetrics",
-    "MetricsConfig", 
+    "MetricsConfig",
     "MetricsMiddleware",
     "get_metrics",
     "setup_metrics",

@@ -60,8 +60,7 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
         # val is a boolean indicating whether we want IS NULL or IS NOT NULL
         if val:
             return Composed([path_sql, SQL(" IS NULL")])
-        else:
-            return Composed([path_sql, SQL(" IS NOT NULL")])
+        return Composed([path_sql, SQL(" IS NOT NULL")])
 
     # For JSONB text extraction (->>) we need to convert booleans to strings
     # since data->>'field' returns text, not boolean
@@ -70,29 +69,28 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
 
     if op == "eq":
         return Composed([path_sql, SQL(" = "), Literal(val)])
-    elif op == "neq":
+    if op == "neq":
         return Composed([path_sql, SQL(" != "), Literal(val)])
-    elif op == "gt":
+    if op == "gt":
         return Composed([path_sql, SQL(" > "), Literal(val)])
-    elif op == "gte":
+    if op == "gte":
         return Composed([path_sql, SQL(" >= "), Literal(val)])
-    elif op == "lt":
+    if op == "lt":
         return Composed([path_sql, SQL(" < "), Literal(val)])
-    elif op == "lte":
+    if op == "lte":
         return Composed([path_sql, SQL(" <= "), Literal(val)])
-    elif op == "contains":
+    if op == "contains":
         return Composed([path_sql, SQL(" @> "), Literal(val)])
-    elif op == "overlaps":
+    if op == "overlaps":
         return Composed([path_sql, SQL(" && "), Literal(val)])
-    elif op == "matches":
+    if op == "matches":
         return Composed([path_sql, SQL(" ~ "), Literal(val)])
-    elif op == "startswith":
+    if op == "startswith":
         if isinstance(val, str):
             # Use LIKE for better performance and safety
             return Composed([path_sql, SQL(" LIKE "), Literal(val + "%")])
-        else:
-            return Composed([path_sql, SQL(" ~ "), Literal(str(val)), SQL(".*")])
-    elif op == "in":
+        return Composed([path_sql, SQL(" ~ "), Literal(str(val)), SQL(".*")])
+    if op == "in":
         if isinstance(val, list):
             # Convert booleans to strings for JSONB text comparison
             converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
@@ -104,9 +102,8 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
                 parts.append(lit)
             parts.append(SQL(")"))
             return Composed(parts)
-        else:
-            raise ValueError(f"'in' operator requires a list, got {type(val)}")
-    elif op == "notin":
+        raise ValueError(f"'in' operator requires a list, got {type(val)}")
+    if op == "notin":
         if isinstance(val, list):
             # Convert booleans to strings for JSONB text comparison
             converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
@@ -118,17 +115,16 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
                 parts.append(lit)
             parts.append(SQL(")"))
             return Composed(parts)
-        else:
-            raise ValueError(f"'notin' operator requires a list, got {type(val)}")
-    elif op == "depth_eq":
+        raise ValueError(f"'notin' operator requires a list, got {type(val)}")
+    if op == "depth_eq":
         return Composed([SQL("nlevel("), path_sql, SQL(") = "), Literal(val)])
-    elif op == "depth_gt":
+    if op == "depth_gt":
         return Composed([SQL("nlevel("), path_sql, SQL(") > "), Literal(val)])
-    elif op == "depth_lt":
+    if op == "depth_lt":
         return Composed([SQL("nlevel("), path_sql, SQL(") < "), Literal(val)])
-    elif op == "isdescendant":
+    if op == "isdescendant":
         return Composed([path_sql, SQL(" <@ "), Literal(val)])
-    elif op == "strictly_contains":
+    if op == "strictly_contains":
         return Composed(
             [
                 path_sql,
@@ -138,10 +134,9 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
                 path_sql,
                 SQL(" != "),
                 Literal(val),
-            ]
+            ],
         )
-    else:
-        raise ValueError(f"Unsupported operator: {op}")
+    raise ValueError(f"Unsupported operator: {op}")
 
 
 def _make_filter_field_composed(
@@ -175,16 +170,15 @@ def _make_filter_field_composed(
 
     if not conditions:
         return None
-    elif len(conditions) == 1:
+    if len(conditions) == 1:
         return conditions[0]
-    else:
-        # Combine multiple conditions with AND
-        result_parts = []
-        for i, cond in enumerate(conditions):
-            if i > 0:
-                result_parts.append(SQL(" AND "))
-            result_parts.append(cond)
-        return Composed(result_parts)
+    # Combine multiple conditions with AND
+    result_parts = []
+    for i, cond in enumerate(conditions):
+        if i > 0:
+            result_parts.append(SQL(" AND "))
+        result_parts.append(cond)
+    return Composed(result_parts)
 
 
 def _build_where_to_sql(fields: list[str]) -> Callable[[object], Composed | None]:

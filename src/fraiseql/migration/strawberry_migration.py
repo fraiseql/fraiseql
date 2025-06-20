@@ -71,7 +71,7 @@ def _analyze_file(file_path: Path) -> list[MigrationIssue]:
                 issue_type="parse_error",
                 description=f"Could not parse file: {e}",
                 suggestion="Check file syntax",
-            )
+            ),
         )
 
     return issues
@@ -91,7 +91,7 @@ def _find_strawberry_imports(content: str, file_path: str) -> list[MigrationIssu
                     issue_type="strawberry_import",
                     description="Strawberry import found",
                     suggestion="Replace with 'import fraiseql' or 'from fraiseql import ...'",
-                )
+                ),
             )
 
     return issues
@@ -122,7 +122,7 @@ def _find_strawberry_decorators(content: str, file_path: str) -> list[MigrationI
                         issue_type="strawberry_decorator",
                         description=f"Strawberry decorator found: {pattern}",
                         suggestion=suggestion,
-                    )
+                    ),
                 )
 
     return issues
@@ -152,7 +152,7 @@ def _find_strawberry_patterns(content: str, file_path: str) -> list[MigrationIss
                         issue_type="strawberry_pattern",
                         description=f"Strawberry pattern found: {pattern}",
                         suggestion=suggestion,
-                    )
+                    ),
                 )
 
     return issues

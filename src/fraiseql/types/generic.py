@@ -51,7 +51,7 @@ def create_concrete_type(generic_type: type, concrete_arg: type) -> type:
     """
     if not hasattr(generic_type, "__fraiseql_definition__"):
         raise TypeError(
-            f"Type {generic_type} must be decorated with @fraise_type to be used as a generic"
+            f"Type {generic_type} must be decorated with @fraise_type to be used as a generic",
         )
 
     # Create a unique name for the concrete type
@@ -145,11 +145,9 @@ def _substitute_typevar(type_annotation: Any, concrete_type: type) -> Any:
                 # Handle Optional[T] (T | None)
                 non_none_arg = new_args[0] if new_args[1] is type(None) else new_args[1]
                 return Union[non_none_arg, type(None)]
-            else:
-                return Union[new_args]
-        else:
-            # Reconstruct the type with new args
-            return origin[new_args]
+            return Union[new_args]
+        # Reconstruct the type with new args
+        return origin[new_args]
 
     # Return as-is if no substitution needed
     return type_annotation

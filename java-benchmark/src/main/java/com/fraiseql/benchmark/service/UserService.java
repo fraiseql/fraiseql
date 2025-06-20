@@ -24,7 +24,7 @@ public class UserService {
         this.executor = executor;
     }
     
-    public User findById(Long id) {
+    public User findById(Integer id) {
         return userRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("User not found"));
     }

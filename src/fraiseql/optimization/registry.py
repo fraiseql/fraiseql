@@ -74,7 +74,7 @@ def get_loader(loader_class: type[T], **kwargs) -> T:
         raise RuntimeError(
             "No LoaderRegistry in context. This indicates a critical setup error - "
             "DataLoader registry was not properly initialized for this request. "
-            "Ensure middleware is correctly configured."
+            "Ensure middleware is correctly configured.",
         )
 
     # SECURITY: Validate loader class to prevent injection

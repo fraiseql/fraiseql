@@ -213,7 +213,7 @@ def create_fraiseql_app(
         mutation_resolvers=list(mutations),
         camel_case_fields=config.auto_camel_case,
     )
-    
+
     # Create TurboRegistry if enabled
     turbo_registry = None
     if production and config.enable_turbo_router:

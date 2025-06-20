@@ -15,7 +15,6 @@ def cli():
     A complete GraphQL API framework that provides strongly-typed
     GraphQL-to-PostgreSQL translation with built-in FastAPI integration.
     """
-    pass
 
 
 # Register commands

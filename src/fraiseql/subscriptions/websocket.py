@@ -160,13 +160,12 @@ class WebSocketConnection:
                     self.state = ConnectionState.READY
                     logger.info(f"Connection {self.connection_id} initialized")
                     return
-                else:
-                    # Unexpected message before init
-                    await self._close(
-                        code=4400,
-                        reason="Connection initialisation must be first message",
-                    )
-                    return
+                # Unexpected message before init
+                await self._close(
+                    code=4400,
+                    reason="Connection initialisation must be first message",
+                )
+                return
 
             except TimeoutError:
                 await self._close(code=4408, reason="Connection initialisation timeout")
@@ -272,7 +271,9 @@ class WebSocketConnection:
             await self._send_error(message.id, str(e))
 
     async def _handle_subscription_generator(
-        self, subscription_id: str, result_iterator: AsyncIterator[ExecutionResult]
+        self,
+        subscription_id: str,
+        result_iterator: AsyncIterator[ExecutionResult],
     ):
         """Handle subscription result generator."""
         try:
@@ -292,12 +293,12 @@ class WebSocketConnection:
                             type=msg_type,
                             id=subscription_id,
                             payload={"data": result.data},
-                        )
+                        ),
                     )
 
             # Send complete
             await self.send_message(
-                GraphQLWSMessage(type=MessageType.COMPLETE_SERVER, id=subscription_id)
+                GraphQLWSMessage(type=MessageType.COMPLETE_SERVER, id=subscription_id),
             )
 
         except asyncio.CancelledError:
@@ -330,7 +331,7 @@ class WebSocketConnection:
         payload = {"errors": [str(error)]} if isinstance(error, str) else error
 
         await self.send_message(
-            GraphQLWSMessage(type=MessageType.ERROR, id=subscription_id, payload=payload)
+            GraphQLWSMessage(type=MessageType.ERROR, id=subscription_id, payload=payload),
         )
 
     async def _keep_alive(self):
@@ -344,7 +345,7 @@ class WebSocketConnection:
                     GraphQLWSMessage(
                         type=MessageType.PING,
                         payload={"timestamp": datetime.now(UTC).isoformat()},
-                    )
+                    ),
                 )
 
             except asyncio.CancelledError:

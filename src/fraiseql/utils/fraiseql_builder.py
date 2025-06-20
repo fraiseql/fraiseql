@@ -62,7 +62,8 @@ def _get_field_for_annotation(
 
 
 def _should_include_field(
-    field: FraiseQLField, kind: Literal["input", "output", "type", "interface"]
+    field: FraiseQLField,
+    kind: Literal["input", "output", "type", "interface"],
 ) -> bool:
     """Determine if a field should be included based on its purpose and the type kind.
 
@@ -218,7 +219,7 @@ def make_init(fields: dict[str, FraiseQLField], *, kw_only: bool = True) -> Call
             setattr(self, name, final_value)
 
     _fraiseql_init.__signature__ = inspect.Signature(
-        parameters=params
+        parameters=params,
     )  # pyright: ignore[reportFunctionMemberAccess]
     return _fraiseql_init
 

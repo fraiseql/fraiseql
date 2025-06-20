@@ -25,7 +25,7 @@ def serialize_json(
     value: Any,
 ) -> str | dict[str, Any] | list[Any] | int | float | bool | None:
     """Serialize JSON-compatible data.
-    
+
     Validates that the value is JSON-serializable before returning it.
     This prevents non-serializable objects from causing issues later
     in the serialization pipeline.

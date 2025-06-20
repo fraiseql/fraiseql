@@ -183,7 +183,7 @@ class CursorPaginator:
                     {
                         "node": row_data,
                         "cursor": encode_cursor(str(cursor_value)),
-                    }
+                    },
                 )
 
         # Build page info

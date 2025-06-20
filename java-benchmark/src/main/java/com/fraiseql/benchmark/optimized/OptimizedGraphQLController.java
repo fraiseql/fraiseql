@@ -24,12 +24,12 @@ public class OptimizedGraphQLController {
     }
     
     @GetMapping("/user/{id}")
-    public ResponseEntity<Map<String, Object>> getUserWithPosts(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getUserWithPosts(@PathVariable Integer id) {
         return ResponseEntity.ok(directSQLService.getUserWithPosts(id));
     }
     
     @GetMapping("/post/{id}")
-    public ResponseEntity<Map<String, Object>> getPostWithComments(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getPostWithComments(@PathVariable Integer id) {
         return ResponseEntity.ok(directSQLService.getPostWithCommentsAndAuthors(id));
     }
 }

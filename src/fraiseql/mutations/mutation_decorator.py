@@ -28,7 +28,7 @@ class MutationDefinition:
         self.input_type = hints.get("input")
         self.success_type = hints.get("success")
         self.error_type = hints.get("error") or hints.get(
-            "failure"
+            "failure",
         )  # Support both 'error' and 'failure'
 
         if not self.input_type:
@@ -37,7 +37,7 @@ class MutationDefinition:
             raise TypeError(f"Mutation {self.name} must define 'success' type")
         if not self.error_type:
             raise TypeError(
-                f"Mutation {self.name} must define 'failure' type (or 'error' for backwards compatibility)"
+                f"Mutation {self.name} must define 'failure' type (or 'error' for backwards compatibility)",
             )
 
         # Derive function name from class name if not provided
@@ -161,8 +161,7 @@ def mutation(
 
     if _cls is None:
         return decorator
-    else:
-        return decorator(_cls)
+    return decorator(_cls)
 
 
 def _camel_to_snake(name: str) -> str:
@@ -177,7 +176,7 @@ def _to_dict(obj: Any) -> dict[str, Any]:
     """Convert an object to a dictionary."""
     if hasattr(obj, "to_dict"):
         return obj.to_dict()
-    elif hasattr(obj, "__dict__"):
+    if hasattr(obj, "__dict__"):
         # Convert UUIDs to strings for JSON serialization
         result = {}
         for k, v in obj.__dict__.items():
@@ -187,7 +186,6 @@ def _to_dict(obj: Any) -> dict[str, Any]:
                 else:
                     result[k] = v
         return result
-    elif isinstance(obj, dict):
+    if isinstance(obj, dict):
         return obj
-    else:
-        raise TypeError(f"Cannot convert {type(obj)} to dictionary")
+    raise TypeError(f"Cannot convert {type(obj)} to dictionary")

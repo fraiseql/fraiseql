@@ -201,7 +201,7 @@ _detector: N1QueryDetector | None = None
 
 def get_detector() -> N1QueryDetector:
     """Get the global N+1 query detector instance."""
-    global _detector  # noqa: PLW0603
+    global _detector
     if _detector is None:
         _detector = N1QueryDetector()
     return _detector
@@ -224,7 +224,7 @@ def configure_detector(
     Returns:
         Configured detector instance
     """
-    global _detector  # noqa: PLW0603
+    global _detector
     _detector = N1QueryDetector(
         threshold=threshold,
         time_window=time_window,
@@ -308,7 +308,7 @@ def track_resolver_execution(func):
                 # Create a task to track asynchronously
                 field_name = info.field_name
                 _ = asyncio.create_task(  # noqa: RUF006
-                    detector.track_field_resolution(info, field_name, execution_time)
+                    detector.track_field_resolution(info, field_name, execution_time),
                 )
 
                 return result
@@ -316,7 +316,7 @@ def track_resolver_execution(func):
                 execution_time = time.time() - start_time
                 field_name = info.field_name
                 _ = asyncio.create_task(  # noqa: RUF006
-                    detector.track_field_resolution(info, field_name, execution_time)
+                    detector.track_field_resolution(info, field_name, execution_time),
                 )
                 raise
 

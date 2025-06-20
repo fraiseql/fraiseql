@@ -4,12 +4,12 @@ This module provides clear, actionable error messages that help developers
 quickly understand and resolve issues.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 
 class FraiseQLError(Exception):
     """Base exception class for all FraiseQL errors.
-    
+
     Provides consistent error formatting with helpful suggestions and documentation links.
     """
 
@@ -17,13 +17,13 @@ class FraiseQLError(Exception):
         self,
         message: str,
         code: str = "FRAISEQL_ERROR",
-        suggestion: Optional[str] = None,
-        doc_link: Optional[str] = None,
-        context: Optional[dict[str, Any]] = None,
-        cause: Optional[Exception] = None,
+        suggestion: str | None = None,
+        doc_link: str | None = None,
+        context: dict[str, Any] | None = None,
+        cause: Exception | None = None,
     ):
         """Initialize FraiseQL error.
-        
+
         Args:
             message: The error message
             code: Error code for programmatic handling
@@ -38,20 +38,20 @@ class FraiseQLError(Exception):
         self.suggestion = suggestion
         self.doc_link = doc_link
         self.context = context or {}
-        
+
         if cause:
             self.__cause__ = cause
 
     def __str__(self) -> str:
         """Format error message with suggestions and documentation."""
         parts = [self.message]
-        
+
         if self.suggestion:
             parts.append(f"Suggestion: {self.suggestion}")
-        
+
         if self.doc_link:
             parts.append(f"See: {self.doc_link}")
-        
+
         return "\n".join(parts)
 
 
@@ -62,10 +62,10 @@ class MissingTypeHintError(FraiseQLError):
         self,
         class_name: str,
         field_name: str,
-        suggested_type: Optional[str] = None,
+        suggested_type: str | None = None,
     ):
         """Initialize missing type hint error.
-        
+
         Args:
             class_name: Name of the class with missing type hint
             field_name: Name of the field missing type hint
@@ -90,7 +90,7 @@ class MissingDatabaseViewError(FraiseQLError):
         custom_view_name: bool = False,
     ):
         """Initialize missing database view error.
-        
+
         Args:
             type_name: GraphQL type name
             expected_view: Expected view name
@@ -122,11 +122,11 @@ class InvalidFieldTypeError(FraiseQLError):
         class_name: str,
         field_name: str,
         field_type: str,
-        supported_types: Optional[list[str]] = None,
-        conversion_hint: Optional[str] = None,
+        supported_types: list[str] | None = None,
+        conversion_hint: str | None = None,
     ):
         """Initialize invalid field type error.
-        
+
         Args:
             class_name: Name of the class
             field_name: Name of the field
@@ -156,11 +156,11 @@ class SQLGenerationError(FraiseQLError):
         self,
         operation: str,
         reason: str,
-        query_info: Optional[dict[str, Any]] = None,
-        custom_suggestion: Optional[str] = None,
+        query_info: dict[str, Any] | None = None,
+        custom_suggestion: str | None = None,
     ):
         """Initialize SQL generation error.
-        
+
         Args:
             operation: The operation that failed (e.g., "WHERE clause generation")
             reason: Reason for failure
@@ -168,7 +168,7 @@ class SQLGenerationError(FraiseQLError):
             custom_suggestion: Custom suggestion to resolve the issue
         """
         suggestion = custom_suggestion or "Check the GraphQL query syntax and supported operators"
-        
+
         context = {}
         if query_info:
             context["query_info"] = query_info
@@ -189,10 +189,10 @@ class MutationNotFoundError(FraiseQLError):
         self,
         mutation_name: str,
         function_name: str,
-        available_functions: Optional[list[str]] = None,
+        available_functions: list[str] | None = None,
     ):
         """Initialize mutation not found error.
-        
+
         Args:
             mutation_name: GraphQL mutation name
             function_name: Expected PostgreSQL function name

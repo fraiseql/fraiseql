@@ -2,7 +2,6 @@
 
 import importlib.util
 import sys
-from typing import Optional
 
 import click
 
@@ -12,7 +11,6 @@ from fraiseql.cli.sql_helper import SQLHelper, SQLPattern, ViewOptions
 @click.group()
 def sql():
     """SQL helper commands for generating views and patterns."""
-    pass
 
 
 @sql.command()
@@ -25,25 +23,25 @@ def sql():
 @click.option("--output", "-o", type=click.File("w"), help="Output file (default: stdout)")
 def generate_view(type_name, module, table, view, exclude, with_comments, output):
     """Generate a SQL view for a FraiseQL type.
-    
+
     Example:
         fraiseql sql generate-view User --module src.types
     """
     # Load the type
     cls = _load_type(type_name, module)
-    
+
     # Configure options
     options = ViewOptions(
         table_name=table,
         view_name=view,
         excluded_fields=set(exclude),
-        include_comments=with_comments
+        include_comments=with_comments,
     )
-    
+
     # Generate SQL
     helper = SQLHelper()
     sql = helper.generate_view(cls, options)
-    
+
     # Output
     if output:
         output.write(sql)
@@ -61,20 +59,20 @@ def generate_view(type_name, module, table, view, exclude, with_comments, output
 @click.option("--output", "-o", type=click.File("w"), help="Output file")
 def generate_setup(type_name, module, with_table, with_indexes, with_data, output):
     """Generate complete SQL setup for a type.
-    
+
     Example:
         fraiseql sql generate-setup User --with-table --with-indexes
     """
     cls = _load_type(type_name, module)
-    
+
     helper = SQLHelper()
     sql = helper.generate_setup(
         cls,
         include_table=with_table,
         include_indexes=with_indexes,
-        include_sample_data=with_data
+        include_sample_data=with_data,
     )
-    
+
     if output:
         output.write(sql)
         click.echo(f"Setup SQL written to {output.name}")
@@ -83,7 +81,10 @@ def generate_setup(type_name, module, with_table, with_indexes, with_data, outpu
 
 
 @sql.command()
-@click.argument("pattern_type", type=click.Choice(["pagination", "filtering", "sorting", "relationship", "aggregation"]))
+@click.argument(
+    "pattern_type",
+    type=click.Choice(["pagination", "filtering", "sorting", "relationship", "aggregation"]),
+)
 @click.argument("table_name")
 @click.option("--limit", default=20, help="Limit for pagination")
 @click.option("--offset", default=0, help="Offset for pagination")
@@ -92,9 +93,11 @@ def generate_setup(type_name, module, with_table, with_indexes, with_data, outpu
 @click.option("--child-table", help="Child table for relationship")
 @click.option("--foreign-key", help="Foreign key for relationship")
 @click.option("--group-by", help="Group by field for aggregation")
-def generate_pattern(pattern_type, table_name, limit, offset, where, order, child_table, foreign_key, group_by):
+def generate_pattern(
+    pattern_type, table_name, limit, offset, where, order, child_table, foreign_key, group_by
+):
     """Generate common SQL patterns for FraiseQL.
-    
+
     Examples:
         fraiseql sql generate-pattern pagination users --limit 10
         fraiseql sql generate-pattern filtering users -w email=test@example.com -w is_active=true
@@ -102,7 +105,7 @@ def generate_pattern(pattern_type, table_name, limit, offset, where, order, chil
     """
     if pattern_type == "pagination":
         sql = SQLPattern.pagination(table_name, limit, offset)
-    
+
     elif pattern_type == "filtering":
         # Parse conditions
         conditions = {}
@@ -115,9 +118,9 @@ def generate_pattern(pattern_type, table_name, limit, offset, where, order, chil
                 conditions[field] = int(value)
             else:
                 conditions[field] = value
-        
+
         sql = SQLPattern.filtering(table_name, conditions)
-    
+
     elif pattern_type == "sorting":
         # Parse order fields
         order_by = []
@@ -126,35 +129,35 @@ def generate_pattern(pattern_type, table_name, limit, offset, where, order, chil
             field = parts[0]
             direction = parts[1] if len(parts) > 1 else "ASC"
             order_by.append((field, direction))
-        
+
         sql = SQLPattern.sorting(table_name, order_by)
-    
+
     elif pattern_type == "relationship":
         if not child_table or not foreign_key:
             click.echo("Error: --child-table and --foreign-key required for relationship pattern")
             return
-        
+
         sql = SQLPattern.relationship(
             table_name,
             child_table,
             f"{child_table}",  # relationship field name
-            foreign_key
+            foreign_key,
         )
-    
+
     elif pattern_type == "aggregation":
         if not group_by:
             click.echo("Error: --group-by required for aggregation pattern")
             return
-        
+
         # Default aggregates
         aggregates = {
             "count": "COUNT(*)",
             "total": "SUM(amount)",
-            "average": "AVG(amount)"
+            "average": "AVG(amount)",
         }
-        
+
         sql = SQLPattern.aggregation(table_name, group_by, aggregates)
-    
+
     click.echo(sql)
 
 
@@ -162,15 +165,15 @@ def generate_pattern(pattern_type, table_name, limit, offset, where, order, chil
 @click.argument("sql_file", type=click.File("r"))
 def validate(sql_file):
     """Validate SQL for FraiseQL compatibility.
-    
+
     Example:
         fraiseql sql validate my_view.sql
     """
     sql = sql_file.read()
-    
+
     helper = SQLHelper()
     result = helper.validate_sql(sql)
-    
+
     if result.is_valid:
         click.echo(click.style("✓ SQL is valid for FraiseQL", fg="green"))
         if result.has_data_column:
@@ -181,7 +184,7 @@ def validate(sql_file):
         click.echo(click.style("✗ SQL has issues:", fg="red"))
         for error in result.errors:
             click.echo(click.style(f"  - {error}", fg="red"))
-    
+
     if result.warnings:
         click.echo(click.style("\nWarnings:", fg="yellow"))
         for warning in result.warnings:
@@ -192,18 +195,18 @@ def validate(sql_file):
 @click.argument("sql_file", type=click.File("r"))
 def explain(sql_file):
     """Explain SQL in beginner-friendly terms.
-    
+
     Example:
         fraiseql sql explain my_view.sql
     """
     sql = sql_file.read()
-    
+
     helper = SQLHelper()
     explanation = helper.explain_sql(sql)
-    
+
     click.echo(click.style("SQL Explanation:", fg="blue", bold=True))
     click.echo(explanation)
-    
+
     # Also check for common mistakes
     issues = helper.detect_common_mistakes(sql)
     if issues:
@@ -212,13 +215,13 @@ def explain(sql_file):
             click.echo(click.style(f"  - {issue}", fg="yellow"))
 
 
-def _load_type(type_name: str, module_path: Optional[str] = None) -> type:
+def _load_type(type_name: str, module_path: str | None = None) -> type:
     """Load a type from a module.
-    
+
     Args:
         type_name: Name of the type to load
         module_path: Module path (e.g., "src.types")
-    
+
     Returns:
         The loaded type class
     """
@@ -238,9 +241,9 @@ def _load_type(type_name: str, module_path: Optional[str] = None) -> type:
             "app.types",
             "models",
             "src.models",
-            "app.models"
+            "app.models",
         ]
-        
+
         for path in search_paths:
             try:
                 module = importlib.import_module(path)
@@ -248,6 +251,6 @@ def _load_type(type_name: str, module_path: Optional[str] = None) -> type:
                     return getattr(module, type_name)
             except ImportError:
                 continue
-        
+
         click.echo(f"Could not find type {type_name}. Use --module to specify the module.")
         sys.exit(1)

@@ -19,7 +19,7 @@ Example usage:
     from fraiseql.security import (
         setup_rate_limiting, setup_csrf_protection, setup_security_headers
     )
-    
+
     setup_rate_limiting(app)
     setup_csrf_protection(app, "your-secret-key")
     setup_security_headers(app, environment="production")
@@ -123,22 +123,22 @@ __all__ = [
 
 class SecurityConfig:
     """Comprehensive security configuration."""
-    
+
     def __init__(
         self,
         secret_key: str,
         environment: str = "production",
-        domain: Optional[str] = None,
-        trusted_origins: Optional[set[str]] = None,
+        domain: str | None = None,
+        trusted_origins: set[str] | None = None,
         api_only: bool = False,
         enable_rate_limiting: bool = True,
         enable_csrf_protection: bool = True,
         enable_security_headers: bool = True,
         enable_input_validation: bool = True,
-        redis_client: Optional[Any] = None,
-        custom_rate_limits: Optional[list[RateLimitRule]] = None,
-        custom_csrf_config: Optional[CSRFConfig] = None,
-        custom_security_headers: Optional[SecurityHeadersConfig] = None
+        redis_client: Any | None = None,
+        custom_rate_limits: list[RateLimitRule] | None = None,
+        custom_csrf_config: CSRFConfig | None = None,
+        custom_security_headers: SecurityHeadersConfig | None = None,
     ):
         self.secret_key = secret_key
         self.environment = environment
@@ -153,12 +153,12 @@ class SecurityConfig:
         self.custom_rate_limits = custom_rate_limits
         self.custom_csrf_config = custom_csrf_config
         self.custom_security_headers = custom_security_headers
-    
+
     @property
     def is_production(self) -> bool:
         """Check if running in production environment."""
         return self.environment.lower() == "production"
-    
+
     @property
     def is_development(self) -> bool:
         """Check if running in development environment."""
@@ -169,18 +169,17 @@ def setup_security(
     app: FastAPI,
     secret_key: str,
     environment: str = "production",
-    domain: Optional[str] = None,
-    trusted_origins: Optional[set[str]] = None,
+    domain: str | None = None,
+    trusted_origins: set[str] | None = None,
     api_only: bool = False,
-    redis_client: Optional[Any] = None,
-    custom_config: Optional[SecurityConfig] = None
+    redis_client: Any | None = None,
+    custom_config: SecurityConfig | None = None,
 ) -> dict[str, Any]:
-    """
-    Set up comprehensive security for FraiseQL applications.
-    
+    """Set up comprehensive security for FraiseQL applications.
+
     This function configures rate limiting, CSRF protection, security headers,
     and input validation with sensible defaults for the specified environment.
-    
+
     Args:
         app: FastAPI application instance
         secret_key: Secret key for CSRF token generation
@@ -190,17 +189,17 @@ def setup_security(
         api_only: Whether this is an API-only application
         redis_client: Redis client for distributed rate limiting
         custom_config: Custom security configuration
-    
+
     Returns:
         Dictionary of configured middleware instances
-    
+
     Example:
         ```python
         from fastapi import FastAPI
         from fraiseql.security import setup_security
-        
+
         app = FastAPI()
-        
+
         # Production setup
         security = setup_security(
             app=app,
@@ -210,7 +209,7 @@ def setup_security(
             trusted_origins={"https://app.example.com"},
             api_only=True
         )
-        
+
         # Development setup
         security = setup_security(
             app=app,
@@ -228,23 +227,23 @@ def setup_security(
             domain=domain,
             trusted_origins=trusted_origins or set(),
             api_only=api_only,
-            redis_client=redis_client
+            redis_client=redis_client,
         )
-    
+
     middleware_instances = {}
-    
+
     # 1. Set up rate limiting
     if config.enable_rate_limiting:
         try:
             rate_limiting_middleware = setup_rate_limiting(
                 app=app,
                 redis_client=config.redis_client,
-                custom_rules=config.custom_rate_limits
+                custom_rules=config.custom_rate_limits,
             )
             middleware_instances["rate_limiting"] = rate_limiting_middleware
         except Exception as e:
             print(f"Warning: Failed to set up rate limiting: {e}")
-    
+
     # 2. Set up CSRF protection
     if config.enable_csrf_protection:
         try:
@@ -253,22 +252,22 @@ def setup_security(
                 if config.is_production:
                     csrf_config = create_production_csrf_config(
                         secret_key=config.secret_key,
-                        trusted_origins=config.trusted_origins
+                        trusted_origins=config.trusted_origins,
                     )
                 else:
                     csrf_config = create_development_csrf_config(
-                        secret_key=config.secret_key
+                        secret_key=config.secret_key,
                     )
-            
+
             csrf_middleware = setup_csrf_protection(
                 app=app,
                 secret_key=config.secret_key,
-                config=csrf_config
+                config=csrf_config,
             )
             middleware_instances["csrf"] = csrf_middleware
         except Exception as e:
             print(f"Warning: Failed to set up CSRF protection: {e}")
-    
+
     # 3. Set up security headers
     if config.enable_security_headers:
         try:
@@ -277,24 +276,24 @@ def setup_security(
                 if config.is_production:
                     headers_config = create_production_security_config(
                         domain=config.domain,
-                        api_only=config.api_only
+                        api_only=config.api_only,
                     )
                 elif config.api_only:
                     headers_config = create_graphql_security_config(
                         trusted_origins=list(config.trusted_origins),
-                        enable_introspection=config.is_development
+                        enable_introspection=config.is_development,
                     )
                 else:
                     headers_config = create_development_security_config()
-            
+
             headers_middleware = setup_security_headers(
                 app=app,
-                config=headers_config
+                config=headers_config,
             )
             middleware_instances["security_headers"] = headers_middleware
         except Exception as e:
             print(f"Warning: Failed to set up security headers: {e}")
-    
+
     # 4. Set up input validation (if available)
     if config.enable_input_validation:
         try:
@@ -303,66 +302,65 @@ def setup_security(
             pass
         except Exception as e:
             print(f"Warning: Failed to set up input validation: {e}")
-    
+
     return middleware_instances
 
 
 def create_security_config_for_graphql(
     secret_key: str,
     environment: str = "production",
-    trusted_origins: Optional[list[str]] = None,
+    trusted_origins: list[str] | None = None,
     enable_introspection: bool = False,
-    redis_client: Optional[Any] = None
+    redis_client: Any | None = None,
 ) -> SecurityConfig:
-    """
-    Create security configuration optimized for GraphQL APIs.
-    
+    """Create security configuration optimized for GraphQL APIs.
+
     Args:
         secret_key: Secret key for CSRF tokens
         environment: Environment ("production", "development")
         trusted_origins: List of trusted origins for CORS/CSP
         enable_introspection: Whether to enable GraphQL introspection
         redis_client: Redis client for distributed rate limiting
-    
+
     Returns:
         SecurityConfig instance optimized for GraphQL
     """
     trusted_origins_set = set(trusted_origins) if trusted_origins else set()
-    
+
     # Custom rate limits for GraphQL
     graphql_rate_limits = [
         RateLimitRule(
             path_pattern="/graphql",
             rate_limit=RateLimit(requests=60, window=60),
-            message="GraphQL rate limit exceeded"
+            message="GraphQL rate limit exceeded",
         ),
         RateLimitRule(
             path_pattern="/graphql/introspection",
             rate_limit=RateLimit(requests=10, window=60),
-            message="Introspection rate limit exceeded"
-        )
+            message="Introspection rate limit exceeded",
+        ),
     ]
-    
+
     # Custom CSRF config for GraphQL
     csrf_config = None
     if environment == "production":
         csrf_config = create_production_csrf_config(
             secret_key=secret_key,
-            trusted_origins=trusted_origins_set
+            trusted_origins=trusted_origins_set,
         )
     else:
         csrf_config = create_development_csrf_config(secret_key=secret_key)
-    
+
     # Enable mutations protection but not subscriptions by default
     csrf_config.require_for_mutations = True
     csrf_config.require_for_subscriptions = False
-    
+
     # Custom security headers for GraphQL
     headers_config = create_graphql_security_config(
         trusted_origins=list(trusted_origins_set),
-        enable_introspection=enable_introspection
+        enable_introspection=enable_introspection,
     )
-    
+
     return SecurityConfig(
         secret_key=secret_key,
         environment=environment,
@@ -371,7 +369,7 @@ def create_security_config_for_graphql(
         redis_client=redis_client,
         custom_rate_limits=graphql_rate_limits,
         custom_csrf_config=csrf_config,
-        custom_security_headers=headers_config
+        custom_security_headers=headers_config,
     )
 
 
@@ -379,17 +377,16 @@ def create_security_config_for_api(
     secret_key: str,
     environment: str = "production",
     domain: str = "api.example.com",
-    redis_client: Optional[Any] = None
+    redis_client: Any | None = None,
 ) -> SecurityConfig:
-    """
-    Create security configuration optimized for REST APIs.
-    
+    """Create security configuration optimized for REST APIs.
+
     Args:
         secret_key: Secret key for CSRF tokens
         environment: Environment ("production", "development")
         domain: API domain for security headers
         redis_client: Redis client for distributed rate limiting
-    
+
     Returns:
         SecurityConfig instance optimized for REST APIs
     """
@@ -398,22 +395,22 @@ def create_security_config_for_api(
         RateLimitRule(
             path_pattern="/api/v1/*",
             rate_limit=RateLimit(requests=100, window=60),
-            message="API rate limit exceeded"
+            message="API rate limit exceeded",
         ),
         RateLimitRule(
             path_pattern="/auth/*",
             rate_limit=RateLimit(requests=5, window=300),
-            message="Authentication rate limit exceeded"
-        )
+            message="Authentication rate limit exceeded",
+        ),
     ]
-    
+
     return SecurityConfig(
         secret_key=secret_key,
         environment=environment,
         domain=domain,
         api_only=True,
         redis_client=redis_client,
-        custom_rate_limits=api_rate_limits
+        custom_rate_limits=api_rate_limits,
     )
 
 
@@ -423,7 +420,7 @@ def setup_production_security(
     secret_key: str,
     domain: str,
     trusted_origins: set[str],
-    redis_client: Optional[Any] = None
+    redis_client: Any | None = None,
 ) -> dict[str, Any]:
     """Set up production security with strict settings."""
     return setup_security(
@@ -432,17 +429,17 @@ def setup_production_security(
         environment="production",
         domain=domain,
         trusted_origins=trusted_origins,
-        redis_client=redis_client
+        redis_client=redis_client,
     )
 
 
 def setup_development_security(
     app: FastAPI,
-    secret_key: str = "dev-secret-key-change-in-production"
+    secret_key: str = "dev-secret-key-change-in-production",
 ) -> dict[str, Any]:
     """Set up development security with permissive settings."""
     return setup_security(
         app=app,
         secret_key=secret_key,
-        environment="development"
+        environment="development",
     )

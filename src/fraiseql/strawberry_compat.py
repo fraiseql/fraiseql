@@ -7,7 +7,7 @@ from Strawberry GraphQL to FraiseQL.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Type, TypeVar  # noqa: UP035
+from typing import Any, Type, TypeVar
 
 import fraiseql
 
@@ -27,12 +27,11 @@ class StrawberryCompatibility:
                 return fraiseql.type(cls)
 
             return decorator
-        else:
-            # Called without arguments: @strawberry.type
-            return fraiseql.type(cls_arg)
+        # Called without arguments: @strawberry.type
+        return fraiseql.type(cls_arg)
 
     @staticmethod
-    def input(cls_arg: Type[Any] | None = None, **kwargs) -> Any:  # noqa: UP006
+    def input(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.input compatibility."""
         if cls_arg is None:
 
@@ -40,11 +39,10 @@ class StrawberryCompatibility:
                 return fraiseql.input(cls)
 
             return decorator
-        else:
-            return fraiseql.input(cls_arg)
+        return fraiseql.input(cls_arg)
 
     @staticmethod
-    def enum(cls_arg: Type[Any] | None = None, **kwargs) -> Any:  # noqa: UP006
+    def enum(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.enum compatibility."""
         if cls_arg is None:
 
@@ -52,11 +50,10 @@ class StrawberryCompatibility:
                 return fraiseql.enum(cls)
 
             return decorator
-        else:
-            return fraiseql.enum(cls_arg)
+        return fraiseql.enum(cls_arg)
 
     @staticmethod
-    def interface(cls_arg: Type[Any] | None = None, **kwargs) -> Any:  # noqa: UP006
+    def interface(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.interface compatibility."""
         if cls_arg is None:
 
@@ -64,8 +61,7 @@ class StrawberryCompatibility:
                 return fraiseql.interface(cls)
 
             return decorator
-        else:
-            return fraiseql.interface(cls_arg)
+        return fraiseql.interface(cls_arg)
 
     @staticmethod
     def field(
@@ -82,8 +78,7 @@ class StrawberryCompatibility:
                 return fraiseql.field(fn, resolver=resolver, description=description)
 
             return decorator
-        else:
-            return fraiseql.field(fn, resolver=resolver, description=description)
+        return fraiseql.field(fn, resolver=resolver, description=description)
 
     @staticmethod
     def mutation(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
@@ -94,8 +89,7 @@ class StrawberryCompatibility:
                 return fraiseql.mutation(fn)
 
             return decorator
-        else:
-            return fraiseql.mutation(fn)
+        return fraiseql.mutation(fn)
 
     @staticmethod
     def query(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
@@ -106,8 +100,7 @@ class StrawberryCompatibility:
                 return fraiseql.query(fn)
 
             return decorator
-        else:
-            return fraiseql.query(fn)
+        return fraiseql.query(fn)
 
     @staticmethod
     def subscription(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
@@ -118,8 +111,7 @@ class StrawberryCompatibility:
                 return fraiseql.subscription(fn)
 
             return decorator
-        else:
-            return fraiseql.subscription(fn)
+        return fraiseql.subscription(fn)
 
 
 # Create a strawberry-like module interface

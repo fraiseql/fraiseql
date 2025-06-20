@@ -14,7 +14,10 @@ F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
 
 
 def dataloader_field(
-    loader_class: type[DataLoader], *, key_field: str, description: str | None = None
+    loader_class: type[DataLoader],
+    *,
+    key_field: str,
+    description: str | None = None,
 ) -> Callable[[F], F]:
     """Decorator to automatically use DataLoader for field resolution.
 
@@ -59,7 +62,7 @@ def dataloader_field(
         if len(params) < 2 or params[0] != "self" or params[1] != "info":
             raise ValueError(
                 f"@dataloader_field decorated method {method.__name__} must have "
-                "signature (self, info) -> ReturnType"
+                "signature (self, info) -> ReturnType",
             )
 
         # Get return type for validation
@@ -67,7 +70,7 @@ def dataloader_field(
         if return_type is None:
             raise ValueError(
                 f"@dataloader_field decorated method {method.__name__} must have "
-                "a return type annotation"
+                "a return type annotation",
             )
 
         # Create the auto-implemented resolver
@@ -77,7 +80,7 @@ def dataloader_field(
             if not hasattr(self, key_field):
                 raise AttributeError(
                     f"Object {type(self).__name__} does not have required field '{key_field}'. "
-                    "This may indicate a security issue or misconfiguration."
+                    "This may indicate a security issue or misconfiguration.",
                 )
 
             # Get the key value from the parent object with validation
@@ -87,7 +90,8 @@ def dataloader_field(
 
             # SECURITY: Validate key_value type to prevent injection
             if not isinstance(key_value, str | int | bytes | type(None)) and not hasattr(
-                key_value, "__hash__"
+                key_value,
+                "__hash__",
             ):
                 raise ValueError(f"Key field '{key_field}' must be hashable, got {type(key_value)}")
 
@@ -115,7 +119,8 @@ def dataloader_field(
                         target_type = next((arg for arg in args if arg is not type(None)), None)
                         if target_type:
                             if hasattr(target_type, "__annotations__") and isinstance(
-                                result_data, dict
+                                result_data,
+                                dict,
                             ):
                                 # Only construct if we have annotations (dataclass-like)
                                 annotations = getattr(target_type, "__annotations__", {})
@@ -123,21 +128,22 @@ def dataloader_field(
                                     k: v for k, v in result_data.items() if k in annotations
                                 }
                                 return target_type(**filtered_data)
-                            elif hasattr(target_type, "from_dict") and callable(
-                                target_type.from_dict
+                            if hasattr(target_type, "from_dict") and callable(
+                                target_type.from_dict,
                             ):
                                 if isinstance(result_data, dict):
                                     return target_type.from_dict(result_data)
                     return result_data
 
                 # Handle Optional[Type] and similar generic types (typing module)
-                elif hasattr(return_type, "__origin__"):
+                if hasattr(return_type, "__origin__"):
                     args = getattr(return_type, "__args__", ())
                     if args:
                         target_type = args[0]
                         # SECURITY: Only allow safe type construction
                         if hasattr(target_type, "__annotations__") and isinstance(
-                            result_data, dict
+                            result_data,
+                            dict,
                         ):
                             # Only construct if we have annotations (dataclass-like)
                             annotations = getattr(target_type, "__annotations__", {})
@@ -145,18 +151,18 @@ def dataloader_field(
                                 k: v for k, v in result_data.items() if k in annotations
                             }
                             return target_type(**filtered_data)
-                        elif hasattr(target_type, "from_dict") and callable(target_type.from_dict):
+                        if hasattr(target_type, "from_dict") and callable(target_type.from_dict):
                             if isinstance(result_data, dict):
                                 return target_type.from_dict(result_data)
                     return result_data
 
                 # Handle direct type construction
-                elif hasattr(return_type, "__annotations__") and isinstance(result_data, dict):
+                if hasattr(return_type, "__annotations__") and isinstance(result_data, dict):
                     # Only construct if we have annotations (dataclass-like)
                     annotations = getattr(return_type, "__annotations__", {})
                     filtered_data = {k: v for k, v in result_data.items() if k in annotations}
                     return return_type(**filtered_data)
-                elif hasattr(return_type, "from_dict") and callable(return_type.from_dict):
+                if hasattr(return_type, "from_dict") and callable(return_type.from_dict):
                     if isinstance(result_data, dict):
                         return return_type.from_dict(result_data)
 

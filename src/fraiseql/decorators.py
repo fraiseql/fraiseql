@@ -144,13 +144,13 @@ def field(
                         execution_time = time.time() - start_time
                         # Create task to track asynchronously
                         _ = asyncio.create_task(  # noqa: RUF006
-                            detector.track_field_resolution(info, info.field_name, execution_time)
+                            detector.track_field_resolution(info, info.field_name, execution_time),
                         )
                         return result
                     except Exception:
                         execution_time = time.time() - start_time
                         _ = asyncio.create_task(  # noqa: RUF006
-                            detector.track_field_resolution(info, info.field_name, execution_time)
+                            detector.track_field_resolution(info, info.field_name, execution_time),
                         )
                         raise
                 # Call the original method - if it's a bound method, use root as self

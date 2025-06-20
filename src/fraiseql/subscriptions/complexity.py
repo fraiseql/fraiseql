@@ -50,12 +50,13 @@ class SubscriptionComplexityAnalyzer:
             depth = self._calculate_depth(info.field_nodes[0].selection_set)
             if depth > self.config.max_depth:
                 raise ComplexityLimitExceeded(
-                    f"Query depth {depth} exceeds maximum {self.config.max_depth}"
+                    f"Query depth {depth} exceeds maximum {self.config.max_depth}",
                 )
 
             # Add cost for nested selections
             cost += self._calculate_selection_cost(
-                info.field_nodes[0].selection_set, getattr(info, "fragments", {})
+                info.field_nodes[0].selection_set,
+                getattr(info, "fragments", {}),
             )
 
         return cost
@@ -83,7 +84,8 @@ class SubscriptionComplexityAnalyzer:
             if hasattr(selection, "name"):
                 field_name = selection.name.value
                 field_cost = self.config.field_costs.get(
-                    field_name, self.config.field_costs["default"]
+                    field_name,
+                    self.config.field_costs["default"],
                 )
                 total_cost += field_cost
 
@@ -95,8 +97,7 @@ class SubscriptionComplexityAnalyzer:
 
 
 def complexity(score: int | None = None, max_depth: int | None = None):
-    """
-    Decorator to set complexity limits for subscriptions.
+    """Decorator to set complexity limits for subscriptions.
 
     Usage:
         @subscription
@@ -130,7 +131,7 @@ def complexity(score: int | None = None, max_depth: int | None = None):
             if complexity_score > analyzer.config.max_complexity:
                 raise ComplexityLimitExceeded(
                     f"Subscription complexity {complexity_score} exceeds "
-                    f"maximum {analyzer.config.max_complexity}"
+                    f"maximum {analyzer.config.max_complexity}",
                 )
 
             # Execute subscription
