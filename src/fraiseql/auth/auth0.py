@@ -23,8 +23,9 @@ class Auth0Provider(AuthProvider):
         domain: str,
         api_identifier: str,
         algorithms: list[str] | None = None,
+        *,
         cache_jwks: bool = True,
-    ):
+    ) -> None:
         """Initialize Auth0 provider.
 
         Args:
@@ -56,7 +57,7 @@ class Auth0Provider(AuthProvider):
             self._http_client = httpx.AsyncClient()
         return self._http_client
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client."""
         if self._http_client:
             await self._http_client.aclose()
@@ -230,7 +231,7 @@ class Auth0Config:
         client_id: str | None = None,
         client_secret: str | None = None,
         algorithms: list[str] | None = None,
-    ):
+    ) -> None:
         """Initialize Auth0 configuration.
 
         Args:

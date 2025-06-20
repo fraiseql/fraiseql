@@ -3,6 +3,8 @@
 Exports public API for FraiseQL framework.
 """
 
+# Core imports
+from .cqrs import CQRSExecutor, CQRSRepository
 from .decorators import field, query
 from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
@@ -20,13 +22,15 @@ from .types.generic import (
     create_connection,
 )
 from .types.interface import fraise_interface
+from .types.scalars.date import DateField as Date
+from .types.scalars.email_address import EmailAddressField as EmailAddress
+from .types.scalars.json import JSONField as JSON  # noqa: N814
 
-# Core aliases
-type = fraise_type
-input = fraise_input
-enum = fraise_enum
-interface = fraise_interface
-
+# Core aliases - renamed to avoid shadowing builtins
+fraiseql_type = fraise_type
+fraiseql_input = fraise_input
+fraiseql_enum = fraise_enum
+fraiseql_interface = fraise_interface
 
 # FastAPI integration (optional)
 try:
@@ -60,14 +64,6 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-# CQRS support
-from .cqrs import CQRSExecutor, CQRSRepository
-
-# Scalar types
-from .types.scalars.date import DateField as Date
-from .types.scalars.email_address import EmailAddressField as EmailAddress
-from .types.scalars.json import JSONField as JSON  # noqa: N814
-
 __version__ = "0.1.0a8"
 
 __all__ = [
@@ -95,7 +91,6 @@ __all__ = [
     # FastAPI integration
     "create_fraiseql_app",
     "dataloader_field",
-    "enum",
     "failure",
     "field",
     "fraise_enum",
@@ -103,8 +98,10 @@ __all__ = [
     "fraise_input",
     "fraise_interface",
     "fraise_type",
-    "input",
-    "interface",
+    "fraiseql_enum",
+    "fraiseql_input",
+    "fraiseql_interface",
+    "fraiseql_type",
     "mutation",
     "query",
     "requires_auth",
@@ -113,5 +110,4 @@ __all__ = [
     "result",
     "subscription",
     "success",
-    "type",
 ]
