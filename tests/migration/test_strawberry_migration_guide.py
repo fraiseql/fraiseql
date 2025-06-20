@@ -37,7 +37,7 @@ def clear_registry():
 class TestMigrationGuideExists:
     """Test that migration guide documentation exists and is comprehensive."""
 
-    def test_migration_guide_file_exists(self):
+    def test_migration_guide_file_exists(self) -> None:
         """Test that the migration guide file exists."""
         migration_guide_path = Path("docs/migration/from-strawberry.md")
         assert migration_guide_path.exists(), "Strawberry migration guide must exist"
@@ -46,7 +46,7 @@ class TestMigrationGuideExists:
         content = migration_guide_path.read_text()
         assert len(content) > 1000, "Migration guide should be comprehensive (>1000 chars)"
 
-    def test_migration_guide_covers_key_topics(self):
+    def test_migration_guide_covers_key_topics(self) -> None:
         """Test that migration guide covers all essential migration topics."""
         migration_guide_path = Path("docs/migration/from-strawberry.md")
         content = migration_guide_path.read_text().lower()
@@ -79,7 +79,7 @@ class TestMigrationGuideExists:
 
         assert not missing_topics, f"Migration guide missing topics: {missing_topics}"
 
-    def test_migration_guide_has_code_examples(self):
+    def test_migration_guide_has_code_examples(self) -> None:
         """Test that migration guide includes both Strawberry and FraiseQL code examples."""
         migration_guide_path = Path("docs/migration/from-strawberry.md")
         content = migration_guide_path.read_text()
@@ -95,7 +95,7 @@ class TestMigrationGuideExists:
         assert strawberry_examples >= 5, "Should have at least 5 Strawberry code examples"
         assert fraiseql_examples >= 5, "Should have at least 5 FraiseQL code examples"
 
-    def test_migration_guide_has_comparison_table(self):
+    def test_migration_guide_has_comparison_table(self) -> None:
         """Test that migration guide includes a feature comparison table."""
         migration_guide_path = Path("docs/migration/from-strawberry.md")
         content = migration_guide_path.read_text()
@@ -108,7 +108,7 @@ class TestMigrationGuideExists:
 class TestStrawberryCompatibilityLayer:
     """Test that we provide compatibility helpers for common Strawberry patterns."""
 
-    def test_strawberry_style_type_decorator_works(self):
+    def test_strawberry_style_type_decorator_works(self) -> None:
         """Test that @strawberry.type style decorators work in FraiseQL."""
         # This should work after we implement strawberry compatibility
 
@@ -150,7 +150,7 @@ class TestStrawberryCompatibilityLayer:
             assert "data" in data
             assert data["data"]["getUser"]["name"] == "Test User"
 
-    def test_strawberry_style_field_resolver_migration(self):
+    def test_strawberry_style_field_resolver_migration(self) -> None:
         """Test that Strawberry field resolver patterns can be migrated."""
 
         @fraiseql.type
@@ -196,7 +196,7 @@ class TestStrawberryCompatibilityLayer:
             assert "data" in data
             assert data["data"]["getUser"]["displayName"] == "User: John"
 
-    def test_strawberry_info_context_migration(self):
+    def test_strawberry_info_context_migration(self) -> None:
         """Test that Strawberry info.context patterns work in FraiseQL."""
 
         @fraiseql.type
@@ -256,7 +256,7 @@ class TestStrawberryCompatibilityLayer:
 class TestStrawberryDataLoaderMigration:
     """Test migration from Strawberry DataLoaders to FraiseQL DataLoaders."""
 
-    def test_strawberry_dataloader_pattern_migration(self):
+    def test_strawberry_dataloader_pattern_migration(self) -> None:
         """Test that Strawberry DataLoader patterns can be migrated."""
 
         # Define User type first
@@ -272,7 +272,7 @@ class TestStrawberryDataLoaderMigration:
         class UserDataLoader(DataLoader[UUID, User]):
             """Migrated from Strawberry DataLoader pattern."""
 
-            def __init__(self, db=None):
+            def __init__(self, db=None) -> None:
                 super().__init__()
                 self.db = db
 
@@ -350,7 +350,7 @@ class TestStrawberryDataLoaderMigration:
 class TestStrawberryMutationMigration:
     """Test migration from Strawberry mutations to FraiseQL mutations."""
 
-    def test_strawberry_mutation_pattern_migration(self):
+    def test_strawberry_mutation_pattern_migration(self) -> None:
         """Test that Strawberry mutation patterns can be migrated."""
 
         @fraiseql.type
@@ -415,7 +415,7 @@ class TestStrawberryMutationMigration:
 class TestMigrationUtilities:
     """Test migration utilities and helpers."""
 
-    def test_migration_checker_utility_exists(self):
+    def test_migration_checker_utility_exists(self) -> None:
         """Test that we provide a utility to check migration completeness."""
         # This should exist after implementation
         try:
@@ -428,7 +428,7 @@ class TestMigrationUtilities:
         except ImportError:
             pytest.fail("Migration checker utility should be available")
 
-    def test_strawberry_import_compatibility(self):
+    def test_strawberry_import_compatibility(self) -> None:
         """Test that common Strawberry imports can be mapped to FraiseQL."""
         # This should work after implementation
         try:
@@ -444,7 +444,7 @@ class TestMigrationUtilities:
         except ImportError:
             pytest.fail("Strawberry compatibility layer should be available")
 
-    def test_automated_migration_script_exists(self):
+    def test_automated_migration_script_exists(self) -> None:
         """Test that an automated migration script exists."""
         # Check for CLI command
         Path("src/fraiseql/cli/commands/migrate_from_strawberry.py")
@@ -462,7 +462,7 @@ class TestMigrationUtilities:
 class TestStrawberryFeatureParity:
     """Test that FraiseQL provides equivalent functionality to Strawberry features."""
 
-    def test_strawberry_enum_migration(self):
+    def test_strawberry_enum_migration(self) -> None:
         """Test that Strawberry enums can be migrated to FraiseQL."""
         from enum import Enum
 
@@ -515,7 +515,7 @@ class TestStrawberryFeatureParity:
             assert data["data"]["getUser"]["role"] == "ADMIN"  # FraiseQL uses enum name
 
     @pytest.mark.xfail(reason="Interface support may not be fully implemented yet")
-    def test_strawberry_interface_migration(self):
+    def test_strawberry_interface_migration(self) -> None:
         """Test that Strawberry interfaces can be migrated."""
 
         @fraiseql.interface

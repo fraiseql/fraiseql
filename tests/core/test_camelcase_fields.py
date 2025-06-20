@@ -6,7 +6,7 @@ from fraiseql import query, type
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
-def test_automatic_snake_to_camel_conversion(clear_registry):
+def test_automatic_snake_to_camel_conversion(clear_registry) -> None:
     """Test that snake_case fields are automatically converted to camelCase in GraphQL."""
 
     @type
@@ -76,7 +76,7 @@ def test_automatic_snake_to_camel_conversion(clear_registry):
     assert "Cannot query field" in str(result.errors[0])
 
 
-def test_camelcase_conversion_with_config(clear_registry):
+def test_camelcase_conversion_with_config(clear_registry) -> None:
     """Test enabling/disabling camelCase conversion via configuration."""
 
     @type
@@ -128,7 +128,7 @@ def test_camelcase_conversion_with_config(clear_registry):
     assert result.data["current_user"]["user_name"] == "john_doe"
 
 
-def test_explicit_graphql_name(clear_registry):
+def test_explicit_graphql_name(clear_registry) -> None:
     """Test using explicit graphql_name parameter."""
     from fraiseql.fields import fraise_field
 
@@ -166,7 +166,7 @@ def test_explicit_graphql_name(clear_registry):
     }
 
 
-def test_mixed_case_preservation(clear_registry):
+def test_mixed_case_preservation(clear_registry) -> None:
     """Test that certain naming patterns are preserved correctly."""
 
     @type
@@ -212,7 +212,7 @@ def test_mixed_case_preservation(clear_registry):
     }
 
 
-def test_input_type_camelcase(clear_registry):
+def test_input_type_camelcase(clear_registry) -> None:
     """Test that input types also use camelCase."""
     from fraiseql import fraise_input, mutation
 
@@ -273,7 +273,7 @@ def test_input_type_camelcase(clear_registry):
     }
 
 
-def test_enum_value_preservation(clear_registry):
+def test_enum_value_preservation(clear_registry) -> None:
     """Test that enum values are not converted."""
     from enum import Enum
 
@@ -313,7 +313,7 @@ def test_enum_value_preservation(clear_registry):
     assert result.data == {"getUser": {"userName": "john", "userStatus": "ACTIVE_USER"}}
 
 
-def test_nested_types_camelcase(clear_registry):
+def test_nested_types_camelcase(clear_registry) -> None:
     """Test camelCase conversion works with nested types."""
 
     @type

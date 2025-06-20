@@ -6,7 +6,7 @@ from psycopg.sql import SQL, Composed, Identifier
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 
-async def setup_test_data(conn):
+async def setup_test_data(conn) -> None:
     """Create test tables and data."""
     # Create users table
     await conn.execute(
@@ -53,7 +53,7 @@ async def setup_test_data(conn):
     await conn.commit()
 
 
-async def cleanup_test_data(conn):
+async def cleanup_test_data(conn) -> None:
     """Clean up test tables."""
     await conn.execute("DROP TABLE IF EXISTS posts CASCADE")
     await conn.execute("DROP TABLE IF EXISTS users CASCADE")
@@ -65,7 +65,7 @@ class TestFraiseQLRepositoryIntegration:
     """Integration test suite for FraiseQLRepository with real database."""
 
     @pytest.mark.asyncio
-    async def test_run_simple_query(self, db_pool):
+    async def test_run_simple_query(self, db_pool) -> None:
         """Test running a simple SQL query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -91,7 +91,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_query_with_params(self, db_pool):
+    async def test_run_query_with_params(self, db_pool) -> None:
         """Test running a query with parameters."""
         # Setup
         async with db_pool.connection() as conn:
@@ -117,7 +117,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_composed_query(self, db_pool):
+    async def test_run_composed_query(self, db_pool) -> None:
         """Test running a Composed SQL query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -149,7 +149,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_insert_returning(self, db_pool):
+    async def test_run_insert_returning(self, db_pool) -> None:
         """Test running an INSERT with RETURNING clause."""
         # Setup
         async with db_pool.connection() as conn:
@@ -174,7 +174,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_update_query(self, db_pool):
+    async def test_run_update_query(self, db_pool) -> None:
         """Test running an UPDATE query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -211,7 +211,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_delete_query(self, db_pool):
+    async def test_run_delete_query(self, db_pool) -> None:
         """Test running a DELETE query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -244,7 +244,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_join_query(self, db_pool):
+    async def test_run_join_query(self, db_pool) -> None:
         """Test running a JOIN query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -281,7 +281,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_transaction_rollback(self, db_pool):
+    async def test_transaction_rollback(self, db_pool) -> None:
         """Test transaction rollback behavior."""
         repository = FraiseQLRepository(pool=db_pool)
 
@@ -322,7 +322,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_jsonb_operators(self, db_pool):
+    async def test_jsonb_operators(self, db_pool) -> None:
         """Test JSONB operators in queries."""
         # Setup
         async with db_pool.connection() as conn:
@@ -356,7 +356,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_aggregate_query(self, db_pool):
+    async def test_aggregate_query(self, db_pool) -> None:
         """Test aggregate functions with JSONB."""
         # Setup
         async with db_pool.connection() as conn:
@@ -395,7 +395,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_connection_pool_concurrency(self, db_pool):
+    async def test_connection_pool_concurrency(self, db_pool) -> None:
         """Test concurrent queries using the connection pool."""
         import asyncio
 
@@ -433,7 +433,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_error_handling(self, db_pool):
+    async def test_error_handling(self, db_pool) -> None:
         """Test error handling in repository."""
         repository = FraiseQLRepository(pool=db_pool)
 

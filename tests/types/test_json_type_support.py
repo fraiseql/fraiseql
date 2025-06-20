@@ -35,7 +35,7 @@ def clear_registry():
 class TestJSONTypeSupport:
     """Test that FraiseQL supports JSON/dict types properly."""
 
-    def test_dict_str_any_field_type(self):
+    def test_dict_str_any_field_type(self) -> None:
         """Test that dict[str, Any] fields work in types."""
 
         @fraiseql.type
@@ -92,7 +92,7 @@ class TestJSONTypeSupport:
             assert config["settings"]["features"] == ["feature1", "feature2"]
             assert config["metadata"]["version"] == "1.0.0"
 
-    def test_json_scalar_type(self):
+    def test_json_scalar_type(self) -> None:
         """Test that JSON scalar type is available and works."""
 
         @fraiseql.type
@@ -146,7 +146,7 @@ class TestJSONTypeSupport:
             assert len(doc["content"]["sections"]) == 2
             assert doc["content"]["metadata"]["author"] == "John Doe"
 
-    def test_json_input_type(self):
+    def test_json_input_type(self) -> None:
         """Test that JSON/dict can be used in input types."""
 
         @fraiseql.input
@@ -214,7 +214,7 @@ class TestJSONTypeSupport:
             assert doc["content"]["metadata"]["created"] == "2024-01-01"
             assert doc["tags"] == ["new", "important"]
 
-    def test_nested_json_structures(self):
+    def test_nested_json_structures(self) -> None:
         """Test deeply nested JSON structures."""
 
         @fraiseql.type
@@ -281,7 +281,7 @@ class TestJSONTypeSupport:
             assert users[0]["preferences"]["notifications"]["push"]["enabled"] is True
             assert "updates" in users[0]["preferences"]["notifications"]["push"]["categories"]
 
-    def test_optional_json_fields(self):
+    def test_optional_json_fields(self) -> None:
         """Test that Optional JSON fields work correctly."""
 
         @fraiseql.type
@@ -346,7 +346,7 @@ class TestJSONTypeSupport:
             assert users[1]["preferences"] is None
             assert users[1]["metadata"] is None
 
-    def test_json_field_resolver(self):
+    def test_json_field_resolver(self) -> None:
         """Test that field resolvers can return JSON data."""
 
         @fraiseql.type
@@ -405,7 +405,7 @@ class TestJSONTypeSupport:
 class TestJSONValidation:
     """Test JSON type validation and error handling."""
 
-    def test_json_validation_in_mutations(self):
+    def test_json_validation_in_mutations(self) -> None:
         """Test that invalid JSON structures are handled properly."""
 
         @fraiseql.input

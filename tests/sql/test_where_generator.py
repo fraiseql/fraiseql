@@ -20,27 +20,27 @@ class Person:
 PersonWhere = safe_create_where_type(Person)
 
 
-def test_eq_filter():
+def test_eq_filter() -> None:
     where = PersonWhere(name={"eq": "Alice"})
     sql_str = where.to_sql().as_string(None)
     assert "(data ->> 'name') = 'Alice'" in sql_str
 
 
-def test_combined_filters():
+def test_combined_filters() -> None:
     where = PersonWhere(name={"eq": "Alice"}, age={"gt": 21})
     sql_str = where.to_sql().as_string(None)
     assert "(data ->> 'name') = 'Alice'" in sql_str
     assert "(data ->> 'age') > 21" in sql_str  # Numbers aren't quoted
 
 
-def test_in_and_isnull_filters():
+def test_in_and_isnull_filters() -> None:
     where = PersonWhere(name={"in": ["Alice", "Bob"]}, is_active={"isnull": False})
     sql_str = where.to_sql().as_string(None)
     assert "(data ->> 'name') IN ('Alice', 'Bob')" in sql_str
     assert "(data ->> 'is_active') IS NOT NULL" in sql_str
 
 
-def test_uuid_and_date_filters():
+def test_uuid_and_date_filters() -> None:
     test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
     test_date = date(2024, 12, 31)
     where = PersonWhere(uid={"eq": test_uuid}, birth_date={"lt": test_date})
@@ -52,7 +52,7 @@ def test_uuid_and_date_filters():
     assert "::date" in sql_str  # Date type cast
 
 
-def test_datetime_filter():
+def test_datetime_filter() -> None:
     ts = datetime(2025, 1, 1, 12, 30, 45, tzinfo=UTC)
     where = PersonWhere(created_at={"gte": ts})
     sql_str = where.to_sql().as_string(None)
@@ -61,7 +61,7 @@ def test_datetime_filter():
     assert "12:30:45" in sql_str
 
 
-def test_boolean_values_converted_to_strings():
+def test_boolean_values_converted_to_strings() -> None:
     """Test that boolean values are properly converted to strings for JSONB comparison."""
     where_true = PersonWhere(is_active={"eq": True})
     where_false = PersonWhere(is_active={"eq": False})
@@ -74,7 +74,7 @@ def test_boolean_values_converted_to_strings():
     assert "(data ->> 'is_active') = 'false'" in sql_false
 
 
-def test_multiple_operators_same_field():
+def test_multiple_operators_same_field() -> None:
     """Test multiple operators on the same field."""
     where = PersonWhere(age={"gte": 18, "lt": 65})
     sql_str = where.to_sql().as_string(None)
@@ -85,13 +85,13 @@ def test_multiple_operators_same_field():
     assert " AND " in sql_str
 
 
-def test_empty_filter():
+def test_empty_filter() -> None:
     """Test that empty filter returns None."""
     where = PersonWhere()
     assert where.to_sql() is None
 
 
-def test_none_values_ignored():
+def test_none_values_ignored() -> None:
     """Test that None values in filters are ignored."""
     where = PersonWhere(name={"eq": "Alice"}, age=None)
     sql_str = where.to_sql().as_string(None)

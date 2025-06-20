@@ -345,7 +345,7 @@ class FieldMapping:
 class SQLHelper:
     """Main SQL helper for beginners."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize SQL helper."""
         self.generator = ViewGenerator()
         self.mapper = FieldMapping()

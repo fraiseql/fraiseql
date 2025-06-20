@@ -36,7 +36,7 @@ def mock_blog_db():
     """Create a mock blog database with test data."""
 
     class MockBlogDB:
-        def __init__(self):
+        def __init__(self) -> None:
             self.users = {
                 "223e4567-e89b-12d3-a456-426614174001": {
                     "id": "223e4567-e89b-12d3-a456-426614174001",
@@ -104,7 +104,7 @@ def mock_blog_db():
     return MockBlogDB()
 
 
-def test_dataloader_classes_exist():
+def test_dataloader_classes_exist() -> None:
     """Test that all DataLoader classes are properly defined."""
     # Test that we can instantiate the DataLoaders
     mock_db = Mock()
@@ -120,7 +120,7 @@ def test_dataloader_classes_exist():
 
 
 @pytest.mark.asyncio
-async def test_user_dataloader_batching(mock_blog_db):
+async def test_user_dataloader_batching(mock_blog_db) -> None:
     """Test that UserDataLoader properly batches requests."""
     loader = UserDataLoader(mock_blog_db)
 
@@ -146,7 +146,7 @@ async def test_user_dataloader_batching(mock_blog_db):
 
 
 @pytest.mark.asyncio
-async def test_comments_dataloader_batching(mock_blog_db):
+async def test_comments_dataloader_batching(mock_blog_db) -> None:
     """Test that CommentsByPostDataLoader properly batches requests."""
     loader = CommentsByPostDataLoader(mock_blog_db)
 
@@ -172,7 +172,7 @@ async def test_comments_dataloader_batching(mock_blog_db):
 
 
 @pytest.mark.asyncio
-async def test_dataloader_caching(mock_blog_db):
+async def test_dataloader_caching(mock_blog_db) -> None:
     """Test that DataLoader caches results within the same instance."""
     loader = UserDataLoader(mock_blog_db)
 
@@ -190,7 +190,7 @@ async def test_dataloader_caching(mock_blog_db):
     assert user1["name"] == "John Doe"
 
 
-def test_dataloader_integration_with_get_loader():
+def test_dataloader_integration_with_get_loader() -> None:
     """Test that DataLoaders work with the get_loader function."""
 
     # Create test types
@@ -225,7 +225,7 @@ def test_dataloader_integration_with_get_loader():
         assert "UserDataLoader" in result
 
 
-def test_blog_example_no_longer_has_n_plus_one():
+def test_blog_example_no_longer_has_n_plus_one() -> None:
     """Test that the blog example field resolvers use DataLoader."""
     # Import the updated resolvers
     # Check that they import get_loader (indicates DataLoader usage)

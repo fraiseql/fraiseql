@@ -10,7 +10,7 @@ from fraiseql.core.graphql_type import (
 from fraiseql.sql.where_generator import DynamicType
 
 
-def test_fraiseql_type_decorator():
+def test_fraiseql_type_decorator() -> None:
     @fraise.type(sql_source="tb_users")
     class UserTypeDecorator:
         profile: dict
@@ -25,7 +25,7 @@ def test_fraiseql_type_decorator():
     assert where_instance.to_sql() is None
 
 
-def test_translate_query_from_type():
+def test_translate_query_from_type() -> None:
     @fraise.type(sql_source="tb_accounts")
     @dataclass
     class Account:
@@ -49,7 +49,7 @@ def test_translate_query_from_type():
     assert 'FROM "tb_accounts"' in sql_str
 
 
-def test_translate_query_with_nested_fields():
+def test_translate_query_with_nested_fields() -> None:
     @fraise.type(sql_source="tb_users")
     @dataclass
     class UserGraphqlType:
@@ -73,7 +73,7 @@ def test_translate_query_with_nested_fields():
     assert "'__typename', 'UserGraphqlType'" in sql_str
 
 
-def test_translate_query_with_where_clause():
+def test_translate_query_with_where_clause() -> None:
     @fraise.type(sql_source="tb_sessions")
     @dataclass
     class Session:
@@ -95,7 +95,7 @@ def test_translate_query_with_where_clause():
     assert "(data ->> 'active') = 'true'" in sql_str
 
 
-def test_translate_query_invalid_graphql():
+def test_translate_query_invalid_graphql() -> None:
     @fraise.type(sql_source="tb_invalid")
     @dataclass
     class Broken:
@@ -111,7 +111,7 @@ def test_translate_query_invalid_graphql():
         translate_query_from_type(bad_query, root_type=Broken)
 
 
-def test_translate_query_deeply_nested_with_typename():
+def test_translate_query_deeply_nested_with_typename() -> None:
     @fraise.type(sql_source="tb_orgs")
     @dataclass
     class Org:

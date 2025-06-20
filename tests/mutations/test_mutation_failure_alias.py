@@ -28,7 +28,7 @@ class CreateUserFailure:
     message: str
 
 
-def test_mutation_with_failure_attribute():
+def test_mutation_with_failure_attribute() -> None:
     """Test mutation using 'failure' instead of 'error'."""
 
     @mutation
@@ -46,7 +46,7 @@ def test_mutation_with_failure_attribute():
     assert CreateUser.__fraiseql_mutation__.error_type == CreateUserFailure
 
 
-def test_mutation_with_error_still_works():
+def test_mutation_with_error_still_works() -> None:
     """Test that 'error' attribute still works for backwards compatibility."""
 
     @mutation
@@ -63,7 +63,7 @@ def test_mutation_with_error_still_works():
     assert CreateUserLegacy.__fraiseql_mutation__.error_type == CreateUserFailure
 
 
-def test_mutation_without_failure_or_error_fails():
+def test_mutation_without_failure_or_error_fails() -> None:
     """Test that mutation without failure/error type fails."""
     with pytest.raises(TypeError, match="must define 'failure' type"):
 
@@ -77,7 +77,7 @@ def test_mutation_without_failure_or_error_fails():
                 return CreateUserSuccess(user_id=3)
 
 
-def test_mutation_prefers_error_over_failure():
+def test_mutation_prefers_error_over_failure() -> None:
     """Test that if both error and failure are defined, error takes precedence."""
 
     @fraise_type

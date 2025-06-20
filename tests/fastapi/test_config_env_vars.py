@@ -5,7 +5,7 @@ import pytest
 from fraiseql.fastapi.config import FraiseQLConfig
 
 
-def test_config_ignores_non_prefixed_env_vars(monkeypatch):
+def test_config_ignores_non_prefixed_env_vars(monkeypatch) -> None:
     """Test that config ignores environment variables without FRAISEQL_ prefix."""
     # Set common environment variables that might conflict
     monkeypatch.setenv("ENV", "local")
@@ -27,7 +27,7 @@ def test_config_ignores_non_prefixed_env_vars(monkeypatch):
     assert config.database_url.unicode_string() == "postgresql://localhost/test"
 
 
-def test_config_uses_prefixed_env_vars(monkeypatch):
+def test_config_uses_prefixed_env_vars(monkeypatch) -> None:
     """Test that config correctly uses FRAISEQL_ prefixed variables."""
     # Set prefixed environment variables
     monkeypatch.setenv("FRAISEQL_DATABASE_URL", "postgresql://dbuser:dbpass@dbhost/dbname")
@@ -47,7 +47,7 @@ def test_config_uses_prefixed_env_vars(monkeypatch):
     assert config.enable_introspection is False
 
 
-def test_config_case_insensitive(monkeypatch):
+def test_config_case_insensitive(monkeypatch) -> None:
     """Test that config handles case variations in env var names."""
     # Mix of cases
     monkeypatch.setenv("fraiseql_database_url", "postgresql://localhost/test1")
@@ -61,7 +61,7 @@ def test_config_case_insensitive(monkeypatch):
     assert config.environment == "testing"
 
 
-def test_config_without_env_file(monkeypatch, tmp_path):
+def test_config_without_env_file(monkeypatch, tmp_path) -> None:
     """Test that config works without .env file."""
     # Change to a directory without .env file
     monkeypatch.chdir(tmp_path)
@@ -74,7 +74,7 @@ def test_config_without_env_file(monkeypatch, tmp_path):
     assert config.database_url.unicode_string() == "postgresql://localhost/test"
 
 
-def test_config_validation_errors():
+def test_config_validation_errors() -> None:
     """Test that config raises appropriate validation errors."""
     # Missing required database_url
     with pytest.raises(ValueError, match="database_url"):
@@ -88,7 +88,7 @@ def test_config_validation_errors():
         )
 
 
-def test_production_defaults(monkeypatch):
+def test_production_defaults(monkeypatch) -> None:
     """Test that production environment sets appropriate defaults."""
     monkeypatch.setenv("FRAISEQL_DATABASE_URL", "postgresql://localhost/test")
     monkeypatch.setenv("FRAISEQL_ENVIRONMENT", "production")
@@ -100,7 +100,7 @@ def test_production_defaults(monkeypatch):
     assert config.enable_playground is False
 
 
-def test_auth0_validation(monkeypatch):
+def test_auth0_validation(monkeypatch) -> None:
     """Test Auth0 configuration validation."""
     monkeypatch.setenv("FRAISEQL_DATABASE_URL", "postgresql://localhost/test")
     monkeypatch.setenv("FRAISEQL_AUTH_PROVIDER", "auth0")

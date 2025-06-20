@@ -48,7 +48,7 @@ class TestWrapResolver:
 
         return User
 
-    def test_wrap_simple_resolver(self, sample_input_type, sample_output_type):
+    def test_wrap_simple_resolver(self, sample_input_type, sample_output_type) -> None:
         """Test wrapping a simple async resolver."""
 
         async def create_user(
@@ -72,7 +72,7 @@ class TestWrapResolver:
         assert field.resolve != create_user  # It should be wrapped
 
     @pytest.mark.asyncio
-    async def test_wrapped_resolver_execution(self, sample_input_type, sample_output_type):
+    async def test_wrapped_resolver_execution(self, sample_input_type, sample_output_type) -> None:
         """Test executing a wrapped resolver."""
 
         async def create_user(
@@ -99,7 +99,7 @@ class TestWrapResolver:
         self,
         sample_input_type,
         sample_output_type,
-    ):
+    ) -> None:
         """Test wrapped resolver with missing optional fields."""
 
         async def create_user(
@@ -119,7 +119,7 @@ class TestWrapResolver:
         assert result.name == "Jane"
         assert result.age is None
 
-    def test_wrap_resolver_with_no_arguments(self):
+    def test_wrap_resolver_with_no_arguments(self) -> None:
         """Test wrapping a resolver with no arguments except info."""
 
         @fraiseql.type
@@ -135,7 +135,7 @@ class TestWrapResolver:
         # Check no arguments except info
         assert len(field.args) == 0
 
-    def test_wrap_resolver_with_multiple_arguments(self, clear_registry):
+    def test_wrap_resolver_with_multiple_arguments(self, clear_registry) -> None:
         """Test wrapping a resolver with multiple arguments."""
 
         @fraiseql.input
@@ -164,11 +164,12 @@ class TestWrapResolver:
         assert len(field.args) == 3
 
     @pytest.mark.asyncio
-    async def test_wrapped_resolver_error_handling(self, sample_input_type):
+    async def test_wrapped_resolver_error_handling(self, sample_input_type) -> None:
         """Test error handling in wrapped resolver."""
 
         async def failing_resolver(info: GraphQLResolveInfo, input: sample_input_type) -> Any:
-            raise ValueError("Something went wrong")
+            msg = "Something went wrong"
+            raise ValueError(msg)
 
         field = wrap_resolver(failing_resolver)
 
@@ -179,7 +180,7 @@ class TestWrapResolver:
             await field.resolve(None, mock_info, input={"name": "Test"})
 
     @pytest.mark.asyncio
-    async def test_input_coercion(self, sample_input_type, sample_output_type):
+    async def test_input_coercion(self, sample_input_type, sample_output_type) -> None:
         """Test that input is properly coerced to the input type."""
         received_input = None
 
@@ -202,7 +203,7 @@ class TestWrapResolver:
         assert received_input.name == "Test User"
         assert received_input.age == 25
 
-    def test_wrap_resolver_with_union_return_type(self, clear_registry):
+    def test_wrap_resolver_with_union_return_type(self, clear_registry) -> None:
         """Test wrapping a resolver that returns a union type."""
 
         @fraiseql.success

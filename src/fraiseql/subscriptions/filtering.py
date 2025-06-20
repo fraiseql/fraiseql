@@ -38,7 +38,7 @@ class FilterExpressionEvaluator:
         "context",
     }
 
-    def __init__(self, context: dict[str, Any]):
+    def __init__(self, context: dict[str, Any]) -> None:
         self.context = context
 
     def evaluate(self, expression: str) -> bool:
@@ -53,13 +53,14 @@ class FilterExpressionEvaluator:
             # Compile and evaluate
             code = compile(tree, "<filter>", "eval")
             return eval(
-                code, {"__builtins__": {}}, self.context
-            )  # noqa: S307 - sandboxed eval with AST validation
+                code, {"__builtins__": {}}, self.context,
+            )
 
         except Exception as e:
-            raise FilterError(f"Invalid filter expression: {e}") from e
+            msg = f"Invalid filter expression: {e}"
+            raise FilterError(msg) from e
 
-    def _validate_ast(self, node):
+    def _validate_ast(self, node) -> None:
         """Validate AST nodes for safety."""
         for child in ast.walk(node):
             # Only allow specific node types
@@ -85,15 +86,18 @@ class FilterExpressionEvaluator:
             )
 
             if not isinstance(child, allowed_types):
-                raise FilterError(f"Forbidden operation: {type(child).__name__}")
+                msg = f"Forbidden operation: {type(child).__name__}"
+                raise FilterError(msg)
 
             # Check names
             if isinstance(child, ast.Name) and child.id not in self.ALLOWED_NAMES:
-                raise FilterError(f"Forbidden name: {child.id}")
+                msg = f"Forbidden name: {child.id}"
+                raise FilterError(msg)
 
             # Check attributes
             if isinstance(child, ast.Attribute) and child.attr not in self.ALLOWED_ATTRIBUTES:
-                raise FilterError(f"Forbidden attribute: {child.attr}")
+                msg = f"Forbidden attribute: {child.attr}"
+                raise FilterError(msg)
 
 
 def filter(expression: str):  # noqa: A001
@@ -133,7 +137,8 @@ def filter(expression: str):  # noqa: A001
             # Add parameter names to allowed names
             evaluator.ALLOWED_NAMES = evaluator.ALLOWED_NAMES.union(kwargs.keys())
             if not evaluator.evaluate(expression):
-                raise PermissionError("Filter condition not met")
+                msg = "Filter condition not met"
+                raise PermissionError(msg)
 
             # Execute subscription
             async for value in func(info, **kwargs):

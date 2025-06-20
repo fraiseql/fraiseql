@@ -64,7 +64,7 @@ class ContentSecurityPolicy:
     directives: dict[CSPDirective, list[str]] = field(default_factory=dict)
     report_only: bool = False
 
-    def add_directive(self, directive: CSPDirective, sources: str | list[str]):
+    def add_directive(self, directive: CSPDirective, sources: str | list[str]) -> None:
         """Add a CSP directive with sources."""
         if isinstance(sources, str):
             sources = [sources]
@@ -74,7 +74,7 @@ class ContentSecurityPolicy:
 
         self.directives[directive].extend(sources)
 
-    def remove_directive(self, directive: CSPDirective):
+    def remove_directive(self, directive: CSPDirective) -> None:
         """Remove a CSP directive."""
         self.directives.pop(directive, None)
 
@@ -155,7 +155,7 @@ class SecurityHeadersConfig:
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for adding security headers."""
 
-    def __init__(self, app, config: SecurityHeadersConfig):
+    def __init__(self, app, config: SecurityHeadersConfig) -> None:
         super().__init__(app)
         self.config = config
 
@@ -172,7 +172,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    async def _add_security_headers(self, request: Request, response: Response):
+    async def _add_security_headers(self, request: Request, response: Response) -> None:
         """Add all configured security headers."""
         headers = {}
 

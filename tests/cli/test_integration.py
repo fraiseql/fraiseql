@@ -11,7 +11,7 @@ from fraiseql.cli.main import cli
 class TestCLIIntegration:
     """Test CLI commands working together in realistic scenarios."""
 
-    def test_full_project_workflow(self, cli_runner, temp_project_dir):
+    def test_full_project_workflow(self, cli_runner, temp_project_dir) -> None:
         """Test creating and setting up a complete project."""
         import os
 
@@ -47,7 +47,7 @@ class TestCLIIntegration:
         assert "Checking FraiseQL project" in result.output
         assert "All checks passed!" in result.output
 
-    def test_blog_template_workflow(self, cli_runner, temp_project_dir):
+    def test_blog_template_workflow(self, cli_runner, temp_project_dir) -> None:
         """Test blog template project setup."""
         import os
 
@@ -76,7 +76,7 @@ class TestCLIIntegration:
 
     @pytest.mark.skip(reason="TestFoundry extension not yet implemented")
     @patch("os.getenv", return_value="postgresql://test/db")
-    def test_testfoundry_workflow(self, mock_getenv, cli_runner, temp_project_dir):
+    def test_testfoundry_workflow(self, mock_getenv, cli_runner, temp_project_dir) -> None:
         """Test TestFoundry integration workflow."""
         import os
         from unittest.mock import AsyncMock
@@ -113,7 +113,7 @@ class TestCLIIntegration:
                 assert result.exit_code == 0
                 assert "Tests generated" in result.output
 
-    def test_environment_handling(self, cli_runner, temp_project_dir):
+    def test_environment_handling(self, cli_runner, temp_project_dir) -> None:
         """Test that CLI respects environment variables."""
         import os
 

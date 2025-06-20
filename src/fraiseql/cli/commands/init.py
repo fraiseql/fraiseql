@@ -25,7 +25,7 @@ import click
     is_flag=True,
     help="Skip git initialization",
 )
-def init(project_name: str, template: str, database_url: str, no_git: bool):
+def init(project_name: str, template: str, database_url: str, no_git: bool) -> None:
     """Initialize a new FraiseQL project.
 
     Creates a new directory with the given PROJECT_NAME and sets up
@@ -36,7 +36,8 @@ def init(project_name: str, template: str, database_url: str, no_git: bool):
     # Check if directory already exists
     if project_path.exists():
         click.echo(f"Error: Directory '{project_name}' already exists", err=True)
-        raise click.ClickException(f"Directory '{project_name}' already exists")
+        msg = f"Directory '{project_name}' already exists"
+        raise click.ClickException(msg)
 
     click.echo(f"🚀 Creating FraiseQL project '{project_name}'...")
 
@@ -229,7 +230,7 @@ Happy coding! 🎉
     )
 
 
-def create_basic_template(project_path: Path):
+def create_basic_template(project_path: Path) -> None:
     """Create a basic template with simple User type."""
     # Create main.py
     main_content = '''"""Main application entry point."""
@@ -277,7 +278,7 @@ if __name__ == "__main__":
     (project_path / "src" / "types" / "__init__.py").write_text("")
 
 
-def create_blog_template(project_path: Path):
+def create_blog_template(project_path: Path) -> None:
     """Create a blog template with User, Post, and Comment types."""
     # Create types
     user_type = '''"""User type definition."""
@@ -408,7 +409,7 @@ __all__ = ["User", "Post", "Comment"]
     )
 
 
-def create_ecommerce_template(project_path: Path):
+def create_ecommerce_template(project_path: Path) -> None:
     """Create an e-commerce template."""
     # This would create Product, Order, Customer types
     # For brevity, using basic template for now

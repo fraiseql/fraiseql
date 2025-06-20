@@ -10,7 +10,7 @@ from fraiseql.core.graphql_type import (
 from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 
 
-def test_scalar_caching_prevents_duplicates():
+def test_scalar_caching_prevents_duplicates() -> None:
     """Test that scalar types are cached to prevent duplicate registrations."""
     # Clear cache to start fresh
     _graphql_type_cache.clear()
@@ -34,7 +34,7 @@ def test_scalar_caching_prevents_duplicates():
     assert cached_scalar is date_gql1
 
 
-def test_different_scalars_cached_separately():
+def test_different_scalars_cached_separately() -> None:
     """Test that different scalar types are cached separately."""
     _graphql_type_cache.clear()
 
@@ -55,7 +55,7 @@ def test_different_scalars_cached_separately():
     assert datetime_gql is not int_gql
 
 
-def test_complex_scenario_with_caching():
+def test_complex_scenario_with_caching() -> None:
     """Test a complex scenario that would previously cause duplicate registrations."""
     _graphql_type_cache.clear()
     registry = SchemaRegistry.get_instance()
@@ -147,7 +147,7 @@ def test_complex_scenario_with_caching():
     assert birth_date_type is date_type
 
 
-def test_cache_behavior_across_schema_builds():
+def test_cache_behavior_across_schema_builds() -> None:
     """Test caching behavior when building multiple schemas."""
     _graphql_type_cache.clear()
 

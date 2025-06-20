@@ -11,7 +11,7 @@ from fraiseql.types.scalars.datetime import (
 )
 
 
-def test_serialize_datetime():
+def test_serialize_datetime() -> None:
     # Test serializing datetime to ISO 8601 string
     dt = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
     assert serialize_datetime(dt) == "2023-01-01T12:00:00Z"
@@ -20,13 +20,13 @@ def test_serialize_datetime():
     assert serialize_datetime(dt) == "2023-01-01T12:00:00Z"
 
 
-def test_serialize_non_datetime():
+def test_serialize_non_datetime() -> None:
     # Test serializing non-datetime value
     with pytest.raises(GraphQLError):
         serialize_datetime("not a datetime")  # type: ignore
 
 
-def test_parse_datetime_value():
+def test_parse_datetime_value() -> None:
     # Test parsing valid ISO 8601 strings with various timezone notations
     assert parse_datetime_value("2023-01-01T12:00:00Z") == datetime(
         2023,
@@ -66,7 +66,7 @@ def test_parse_datetime_value():
     )  # UTC equivalent
 
 
-def test_parse_invalid_datetime_value():
+def test_parse_invalid_datetime_value() -> None:
     # Test parsing invalid ISO 8601 strings
     with pytest.raises(GraphQLError):
         parse_datetime_value("2023-01-01T12:00:00")
@@ -74,18 +74,18 @@ def test_parse_invalid_datetime_value():
         parse_datetime_value("not a datetime")
 
 
-def test_parse_none_datetime_value():
+def test_parse_none_datetime_value() -> None:
     # Test parsing None value
     assert parse_datetime_value(None) is None
 
 
-def test_parse_datetime_literal():
+def test_parse_datetime_literal() -> None:
     # Test parsing a DateTime literal from GraphQL AST
     ast = StringValueNode(value="2023-01-01T12:00:00Z")
     assert parse_datetime_literal(ast) == datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
 
 
-def test_parse_invalid_datetime_literal():
+def test_parse_invalid_datetime_literal() -> None:
     # Test parsing invalid DateTime literal from GraphQL AST
     ast = StringValueNode(value="not a datetime")
     with pytest.raises(GraphQLError):

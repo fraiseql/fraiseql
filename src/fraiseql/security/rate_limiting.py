@@ -44,7 +44,7 @@ class RateLimitRule:
 class RateLimitStore:
     """In-memory rate limit store with TTL."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._store: dict[str, tuple[float, int]] = {}
         self._lock = asyncio.Lock()
 
@@ -53,7 +53,7 @@ class RateLimitStore:
         async with self._lock:
             return self._store.get(key, (0.0, 0))
 
-    async def set(self, key: str, timestamp: float, count: int, ttl: int):
+    async def set(self, key: str, timestamp: float, count: int, ttl: int) -> None:
         """Set timestamp and count for key with TTL."""
         async with self._lock:
             self._store[key] = (timestamp, count)
@@ -82,7 +82,7 @@ class RateLimitStore:
 class RedisRateLimitStore:
     """Redis-backed rate limit store."""
 
-    def __init__(self, redis_client):
+    def __init__(self, redis_client) -> None:
         self.redis = redis_client
 
     async def get(self, key: str) -> tuple[float, int]:
@@ -93,7 +93,7 @@ class RedisRateLimitStore:
         timestamp, count = json.loads(data)
         return timestamp, count
 
-    async def set(self, key: str, timestamp: float, count: int, ttl: int):
+    async def set(self, key: str, timestamp: float, count: int, ttl: int) -> None:
         """Set timestamp and count for key with TTL."""
         data = json.dumps([timestamp, count])
         await self.redis.setex(key, ttl, data)
@@ -133,7 +133,7 @@ class RedisRateLimitStore:
 class GraphQLRateLimiter:
     """Rate limiter specifically for GraphQL operations."""
 
-    def __init__(self, store: RateLimitStore | RedisRateLimitStore):
+    def __init__(self, store: RateLimitStore | RedisRateLimitStore) -> None:
         self.store = store
         self.operation_limits = {
             "query": RateLimit(requests=100, window=60),
@@ -283,7 +283,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         rules: list[RateLimitRule] | None = None,
         default_limit: RateLimit | None = None,
         graphql_path: str = "/graphql",
-    ):
+    ) -> None:
         super().__init__(app)
         self.store = store or RateLimitStore()
         self.rules = rules or []

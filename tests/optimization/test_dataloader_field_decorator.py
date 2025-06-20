@@ -47,7 +47,7 @@ class User:
 class UserDataLoader(DataLoader[UUID, dict]):
     """DataLoader for loading users by ID."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         super().__init__()
         self.db = db
         self.load_calls = []  # Track batch calls for testing
@@ -98,7 +98,7 @@ class Post:
 class PostDataLoader(DataLoader[UUID, dict]):
     """DataLoader for loading posts by ID."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         super().__init__()
         self.db = db
 
@@ -165,7 +165,7 @@ async def getComment(info, id: UUID) -> Comment | None:
     return None
 
 
-def test_dataloader_field_decorator_exists():
+def test_dataloader_field_decorator_exists() -> None:
     """Test that @dataloader_field decorator exists and can be imported."""
     # This test will fail until we implement the decorator
     try:
@@ -176,7 +176,7 @@ def test_dataloader_field_decorator_exists():
         pytest.fail("@dataloader_field decorator not implemented yet")
 
 
-def test_dataloader_field_adds_metadata():
+def test_dataloader_field_adds_metadata() -> None:
     """Test that @dataloader_field decorator adds proper metadata to methods."""
     # Check that the decorator adds metadata we can use for field resolution
     assert hasattr(
@@ -189,7 +189,7 @@ def test_dataloader_field_adds_metadata():
     assert metadata["key_field"] == "authorId"
 
 
-def test_dataloader_field_generates_schema_field(register_test_queries):
+def test_dataloader_field_generates_schema_field(register_test_queries) -> None:
     """Test that @dataloader_field decorated methods appear in GraphQL schema."""
     app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 
@@ -222,7 +222,7 @@ def test_dataloader_field_generates_schema_field(register_test_queries):
         assert fields["author"] == "User"
 
 
-def test_dataloader_field_automatic_resolution(register_test_queries, test_database_url):
+def test_dataloader_field_automatic_resolution(register_test_queries, test_database_url) -> None:
     """Test that @dataloader_field automatically resolves using DataLoader."""
     app = create_fraiseql_app(
         database_url=test_database_url,
@@ -254,7 +254,6 @@ def test_dataloader_field_automatic_resolution(register_test_queries, test_datab
         data = response.json()
 
         # Debug: print the response
-        print(f"Response data: {data}")
 
         # Should successfully resolve author using DataLoader
         post = data["data"]["getPost"]
@@ -264,7 +263,7 @@ def test_dataloader_field_automatic_resolution(register_test_queries, test_datab
         assert post["author"]["email"] == "john@example.com"
 
 
-def test_dataloader_field_batching(register_test_queries, test_database_url):
+def test_dataloader_field_batching(register_test_queries, test_database_url) -> None:
     """Test that @dataloader_field properly batches multiple field resolutions."""
     app = create_fraiseql_app(
         database_url=test_database_url,
@@ -298,7 +297,6 @@ def test_dataloader_field_batching(register_test_queries, test_database_url):
         data = response.json()
 
         # Debug output
-        print(f"Response data: {data}")
 
         # Both should resolve authors (would be batched in real implementation)
         assert data["data"]["post"]["author"]["name"] == "John Doe"
@@ -309,7 +307,7 @@ def test_dataloader_field_batching(register_test_queries, test_database_url):
         assert data["data"]["comment"]["post"]["author"]["name"] == "John Doe"
 
 
-def test_dataloader_field_with_multiple_loaders(register_test_queries, test_database_url):
+def test_dataloader_field_with_multiple_loaders(register_test_queries, test_database_url) -> None:
     """Test @dataloader_field works with different DataLoader types."""
     app = create_fraiseql_app(
         database_url=test_database_url,
@@ -352,7 +350,7 @@ def test_dataloader_field_with_multiple_loaders(register_test_queries, test_data
         assert comment["post"]["author"]["name"] == "John Doe"
 
 
-def test_dataloader_field_error_handling():
+def test_dataloader_field_error_handling() -> None:
     """Test that @dataloader_field handles errors gracefully."""
     # Test decorator with invalid parameters
     with pytest.raises(ValueError, match="loader_class must be a DataLoader subclass"):
@@ -360,22 +358,22 @@ def test_dataloader_field_error_handling():
         @fraiseql.type
         class InvalidType:
             @fraiseql.dataloader_field(str, key_field="id")  # Invalid loader class
-            async def field(self, info):
+            async def field(self, info) -> None:
                 pass
 
 
-def test_dataloader_field_without_key_field():
+def test_dataloader_field_without_key_field() -> None:
     """Test that @dataloader_field requires key_field parameter."""
     with pytest.raises(TypeError, match="missing 1 required keyword-only argument: 'key_field'"):
 
         @fraiseql.type
         class InvalidType:
             @fraiseql.dataloader_field(UserDataLoader)  # Missing key_field
-            async def field(self, info):
+            async def field(self, info) -> None:
                 pass
 
 
-def test_dataloader_field_with_custom_resolver(register_test_queries):
+def test_dataloader_field_with_custom_resolver(register_test_queries) -> None:
     """Test @dataloader_field with custom resolver logic."""
 
     @fraiseql.type
@@ -409,7 +407,7 @@ def test_dataloader_field_with_custom_resolver(register_test_queries):
     assert True  # Would need actual query test when implemented
 
 
-def test_dataloader_field_schema_introspection(register_test_queries):
+def test_dataloader_field_schema_introspection(register_test_queries) -> None:
     """Test that @dataloader_field decorated fields show up in schema introspection."""
     app = create_fraiseql_app(database_url="postgresql://test/test", types=[User, Post, Comment])
 

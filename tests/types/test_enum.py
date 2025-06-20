@@ -13,7 +13,7 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 class TestFraiseEnum:
     """Test suite for @fraise_enum decorator and enum functionality."""
 
-    def test_basic_enum_decoration(self, clear_registry):
+    def test_basic_enum_decoration(self, clear_registry) -> None:
         """Test that @fraise_enum properly decorates an enum class."""
 
         @fraiseql.enum
@@ -38,7 +38,7 @@ class TestFraiseEnum:
         assert graphql_enum.values["INACTIVE"].value == "INACTIVE"
         assert graphql_enum.values["PENDING"].value == "PENDING"
 
-    def test_enum_with_integer_values(self, clear_registry):
+    def test_enum_with_integer_values(self, clear_registry) -> None:
         """Test enum with integer values."""
 
         @fraiseql.enum
@@ -52,7 +52,7 @@ class TestFraiseEnum:
         assert graphql_enum.values["LOW"].value == "LOW"
         assert graphql_enum.values["HIGH"].value == "HIGH"
 
-    def test_enum_in_type_definition(self, clear_registry):
+    def test_enum_in_type_definition(self, clear_registry) -> None:
         """Test using enum in a type definition."""
 
         @fraiseql.enum
@@ -82,7 +82,7 @@ class TestFraiseEnum:
         assert isinstance(role_field.type, GraphQLEnumType)
         assert role_field.type.name == "UserRole"
 
-    def test_enum_in_input_type(self, clear_registry):
+    def test_enum_in_input_type(self, clear_registry) -> None:
         """Test using enum in an input type."""
 
         @fraiseql.enum
@@ -118,7 +118,7 @@ class TestFraiseEnum:
         assert status_field is not None
         assert isinstance(status_field.type, GraphQLEnumType)
 
-    def test_enum_in_graphql_query(self, clear_registry):
+    def test_enum_in_graphql_query(self, clear_registry) -> None:
         """Test executing GraphQL queries with enum values."""
 
         @fraiseql.enum
@@ -165,7 +165,7 @@ class TestFraiseEnum:
             ],
         }
 
-    def test_enum_in_mutation(self, clear_registry):
+    def test_enum_in_mutation(self, clear_registry) -> None:
         """Test using enum in mutations."""
 
         @fraiseql.enum
@@ -209,7 +209,7 @@ class TestFraiseEnum:
         assert result.errors is None
         assert result.data == {"updateOrder": {"id": "123", "status": "SHIPPED"}}
 
-    def test_optional_enum_field(self, clear_registry):
+    def test_optional_enum_field(self, clear_registry) -> None:
         """Test optional enum fields."""
 
         @fraiseql.enum
@@ -256,7 +256,7 @@ class TestFraiseEnum:
             ],
         }
 
-    def test_list_of_enums(self, clear_registry):
+    def test_list_of_enums(self, clear_registry) -> None:
         """Test fields that are lists of enums."""
 
         @fraiseql.enum
@@ -310,7 +310,7 @@ class TestFraiseEnum:
             ],
         }
 
-    def test_enum_without_decorator_raises_error(self, clear_registry):
+    def test_enum_without_decorator_raises_error(self, clear_registry) -> None:
         """Test that using an enum without @fraise_enum raises an error."""
 
         class Status(Enum):
@@ -331,7 +331,7 @@ class TestFraiseEnum:
         with pytest.raises(TypeError, match="must be decorated with @fraise_enum"):
             build_fraiseql_schema(query_types=[QueryRoot])
 
-    def test_enum_with_description(self, clear_registry):
+    def test_enum_with_description(self, clear_registry) -> None:
         """Test enum with docstring description."""
 
         @fraiseql.enum
@@ -346,7 +346,7 @@ class TestFraiseEnum:
         graphql_enum = PaymentMethod.__graphql_type__
         assert graphql_enum.description == "Available payment methods for orders."
 
-    def test_enum_serialization_in_sql(self, clear_registry):
+    def test_enum_serialization_in_sql(self, clear_registry) -> None:
         """Test that enum values are properly serialized for SQL."""
 
         @fraiseql.enum
@@ -359,7 +359,7 @@ class TestFraiseEnum:
         assert Status.ACTIVE.value == "active"
         assert Status.INACTIVE.value == "inactive"
 
-    def test_multiple_enums_in_schema(self, clear_registry):
+    def test_multiple_enums_in_schema(self, clear_registry) -> None:
         """Test multiple enum types in the same schema."""
 
         @fraiseql.enum

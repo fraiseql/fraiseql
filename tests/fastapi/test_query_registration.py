@@ -87,7 +87,7 @@ def clear_registry():
     registry.clear()
 
 
-def test_query_decorator_auto_registration():
+def test_query_decorator_auto_registration() -> None:
     """Test that @query decorated functions are automatically included."""
     # Create app without explicitly passing queries
     app = create_fraiseql_app(
@@ -137,7 +137,7 @@ def test_query_decorator_auto_registration():
         assert len(data["data"]["listUsers"]) == 2
 
 
-def test_explicit_query_registration():
+def test_explicit_query_registration() -> None:
     """Test explicit query registration still works."""
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
@@ -174,7 +174,7 @@ def test_explicit_query_registration():
         assert "listUsers" in response.json()["data"]
 
 
-def test_query_root_with_field_decorator():
+def test_query_root_with_field_decorator() -> None:
     """Test QueryRoot pattern with @field decorator."""
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
@@ -199,8 +199,7 @@ def test_query_root_with_field_decorator():
         data = response.json()
         # Debug print
         if "errors" in data:
-            print(f"GraphQL errors: {data['errors']}")
-        print(f"Response data: {data}")
+            pass
         assert data["data"]["apiVersion"] == "1.0.0"
         assert data["data"]["postCount"] == 42
 
@@ -211,7 +210,7 @@ def test_query_root_with_field_decorator():
         assert "listUsers" in response.json()["data"]
 
 
-def test_mixed_registration_patterns():
+def test_mixed_registration_patterns() -> None:
     """Test mixing all registration patterns together."""
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
@@ -251,7 +250,7 @@ def test_mixed_registration_patterns():
         assert "postCount" in field_names  # @field decorator
 
 
-def test_empty_queries_uses_auto_registered():
+def test_empty_queries_uses_auto_registered() -> None:
     """Test that empty queries list still includes auto-registered queries."""
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
@@ -268,7 +267,7 @@ def test_empty_queries_uses_auto_registered():
         assert len(data["data"]["listUsers"]) == 2
 
 
-def test_no_queries_parameter_uses_auto_registered():
+def test_no_queries_parameter_uses_auto_registered() -> None:
     """Test that omitting queries parameter includes auto-registered queries."""
     # This is the pattern shown in the blog - it should just work
     app = create_fraiseql_app(

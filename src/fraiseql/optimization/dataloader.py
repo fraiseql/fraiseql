@@ -29,7 +29,7 @@ class DataLoader(Generic[K, V], ABC):
         max_batch_size: int = 1000,
         cache: bool = True,
         context: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         self._batch_load_fn = batch_load_fn
         self._max_batch_size = max_batch_size
         self._cache_enabled = cache
@@ -49,7 +49,8 @@ class DataLoader(Generic[K, V], ABC):
         """
         if self._batch_load_fn:
             return await self._batch_load_fn(keys)
-        raise NotImplementedError("Must implement batch_load method")
+        msg = "Must implement batch_load method"
+        raise NotImplementedError(msg)
 
     async def load(self, key: K) -> V | None:
         """Load a single key, batching with other loads."""
@@ -79,19 +80,19 @@ class DataLoader(Generic[K, V], ABC):
         tasks = [self.load(key) for key in keys]
         return await asyncio.gather(*tasks)
 
-    async def prime(self, key: K, value: V):
+    async def prime(self, key: K, value: V) -> None:
         """Pre-populate cache with a known value."""
         if self._cache_enabled:
             self._cache[key] = value
 
-    def clear(self, key: K | None = None):
+    def clear(self, key: K | None = None) -> None:
         """Clear cache for a key or all keys."""
         if key is not None:
             self._cache.pop(key, None)
         else:
             self._cache.clear()
 
-    async def _dispatch_batch(self):
+    async def _dispatch_batch(self) -> None:
         """Dispatch queued keys as a batch."""
         # CRITICAL FIX: Replace dangerous asyncio.sleep(0) with proper event loop yield
         # asyncio.sleep(0) can cause race conditions in high-concurrency scenarios
@@ -125,8 +126,9 @@ class DataLoader(Generic[K, V], ABC):
 
                 # Validate results
                 if len(results) != len(batch):
+                    msg = f"batch_load must return {len(batch)} results, got {len(results)}"
                     raise ValueError(
-                        f"batch_load must return {len(batch)} results, got {len(results)}",
+                        msg,
                     )
 
                 # Cache results

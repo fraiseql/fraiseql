@@ -37,7 +37,7 @@ except ImportError:
     default="src.main:app",
     help="Application import path (module:attribute)",
 )
-def dev(host: str, port: int, reload: bool, app: str):
+def dev(host: str, port: int, reload: bool, app: str) -> None:
     """Start the FraiseQL development server.
 
     This runs your application with uvicorn, with hot-reloading
@@ -47,7 +47,8 @@ def dev(host: str, port: int, reload: bool, app: str):
     if not Path("pyproject.toml").exists():
         click.echo("Error: Not in a FraiseQL project directory", err=True)
         click.echo("Run 'fraiseql init' to create a new project", err=True)
-        raise click.ClickException("Not in a FraiseQL project directory")
+        msg = "Not in a FraiseQL project directory"
+        raise click.ClickException(msg)
 
     # Load .env file if it exists
     env_file = Path(".env")
@@ -67,7 +68,8 @@ def dev(host: str, port: int, reload: bool, app: str):
     # Check if uvicorn is available
     if uvicorn is None:
         click.echo("Error: uvicorn not installed. Run 'pip install uvicorn'", err=True)
-        raise click.ClickException("uvicorn not installed")
+        msg = "uvicorn not installed"
+        raise click.ClickException(msg)
 
     uvicorn.run(
         app,

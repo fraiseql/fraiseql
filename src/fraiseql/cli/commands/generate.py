@@ -7,7 +7,7 @@ import click
 
 
 @click.group()
-def generate():
+def generate() -> None:
     """Generate code from your FraiseQL schema."""
 
 
@@ -18,7 +18,7 @@ def generate():
     default="schema.graphql",
     help="Output file for GraphQL schema",
 )
-def schema(output: str):
+def schema(output: str) -> None:
     """Generate GraphQL schema from your FraiseQL types.
 
     This introspects all registered FraiseQL types and generates
@@ -46,7 +46,8 @@ def schema(output: str):
             click.echo(f"✅ Schema written to {output}")
         else:
             click.echo("Error: No 'app' found in src/main.py", err=True)
-            raise click.ClickException("No 'app' found in src/main.py")
+            msg = "No 'app' found in src/main.py"
+            raise click.ClickException(msg)
 
     except Exception as e:
         click.echo(f"Error generating schema: {e}", err=True)
@@ -59,7 +60,7 @@ def schema(output: str):
     "--table",
     help="Database table name (defaults to entity_name lowercase + 's')",
 )
-def migration(entity_name: str, table: str | None):
+def migration(entity_name: str, table: str | None) -> None:
     """Generate a database migration for a FraiseQL type.
 
     Creates a SQL migration file that sets up the JSONB table
@@ -130,7 +131,7 @@ WHERE deleted_at IS NULL;
 
 @generate.command()
 @click.argument("type_name")
-def crud(type_name: str):
+def crud(type_name: str) -> None:
     """Generate CRUD mutations for a FraiseQL type.
 
     Creates create, update, and delete mutations for the specified type.

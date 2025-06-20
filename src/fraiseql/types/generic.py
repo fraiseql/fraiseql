@@ -50,8 +50,9 @@ def create_concrete_type(generic_type: type, concrete_arg: type) -> type:
         ConnectionPost = create_concrete_type(Connection, Post)
     """
     if not hasattr(generic_type, "__fraiseql_definition__"):
+        msg = f"Type {generic_type} must be decorated with @fraise_type to be used as a generic"
         raise TypeError(
-            f"Type {generic_type} must be decorated with @fraise_type to be used as a generic",
+            msg,
         )
 
     # Create a unique name for the concrete type

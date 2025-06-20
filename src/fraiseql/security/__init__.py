@@ -142,7 +142,7 @@ class SecurityConfig:
         custom_rate_limits: list[RateLimitRule] | None = None,
         custom_csrf_config: CSRFConfig | None = None,
         custom_security_headers: SecurityHeadersConfig | None = None,
-    ):
+    ) -> None:
         self.secret_key = secret_key
         self.environment = environment
         self.domain = domain or "localhost"

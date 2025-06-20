@@ -49,17 +49,17 @@ class TestTurboRouterIntegration:
                     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                     deleted_at TIMESTAMPTZ
                 )
-            """
+            """,
             )
 
             # Insert test data
             await conn.execute(
                 """
-                INSERT INTO users (data) VALUES 
+                INSERT INTO users (data) VALUES
                 ('{"name": "Alice", "email": "alice@example.com"}'::jsonb),
                 ('{"name": "Bob", "email": "bob@example.com"}'::jsonb),
                 ('{"name": "Charlie", "email": "charlie@example.com"}'::jsonb)
-            """
+            """,
             )
 
             await conn.commit()
@@ -159,7 +159,7 @@ class TestTurboRouterIntegration:
         return app
 
     @pytest.mark.asyncio
-    async def test_turbo_router_query_execution(self, app):
+    async def test_turbo_router_query_execution(self, app) -> None:
         """Test that TurboRouter executes registered queries directly."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -180,7 +180,7 @@ class TestTurboRouterIntegration:
             assert data["data"]["user"]["email"] == "alice@example.com"
 
     @pytest.mark.asyncio
-    async def test_turbo_router_list_query(self, app):
+    async def test_turbo_router_list_query(self, app) -> None:
         """Test TurboRouter with a list query."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -200,7 +200,7 @@ class TestTurboRouterIntegration:
             assert data["data"]["users"][2]["name"] == "Charlie"
 
     @pytest.mark.asyncio
-    async def test_unregistered_query_fallback(self, app):
+    async def test_unregistered_query_fallback(self, app) -> None:
         """Test that unregistered queries fall back to standard GraphQL execution."""
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -218,7 +218,7 @@ class TestTurboRouterIntegration:
             assert "data" in data
 
     @pytest.mark.asyncio
-    async def test_turbo_router_performance(self, app):
+    async def test_turbo_router_performance(self, app) -> None:
         """Test that TurboRouter is faster than standard execution."""
         import time
 
@@ -254,16 +254,13 @@ class TestTurboRouterIntegration:
                 assert response.status_code == 200
 
             # TurboRouter should be faster on average
-            avg_turbo = sum(turbo_times) / len(turbo_times)
-            avg_standard = sum(standard_times) / len(standard_times)
+            sum(turbo_times) / len(turbo_times)
+            sum(standard_times) / len(standard_times)
 
             # Log the performance difference
-            print(f"\nTurboRouter avg: {avg_turbo*1000:.2f}ms")
-            print(f"Standard avg: {avg_standard*1000:.2f}ms")
-            print(f"Performance improvement: {(avg_standard/avg_turbo - 1)*100:.1f}%")
 
     @pytest.mark.asyncio
-    async def test_turbo_router_with_errors(self, app, turbo_registry):
+    async def test_turbo_router_with_errors(self, app, turbo_registry) -> None:
         """Test TurboRouter error handling."""
         # Register a query with bad SQL
         bad_query = TurboQuery(

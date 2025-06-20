@@ -48,7 +48,7 @@ class WhereClauseMixin:
     _config: WhereGeneratorConfig
     _conditions: dict[str, Any]
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """Initialize with field values."""
         self._config = getattr(self.__class__, "_config", WhereGeneratorConfig())
         self._conditions = {}

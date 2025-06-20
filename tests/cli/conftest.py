@@ -43,7 +43,7 @@ def temp_project_dir() -> Generator[Path]:
 
 
 @pytest.fixture
-def mock_database_url(monkeypatch):
+def mock_database_url(monkeypatch) -> None:
     """Mock DATABASE_URL environment variable."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/testdb")
 

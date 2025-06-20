@@ -27,7 +27,7 @@ def app():
 
     @app.post("/graphql")
     async def graphql_endpoint(request: Request):
-        body = await request.body()
+        await request.body()
         return {"data": {"test": "success"}}
 
     @app.get("/health")
@@ -47,14 +47,14 @@ class TestRateLimitStore:
     """Test rate limit store functionality."""
 
     @pytest.mark.asyncio
-    async def test_get_empty_key(self, rate_limit_store):
+    async def test_get_empty_key(self, rate_limit_store) -> None:
         """Test getting non-existent key returns default."""
         timestamp, count = await rate_limit_store.get("nonexistent")
         assert timestamp == 0.0
         assert count == 0
 
     @pytest.mark.asyncio
-    async def test_set_and_get(self, rate_limit_store):
+    async def test_set_and_get(self, rate_limit_store) -> None:
         """Test setting and getting values."""
         await rate_limit_store.set("test_key", 1234567890.0, 5, 60)
         timestamp, count = await rate_limit_store.get("test_key")
@@ -62,14 +62,14 @@ class TestRateLimitStore:
         assert count == 5
 
     @pytest.mark.asyncio
-    async def test_increment_new_key(self, rate_limit_store):
+    async def test_increment_new_key(self, rate_limit_store) -> None:
         """Test incrementing new key."""
         timestamp, count = await rate_limit_store.increment("new_key", 60)
         assert count == 1
         assert timestamp > 0
 
     @pytest.mark.asyncio
-    async def test_increment_existing_key(self, rate_limit_store):
+    async def test_increment_existing_key(self, rate_limit_store) -> None:
         """Test incrementing existing key within window."""
         # First increment
         timestamp1, count1 = await rate_limit_store.increment("test_key", 60)
@@ -81,7 +81,7 @@ class TestRateLimitStore:
         assert timestamp2 == timestamp1  # Window hasn't reset
 
     @pytest.mark.asyncio
-    async def test_ttl_cleanup(self, rate_limit_store):
+    async def test_ttl_cleanup(self, rate_limit_store) -> None:
         """Test that expired entries are cleaned up."""
         # Set entry with old timestamp
         await rate_limit_store.set("old_key", 1.0, 5, 1)  # Very old timestamp
@@ -103,7 +103,7 @@ class TestGraphQLRateLimiter:
         """Create GraphQL rate limiter."""
         return GraphQLRateLimiter(rate_limit_store)
 
-    def test_extract_operation_info_query(self, graphql_limiter):
+    def test_extract_operation_info_query(self, graphql_limiter) -> None:
         """Test extracting operation info for query."""
         request_body = {
             "query": "query GetUser { user { id name } }",
@@ -115,7 +115,7 @@ class TestGraphQLRateLimiter:
         assert op_name == "GetUser"
         assert complexity > 0
 
-    def test_extract_operation_info_mutation(self, graphql_limiter):
+    def test_extract_operation_info_mutation(self, graphql_limiter) -> None:
         """Test extracting operation info for mutation."""
         request_body = {
             "query": "mutation CreateUser($input: UserInput!) { createUser(input: $input) { id } }",
@@ -127,7 +127,7 @@ class TestGraphQLRateLimiter:
         assert op_name == "CreateUser"
         assert complexity > 0
 
-    def test_extract_operation_info_subscription(self, graphql_limiter):
+    def test_extract_operation_info_subscription(self, graphql_limiter) -> None:
         """Test extracting operation info for subscription."""
         request_body = {
             "query": "subscription OnUserUpdate { userUpdated { id name } }",
@@ -138,7 +138,7 @@ class TestGraphQLRateLimiter:
         assert op_name is None
         assert complexity > 0
 
-    def test_estimate_complexity(self, graphql_limiter):
+    def test_estimate_complexity(self, graphql_limiter) -> None:
         """Test query complexity estimation."""
         simple_query = "{ user { id } }"
         complex_query = """
@@ -164,14 +164,14 @@ class TestGraphQLRateLimiter:
 
         assert complex_complexity > simple_complexity
 
-    def test_get_complexity_tier(self, graphql_limiter):
+    def test_get_complexity_tier(self, graphql_limiter) -> None:
         """Test complexity tier classification."""
         assert graphql_limiter._get_complexity_tier(30) == "low"
         assert graphql_limiter._get_complexity_tier(100) == "medium"
         assert graphql_limiter._get_complexity_tier(300) == "high"
 
     @pytest.mark.asyncio
-    async def test_check_graphql_limits_within_limit(self, graphql_limiter):
+    async def test_check_graphql_limits_within_limit(self, graphql_limiter) -> None:
         """Test GraphQL limits when within bounds."""
         request = MagicMock()
         request.client.host = "127.0.0.1"
@@ -187,7 +187,7 @@ class TestGraphQLRateLimiter:
         assert response is None
 
     @pytest.mark.asyncio
-    async def test_check_graphql_limits_exceeded(self, graphql_limiter):
+    async def test_check_graphql_limits_exceeded(self, graphql_limiter) -> None:
         """Test GraphQL limits when exceeded."""
         request = MagicMock()
         request.client.host = "127.0.0.1"
@@ -211,7 +211,7 @@ class TestGraphQLRateLimiter:
 class TestRateLimitMiddleware:
     """Test rate limiting middleware."""
 
-    def test_middleware_creation(self, app, rate_limit_store):
+    def test_middleware_creation(self, app, rate_limit_store) -> None:
         """Test middleware creation with custom config."""
         rules = [
             RateLimitRule(
@@ -230,7 +230,7 @@ class TestRateLimitMiddleware:
         assert len(middleware.rules) == 1
         assert middleware.rules[0].path_pattern == "/test"
 
-    def test_get_client_ip_forwarded_for(self, app, rate_limit_store):
+    def test_get_client_ip_forwarded_for(self, app, rate_limit_store) -> None:
         """Test client IP extraction from X-Forwarded-For."""
         middleware = RateLimitMiddleware(app=app, store=rate_limit_store)
 
@@ -241,7 +241,7 @@ class TestRateLimitMiddleware:
         ip = middleware._get_client_ip(request)
         assert ip == "192.168.1.1"
 
-    def test_get_client_ip_real_ip(self, app, rate_limit_store):
+    def test_get_client_ip_real_ip(self, app, rate_limit_store) -> None:
         """Test client IP extraction from X-Real-IP."""
         middleware = RateLimitMiddleware(app=app, store=rate_limit_store)
 
@@ -252,7 +252,7 @@ class TestRateLimitMiddleware:
         ip = middleware._get_client_ip(request)
         assert ip == "192.168.1.2"
 
-    def test_get_client_ip_fallback(self, app, rate_limit_store):
+    def test_get_client_ip_fallback(self, app, rate_limit_store) -> None:
         """Test client IP extraction fallback."""
         middleware = RateLimitMiddleware(app=app, store=rate_limit_store)
 
@@ -263,14 +263,14 @@ class TestRateLimitMiddleware:
         ip = middleware._get_client_ip(request)
         assert ip == "127.0.0.1"
 
-    def test_matches_pattern_exact(self, app, rate_limit_store):
+    def test_matches_pattern_exact(self, app, rate_limit_store) -> None:
         """Test exact pattern matching."""
         middleware = RateLimitMiddleware(app=app, store=rate_limit_store)
 
         assert middleware._matches_pattern("/test", "/test")
         assert not middleware._matches_pattern("/test", "/other")
 
-    def test_matches_pattern_wildcard(self, app, rate_limit_store):
+    def test_matches_pattern_wildcard(self, app, rate_limit_store) -> None:
         """Test wildcard pattern matching."""
         middleware = RateLimitMiddleware(app=app, store=rate_limit_store)
 
@@ -279,7 +279,7 @@ class TestRateLimitMiddleware:
         assert not middleware._matches_pattern("/graphql", "/api/*")
 
     @pytest.mark.asyncio
-    async def test_is_exempt_health_checks(self, app, rate_limit_store):
+    async def test_is_exempt_health_checks(self, app, rate_limit_store) -> None:
         """Test exemption for health check endpoints."""
         middleware = RateLimitMiddleware(app=app, store=rate_limit_store)
 
@@ -290,7 +290,7 @@ class TestRateLimitMiddleware:
         assert is_exempt
 
     @pytest.mark.asyncio
-    async def test_is_exempt_custom_function(self, app, rate_limit_store):
+    async def test_is_exempt_custom_function(self, app, rate_limit_store) -> None:
         """Test exemption with custom function."""
 
         def exempt_admin(request):
@@ -317,13 +317,13 @@ class TestRateLimitMiddleware:
 class TestRateLimitIntegration:
     """Integration tests with FastAPI."""
 
-    def test_setup_rate_limiting_default(self, app):
+    def test_setup_rate_limiting_default(self, app) -> None:
         """Test setup with default configuration."""
         middleware = setup_rate_limiting(app)
         assert isinstance(middleware, RateLimitMiddleware)
         assert len(middleware.rules) > 0
 
-    def test_rate_limiting_blocks_excessive_requests(self, app):
+    def test_rate_limiting_blocks_excessive_requests(self, app) -> None:
         """Test that rate limiting blocks excessive requests."""
         # Set very low limit for testing
         rules = [
@@ -353,7 +353,7 @@ class TestRateLimitIntegration:
         assert response3.status_code == 429
         assert "Rate limit exceeded" in response3.json()["message"]
 
-    def test_graphql_rate_limiting(self, app):
+    def test_graphql_rate_limiting(self, app) -> None:
         """Test GraphQL-specific rate limiting."""
         # Set low mutation limit
         store = RateLimitStore()
@@ -377,11 +377,11 @@ class TestRateLimitIntegration:
         assert response1.status_code == 200
 
         # Second mutation should be rate limited
-        response2 = client.post("/graphql", json=mutation_query)
+        client.post("/graphql", json=mutation_query)
         # Note: This test may not fail due to the complexity of middleware ordering
         # In real usage, the GraphQL limiter would be properly integrated
 
-    def test_health_check_exempt(self, app):
+    def test_health_check_exempt(self, app) -> None:
         """Test that health checks are exempt from rate limiting."""
         app.add_middleware(
             RateLimitMiddleware,
@@ -395,7 +395,7 @@ class TestRateLimitIntegration:
             response = client.get("/health")
             assert response.status_code == 200
 
-    def test_rate_limit_headers(self, app):
+    def test_rate_limit_headers(self, app) -> None:
         """Test that rate limit headers are included."""
         rules = [
             RateLimitRule(
@@ -424,7 +424,7 @@ class TestRateLimitIntegration:
 
 
 @pytest.mark.asyncio
-async def test_concurrent_requests(app):
+async def test_concurrent_requests(app) -> None:
     """Test rate limiting under concurrent load."""
     store = RateLimitStore()
     rules = [

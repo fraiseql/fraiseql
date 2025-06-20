@@ -24,14 +24,14 @@ class QueryRoot:
 
     test_field: str = fraiseql.fraise_field(description="Test field", purpose="output")
 
-    def resolve_test_field(self, info):
+    def resolve_test_field(self, info) -> str:
         return "test_value"
 
 
 class TestDevAuthAppIntegration:
     """Test development auth integration with create_fraiseql_app."""
 
-    def test_dev_auth_enabled_via_parameter(self, clear_registry):
+    def test_dev_auth_enabled_via_parameter(self, clear_registry) -> None:
         """Test that dev auth is enabled when enabled via parameter."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -51,7 +51,7 @@ class TestDevAuthAppIntegration:
         assert response.status_code == 401
         assert "WWW-Authenticate" in response.headers
 
-    def test_dev_auth_enabled_from_env_var(self, clear_registry):
+    def test_dev_auth_enabled_from_env_var(self, clear_registry) -> None:
         """Test that dev auth is enabled when environment variable is set."""
         # Set env var before creating app
         with patch.dict(os.environ, {"FRAISEQL_DEV_AUTH_PASSWORD": "envpass123"}):
@@ -76,7 +76,7 @@ class TestDevAuthAppIntegration:
             assert response.status_code == 200
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_dev_auth_disabled_no_env_var(self, clear_registry):
+    def test_dev_auth_disabled_no_env_var(self, clear_registry) -> None:
         """Test that dev auth is disabled when no environment variable is set."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -93,7 +93,7 @@ class TestDevAuthAppIntegration:
         response = client.get("/docs")
         assert response.status_code == 200
 
-    def test_dev_auth_enabled_with_custom_password(self, clear_registry):
+    def test_dev_auth_enabled_with_custom_password(self, clear_registry) -> None:
         """Test that dev auth can be enabled via function parameter."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -115,7 +115,7 @@ class TestDevAuthAppIntegration:
         response = client.get("/docs", headers=headers)
         assert response.status_code == 200
 
-    def test_dev_auth_custom_username_via_parameter(self, clear_registry):
+    def test_dev_auth_custom_username_via_parameter(self, clear_registry) -> None:
         """Test that custom username can be set via parameter."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -148,7 +148,7 @@ class TestDevAuthAppIntegration:
             "FRAISEQL_DEV_AUTH_PASSWORD": "envpass",
         },
     )
-    def test_dev_auth_parameter_overrides_env(self, clear_registry):
+    def test_dev_auth_parameter_overrides_env(self, clear_registry) -> None:
         """Test that function parameters override environment variables."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -175,7 +175,7 @@ class TestDevAuthAppIntegration:
         assert response.status_code == 200
 
     @patch.dict(os.environ, {"FRAISEQL_DEV_AUTH_PASSWORD": "testpass123"})
-    def test_dev_auth_disabled_in_production(self, clear_registry):
+    def test_dev_auth_disabled_in_production(self, clear_registry) -> None:
         """Test that dev auth is disabled in production mode even when password is set."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -190,7 +190,7 @@ class TestDevAuthAppIntegration:
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_dev_auth_with_existing_app(self, clear_registry):
+    def test_dev_auth_with_existing_app(self, clear_registry) -> None:
         """Test that dev auth works when extending an existing FastAPI app."""
         from fastapi import FastAPI
 
@@ -218,7 +218,7 @@ class TestDevAuthAppIntegration:
         response = client.get("/docs")
         assert response.status_code == 401
 
-    def test_dev_auth_logs_warning(self, clear_registry, caplog):
+    def test_dev_auth_logs_warning(self, clear_registry, caplog) -> None:
         """Test that enabling dev auth logs a warning."""
         import logging
 
@@ -243,7 +243,7 @@ class TestDevAuthAppIntegration:
 
         assert any("Development authentication is enabled" in msg for msg in warning_messages)
 
-    def test_dev_auth_multiple_protected_paths(self, clear_registry):
+    def test_dev_auth_multiple_protected_paths(self, clear_registry) -> None:
         """Test that dev auth protects multiple expected paths."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -267,7 +267,7 @@ class TestDevAuthAppIntegration:
 class TestDevAuthConfigValidation:
     """Test validation and configuration of development auth."""
 
-    def test_empty_password_disables_auth(self, clear_registry):
+    def test_empty_password_disables_auth(self, clear_registry) -> None:
         """Test that empty password disables dev auth."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -282,7 +282,7 @@ class TestDevAuthConfigValidation:
         response = client.get("/docs")
         assert response.status_code == 200
 
-    def test_none_password_disables_auth(self, clear_registry):
+    def test_none_password_disables_auth(self, clear_registry) -> None:
         """Test that None password disables dev auth."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -297,7 +297,7 @@ class TestDevAuthConfigValidation:
         response = client.get("/docs")
         assert response.status_code == 200
 
-    def test_whitespace_only_password_enables_auth(self, clear_registry):
+    def test_whitespace_only_password_enables_auth(self, clear_registry) -> None:
         """Test that whitespace-only password still enables auth."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",

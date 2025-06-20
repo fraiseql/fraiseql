@@ -10,7 +10,7 @@ from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 
-def test_date_scalar_in_fastapi_app():
+def test_date_scalar_in_fastapi_app() -> None:
     """Test Date scalar registration through FastAPI app creation."""
     # Clear registry
     registry = SchemaRegistry.get_instance()
@@ -41,7 +41,7 @@ def test_date_scalar_in_fastapi_app():
             raise
 
 
-def test_date_scalar_multiple_registrations():
+def test_date_scalar_multiple_registrations() -> None:
     """Test that Date scalar can be used across multiple schema builds."""
     # First schema build
     registry = SchemaRegistry.get_instance()
@@ -74,7 +74,7 @@ def test_date_scalar_multiple_registrations():
     assert "Date" in schema2.type_map
 
 
-def test_date_scalar_with_interface():
+def test_date_scalar_with_interface() -> None:
     """Test Date scalar with interface types."""
     registry = SchemaRegistry.get_instance()
     registry.clear()

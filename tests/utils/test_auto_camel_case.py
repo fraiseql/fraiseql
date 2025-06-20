@@ -9,7 +9,7 @@ from fraiseql.utils.casing import to_snake_case
 class TestAutoCamelCase:
     """Test suite for automatic camelCase to snake_case conversion."""
 
-    def test_simple_field_conversion(self):
+    def test_simple_field_conversion(self) -> None:
         """Test conversion of simple camelCase fields to snake_case."""
         # Field paths should already be transformed by extract_flat_paths
         field_paths = [
@@ -29,7 +29,7 @@ class TestAutoCamelCase:
         assert "data->>'last_name' AS \"lastName\"" in sql_str
         assert "data->>'is_active' AS \"isActive\"" in sql_str
 
-    def test_nested_field_conversion(self):
+    def test_nested_field_conversion(self) -> None:
         """Test conversion of nested camelCase fields to snake_case."""
         # Field paths should already be transformed by extract_flat_paths
         field_paths = [
@@ -50,7 +50,7 @@ class TestAutoCamelCase:
         assert "data->'user_profile'->>'phone_number' AS \"phoneNumber\"" in sql_str
         assert "data->'user_profile'->'address'->>'street_address' AS \"streetAddress\"" in sql_str
 
-    def test_json_output_with_conversion(self):
+    def test_json_output_with_conversion(self) -> None:
         """Test JSON output with camelCase to snake_case conversion."""
         # Field paths should already be transformed by extract_flat_paths
         field_paths = [
@@ -71,7 +71,7 @@ class TestAutoCamelCase:
         assert "'createdAt', data->>'created_at'" in sql_str
         assert "'__typename', 'Post'" in sql_str
 
-    def test_order_by_conversion(self):
+    def test_order_by_conversion(self) -> None:
         """Test ORDER BY with camelCase to snake_case conversion."""
         field_paths = [
             FieldPath(alias="id", path=["id"]),
@@ -88,7 +88,7 @@ class TestAutoCamelCase:
         sql_str = sql.as_string(None)
         assert "ORDER BY data->>'created_at' DESC, data->>'is_published' ASC" in sql_str
 
-    def test_group_by_conversion(self):
+    def test_group_by_conversion(self) -> None:
         """Test GROUP BY with camelCase to snake_case conversion."""
         field_paths = [
             FieldPath(alias="authorId", path=["authorId"]),
@@ -104,7 +104,7 @@ class TestAutoCamelCase:
         sql_str = sql.as_string(None)
         assert "GROUP BY data->>'author_id', data->>'post_status'" in sql_str
 
-    def test_graphql_query_translation(self):
+    def test_graphql_query_translation(self) -> None:
         """Test full GraphQL query translation with auto_camel_case."""
         query = """
         query {
@@ -128,7 +128,7 @@ class TestAutoCamelCase:
         assert "'isActive', data->>'is_active'" in sql_str
         assert "'createdAt', data->>'created_at'" in sql_str
 
-    def test_disabled_by_default(self):
+    def test_disabled_by_default(self) -> None:
         """Test that auto_camel_case is disabled by default."""
         field_paths = [
             FieldPath(alias="firstName", path=["firstName"]),
@@ -145,7 +145,7 @@ class TestAutoCamelCase:
         # Without conversion, it should use the original camelCase
         assert "data->>'firstName' AS \"firstName\"" in sql_str
 
-    def test_already_snake_case_fields(self):
+    def test_already_snake_case_fields(self) -> None:
         """Test that already snake_case fields are not affected."""
         field_paths = [
             FieldPath(alias="user_name", path=["user_name"]),
@@ -163,7 +163,7 @@ class TestAutoCamelCase:
         assert "data->>'user_name' AS \"user_name\"" in sql_str
         assert "data->>'created_at' AS \"createdAt\"" in sql_str
 
-    def test_special_cases(self):
+    def test_special_cases(self) -> None:
         """Test special cases in camelCase to snake_case conversion."""
         # Test the actual to_snake_case function behavior
         assert to_snake_case("apiKey") == "api_key"
@@ -173,7 +173,7 @@ class TestAutoCamelCase:
         assert to_snake_case("id") == "id"
         assert to_snake_case("ID") == "i_d"  # Current behavior
 
-    def test_complex_nested_query(self):
+    def test_complex_nested_query(self) -> None:
         """Test complex nested query with auto_camel_case."""
         query = """
         query {

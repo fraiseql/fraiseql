@@ -358,7 +358,8 @@ class SchemaRegistry:
                 logger.warning("No fields were added from QueryRoot: %s", typ.__name__)
 
         if not fields:
-            raise TypeError("Type Query must define one or more fields.")
+            msg = "Type Query must define one or more fields."
+            raise TypeError(msg)
 
         return GraphQLObjectType(name="Query", fields=MappingProxyType(fields))
 

@@ -50,7 +50,7 @@ class Product:
 class TestViewGenerator:
     """Test SQL view generation."""
 
-    def test_simple_view_generation(self):
+    def test_simple_view_generation(self) -> None:
         """Test generating a simple view."""
         generator = ViewGenerator()
         sql = generator.generate_view(User)
@@ -74,7 +74,7 @@ GRANT SELECT ON v_users TO fraiseql_reader;"""
 
         assert sql.strip() == expected.strip()
 
-    def test_view_with_custom_table(self):
+    def test_view_with_custom_table(self) -> None:
         """Test view generation with custom table name."""
         generator = ViewGenerator()
         options = ViewOptions(table_name="tb_users")
@@ -83,7 +83,7 @@ GRANT SELECT ON v_users TO fraiseql_reader;"""
         assert "FROM tb_users" in sql
         assert "CREATE OR REPLACE VIEW v_users" in sql
 
-    def test_view_with_custom_view_name(self):
+    def test_view_with_custom_view_name(self) -> None:
         """Test view generation with custom view name."""
         generator = ViewGenerator()
         options = ViewOptions(view_name="user_profiles")
@@ -92,7 +92,7 @@ GRANT SELECT ON v_users TO fraiseql_reader;"""
         assert "CREATE OR REPLACE VIEW user_profiles" in sql
         assert "GRANT SELECT ON user_profiles" in sql
 
-    def test_view_with_field_mapping(self):
+    def test_view_with_field_mapping(self) -> None:
         """Test view generation with field mapping."""
         generator = ViewGenerator()
         options = ViewOptions(
@@ -106,7 +106,7 @@ GRANT SELECT ON v_users TO fraiseql_reader;"""
         assert "'email', user_email" in sql
         assert "'is_active', active" in sql
 
-    def test_view_with_excluded_fields(self):
+    def test_view_with_excluded_fields(self) -> None:
         """Test view generation excluding fields."""
         generator = ViewGenerator()
         options = ViewOptions(excluded_fields={"created_at"})
@@ -115,7 +115,7 @@ GRANT SELECT ON v_users TO fraiseql_reader;"""
         assert "created_at" not in sql
         assert "'id', id" in sql  # Other fields still included
 
-    def test_view_with_list_field(self):
+    def test_view_with_list_field(self) -> None:
         """Test view generation with list/array fields."""
         generator = ViewGenerator()
         sql = generator.generate_view(Post)
@@ -123,16 +123,16 @@ GRANT SELECT ON v_users TO fraiseql_reader;"""
         # Should handle tags array properly
         assert "'tags', tags" in sql or "'tags', COALESCE(tags, '[]'::jsonb)" in sql
 
-    def test_view_with_type_casting(self):
+    def test_view_with_type_casting(self) -> None:
         """Test view generation with proper type casting."""
         generator = ViewGenerator()
-        options = ViewOptions(add_type_casts=True)
+        ViewOptions(add_type_casts=True)
         sql = generator.generate_view(Product)
 
         # Should cast decimal to numeric for JSON
         assert "'price', price::numeric" in sql or "'price', price" in sql
 
-    def test_view_with_joins(self):
+    def test_view_with_joins(self) -> None:
         """Test view generation with relationship joins."""
         generator = ViewGenerator()
         options = ViewOptions(
@@ -155,7 +155,7 @@ GRANT SELECT ON v_users TO fraiseql_reader;"""
 class TestSQLPatterns:
     """Test common SQL pattern generation."""
 
-    def test_pagination_pattern(self):
+    def test_pagination_pattern(self) -> None:
         """Test generating pagination pattern."""
         pattern = SQLPattern.pagination("users", limit=20, offset=40)
 
@@ -167,7 +167,7 @@ OFFSET 40;"""
 
         assert pattern.strip() == expected.strip()
 
-    def test_filtering_pattern(self):
+    def test_filtering_pattern(self) -> None:
         """Test generating filtering pattern."""
         pattern = SQLPattern.filtering(
             "users",
@@ -177,7 +177,7 @@ OFFSET 40;"""
         assert "WHERE data->>'email' = 'test@example.com'" in pattern
         assert "AND (data->>'is_active')::boolean = true" in pattern
 
-    def test_sorting_pattern(self):
+    def test_sorting_pattern(self) -> None:
         """Test generating sorting pattern."""
         pattern = SQLPattern.sorting(
             "users",
@@ -187,7 +187,7 @@ OFFSET 40;"""
         assert "ORDER BY data->>'name' ASC" in pattern
         assert "data->>'created_at' DESC" in pattern
 
-    def test_relationship_pattern(self):
+    def test_relationship_pattern(self) -> None:
         """Test generating relationship query pattern."""
         pattern = SQLPattern.relationship(
             parent_table="users",
@@ -208,7 +208,7 @@ OFFSET 40;"""
         for part in expected_parts:
             assert part in pattern
 
-    def test_aggregation_pattern(self):
+    def test_aggregation_pattern(self) -> None:
         """Test generating aggregation pattern."""
         pattern = SQLPattern.aggregation(
             "orders",
@@ -229,7 +229,7 @@ OFFSET 40;"""
 class TestSQLHelper:
     """Test the main SQL helper functionality."""
 
-    def test_generate_complete_setup(self):
+    def test_generate_complete_setup(self) -> None:
         """Test generating complete SQL setup for a type."""
         helper = SQLHelper()
 
@@ -257,7 +257,7 @@ class TestSQLHelper:
         assert "INSERT INTO users" in setup
         assert "sample.user" in setup
 
-    def test_generate_migration(self):
+    def test_generate_migration(self) -> None:
         """Test generating migration from existing table."""
         helper = SQLHelper()
 
@@ -287,7 +287,7 @@ class TestSQLHelper:
         assert "'email', user_email" in migration
         assert "'is_active', status = 'active'" in migration
 
-    def test_validate_view(self):
+    def test_validate_view(self) -> None:
         """Test validating generated view."""
         helper = SQLHelper()
 
@@ -302,7 +302,7 @@ class TestSQLHelper:
         assert validation.returns_jsonb
         assert not validation.errors
 
-    def test_explain_sql(self):
+    def test_explain_sql(self) -> None:
         """Test SQL explanation for beginners."""
         helper = SQLHelper()
 
@@ -323,7 +323,7 @@ FROM users;"""
         for part in expected_parts:
             assert part in explanation
 
-    def test_common_mistakes_detection(self):
+    def test_common_mistakes_detection(self) -> None:
         """Test detection of common SQL mistakes."""
         helper = SQLHelper()
 
@@ -346,7 +346,7 @@ FROM users;"""
 class TestFieldMapping:
     """Test field mapping utilities."""
 
-    def test_auto_detect_mapping(self):
+    def test_auto_detect_mapping(self) -> None:
         """Test automatic field mapping detection."""
         mapper = FieldMapping()
 
@@ -362,7 +362,7 @@ class TestFieldMapping:
         assert mapping["created_at"] == "created_date"
         assert mapping["is_active"] == "is_active"
 
-    def test_mapping_suggestions(self):
+    def test_mapping_suggestions(self) -> None:
         """Test field mapping suggestions."""
         mapper = FieldMapping()
 
@@ -377,7 +377,7 @@ class TestFieldMapping:
         assert suggestions[1] == "email_address"  # Contains 'email'
         assert "mail" in suggestions  # Partial match
 
-    def test_type_compatibility_check(self):
+    def test_type_compatibility_check(self) -> None:
         """Test checking type compatibility."""
         mapper = FieldMapping()
 

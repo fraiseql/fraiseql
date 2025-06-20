@@ -6,7 +6,7 @@ from fraiseql.security.validators import InputValidator
 class TestInputValidator:
     """Test suite for InputValidator."""
 
-    def test_validate_field_value_with_sql_injection_patterns(self):
+    def test_validate_field_value_with_sql_injection_patterns(self) -> None:
         """Test detection of SQL injection patterns."""
         # Test various SQL injection attempts
         injection_attempts = [
@@ -26,7 +26,7 @@ class TestInputValidator:
             else:
                 assert len(result.warnings) == 0, f"Unexpected warning for: {value}"
 
-    def test_validate_field_value_with_xss_patterns(self):
+    def test_validate_field_value_with_xss_patterns(self) -> None:
         """Test detection of XSS patterns."""
         xss_attempts = [
             "<script>alert('xss')</script>",
@@ -45,7 +45,7 @@ class TestInputValidator:
             result = InputValidator.validate_field_value("description", value, allow_html=True)
             assert result.is_valid
 
-    def test_validate_field_value_with_null_bytes(self):
+    def test_validate_field_value_with_null_bytes(self) -> None:
         """Test handling of null bytes."""
         value = "user\x00name"
         result = InputValidator.validate_field_value("username", value)
@@ -54,7 +54,7 @@ class TestInputValidator:
         assert "Null byte detected" in result.errors[0]
         assert result.sanitized_value == "username"  # Null byte removed
 
-    def test_validate_field_value_length_limits(self):
+    def test_validate_field_value_length_limits(self) -> None:
         """Test field length validation."""
         # Test name field (max 255)
         long_name = "a" * 300
@@ -67,7 +67,7 @@ class TestInputValidator:
         result = InputValidator.validate_field_value("name", normal_name)
         assert result.is_valid
 
-    def test_validate_numeric_values(self):
+    def test_validate_numeric_values(self) -> None:
         """Test numeric value validation."""
         # Test infinity
         result = InputValidator.validate_field_value("age", float("inf"))
@@ -86,7 +86,7 @@ class TestInputValidator:
         result = InputValidator.validate_field_value("price", 99.99)
         assert result.is_valid
 
-    def test_validate_where_clause(self):
+    def test_validate_where_clause(self) -> None:
         """Test WHERE clause validation."""
         # Valid WHERE clause
         where = {
@@ -113,7 +113,7 @@ class TestInputValidator:
         assert not result.is_valid
         assert "requires a list" in result.errors[0]
 
-    def test_validate_email(self):
+    def test_validate_email(self) -> None:
         """Test email validation."""
         # Valid emails
         valid_emails = [
@@ -140,7 +140,7 @@ class TestInputValidator:
             result = InputValidator._validate_email(email)
             assert not result.is_valid, f"Email should be invalid: {email}"
 
-    def test_validate_mutation_input(self):
+    def test_validate_mutation_input(self) -> None:
         """Test mutation input validation."""
 
         # Define a simple input type for testing
@@ -170,7 +170,7 @@ class TestInputValidator:
         assert not result.is_valid
         assert any("email" in error.lower() for error in result.errors)
 
-    def test_path_traversal_detection(self):
+    def test_path_traversal_detection(self) -> None:
         """Test path traversal detection."""
         path_traversal_attempts = [
             "../../../etc/passwd",
@@ -187,7 +187,7 @@ class TestInputValidator:
                 for error in result.errors
             )
 
-    def test_list_validation(self):
+    def test_list_validation(self) -> None:
         """Test validation of list values."""
         # List with SQL injection attempts
         malicious_list = [
@@ -200,7 +200,7 @@ class TestInputValidator:
         assert result.is_valid  # Warnings only for SQL patterns
         assert len(result.warnings) >= 2  # At least 2 malicious items
 
-    def test_dict_validation(self):
+    def test_dict_validation(self) -> None:
         """Test validation of dictionary values."""
         # Dict with various issues
         test_dict = {

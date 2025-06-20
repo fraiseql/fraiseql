@@ -55,7 +55,7 @@ class N1QueryDetector:
         time_window: float = 1.0,
         enabled: bool = True,
         raise_on_detection: bool = False,
-    ):
+    ) -> None:
         """Initialize N+1 query detector.
 
         Args:
@@ -134,8 +134,9 @@ class N1QueryDetector:
 
         # Optionally raise exception
         if self.raise_on_detection and threshold_exceeded:
+            msg = f"N+1 query pattern detected: {len(detected_patterns)} patterns found"
             raise N1QueryDetectedError(
-                f"N+1 query pattern detected: {len(detected_patterns)} patterns found",
+                msg,
                 patterns=detected_patterns,
             )
 
@@ -190,7 +191,7 @@ class N1QueryDetector:
 class N1QueryDetectedError(Exception):
     """Exception raised when N+1 query pattern is detected."""
 
-    def __init__(self, message: str, patterns: list[QueryPattern]):
+    def __init__(self, message: str, patterns: list[QueryPattern]) -> None:
         super().__init__(message)
         self.patterns = patterns
 

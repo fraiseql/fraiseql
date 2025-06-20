@@ -11,7 +11,7 @@ from psycopg.sql import SQL
 class CQRSExecutor:
     """Executes SQL functions for CQRS write operations."""
 
-    def __init__(self, connection: AsyncConnection):
+    def __init__(self, connection: AsyncConnection) -> None:
         """Initialize executor with database connection."""
         self.connection = connection
 

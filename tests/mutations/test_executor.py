@@ -50,7 +50,7 @@ def sample_result_types():
 class TestParseMutationResult:
     """Test suite for parse_mutation_result function."""
 
-    def test_parse_success_result(self, sample_result_types):
+    def test_parse_success_result(self, sample_result_types) -> None:
         """Test parsing a successful mutation result."""
         success_cls, error_cls = sample_result_types
 
@@ -74,7 +74,7 @@ class TestParseMutationResult:
         assert result.message == "User updated successfully"
         assert result.data == {"id": "123", "email": "test@example.com"}
 
-    def test_parse_error_result(self, sample_result_types):
+    def test_parse_error_result(self, sample_result_types) -> None:
         """Test parsing an error mutation result."""
         success_cls, error_cls = sample_result_types
 
@@ -100,7 +100,7 @@ class TestParseMutationResult:
         assert result.errors[0].message == "Invalid email"
         assert result.errors[0].code == 422
 
-    def test_parse_unknown_status(self, sample_result_types):
+    def test_parse_unknown_status(self, sample_result_types) -> None:
         """Test parsing result with unknown status."""
         success_cls, error_cls = sample_result_types
 
@@ -124,7 +124,7 @@ class TestParseMutationResult:
         assert result.message == "Something happened"
         assert result.errors == []
 
-    def test_parse_result_without_message(self, sample_result_types):
+    def test_parse_result_without_message(self, sample_result_types) -> None:
         """Test parsing result without message field."""
         success_cls, error_cls = sample_result_types
 
@@ -152,7 +152,7 @@ class TestRunFraiseQLMutation:
         mock_repository,
         sample_input_type,
         sample_result_types,
-    ):
+    ) -> None:
         """Test running a successful mutation."""
         success_cls, error_cls = sample_result_types
 
@@ -183,7 +183,7 @@ class TestRunFraiseQLMutation:
         mock_repository,
         sample_input_type,
         sample_result_types,
-    ):
+    ) -> None:
         """Test mutation with empty input (no fields to update)."""
         from fraiseql.types.definitions import UNSET
 
@@ -222,7 +222,7 @@ class TestRunFraiseQLMutation:
         mock_repository,
         sample_input_type,
         sample_result_types,
-    ):
+    ) -> None:
         """Test mutation with database error."""
         success_cls, error_cls = sample_result_types
 
@@ -254,7 +254,7 @@ class TestRunFraiseQLMutation:
         mock_repository,
         sample_input_type,
         sample_result_types,
-    ):
+    ) -> None:
         """Test mutation with unexpected error."""
         success_cls, error_cls = sample_result_types
 
@@ -285,7 +285,7 @@ class TestRunFraiseQLMutation:
         mock_repository,
         sample_input_type,
         sample_result_types,
-    ):
+    ) -> None:
         """Test mutation that returns no result."""
         success_cls, error_cls = sample_result_types
 
@@ -314,7 +314,7 @@ class TestRunFraiseQLMutation:
         mock_repository,
         sample_input_type,
         sample_result_types,
-    ):
+    ) -> None:
         """Test mutation that returns data in response."""
         success_cls, error_cls = sample_result_types
 

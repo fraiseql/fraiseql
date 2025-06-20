@@ -83,7 +83,7 @@ def clear_registry():
     registry.clear()
 
 
-def test_query_decorator_registration():
+def test_query_decorator_registration() -> None:
     """Test that @query decorator registers functions."""
     # Functions should already be registered via decorator
     SchemaRegistry.get_instance()
@@ -100,7 +100,7 @@ def test_query_decorator_registration():
 
 
 @pytest.mark.asyncio
-async def test_query_decorator_execution():
+async def test_query_decorator_execution() -> None:
     """Test that decorated queries can be executed."""
     # Since queries are registered via decorator, we need to include them in build_fraiseql_schema
     registry = SchemaRegistry.get_instance()
@@ -135,7 +135,7 @@ async def test_query_decorator_execution():
 
 
 @pytest.mark.asyncio
-async def test_field_decorator_execution():
+async def test_field_decorator_execution() -> None:
     """Test that @field decorated methods work."""
     registry = SchemaRegistry.get_instance()
     schema = registry.build_schema()
@@ -153,7 +153,7 @@ async def test_field_decorator_execution():
     assert result.data == {"version": "2.0.0", "postCount": 42}
 
 
-def test_query_decorator_with_empty_parentheses():
+def test_query_decorator_with_empty_parentheses() -> None:
     """Test that @query() with parentheses works."""
 
     @fraiseql.query()
@@ -172,7 +172,7 @@ def test_query_decorator_with_empty_parentheses():
     assert "getPosts" in query_fields
 
 
-def test_mixed_decorators_and_explicit_queries():
+def test_mixed_decorators_and_explicit_queries() -> None:
     """Test mixing @query decorator with explicit query list."""
 
     # Define a non-decorated query
@@ -193,7 +193,7 @@ def test_mixed_decorators_and_explicit_queries():
     assert "postCount" in query_fields  # From QueryRoot @field
 
 
-def test_no_queries_error():
+def test_no_queries_error() -> None:
     """Test that schema building fails without any queries."""
     # Clear all registered queries and types
     registry = SchemaRegistry.get_instance()

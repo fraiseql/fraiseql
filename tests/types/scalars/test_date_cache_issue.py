@@ -10,7 +10,7 @@ from fraiseql.core.graphql_type import (
 from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 
 
-def test_date_scalar_cache_behavior():
+def test_date_scalar_cache_behavior() -> None:
     """Test how Date scalar interacts with type cache."""
     # Clear everything
     _graphql_type_cache.clear()
@@ -27,10 +27,9 @@ def test_date_scalar_cache_behavior():
 
     # Check if it's in the cache
     # Scalars might not be cached by type/module like classes
-    print(f"Cache contents: {list(_graphql_type_cache.keys())}")
 
 
-def test_date_scalar_with_schema_builder():
+def test_date_scalar_with_schema_builder() -> None:
     """Test Date scalar when using build_fraiseql_schema."""
 
     @fraiseql.type
@@ -67,7 +66,7 @@ def test_date_scalar_with_schema_builder():
     assert start_date_type is date_type
 
 
-def test_multiple_schema_builds_with_date():
+def test_multiple_schema_builds_with_date() -> None:
     """Test building multiple schemas with Date scalar."""
 
     # First schema

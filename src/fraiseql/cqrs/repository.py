@@ -15,7 +15,7 @@ T = TypeVar("T")
 class CQRSRepository:
     """Base repository implementing CQRS pattern with views and SQL functions."""
 
-    def __init__(self, connection: AsyncConnection):
+    def __init__(self, connection: AsyncConnection) -> None:
         """Initialize repository with database connection."""
         self.connection = connection
         self.executor = CQRSExecutor(connection)

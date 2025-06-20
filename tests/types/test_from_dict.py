@@ -8,7 +8,7 @@ from fraiseql import fraise_field, fraise_type
 # So we'll skip the custom scalar test for now
 
 
-def test_basic_from_dict():
+def test_basic_from_dict() -> None:
     """Test basic from_dict functionality with simple types."""
 
     @fraise_type
@@ -29,7 +29,7 @@ def test_basic_from_dict():
     assert user.is_active is True
 
 
-def test_from_dict_with_nested_types():
+def test_from_dict_with_nested_types() -> None:
     """Test from_dict with nested types."""
 
     @fraise_type
@@ -62,7 +62,7 @@ def test_from_dict_with_nested_types():
     assert user.primary_address["street"] == "123 Main St"
 
 
-def test_from_dict_with_optional_fields():
+def test_from_dict_with_optional_fields() -> None:
     """Test from_dict with optional/missing fields."""
 
     @fraise_type
@@ -81,7 +81,7 @@ def test_from_dict_with_optional_fields():
     assert profile.follower_count == 100
 
 
-def test_from_dict_with_lists():
+def test_from_dict_with_lists() -> None:
     """Test from_dict with list fields."""
 
     @fraise_type
@@ -104,7 +104,7 @@ def test_from_dict_with_lists():
     assert post.view_counts == [10, 20, 30, 40]
 
 
-def test_from_dict_ignores_typename():
+def test_from_dict_ignores_typename() -> None:
     """Test that from_dict ignores __typename field from GraphQL."""
 
     @fraise_type
@@ -127,7 +127,7 @@ def test_from_dict_ignores_typename():
     assert not hasattr(product, "__typename")
 
 
-def test_from_dict_camel_case_conversion():
+def test_from_dict_camel_case_conversion() -> None:
     """Test various camelCase to snake_case conversions."""
 
     @fraise_type
@@ -153,7 +153,7 @@ def test_from_dict_camel_case_conversion():
     assert model.total_order_count == 42
 
 
-def test_from_dict_with_uuid():
+def test_from_dict_with_uuid() -> None:
     """Test from_dict with UUID fields."""
 
     @fraise_type
@@ -176,7 +176,7 @@ def test_from_dict_with_uuid():
     assert account.balance == 1000.50
 
 
-def test_from_dict_only_on_output_types(clear_registry):
+def test_from_dict_only_on_output_types(clear_registry) -> None:
     """Test that from_dict is only added to output types, not input types."""
     from fraiseql import fraise_input
 

@@ -17,7 +17,7 @@ class TestTurboRouter:
         return TurboRegistry()
 
     @pytest.fixture
-    def sample_query(self):
+    def sample_query(self) -> str:
         """Sample GraphQL query for testing."""
         return """
         query GetUser($id: ID!) {
@@ -30,7 +30,7 @@ class TestTurboRouter:
         """
 
     @pytest.fixture
-    def sample_sql(self):
+    def sample_sql(self) -> str:
         """Sample SQL query that corresponds to the GraphQL query."""
         return """
         SELECT jsonb_build_object(
@@ -42,7 +42,7 @@ class TestTurboRouter:
         WHERE id = %(id)s AND deleted_at IS NULL
         """
 
-    def test_turbo_query_creation(self, sample_query, sample_sql):
+    def test_turbo_query_creation(self, sample_query, sample_sql) -> None:
         """Test creating a TurboQuery instance."""
         turbo_query = TurboQuery(
             graphql_query=sample_query,
@@ -56,7 +56,7 @@ class TestTurboRouter:
         assert turbo_query.param_mapping == {"id": "id"}
         assert turbo_query.operation_name == "GetUser"
 
-    def test_query_hash_generation(self, turbo_registry, sample_query):
+    def test_query_hash_generation(self, turbo_registry, sample_query) -> None:
         """Test that query hashing is consistent and normalized."""
         # Same query with different whitespace should produce same hash
         query_variations = [
@@ -79,7 +79,7 @@ class TestTurboRouter:
         different_hash = turbo_registry.hash_query(different_query)
         assert different_hash != hashes[0]
 
-    def test_register_turbo_query(self, turbo_registry, sample_query, sample_sql):
+    def test_register_turbo_query(self, turbo_registry, sample_query, sample_sql) -> None:
         """Test registering a turbo query."""
         turbo_query = TurboQuery(
             graphql_query=sample_query,
@@ -100,7 +100,7 @@ class TestTurboRouter:
         assert retrieved.sql_template == sample_sql
         assert retrieved.param_mapping == {"id": "id"}
 
-    def test_get_unregistered_query(self, turbo_registry):
+    def test_get_unregistered_query(self, turbo_registry) -> None:
         """Test getting a query that hasn't been registered."""
         unregistered_query = "query Unknown { unknown { id } }"
         result = turbo_registry.get(unregistered_query)
@@ -108,8 +108,8 @@ class TestTurboRouter:
 
     @pytest.mark.asyncio
     async def test_turbo_router_execution_registered_query(
-        self, turbo_registry, sample_query, sample_sql
-    ):
+        self, turbo_registry, sample_query, sample_sql,
+    ) -> None:
         """Test executing a registered turbo query."""
         # Register a turbo query
         turbo_query = TurboQuery(
@@ -122,7 +122,7 @@ class TestTurboRouter:
 
         # Create mock context with database
         mock_db_result = [
-            {"result": {"id": "123", "name": "Test User", "email": "test@example.com"}}
+            {"result": {"id": "123", "name": "Test User", "email": "test@example.com"}},
         ]
         mock_db = AsyncMock()
         mock_db.fetch = AsyncMock(return_value=mock_db_result)
@@ -143,14 +143,14 @@ class TestTurboRouter:
         # Should have executed the SQL directly
         assert result is not None
         assert result["data"] == {
-            "user": {"id": "123", "name": "Test User", "email": "test@example.com"}
+            "user": {"id": "123", "name": "Test User", "email": "test@example.com"},
         }
 
         # Verify SQL was called with correct parameters
         mock_db.fetch.assert_called_once_with(sample_sql, {"id": "123"})
 
     @pytest.mark.asyncio
-    async def test_turbo_router_execution_unregistered_query(self, turbo_registry):
+    async def test_turbo_router_execution_unregistered_query(self, turbo_registry) -> None:
         """Test that unregistered queries return None."""
         unregistered_query = "query Unknown { unknown { id } }"
 
@@ -168,7 +168,7 @@ class TestTurboRouter:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_turbo_router_with_complex_variables(self, turbo_registry):
+    async def test_turbo_router_with_complex_variables(self, turbo_registry) -> None:
         """Test turbo router with complex variable mappings."""
         query = """
         query SearchUsers($filters: UserFilters!) {
@@ -189,7 +189,7 @@ class TestTurboRouter:
             )
         ) as result
         FROM users
-        WHERE 
+        WHERE
             (%(name_pattern)s IS NULL OR data->>'name' ILIKE %(name_pattern)s)
             AND (%(email_domain)s IS NULL OR data->>'email' LIKE %(email_domain)s)
             AND deleted_at IS NULL
@@ -215,8 +215,8 @@ class TestTurboRouter:
                         {"id": "1", "name": "Alice", "email": "alice@example.com"},
                         {"id": "2", "name": "Alex", "email": "alex@example.com"},
                     ],
-                }
-            ]
+                },
+            ],
         )
 
         context = {"db": mock_db}
@@ -239,7 +239,7 @@ class TestTurboRouter:
             {"name_pattern": "Al%", "email_domain": "%@example.com"},
         )
 
-    def test_turbo_registry_clear(self, turbo_registry, sample_query, sample_sql):
+    def test_turbo_registry_clear(self, turbo_registry, sample_query, sample_sql) -> None:
         """Test clearing the turbo registry."""
         turbo_query = TurboQuery(
             graphql_query=sample_query,
@@ -256,7 +256,7 @@ class TestTurboRouter:
         turbo_registry.clear()
         assert turbo_registry.get(sample_query) is None
 
-    def test_turbo_registry_size_limit(self, turbo_registry):
+    def test_turbo_registry_size_limit(self, turbo_registry) -> None:
         """Test that registry respects size limits."""
         # Set a small size limit
         turbo_registry.max_size = 2
@@ -280,7 +280,7 @@ class TestTurboRouter:
         assert turbo_registry.get("query Q2 { field2 }") is not None
 
     @pytest.mark.asyncio
-    async def test_turbo_router_error_handling(self, turbo_registry, sample_query, sample_sql):
+    async def test_turbo_router_error_handling(self, turbo_registry, sample_query, sample_sql) -> None:
         """Test error handling in turbo router execution."""
         # Register a query
         turbo_query = TurboQuery(
@@ -304,7 +304,7 @@ class TestTurboRouter:
         with pytest.raises(Exception, match="Database error"):
             await turbo_router.execute(sample_query, variables, context)
 
-    def test_turbo_query_with_fragments(self, turbo_registry):
+    def test_turbo_query_with_fragments(self, turbo_registry) -> None:
         """Test handling queries with fragments."""
         query_with_fragment = """
         fragment UserFields on User {
@@ -312,7 +312,7 @@ class TestTurboRouter:
             name
             email
         }
-        
+
         query GetUser($id: ID!) {
             user(id: $id) {
                 ...UserFields

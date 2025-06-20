@@ -8,6 +8,8 @@ import pytest
 # Skip tests if opentelemetry is not installed
 pytest.importorskip("opentelemetry")
 
+from typing import Never
+
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -27,7 +29,7 @@ from fraiseql.tracing.opentelemetry import (
 class TestTracingConfig:
     """Test tracing configuration."""
 
-    def test_default_config(self):
+    def test_default_config(self) -> None:
         """Test default tracing configuration."""
         config = TracingConfig()
 
@@ -38,7 +40,7 @@ class TestTracingConfig:
         assert config.export_format == "otlp"
         assert config.propagate_traces is True
 
-    def test_custom_config(self):
+    def test_custom_config(self) -> None:
         """Test custom tracing configuration."""
         config = TracingConfig(
             service_name="my-api",
@@ -54,7 +56,7 @@ class TestTracingConfig:
         assert config.export_format == "jaeger"
         assert config.attributes["environment"] == "production"
 
-    def test_config_validation(self):
+    def test_config_validation(self) -> None:
         """Test configuration validation."""
         # Invalid sample rate
         with pytest.raises(ValueError):
@@ -71,7 +73,7 @@ class TestTracingConfig:
 class TestFraiseQLTracer:
     """Test FraiseQL tracer functionality."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test tracer with in-memory exporter."""
         self.exporter = InMemorySpanExporter()
         self.provider = TracerProvider()
@@ -81,7 +83,7 @@ class TestFraiseQLTracer:
         self.config = TracingConfig()
         self.tracer = FraiseQLTracer(self.config)
 
-    def test_graphql_query_tracing(self):
+    def test_graphql_query_tracing(self) -> None:
         """Test tracing GraphQL query operations."""
         # Trace a query
         with self.tracer.trace_graphql_query(
@@ -105,7 +107,7 @@ class TestFraiseQLTracer:
         assert span.attributes["graphql.document"] == "{ user(id: 1) { name } }"
         assert span.attributes["user.id"] == 1
 
-    def test_graphql_mutation_tracing(self):
+    def test_graphql_mutation_tracing(self) -> None:
         """Test tracing GraphQL mutation operations."""
         with self.tracer.trace_graphql_mutation(
             operation_name="createUser",
@@ -123,7 +125,7 @@ class TestFraiseQLTracer:
         assert span.attributes["graphql.operation.type"] == "mutation"
         assert span.attributes["mutation.success"] is True
 
-    def test_database_query_tracing(self):
+    def test_database_query_tracing(self) -> None:
         """Test tracing database queries."""
         with self.tracer.trace_database_query(
             query_type="SELECT",
@@ -143,14 +145,14 @@ class TestFraiseQLTracer:
         assert span.attributes["db.statement"] == "SELECT * FROM users WHERE id = %s"
         assert span.attributes["db.rows_affected"] == 1
 
-    def test_nested_spans(self):
+    def test_nested_spans(self) -> None:
         """Test nested span relationships."""
         # Create nested spans
         with self.tracer.trace_graphql_query("getUsers", "{ users { id } }") as query_span:
             query_span.set_attribute("test", "parent")
 
             with self.tracer.trace_database_query(
-                "SELECT", "users", "SELECT * FROM users"
+                "SELECT", "users", "SELECT * FROM users",
             ) as db_span:
                 db_span.set_attribute("test", "child")
 
@@ -166,11 +168,12 @@ class TestFraiseQLTracer:
         # Check parent-child relationship
         assert child.parent.span_id == parent.context.span_id
 
-    def test_span_with_error(self):
+    def test_span_with_error(self) -> None:
         """Test span error recording."""
         try:
             with self.tracer.trace_graphql_query("failingQuery", "{ fail }") as span:
-                raise ValueError("Test error")
+                msg = "Test error"
+                raise ValueError(msg)
         except ValueError:
             pass
 
@@ -183,7 +186,7 @@ class TestFraiseQLTracer:
         assert "ValueError" in span.events[0].name
         assert "Test error" in str(span.events[0].attributes["exception.message"])
 
-    def test_sampling(self):
+    def test_sampling(self) -> None:
         """Test trace sampling."""
         # Create tracer with 50% sampling
         config = TracingConfig(sample_rate=0.5)
@@ -199,7 +202,7 @@ class TestFraiseQLTracer:
         # Should be approximately 50 (allowing for randomness)
         assert 30 <= sampled_count <= 70
 
-    def test_trace_context_propagation(self):
+    def test_trace_context_propagation(self) -> None:
         """Test trace context propagation."""
         context = {}
 
@@ -213,7 +216,7 @@ class TestFraiseQLTracer:
             assert headers is not None
             assert len(headers) > 0
 
-    def test_custom_attributes(self):
+    def test_custom_attributes(self) -> None:
         """Test adding custom attributes from config."""
         config = TracingConfig(
             attributes={"service.version": "1.0.0", "deployment.environment": "test"},
@@ -234,7 +237,7 @@ class TestFraiseQLTracer:
 class TestTracingMiddleware:
     """Test tracing middleware for FastAPI."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         self.exporter = InMemorySpanExporter()
         self.provider = TracerProvider()
@@ -246,7 +249,7 @@ class TestTracingMiddleware:
         self.middleware = TracingMiddleware(tracer=self.tracer)
 
     @pytest.mark.asyncio
-    async def test_middleware_traces_requests(self):
+    async def test_middleware_traces_requests(self) -> None:
         """Test middleware creates spans for requests."""
         # Mock request
         request = Mock()
@@ -261,7 +264,7 @@ class TestTracingMiddleware:
             return response
 
         # Process request
-        response = await self.middleware.process_request(request, mock_call_next)
+        await self.middleware.process_request(request, mock_call_next)
 
         self.provider.force_flush()
         spans = self.exporter.get_finished_spans()
@@ -274,7 +277,7 @@ class TestTracingMiddleware:
         assert span.attributes["http.status_code"] == 200
 
     @pytest.mark.asyncio
-    async def test_middleware_propagates_context(self):
+    async def test_middleware_propagates_context(self) -> None:
         """Test middleware extracts and propagates trace context."""
         # Mock request with trace headers
         request = Mock()
@@ -289,7 +292,7 @@ class TestTracingMiddleware:
         async def mock_call_next(req):
             # Capture current trace context
             span = trace.get_current_span()
-            captured_trace_id = span.get_span_context().trace_id
+            span.get_span_context().trace_id
             return Mock(status_code=200)
 
         await self.middleware.process_request(request, mock_call_next)
@@ -298,15 +301,16 @@ class TestTracingMiddleware:
         assert captured_trace_id == 0x0AF7651916CD43DD8448EB211C80319C
 
     @pytest.mark.asyncio
-    async def test_middleware_handles_errors(self):
+    async def test_middleware_handles_errors(self) -> None:
         """Test middleware records errors in spans."""
         request = Mock()
         request.url.path = "/graphql"
         request.method = "POST"
         request.headers = {}
 
-        async def mock_call_next_error(req):
-            raise Exception("Test error")
+        async def mock_call_next_error(req) -> Never:
+            msg = "Test error"
+            raise Exception(msg)
 
         with pytest.raises(Exception):
             await self.middleware.process_request(request, mock_call_next_error)
@@ -320,7 +324,7 @@ class TestTracingMiddleware:
         assert span.attributes["http.status_code"] == 500
 
     @pytest.mark.asyncio
-    async def test_middleware_excludes_paths(self):
+    async def test_middleware_excludes_paths(self) -> None:
         """Test middleware excludes configured paths."""
         config = TracingConfig(exclude_paths={"/health", "/metrics"})
         tracer = FraiseQLTracer(config)
@@ -347,7 +351,7 @@ class TestTracingMiddleware:
 class TestTracingIntegration:
     """Test tracing integration with FastAPI."""
 
-    def test_setup_tracing_on_app(self):
+    def test_setup_tracing_on_app(self) -> None:
         """Test setting up tracing on FastAPI app."""
         from fastapi import FastAPI
 
@@ -363,7 +367,7 @@ class TestTracingIntegration:
         # Should return tracer instance
         assert isinstance(tracer, FraiseQLTracer)
 
-    def test_global_tracer(self):
+    def test_global_tracer(self) -> None:
         """Test global tracer access."""
         tracer1 = get_tracer()
         tracer2 = get_tracer()
@@ -371,7 +375,7 @@ class TestTracingIntegration:
         # Should be singleton
         assert tracer1 is tracer2
 
-    def test_trace_decorators(self):
+    def test_trace_decorators(self) -> None:
         """Test tracing decorators."""
 
         @trace_graphql_operation("query", "getUser")
@@ -387,10 +391,10 @@ class TestTracingIntegration:
         fetch_user(1)
 
         # Check spans were created
-        tracer = get_tracer()
+        get_tracer()
         # Note: In real implementation, we'd check the span exporter
 
-    def test_context_injection_extraction(self):
+    def test_context_injection_extraction(self) -> None:
         """Test context injection and extraction."""
         tracer = get_tracer()
 

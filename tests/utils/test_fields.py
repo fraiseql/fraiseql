@@ -15,7 +15,7 @@ def test_class():
     return TestClassWithFraiseQLField
 
 
-def test_patch_missing_field_types(test_class):
+def test_patch_missing_field_types(test_class) -> None:
     """Test that patch_missing_field_types automatically sets field_type for FraiseQLField fields."""
     # Ensure the fields exist
     assert hasattr(test_class, "field1"), "field1 was not found in the class"

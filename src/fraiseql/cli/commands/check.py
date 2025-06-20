@@ -8,7 +8,7 @@ import click
 
 
 @click.command()
-def check():
+def check() -> None:
     """Validate your FraiseQL project structure and types.
 
     This checks that:

@@ -231,13 +231,13 @@ async def db_connection_committed(
 
 
 # Marker for database tests
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Register custom markers."""
     config.addinivalue_line("markers", "database: mark test as requiring database access")
 
 
 # Skip database tests if --no-db flag is provided
-def pytest_addoption(parser):
+def pytest_addoption(parser) -> None:
     """Add custom command line options."""
     parser.addoption(
         "--no-db",
@@ -247,7 +247,7 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(config, items) -> None:
     """Modify test collection based on markers."""
     if config.getoption("--no-db"):
         skip_db = pytest.mark.skip(reason="Skipping database tests (--no-db flag)")

@@ -120,7 +120,8 @@ def create_fraiseql_app(
         elif isinstance(auth, AuthProvider):
             auth_provider = auth
         else:
-            raise ValueError("auth must be Auth0Config or AuthProvider instance")
+            msg = "auth must be Auth0Config or AuthProvider instance"
+            raise ValueError(msg)
 
     set_auth_provider(auth_provider)
 

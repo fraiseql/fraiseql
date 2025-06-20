@@ -29,16 +29,16 @@ class CacheEntry:
 class SubscriptionCache:
     """Caches subscription results to reduce load."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: dict[str, CacheEntry] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._cleanup_task: asyncio.Task | None = None
 
-    async def start(self):
+    async def start(self) -> None:
         """Start cache cleanup task."""
         self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop cache cleanup task."""
         if self._cleanup_task:
             self._cleanup_task.cancel()
@@ -81,7 +81,7 @@ class SubscriptionCache:
                 self._cache[key] = CacheEntry(value=value, timestamp=time.time(), ttl=ttl)
                 yield value
 
-    async def _cleanup_loop(self):
+    async def _cleanup_loop(self) -> None:
         """Periodically clean expired entries."""
         while True:
             try:

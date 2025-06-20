@@ -9,7 +9,7 @@ from fraiseql.cli.sql_helper import SQLHelper, SQLPattern, ViewOptions
 
 
 @click.group()
-def sql():
+def sql() -> None:
     """SQL helper commands for generating views and patterns."""
 
 
@@ -21,7 +21,7 @@ def sql():
 @click.option("--exclude", "-e", multiple=True, help="Fields to exclude")
 @click.option("--with-comments/--no-comments", default=True, help="Include explanatory comments")
 @click.option("--output", "-o", type=click.File("w"), help="Output file (default: stdout)")
-def generate_view(type_name, module, table, view, exclude, with_comments, output):
+def generate_view(type_name, module, table, view, exclude, with_comments, output) -> None:
     """Generate a SQL view for a FraiseQL type.
 
     Example:
@@ -57,7 +57,7 @@ def generate_view(type_name, module, table, view, exclude, with_comments, output
 @click.option("--with-indexes", is_flag=True, help="Include index creation")
 @click.option("--with-data", is_flag=True, help="Include sample data")
 @click.option("--output", "-o", type=click.File("w"), help="Output file")
-def generate_setup(type_name, module, with_table, with_indexes, with_data, output):
+def generate_setup(type_name, module, with_table, with_indexes, with_data, output) -> None:
     """Generate complete SQL setup for a type.
 
     Example:
@@ -103,7 +103,7 @@ def generate_pattern(
     child_table,
     foreign_key,
     group_by,
-):
+) -> None:
     """Generate common SQL patterns for FraiseQL.
 
     Examples:
@@ -171,7 +171,7 @@ def generate_pattern(
 
 @sql.command()
 @click.argument("sql_file", type=click.File("r"))
-def validate(sql_file):
+def validate(sql_file) -> None:
     """Validate SQL for FraiseQL compatibility.
 
     Example:
@@ -201,7 +201,7 @@ def validate(sql_file):
 
 @sql.command()
 @click.argument("sql_file", type=click.File("r"))
-def explain(sql_file):
+def explain(sql_file) -> None:
     """Explain SQL in beginner-friendly terms.
 
     Example:

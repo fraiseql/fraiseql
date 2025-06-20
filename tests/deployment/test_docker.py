@@ -11,12 +11,12 @@ import yaml
 class TestDockerfile:
     """Test Dockerfile configurations."""
 
-    def test_dockerfile_exists(self):
+    def test_dockerfile_exists(self) -> None:
         """Test that Dockerfile exists."""
         dockerfile_path = Path("Dockerfile")
         assert dockerfile_path.exists(), "Dockerfile must exist in project root"
 
-    def test_dockerfile_syntax(self):
+    def test_dockerfile_syntax(self) -> None:
         """Test Dockerfile syntax is valid."""
         # This will be validated when we build the image
         result = subprocess.run(
@@ -36,7 +36,7 @@ class TestDockerfile:
         )
         assert result.returncode == 0, f"Dockerfile syntax error: {result.stderr}"
 
-    def test_dockerfile_best_practices(self):
+    def test_dockerfile_best_practices(self) -> None:
         """Test Dockerfile follows best practices."""
         with open("Dockerfile") as f:
             content = f.read()
@@ -56,12 +56,12 @@ class TestDockerfile:
         # Check for .dockerignore usage
         assert Path(".dockerignore").exists(), ".dockerignore file must exist"
 
-    def test_docker_compose_exists(self):
+    def test_docker_compose_exists(self) -> None:
         """Test that docker-compose files exist."""
         assert Path("docker-compose.yml").exists(), "docker-compose.yml must exist"
         assert Path("docker-compose.prod.yml").exists(), "docker-compose.prod.yml must exist"
 
-    def test_docker_compose_valid(self):
+    def test_docker_compose_valid(self) -> None:
         """Test docker-compose files are valid YAML."""
         for compose_file in ["docker-compose.yml", "docker-compose.prod.yml"]:
             with open(compose_file) as f:
@@ -78,7 +78,7 @@ class TestDockerfile:
             fraiseql_service = data["services"]["fraiseql"]
             assert "environment" in fraiseql_service or "env_file" in fraiseql_service
 
-    def test_production_optimizations(self):
+    def test_production_optimizations(self) -> None:
         """Test production Dockerfile optimizations."""
         with open("Dockerfile") as f:
             content = f.read()
@@ -118,7 +118,7 @@ class TestDockerBuild:
         # Cleanup
         subprocess.run(["docker", "rmi", image_name], capture_output=True, check=False)
 
-    def test_image_size(self, docker_image):
+    def test_image_size(self, docker_image) -> None:
         """Test that Docker image size is reasonable."""
         result = subprocess.run(
             ["docker", "images", docker_image, "--format", "{{.Size}}"],
@@ -134,7 +134,7 @@ class TestDockerBuild:
         # Image should be less than 500MB for production
         assert "MB" in size_str and size_value < 500, f"Image too large: {size_str}"
 
-    def test_image_labels(self, docker_image):
+    def test_image_labels(self, docker_image) -> None:
         """Test that Docker image has proper labels."""
         result = subprocess.run(
             ["docker", "inspect", docker_image],
@@ -149,7 +149,7 @@ class TestDockerBuild:
         assert "maintainer" in labels or "org.opencontainers.image.authors" in labels
         assert "version" in labels or "org.opencontainers.image.version" in labels
 
-    def test_healthcheck_endpoint(self, docker_image):
+    def test_healthcheck_endpoint(self, docker_image) -> None:
         """Test that health check endpoint works."""
         # Start container
         container_name = "fraiseql-health-test"
@@ -192,7 +192,7 @@ class TestDockerBuild:
 class TestDockerSecurity:
     """Test Docker security configurations."""
 
-    def test_no_secrets_in_image(self):
+    def test_no_secrets_in_image(self) -> None:
         """Test that no secrets are included in the image."""
         with open("Dockerfile") as f:
             content = f.read()
@@ -209,11 +209,11 @@ class TestDockerSecurity:
         for pattern in forbidden_patterns:
             assert pattern not in content, f"Found potential secret: {pattern}"
 
-    def test_security_scanning_setup(self):
+    def test_security_scanning_setup(self) -> None:
         """Test that security scanning is documented."""
         # Check for security scanning in CI or documentation
         ci_files = list(Path(".github/workflows").glob("*.yml")) + list(
-            Path(".github/workflows").glob("*.yaml")
+            Path(".github/workflows").glob("*.yaml"),
         )
 
         has_security_scan = False
@@ -232,7 +232,7 @@ class TestDockerSecurity:
 class TestDockerCompose:
     """Test Docker Compose configurations."""
 
-    def test_development_compose(self):
+    def test_development_compose(self) -> None:
         """Test development docker-compose configuration."""
         with open("docker-compose.yml") as f:
             config = yaml.safe_load(f)
@@ -245,11 +245,12 @@ class TestDockerCompose:
 
         # Check fraiseql configuration
         fraiseql = config["services"]["fraiseql"]
-        assert "depends_on" in fraiseql and "postgres" in fraiseql["depends_on"]
+        assert "depends_on" in fraiseql
+        assert "postgres" in fraiseql["depends_on"]
         assert "DATABASE_URL" in fraiseql["environment"]
         assert "8000:8000" in fraiseql["ports"]
 
-    def test_production_compose(self):
+    def test_production_compose(self) -> None:
         """Test production docker-compose configuration."""
         with open("docker-compose.prod.yml") as f:
             config = yaml.safe_load(f)
@@ -268,4 +269,5 @@ class TestDockerCompose:
         assert "resources" in fraiseql["deploy"], "Should have resource limits"
 
         # Check restart policy
-        assert "restart" in fraiseql and fraiseql["restart"] == "unless-stopped"
+        assert "restart" in fraiseql
+        assert fraiseql["restart"] == "unless-stopped"

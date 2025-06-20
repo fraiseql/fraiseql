@@ -47,7 +47,7 @@ class CSRFConfig:
 class CSRFTokenGenerator:
     """Generates and validates CSRF tokens."""
 
-    def __init__(self, secret_key: str, timeout: int = 3600):
+    def __init__(self, secret_key: str, timeout: int = 3600) -> None:
         self.secret_key = secret_key.encode() if isinstance(secret_key, str) else secret_key
         self.timeout = timeout
 
@@ -121,7 +121,7 @@ class CSRFTokenGenerator:
 class GraphQLCSRFValidator:
     """CSRF validation specifically for GraphQL operations."""
 
-    def __init__(self, config: CSRFConfig):
+    def __init__(self, config: CSRFConfig) -> None:
         self.config = config
         self.token_generator = CSRFTokenGenerator(
             config.secret_key,
@@ -235,7 +235,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         app,
         config: CSRFConfig,
         graphql_path: str = "/graphql",
-    ):
+    ) -> None:
         super().__init__(app)
         self.config = config
         self.graphql_path = graphql_path
@@ -386,7 +386,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
         return request.cookies.get("session_id")
 
-    async def _add_csrf_token_to_response(self, request: Request, response: Response):
+    async def _add_csrf_token_to_response(self, request: Request, response: Response) -> None:
         """Add CSRF token to response."""
         if self.config.storage == CSRFTokenStorage.COOKIE:
             # Generate new token
@@ -418,7 +418,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 class CSRFTokenEndpoint:
     """Endpoint to provide CSRF tokens for SPA applications."""
 
-    def __init__(self, config: CSRFConfig):
+    def __init__(self, config: CSRFConfig) -> None:
         self.config = config
         self.token_generator = CSRFTokenGenerator(
             config.secret_key,

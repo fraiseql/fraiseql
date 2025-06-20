@@ -1,6 +1,7 @@
 """Test DataLoader implementation."""
 
 import asyncio
+from typing import Never
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -13,7 +14,7 @@ class TestDataLoader:
     """Test DataLoader functionality."""
 
     @pytest.mark.asyncio
-    async def test_basic_batching(self):
+    async def test_basic_batching(self) -> None:
         """Test that multiple loads are batched."""
         batch_fn = AsyncMock(return_value=["a", "b", "c"])
 
@@ -32,7 +33,7 @@ class TestDataLoader:
         assert results == ["a", "b", "c"]
 
     @pytest.mark.asyncio
-    async def test_caching(self):
+    async def test_caching(self) -> None:
         """Test that results are cached."""
         call_count = 0
 
@@ -55,7 +56,7 @@ class TestDataLoader:
         assert call_count == 1  # No additional call
 
     @pytest.mark.asyncio
-    async def test_deduplication(self):
+    async def test_deduplication(self) -> None:
         """Test that duplicate keys are deduplicated."""
         batch_fn = AsyncMock(return_value=["a", "b"])
 
@@ -79,12 +80,13 @@ class TestDataLoader:
         assert results == ["a", "b", "a", "b"]
 
     @pytest.mark.asyncio
-    async def test_error_handling(self):
+    async def test_error_handling(self) -> None:
         """Test error propagation."""
 
         class TestLoader(DataLoader):
-            async def batch_load(self, keys):
-                raise ValueError("Batch load failed")
+            async def batch_load(self, keys) -> Never:
+                msg = "Batch load failed"
+                raise ValueError(msg)
 
         loader = TestLoader()
 
@@ -93,12 +95,12 @@ class TestDataLoader:
             await asyncio.gather(loader.load(1), loader.load(2))
 
     @pytest.mark.asyncio
-    async def test_max_batch_size(self):
+    async def test_max_batch_size(self) -> None:
         """Test batch size limiting."""
         batches_called = []
 
         class TestLoader(DataLoader):
-            def __init__(self):
+            def __init__(self) -> None:
                 super().__init__(max_batch_size=2)
 
             async def batch_load(self, keys):
@@ -120,7 +122,7 @@ class TestDataLoader:
 class TestLoaderRegistry:
     """Test DataLoader registry."""
 
-    def test_registry_creation(self):
+    def test_registry_creation(self) -> None:
         """Test creating loader registry."""
         db = Mock()
         registry = LoaderRegistry(db)
@@ -128,7 +130,7 @@ class TestLoaderRegistry:
         assert registry.db == db
         assert len(registry._loaders) == 0
 
-    def test_get_loader(self):
+    def test_get_loader(self) -> None:
         """Test getting loader from registry."""
         db = Mock()
         registry = LoaderRegistry(db)
@@ -143,7 +145,7 @@ class TestLoaderRegistry:
         loader2 = registry.get_loader(UserLoader)
         assert loader2 is loader  # Same instance
 
-    def test_context_var(self):
+    def test_context_var(self) -> None:
         """Test context variable for registry."""
         db = Mock()
         registry = LoaderRegistry(db)

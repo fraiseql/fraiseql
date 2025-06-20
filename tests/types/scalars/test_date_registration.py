@@ -17,7 +17,7 @@ def clear_registry():
     registry.clear()
 
 
-def test_date_scalar_single_registration():
+def test_date_scalar_single_registration() -> None:
     """Ensure Date scalar is only registered once in the schema."""
 
     @fraiseql.type
@@ -52,7 +52,7 @@ def test_date_scalar_single_registration():
     assert date_count == 1, f"Date scalar registered {date_count} times, expected 1"
 
 
-def test_multiple_date_fields_in_single_type():
+def test_multiple_date_fields_in_single_type() -> None:
     """Test that multiple date fields in one type don't cause issues."""
 
     @fraiseql.type
@@ -75,7 +75,7 @@ def test_multiple_date_fields_in_single_type():
     assert schema.type_map["Date"].name == "Date"
 
 
-def test_date_in_nested_types():
+def test_date_in_nested_types() -> None:
     """Test Date scalar in nested type structures."""
 
     @fraiseql.type

@@ -48,13 +48,13 @@ def app():
 class TestContentSecurityPolicy:
     """Test Content Security Policy functionality."""
 
-    def test_create_empty_csp(self):
+    def test_create_empty_csp(self) -> None:
         """Test creating empty CSP."""
         csp = ContentSecurityPolicy()
         assert len(csp.directives) == 0
         assert not csp.report_only
 
-    def test_add_directive_single_source(self):
+    def test_add_directive_single_source(self) -> None:
         """Test adding directive with single source."""
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.DEFAULT_SRC, "'self'")
@@ -62,7 +62,7 @@ class TestContentSecurityPolicy:
         assert CSPDirective.DEFAULT_SRC in csp.directives
         assert csp.directives[CSPDirective.DEFAULT_SRC] == ["'self'"]
 
-    def test_add_directive_multiple_sources(self):
+    def test_add_directive_multiple_sources(self) -> None:
         """Test adding directive with multiple sources."""
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.SCRIPT_SRC, ["'self'", "'unsafe-inline'"])
@@ -70,7 +70,7 @@ class TestContentSecurityPolicy:
         assert CSPDirective.SCRIPT_SRC in csp.directives
         assert csp.directives[CSPDirective.SCRIPT_SRC] == ["'self'", "'unsafe-inline'"]
 
-    def test_add_directive_append_sources(self):
+    def test_add_directive_append_sources(self) -> None:
         """Test appending sources to existing directive."""
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.SCRIPT_SRC, "'self'")
@@ -78,7 +78,7 @@ class TestContentSecurityPolicy:
 
         assert csp.directives[CSPDirective.SCRIPT_SRC] == ["'self'", "'unsafe-inline'"]
 
-    def test_remove_directive(self):
+    def test_remove_directive(self) -> None:
         """Test removing directive."""
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.DEFAULT_SRC, "'self'")
@@ -86,7 +86,7 @@ class TestContentSecurityPolicy:
 
         assert CSPDirective.DEFAULT_SRC not in csp.directives
 
-    def test_to_header_value_simple(self):
+    def test_to_header_value_simple(self) -> None:
         """Test converting CSP to header value."""
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.DEFAULT_SRC, "'self'")
@@ -97,7 +97,7 @@ class TestContentSecurityPolicy:
         assert "script-src 'self' 'unsafe-inline'" in header_value
         assert ";" in header_value
 
-    def test_to_header_value_no_sources(self):
+    def test_to_header_value_no_sources(self) -> None:
         """Test converting CSP with no-source directives."""
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.UPGRADE_INSECURE_REQUESTS, [])
@@ -109,12 +109,12 @@ class TestContentSecurityPolicy:
         # These directives shouldn't have sources
         assert "upgrade-insecure-requests ;" not in header_value
 
-    def test_get_header_name_enforce(self):
+    def test_get_header_name_enforce(self) -> None:
         """Test header name for enforcing CSP."""
         csp = ContentSecurityPolicy(report_only=False)
         assert csp.get_header_name() == "Content-Security-Policy"
 
-    def test_get_header_name_report_only(self):
+    def test_get_header_name_report_only(self) -> None:
         """Test header name for report-only CSP."""
         csp = ContentSecurityPolicy(report_only=True)
         assert csp.get_header_name() == "Content-Security-Policy-Report-Only"
@@ -123,7 +123,7 @@ class TestContentSecurityPolicy:
 class TestSecurityHeadersConfig:
     """Test security headers configuration."""
 
-    def test_default_config(self):
+    def test_default_config(self) -> None:
         """Test default configuration values."""
         config = SecurityHeadersConfig()
 
@@ -135,7 +135,7 @@ class TestSecurityHeadersConfig:
         assert config.referrer_policy == ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN
         assert len(config.exclude_paths) > 0
 
-    def test_custom_config(self):
+    def test_custom_config(self) -> None:
         """Test custom configuration."""
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.DEFAULT_SRC, "'self'")
@@ -156,14 +156,14 @@ class TestSecurityHeadersConfig:
 class TestSecurityHeadersMiddleware:
     """Test security headers middleware."""
 
-    def test_middleware_creation(self, app):
+    def test_middleware_creation(self, app) -> None:
         """Test middleware creation."""
         config = SecurityHeadersConfig()
         middleware = SecurityHeadersMiddleware(app=app, config=config)
 
         assert middleware.config == config
 
-    def test_exclude_paths(self, app):
+    def test_exclude_paths(self, app) -> None:
         """Test that excluded paths don't get headers."""
         config = SecurityHeadersConfig(exclude_paths={"/docs"})
         app.add_middleware(SecurityHeadersMiddleware, config=config)
@@ -175,7 +175,7 @@ class TestSecurityHeadersMiddleware:
         assert "X-Frame-Options" not in response.headers
         assert "X-Content-Type-Options" not in response.headers
 
-    def test_basic_security_headers(self, app):
+    def test_basic_security_headers(self, app) -> None:
         """Test basic security headers are added."""
         config = SecurityHeadersConfig()
         app.add_middleware(SecurityHeadersMiddleware, config=config)
@@ -189,7 +189,7 @@ class TestSecurityHeadersMiddleware:
         assert "Strict-Transport-Security" in response.headers
         assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
 
-    def test_csp_header(self, app):
+    def test_csp_header(self, app) -> None:
         """Test CSP header is added."""
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.DEFAULT_SRC, "'self'")
@@ -203,7 +203,7 @@ class TestSecurityHeadersMiddleware:
         assert "Content-Security-Policy" in response.headers
         assert "default-src 'self'" in response.headers["Content-Security-Policy"]
 
-    def test_csp_report_only(self, app):
+    def test_csp_report_only(self, app) -> None:
         """Test CSP report-only header."""
         csp = ContentSecurityPolicy(report_only=True)
         csp.add_directive(CSPDirective.DEFAULT_SRC, "'self'")
@@ -217,7 +217,7 @@ class TestSecurityHeadersMiddleware:
         assert "Content-Security-Policy-Report-Only" in response.headers
         assert "Content-Security-Policy" not in response.headers
 
-    def test_frame_options_allow_from(self, app):
+    def test_frame_options_allow_from(self, app) -> None:
         """Test X-Frame-Options with ALLOW-FROM."""
         config = SecurityHeadersConfig(
             frame_options=FrameOptions.ALLOW_FROM,
@@ -230,7 +230,7 @@ class TestSecurityHeadersMiddleware:
 
         assert response.headers["X-Frame-Options"] == "ALLOW-FROM https://trusted.com"
 
-    def test_hsts_with_subdomains_and_preload(self, app):
+    def test_hsts_with_subdomains_and_preload(self, app) -> None:
         """Test HSTS with subdomains and preload."""
         config = SecurityHeadersConfig(
             hsts=True,
@@ -248,7 +248,7 @@ class TestSecurityHeadersMiddleware:
         assert "includeSubDomains" in hsts_header
         assert "preload" in hsts_header
 
-    def test_permissions_policy(self, app):
+    def test_permissions_policy(self, app) -> None:
         """Test Permissions-Policy header."""
         config = SecurityHeadersConfig(
             permissions_policy={
@@ -267,7 +267,7 @@ class TestSecurityHeadersMiddleware:
         assert "microphone=()" in permissions_header
         assert 'geolocation=("*")' in permissions_header
 
-    def test_cross_origin_policies(self, app):
+    def test_cross_origin_policies(self, app) -> None:
         """Test Cross-Origin policies."""
         config = SecurityHeadersConfig(
             cross_origin_embedder_policy="require-corp",
@@ -283,7 +283,7 @@ class TestSecurityHeadersMiddleware:
         assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
         assert response.headers["Cross-Origin-Resource-Policy"] == "same-site"
 
-    def test_custom_headers(self, app):
+    def test_custom_headers(self, app) -> None:
         """Test custom headers."""
         config = SecurityHeadersConfig(
             custom_headers={
@@ -299,7 +299,7 @@ class TestSecurityHeadersMiddleware:
         assert response.headers["X-Custom-Header"] == "custom-value"
         assert response.headers["X-Another-Header"] == "another-value"
 
-    def test_conditional_headers(self, app):
+    def test_conditional_headers(self, app) -> None:
         """Test conditional headers based on request."""
 
         def add_api_headers(request: Request) -> dict:
@@ -327,7 +327,7 @@ class TestSecurityHeadersMiddleware:
         response2 = client.get("/api/test")
         assert response2.headers["X-API-Version"] == "v1"
 
-    def test_disabled_headers(self, app):
+    def test_disabled_headers(self, app) -> None:
         """Test disabling specific headers."""
         config = SecurityHeadersConfig(
             frame_options=None,
@@ -351,7 +351,7 @@ class TestSecurityHeadersMiddleware:
 class TestCSPPresets:
     """Test predefined CSP configurations."""
 
-    def test_create_strict_csp(self):
+    def test_create_strict_csp(self) -> None:
         """Test strict CSP creation."""
         csp = create_strict_csp()
 
@@ -361,7 +361,7 @@ class TestCSPPresets:
         assert csp.directives[CSPDirective.OBJECT_SRC] == ["'none'"]
         assert CSPDirective.UPGRADE_INSECURE_REQUESTS in csp.directives
 
-    def test_create_development_csp(self):
+    def test_create_development_csp(self) -> None:
         """Test development CSP creation."""
         csp = create_development_csp()
 
@@ -370,7 +370,7 @@ class TestCSPPresets:
         assert "'unsafe-eval'" in csp.directives[CSPDirective.DEFAULT_SRC]
         assert "http://localhost:*" in csp.directives[CSPDirective.CONNECT_SRC]
 
-    def test_create_api_csp(self):
+    def test_create_api_csp(self) -> None:
         """Test API-only CSP creation."""
         csp = create_api_csp()
 
@@ -383,7 +383,7 @@ class TestCSPPresets:
 class TestConfigPresets:
     """Test predefined configuration functions."""
 
-    def test_create_production_security_config(self):
+    def test_create_production_security_config(self) -> None:
         """Test production configuration."""
         config = create_production_security_config("example.com", api_only=False)
 
@@ -394,14 +394,14 @@ class TestConfigPresets:
         assert config.cross_origin_embedder_policy == "require-corp"
         assert len(config.permissions_policy) > 0
 
-    def test_create_production_security_config_api_only(self):
+    def test_create_production_security_config_api_only(self) -> None:
         """Test production configuration for API-only."""
         config = create_production_security_config("api.example.com", api_only=True)
 
         assert config.frame_options == FrameOptions.DENY
         assert config.csp.directives[CSPDirective.DEFAULT_SRC] == ["'none'"]
 
-    def test_create_production_security_config_with_preload(self):
+    def test_create_production_security_config_with_preload(self) -> None:
         """Test production configuration with HSTS preload."""
         config = create_production_security_config(
             "example.com",
@@ -410,7 +410,7 @@ class TestConfigPresets:
 
         assert config.hsts_preload is True
 
-    def test_create_development_security_config(self):
+    def test_create_development_security_config(self) -> None:
         """Test development configuration."""
         config = create_development_security_config()
 
@@ -419,7 +419,7 @@ class TestConfigPresets:
         assert config.referrer_policy == ReferrerPolicy.NO_REFERRER_WHEN_DOWNGRADE
         assert "/graphql" in config.exclude_paths
 
-    def test_create_graphql_security_config(self):
+    def test_create_graphql_security_config(self) -> None:
         """Test GraphQL-specific configuration."""
         trusted_origins = ["https://app.example.com", "https://admin.example.com"]
         config = create_graphql_security_config(
@@ -436,7 +436,7 @@ class TestConfigPresets:
         for origin in trusted_origins:
             assert origin in connect_src
 
-    def test_create_graphql_security_config_no_introspection(self):
+    def test_create_graphql_security_config_no_introspection(self) -> None:
         """Test GraphQL config without introspection."""
         config = create_graphql_security_config(
             trusted_origins=["https://app.example.com"],
@@ -451,22 +451,22 @@ class TestConfigPresets:
 class TestSetupFunction:
     """Test convenience setup function."""
 
-    def test_setup_security_headers_default(self, app):
+    def test_setup_security_headers_default(self, app) -> None:
         """Test setup with default configuration."""
         middleware = setup_security_headers(app)
         assert isinstance(middleware, SecurityHeadersMiddleware)
 
-    def test_setup_security_headers_development(self, app):
+    def test_setup_security_headers_development(self, app) -> None:
         """Test setup for development."""
         middleware = setup_security_headers(app, environment="development")
         assert middleware.config.hsts is False
 
-    def test_setup_security_headers_production(self, app):
+    def test_setup_security_headers_production(self, app) -> None:
         """Test setup for production."""
         middleware = setup_security_headers(app, environment="production")
         assert middleware.config.hsts is True
 
-    def test_setup_security_headers_custom_config(self, app):
+    def test_setup_security_headers_custom_config(self, app) -> None:
         """Test setup with custom configuration."""
         custom_config = SecurityHeadersConfig(hsts=False)
         middleware = setup_security_headers(app, config=custom_config)
@@ -476,7 +476,7 @@ class TestSetupFunction:
 class TestIntegration:
     """Integration tests."""
 
-    def test_all_headers_together(self, app):
+    def test_all_headers_together(self, app) -> None:
         """Test that all headers work together."""
         csp = create_strict_csp()
         config = SecurityHeadersConfig(
@@ -508,7 +508,7 @@ class TestIntegration:
         for header in expected_headers:
             assert header in response.headers
 
-    def test_graphql_with_security_headers(self, app):
+    def test_graphql_with_security_headers(self, app) -> None:
         """Test GraphQL endpoint with security headers."""
         config = create_graphql_security_config(
             trusted_origins=["https://app.example.com"],
@@ -527,7 +527,7 @@ class TestIntegration:
         test_response = client.get("/test")
         assert "X-Frame-Options" in test_response.headers
 
-    def test_post_request_headers(self, app):
+    def test_post_request_headers(self, app) -> None:
         """Test that headers are added to POST responses."""
         config = SecurityHeadersConfig()
         app.add_middleware(SecurityHeadersMiddleware, config=config)

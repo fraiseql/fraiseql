@@ -39,7 +39,7 @@ class Product:
 class TestWhereGeneratorBasic:
     """Test basic WHERE generation functionality."""
 
-    def test_simple_equality_filter(self):
+    def test_simple_equality_filter(self) -> None:
         """Test basic equality filtering."""
         UserWhere = create_where_type(User)
         where = UserWhere(email="test@example.com")
@@ -50,7 +50,7 @@ class TestWhereGeneratorBasic:
         assert "data->>'email' = %s" in sql_str
         assert where._get_params() == ["test@example.com"]
 
-    def test_multiple_conditions(self):
+    def test_multiple_conditions(self) -> None:
         """Test WHERE with multiple conditions."""
         UserWhere = create_where_type(User)
         where = UserWhere(
@@ -67,7 +67,7 @@ class TestWhereGeneratorBasic:
         assert "(data->>'is_active')::boolean = %s" in sql_str
         assert where._get_params() == ["test@example.com", 18, True]
 
-    def test_null_handling(self):
+    def test_null_handling(self) -> None:
         """Test NULL value handling."""
         UserWhere = create_where_type(User)
         where = UserWhere(age_is_null=True)
@@ -78,7 +78,7 @@ class TestWhereGeneratorBasic:
         assert "data->>'age' IS NULL" in sql_str
         assert where._get_params() == []
 
-    def test_empty_filter(self):
+    def test_empty_filter(self) -> None:
         """Test empty filter returns None."""
         UserWhere = create_where_type(User)
         where = UserWhere()
@@ -90,7 +90,7 @@ class TestWhereGeneratorBasic:
 class TestWhereGeneratorOperators:
     """Test various WHERE operators."""
 
-    def test_comparison_operators(self):
+    def test_comparison_operators(self) -> None:
         """Test lt, lte, gt, gte operators."""
         ProductWhere = create_where_type(Product)
         where = ProductWhere(
@@ -105,7 +105,7 @@ class TestWhereGeneratorOperators:
         assert "(data->>'price')::numeric >= %s" in sql_str
         assert where._get_params() == [100, 10]
 
-    def test_string_operators(self):
+    def test_string_operators(self) -> None:
         """Test string-specific operators."""
         UserWhere = create_where_type(User)
         where = UserWhere(
@@ -123,7 +123,7 @@ class TestWhereGeneratorOperators:
         assert "admin%" in where._get_params()
         assert "%son" in where._get_params()
 
-    def test_list_operators(self):
+    def test_list_operators(self) -> None:
         """Test list/array operators."""
         ProductWhere = create_where_type(Product)
         where = ProductWhere(
@@ -140,7 +140,7 @@ class TestWhereGeneratorOperators:
         assert params[0] == '["electronics"]'  # JSON array
         assert params[1] == [1, 2, 3]
 
-    def test_not_operators(self):
+    def test_not_operators(self) -> None:
         """Test negation operators."""
         UserWhere = create_where_type(User)
         where = UserWhere(
@@ -158,7 +158,7 @@ class TestWhereGeneratorOperators:
 class TestWhereGeneratorValidation:
     """Test input validation in WHERE generation."""
 
-    def test_strict_validation_mode(self):
+    def test_strict_validation_mode(self) -> None:
         """Test strict validation rejects suspicious input."""
         config = WhereGeneratorConfig(validation_mode=ValidationMode.STRICT)
         UserWhere = create_where_type(User, config=config)
@@ -171,32 +171,32 @@ class TestWhereGeneratorValidation:
         assert "SQL injection pattern detected" in str(exc_info.value)
         assert exc_info.value.code == "SQL_GENERATION_ERROR"
 
-    def test_lenient_validation_mode(self):
+    def test_lenient_validation_mode(self) -> None:
         """Test lenient mode allows suspicious input with sanitization."""
         config = WhereGeneratorConfig(validation_mode=ValidationMode.LENIENT)
         UserWhere = create_where_type(User, config=config)
 
         # Should allow but sanitize
         where = UserWhere(email="test'; DROP TABLE users; --")
-        sql = where.to_sql()
+        where.to_sql()
 
         # Value should be parameterized safely
         params = where._get_params()
         assert params[0] == "test'; DROP TABLE users; --"
 
-    def test_disabled_validation(self):
+    def test_disabled_validation(self) -> None:
         """Test disabled validation mode."""
         config = WhereGeneratorConfig(validation_mode=ValidationMode.DISABLED)
         UserWhere = create_where_type(User, config=config)
 
         # Should allow any input
         where = UserWhere(email="<script>alert('xss')</script>")
-        sql = where.to_sql()
+        where.to_sql()
 
         params = where._get_params()
         assert params[0] == "<script>alert('xss')</script>"
 
-    def test_field_length_validation(self):
+    def test_field_length_validation(self) -> None:
         """Test field length limits."""
         config = WhereGeneratorConfig(
             validation_mode=ValidationMode.STRICT,
@@ -211,7 +211,7 @@ class TestWhereGeneratorValidation:
 
         assert "exceeds maximum length" in str(exc_info.value)
 
-    def test_numeric_validation(self):
+    def test_numeric_validation(self) -> None:
         """Test numeric value validation."""
         config = WhereGeneratorConfig(validation_mode=ValidationMode.STRICT)
         UserWhere = create_where_type(User, config=config)
@@ -225,7 +225,7 @@ class TestWhereGeneratorValidation:
 class TestWhereGeneratorTypeMapping:
     """Test type-specific SQL generation."""
 
-    def test_integer_type_casting(self):
+    def test_integer_type_casting(self) -> None:
         """Test integer fields get proper casting."""
         UserWhere = create_where_type(User)
         where = UserWhere(age=25)
@@ -233,7 +233,7 @@ class TestWhereGeneratorTypeMapping:
         sql_str = where.to_sql().as_string(None)
         assert "(data->>'age')::int = %s" in sql_str
 
-    def test_boolean_type_casting(self):
+    def test_boolean_type_casting(self) -> None:
         """Test boolean fields get proper casting."""
         UserWhere = create_where_type(User)
         where = UserWhere(is_active=True)
@@ -241,7 +241,7 @@ class TestWhereGeneratorTypeMapping:
         sql_str = where.to_sql().as_string(None)
         assert "(data->>'is_active')::boolean = %s" in sql_str
 
-    def test_decimal_type_casting(self):
+    def test_decimal_type_casting(self) -> None:
         """Test decimal fields get numeric casting."""
         ProductWhere = create_where_type(Product)
         where = ProductWhere(price=Decimal("99.99"))
@@ -249,7 +249,7 @@ class TestWhereGeneratorTypeMapping:
         sql_str = where.to_sql().as_string(None)
         assert "(data->>'price')::numeric = %s" in sql_str
 
-    def test_datetime_handling(self):
+    def test_datetime_handling(self) -> None:
         """Test datetime field handling."""
         UserWhere = create_where_type(User)
         where = UserWhere(created_at_gte=datetime(2023, 1, 1))
@@ -261,7 +261,7 @@ class TestWhereGeneratorTypeMapping:
 class TestWhereGeneratorConfig:
     """Test configuration options."""
 
-    def test_custom_field_mapping(self):
+    def test_custom_field_mapping(self) -> None:
         """Test custom field name mapping."""
         config = WhereGeneratorConfig(
             field_mapping={"email": "user_email"},
@@ -272,7 +272,7 @@ class TestWhereGeneratorConfig:
         sql_str = where.to_sql().as_string(None)
         assert "data->>'user_email' = %s" in sql_str
 
-    def test_custom_operators(self):
+    def test_custom_operators(self) -> None:
         """Test adding custom operators."""
 
         def case_sensitive_eq(path_sql, value):
@@ -289,7 +289,7 @@ class TestWhereGeneratorConfig:
         sql = where.to_sql()
         assert sql is not None  # Custom operator was applied
 
-    def test_excluded_fields(self):
+    def test_excluded_fields(self) -> None:
         """Test excluding fields from WHERE generation."""
         config = WhereGeneratorConfig(
             excluded_fields={"created_at", "id"},
@@ -306,7 +306,7 @@ class TestWhereGeneratorConfig:
 class TestWhereGeneratorEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_nested_field_access(self):
+    def test_nested_field_access(self) -> None:
         """Test accessing nested JSON fields."""
         config = WhereGeneratorConfig(enable_nested_access=True)
 
@@ -321,7 +321,7 @@ class TestWhereGeneratorEdgeCases:
         sql_str = where.to_sql().as_string(None)
         assert "data->'profile'->>'city' = %s" in sql_str
 
-    def test_or_conditions(self):
+    def test_or_conditions(self) -> None:
         """Test OR condition support."""
         UserWhere = create_where_type(User)
         where = UserWhere(
@@ -335,7 +335,7 @@ class TestWhereGeneratorEdgeCases:
         assert "(" in sql_str  # Should have grouped conditions
         assert "OR" in sql_str
 
-    def test_and_conditions_explicit(self):
+    def test_and_conditions_explicit(self) -> None:
         """Test explicit AND conditions."""
         UserWhere = create_where_type(User)
         where = UserWhere(
@@ -348,7 +348,7 @@ class TestWhereGeneratorEdgeCases:
         sql_str = where.to_sql().as_string(None)
         assert "AND" in sql_str
 
-    def test_complex_nested_conditions(self):
+    def test_complex_nested_conditions(self) -> None:
         """Test complex nested AND/OR conditions."""
         UserWhere = create_where_type(User)
         where = UserWhere(

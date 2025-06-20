@@ -44,7 +44,7 @@ except ImportError:
         """Placeholder for extract when opentelemetry is not available."""
         return {}
 
-    def inject(*args, **kwargs):  # type: ignore
+    def inject(*args, **kwargs) -> None:  # type: ignore
         """Placeholder for inject when opentelemetry is not available."""
         return
 
@@ -65,7 +65,7 @@ except ImportError:
         ERROR = "ERROR"
 
     class Status:  # type: ignore
-        def __init__(self, code, description=""):
+        def __init__(self, code, description="") -> None:
             self.code = code
             self.description = description
 
@@ -113,16 +113,18 @@ class TracingConfig:
     def __post_init__(self):
         """Validate configuration."""
         if not 0.0 <= self.sample_rate <= 1.0:
-            raise ValueError("sample_rate must be between 0.0 and 1.0")
+            msg = "sample_rate must be between 0.0 and 1.0"
+            raise ValueError(msg)
 
         if self.export_format not in ("otlp", "jaeger", "zipkin"):
-            raise ValueError("export_format must be one of: otlp, jaeger, zipkin")
+            msg = "export_format must be one of: otlp, jaeger, zipkin"
+            raise ValueError(msg)
 
 
 class FraiseQLTracer:
     """OpenTelemetry tracer for FraiseQL operations."""
 
-    def __init__(self, config: TracingConfig | None = None):
+    def __init__(self, config: TracingConfig | None = None) -> None:
         """Initialize tracer with configuration."""
         self.config = config or TracingConfig()
         self.tracer = self._setup_tracer()
@@ -131,7 +133,7 @@ class FraiseQLTracer:
         if self.config.enabled and OPENTELEMETRY_AVAILABLE and PsycopgInstrumentor is not None:
             PsycopgInstrumentor().instrument()
 
-    def _setup_tracer(self) -> "trace.Tracer":
+    def _setup_tracer(self):
         """Set up OpenTelemetry tracer with configured exporter."""
         if not self.config.enabled or not OPENTELEMETRY_AVAILABLE:
             # Return no-op tracer when disabled or not available
@@ -311,7 +313,7 @@ class FraiseQLTracer:
 class TracingMiddleware(BaseHTTPMiddleware):
     """Middleware to trace HTTP requests."""
 
-    def __init__(self, app, tracer: FraiseQLTracer):
+    def __init__(self, app, tracer: FraiseQLTracer) -> None:
         """Initialize tracing middleware."""
         super().__init__(app)
         self.tracer = tracer

@@ -8,14 +8,14 @@ from fraiseql.cli.main import cli, main
 class TestCLIMain:
     """Test the main CLI functionality."""
 
-    def test_cli_version(self, cli_runner):
+    def test_cli_version(self, cli_runner) -> None:
         """Test --version flag shows version."""
         result = cli_runner.invoke(cli, ["--version"])
 
         assert result.exit_code == 0
         assert "fraiseql, version 0.1.0" in result.output
 
-    def test_cli_help(self, cli_runner):
+    def test_cli_help(self, cli_runner) -> None:
         """Test --help shows help text."""
         result = cli_runner.invoke(cli, ["--help"])
 
@@ -27,7 +27,7 @@ class TestCLIMain:
         assert "generate" in result.output
         assert "check" in result.output
 
-    def test_cli_no_command(self, cli_runner):
+    def test_cli_no_command(self, cli_runner) -> None:
         """Test CLI without command shows help."""
         result = cli_runner.invoke(cli, [])
 
@@ -35,14 +35,14 @@ class TestCLIMain:
         assert result.exit_code == 2
         assert "Usage:" in result.output
 
-    def test_cli_invalid_command(self, cli_runner):
+    def test_cli_invalid_command(self, cli_runner) -> None:
         """Test invalid command shows error."""
         result = cli_runner.invoke(cli, ["invalid-command"])
 
         assert result.exit_code != 0
         assert "Error: No such command 'invalid-command'" in result.output
 
-    def test_main_function_handles_exceptions(self):
+    def test_main_function_handles_exceptions(self) -> None:
         """Test main() function handles exceptions properly."""
         with patch("fraiseql.cli.main.cli", side_effect=Exception("Test error")):
             with patch("sys.exit") as mock_exit:
@@ -52,7 +52,7 @@ class TestCLIMain:
                     mock_echo.assert_called_with("Error: Test error", err=True)
                     mock_exit.assert_called_with(1)
 
-    def test_command_groups(self, cli_runner):
+    def test_command_groups(self, cli_runner) -> None:
         """Test command groups have proper help."""
         # Test generate group
         result = cli_runner.invoke(cli, ["generate", "--help"])

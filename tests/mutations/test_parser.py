@@ -57,13 +57,13 @@ class BulkUpdateError:
 class TestStatusDetection:
     """Test error status detection."""
 
-    def test_success_status(self):
+    def test_success_status(self) -> None:
         """Test success status detection."""
         assert not _is_error_status("success")
         assert not _is_error_status("completed")
         assert not _is_error_status("ok")
 
-    def test_error_status(self):
+    def test_error_status(self) -> None:
         """Test error status detection."""
         assert _is_error_status("error")
         assert _is_error_status("failed")
@@ -72,7 +72,7 @@ class TestStatusDetection:
         assert _is_error_status("validation_error")
         assert _is_error_status("conflict")
 
-    def test_case_insensitive(self):
+    def test_case_insensitive(self) -> None:
         """Test case insensitive status detection."""
         assert _is_error_status("ERROR")
         assert _is_error_status("FAILED")
@@ -83,7 +83,7 @@ class TestStatusDetection:
 class TestSuccessfulResults:
     """Test parsing successful mutation results."""
 
-    def test_simple_success_with_object_data(self):
+    def test_simple_success_with_object_data(self) -> None:
         """Test parsing simple success result."""
         result = {
             "status": "success",
@@ -104,7 +104,7 @@ class TestSuccessfulResults:
         assert parsed.user.name == "John Doe"
         assert parsed.user.email == "john@example.com"
 
-    def test_success_with_metadata_fields(self):
+    def test_success_with_metadata_fields(self) -> None:
         """Test success with additional fields from metadata."""
         result = {
             "status": "success",
@@ -135,7 +135,7 @@ class TestSuccessfulResults:
 class TestErrorResults:
     """Test parsing error mutation results."""
 
-    def test_simple_error(self):
+    def test_simple_error(self) -> None:
         """Test parsing simple error result."""
         result = {"status": "validation_error", "message": "Invalid input data"}
 
@@ -146,7 +146,7 @@ class TestErrorResults:
         assert parsed.conflict_user is None
         assert parsed.suggested_email is None
 
-    def test_error_with_metadata(self):
+    def test_error_with_metadata(self) -> None:
         """Test error with additional data from metadata."""
         result = {
             "status": "email_exists",
@@ -174,19 +174,19 @@ class TestErrorResults:
 class TestTypeInstantiation:
     """Test type instantiation logic."""
 
-    def test_instantiate_primitive_types(self):
+    def test_instantiate_primitive_types(self) -> None:
         """Test instantiating primitive types."""
         assert _instantiate_type(str, "hello") == "hello"
         assert _instantiate_type(int, 42) == 42
         assert _instantiate_type(float, 3.14) == 3.14
         assert _instantiate_type(bool, True) is True
 
-    def test_instantiate_none(self):
+    def test_instantiate_none(self) -> None:
         """Test instantiating None values."""
         assert _instantiate_type(str, None) is None
         assert _instantiate_type(User, None) is None
 
-    def test_instantiate_list_of_objects(self):
+    def test_instantiate_list_of_objects(self) -> None:
         """Test instantiating list of complex objects."""
         data = [
             {"id": "1", "order_number": "ORD-001", "total": 100.0},
@@ -201,7 +201,7 @@ class TestTypeInstantiation:
         assert result[0].id == "1"
         assert result[1].order_number == "ORD-002"
 
-    def test_instantiate_fraise_type(self):
+    def test_instantiate_fraise_type(self) -> None:
         """Test instantiating FraiseQL types."""
         data = {"id": "123", "name": "John", "email": "john@example.com"}
 
@@ -212,7 +212,7 @@ class TestTypeInstantiation:
         assert result.name == "John"
         assert result.email == "john@example.com"
 
-    def test_instantiate_optional_type(self):
+    def test_instantiate_optional_type(self) -> None:
         """Test instantiating optional (union) types."""
         # Test with None
         result = _instantiate_type(User | None, None)
@@ -229,7 +229,7 @@ class TestTypeInstantiation:
 class TestMainFieldDetection:
     """Test main field detection logic."""
 
-    def test_find_main_field_with_entity_hint(self):
+    def test_find_main_field_with_entity_hint(self) -> None:
         """Test finding main field with entity hint."""
         annotations = {"message": str, "user": User, "extra_data": dict}
         metadata = {"entity": "user"}
@@ -237,7 +237,7 @@ class TestMainFieldDetection:
         result = _find_main_field(annotations, metadata)
         assert result == "user"
 
-    def test_find_main_field_with_entity_suffix(self):
+    def test_find_main_field_with_entity_suffix(self) -> None:
         """Test finding main field with entity suffix matching."""
         annotations = {"message": str, "affected_orders": list[Order], "count": int}
         metadata = {"entity": "affected_order"}  # Singular form
@@ -245,14 +245,14 @@ class TestMainFieldDetection:
         result = _find_main_field(annotations, metadata)
         assert result == "affected_orders"  # Should match with 's' suffix
 
-    def test_find_main_field_first_non_message(self):
+    def test_find_main_field_first_non_message(self) -> None:
         """Test finding first non-message field when no entity hint."""
         annotations = {"message": str, "user": User, "timestamp": str}
 
         result = _find_main_field(annotations, None)
         assert result == "user"  # First non-message field
 
-    def test_find_main_field_no_fields(self):
+    def test_find_main_field_no_fields(self) -> None:
         """Test finding main field when only message exists."""
         annotations = {"message": str}
 
@@ -264,7 +264,7 @@ class TestMainFieldDetection:
 class TestComplexScenarios:
     """Test complex parsing scenarios."""
 
-    def test_empty_metadata(self):
+    def test_empty_metadata(self) -> None:
         """Test handling empty metadata."""
         result = {
             "status": "success",
@@ -277,7 +277,7 @@ class TestComplexScenarios:
         assert isinstance(parsed, CreateUserSuccess)
         assert parsed.user.id == "123"
 
-    def test_empty_object_data(self):
+    def test_empty_object_data(self) -> None:
         """Test handling empty object data."""
         result = {
             "status": "success",

@@ -9,7 +9,7 @@ from fraiseql.cli.main import cli
 class TestGenerateSchema:
     """Test the generate schema command."""
 
-    def test_generate_schema_success(self, cli_runner, temp_project_dir):
+    def test_generate_schema_success(self, cli_runner, temp_project_dir) -> None:
         """Test successful schema generation."""
         # Create a real project structure
         Path("src").mkdir()
@@ -65,7 +65,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         assert "type Post" in schema_content
         assert "author: User" in schema_content
 
-    def test_generate_schema_custom_output(self, cli_runner, temp_project_dir):
+    def test_generate_schema_custom_output(self, cli_runner, temp_project_dir) -> None:
         """Test schema generation with custom output file."""
         # Create simple project
         Path("src").mkdir()
@@ -94,9 +94,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         result = cli_runner.invoke(cli, ["generate", "schema", "-o", "custom.graphql"])
 
         if result.exit_code != 0:
-            print(f"Exit code: {result.exit_code}")
-            print(f"Output: {result.output}")
-            print(f"Exception: {result.exception}")
+            pass
         assert result.exit_code == 0
         assert "Schema written to custom.graphql" in result.output
         assert Path("custom.graphql").exists()
@@ -104,7 +102,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         # Verify content
         assert "type Item" in Path("custom.graphql").read_text()
 
-    def test_generate_schema_no_app(self, cli_runner, temp_project_dir):
+    def test_generate_schema_no_app(self, cli_runner, temp_project_dir) -> None:
         """Test error when no app is found."""
         Path("src").mkdir()
         (Path("src") / "main.py").write_text("# no app defined")
@@ -114,7 +112,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         assert result.exit_code != 0
         assert "No 'app' found in src/main.py" in result.output
 
-    def test_generate_schema_import_error(self, cli_runner, temp_project_dir):
+    def test_generate_schema_import_error(self, cli_runner, temp_project_dir) -> None:
         """Test error handling when import fails."""
         Path("src").mkdir()
         (Path("src") / "main.py").write_text(
@@ -134,7 +132,7 @@ app = None
 class TestGenerateMigration:
     """Test the generate migration command."""
 
-    def test_generate_migration_default_table(self, cli_runner, temp_project_dir):
+    def test_generate_migration_default_table(self, cli_runner, temp_project_dir) -> None:
         """Test migration generation with default table name."""
         # Mock only the timestamp to get predictable filename
         with patch(
@@ -156,7 +154,7 @@ class TestGenerateMigration:
             assert "CREATE INDEX IF NOT EXISTS idx_users_data" in content
             assert "CREATE OR REPLACE VIEW v_users" in content
 
-    def test_generate_migration_custom_table(self, cli_runner, temp_project_dir):
+    def test_generate_migration_custom_table(self, cli_runner, temp_project_dir) -> None:
         """Test migration generation with custom table name."""
         with patch(
             "fraiseql.cli.commands.generate.get_timestamp",
@@ -176,7 +174,7 @@ class TestGenerateMigration:
             assert "CREATE INDEX IF NOT EXISTS idx_blog_posts_data" in content
             assert "CREATE OR REPLACE VIEW v_blog_posts" in content
 
-    def test_generate_migration_creates_directory(self, cli_runner, temp_project_dir):
+    def test_generate_migration_creates_directory(self, cli_runner, temp_project_dir) -> None:
         """Test that migrations directory is created if missing."""
         assert not Path("migrations").exists()
 
@@ -193,7 +191,7 @@ class TestGenerateMigration:
 class TestGenerateCrud:
     """Test the generate crud command."""
 
-    def test_generate_crud_creates_mutations(self, cli_runner, temp_project_dir):
+    def test_generate_crud_creates_mutations(self, cli_runner, temp_project_dir) -> None:
         """Test CRUD generation creates mutation file."""
         result = cli_runner.invoke(cli, ["generate", "crud", "Product"])
 
@@ -213,7 +211,7 @@ class TestGenerateCrud:
         assert "async def update_product(" in content
         assert "async def delete_product(" in content
 
-    def test_generate_crud_creates_directory(self, cli_runner, temp_project_dir):
+    def test_generate_crud_creates_directory(self, cli_runner, temp_project_dir) -> None:
         """Test that mutations directory is created if missing."""
         assert not Path("src/mutations").exists()
 
@@ -223,7 +221,7 @@ class TestGenerateCrud:
         assert Path("src/mutations").exists()
         assert Path("src/mutations/user_mutations.py").exists()
 
-    def test_generate_crud_handles_case(self, cli_runner, temp_project_dir):
+    def test_generate_crud_handles_case(self, cli_runner, temp_project_dir) -> None:
         """Test that CRUD generation handles different case inputs."""
         result = cli_runner.invoke(cli, ["generate", "crud", "BlogPost"])
 

@@ -38,7 +38,7 @@ class SampleError:
 class TestMutationDefinition:
     """Test MutationDefinition class."""
 
-    def test_create_definition_with_all_types(self):
+    def test_create_definition_with_all_types(self) -> None:
         """Test creating a mutation definition with all required types."""
 
         @mutation
@@ -57,7 +57,7 @@ class TestMutationDefinition:
         assert definition.success_type == SampleSuccess
         assert definition.error_type == SampleError
 
-    def test_custom_function_name(self):
+    def test_custom_function_name(self) -> None:
         """Test mutation with custom function name."""
 
         @mutation(function="custom_create_user")
@@ -69,7 +69,7 @@ class TestMutationDefinition:
         definition = CreateUser.__fraiseql_mutation__
         assert definition.function_name == "custom_create_user"
 
-    def test_custom_schema(self):
+    def test_custom_schema(self) -> None:
         """Test mutation with custom schema."""
 
         @mutation(schema="mutations")
@@ -81,7 +81,7 @@ class TestMutationDefinition:
         definition = CreateUser.__fraiseql_mutation__
         assert definition.schema == "mutations"
 
-    def test_missing_input_type_raises_error(self):
+    def test_missing_input_type_raises_error(self) -> None:
         """Test that missing input type raises TypeError."""
         with pytest.raises(TypeError, match="must define 'input' type"):
 
@@ -90,7 +90,7 @@ class TestMutationDefinition:
                 success: SampleSuccess
                 error: SampleError
 
-    def test_missing_success_type_raises_error(self):
+    def test_missing_success_type_raises_error(self) -> None:
         """Test that missing success type raises TypeError."""
         with pytest.raises(TypeError, match="must define 'success' type"):
 
@@ -99,7 +99,7 @@ class TestMutationDefinition:
                 input: SampleInput
                 error: SampleError
 
-    def test_missing_error_type_raises_error(self):
+    def test_missing_error_type_raises_error(self) -> None:
         """Test that missing error type raises TypeError."""
         with pytest.raises(TypeError, match="must define 'failure' type"):
 
@@ -108,7 +108,7 @@ class TestMutationDefinition:
                 input: SampleInput
                 success: SampleSuccess
 
-    def test_camel_to_snake_conversion(self):
+    def test_camel_to_snake_conversion(self) -> None:
         """Test CamelCase to snake_case conversion."""
         test_cases = [
             ("CreateUser", "create_user"),
@@ -136,7 +136,7 @@ class TestMutationResolver:
     """Test the generated resolver function."""
 
     @pytest.mark.asyncio
-    async def test_resolver_calls_database_function(self):
+    async def test_resolver_calls_database_function(self) -> None:
         """Test that resolver calls the correct database function."""
 
         @mutation
@@ -189,7 +189,7 @@ class TestMutationResolver:
         assert result.user.id == "123"
 
     @pytest.mark.asyncio
-    async def test_resolver_handles_error_result(self):
+    async def test_resolver_handles_error_result(self) -> None:
         """Test that resolver handles error results."""
 
         @mutation
@@ -222,7 +222,7 @@ class TestMutationResolver:
         assert result.code == "validation_error"
 
     @pytest.mark.asyncio
-    async def test_resolver_missing_database_raises_error(self):
+    async def test_resolver_missing_database_raises_error(self) -> None:
         """Test that missing database in context raises RuntimeError."""
 
         @mutation
@@ -242,7 +242,7 @@ class TestMutationResolver:
         with pytest.raises(RuntimeError, match="No database connection in context"):
             await resolver(info, input_obj)
 
-    def test_resolver_metadata(self):
+    def test_resolver_metadata(self) -> None:
         """Test that resolver has proper metadata."""
 
         @mutation
@@ -263,7 +263,7 @@ class TestMutationResolver:
 class TestInputConversion:
     """Test input object to dict conversion."""
 
-    def test_convert_object_with_to_dict(self):
+    def test_convert_object_with_to_dict(self) -> None:
         """Test converting object with to_dict method."""
         from fraiseql.mutations.mutation_decorator import _to_dict
 
@@ -273,12 +273,12 @@ class TestInputConversion:
         result = _to_dict(obj)
         assert result == {"name": "test", "value": 42}
 
-    def test_convert_object_with_dict_attr(self):
+    def test_convert_object_with_dict_attr(self) -> None:
         """Test converting object with __dict__ attribute."""
         from fraiseql.mutations.mutation_decorator import _to_dict
 
         class TestObj:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.name = "test"
                 self.value = 42
                 self._private = "hidden"
@@ -287,7 +287,7 @@ class TestInputConversion:
         assert result == {"name": "test", "value": 42}
         assert "_private" not in result
 
-    def test_convert_dict_object(self):
+    def test_convert_dict_object(self) -> None:
         """Test converting dict object."""
         from fraiseql.mutations.mutation_decorator import _to_dict
 
@@ -295,7 +295,7 @@ class TestInputConversion:
         result = _to_dict(data)
         assert result == data
 
-    def test_convert_unsupported_type_raises_error(self):
+    def test_convert_unsupported_type_raises_error(self) -> None:
         """Test that unsupported types raise TypeError."""
         from fraiseql.mutations.mutation_decorator import _to_dict
 

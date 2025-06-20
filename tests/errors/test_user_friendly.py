@@ -13,7 +13,7 @@ from fraiseql.errors.user_friendly import (
 class TestFraiseQLError:
     """Test base error class."""
 
-    def test_basic_error_message(self):
+    def test_basic_error_message(self) -> None:
         """Test basic error with message only."""
         error = FraiseQLError("Something went wrong")
         assert str(error) == "Something went wrong"
@@ -21,7 +21,7 @@ class TestFraiseQLError:
         assert error.suggestion is None
         assert error.doc_link is None
 
-    def test_error_with_all_fields(self):
+    def test_error_with_all_fields(self) -> None:
         """Test error with all optional fields."""
         error = FraiseQLError(
             message="Invalid configuration",
@@ -38,7 +38,7 @@ class TestFraiseQLError:
         assert str(error) == expected
         assert error.code == "CONFIG_ERROR"
 
-    def test_error_with_context(self):
+    def test_error_with_context(self) -> None:
         """Test error with context information."""
         error = FraiseQLError(
             message="Query failed",
@@ -50,7 +50,7 @@ class TestFraiseQLError:
 class TestMissingTypeHintError:
     """Test missing type hint errors."""
 
-    def test_missing_type_hint_for_field(self):
+    def test_missing_type_hint_for_field(self) -> None:
         """Test error for missing field type hint."""
         error = MissingTypeHintError(
             class_name="User",
@@ -65,7 +65,7 @@ class TestMissingTypeHintError:
         assert str(error) == expected
         assert error.code == "MISSING_TYPE_HINT"
 
-    def test_missing_type_hint_with_example_type(self):
+    def test_missing_type_hint_with_example_type(self) -> None:
         """Test error with suggested type."""
         error = MissingTypeHintError(
             class_name="Post",
@@ -79,7 +79,7 @@ class TestMissingTypeHintError:
 class TestMissingDatabaseViewError:
     """Test missing database view errors."""
 
-    def test_missing_view_error(self):
+    def test_missing_view_error(self) -> None:
         """Test error for missing database view."""
         error = MissingDatabaseViewError(
             type_name="User",
@@ -102,7 +102,7 @@ class TestMissingDatabaseViewError:
         )
         assert str(error) == expected
 
-    def test_missing_view_with_custom_name(self):
+    def test_missing_view_with_custom_name(self) -> None:
         """Test error with custom view name."""
         error = MissingDatabaseViewError(
             type_name="Product",
@@ -117,7 +117,7 @@ class TestMissingDatabaseViewError:
 class TestInvalidFieldTypeError:
     """Test invalid field type errors."""
 
-    def test_unsupported_type_error(self):
+    def test_unsupported_type_error(self) -> None:
         """Test error for unsupported Python type."""
         error = InvalidFieldTypeError(
             class_name="User",
@@ -133,7 +133,7 @@ class TestInvalidFieldTypeError:
         )
         assert str(error) == expected
 
-    def test_invalid_type_with_conversion_hint(self):
+    def test_invalid_type_with_conversion_hint(self) -> None:
         """Test error with type conversion suggestion."""
         error = InvalidFieldTypeError(
             class_name="Config",
@@ -148,7 +148,7 @@ class TestInvalidFieldTypeError:
 class TestSQLGenerationError:
     """Test SQL generation errors."""
 
-    def test_sql_generation_error(self):
+    def test_sql_generation_error(self) -> None:
         """Test error during SQL generation."""
         error = SQLGenerationError(
             operation="WHERE clause generation",
@@ -164,7 +164,7 @@ class TestSQLGenerationError:
         assert str(error) == expected
         assert error.context["query_info"]["operator"] == "regex"
 
-    def test_sql_generation_with_suggestion(self):
+    def test_sql_generation_with_suggestion(self) -> None:
         """Test SQL generation error with custom suggestion."""
         error = SQLGenerationError(
             operation="JOIN generation",
@@ -178,7 +178,7 @@ class TestSQLGenerationError:
 class TestMutationNotFoundError:
     """Test mutation not found errors."""
 
-    def test_mutation_not_found(self):
+    def test_mutation_not_found(self) -> None:
         """Test error for missing mutation function."""
         error = MutationNotFoundError(
             mutation_name="createUser",
@@ -204,7 +204,7 @@ class TestMutationNotFoundError:
         )
         assert str(error) == expected
 
-    def test_mutation_with_available_functions(self):
+    def test_mutation_with_available_functions(self) -> None:
         """Test mutation error showing available functions."""
         error = MutationNotFoundError(
             mutation_name="updateUser",
@@ -219,10 +219,11 @@ class TestMutationNotFoundError:
 class TestErrorChaining:
     """Test error chaining and causality."""
 
-    def test_error_with_cause(self):
+    def test_error_with_cause(self) -> None:
         """Test error with underlying cause."""
         try:
-            raise ValueError("Database connection failed")
+            msg = "Database connection failed"
+            raise ValueError(msg)
         except ValueError as e:
             error = FraiseQLError(
                 message="Failed to execute query",
@@ -231,7 +232,7 @@ class TestErrorChaining:
             assert error.__cause__ == e
             assert "Database connection failed" in str(e)
 
-    def test_error_context_preservation(self):
+    def test_error_context_preservation(self) -> None:
         """Test that context is preserved through error chain."""
         original = SQLGenerationError(
             operation="WHERE clause",

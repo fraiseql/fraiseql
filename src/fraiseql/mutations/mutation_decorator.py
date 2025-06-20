@@ -18,7 +18,7 @@ class MutationDefinition:
         mutation_class: type,
         function_name: str | None = None,
         schema: str = "graphql",
-    ):
+    ) -> None:
         self.mutation_class = mutation_class
         self.name = mutation_class.__name__
         self.schema = schema
@@ -32,12 +32,15 @@ class MutationDefinition:
         )  # Support both 'error' and 'failure'
 
         if not self.input_type:
-            raise TypeError(f"Mutation {self.name} must define 'input' type")
+            msg = f"Mutation {self.name} must define 'input' type"
+            raise TypeError(msg)
         if not self.success_type:
-            raise TypeError(f"Mutation {self.name} must define 'success' type")
+            msg = f"Mutation {self.name} must define 'success' type"
+            raise TypeError(msg)
         if not self.error_type:
+            msg = f"Mutation {self.name} must define 'failure' type (or 'error' for backwards compatibility)"
             raise TypeError(
-                f"Mutation {self.name} must define 'failure' type (or 'error' for backwards compatibility)",
+                msg,
             )
 
         # Derive function name from class name if not provided
@@ -56,7 +59,8 @@ class MutationDefinition:
             # Get database connection
             db = info.context.get("db")
             if not db:
-                raise RuntimeError("No database connection in context")
+                msg = "No database connection in context"
+                raise RuntimeError(msg)
 
             # Convert input to dict
             input_data = _to_dict(input)
@@ -188,4 +192,5 @@ def _to_dict(obj: Any) -> dict[str, Any]:
         return result
     if isinstance(obj, dict):
         return obj
-    raise TypeError(f"Cannot convert {type(obj)} to dictionary")
+    msg = f"Cannot convert {type(obj)} to dictionary"
+    raise TypeError(msg)

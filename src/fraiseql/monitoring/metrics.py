@@ -31,36 +31,36 @@ except ImportError:
         pass
 
     class Counter:  # type: ignore
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             pass
 
-        def inc(self, *args, **kwargs):
+        def inc(self, *args, **kwargs) -> None:
             pass
 
         def labels(self, *args, **kwargs):
             return self
 
     class Gauge:  # type: ignore
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             pass
 
-        def set(self, *args, **kwargs):
+        def set(self, *args, **kwargs) -> None:
             pass
 
-        def inc(self, *args, **kwargs):
+        def inc(self, *args, **kwargs) -> None:
             pass
 
-        def dec(self, *args, **kwargs):
+        def dec(self, *args, **kwargs) -> None:
             pass
 
         def labels(self, *args, **kwargs):
             return self
 
     class Histogram:  # type: ignore
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             pass
 
-        def observe(self, *args, **kwargs):
+        def observe(self, *args, **kwargs) -> None:
             pass
 
         def labels(self, *args, **kwargs):
@@ -68,7 +68,7 @@ except ImportError:
 
     CONTENT_TYPE_LATEST = "text/plain"
 
-    def generate_latest(*args, **kwargs):
+    def generate_latest(*args, **kwargs) -> bytes:
         """Placeholder for generate_latest when prometheus_client is not available."""
         return b""
 
@@ -114,12 +114,14 @@ class MetricsConfig:
     def __post_init__(self):
         """Validate configuration."""
         if not self.namespace:
-            raise ValueError("Namespace cannot be empty")
+            msg = "Namespace cannot be empty"
+            raise ValueError(msg)
 
         # Ensure buckets are monotonic
         for i in range(1, len(self.buckets)):
             if self.buckets[i] <= self.buckets[i - 1]:
-                raise ValueError("Histogram buckets must be monotonically increasing")
+                msg = "Histogram buckets must be monotonically increasing"
+                raise ValueError(msg)
 
 
 class FraiseQLMetrics:
@@ -129,7 +131,7 @@ class FraiseQLMetrics:
         self,
         config: MetricsConfig | None = None,
         registry: CollectorRegistry | None = None,
-    ):
+    ) -> None:
         """Initialize metrics with configuration."""
         self.config = config or MetricsConfig()
         self.registry = registry or CollectorRegistry()
@@ -379,7 +381,7 @@ class FraiseQLMetrics:
 class MetricsMiddleware(BaseHTTPMiddleware):
     """Middleware to collect HTTP metrics."""
 
-    def __init__(self, app, metrics: FraiseQLMetrics, config: MetricsConfig | None = None):
+    def __init__(self, app, metrics: FraiseQLMetrics, config: MetricsConfig | None = None) -> None:
         """Initialize metrics middleware."""
         super().__init__(app)
         self.metrics = metrics

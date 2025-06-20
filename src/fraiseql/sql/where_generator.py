@@ -102,7 +102,8 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
                 parts.append(lit)
             parts.append(SQL(")"))
             return Composed(parts)
-        raise ValueError(f"'in' operator requires a list, got {type(val)}")
+        msg = f"'in' operator requires a list, got {type(val)}"
+        raise ValueError(msg)
     if op == "notin":
         if isinstance(val, list):
             # Convert booleans to strings for JSONB text comparison
@@ -115,7 +116,8 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
                 parts.append(lit)
             parts.append(SQL(")"))
             return Composed(parts)
-        raise ValueError(f"'notin' operator requires a list, got {type(val)}")
+        msg = f"'notin' operator requires a list, got {type(val)}"
+        raise ValueError(msg)
     if op == "depth_eq":
         return Composed([SQL("nlevel("), path_sql, SQL(") = "), Literal(val)])
     if op == "depth_gt":
@@ -136,7 +138,8 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
                 Literal(val),
             ],
         )
-    raise ValueError(f"Unsupported operator: {op}")
+    msg = f"Unsupported operator: {op}"
+    raise ValueError(msg)
 
 
 def _make_filter_field_composed(

@@ -48,7 +48,7 @@ class TurboQuery:
 class TurboRegistry:
     """Registry for TurboRouter queries with LRU eviction."""
 
-    def __init__(self, max_size: int = 1000):
+    def __init__(self, max_size: int = 1000) -> None:
         """Initialize the registry.
 
         Args:
@@ -114,7 +114,7 @@ class TurboRegistry:
 
         return None
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all registered queries."""
         self._queries.clear()
 
@@ -126,7 +126,7 @@ class TurboRegistry:
 class TurboRouter:
     """High-performance router for registered GraphQL queries."""
 
-    def __init__(self, registry: TurboRegistry):
+    def __init__(self, registry: TurboRegistry) -> None:
         """Initialize the router with a registry.
 
         Args:
@@ -158,7 +158,8 @@ class TurboRouter:
         # Get database from context
         db = context.get("db")
         if db is None:
-            raise ValueError("Database connection not found in context")
+            msg = "Database connection not found in context"
+            raise ValueError(msg)
 
         # Map GraphQL variables to SQL parameters
         sql_params = turbo_query.map_variables(variables)

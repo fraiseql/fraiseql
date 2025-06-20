@@ -23,7 +23,7 @@ class User:
     active: bool = True
 
 
-async def setup_test_users(conn):
+async def setup_test_users(conn) -> None:
     """Create users table and test data."""
     await conn.execute(
         """
@@ -31,7 +31,7 @@ async def setup_test_users(conn):
             id SERIAL PRIMARY KEY,
             data JSONB NOT NULL DEFAULT '{}'
         )
-    """
+    """,
     )
 
     # Insert test data
@@ -50,7 +50,7 @@ async def setup_test_users(conn):
     await conn.commit()
 
 
-async def cleanup_test_users(conn):
+async def cleanup_test_users(conn) -> None:
     """Clean up test table."""
     await conn.execute("DROP TABLE IF EXISTS users CASCADE")
     await conn.commit()
@@ -61,7 +61,7 @@ class TestSQLInjectionPrevention:
     """Test SQL injection prevention with real database execution."""
 
     @pytest.mark.asyncio
-    async def test_sql_injection_in_string_fields(self, db_pool):
+    async def test_sql_injection_in_string_fields(self, db_pool) -> None:
         """Test SQL injection attempts in string fields."""
         # Setup
         async with db_pool.connection() as conn:
@@ -109,7 +109,7 @@ class TestSQLInjectionPrevention:
             await cleanup_test_users(conn)
 
     @pytest.mark.asyncio
-    async def test_sql_injection_in_list_operations(self, db_pool):
+    async def test_sql_injection_in_list_operations(self, db_pool) -> None:
         """Test SQL injection in IN/NOT IN operations."""
         # Setup
         async with db_pool.connection() as conn:
@@ -148,7 +148,7 @@ class TestSQLInjectionPrevention:
             await cleanup_test_users(conn)
 
     @pytest.mark.asyncio
-    async def test_sql_injection_with_special_characters(self, db_pool):
+    async def test_sql_injection_with_special_characters(self, db_pool) -> None:
         """Test handling of special characters that could be used in injections."""
         # Setup
         async with db_pool.connection() as conn:
@@ -202,7 +202,7 @@ class TestSQLInjectionPrevention:
             await cleanup_test_users(conn)
 
     @pytest.mark.asyncio
-    async def test_verify_parameterization(self, db_pool):
+    async def test_verify_parameterization(self, db_pool) -> None:
         """Verify that queries are properly parameterized."""
         # Setup
         async with db_pool.connection() as conn:
@@ -238,7 +238,7 @@ class TestSQLInjectionPrevention:
                 SELECT COUNT(*)
                 FROM information_schema.columns
                 WHERE table_name = 'users'
-            """
+            """,
             )
             table_check = await table_check_result.fetchone()
             assert table_check[0] == 2, "Table structure was modified"
@@ -248,7 +248,7 @@ class TestSQLInjectionPrevention:
             await cleanup_test_users(conn)
 
     @pytest.mark.asyncio
-    async def test_actual_database_execution(self, db_pool):
+    async def test_actual_database_execution(self, db_pool) -> None:
         """Real integration test that executes against database.
 
         This replaces the placeholder test in the original SQL injection
@@ -294,7 +294,7 @@ class TestSQLInjectionPrevention:
                     SELECT FROM information_schema.tables
                     WHERE table_name = 'users'
                 )
-            """
+            """,
             )
             exists = await verify_result.fetchone()
             assert exists[0] is True, "Table was dropped via SQL injection"

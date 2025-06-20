@@ -1,6 +1,7 @@
 """Tests for Prometheus metrics integration."""
 
 import asyncio
+from typing import Never
 from unittest.mock import Mock
 
 import pytest
@@ -17,13 +18,13 @@ from fraiseql.monitoring.metrics import (
 class TestFraiseQLMetrics:
     """Test metrics collection."""
 
-    def test_metrics_singleton(self):
+    def test_metrics_singleton(self) -> None:
         """Test metrics instance is a singleton."""
         metrics1 = get_metrics()
         metrics2 = get_metrics()
         assert metrics1 is metrics2
 
-    def test_query_metrics(self):
+    def test_query_metrics(self) -> None:
         """Test query execution metrics."""
         metrics = FraiseQLMetrics()
 
@@ -50,7 +51,7 @@ class TestFraiseQLMetrics:
 
         assert metrics.query_errors._value.get() > 0
 
-    def test_mutation_metrics(self):
+    def test_mutation_metrics(self) -> None:
         """Test mutation execution metrics."""
         metrics = FraiseQLMetrics()
 
@@ -64,7 +65,7 @@ class TestFraiseQLMetrics:
         assert metrics.mutation_total._value.get() > 0
         assert metrics.mutation_success._value.get() > 0
 
-    def test_database_metrics(self):
+    def test_database_metrics(self) -> None:
         """Test database connection metrics."""
         metrics = FraiseQLMetrics()
 
@@ -85,7 +86,7 @@ class TestFraiseQLMetrics:
 
         assert metrics.db_queries_total._value.get() > 0
 
-    def test_cache_metrics(self):
+    def test_cache_metrics(self) -> None:
         """Test cache hit/miss metrics."""
         metrics = FraiseQLMetrics()
 
@@ -104,7 +105,7 @@ class TestFraiseQLMetrics:
         hit_rate = metrics.get_cache_hit_rate("turbo_router")
         assert hit_rate == pytest.approx(0.6667, rel=0.01)
 
-    def test_error_metrics(self):
+    def test_error_metrics(self) -> None:
         """Test error tracking metrics."""
         metrics = FraiseQLMetrics()
 
@@ -123,7 +124,7 @@ class TestFraiseQLMetrics:
 
         assert metrics.errors_total._value.get() >= 2
 
-    def test_performance_metrics(self):
+    def test_performance_metrics(self) -> None:
         """Test performance tracking."""
         metrics = FraiseQLMetrics()
 
@@ -135,11 +136,11 @@ class TestFraiseQLMetrics:
         histogram_data = metrics.response_time_histogram._sum._value.get()
         assert histogram_data > 0
 
-    def test_concurrent_metrics(self):
+    def test_concurrent_metrics(self) -> None:
         """Test metrics under concurrent access."""
         metrics = FraiseQLMetrics()
 
-        async def record_queries():
+        async def record_queries() -> None:
             for i in range(100):
                 metrics.record_query(
                     operation_type="query",
@@ -162,7 +163,7 @@ class TestMetricsMiddleware:
     """Test metrics middleware for FastAPI."""
 
     @pytest.mark.asyncio
-    async def test_middleware_records_metrics(self):
+    async def test_middleware_records_metrics(self) -> None:
         """Test middleware records request metrics."""
         metrics = FraiseQLMetrics()
         middleware = MetricsMiddleware(metrics=metrics)
@@ -186,7 +187,7 @@ class TestMetricsMiddleware:
         assert metrics.http_requests_total._value.get() > 0
 
     @pytest.mark.asyncio
-    async def test_middleware_handles_errors(self):
+    async def test_middleware_handles_errors(self) -> None:
         """Test middleware handles errors properly."""
         metrics = FraiseQLMetrics()
         middleware = MetricsMiddleware(metrics=metrics)
@@ -196,8 +197,9 @@ class TestMetricsMiddleware:
         request.method = "POST"
 
         # Mock error
-        async def mock_call_next_error(req):
-            raise Exception("Test error")
+        async def mock_call_next_error(req) -> Never:
+            msg = "Test error"
+            raise Exception(msg)
 
         # Should propagate error but record metrics
         with pytest.raises(Exception):
@@ -207,7 +209,7 @@ class TestMetricsMiddleware:
         assert metrics.http_requests_total._value.get() > 0
 
     @pytest.mark.asyncio
-    async def test_middleware_excludes_health_checks(self):
+    async def test_middleware_excludes_health_checks(self) -> None:
         """Test middleware excludes health check endpoints."""
         config = MetricsConfig(exclude_paths={"/health", "/ready"})
         metrics = FraiseQLMetrics()
@@ -230,7 +232,7 @@ class TestMetricsMiddleware:
 class TestMetricsConfig:
     """Test metrics configuration."""
 
-    def test_default_config(self):
+    def test_default_config(self) -> None:
         """Test default metrics configuration."""
         config = MetricsConfig()
 
@@ -239,7 +241,7 @@ class TestMetricsConfig:
         assert config.buckets == [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
         assert "/metrics" in config.exclude_paths
 
-    def test_custom_config(self):
+    def test_custom_config(self) -> None:
         """Test custom metrics configuration."""
         config = MetricsConfig(
             enabled=False,
@@ -253,7 +255,7 @@ class TestMetricsConfig:
         assert len(config.buckets) == 3
         assert config.labels["environment"] == "production"
 
-    def test_config_validation(self):
+    def test_config_validation(self) -> None:
         """Test configuration validation."""
         # Should reject invalid histogram buckets
         with pytest.raises(ValueError):
@@ -267,7 +269,7 @@ class TestMetricsConfig:
 class TestMetricsSetup:
     """Test metrics setup and integration."""
 
-    def test_setup_metrics_on_app(self):
+    def test_setup_metrics_on_app(self) -> None:
         """Test setting up metrics on FastAPI app."""
         from fastapi import FastAPI
 
@@ -286,7 +288,7 @@ class TestMetricsSetup:
         # Should return metrics instance
         assert isinstance(metrics, FraiseQLMetrics)
 
-    def test_metrics_endpoint(self):
+    def test_metrics_endpoint(self) -> None:
         """Test Prometheus metrics endpoint."""
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -306,7 +308,7 @@ class TestMetricsSetup:
         assert "fraiseql_graphql_queries_total" in response.text
         assert "fraiseql_graphql_query_duration_seconds" in response.text
 
-    def test_custom_metrics_path(self):
+    def test_custom_metrics_path(self) -> None:
         """Test custom metrics endpoint path."""
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -329,7 +331,7 @@ class TestMetricsSetup:
 class TestMetricsLabels:
     """Test metric labels and cardinality."""
 
-    def test_operation_labels(self):
+    def test_operation_labels(self) -> None:
         """Test operation-specific labels."""
         metrics = FraiseQLMetrics()
 
