@@ -218,7 +218,7 @@ class GraphQLCSRFValidator:
                         "extensions": {
                             "code": "CSRF_PROTECTION_FAILED",
                         },
-                    }
+                    },
                 ],
             },
         )

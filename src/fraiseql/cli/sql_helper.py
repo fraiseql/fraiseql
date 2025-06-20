@@ -91,7 +91,7 @@ class ViewGenerator:
                     join_obj_fields.append(f"            '{field}', {join['target_table']}.{field}")
 
                 join_fields.append(
-                    f"        '{join['field']}', jsonb_build_object(\n{',\\n'.join(join_obj_fields)}\n        )"
+                    f"        '{join['field']}', jsonb_build_object(\n{',\\n'.join(join_obj_fields)}\n        )",
                 )
 
         # Combine all fields
@@ -170,11 +170,11 @@ ORDER BY {order_clause};"""
 
     @staticmethod
     def relationship(
-        parent_table: str, child_table: str, relationship_field: str, foreign_key: str
+        parent_table: str, child_table: str, relationship_field: str, foreign_key: str,
     ) -> str:
         """Generate relationship query pattern."""
         return f"""-- One-to-many relationship: {parent_table}.{relationship_field}
-SELECT 
+SELECT
     u.data || jsonb_build_object(
         '{relationship_field}', COALESCE(
             (
@@ -207,7 +207,7 @@ FROM v_{parent_table} u;"""
         agg_sql = ",\n".join(agg_parts)
 
         return f"""-- Aggregation pattern for {table}
-SELECT 
+SELECT
     jsonb_build_object(
         '{group_by}', data->>'{group_by}',
 {agg_sql}
@@ -401,7 +401,7 @@ class SQLHelper:
             for field_name, _field_type in type_hints.items():
                 if field_name in ("email", "name", "created_at"):
                     parts.append(
-                        f"CREATE INDEX idx_{table_name}_{field_name} ON {table_name}({field_name});"
+                        f"CREATE INDEX idx_{table_name}_{field_name} ON {table_name}({field_name});",
                     )
 
             parts.append("")
@@ -446,7 +446,7 @@ class SQLHelper:
         return "\n".join(parts)
 
     def generate_migration(
-        self, cls: type, existing_schema: dict, field_mapping: dict[str, str]
+        self, cls: type, existing_schema: dict, field_mapping: dict[str, str],
     ) -> str:
         """Generate migration SQL from existing table to FraiseQL view.
 
@@ -512,7 +512,7 @@ class SQLHelper:
 
         # Check view naming convention
         if "create view" in sql.lower() and not re.search(
-            r"create\s+(or\s+replace\s+)?view\s+v_\w+", sql.lower()
+            r"create\s+(or\s+replace\s+)?view\s+v_\w+", sql.lower(),
         ):
             result.warnings.append("View name should follow convention: v_tablename")
 
@@ -538,7 +538,7 @@ class SQLHelper:
 
             if "CREATE VIEW" in line_stripped.upper():
                 view_match = re.search(
-                    r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)", line_stripped, re.IGNORECASE
+                    r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)", line_stripped, re.IGNORECASE,
                 )
                 if view_match:
                     explanations.append(f"This SQL creates a view named '{view_match.group(1)}'")
@@ -546,13 +546,13 @@ class SQLHelper:
 
             elif "jsonb_build_object" in line_stripped.lower():
                 explanations.append(
-                    "jsonb_build_object: Creates a JSON object from key-value pairs"
+                    "jsonb_build_object: Creates a JSON object from key-value pairs",
                 )
 
             elif re.match(r"^\s*'(\w+)',\s*(\w+)", line_stripped):
                 match = re.match(r"^\s*'(\w+)',\s*(\w+)", line_stripped)
                 explanations.append(
-                    f"'{match.group(1)}', {match.group(2)}: Maps the '{match.group(2)}' column to JSON field '{match.group(1)}'"
+                    f"'{match.group(1)}', {match.group(2)}: Maps the '{match.group(2)}' column to JSON field '{match.group(1)}'",
                 )
 
             elif "as data" in line_stripped.lower():
@@ -561,12 +561,12 @@ class SQLHelper:
             elif re.match(r"FROM\s+(\w+)", line_stripped, re.IGNORECASE):
                 match = re.match(r"FROM\s+(\w+)", line_stripped, re.IGNORECASE)
                 explanations.append(
-                    f"FROM {match.group(1)}: Reads from the '{match.group(1)}' table"
+                    f"FROM {match.group(1)}: Reads from the '{match.group(1)}' table",
                 )
 
             elif "LEFT JOIN" in line_stripped.upper():
                 explanations.append(
-                    "LEFT JOIN: Includes related data (keeps all rows from left table)"
+                    "LEFT JOIN: Includes related data (keeps all rows from left table)",
                 )
 
             elif "GRANT SELECT" in line_stripped.upper():

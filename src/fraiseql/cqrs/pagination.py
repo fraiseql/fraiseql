@@ -259,6 +259,7 @@ async def paginate_query(
     This method extends the repository with cursor-based pagination.
 
     Args:
+        repository: CQRSRepository instance to use for pagination
         view_name: Database view to query
         first: Number of items to fetch forward
         after: Cursor to start after

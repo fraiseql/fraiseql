@@ -240,7 +240,7 @@ class InputValidator:
 
     @classmethod
     def validate_mutation_input(
-        cls, input_dict: dict, input_type: type | None = None
+        cls, input_dict: dict, input_type: type | None = None,
     ) -> ValidationResult:
         """Validate mutation input data.
 

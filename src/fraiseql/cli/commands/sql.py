@@ -94,7 +94,7 @@ def generate_setup(type_name, module, with_table, with_indexes, with_data, outpu
 @click.option("--foreign-key", help="Foreign key for relationship")
 @click.option("--group-by", help="Group by field for aggregation")
 def generate_pattern(
-    pattern_type, table_name, limit, offset, where, order, child_table, foreign_key, group_by
+    pattern_type, table_name, limit, offset, where, order, child_table, foreign_key, group_by,
 ):
     """Generate common SQL patterns for FraiseQL.
 

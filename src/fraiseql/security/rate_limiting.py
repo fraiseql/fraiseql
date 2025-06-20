@@ -262,7 +262,7 @@ class GraphQLRateLimiter:
                             "limit": rate_limit.requests,
                             "window": rate_limit.window,
                         },
-                    }
+                    },
                 ],
             },
             headers={

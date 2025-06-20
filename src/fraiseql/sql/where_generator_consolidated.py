@@ -153,7 +153,7 @@ class WhereClauseMixin:
         return base_path
 
     def _build_condition(
-        self, field_name: str, operator: str, value: Any, field_type: type
+        self, field_name: str, operator: str, value: Any, field_type: type,
     ) -> Composed:
         """Build a single WHERE condition."""
         # Validate the value

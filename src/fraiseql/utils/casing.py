@@ -1,3 +1,5 @@
+"""String case conversion utilities."""
+
 import re
 
 

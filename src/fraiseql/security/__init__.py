@@ -1,4 +1,4 @@
-"""FraiseQL Security Module
+"""FraiseQL Security Module.
 
 This module provides comprehensive security features for FraiseQL applications:
 
@@ -25,7 +25,7 @@ Example usage:
     setup_security_headers(app, environment="production")
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import FastAPI
 

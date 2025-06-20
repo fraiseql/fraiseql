@@ -58,7 +58,7 @@ class TracingConfig:
             "/metrics",
             "/docs",
             "/openapi.json",
-        }
+        },
     )
 
     # Custom attributes to add to all spans
@@ -98,7 +98,7 @@ class FraiseQLTracer:
                 "service.version": self.config.service_version,
                 "deployment.environment": self.config.deployment_environment,
                 **self.config.attributes,
-            }
+            },
         )
 
         # Create sampler
@@ -172,7 +172,7 @@ class FraiseQLTracer:
 
     @contextmanager
     def trace_graphql_mutation(
-        self, operation_name: str, query: str, variables: dict | None = None
+        self, operation_name: str, query: str, variables: dict | None = None,
     ):
         """Trace a GraphQL mutation operation."""
         with self.tracer.start_as_current_span(

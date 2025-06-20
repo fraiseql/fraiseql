@@ -39,7 +39,7 @@ def create_graphql_router(
     """Create appropriate router based on environment."""
     if config.environment == "production":
         return create_production_router(
-            schema, config, auth_provider, context_getter, turbo_registry
+            schema, config, auth_provider, context_getter, turbo_registry,
         )
     return create_development_router(schema, config, auth_provider, context_getter)
 

@@ -492,7 +492,7 @@ def create_csp_report_handler(webhook_url: str | None = None):
             print(
                 f"CSP Violation: {violation.get('violated-directive')} "
                 f"blocked {violation.get('blocked-uri')} "
-                f"on {violation.get('document-uri')}"
+                f"on {violation.get('document-uri')}",
             )
 
             # Send to webhook if configured
