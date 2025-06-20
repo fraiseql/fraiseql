@@ -149,7 +149,9 @@ class InputValidator:
             # Recursively validate dict values
             for key, val in value.items():
                 # Validate the key itself
-                key_result = cls.validate_field_value(f"{field_name}.key", key, "key", False)
+                key_result = cls.validate_field_value(
+                    f"{field_name}.key", key, "key", allow_html=False
+                )
                 errors.extend(key_result.errors)
 
                 # Validate the value

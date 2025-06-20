@@ -26,7 +26,7 @@ class GraphQLRequest(BaseModel):
 
     query: str
     variables: dict[str, Any] | None = None
-    operationName: str | None = None
+    operationName: str | None = None  # noqa: N815 - GraphQL spec requires this name
 
 
 def create_graphql_router(
