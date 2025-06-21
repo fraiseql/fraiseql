@@ -66,7 +66,7 @@ class TestCLIIntegration:
 
             for entity in ["User", "Post", "Comment"]:
                 # Run CLI commands with the blog directory as cwd
-                cwd_before = os.getcwd()
+                cwd_before = Path.cwd()
                 try:
                     os.chdir(str(blog_path))
                     result = cli_runner.invoke(

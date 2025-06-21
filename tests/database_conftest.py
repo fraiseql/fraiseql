@@ -5,7 +5,6 @@ using testcontainers. It automatically spins up a PostgreSQL container for each
 test session and provides connection pools and isolated test databases.
 """
 
-import asyncio
 import os
 from collections.abc import AsyncGenerator
 

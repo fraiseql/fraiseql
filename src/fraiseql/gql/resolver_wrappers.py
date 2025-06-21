@@ -49,6 +49,7 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
 
             if (
                 isinstance(value, dict)
+                and expected_type is not None
                 and isclass(expected_type)
                 and (
                     is_dataclass(expected_type) or hasattr(expected_type, "__fraiseql_definition__")
