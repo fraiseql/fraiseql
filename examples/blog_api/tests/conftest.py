@@ -27,13 +27,7 @@ from models import User
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://localhost/blog_test")
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    yield loop
-    loop.close()
+# Event loop fixture removed - let pytest-asyncio handle it
 
 
 @pytest_asyncio.fixture(scope="function")

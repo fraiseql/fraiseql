@@ -92,6 +92,7 @@ markers = [
 ]
 minversion = "8.0"
 addopts = "-ra -q"
+asyncio_mode = "auto"
 
 [tool.black]
 line-length = 100

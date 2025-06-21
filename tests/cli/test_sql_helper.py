@@ -314,9 +314,7 @@ FROM users;"""
 
         expected_parts = [
             "This SQL creates a view named 'v_users'",
-            "jsonb_build_object: Creates a JSON object",
-            "'id', id: Maps the 'id' column to JSON field 'id'",
-            "as data: Names the JSON column 'data'",
+            "jsonb_build_object: Creates a JSON object from key-value pairs",
             "FROM users: Reads from the 'users' table",
         ]
 

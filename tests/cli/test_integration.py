@@ -66,12 +66,16 @@ class TestCLIIntegration:
 
             for entity in ["User", "Post", "Comment"]:
                 # Run CLI commands with the blog directory as cwd
-                result = cli_runner.invoke(
-                    cli,
-                    ["generate", "migration", entity],
-                    cwd=str(blog_path),
-                )
-                assert result.exit_code == 0
+                cwd_before = os.getcwd()
+                try:
+                    os.chdir(str(blog_path))
+                    result = cli_runner.invoke(
+                        cli,
+                        ["generate", "migration", entity],
+                    )
+                    assert result.exit_code == 0
+                finally:
+                    os.chdir(cwd_before)
 
             assert (blog_path / "migrations/001_create_users.sql").exists()
             assert (blog_path / "migrations/002_create_posts.sql").exists()
