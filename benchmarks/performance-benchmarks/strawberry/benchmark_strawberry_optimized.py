@@ -299,9 +299,12 @@ async def run_mutation_benchmark(num_requests: int) -> dict[str, Any]:
 async def check_health() -> bool:
     """Check if Strawberry service is healthy."""
     try:
-        async with aiohttp.ClientSession() as session, session.get(
-            f"{STRAWBERRY_URL}/health", timeout=aiohttp.ClientTimeout(total=5)
-        ) as response:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
+                f"{STRAWBERRY_URL}/health", timeout=aiohttp.ClientTimeout(total=5)
+            ) as response,
+        ):
             if response.status == 200:
                 data = await response.json()
                 print(f"✅ Strawberry is healthy: {data.get('status', 'unknown')}")

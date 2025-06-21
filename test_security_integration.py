@@ -8,6 +8,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
 def test_middleware_integration():
     """Test that security middleware can be added to FastAPI apps."""
     try:
@@ -23,7 +24,6 @@ def test_middleware_integration():
             create_development_security_config,
             setup_development_security,
         )
-
 
         # Test 1: Create FastAPI app and add security
         app = FastAPI()
@@ -80,9 +80,12 @@ def test_middleware_integration():
         # Check for security headers
         headers = response.headers
         security_headers_present = any(
-            header in headers for header in [
-                "X-Frame-Options", "X-Content-Type-Options",
-                "Referrer-Policy", "Content-Security-Policy",
+            header in headers
+            for header in [
+                "X-Frame-Options",
+                "X-Content-Type-Options",
+                "Referrer-Policy",
+                "Content-Security-Policy",
             ]
         )
         if security_headers_present:
@@ -98,6 +101,7 @@ def test_middleware_integration():
 
     except Exception:
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -122,6 +126,7 @@ def test_security_example():
 
             # Override environment to avoid database requirements
             import os
+
             old_env = os.environ.copy()
             os.environ["ENVIRONMENT"] = "development"
             os.environ["SECRET_KEY"] = "test-key"
@@ -159,7 +164,6 @@ def main():
 
     passed = sum(results)
     total = len(results)
-
 
     if passed == total:
         return 0

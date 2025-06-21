@@ -7,6 +7,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
 def test_middleware_creation():
     """Test that security middleware can be created."""
     try:
@@ -23,14 +24,12 @@ def test_middleware_creation():
             create_development_security_config,
         )
 
-
         # Test 1: Create basic FastAPI app
         app = FastAPI()
 
         @app.get("/test")
         async def test_endpoint():
             return {"message": "test"}
-
 
         # Test 2: Add rate limiting middleware
         rate_store = RateLimitStore()
@@ -53,7 +52,8 @@ def test_middleware_creation():
         # Test 7: Check for security headers
         headers = response.headers
         security_headers = [
-            "X-Frame-Options", "X-Content-Type-Options",
+            "X-Frame-Options",
+            "X-Content-Type-Options",
             "Referrer-Policy",
         ]
 
@@ -67,6 +67,7 @@ def test_middleware_creation():
 
     except Exception:
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -169,7 +170,6 @@ def main():
 
     passed = sum(results)
     total = len(results)
-
 
     if passed == total:
         return 0

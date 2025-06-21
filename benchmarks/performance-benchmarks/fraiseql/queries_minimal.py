@@ -1,6 +1,5 @@
 """Minimal FraiseQL Query type to test the setup."""
 
-
 from models import Product, User
 
 import fraiseql

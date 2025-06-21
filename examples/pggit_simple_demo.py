@@ -48,5 +48,4 @@ if __name__ == "__main__":
         production=False,  # Enables GraphQL Playground
     )
 
-
     uvicorn.run(app, port=8000)

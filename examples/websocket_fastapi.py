@@ -49,7 +49,6 @@ async def task_feed(info) -> AsyncGenerator[Task]:
         yield task
 
 
-
 # Create FastAPI app
 app = FastAPI()
 
@@ -175,7 +174,8 @@ async def graphql_ws_endpoint(websocket: WebSocket):
     if "graphql-ws" in websocket.headers.get("sec-websocket-protocol", "").split(", "):
         subprotocol = "graphql-ws"
     elif "graphql-transport-ws" in websocket.headers.get(
-        "sec-websocket-protocol", "",
+        "sec-websocket-protocol",
+        "",
     ).split(", "):
         subprotocol = "graphql-transport-ws"
 
@@ -183,7 +183,9 @@ async def graphql_ws_endpoint(websocket: WebSocket):
 
     # Add connection to manager
     connection = await subscription_manager.add_connection(
-        websocket, subprotocol=subprotocol, context={"websocket": websocket},
+        websocket,
+        subprotocol=subprotocol,
+        context={"websocket": websocket},
     )
 
     try:
@@ -198,6 +200,5 @@ async def graphql_ws_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-
 
     uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

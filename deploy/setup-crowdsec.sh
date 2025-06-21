@@ -12,11 +12,11 @@ scp ./crowdsec-graphql-scenario.yaml lionel@RNSWEB01p:/tmp/
 ssh lionel@RNSWEB01p << 'EOF'
     # Copy scenario file
     sudo cp /tmp/crowdsec-graphql-scenario.yaml /etc/crowdsec/scenarios/
-    
+
     # Reload CrowdSec
     echo "[2/3] Reloading CrowdSec..."
     sudo systemctl reload crowdsec
-    
+
     # Verify scenario is loaded
     echo "[3/3] Verifying scenario..."
     sudo cscli scenarios list | grep graphql

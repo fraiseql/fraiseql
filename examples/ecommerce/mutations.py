@@ -27,9 +27,11 @@ from .models import (
 
 # Authentication mutations
 
+
 @mutation
 class Register:
     """Register a new user account."""
+
     input: RegisterInput
     success: AuthSuccess
     error: AuthError
@@ -38,6 +40,7 @@ class Register:
 @mutation
 class Login:
     """Login to existing account."""
+
     input: LoginInput
     success: AuthSuccess
     error: AuthError
@@ -45,9 +48,11 @@ class Login:
 
 # Cart mutations
 
+
 @mutation
 class AddToCart:
     """Add product to shopping cart."""
+
     input: AddToCartInput
     success: CartSuccess
     error: CartError
@@ -56,6 +61,7 @@ class AddToCart:
 @mutation
 class UpdateCartItem:
     """Update quantity of cart item."""
+
     input: UpdateCartItemInput
     success: CartSuccess
     error: CartError
@@ -64,6 +70,7 @@ class UpdateCartItem:
 @mutation
 class RemoveFromCart:
     """Remove item from cart."""
+
     input: UpdateCartItemInput  # Only need cart_item_id
     success: CartSuccess
     error: CartError
@@ -72,15 +79,18 @@ class RemoveFromCart:
 @mutation
 class ClearCart:
     """Clear all items from cart."""
+
     success: CartSuccess
     error: CartError
 
 
 # Order mutations
 
+
 @mutation
 class Checkout:
     """Complete checkout and create order."""
+
     input: CheckoutInput
     success: OrderSuccess
     error: OrderError
@@ -89,6 +99,7 @@ class Checkout:
 @mutation
 class CancelOrder:
     """Cancel an order."""
+
     input: fraiseql.input(lambda: CancelOrderInput)
     success: OrderSuccess
     error: OrderError
@@ -96,9 +107,11 @@ class CancelOrder:
 
 # Address mutations
 
+
 @mutation
 class CreateAddress:
     """Create a new address."""
+
     input: CreateAddressInput
     success: AddressSuccess
     error: AddressError
@@ -107,6 +120,7 @@ class CreateAddress:
 @mutation
 class UpdateAddress:
     """Update existing address."""
+
     input: fraiseql.input(lambda: UpdateAddressInput)
     success: AddressSuccess
     error: AddressError
@@ -115,6 +129,7 @@ class UpdateAddress:
 @mutation
 class DeleteAddress:
     """Delete an address."""
+
     input: fraiseql.input(lambda: DeleteAddressInput)
     success: AddressSuccess
     error: AddressError
@@ -122,9 +137,11 @@ class DeleteAddress:
 
 # Review mutations
 
+
 @mutation
 class CreateReview:
     """Create a product review."""
+
     input: CreateReviewInput
     success: ReviewSuccess
     error: ReviewError
@@ -132,9 +149,11 @@ class CreateReview:
 
 # Additional input types referenced above
 
+
 @fraiseql.input
 class CancelOrderInput:
     """Cancel order input."""
+
     order_id: fraiseql.UUID
     reason: fraiseql.Optional[str] = None
 
@@ -142,6 +161,7 @@ class CancelOrderInput:
 @fraiseql.input
 class UpdateAddressInput:
     """Update address input."""
+
     address_id: fraiseql.UUID
     label: fraiseql.Optional[str] = None
     street1: fraiseql.Optional[str] = None
@@ -156,4 +176,5 @@ class UpdateAddressInput:
 @fraiseql.input
 class DeleteAddressInput:
     """Delete address input."""
+
     address_id: fraiseql.UUID

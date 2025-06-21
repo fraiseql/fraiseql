@@ -159,23 +159,29 @@ async def create_post(
     # Check authentication
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
-        return PostResult(error=PostError(
-            message="Authentication required",
-            code="UNAUTHORIZED",
-        ))
+        return PostResult(
+            error=PostError(
+                message="Authentication required",
+                code="UNAUTHORIZED",
+            )
+        )
 
     # Validate input (basic example)
     if len(input.title.strip()) < 3:
-        return PostResult(error=PostError(
-            message="Title must be at least 3 characters",
-            code="VALIDATION_ERROR",
-        ))
+        return PostResult(
+            error=PostError(
+                message="Title must be at least 3 characters",
+                code="VALIDATION_ERROR",
+            )
+        )
 
     if len(input.content.strip()) < 10:
-        return PostResult(error=PostError(
-            message="Content must be at least 10 characters",
-            code="VALIDATION_ERROR",
-        ))
+        return PostResult(
+            error=PostError(
+                message="Content must be at least 10 characters",
+                code="VALIDATION_ERROR",
+            )
+        )
 
     # In a real application, save to database
     # post = await create_post_in_db(user_id, input.title, input.content, input.published)
@@ -191,10 +197,12 @@ async def create_post(
         updated_at=datetime.now(tz=UTC),
     )
 
-    return PostResult(success=PostSuccess(
-        post=post,
-        message="Post created successfully",
-    ))
+    return PostResult(
+        success=PostSuccess(
+            post=post,
+            message="Post created successfully",
+        )
+    )
 
 
 @fraiseql.mutation
@@ -208,10 +216,12 @@ async def update_post(
     # Check authentication
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
-        return PostResult(error=PostError(
-            message="Authentication required",
-            code="UNAUTHORIZED",
-        ))
+        return PostResult(
+            error=PostError(
+                message="Authentication required",
+                code="UNAUTHORIZED",
+            )
+        )
 
     # In a real application:
     # 1. Check if post exists
@@ -219,10 +229,12 @@ async def update_post(
     # 3. Update the post
     # 4. Return updated post
 
-    return PostResult(error=PostError(
-        message="Post not found or access denied",
-        code="NOT_FOUND",
-    ))
+    return PostResult(
+        error=PostError(
+            message="Post not found or access denied",
+            code="NOT_FOUND",
+        )
+    )
 
 
 @fraiseql.mutation
@@ -300,6 +312,7 @@ def create_app() -> FastAPI:
         if REDIS_URL:
             try:
                 import redis.asyncio as redis
+
                 redis_client = redis.from_url(REDIS_URL)
             except ImportError:
                 pass
@@ -312,14 +325,12 @@ def create_app() -> FastAPI:
             redis_client=redis_client,
         )
 
-
     elif ENVIRONMENT == "development":
         # Development security setup (more permissive)
         setup_development_security(
             app=app,
             secret_key=SECRET_KEY,
         )
-
 
     else:
         # Custom security setup for GraphQL
@@ -335,7 +346,6 @@ def create_app() -> FastAPI:
             secret_key=SECRET_KEY,
             custom_config=config,
         )
-
 
     # Create FraiseQL app
     fraiseql_app = fraiseql.create_fraiseql_app(
@@ -386,11 +396,8 @@ def main():
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")  # noqa: S104
 
-
     if ENVIRONMENT != "production":
         pass
-
-
 
     uvicorn.run(
         app,

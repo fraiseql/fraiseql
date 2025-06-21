@@ -54,7 +54,7 @@ query {
 @fraiseql.type
 class Repository:
     default_branch: str  # Exposed as 'defaultBranch' in GraphQL
-    
+
 # Option 2: Configuration
 app = fraiseql.create_fraiseql_app(
     types=[Repository],

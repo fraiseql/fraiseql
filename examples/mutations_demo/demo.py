@@ -144,7 +144,9 @@ async def demo():
 
         # 1. Create a new user
         create_input = CreateUserInput(
-            name="John Doe", email="john@example.com", role="admin",
+            name="John Doe",
+            email="john@example.com",
+            role="admin",
         )
 
         result = await CreateUser.__fraiseql_resolver__(info, create_input)
@@ -197,7 +199,6 @@ async def demo():
             query_types=[QueryRoot],
             mutation_resolvers=[CreateUser, UpdateUser, DeleteUser],
         )
-
 
         # Show mutation details
         schema.mutation_type.fields["createUser"]

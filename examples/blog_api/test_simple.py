@@ -30,7 +30,9 @@ async def test_connection():
     # Test pool connection
     try:
         async with AsyncConnectionPool(
-            "postgresql://localhost/blog_test", min_size=1, max_size=5,
+            "postgresql://localhost/blog_test",
+            min_size=1,
+            max_size=5,
         ) as pool:
             logger.debug("Pool created")
             async with pool.connection() as conn, conn.cursor() as cur:

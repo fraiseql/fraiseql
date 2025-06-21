@@ -12,6 +12,7 @@ from .models import Address, Cart, Order, OrderStatus, Product, ProductFilterInp
 @fraiseql.type
 class ProductConnection:
     """Paginated product results."""
+
     items: list[Product]
     total_count: int
     has_next_page: bool
@@ -21,6 +22,7 @@ class ProductConnection:
 @fraiseql.type
 class OrderConnection:
     """Paginated order results."""
+
     items: list[Order]
     total_count: int
     has_next_page: bool
@@ -30,6 +32,7 @@ class OrderConnection:
 @fraiseql.type
 class ReviewConnection:
     """Paginated review results."""
+
     items: list[Review]
     total_count: int
     average_rating: float
@@ -38,6 +41,7 @@ class ReviewConnection:
 @fraiseql.type
 class CartWithItems:
     """Cart with its items."""
+
     cart: Cart
     items: list[CartItem]
     recommended_products: list[Product]
@@ -46,6 +50,7 @@ class CartWithItems:
 @fraiseql.type
 class OrderWithDetails:
     """Order with full details."""
+
     order: Order
     items: list[OrderItem]
     shipping_address: Address
@@ -56,6 +61,7 @@ class OrderWithDetails:
 @fraiseql.type
 class ProductWithReviews:
     """Product with reviews."""
+
     product: Product
     reviews: ReviewConnection
     average_rating: float
@@ -66,6 +72,7 @@ class ProductWithReviews:
 @fraiseql.type
 class DashboardStats:
     """User dashboard statistics."""
+
     total_orders: int
     total_spent: fraiseql.Decimal
     average_order_value: fraiseql.Decimal

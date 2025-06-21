@@ -74,7 +74,6 @@ async def task_updates(info, project_id: UUID) -> AsyncGenerator[Task]:
         yield task
 
 
-
 @subscription
 async def project_stats(info) -> AsyncGenerator[dict]:
     """Subscribe to project statistics updates."""
@@ -92,7 +91,6 @@ async def project_stats(info) -> AsyncGenerator[dict]:
         yield stats
 
 
-
 # Example usage with DataLoader
 async def demo_dataloader():
     """Demonstrate DataLoader usage."""
@@ -106,13 +104,11 @@ async def demo_dataloader():
             *[task_loader.load(task_id) for task_id in task_ids],
         )
 
-
         # Load tasks for multiple projects - will batch
         project_ids = [uuid4() for _ in range(3)]
         await asyncio.gather(
             *[project_tasks_loader.load(project_id) for project_id in project_ids],
         )
-
 
         # Load same task again - will use cache
         await task_loader.load(task_ids[0])

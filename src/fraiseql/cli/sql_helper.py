@@ -437,9 +437,9 @@ class SQLHelper:
 
                     if field_type is str:
                         if field_name == "email":
-                            values.append(f"'sample.user{i+1}@example.com'")
+                            values.append(f"'sample.user{i + 1}@example.com'")
                         else:
-                            values.append(f"'Sample {field_name.title()} {i+1}'")
+                            values.append(f"'Sample {field_name.title()} {i + 1}'")
                     elif field_type is bool:
                         values.append("true")
                     elif field_type in (int, float):

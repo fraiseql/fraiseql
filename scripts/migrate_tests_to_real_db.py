@@ -139,7 +139,6 @@ def main():
 
     test_files = list(test_dir.rglob("test_*.py"))
 
-
     files_with_mocks = []
 
     for test_file in sorted(test_files):
@@ -150,10 +149,8 @@ def main():
     if not files_with_mocks:
         return
 
-
     for test_file, _ in files_with_mocks:
         pass
-
 
     # Generate detailed suggestions
     for test_file, mock_info in files_with_mocks:

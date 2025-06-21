@@ -236,8 +236,7 @@ def migrate_to_validated_where(cls: type[object]) -> type[DynamicType]:
     import warnings
 
     warnings.warn(
-        "Consider using safe_create_where_type_with_validation directly "
-        "for better error handling",
+        "Consider using safe_create_where_type_with_validation directly for better error handling",
         DeprecationWarning,
         stacklevel=2,
     )

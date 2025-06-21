@@ -194,7 +194,11 @@ class BenchmarkRunner:
         self.benchmarks[name] = benchmark
 
     async def run_test(
-        self, test_name: str, query: str, variables: Dict | None = None, iterations: int = 100,
+        self,
+        test_name: str,
+        query: str,
+        variables: Dict | None = None,
+        iterations: int = 100,
     ):
         """Run a test against all benchmarks"""
         results = {}
@@ -236,7 +240,10 @@ class BenchmarkRunner:
             }
             """
             all_results["simple_query"] = await self.run_test(
-                "simple_query", simple_query, {"limit": 100}, iterations,
+                "simple_query",
+                simple_query,
+                {"limit": 100},
+                iterations,
             )
 
             # Test 2: Complex product search
@@ -307,10 +314,10 @@ class BenchmarkRunner:
 def print_results(results: Dict[str, Dict[str, Dict]]):
     """Print benchmark results in a formatted table"""
     for test_results in results.values():
-
         # Sort by average response time
         sorted_results = sorted(
-            test_results.items(), key=lambda x: x[1].get("avg", float("inf")),
+            test_results.items(),
+            key=lambda x: x[1].get("avg", float("inf")),
         )
 
         for _solution, _stats in sorted_results:
@@ -326,15 +333,19 @@ def save_results(results: Dict, filename: str | None = None):
     output_path = Path(filename)
     with output_path.open("w") as f:
         json.dump(
-            {"timestamp": datetime.now(tz=UTC).isoformat(), "results": results}, f, indent=2,
+            {"timestamp": datetime.now(tz=UTC).isoformat(), "results": results},
+            f,
+            indent=2,
         )
-
 
 
 async def main():
     parser = argparse.ArgumentParser(description="Run FraiseQL benchmarks")
     parser.add_argument(
-        "--iterations", type=int, default=100, help="Number of iterations per test",
+        "--iterations",
+        type=int,
+        default=100,
+        help="Number of iterations per test",
     )
     parser.add_argument(
         "--fraiseql-db",
@@ -342,7 +353,9 @@ async def main():
         help="FraiseQL database URL",
     )
     parser.add_argument(
-        "--hasura-endpoint", default="http://localhost:8080", help="Hasura endpoint",
+        "--hasura-endpoint",
+        default="http://localhost:8080",
+        help="Hasura endpoint",
     )
     parser.add_argument(
         "--postgraphile-endpoint",

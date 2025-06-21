@@ -21,23 +21,23 @@ public class Post {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(columnDefinition = "serial")
     private Integer id;
-    
+
     @Column(nullable = false)
     private String title;
-    
+
     @Column(columnDefinition = "TEXT")
     private String content;
-    
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
-    
+
     @OneToMany(mappedBy = "post", fetch = FetchType.LAZY)
     private List<Comment> comments = new ArrayList<>();
-    
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

@@ -17,7 +17,7 @@ Key features:
 - Tests list operations (IN/NOT IN) for injection vulnerabilities
 
 ### Input Validation Layer
-- **Files**: 
+- **Files**:
   - `src/fraiseql/security/validators.py`
   - `src/fraiseql/sql/where_generator_v2.py`
 - **Status**: Completed

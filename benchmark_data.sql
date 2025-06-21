@@ -37,7 +37,7 @@ INSERT INTO users (name, email) VALUES
 
 -- Generate posts (10 per user)
 INSERT INTO posts (title, content, author_id)
-SELECT 
+SELECT
     'Post ' || (u.id * 10 + s.n) || ' by ' || u.name,
     'This is the content of post ' || (u.id * 10 + s.n) || '. Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     u.id
@@ -46,7 +46,7 @@ CROSS JOIN generate_series(1, 10) s(n);
 
 -- Generate comments (5 per post)
 INSERT INTO comments (content, post_id, author_id)
-SELECT 
+SELECT
     'Comment ' || s.n || ' on post ' || p.id,
     p.id,
     (RANDOM() * 4 + 1)::INTEGER
@@ -55,7 +55,7 @@ CROSS JOIN generate_series(1, 5) s(n);
 
 -- Create views for FraiseQL (similar to the architecture)
 CREATE OR REPLACE VIEW user_with_posts AS
-SELECT 
+SELECT
     u.id,
     u.name,
     u.email,
@@ -76,7 +76,7 @@ LEFT JOIN posts p ON u.id = p.author_id
 GROUP BY u.id;
 
 CREATE OR REPLACE VIEW post_with_comments AS
-SELECT 
+SELECT
     p.id,
     p.title,
     p.content,

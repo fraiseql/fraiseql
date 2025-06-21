@@ -24,9 +24,11 @@ async def test_testcontainers():
         os.environ.get("TESTCONTAINERS_PODMAN", "false").lower() == "true"
 
         with PostgresContainer(
-            image="postgres:16-alpine", user="test", password="test", dbname="test_db",
+            image="postgres:16-alpine",
+            user="test",
+            password="test",
+            dbname="test_db",
         ) as postgres:
-
             # Get connection URL
             url = postgres.get_connection_url()
 
@@ -64,14 +66,16 @@ async def test_connection_pool():
 
             # Create pool
             async with psycopg_pool.AsyncConnectionPool(
-                url, min_size=2, max_size=5,
+                url,
+                min_size=2,
+                max_size=5,
             ) as pool:
-
                 # Test concurrent connections
                 async def run_query(query_id):
                     async with pool.connection() as conn, conn.cursor() as cur:
                         await cur.execute(
-                            "SELECT pg_backend_pid(), %s", (query_id,),
+                            "SELECT pg_backend_pid(), %s",
+                            (query_id,),
                         )
                         return await cur.fetchone()
 

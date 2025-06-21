@@ -14,21 +14,21 @@ import java.util.concurrent.CompletableFuture;
 @Controller
 public class UserResolver {
     private final UserService userService;
-    
+
     public UserResolver(UserService userService) {
         this.userService = userService;
     }
-    
+
     @QueryMapping
     public User user(@Argument Integer id) {
         return userService.findById(id);
     }
-    
+
     @QueryMapping
     public List<User> users() {
         return userService.findAll();
     }
-    
+
     @SchemaMapping(typeName = "User", field = "posts")
     public CompletableFuture<List<Post>> posts(User user) {
         return userService.loadPosts(user);

@@ -166,7 +166,9 @@ class AnthropicClient:
 
                 self._client = anthropic.AsyncAnthropic(api_key=self.config.api_key)
             except ImportError as e:
-                raise ImportError("Anthropic package not installed. Run: pip install anthropic") from e
+                raise ImportError(
+                    "Anthropic package not installed. Run: pip install anthropic"
+                ) from e
         return self._client
 
     async def generate(

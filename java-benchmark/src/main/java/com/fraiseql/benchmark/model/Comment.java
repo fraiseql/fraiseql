@@ -19,21 +19,21 @@ public class Comment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(columnDefinition = "serial")
     private Integer id;
-    
+
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
-    
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "post_id", nullable = false)
     private Post post;
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
-    
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

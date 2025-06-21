@@ -9,18 +9,18 @@ echo "Starting FraiseQL..."
 # Wait for database if DATABASE_URL is set
 if [ -n "$DATABASE_URL" ]; then
     echo "Waiting for database..."
-    
+
     # Extract host and port from DATABASE_URL
     # Format: postgresql://user:pass@host:port/dbname
     DB_HOST=$(echo $DATABASE_URL | sed -E 's/.*@([^:]+):([0-9]+).*/\1/')
     DB_PORT=$(echo $DATABASE_URL | sed -E 's/.*@([^:]+):([0-9]+).*/\2/')
-    
+
     # Wait for database to be ready
     until nc -z $DB_HOST $DB_PORT; do
         echo "Database is unavailable - sleeping"
         sleep 1
     done
-    
+
     echo "Database is up - continuing"
 fi
 

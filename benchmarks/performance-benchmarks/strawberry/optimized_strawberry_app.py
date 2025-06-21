@@ -621,9 +621,7 @@ class Query:
 
     @strawberry.field
     @cached_resolver(ttl=300)
-    async def projects_deep(
-        self, statuses: list[str] = None, limit: int = 10
-    ) -> list[Project]:
+    async def projects_deep(self, statuses: list[str] = None, limit: int = 10) -> list[Project]:
         """Optimized deep project query."""
         if statuses is None:
             statuses = ["planning", "in_progress"]

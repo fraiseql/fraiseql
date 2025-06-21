@@ -11,7 +11,7 @@ INSERT INTO users (email, password_hash, name, phone, is_verified) VALUES
 
 -- Sample addresses
 INSERT INTO addresses (user_id, label, street1, street2, city, state, postal_code, country, is_default)
-SELECT 
+SELECT
     u.id,
     'Home',
     '123 Main St',
@@ -24,7 +24,7 @@ SELECT
 FROM users u WHERE u.email = 'john.doe@example.com';
 
 INSERT INTO addresses (user_id, label, street1, city, state, postal_code, country, is_default)
-SELECT 
+SELECT
     u.id,
     'Work',
     '456 Office Blvd',
@@ -38,8 +38,8 @@ FROM users u WHERE u.email = 'john.doe@example.com';
 -- Sample products
 INSERT INTO products (sku, name, description, category, price, compare_at_price, inventory_count, images, tags) VALUES
 -- Electronics
-('LAPTOP-001', 'UltraBook Pro 15"', 'High-performance laptop with 16GB RAM, 512GB SSD, and dedicated graphics', 'electronics', 1299.99, 1499.99, 25, 
- '["https://example.com/laptop1.jpg", "https://example.com/laptop2.jpg"]'::jsonb, 
+('LAPTOP-001', 'UltraBook Pro 15"', 'High-performance laptop with 16GB RAM, 512GB SSD, and dedicated graphics', 'electronics', 1299.99, 1499.99, 25,
+ '["https://example.com/laptop1.jpg", "https://example.com/laptop2.jpg"]'::jsonb,
  '["laptop", "computer", "ultrabook", "pro"]'::jsonb),
 
 ('PHONE-001', 'SmartPhone X', 'Latest flagship smartphone with 5G, triple camera system', 'electronics', 899.99, 999.99, 50,
@@ -99,7 +99,7 @@ BEGIN
     -- Get John's ID and address
     SELECT u.id INTO user_id FROM users u WHERE u.email = 'john.doe@example.com';
     SELECT a.id INTO addr_id FROM addresses a WHERE a.user_id = user_id AND a.is_default = true;
-    
+
     -- Create a delivered order
     INSERT INTO orders (
         order_number, user_id, status, payment_status,
@@ -114,16 +114,16 @@ BEGIN
         CURRENT_TIMESTAMP - INTERVAL '8 days',
         CURRENT_TIMESTAMP - INTERVAL '5 days'
     ) RETURNING id INTO order_id;
-    
+
     -- Add order items
     INSERT INTO order_items (order_id, product_id, quantity, price, total)
     SELECT order_id, p.id, 1, p.price, p.price
     FROM products p WHERE p.sku = 'PHONE-001';
-    
+
     INSERT INTO order_items (order_id, product_id, quantity, price, total)
     SELECT order_id, p.id, 2, p.price, p.price * 2
     FROM products p WHERE p.sku = 'SHIRT-001';
-    
+
     -- Create a processing order
     INSERT INTO orders (
         order_number, user_id, status, payment_status,
@@ -136,7 +136,7 @@ BEGIN
         299.99, 24.00, 10.00, 333.99,
         CURRENT_TIMESTAMP - INTERVAL '1 day'
     ) RETURNING id INTO order_id;
-    
+
     INSERT INTO order_items (order_id, product_id, quantity, price, total)
     SELECT order_id, p.id, 1, p.price, p.price
     FROM products p WHERE p.sku = 'HEADPHONE-001';
@@ -144,30 +144,30 @@ END $$;
 
 -- Sample reviews
 INSERT INTO reviews (product_id, user_id, rating, title, comment, is_verified)
-SELECT 
+SELECT
     p.id, u.id, 5,
     'Excellent laptop!',
     'This laptop exceeded my expectations. Fast, reliable, and great battery life.',
     true
-FROM products p, users u 
+FROM products p, users u
 WHERE p.sku = 'LAPTOP-001' AND u.email = 'john.doe@example.com';
 
 INSERT INTO reviews (product_id, user_id, rating, title, comment, is_verified)
-SELECT 
+SELECT
     p.id, u.id, 4,
     'Good phone, but pricey',
     'Great features and camera quality. A bit expensive but worth it for the performance.',
     false
-FROM products p, users u 
+FROM products p, users u
 WHERE p.sku = 'PHONE-001' AND u.email = 'jane.smith@example.com';
 
 INSERT INTO reviews (product_id, user_id, rating, title, comment, is_verified)
-SELECT 
+SELECT
     p.id, u.id, 5,
     'Amazing sound quality',
     'The noise cancellation is incredible. Perfect for long flights and work from home.',
     true
-FROM products p, users u 
+FROM products p, users u
 WHERE p.sku = 'HEADPHONE-001' AND u.email = 'john.doe@example.com';
 
 -- Sample wishlist items

@@ -70,56 +70,65 @@ is_production = ENVIRONMENT == "production"
 app = create_fraiseql_app(
     # Database configuration
     database_url=DATABASE_URL,
-
     # GraphQL types
     types=[
         # Core types
-        User, Address, Product, Cart, CartItem,
-        Order, OrderItem, Review, Coupon, WishlistItem,
-
+        User,
+        Address,
+        Product,
+        Cart,
+        CartItem,
+        Order,
+        OrderItem,
+        Review,
+        Coupon,
+        WishlistItem,
         # Query types
-        ProductConnection, OrderConnection, ReviewConnection,
-        CartWithItems, OrderWithDetails, ProductWithReviews,
+        ProductConnection,
+        OrderConnection,
+        ReviewConnection,
+        CartWithItems,
+        OrderWithDetails,
+        ProductWithReviews,
         DashboardStats,
-
         # Query root
         Query,
     ],
-
     # Mutations
     mutations=[
         # Auth
-        Register, Login,
-
+        Register,
+        Login,
         # Cart
-        AddToCart, UpdateCartItem, RemoveFromCart, ClearCart,
-
+        AddToCart,
+        UpdateCartItem,
+        RemoveFromCart,
+        ClearCart,
         # Orders
-        Checkout, CancelOrder,
-
+        Checkout,
+        CancelOrder,
         # Addresses
-        CreateAddress, UpdateAddress, DeleteAddress,
-
+        CreateAddress,
+        UpdateAddress,
+        DeleteAddress,
         # Reviews
         CreateReview,
     ],
-
     # App configuration
     title="E-commerce API",
     version="1.0.0",
     description="Complete e-commerce GraphQL API built with FraiseQL",
-
     # Environment
     production=is_production,
-
     # Authentication
     auth=(
         Auth0Config(
             domain=AUTH0_DOMAIN,
             api_identifier=AUTH0_API_IDENTIFIER,
-        ) if AUTH0_DOMAIN else None
+        )
+        if AUTH0_DOMAIN
+        else None
     ),
-
     # Development auth (if not using Auth0)
     dev_auth_username="admin" if not is_production else None,
     dev_auth_password="admin123" if not is_production else None,
@@ -164,11 +173,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Health check endpoints
 @app.get("/health")
 async def health():
     """Basic health check."""
     return {"status": "healthy", "service": "ecommerce-api"}
+
 
 @app.get("/ready")
 async def ready():
@@ -180,12 +191,14 @@ async def ready():
     except Exception as e:
         return {"status": "not ready", "error": str(e)}, 503
 
+
 # Startup event
 @app.on_event("startup")
 async def startup():
     """Initialize application on startup."""
     if not is_production:
         pass
+
 
 # Example queries for documentation
 EXAMPLE_QUERIES = """
@@ -313,10 +326,12 @@ mutation CompleteCheckout($input: CheckoutInput!) {
 
 # Development data seeding (if needed)
 if not is_production:
+
     @app.on_event("startup")
     async def seed_data():
         """Seed development data."""
         # This would be implemented to add sample products, users, etc.
+
 
 if __name__ == "__main__":
     import uvicorn

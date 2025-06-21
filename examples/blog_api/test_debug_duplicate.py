@@ -41,7 +41,8 @@ async def test_duplicate_email():
         # Check what's in the database
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT id, email, name FROM tb_users WHERE email = %s", (email,),
+                "SELECT id, email, name FROM tb_users WHERE email = %s",
+                (email,),
             )
             users = await cur.fetchall()
             logger.debug("Users with email %s: %s", email, users)

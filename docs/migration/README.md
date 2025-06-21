@@ -37,7 +37,7 @@ Comprehensive guide for migrating from Hasura or PostGraphile to FraiseQL, inclu
 
 ## Migration Support
 
-Need help with migration? 
+Need help with migration?
 
 - Check our [examples](../../examples/)
 - Join our [Discord community](https://discord.gg/fraiseql)

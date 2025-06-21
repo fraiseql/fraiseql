@@ -5,7 +5,7 @@ type: leaky
 name: fraiseql/graphql-abuse
 description: "Detect GraphQL query abuse and complexity attacks"
 filter: |
-  evt.Meta.log_type == 'nginx' && 
+  evt.Meta.log_type == 'nginx' &&
   evt.Parsed.request contains '/graphql' &&
   evt.Meta.http_status == '200'
 capacity: 100
@@ -22,7 +22,7 @@ type: trigger
 name: fraiseql/graphql-introspection
 description: "Detect GraphQL introspection queries in production"
 filter: |
-  evt.Meta.log_type == 'nginx' && 
+  evt.Meta.log_type == 'nginx' &&
   evt.Parsed.request contains '__schema' ||
   evt.Parsed.request contains '__type'
 blackhole: 1h
@@ -33,7 +33,7 @@ labels:
 
 ---
 # GraphQL query depth attack
-type: trigger  
+type: trigger
 name: fraiseql/graphql-depth-attack
 description: "Detect deeply nested GraphQL queries"
 filter: |

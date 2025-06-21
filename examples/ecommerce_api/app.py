@@ -31,7 +31,8 @@ from .mutations import (
 
 # Database configuration
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://user:password@localhost:5432/ecommerce",
+    "DATABASE_URL",
+    "postgresql://user:password@localhost:5432/ecommerce",
 )
 
 
@@ -40,7 +41,10 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Create connection pool
     app.state.db_pool = await asyncpg.create_pool(
-        DATABASE_URL, min_size=10, max_size=20, command_timeout=60,
+        DATABASE_URL,
+        min_size=10,
+        max_size=20,
+        command_timeout=60,
     )
 
     yield

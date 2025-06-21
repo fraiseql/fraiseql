@@ -1,6 +1,5 @@
 """FraiseQL benchmark queries - simplified version."""
 
-
 from models import Category, Order, PopularProduct, Product, ProductsByCategory, User, UserStats
 
 from fraiseql import fraise_type

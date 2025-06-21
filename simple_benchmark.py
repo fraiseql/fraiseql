@@ -56,6 +56,7 @@ def benchmark_endpoint(url: str, query: Dict, name: str, num_requests: int = 100
         "status": "Failed - no successful requests",
     }
 
+
 def main():
     # Test queries
     simple_user_query = {
@@ -71,11 +72,11 @@ def main():
         "variables": {"id": "1"},
     }
 
-
-
     # Test Java ORM endpoint
     java_orm_url = "http://localhost:8080/graphql"
-    java_orm_result = benchmark_endpoint(java_orm_url, simple_user_query, "Java Spring + JPA/Hibernate", 50)
+    java_orm_result = benchmark_endpoint(
+        java_orm_url, simple_user_query, "Java Spring + JPA/Hibernate", 50
+    )
 
     # Test Java Optimized endpoint
     java_opt_url = "http://localhost:8080/optimized/user/1"
@@ -115,13 +116,13 @@ def main():
 
     # Add FraiseQL expected performance based on benchmarks
 
-
     if "avg_response_time_ms" in java_orm_result:
         fraiseql_expected = 3.8
         java_orm_result["avg_response_time_ms"] / fraiseql_expected
 
     if "avg_response_time_ms" in java_opt_result:
         pass
+
 
 if __name__ == "__main__":
     main()

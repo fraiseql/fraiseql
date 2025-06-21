@@ -208,4 +208,3 @@ if __name__ == "__main__":
     # Run tests
     asyncio.run(test_user_mutations())
     asyncio.run(test_with_mock_registry())
-

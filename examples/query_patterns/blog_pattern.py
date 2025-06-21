@@ -55,7 +55,10 @@ async def get_post(info, id: UUID) -> Post | None:
 
 @fraiseql.query
 async def list_posts(
-    info, limit: int = 10, offset: int = 0, tag: str | None = None,
+    info,
+    limit: int = 10,
+    offset: int = 0,
+    tag: str | None = None,
 ) -> list[Post]:
     """List blog posts with pagination and optional tag filter."""
     # Sample data - in production, query your database
@@ -149,6 +152,5 @@ app_with_context = create_fraiseql_app(
 
 if __name__ == "__main__":
     import uvicorn
-
 
     uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

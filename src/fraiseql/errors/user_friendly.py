@@ -143,8 +143,7 @@ class InvalidFieldTypeError(FraiseQLError):
 
         super().__init__(
             message=(
-                f"Field '{field_name}' in class '{class_name}' "
-                f"has unsupported type '{field_type}'."
+                f"Field '{field_name}' in class '{class_name}' has unsupported type '{field_type}'."
             ),
             code="INVALID_FIELD_TYPE",
             suggestion=suggestion,
@@ -219,8 +218,7 @@ $$ LANGUAGE plpgsql;"""
 
         super().__init__(
             message=(
-                f"PostgreSQL function '{function_name}' for mutation "
-                f"'{mutation_name}' not found."
+                f"PostgreSQL function '{function_name}' for mutation '{mutation_name}' not found."
             ),
             code="MUTATION_NOT_FOUND",
             suggestion=suggestion,

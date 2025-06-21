@@ -280,7 +280,7 @@ Add descriptions to your types and fields:
 class User:
     id: int = fraiseql.field(description="Unique user identifier")
     name: str = fraiseql.field(description="User's display name")
-    
+
     @fraiseql.field(description="User's email address")
     def email(self, info) -> str:
         return self.email_address

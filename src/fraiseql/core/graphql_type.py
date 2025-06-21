@@ -211,8 +211,7 @@ def convert_type_to_graphql_input(
             return graphql_type
         # If not decorated, raise error
         msg = (
-            f"Enum {typ.__name__} must be decorated with @fraise_enum "
-            "to be used in GraphQL schema"
+            f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
         )
         raise TypeError(msg)
 
@@ -293,8 +292,7 @@ def convert_type_to_graphql_output(
             return graphql_type
         # If not decorated, raise error
         msg = (
-            f"Enum {typ.__name__} must be decorated with @fraise_enum "
-            "to be used in GraphQL schema"
+            f"Enum {typ.__name__} must be decorated with @fraise_enum to be used in GraphQL schema"
         )
         raise TypeError(msg)
 

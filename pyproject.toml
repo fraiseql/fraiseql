@@ -115,7 +115,7 @@ ignore = [
   "UP035",   # typing.Type is deprecated - conflicts with pyright
   "UP006",   # Use type instead of Type - conflicts with pyright
   "PLW0603", # Using global statement - needed for singleton pattern
-  
+
   # Documentation - too many missing docstrings
   "D100",    # Missing docstring in public module
   "D101",    # Missing docstring in public class
@@ -126,7 +126,7 @@ ignore = [
   "D106",    # Missing docstring in public nested class
   "D107",    # Missing docstring in __init__
   "D415",    # First line should end with a period
-  
+
   # Type annotations - too many to fix
   "ANN001",  # Missing type annotation for function argument
   "ANN002",  # Missing type annotation for *args
@@ -135,7 +135,7 @@ ignore = [
   "ANN202",  # Missing return type annotation for private function
   "ANN204",  # Missing return type annotation for special method
   "ANN401",  # Dynamically typed expressions (Any) are disallowed
-  
+
   # Too strict or pedantic
   "INP001",  # Implicit namespace package
   "PLC0415", # Import should be at top-level (sometimes conditional imports make sense)
@@ -169,7 +169,7 @@ ignore = [
   "SLF001",  # Private member accessed
   "PERF401", # Use list comprehension
   "RUF012",  # Mutable class attributes should be annotated
-  
+
   # Security warnings that are often false positives
   "S105",    # Possible hardcoded password
   "S106",    # Possible hardcoded password
@@ -179,10 +179,10 @@ ignore = [
   "S603",    # Subprocess without shell equals true
   "S607",    # Starting process with partial executable path
   "S608",    # Possible SQL injection (often false positive with query builders)
-  
+
   # Import organization - let black/isort handle this
   "E402",    # Module level import not at top of file
-  
+
   # Overly specific exception handling
   "PT011",   # pytest.raises() is too broad
 ]

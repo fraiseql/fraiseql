@@ -53,7 +53,9 @@ async def update_cart_item(
     description="Remove all items from the cart",
 )
 async def clear_cart(
-    cart_id: UUID, customer_id: Optional[UUID] = None, session_id: Optional[str] = None,
+    cart_id: UUID,
+    customer_id: Optional[UUID] = None,
+    session_id: Optional[str] = None,
 ) -> CartMutationResult:
     """Clear all items from cart"""
 
@@ -95,7 +97,9 @@ async def create_order(
     description="Update the status of an order",
 )
 async def update_order_status(
-    order_id: UUID, status: str, notes: Optional[str] = None,
+    order_id: UUID,
+    status: str,
+    notes: Optional[str] = None,
 ) -> OrderMutationResult:
     """Update order status with validation"""
 
@@ -106,14 +110,17 @@ async def update_order_status(
     description="Process payment for an order",
 )
 async def process_order_payment(
-    order_id: UUID, payment_details: dict,
+    order_id: UUID,
+    payment_details: dict,
 ) -> OrderMutationResult:
     """Process payment and update order status"""
 
 
 @mutation(name="cancelOrder", function="cancel_order", description="Cancel an order")
 async def cancel_order(
-    order_id: UUID, customer_id: UUID, reason: str,
+    order_id: UUID,
+    customer_id: UUID,
+    reason: str,
 ) -> OrderMutationResult:
     """Cancel order and release inventory"""
 
@@ -191,7 +198,9 @@ async def add_to_wishlist(
 
 # Review Mutations
 @mutation(
-    name="submitReview", function="submit_review", description="Submit a product review",
+    name="submitReview",
+    function="submit_review",
+    description="Submit a product review",
 )
 async def submit_review(
     customer_id: UUID,

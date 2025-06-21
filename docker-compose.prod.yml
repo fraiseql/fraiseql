@@ -7,33 +7,33 @@ services:
     environment:
       # Database (external)
       DATABASE_URL: ${DATABASE_URL}
-      
+
       # Production settings
       FRAISEQL_PRODUCTION: "true"
       FRAISEQL_AUTO_CAMEL_CASE: ${FRAISEQL_AUTO_CAMEL_CASE:-true}
-      
+
       # Security
       FRAISEQL_AUTH_PROVIDER: ${FRAISEQL_AUTH_PROVIDER:-auth0}
       AUTH0_DOMAIN: ${AUTH0_DOMAIN}
       AUTH0_API_IDENTIFIER: ${AUTH0_API_IDENTIFIER}
-      
+
       # Performance
       FRAISEQL_ENABLE_TURBO_ROUTER: "true"
       FRAISEQL_TURBO_ROUTER_CACHE_SIZE: "2000"
-      
+
       # Monitoring
       FRAISEQL_ENABLE_METRICS: "true"
       FRAISEQL_ENABLE_TRACING: "true"
       FRAISEQL_TRACING_ENDPOINT: ${TRACING_ENDPOINT:-http://jaeger:4317}
       FRAISEQL_TRACING_SAMPLE_RATE: ${TRACING_SAMPLE_RATE:-0.1}
-      
+
       # Application
       FRAISEQL_APP_NAME: ${APP_NAME:-FraiseQL}
       FRAISEQL_APP_VERSION: ${APP_VERSION:-0.1.0}
-      
+
     ports:
       - "${PORT:-8000}:8000"
-    
+
     # Production health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -41,7 +41,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    
+
     # Resource limits
     deploy:
       resources:
@@ -51,7 +51,7 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-      
+
       # Scaling configuration
       replicas: ${REPLICAS:-2}
       update_config:

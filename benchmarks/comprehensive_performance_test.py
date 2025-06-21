@@ -711,7 +711,9 @@ class PerformanceBenchmark:
         output_path = Path("benchmark_results.json")
         with output_path.open("w") as f:
             json.dump(
-                {"timestamp": datetime.now(tz=timezone.utc).isoformat(), "results": results_data}, f, indent=2
+                {"timestamp": datetime.now(tz=timezone.utc).isoformat(), "results": results_data},
+                f,
+                indent=2,
             )
 
         print("\n\n📄 Full results saved to benchmark_results.json")

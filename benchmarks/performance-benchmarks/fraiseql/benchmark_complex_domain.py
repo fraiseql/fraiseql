@@ -486,9 +486,10 @@ async def run_mutation_benchmark(
 async def check_health(name: str, url: str) -> bool:
     """Check if service is healthy."""
     try:
-        async with aiohttp.ClientSession() as session, session.get(
-            f"{url}/health", timeout=aiohttp.ClientTimeout(total=5)
-        ) as response:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(f"{url}/health", timeout=aiohttp.ClientTimeout(total=5)) as response,
+        ):
             if response.status == 200:
                 print(f"✅ {name} is healthy")
                 return True

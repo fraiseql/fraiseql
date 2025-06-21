@@ -177,9 +177,7 @@ class Query:
             return [Department(**dict(row)) for row in rows]
 
     @strawberry.field
-    async def projects_deep(
-        self, statuses: list[str] = None, limit: int = 10
-    ) -> list[Project]:
+    async def projects_deep(self, statuses: list[str] = None, limit: int = 10) -> list[Project]:
         if statuses is None:
             statuses = ["planning", "in_progress"]
         monitor.record_resolver("query.projects_deep")

@@ -58,20 +58,20 @@
     <section class="requirements">
         <div class="container">
             <h2>Requirements</h2>
-            
+
             <div class="requirement-cards">
                 <div class="requirement-card">
                     <h3>PostgreSQL 13+</h3>
                     <p>FraiseQL requires PostgreSQL 13 or higher with JSONB support.</p>
                     <p class="note">Other databases are not supported and there are no plans to add support.</p>
                 </div>
-                
+
                 <div class="requirement-card">
                     <h3>Python 3.11+</h3>
                     <p>Full type hints support requires Python 3.11 or higher.</p>
                     <p class="note">Python 3.10 may work but is not officially supported.</p>
                 </div>
-                
+
                 <div class="requirement-card">
                     <h3>Basic SQL Knowledge</h3>
                     <p>You'll need to write PostgreSQL views and functions.</p>
@@ -84,7 +84,7 @@
     <section class="missing-features">
         <div class="container">
             <h2>What's NOT Ready</h2>
-            
+
             <div class="missing-grid">
                 <div class="missing-item">
                     <h3>🚨 Security</h3>
@@ -95,7 +95,7 @@
                         <li>Limited error handling</li>
                     </ul>
                 </div>
-                
+
                 <div class="missing-item">
                     <h3>📊 Performance</h3>
                     <ul>
@@ -105,7 +105,7 @@
                         <li>No production benchmarks</li>
                     </ul>
                 </div>
-                
+
                 <div class="missing-item">
                     <h3>🔧 Operations</h3>
                     <ul>
@@ -115,7 +115,7 @@
                         <li>No monitoring dashboards</li>
                     </ul>
                 </div>
-                
+
                 <div class="missing-item">
                     <h3>✨ Features</h3>
                     <ul>
@@ -132,14 +132,14 @@
     <section class="if-you-continue">
         <div class="container">
             <h2>If You Want to Continue...</h2>
-            
+
             <div class="continue-steps">
                 <div class="step">
                     <h3>1. Install Alpha Version</h3>
                     <pre><code>pip install fraiseql==0.1.0a10</code></pre>
                     <p class="note">Pin to specific alpha version to avoid breaking changes</p>
                 </div>
-                
+
                 <div class="step">
                     <h3>2. Use Development Mode Only</h3>
                     <pre><code>app = create_fraiseql_app(
@@ -148,7 +148,7 @@
     production=False  # Never use True in alpha
 )</code></pre>
                 </div>
-                
+
                 <div class="step">
                     <h3>3. Expect Breaking Changes</h3>
                     <p>Follow the <a href="https://github.com/fraiseql/fraiseql/releases">release notes</a> carefully. APIs will change between alpha releases.</p>
@@ -161,18 +161,18 @@
         <div class="container">
             <h2>Production-Ready Alternatives</h2>
             <p>If you need a production GraphQL solution today, consider:</p>
-            
+
             <div class="alternative-grid">
                 <div class="alternative">
                     <h3><a href="https://hasura.io">Hasura</a></h3>
                     <p>Auto-generated GraphQL from database schema. Production ready with enterprise support.</p>
                 </div>
-                
+
                 <div class="alternative">
                     <h3><a href="https://www.graphile.org/postgraphile/">PostGraphile</a></h3>
                     <p>Instant GraphQL API from PostgreSQL schema. Mature and battle-tested.</p>
                 </div>
-                
+
                 <div class="alternative">
                     <h3><a href="https://strawberry.rocks/">Strawberry GraphQL</a></h3>
                     <p>Python GraphQL library with great DX. What FraiseQL's API is inspired by.</p>

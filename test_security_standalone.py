@@ -11,6 +11,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
 def run_rate_limiting_tests():
     """Test rate limiting functionality."""
     try:
@@ -80,7 +81,6 @@ def run_csrf_protection_tests():
             CSRFTokenGenerator,
             GraphQLCSRFValidator,
         )
-
 
         # Test 1: Token generation and validation
         generator = CSRFTokenGenerator("test-secret-key", timeout=3600)
@@ -154,7 +154,6 @@ def run_security_headers_tests():
             create_strict_csp,
         )
 
-
         # Test 1: Content Security Policy
         csp = ContentSecurityPolicy()
         csp.add_directive(CSPDirective.DEFAULT_SRC, "'self'")
@@ -215,7 +214,6 @@ def run_integration_tests():
             setup_security,
         )
 
-
         # Test 1: Security configuration
         config = SecurityConfig(
             secret_key="test-secret-key",
@@ -272,7 +270,6 @@ def main():
 
     passed = sum(results)
     total = len(results)
-
 
     if passed == total:
         return 0
