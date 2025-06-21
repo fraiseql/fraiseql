@@ -99,7 +99,7 @@ class SubscriptionCache:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except Exception:
                 logger.exception("Cache cleanup error")
 
 

@@ -52,7 +52,7 @@ class FilterExpressionEvaluator:
 
             # Compile and evaluate
             code = compile(tree, "<filter>", "eval")
-            return eval(
+            return eval(  # noqa: S307
                 code, {"__builtins__": {}}, self.context,
             )
 

@@ -213,7 +213,7 @@ class WebSocketConnection:
 
         try:
             await self.websocket.send(json.dumps(message.to_dict()))
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to send message")
             self.state = ConnectionState.CLOSING
             raise
@@ -353,7 +353,7 @@ class WebSocketConnection:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except Exception:
                 logger.exception("Keep-alive error")
                 break
 
@@ -366,7 +366,7 @@ class WebSocketConnection:
 
         try:
             await self.websocket.close(code=code, reason=reason)
-        except Exception as e:
+        except Exception:
             logger.exception("Error closing WebSocket")
 
         self.state = ConnectionState.CLOSED
