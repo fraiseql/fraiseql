@@ -108,7 +108,10 @@ class TestTurboRouter:
 
     @pytest.mark.asyncio
     async def test_turbo_router_execution_registered_query(
-        self, turbo_registry, sample_query, sample_sql,
+        self,
+        turbo_registry,
+        sample_query,
+        sample_sql,
     ) -> None:
         """Test executing a registered turbo query."""
         # Register a turbo query
@@ -281,7 +284,10 @@ class TestTurboRouter:
 
     @pytest.mark.asyncio
     async def test_turbo_router_error_handling(
-        self, turbo_registry, sample_query, sample_sql,
+        self,
+        turbo_registry,
+        sample_query,
+        sample_sql,
     ) -> None:
         """Test error handling in turbo router execution."""
         # Register a query

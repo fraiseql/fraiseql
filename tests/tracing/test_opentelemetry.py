@@ -152,7 +152,9 @@ class TestFraiseQLTracer:
             query_span.set_attribute("test", "parent")
 
             with self.tracer.trace_database_query(
-                "SELECT", "users", "SELECT * FROM users",
+                "SELECT",
+                "users",
+                "SELECT * FROM users",
             ) as db_span:
                 db_span.set_attribute("test", "child")
 

@@ -50,7 +50,9 @@ class SubscriptionLifecycle:
                 and info.context.get("debug_subscriptions")
             ):
                 logger.debug(
-                    "Subscription %s emitted: %s", info.context.get("subscription_id"), event,
+                    "Subscription %s emitted: %s",
+                    info.context.get("subscription_id"),
+                    event,
                 )
 
             return result

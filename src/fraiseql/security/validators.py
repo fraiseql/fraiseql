@@ -131,11 +131,7 @@ class InputValidator:
                         errors.append(f"{message} in {field_name}")
 
             # Path traversal (for file-related fields)
-            if (
-                field_type == "path"
-                or "path" in field_name.lower()
-                or "file" in field_name.lower()
-            ):
+            if field_type == "path" or "path" in field_name.lower() or "file" in field_name.lower():
                 for pattern, message in cls.PATH_TRAVERSAL_PATTERNS:
                     if re.search(pattern, value, re.IGNORECASE):
                         errors.append(f"{message} in {field_name}")
@@ -179,9 +175,7 @@ class InputValidator:
         # Numeric validation
         elif isinstance(value, int | float):
             # Check for suspicious numeric values
-            if isinstance(value, float) and (
-                value == float("inf") or value == float("-inf")
-            ):
+            if isinstance(value, float) and (value == float("inf") or value == float("-inf")):
                 errors.append(f"Infinite value not allowed in {field_name}")
             elif isinstance(value, float) and str(value) == "nan":  # NaN check
                 errors.append(f"NaN value not allowed in {field_name}")
@@ -281,9 +275,7 @@ class InputValidator:
                 field_type = input_type.__annotations__.get(field_name)
 
             # Special handling for email fields
-            if field_name == "email" or (
-                field_type and "email" in str(field_type).lower()
-            ):
+            if field_name == "email" or (field_type and "email" in str(field_type).lower()):
                 email_result = cls._validate_email(value)
                 if not email_result.is_valid:
                     all_errors.extend(email_result.errors)

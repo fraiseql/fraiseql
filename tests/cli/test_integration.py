@@ -67,7 +67,9 @@ class TestCLIIntegration:
             for entity in ["User", "Post", "Comment"]:
                 # Run CLI commands with the blog directory as cwd
                 result = cli_runner.invoke(
-                    cli, ["generate", "migration", entity], cwd=str(blog_path),
+                    cli,
+                    ["generate", "migration", entity],
+                    cwd=str(blog_path),
                 )
                 assert result.exit_code == 0
 
@@ -110,7 +112,9 @@ class TestCLIIntegration:
                 mock_gen.return_value.write_tests_to_files = AsyncMock()
 
                 result = cli_runner.invoke(
-                    cli, ["testfoundry", "generate", "User"], cwd=str(test_path),
+                    cli,
+                    ["testfoundry", "generate", "User"],
+                    cwd=str(test_path),
                 )
                 assert result.exit_code == 0
                 assert "Tests generated" in result.output

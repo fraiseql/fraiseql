@@ -183,9 +183,7 @@ def convert_type_to_graphql_input(
             if field.graphql_name:
                 graphql_field_name = field.graphql_name
             else:
-                graphql_field_name = (
-                    snake_to_camel(name) if config.camel_case_fields else name
-                )
+                graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
             gql_fields[graphql_field_name] = GraphQLInputField(
                 convert_type_to_graphql_input(field_type),
@@ -401,8 +399,7 @@ def convert_type_to_graphql_output(
 
                             if return_type is None:
                                 logger.warning(
-                                    "Custom field method %s missing return type "
-                                    "annotation",
+                                    "Custom field method %s missing return type " "annotation",
                                     attr_name,
                                 )
                                 continue
@@ -439,9 +436,7 @@ def convert_type_to_graphql_output(
                             # Convert field name to camelCase if configured
                             config = SchemaConfig.get_instance()
                             graphql_field_name = (
-                                snake_to_camel(attr_name)
-                                if config.camel_case_fields
-                                else attr_name
+                                snake_to_camel(attr_name) if config.camel_case_fields else attr_name
                             )
 
                             gql_fields[graphql_field_name] = GraphQLField(
@@ -452,7 +447,9 @@ def convert_type_to_graphql_output(
 
                         except Exception as e:
                             logger.warning(
-                                "Failed to process custom field %s: %s", attr_name, e,
+                                "Failed to process custom field %s: %s",
+                                attr_name,
+                                e,
                             )
                             continue
 

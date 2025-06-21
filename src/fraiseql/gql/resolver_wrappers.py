@@ -51,8 +51,7 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
                 isinstance(value, dict)
                 and isclass(expected_type)
                 and (
-                    is_dataclass(expected_type)
-                    or hasattr(expected_type, "__fraiseql_definition__")
+                    is_dataclass(expected_type) or hasattr(expected_type, "__fraiseql_definition__")
                 )
             ):
                 coerced_kwargs[name] = expected_type(**value)

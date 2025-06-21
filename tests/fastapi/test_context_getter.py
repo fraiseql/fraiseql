@@ -48,7 +48,6 @@ def app_with_custom_context():
     )
 
 
-
 def test_custom_context_getter(app_with_custom_context) -> None:
     """Test that custom context getter is used."""
     client = TestClient(app_with_custom_context)

@@ -93,7 +93,9 @@ def parse_mutation_result(
             ],
         )
     return error_cls(
-        status="failed:unknown_status", message=message, errors=errors,
+        status="failed:unknown_status",
+        message=message,
+        errors=errors,
     )  # type: ignore[call-arg]
 
 

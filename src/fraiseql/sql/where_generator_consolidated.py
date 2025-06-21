@@ -103,9 +103,7 @@ class WhereClauseMixin:
                 raise SQLGenerationError(
                     operation="WHERE clause generation",
                     reason=f"Field '{field_name}' exceeds maximum numeric value",
-                    custom_suggestion=(
-                        f"Use a value less than {self._config.max_numeric_value}"
-                    ),
+                    custom_suggestion=(f"Use a value less than {self._config.max_numeric_value}"),
                 )
 
         # List validation
@@ -200,7 +198,8 @@ class WhereClauseMixin:
         if operator == "array_contains":
             # For JSONB array contains
             json_path = SQL("{}->{}").format(
-                SQL(self._config.table_prefix), Literal(field_name),
+                SQL(self._config.table_prefix),
+                Literal(field_name),
             )
             return SQL("{} @> {}").format(json_path, Placeholder())
 
