@@ -160,6 +160,7 @@ ignore = [
   "PLR0912", # Too many branches
   "PLR0911", # Too many return statements
   "UP007",   # Use X | Y for type unions (not compatible with older Python)
+  "UP047",   # Generic function should use type parameters (Python 3.12+ syntax)
   "N802",    # Function name should be lowercase
   "N806",    # Variable in function should be lowercase
   "SLF001",  # Private member accessed
