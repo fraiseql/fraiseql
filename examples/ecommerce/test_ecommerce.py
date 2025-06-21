@@ -7,8 +7,6 @@ import pytest
 from fraiseql.testing import FraiseQLTestClient
 
 from .app import app
-from .models import *
-from .mutations import *
 
 
 @pytest.fixture

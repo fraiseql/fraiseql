@@ -12,9 +12,50 @@ from fraiseql.monitoring import MetricsConfig, setup_metrics
 from fraiseql.tracing import TracingConfig, setup_tracing
 
 # Import models and operations
-from .models import *
-from .mutations import *
-from .queries import Query
+from .models import (
+    Address,
+    Cart,
+    CartItem,
+    Coupon,
+    Order,
+    OrderItem,
+    # Enums
+    Product,
+    Review,
+    User,
+    WishlistItem,
+)
+from .mutations import (
+    # Cart mutations
+    AddToCart,
+    CancelOrder,
+    # Additional input types
+    Checkout,
+    ClearCart,
+    # Address mutations
+    CreateAddress,
+    # Review mutations
+    CreateReview,
+    DeleteAddress,
+    Login,
+    # Auth mutations
+    Register,
+    RemoveFromCart,
+    UpdateAddress,
+    UpdateCartItem,
+)
+from .queries import (
+    # Aggregated types
+    CartWithItems,
+    DashboardStats,
+    OrderConnection,
+    OrderWithDetails,
+    # Connection types
+    ProductConnection,
+    ProductWithReviews,
+    Query,
+    ReviewConnection,
+)
 
 # Load environment variables
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/ecommerce")
