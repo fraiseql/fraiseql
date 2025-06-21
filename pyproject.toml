@@ -71,6 +71,7 @@ dev = [
   "pyright>=1.1.401",
   "build>=1.0.0",
   "twine>=5.0.0",
+  "pyyaml>=6.0.0",
 ]
 auth0 = [
   "pyjwt[crypto]>=2.8.0",
