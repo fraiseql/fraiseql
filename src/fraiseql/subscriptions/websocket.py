@@ -135,7 +135,7 @@ class WebSocketConnection:
         except asyncio.CancelledError:
             logger.info("Connection %s cancelled", self.connection_id)
         except Exception as e:
-            logger.exception("Connection %s error: %s", self.connection_id, e)
+            logger.exception("Connection %s error", self.connection_id)
             await self._send_error(None, str(e))
         finally:
             await self._cleanup()
@@ -184,7 +184,7 @@ class WebSocketConnection:
                 if "disconnect" in str(e).lower():
                     # Normal disconnect
                     break
-                logger.exception("Message handling error: %s", e)
+                logger.exception("Message handling error")
                 await self._send_error(None, str(e))
 
     async def _receive_message(self) -> GraphQLWSMessage:
@@ -214,7 +214,7 @@ class WebSocketConnection:
         try:
             await self.websocket.send(json.dumps(message.to_dict()))
         except Exception as e:
-            logger.exception("Failed to send message: %s", e)
+            logger.exception("Failed to send message")
             self.state = ConnectionState.CLOSING
             raise
 
@@ -270,7 +270,7 @@ class WebSocketConnection:
                 await self._send_error(message.id, result)
 
         except Exception as e:
-            logger.exception("Subscription error: %s", e)
+            logger.exception("Subscription error")
             await self._send_error(message.id, str(e))
 
     async def _handle_subscription_generator(
@@ -307,7 +307,7 @@ class WebSocketConnection:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            logger.exception("Subscription %s error: %s", subscription_id, e)
+            logger.exception("Subscription %s error", subscription_id)
             await self._send_error(subscription_id, str(e))
         finally:
             # Clean up
@@ -354,7 +354,7 @@ class WebSocketConnection:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.exception("Keep-alive error: %s", e)
+                logger.exception("Keep-alive error")
                 break
 
     async def _close(self, code: int = 1000, reason: str = "") -> None:
@@ -367,7 +367,7 @@ class WebSocketConnection:
         try:
             await self.websocket.close(code=code, reason=reason)
         except Exception as e:
-            logger.exception("Error closing WebSocket: %s", e)
+            logger.exception("Error closing WebSocket")
 
         self.state = ConnectionState.CLOSED
 

@@ -509,7 +509,7 @@ def create_csp_report_handler(webhook_url: str | None = None):
             return {"status": "received"}  # noqa: TRY300
 
         except Exception as e:
-            logger.exception("Error handling CSP report: %s", e)
+            logger.exception("Error handling CSP report")
             return {"status": "error"}
 
     return csp_report_endpoint

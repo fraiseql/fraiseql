@@ -23,9 +23,9 @@ async def test_connection():
         ):
             await cur.execute("SELECT 1")
             result = await cur.fetchone()
-            logger.debug(f"Direct connection works: {result}")
+            logger.debug("Direct connection works: %s", result)
     except Exception as e:
-        logger.debug(f"Direct connection failed: {e}")
+        logger.debug("Direct connection failed: %s", e)
 
     # Test pool connection
     try:
@@ -36,9 +36,9 @@ async def test_connection():
             async with pool.connection() as conn, conn.cursor() as cur:
                 await cur.execute("SELECT 1")
                 result = await cur.fetchone()
-                logger.debug(f"Pool connection works: {result}")
+                logger.debug("Pool connection works: %s", result)
     except Exception as e:
-        logger.debug(f"Pool connection failed: {e}")
+        logger.debug("Pool connection failed: %s", e)
 
 
 if __name__ == "__main__":

@@ -105,7 +105,7 @@ class FraiseQLBenchmark:
             return {"data": result[0]["data"] if result and result[0]["data"] else []}
 
         except Exception as e:
-            raise Exception(f"Query failed: {e}") from e
+            raise Exception(f"Query failed: {e}") from e  # noqa: TRY002
         finally:
             return time.time() - start_time
 
@@ -134,16 +134,16 @@ class HasuraBenchmark:
                 headers={"Content-Type": "application/json"},
             ) as response:
                 if response.status != 200:
-                    raise Exception(f"HTTP {response.status}")
+                    raise Exception(f"HTTP {response.status}")  # noqa: TRY002
 
                 result = await response.json()
                 if "errors" in result:
-                    raise Exception(f"GraphQL errors: {result['errors']}")
+                    raise Exception(f"GraphQL errors: {result['errors']}")  # noqa: TRY002
 
                 return result
 
         except Exception as e:
-            raise Exception(f"Hasura query failed: {e}") from e
+            raise Exception(f"Hasura query failed: {e}") from e  # noqa: TRY002
         finally:
             return time.time() - start_time
 
@@ -172,16 +172,16 @@ class PostGraphileBenchmark:
                 headers={"Content-Type": "application/json"},
             ) as response:
                 if response.status != 200:
-                    raise Exception(f"HTTP {response.status}")
+                    raise Exception(f"HTTP {response.status}")  # noqa: TRY002
 
                 result = await response.json()
                 if "errors" in result:
-                    raise Exception(f"GraphQL errors: {result['errors']}")
+                    raise Exception(f"GraphQL errors: {result['errors']}")  # noqa: TRY002
 
                 return result
 
         except Exception as e:
-            raise Exception(f"PostGraphile query failed: {e}") from e
+            raise Exception(f"PostGraphile query failed: {e}") from e  # noqa: TRY002
         finally:
             return time.time() - start_time
 

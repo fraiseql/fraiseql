@@ -87,7 +87,7 @@ class ConnectionManager:
             for connection in self.room_connections[room_id]:
                 try:
                     await connection.send_text(json.dumps(message))
-                except:
+                except Exception:
                     disconnected.add(connection)
 
             # Clean up disconnected connections
@@ -101,7 +101,7 @@ class ConnectionManager:
             for connection in self.user_connections[user_id]:
                 try:
                     await connection.send_text(json.dumps(message))
-                except:
+                except Exception:
                     disconnected.add(connection)
 
             # Clean up disconnected connections

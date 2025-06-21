@@ -30,13 +30,13 @@ async def test_duplicate_email():
         result1 = await repo.create_user(
             {"email": email, "name": "First User", "bio": "First bio"},
         )
-        logger.debug(f"First user creation: {result1}")
+        logger.debug("First user creation: %s", result1)
 
         # Try to create duplicate
         result2 = await repo.create_user(
             {"email": email, "name": "Duplicate User", "bio": "Second bio"},
         )
-        logger.debug(f"Duplicate user creation: {result2}")
+        logger.debug("Duplicate user creation: %s", result2)
 
         # Check what's in the database
         async with conn.cursor() as cur:
@@ -44,7 +44,7 @@ async def test_duplicate_email():
                 "SELECT id, email, name FROM tb_users WHERE email = %s", (email,),
             )
             users = await cur.fetchall()
-            logger.debug(f"Users with email {email}: {users}")
+            logger.debug("Users with email %s: %s", email, users)
 
 
 if __name__ == "__main__":
