@@ -292,7 +292,7 @@ class TestTracingMiddleware:
         async def mock_call_next(req):
             # Capture current trace context
             span = trace.get_current_span()
-            span.get_span_context().trace_id
+            _ = span.get_span_context().trace_id  # Access for side effects
             return Mock(status_code=200)
 
         await self.middleware.process_request(request, mock_call_next)

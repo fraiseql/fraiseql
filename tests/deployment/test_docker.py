@@ -42,7 +42,8 @@ class TestDockerfile:
             content = f.read()
 
         # Check for multi-stage build
-        assert "FROM" in content and content.count("FROM") >= 2, "Should use multi-stage build"
+        assert "FROM" in content, "FROM instruction must be present"
+        assert content.count("FROM") >= 2, "Should use multi-stage build"
 
         # Check for non-root user
         assert "USER" in content, "Should run as non-root user"
@@ -132,7 +133,8 @@ class TestDockerBuild:
         size_value = float(size_str.rstrip("GMKB"))
 
         # Image should be less than 500MB for production
-        assert "MB" in size_str and size_value < 500, f"Image too large: {size_str}"
+        assert "MB" in size_str, f"Size must be in MB: {size_str}"
+        assert size_value < 500, f"Image too large: {size_str}"
 
     def test_image_labels(self, docker_image) -> None:
         """Test that Docker image has proper labels."""

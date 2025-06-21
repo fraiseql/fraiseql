@@ -99,14 +99,12 @@ def test_n1_detection_triggers_warning(caplog) -> None:
         production=False,  # Development mode enables N+1 detection
     )
 
-    with TestClient(app) as client:
-        # Set log level to capture warnings
-        with caplog.at_level(logging.WARNING):
-            # Query that triggers N+1
-            response = client.post(
-                "/graphql",
-                json={
-                    "query": """
+    with TestClient(app) as client, caplog.at_level(logging.WARNING):
+        # Query that triggers N+1
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
                         query {
                             getArticles {
                                 id
@@ -118,28 +116,28 @@ def test_n1_detection_triggers_warning(caplog) -> None:
                                 }
                             }
                         }
-                    """,
-                },
-            )
+                """,
+            },
+        )
 
-            assert response.status_code == 200
-            data = response.json()
+        assert response.status_code == 200
+        data = response.json()
 
-            # Query should succeed
-            assert "data" in data
-            assert len(data["data"]["getArticles"]) == 15
+        # Query should succeed
+        assert "data" in data
+        assert len(data["data"]["getArticles"]) == 15
 
-            # Check for N+1 warning in logs
-            warning_found = any(
-                "N+1 query pattern detected" in record.message for record in caplog.records
-            )
-            assert warning_found, "N+1 detection warning not found in logs"
+        # Check for N+1 warning in logs
+        warning_found = any(
+            "N+1 query pattern detected" in record.message for record in caplog.records
+        )
+        assert warning_found, "N+1 detection warning not found in logs"
 
-            # Check for specific suggestion
-            suggestion_found = any(
-                "Consider using a DataLoader" in record.message for record in caplog.records
-            )
-            assert suggestion_found, "DataLoader suggestion not found in logs"
+        # Check for specific suggestion
+        suggestion_found = any(
+            "Consider using a DataLoader" in record.message for record in caplog.records
+        )
+        assert suggestion_found, "DataLoader suggestion not found in logs"
 
 
 def test_n1_detection_with_raise_enabled() -> None:

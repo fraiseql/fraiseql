@@ -211,9 +211,9 @@ def test_schema_structure(clear_registry) -> None:
         mutation_resolvers=[create_user],
     )
 
-    # Uncomment to debug schema
-    # from graphql import print_schema
-    # print(print_schema(schema))
+    # Debug tip: To inspect the schema structure, use:
+    # from graphql import print_schema  # noqa: ERA001
+    # print(print_schema(schema))  # noqa: ERA001
 
     assert schema.query_type.name == "Query"
     assert schema.mutation_type.name == "Mutation"

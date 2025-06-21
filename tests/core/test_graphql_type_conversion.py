@@ -223,7 +223,7 @@ class TestConvertTypeToGraphQLOutput:
         """Test conversion of simple FraiseQL output class."""
 
         @fraise_type
-        class UserGQLConversion_1:
+        class UserGQLConversion_1:  # noqa: N801
             name: str
             age: int
 
@@ -299,7 +299,7 @@ class TestConvertTypeToGraphQLOutput:
             city: str
 
         @fraise_type
-        class UserGQLConversion_2:
+        class UserGQLConversion_2:  # noqa: N801
             name: str
             address: Address
 
@@ -468,9 +468,9 @@ class TestCustomScalarTypes:
         @fraise_input
         class InputWithCustomScalars:
             name: str
-            # These will likely fail until custom scalar support is added
-            # user_id: UUID
-            # metadata: JSONField
+            # Fields to add when custom scalar support is implemented:
+            # - user_id: UUID
+            # - metadata: JSONField
 
         # For now, just test the working parts
         result = convert_type_to_graphql_input(InputWithCustomScalars)
@@ -502,7 +502,7 @@ class TestMissingFieldsInComplexTypes:
         """Test that optional JSONField can be missing."""
 
         @fraise_input
-        class CreateUserInputTestGQLConversion_2:
+        class CreateUserInputTestGQLConversion_2:  # noqa: N801
             name: str
             metadata: JSONField | None = None
 

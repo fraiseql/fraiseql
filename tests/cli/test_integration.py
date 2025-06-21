@@ -133,7 +133,9 @@ class TestCLIIntegration:
         os.chdir("envtest")
 
         # Test that dev command would load the .env file
-        with patch("fraiseql.cli.commands.dev.load_dotenv") as mock_load:
-            with patch("fraiseql.cli.commands.dev.uvicorn"):
-                result = cli_runner.invoke(cli, ["dev"])
-                mock_load.assert_called_once()
+        with (
+            patch("fraiseql.cli.commands.dev.load_dotenv") as mock_load,
+            patch("fraiseql.cli.commands.dev.uvicorn"),
+        ):
+            result = cli_runner.invoke(cli, ["dev"])
+            mock_load.assert_called_once()

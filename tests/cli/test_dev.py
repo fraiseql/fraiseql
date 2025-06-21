@@ -50,7 +50,7 @@ class TestDevCommand:
                 [
                     "dev",
                     "--host",
-                    "0.0.0.0",
+                    "0.0.0.0",  # noqa: S104
                     "--port",
                     "3000",
                     "--no-reload",
@@ -65,7 +65,7 @@ class TestDevCommand:
 
             mock_uvicorn.run.assert_called_once_with(
                 "myapp:application",
-                host="0.0.0.0",
+                host="0.0.0.0",  # noqa: S104
                 port=3000,
                 reload=False,
                 log_level="info",

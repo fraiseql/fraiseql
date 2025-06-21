@@ -1,5 +1,7 @@
 """Tests for user-friendly error messages."""
 
+import pytest
+
 from fraiseql.errors.user_friendly import (
     FraiseQLError,
     InvalidFieldTypeError,
@@ -221,16 +223,17 @@ class TestErrorChaining:
 
     def test_error_with_cause(self) -> None:
         """Test error with underlying cause."""
-        try:
-            msg = "Database connection failed"
+        msg = "Database connection failed"
+        with pytest.raises(ValueError) as exc_info:
             raise ValueError(msg)
-        except ValueError as e:
-            error = FraiseQLError(
-                message="Failed to execute query",
-                cause=e,
-            )
-            assert error.__cause__ == e
-            assert "Database connection failed" in str(e)
+
+        e = exc_info.value
+        error = FraiseQLError(
+            message="Failed to execute query",
+            cause=e,
+        )
+        assert error.__cause__ == e
+        assert "Database connection failed" in str(e)
 
     def test_error_context_preservation(self) -> None:
         """Test that context is preserved through error chain."""

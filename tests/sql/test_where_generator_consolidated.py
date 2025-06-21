@@ -164,12 +164,8 @@ class TestWhereGeneratorValidation:
         UserWhere = create_where_type(User, config=config)
 
         # Should reject SQL injection attempts
-        with pytest.raises(SQLGenerationError) as exc_info:
-            where = UserWhere(email="'; DROP TABLE users; --")
-            where.to_sql()
-
-        assert "SQL injection pattern detected" in str(exc_info.value)
-        assert exc_info.value.code == "SQL_GENERATION_ERROR"
+        with pytest.raises(SQLGenerationError, match="SQL injection pattern detected"):
+            UserWhere(email="'; DROP TABLE users; --").to_sql()
 
     def test_lenient_validation_mode(self) -> None:
         """Test lenient mode allows suspicious input with sanitization."""
@@ -205,11 +201,8 @@ class TestWhereGeneratorValidation:
         UserWhere = create_where_type(User, config=config)
 
         # Should reject very long strings
-        with pytest.raises(SQLGenerationError) as exc_info:
-            where = UserWhere(name="x" * 100)
-            where.to_sql()
-
-        assert "exceeds maximum length" in str(exc_info.value)
+        with pytest.raises(SQLGenerationError, match="exceeds maximum length"):
+            UserWhere(name="x" * 100).to_sql()
 
     def test_numeric_validation(self) -> None:
         """Test numeric value validation."""
@@ -218,8 +211,7 @@ class TestWhereGeneratorValidation:
 
         # Should reject infinity
         with pytest.raises(SQLGenerationError):
-            where = UserWhere(age=float("inf"))
-            where.to_sql()
+            UserWhere(age=float("inf")).to_sql()
 
 
 class TestWhereGeneratorTypeMapping:

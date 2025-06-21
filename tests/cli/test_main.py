@@ -44,13 +44,15 @@ class TestCLIMain:
 
     def test_main_function_handles_exceptions(self) -> None:
         """Test main() function handles exceptions properly."""
-        with patch("fraiseql.cli.main.cli", side_effect=Exception("Test error")):
-            with patch("sys.exit") as mock_exit:
-                with patch("click.echo") as mock_echo:
-                    main()
+        with (
+            patch("fraiseql.cli.main.cli", side_effect=Exception("Test error")),
+            patch("sys.exit") as mock_exit,
+            patch("click.echo") as mock_echo,
+        ):
+            main()
 
-                    mock_echo.assert_called_with("Error: Test error", err=True)
-                    mock_exit.assert_called_with(1)
+            mock_echo.assert_called_with("Error: Test error", err=True)
+            mock_exit.assert_called_with(1)
 
     def test_command_groups(self, cli_runner) -> None:
         """Test command groups have proper help."""
