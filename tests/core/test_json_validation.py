@@ -51,7 +51,7 @@ class TestJSONValidation:
                 parse_json_value(value)
 
     def test_json_field_with_invalid_default(self) -> None:
-        """Test that invalid default values in JSON fields are caught during GraphQL type conversion."""
+        """Test that invalid default values in JSON fields are caught."""
         # The validation happens when converting to GraphQL types, not at class definition
 
         class NonSerializable:

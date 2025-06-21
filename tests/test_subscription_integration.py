@@ -10,7 +10,8 @@ from graphql import parse, subscribe
 import fraiseql
 from fraiseql import subscription
 from fraiseql.gql.schema_builder import SchemaRegistry
-from fraiseql.subscriptions import cache, complexity, filter
+from fraiseql.subscriptions import cache, complexity
+from fraiseql.subscriptions import filter as sub_filter
 
 
 # Define test types
@@ -39,7 +40,7 @@ async def ping(info) -> str:
 # Define subscriptions
 @subscription
 @complexity(score=5)
-@filter("channel in info.context.get('allowed_channels', [])")
+@sub_filter("channel in info.context.get('allowed_channels', [])")
 async def message_stream(info, channel: str) -> AsyncGenerator[Message]:
     """Subscribe to messages in a channel."""
     # Simulate real-time messages

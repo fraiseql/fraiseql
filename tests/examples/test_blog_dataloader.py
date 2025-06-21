@@ -1,11 +1,11 @@
 """Test DataLoader integration with the blog API example."""
 
-import os
 import sys
+from pathlib import Path
 
 # Add the blog_api directory to the path so we can import its modules
-blog_api_path = os.path.join(os.path.dirname(__file__), "../../examples/blog_api")
-sys.path.insert(0, blog_api_path)
+blog_api_path = Path(__file__).parent / "../../examples/blog_api"
+sys.path.insert(0, str(blog_api_path))
 
 from unittest.mock import Mock
 from uuid import UUID

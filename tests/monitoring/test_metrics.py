@@ -199,10 +199,10 @@ class TestMetricsMiddleware:
         # Mock error
         async def mock_call_next_error(req) -> Never:
             msg = "Test error"
-            raise Exception(msg)
+            raise RuntimeError(msg)
 
         # Should propagate error but record metrics
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             await middleware.process_request(request, mock_call_next_error)
 
         # Error metrics should be recorded

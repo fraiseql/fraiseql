@@ -1,7 +1,7 @@
 """Tests for consolidated WHERE generator with validation."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -252,7 +252,7 @@ class TestWhereGeneratorTypeMapping:
     def test_datetime_handling(self) -> None:
         """Test datetime field handling."""
         UserWhere = create_where_type(User)
-        where = UserWhere(created_at_gte=datetime(2023, 1, 1))
+        where = UserWhere(created_at_gte=datetime(2023, 1, 1, tzinfo=UTC))
 
         sql_str = where.to_sql().as_string(None)
         assert "(data->>'created_at')::timestamp >= %s" in sql_str

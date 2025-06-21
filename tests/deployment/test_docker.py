@@ -38,7 +38,7 @@ class TestDockerfile:
 
     def test_dockerfile_best_practices(self) -> None:
         """Test Dockerfile follows best practices."""
-        with open("Dockerfile") as f:
+        with Path("Dockerfile").open() as f:
             content = f.read()
 
         # Check for multi-stage build
@@ -64,7 +64,7 @@ class TestDockerfile:
     def test_docker_compose_valid(self) -> None:
         """Test docker-compose files are valid YAML."""
         for compose_file in ["docker-compose.yml", "docker-compose.prod.yml"]:
-            with open(compose_file) as f:
+            with Path(compose_file).open() as f:
                 data = yaml.safe_load(f)
 
             assert "services" in data, f"{compose_file} must define services"
@@ -80,7 +80,7 @@ class TestDockerfile:
 
     def test_production_optimizations(self) -> None:
         """Test production Dockerfile optimizations."""
-        with open("Dockerfile") as f:
+        with Path("Dockerfile").open() as f:
             content = f.read()
 
         # Check for proper layer caching
@@ -194,7 +194,7 @@ class TestDockerSecurity:
 
     def test_no_secrets_in_image(self) -> None:
         """Test that no secrets are included in the image."""
-        with open("Dockerfile") as f:
+        with Path("Dockerfile").open() as f:
             content = f.read()
 
         # Check for common secret patterns
@@ -218,7 +218,7 @@ class TestDockerSecurity:
 
         has_security_scan = False
         for ci_file in ci_files:
-            with open(ci_file) as f:
+            with Path(ci_file).open() as f:
                 content = f.read()
                 if "trivy" in content or "snyk" in content or "clair" in content:
                     has_security_scan = True
@@ -234,7 +234,7 @@ class TestDockerCompose:
 
     def test_development_compose(self) -> None:
         """Test development docker-compose configuration."""
-        with open("docker-compose.yml") as f:
+        with Path("docker-compose.yml").open() as f:
             config = yaml.safe_load(f)
 
         # Check postgres configuration
@@ -252,7 +252,7 @@ class TestDockerCompose:
 
     def test_production_compose(self) -> None:
         """Test production docker-compose configuration."""
-        with open("docker-compose.prod.yml") as f:
+        with Path("docker-compose.prod.yml").open() as f:
             config = yaml.safe_load(f)
 
         fraiseql = config["services"]["fraiseql"]

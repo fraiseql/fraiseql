@@ -165,12 +165,12 @@ class TestConvertTypeToGraphQLInput:
     def test_union_types_raise_error(self) -> None:
         """Test that Union types raise TypeError."""
         with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
-            convert_type_to_graphql_input(Union[str, int])  # type: ignore
+            convert_type_to_graphql_input(Union[str, int])  # type: ignore[arg-type]
 
     def test_annotated_union_types_raise_error(self) -> None:
         """Test that Annotated Union types raise TypeError."""
         with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
-            convert_type_to_graphql_input(Annotated[str | int, "some annotation"])  # type: ignore
+            convert_type_to_graphql_input(Annotated[str | int, "some annotation"])  # type: ignore[arg-type]
 
     def test_invalid_type_raises_error(self) -> None:
         """Test that invalid types raise TypeError."""
@@ -628,7 +628,7 @@ class TestInvalidJSONFieldData:
             match="JSON cannot represent.*literal of type str",
         ):
             # Ensure that parsing invalid JSON literals raises an error
-            parse_json_literal(invalid_json)  # type: ignore
+            parse_json_literal(invalid_json)  # type: ignore[arg-type]
 
 
 # 7. Test for handling of `JSONField` and `List` of `JSONField`

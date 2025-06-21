@@ -1,5 +1,6 @@
 """Integration tests for CLI commands working together."""
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,8 +14,6 @@ class TestCLIIntegration:
 
     def test_full_project_workflow(self, cli_runner, temp_project_dir) -> None:
         """Test creating and setting up a complete project."""
-        import os
-
         # 1. Initialize project
         result = cli_runner.invoke(cli, ["init", "testapp", "--no-git"])
         assert result.exit_code == 0
@@ -67,7 +66,9 @@ class TestCLIIntegration:
 
             for entity in ["User", "Post", "Comment"]:
                 # Run CLI commands with the blog directory as cwd
-                result = cli_runner.invoke(cli, ["generate", "migration", entity], cwd=str(blog_path))
+                result = cli_runner.invoke(
+                    cli, ["generate", "migration", entity], cwd=str(blog_path),
+                )
                 assert result.exit_code == 0
 
             assert (blog_path / "migrations/001_create_users.sql").exists()
@@ -108,7 +109,9 @@ class TestCLIIntegration:
                 )
                 mock_gen.return_value.write_tests_to_files = AsyncMock()
 
-                result = cli_runner.invoke(cli, ["testfoundry", "generate", "User"], cwd=str(test_path))
+                result = cli_runner.invoke(
+                    cli, ["testfoundry", "generate", "User"], cwd=str(test_path),
+                )
                 assert result.exit_code == 0
                 assert "Tests generated" in result.output
 

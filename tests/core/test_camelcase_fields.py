@@ -2,14 +2,15 @@
 
 from graphql import graphql_sync
 
-from fraiseql import query, type
+from fraiseql import query
+from fraiseql import type as fraise_type
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
 def test_automatic_snake_to_camel_conversion(clear_registry) -> None:
     """Test that snake_case fields are automatically converted to camelCase in GraphQL."""
 
-    @type
+    @fraise_type
     class Repository:
         id: int
         default_branch: str
@@ -79,7 +80,7 @@ def test_automatic_snake_to_camel_conversion(clear_registry) -> None:
 def test_camelcase_conversion_with_config(clear_registry) -> None:
     """Test enabling/disabling camelCase conversion via configuration."""
 
-    @type
+    @fraise_type
     class User:
         user_name: str
         first_name: str
@@ -132,7 +133,7 @@ def test_explicit_graphql_name(clear_registry) -> None:
     """Test using explicit graphql_name parameter."""
     from fraiseql.fields import fraise_field
 
-    @type
+    @fraise_type
     class Product:
         internal_id: int = fraise_field(graphql_name="id")
         product_name: str = fraise_field(graphql_name="name")
@@ -169,7 +170,7 @@ def test_explicit_graphql_name(clear_registry) -> None:
 def test_mixed_case_preservation(clear_registry) -> None:
     """Test that certain naming patterns are preserved correctly."""
 
-    @type
+    @fraise_type
     class APIConfig:
         api_key: str  # Should become apiKey
         APIVersion: str  # Should stay APIVersion
@@ -222,7 +223,7 @@ def test_input_type_camelcase(clear_registry) -> None:
         email_address: str
         is_admin: bool = False
 
-    @type
+    @fraise_type
     class User:
         id: int
         user_name: str
@@ -285,7 +286,7 @@ def test_enum_value_preservation(clear_registry) -> None:
         inactive_user = "inactive_user"
         PendingApproval = "PendingApproval"
 
-    @type
+    @fraise_type
     class User:
         user_name: str
         user_status: UserStatus
@@ -316,13 +317,13 @@ def test_enum_value_preservation(clear_registry) -> None:
 def test_nested_types_camelcase(clear_registry) -> None:
     """Test camelCase conversion works with nested types."""
 
-    @type
+    @fraise_type
     class Address:
         street_line_1: str
         street_line_2: str | None
         postal_code: str
 
-    @type
+    @fraise_type
     class Company:
         company_name: str
         employee_count: int
