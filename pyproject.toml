@@ -201,6 +201,9 @@ ignore = [
   "ARG001",  # Unused arguments OK in test fixtures
   "ARG002",  # Unused arguments OK in test fixtures
 ]
+"tests/types/test_json_type_support.py" = [
+  "E501",    # Long JSON string in test
+]
 "src/fraiseql/cli/commands/*.py" = [
   "T201",    # Print statements OK in CLI commands
 ]
@@ -210,9 +213,6 @@ convention = "google"
 
 [tool.ruff.lint.pylint]
 max-args = 8  # Increased from default 5
-
-[tool.ruff.lint.per-file-ignores]
-"tests/types/test_json_type_support.py" = ["E501"]  # Long JSON string in test
 
 [tool.setuptools_scm]
 version_scheme = "python-simplified-semver"
