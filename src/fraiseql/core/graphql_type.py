@@ -306,7 +306,7 @@ def convert_type_to_graphql_output(
         if isinstance(typ, type):
             key = (f"scalar_{typ.__name__}", typ.__module__)
             if key in _graphql_type_cache:
-                return cast(GraphQLScalarType, _graphql_type_cache[key])
+                return cast("GraphQLScalarType", _graphql_type_cache[key])
 
         scalar_gql = convert_scalar_to_graphql(typ)
 
@@ -323,11 +323,8 @@ def convert_type_to_graphql_output(
         key = (typ.__name__, typ.__module__)
         if key in _graphql_type_cache:
             return cast(
-                GraphQLObjectType
-                | GraphQLList[Any]
-                | GraphQLScalarType
-                | GraphQLUnionType
-                | GraphQLInterfaceType,
+                "GraphQLObjectType | GraphQLList[Any] | GraphQLScalarType | "
+                "GraphQLUnionType | GraphQLInterfaceType",
                 _graphql_type_cache[key],
             )
 
@@ -448,7 +445,7 @@ def convert_type_to_graphql_output(
                             )
 
                             gql_fields[graphql_field_name] = GraphQLField(
-                                type_=cast(GraphQLOutputType, gql_return_type),
+                                type_=cast("GraphQLOutputType", gql_return_type),
                                 resolve=wrapped_resolver,
                                 description=description,
                             )
@@ -551,8 +548,8 @@ def translate_query_from_type(
     where_clause: SQL | None = None
     if where:
         where_clause = where.to_sql()
-    table: str = cast(str, root_type.__gql_table__)
-    typename: str = cast(str, root_type.__gql_typename__)
+    table: str = cast("str", root_type.__gql_table__)
+    typename: str = cast("str", root_type.__gql_typename__)
     return translate_query(
         query=query,
         table=table,

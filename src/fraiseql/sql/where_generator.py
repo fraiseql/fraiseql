@@ -204,7 +204,7 @@ def _build_where_to_sql(fields: list[str]) -> Callable[[object], Composed | None
                 if sql:
                     conditions.append(sql)
             elif isinstance(val, dict):
-                cond = _make_filter_field_composed(name, cast(dict[str, object], val), "data")
+                cond = _make_filter_field_composed(name, cast("dict[str, object]", val), "data")
                 if cond:
                     conditions.append(cond)
 

@@ -249,7 +249,7 @@ class SchemaRegistry:
             graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
             fields[graphql_field_name] = GraphQLField(
-                type_=cast(GraphQLOutputType, gql_return_type),
+                type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 resolve=wrapped_resolver,
             )
@@ -299,7 +299,7 @@ class SchemaRegistry:
                     )
 
                     fields[graphql_field_name] = GraphQLField(
-                        type_=cast(GraphQLOutputType, gql_type),
+                        type_=cast("GraphQLOutputType", gql_type),
                         resolve=wrapped_resolver,
                         description=getattr(attr, "__fraiseql_field_description__", None),
                     )
@@ -348,7 +348,7 @@ class SchemaRegistry:
                 )
 
                 fields[graphql_field_name] = GraphQLField(
-                    type_=cast(GraphQLOutputType, gql_type),
+                    type_=cast("GraphQLOutputType", gql_type),
                     resolve=wrapped_resolver,
                     description=field_def.description,
                 )
@@ -379,7 +379,7 @@ class SchemaRegistry:
             fn.__annotations__["return"] = resolved  # override with resolved union
 
             # Use convert_type_to_graphql_output for the return type
-            gql_return_type = convert_type_to_graphql_output(cast(type, resolved))
+            gql_return_type = convert_type_to_graphql_output(cast("type", resolved))
             gql_args: dict[str, GraphQLArgument] = {}
 
             # Detect argument (usually just one input arg + info)
@@ -402,7 +402,7 @@ class SchemaRegistry:
             graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
             fields[graphql_field_name] = GraphQLField(
-                type_=cast(GraphQLOutputType, gql_return_type),
+                type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 resolve=resolver,
             )
@@ -457,7 +457,7 @@ class SchemaRegistry:
             graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
             fields[graphql_field_name] = GraphQLField(
-                type_=cast(GraphQLOutputType, gql_return_type),
+                type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 subscribe=wrapped_resolver,
                 resolve=lambda value, info, **kwargs: value,  # Pass through the yielded value

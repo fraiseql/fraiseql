@@ -50,7 +50,7 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
         "success",
         "failure",
     }:
-        return coerce_input(cast(type, field_type), cast(dict[str, object], raw_value))
+        return coerce_input(cast("type", field_type), cast("dict[str, object]", raw_value))
 
     # Case 2: Union containing a FraiseQL object
     if origin is Union and args:
@@ -61,13 +61,13 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
                 "success",
                 "failure",
             }:
-                return coerce_input(cast(type, arg), cast(dict[str, object], raw_value))
+                return coerce_input(cast("type", arg), cast("dict[str, object]", raw_value))
 
     # Case 3: List of FraiseQL objects
     if origin is list and args and hasattr(args[0], "__fraiseql_definition__"):
         return [
-            coerce_input(cast(type, args[0]), cast(dict[str, object], item))
-            for item in cast(list[object], raw_value)
+            coerce_input(cast("type", args[0]), cast("dict[str, object]", item))
+            for item in cast("list[object]", raw_value)
         ]
 
     return raw_value

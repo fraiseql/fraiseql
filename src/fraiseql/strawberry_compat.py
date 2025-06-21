@@ -7,9 +7,12 @@ from Strawberry GraphQL to FraiseQL.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Type, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import fraiseql
+
+if TYPE_CHECKING:
+    import builtins
 
 # Type variable for decorators
 F = TypeVar("F", bound=Callable[..., Any])
@@ -31,7 +34,7 @@ class StrawberryCompatibility:
         return fraiseql.type(cls_arg)
 
     @staticmethod
-    def input(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
+    def input(cls_arg: builtins.type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.input compatibility."""
         if cls_arg is None:
 
@@ -42,7 +45,7 @@ class StrawberryCompatibility:
         return fraiseql.input(cls_arg)
 
     @staticmethod
-    def enum(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
+    def enum(cls_arg: builtins.type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.enum compatibility."""
         if cls_arg is None:
 
@@ -53,7 +56,7 @@ class StrawberryCompatibility:
         return fraiseql.enum(cls_arg)
 
     @staticmethod
-    def interface(cls_arg: Type[Any] | None = None, **kwargs) -> Any:
+    def interface(cls_arg: builtins.type[Any] | None = None, **kwargs) -> Any:
         """Strawberry @strawberry.interface compatibility."""
         if cls_arg is None:
 

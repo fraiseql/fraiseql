@@ -156,9 +156,9 @@ def result(success_cls: type, error_cls: type) -> type:
     union_name = f"{base_name}Result"
 
     if union_name in _union_registry:
-        return cast(type, _union_registry[union_name])
+        return cast("type", _union_registry[union_name])
 
     register_result(success_cls, error_cls)
     union = Annotated[success_cls | error_cls, FraiseUnion(union_name)]
     _union_registry[union_name] = union
-    return cast(type, union)
+    return cast("type", union)

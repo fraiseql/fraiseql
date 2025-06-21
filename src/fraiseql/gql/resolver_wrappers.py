@@ -34,10 +34,10 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
         if name == "info":
             continue
         gql_input_type = convert_type_to_graphql_input(param.annotation)
-        args[name] = GraphQLArgument(GraphQLNonNull(cast(Any, gql_input_type)))
+        args[name] = GraphQLArgument(GraphQLNonNull(cast("Any", gql_input_type)))
 
     gql_output_type = convert_type_to_graphql_output(sig.return_annotation)
-    gql_output_type_cast = cast(GraphQLOutputType, gql_output_type)
+    gql_output_type_cast = cast("GraphQLOutputType", gql_output_type)
 
     async def resolver(root: object, info: GraphQLResolveInfo, **kwargs: object) -> object:
         _ = root
