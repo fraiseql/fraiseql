@@ -16,12 +16,12 @@ try:
     from opentelemetry import context as otel_context  # type: ignore[import-untyped]
     from opentelemetry import trace  # type: ignore[import-untyped]
     from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore[import-untyped]
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
-        OTLPSpanExporter,  # type: ignore[import-untyped]
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore[import-not-found,import-untyped]
+        OTLPSpanExporter,
     )
     from opentelemetry.exporter.zipkin.json import ZipkinExporter  # type: ignore[import-untyped]
-    from opentelemetry.instrumentation.psycopg import (
-        PsycopgInstrumentor,  # type: ignore[import-untyped]
+    from opentelemetry.instrumentation.psycopg import (  # type: ignore[import-not-found,import-untyped]
+        PsycopgInstrumentor,
     )
     from opentelemetry.propagate import extract, inject  # type: ignore[import-untyped]
     from opentelemetry.sdk.resources import Resource  # type: ignore[import-untyped]
@@ -59,8 +59,13 @@ except ImportError:
         HTTP_METHOD = "http.method"
         HTTP_URL = "http.url"
         HTTP_STATUS_CODE = "http.status_code"
+        HTTP_TARGET = "http.target"
+        HTTP_SCHEME = "http.scheme"
+        HTTP_HOST = "http.host"
         GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
         GRAPHQL_OPERATION_NAME = "graphql.operation.name"
+        DB_SYSTEM = "db.system"
+        DB_STATEMENT = "db.statement"
 
     class StatusCode:  # type: ignore[misc]
         OK = "OK"

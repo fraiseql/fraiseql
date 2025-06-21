@@ -363,14 +363,8 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             return token
 
         # Try form data
-        if hasattr(request, "form"):
-            try:
-                form = request.form()
-                token = form.get(self.config.token_name)
-                if token:
-                    return token
-            except Exception:
-                logger.debug("Failed to extract CSRF token from form data")
+        # Note: We can't await form() in a sync method, so we skip form data checking
+        # CSRF tokens should be sent via headers or cookies in production
 
         # Try cookies
         if self.config.storage == CSRFTokenStorage.COOKIE:

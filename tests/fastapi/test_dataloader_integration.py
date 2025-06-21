@@ -127,7 +127,7 @@ async def get_loader_test(info) -> str:
 def test_dataloader_registry_in_context() -> None:
     """Test that LoaderRegistry is automatically available in GraphQL context."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -160,7 +160,7 @@ def test_dataloader_registry_in_context() -> None:
 def test_dataloader_batching_works() -> None:
     """Test that DataLoader properly batches multiple loads."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -206,7 +206,7 @@ def test_dataloader_batching_works() -> None:
 def test_dataloader_error_handling() -> None:
     """Test that DataLoader errors are properly handled."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -239,7 +239,7 @@ def test_dataloader_error_handling() -> None:
 def test_get_loader_function_works() -> None:
     """Test that get_loader function works properly with context."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -270,7 +270,7 @@ def test_get_loader_function_works() -> None:
 def test_dataloader_caching() -> None:
     """Test that DataLoader caches results within a request."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -367,7 +367,7 @@ def test_n_plus_one_detection(caplog) -> None:
         ]
 
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, PostWithoutDataLoader],
         queries=[get_posts_no_dataloader],
         production=False,  # Development mode

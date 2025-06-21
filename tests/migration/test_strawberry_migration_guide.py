@@ -123,7 +123,7 @@ class TestStrawberryCompatibilityLayer:
             return User(id=id, name="Test User", email="test@example.com")
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[User],
             queries=[get_user],
             production=False,
@@ -169,7 +169,7 @@ class TestStrawberryCompatibilityLayer:
             return User(id=UUID("123e4567-e89b-12d3-a456-426614174000"), name="John")
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[User],
             queries=[get_user],
             production=False,
@@ -225,7 +225,7 @@ class TestStrawberryCompatibilityLayer:
             }
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[User],
             queries=[get_current_user],
             context_getter=get_context,
@@ -313,7 +313,7 @@ class TestStrawberryDataLoaderMigration:
             ]
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[User, Post],
             queries=[get_posts],
             production=False,
@@ -380,7 +380,7 @@ class TestStrawberryMutationMigration:
             return "1.0.0"
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[User],
             queries=[getVersion],
             mutations=[createUser],
@@ -487,7 +487,7 @@ class TestStrawberryFeatureParity:
             )
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[User, UserRole],
             queries=[get_user],
             production=False,
@@ -532,7 +532,7 @@ class TestStrawberryFeatureParity:
             return User(id=id, name="Interface User", email="interface@example.com")
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[Node, User],
             queries=[get_node],
             production=False,

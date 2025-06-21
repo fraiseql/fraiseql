@@ -399,7 +399,7 @@ def convert_type_to_graphql_output(
 
                             if return_type is None:
                                 logger.warning(
-                                    "Custom field method %s missing return type " "annotation",
+                                    "Custom field method %s missing return type annotation",
                                     attr_name,
                                 )
                                 continue

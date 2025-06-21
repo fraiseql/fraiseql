@@ -93,7 +93,7 @@ def test_n1_detection_triggers_warning(caplog) -> None:
     configure_detector(threshold=10, enabled=True, raise_on_detection=False)
 
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[Author, Article],
         queries=[get_articles, get_article],
         production=False,  # Development mode enables N+1 detection
@@ -143,7 +143,7 @@ def test_n1_detection_triggers_warning(caplog) -> None:
 def test_n1_detection_with_raise_enabled() -> None:
     """Test that N+1 detection can raise exceptions when configured."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[Author, Article],
         queries=[get_articles, get_article],
         production=False,
@@ -194,7 +194,7 @@ def test_n1_detection_respects_threshold() -> None:
     )
 
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[Author, Article],
         queries=[get_articles, get_article],
         production=False,
@@ -229,7 +229,7 @@ def test_n1_detection_respects_threshold() -> None:
 def test_n1_detection_disabled_in_production() -> None:
     """Test that N+1 detection is disabled in production mode."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[Author, Article],
         queries=[get_articles, get_article],
         production=True,  # Production mode
@@ -270,7 +270,7 @@ def test_n1_detection_single_query_no_warning(caplog) -> None:
     )
 
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[Author, Article],
         queries=[get_articles, get_article],
         production=False,
@@ -325,7 +325,7 @@ def test_field_decorator_without_n1_tracking() -> None:
     configure_detector(threshold=5, enabled=True, raise_on_detection=True)
 
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[Product],
         queries=[get_products],
         production=False,

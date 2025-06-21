@@ -26,7 +26,7 @@ class FraiseQLConfig(BaseSettings):
     enable_playground: bool = True
     max_query_depth: int | None = None
     query_timeout: int = 30  # seconds
-    auto_camel_case: bool = False  # Auto-convert snake_case to camelCase in GraphQL
+    auto_camel_case: bool = True  # Auto-convert snake_case to camelCase in GraphQL
 
     # Auth settings
     auth_enabled: bool = True
