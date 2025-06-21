@@ -146,12 +146,12 @@ async def search_products(
     offset: int = 0,
 ):
     """REST endpoint for product search
-    
+
     Demonstrates integration with FraiseQL's query system
     """
     query = """
     query SearchProducts(
-        $q: String!, $category: String, $minPrice: Float, $maxPrice: Float, 
+        $q: String!, $category: String, $minPrice: Float, $maxPrice: Float,
         $inStock: Boolean, $limit: Int, $offset: Int
     ) {
         productSearch(

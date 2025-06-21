@@ -105,7 +105,7 @@ class FraiseQLBenchmark:
             return {"data": result[0]["data"] if result and result[0]["data"] else []}
 
         except Exception as e:
-            raise Exception(f"Query failed: {e}")
+            raise Exception(f"Query failed: {e}") from e
         finally:
             return time.time() - start_time
 
@@ -143,7 +143,7 @@ class HasuraBenchmark:
                 return result
 
         except Exception as e:
-            raise Exception(f"Hasura query failed: {e}")
+            raise Exception(f"Hasura query failed: {e}") from e
         finally:
             return time.time() - start_time
 
@@ -181,7 +181,7 @@ class PostGraphileBenchmark:
                 return result
 
         except Exception as e:
-            raise Exception(f"PostGraphile query failed: {e}")
+            raise Exception(f"PostGraphile query failed: {e}") from e
         finally:
             return time.time() - start_time
 

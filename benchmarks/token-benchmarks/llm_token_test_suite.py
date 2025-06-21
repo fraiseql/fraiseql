@@ -28,7 +28,6 @@ try:
         LLMProvider,
         Settings,
         calculate_total_cost,
-        estimate_monthly_cost,
     )
 except ImportError:
     # Fallback for when config is not available
