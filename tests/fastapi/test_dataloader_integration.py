@@ -42,7 +42,7 @@ class Post:
     id: UUID
     title: str
     content: str
-    authorId: UUID
+    authorId: UUID  # noqa: N815
 
     # Add field resolver for author
     @fraiseql.field
@@ -344,7 +344,7 @@ def test_n_plus_one_detection(caplog) -> None:
         id: UUID
         title: str
         content: str
-        authorId: UUID
+        authorId: UUID  # noqa: N815
 
         @fraiseql.field
         async def author(self, info) -> User | None:

@@ -42,7 +42,7 @@ class Article:
     id: UUID
     title: str
     content: str
-    authorId: UUID
+    authorId: UUID  # noqa: N815
 
     @fraiseql.field
     async def author(self, info) -> Author | None:

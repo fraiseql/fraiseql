@@ -22,7 +22,7 @@ class User:
 class Post:
     id: UUID
     title: str
-    authorId: UUID
+    authorId: UUID  # noqa: N815
 
 
 # Define queries using @query decorator

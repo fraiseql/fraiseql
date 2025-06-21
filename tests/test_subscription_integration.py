@@ -168,7 +168,7 @@ class TestSubscriptionIntegration:
                 # Verify the error message contains expected text
                 if "Filter condition not met" not in str(e):
                     msg = f"Expected 'Filter condition not met' in error, got: {e}"
-                    raise AssertionError(msg)
+                    raise AssertionError(msg) from e
 
     async def test_multiple_subscriptions(self) -> None:
         """Test multiple concurrent subscriptions."""
@@ -270,7 +270,7 @@ class TestSubscriptionIntegration:
             # Verify the error message contains expected text
             if "Subscription error!" not in str(e):
                 msg = f"Expected 'Subscription error!' in error, got: {e}"
-                raise AssertionError(msg)
+                raise AssertionError(msg) from e
 
         # Should get first result then error
         assert len(results) == 1

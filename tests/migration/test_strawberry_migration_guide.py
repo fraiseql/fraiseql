@@ -291,7 +291,7 @@ class TestStrawberryDataLoaderMigration:
         class Post:
             id: UUID
             title: str
-            authorId: UUID
+            authorId: UUID  # noqa: N815
 
             @fraiseql.field
             async def author(self, info) -> User | None:
