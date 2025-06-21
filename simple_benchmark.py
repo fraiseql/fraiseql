@@ -75,7 +75,10 @@ def main():
     # Test Java ORM endpoint
     java_orm_url = "http://localhost:8080/graphql"
     java_orm_result = benchmark_endpoint(
-        java_orm_url, simple_user_query, "Java Spring + JPA/Hibernate", 50
+        java_orm_url,
+        simple_user_query,
+        "Java Spring + JPA/Hibernate",
+        50,
     )
 
     # Test Java Optimized endpoint

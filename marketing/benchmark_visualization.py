@@ -45,7 +45,10 @@ def create_performance_comparison():
     ax.set_xlabel("Type de requête", fontsize=12)
     ax.set_ylabel("Temps de réponse (ms) / Mémoire (MB)", fontsize=12)
     ax.set_title(
-        "Performance FraiseQL vs Stack Traditionnelle", fontsize=14, fontweight="bold", pad=20
+        "Performance FraiseQL vs Stack Traditionnelle",
+        fontsize=14,
+        fontweight="bold",
+        pad=20,
     )
     ax.set_xticks(x)
     ax.set_xticklabels(categories)
@@ -72,7 +75,10 @@ def create_performance_comparison():
 
     # Save the figure
     plt.savefig(
-        "marketing/performance_comparison.png", dpi=300, bbox_inches="tight", facecolor="white"
+        "marketing/performance_comparison.png",
+        dpi=300,
+        bbox_inches="tight",
+        facecolor="white",
     )
     plt.savefig("marketing/performance_comparison.svg", bbox_inches="tight", facecolor="white")
 
@@ -92,10 +98,20 @@ def create_detailed_benchmark():
     width = 0.35
 
     bars1 = ax1.bar(
-        x - width / 2, simple_query, width, label="Requête simple", color="#3498db", alpha=0.8
+        x - width / 2,
+        simple_query,
+        width,
+        label="Requête simple",
+        color="#3498db",
+        alpha=0.8,
     )
     bars2 = ax1.bar(
-        x + width / 2, complex_query, width, label="Requête complexe", color="#e74c3c", alpha=0.8
+        x + width / 2,
+        complex_query,
+        width,
+        label="Requête complexe",
+        color="#e74c3c",
+        alpha=0.8,
     )
 
     ax1.set_ylabel("Temps de réponse (ms)", fontsize=12)
@@ -159,7 +175,10 @@ def create_detailed_benchmark():
 
     # Save the figure
     plt.savefig(
-        "marketing/detailed_benchmarks.png", dpi=300, bbox_inches="tight", facecolor="white"
+        "marketing/detailed_benchmarks.png",
+        dpi=300,
+        bbox_inches="tight",
+        facecolor="white",
     )
     plt.savefig("marketing/detailed_benchmarks.svg", bbox_inches="tight", facecolor="white")
 
@@ -203,7 +222,12 @@ def create_architecture_benefits():
     ax.fill(angles, fraiseql_scores, alpha=0.25, color="#e74c3c")
 
     ax.plot(
-        angles, traditional_scores, "o-", linewidth=2, label="Stack Traditionnelle", color="#95a5a6"
+        angles,
+        traditional_scores,
+        "o-",
+        linewidth=2,
+        label="Stack Traditionnelle",
+        color="#95a5a6",
     )
     ax.fill(angles, traditional_scores, alpha=0.25, color="#95a5a6")
 
@@ -226,7 +250,10 @@ def create_architecture_benefits():
 
     # Save the figure
     plt.savefig(
-        "marketing/architecture_benefits.png", dpi=300, bbox_inches="tight", facecolor="white"
+        "marketing/architecture_benefits.png",
+        dpi=300,
+        bbox_inches="tight",
+        facecolor="white",
     )
     plt.savefig("marketing/architecture_benefits.svg", bbox_inches="tight", facecolor="white")
 
@@ -246,7 +273,12 @@ def create_token_usage_comparison():
     width = 0.35
 
     bars1 = ax.bar(
-        x - width / 2, fraiseql_tokens, width, label="FraiseQL", color="#e74c3c", alpha=0.8
+        x - width / 2,
+        fraiseql_tokens,
+        width,
+        label="FraiseQL",
+        color="#e74c3c",
+        alpha=0.8,
     )
     bars2 = ax.bar(
         x + width / 2,
@@ -310,7 +342,10 @@ def create_token_usage_comparison():
 
     # Save
     plt.savefig(
-        "marketing/token_usage_comparison.png", dpi=300, bbox_inches="tight", facecolor="white"
+        "marketing/token_usage_comparison.png",
+        dpi=300,
+        bbox_inches="tight",
+        facecolor="white",
     )
     plt.savefig("marketing/token_usage_comparison.svg", bbox_inches="tight", facecolor="white")
 

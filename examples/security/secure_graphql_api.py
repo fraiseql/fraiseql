@@ -163,7 +163,7 @@ async def create_post(
             error=PostError(
                 message="Authentication required",
                 code="UNAUTHORIZED",
-            )
+            ),
         )
 
     # Validate input (basic example)
@@ -172,7 +172,7 @@ async def create_post(
             error=PostError(
                 message="Title must be at least 3 characters",
                 code="VALIDATION_ERROR",
-            )
+            ),
         )
 
     if len(input.content.strip()) < 10:
@@ -180,7 +180,7 @@ async def create_post(
             error=PostError(
                 message="Content must be at least 10 characters",
                 code="VALIDATION_ERROR",
-            )
+            ),
         )
 
     # In a real application, save to database
@@ -201,7 +201,7 @@ async def create_post(
         success=PostSuccess(
             post=post,
             message="Post created successfully",
-        )
+        ),
     )
 
 
@@ -220,7 +220,7 @@ async def update_post(
             error=PostError(
                 message="Authentication required",
                 code="UNAUTHORIZED",
-            )
+            ),
         )
 
     # In a real application:
@@ -233,7 +233,7 @@ async def update_post(
         error=PostError(
             message="Post not found or access denied",
             code="NOT_FOUND",
-        )
+        ),
     )
 
 
