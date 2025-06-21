@@ -68,7 +68,7 @@ class CreateUserClassBased:
 
 
 # Test that both patterns can be registered
-def test_both_mutation_patterns_can_be_registered():
+def test_both_mutation_patterns_can_be_registered() -> None:
     """Test that both simple and class-based mutations can be registered."""
     from fraiseql.gql.schema_builder import SchemaRegistry
 
@@ -94,7 +94,7 @@ def test_both_mutation_patterns_can_be_registered():
 
 
 @pytest.mark.asyncio
-async def test_simple_mutation_execution():
+async def test_simple_mutation_execution() -> None:
     """Test that simple mutations can be executed."""
     # Create test input
     test_input = CreateUserInput(name="John Doe", email="john@example.com")
@@ -113,7 +113,7 @@ async def test_simple_mutation_execution():
     assert result.id == 1
 
 
-def test_simple_mutation_has_correct_metadata():
+def test_simple_mutation_has_correct_metadata() -> None:
     """Test that simple mutations have the correct metadata."""
     assert hasattr(create_user_simple, "__fraiseql_mutation__")
     assert create_user_simple.__fraiseql_mutation__ is True
@@ -121,7 +121,7 @@ def test_simple_mutation_has_correct_metadata():
     assert create_user_simple.__fraiseql_resolver__ is create_user_simple
 
 
-def test_class_based_mutation_has_correct_metadata():
+def test_class_based_mutation_has_correct_metadata() -> None:
     """Test that class-based mutations have the correct metadata."""
     assert hasattr(CreateUserClassBased, "__fraiseql_mutation__")
     assert hasattr(CreateUserClassBased, "__fraiseql_resolver__")
@@ -131,7 +131,7 @@ def test_class_based_mutation_has_correct_metadata():
     assert callable(CreateUserClassBased.__fraiseql_resolver__)
 
 
-def test_schema_builder_handles_both_patterns():
+def test_schema_builder_handles_both_patterns() -> None:
     """Test that schema builder can handle both mutation patterns."""
     from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 

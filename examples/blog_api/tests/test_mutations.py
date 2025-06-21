@@ -54,7 +54,7 @@ class TestMutations:
         """Test user creation with duplicate email."""
         info = self._create_info(blog_repo)
         input_data = CreateUserInput(
-            email=test_user.email, name="Duplicate User", password="password123"
+            email=test_user.email, name="Duplicate User", password="password123",
         )
 
         result = await create_user(info, input_data)
@@ -88,24 +88,24 @@ class TestMutations:
         """Test post creation without authentication."""
         info = self._create_info(blog_repo)  # No auth context
         input_data = CreatePostInput(
-            title="Unauthorized Post", content="Should not be created"
+            title="Unauthorized Post", content="Should not be created",
         )
 
         with pytest.raises((ValueError, PermissionError)):  # Should raise auth error
             await create_post(info, input_data)
 
     async def test_update_post_success(
-        self, blog_repo, auth_context, create_test_post, clean_db
+        self, blog_repo, auth_context, create_test_post, clean_db,
     ):
         """Test successful post update."""
         # Create a post first
         post = await create_test_post(
-            title="Original Title", content="Original content"
+            title="Original Title", content="Original content",
         )
 
         info = self._create_info(blog_repo, auth_context)
         input_data = UpdatePostInput(
-            title="Updated Title", content="Updated content", tags=["updated", "test"]
+            title="Updated Title", content="Updated content", tags=["updated", "test"],
         )
 
         result = await update_post(info, post.id, input_data)
@@ -134,13 +134,13 @@ class TestMutations:
                 "author_id": str(test_user.id),
                 "title": "Someone else's post",
                 "content": "Content",
-            }
+            },
         )
         post_id = post_result["post_id"]
 
         # Try to update as different user
         other_user_context = UserContext(
-            user_id=str(uuid4()), email="other@example.com", roles=["user"]
+            user_id=str(uuid4()), email="other@example.com", roles=["user"],
         )
 
         info = self._create_info(blog_repo, other_user_context)
@@ -152,7 +152,7 @@ class TestMutations:
         assert result.code == "FORBIDDEN"
 
     async def test_update_post_as_admin(
-        self, blog_repo, admin_context, create_test_post, clean_db
+        self, blog_repo, admin_context, create_test_post, clean_db,
     ):
         """Test admin can update any post."""
         # Create post as regular user
@@ -168,14 +168,14 @@ class TestMutations:
         assert result.post.title == "Admin Updated"
 
     async def test_create_comment_success(
-        self, blog_repo, auth_context, create_test_post, clean_db
+        self, blog_repo, auth_context, create_test_post, clean_db,
     ):
         """Test successful comment creation."""
         post = await create_test_post()
 
         info = self._create_info(blog_repo, auth_context)
         input_data = CreateCommentInput(
-            post_id=post.id, content="Great post! Thanks for sharing."
+            post_id=post.id, content="Great post! Thanks for sharing.",
         )
 
         result = await create_comment(info, input_data)
@@ -185,7 +185,7 @@ class TestMutations:
         assert result.author_id == auth_context.user_id
 
     async def test_create_comment_reply(
-        self, blog_repo, auth_context, create_test_post, create_test_comment, clean_db
+        self, blog_repo, auth_context, create_test_post, create_test_comment, clean_db,
     ):
         """Test creating a reply to a comment."""
         post = await create_test_post()
@@ -204,7 +204,7 @@ class TestMutations:
         assert result.parent_comment_id == parent_comment_id
 
     async def test_create_comment_post_not_found(
-        self, blog_repo, auth_context, clean_db
+        self, blog_repo, auth_context, clean_db,
     ):
         """Test creating comment on non-existent post."""
         info = self._create_info(blog_repo, auth_context)
@@ -214,7 +214,7 @@ class TestMutations:
             await create_comment(info, input_data)
 
     async def test_delete_post_as_admin(
-        self, blog_repo, admin_context, create_test_post, clean_db
+        self, blog_repo, admin_context, create_test_post, clean_db,
     ):
         """Test admin can delete posts."""
         post = await create_test_post()
@@ -229,7 +229,7 @@ class TestMutations:
         assert deleted_post is None
 
     async def test_delete_post_as_regular_user(
-        self, blog_repo, auth_context, create_test_post, clean_db
+        self, blog_repo, auth_context, create_test_post, clean_db,
     ):
         """Test regular user cannot delete posts."""
         post = await create_test_post()
@@ -237,7 +237,7 @@ class TestMutations:
         info = self._create_info(blog_repo, auth_context)
 
         with pytest.raises(
-            (ValueError, PermissionError)
+            (ValueError, PermissionError),
         ):  # Should raise permission error
             await delete_post(info, post.id)
 

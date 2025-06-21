@@ -64,7 +64,7 @@ class ContentSecurityPolicy:
     directives: dict[CSPDirective, list[str]] = field(default_factory=dict)
     report_only: bool = False
 
-    def add_directive(self, directive: CSPDirective, sources: str | list[str]):
+    def add_directive(self, directive: CSPDirective, sources: str | list[str]) -> None:
         """Add a CSP directive with sources."""
         if isinstance(sources, str):
             sources = [sources]
@@ -74,7 +74,7 @@ class ContentSecurityPolicy:
 
         self.directives[directive].extend(sources)
 
-    def remove_directive(self, directive: CSPDirective):
+    def remove_directive(self, directive: CSPDirective) -> None:
         """Remove a CSP directive."""
         self.directives.pop(directive, None)
 
@@ -155,7 +155,7 @@ class SecurityHeadersConfig:
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for adding security headers."""
 
-    def __init__(self, app, config: SecurityHeadersConfig):
+    def __init__(self, app, config: SecurityHeadersConfig) -> None:
         super().__init__(app)
         self.config = config
 
@@ -172,7 +172,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    async def _add_security_headers(self, request: Request, response: Response):
+    async def _add_security_headers(self, request: Request, response: Response) -> None:
         """Add all configured security headers."""
         headers = {}
 
@@ -493,9 +493,10 @@ def create_csp_report_handler(webhook_url: str | None = None):
             # Log violation
             violation = report.get("csp-report", {})
             logger.warning(
-                f"CSP Violation: {violation.get('violated-directive')} "
-                f"blocked {violation.get('blocked-uri')} "
-                f"on {violation.get('document-uri')}",
+                "CSP Violation: %s blocked %s on %s",
+                violation.get("violated-directive"),
+                violation.get("blocked-uri"),
+                violation.get("document-uri"),
             )
 
             # Send to webhook if configured
@@ -505,10 +506,10 @@ def create_csp_report_handler(webhook_url: str | None = None):
                 async with httpx.AsyncClient() as client:
                     await client.post(webhook_url, json=report)
 
-            return {"status": "received"}
+            return {"status": "received"}  # noqa: TRY300
 
-        except Exception as e:
-            logger.error(f"Error handling CSP report: {e}")
+        except Exception:
+            logger.exception("Error handling CSP report")
             return {"status": "error"}
 
     return csp_report_endpoint

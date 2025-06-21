@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import FastAPI, Request, Response
 
 try:
-    from prometheus_client import (  # type: ignore
+    from prometheus_client import (  # type: ignore[import-untyped]
         CONTENT_TYPE_LATEST,
         CollectorRegistry,
         Counter,
@@ -21,40 +21,58 @@ try:
         Histogram,
         generate_latest,
     )
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
+
     # Define placeholder classes
-    class CollectorRegistry:  # type: ignore
+    class CollectorRegistry:  # type: ignore[misc]
         pass
-    class Counter:  # type: ignore
-        def __init__(self, *args, **kwargs):
+
+    class Counter:  # type: ignore[misc]
+        def __init__(self, *args, **kwargs) -> None:
             pass
-        def inc(self, *args, **kwargs):
+
+        def inc(self, *args, **kwargs) -> None:
             pass
+
         def labels(self, *args, **kwargs):
             return self
-    class Gauge:  # type: ignore
-        def __init__(self, *args, **kwargs):
+
+    class Gauge:  # type: ignore[misc]
+        def __init__(self, *args, **kwargs) -> None:
             pass
-        def set(self, *args, **kwargs):
+
+        def set(self, *args, **kwargs) -> None:
             pass
-        def inc(self, *args, **kwargs):
+
+        def inc(self, *args, **kwargs) -> None:
             pass
-        def dec(self, *args, **kwargs):
+
+        def dec(self, *args, **kwargs) -> None:
             pass
+
         def labels(self, *args, **kwargs):
             return self
-    class Histogram:  # type: ignore
-        def __init__(self, *args, **kwargs):
+
+    class Histogram:  # type: ignore[misc]
+        def __init__(self, *args, **kwargs) -> None:
             pass
-        def observe(self, *args, **kwargs):
+
+        def observe(self, *args, **kwargs) -> None:
             pass
+
         def labels(self, *args, **kwargs):
             return self
+
     CONTENT_TYPE_LATEST = "text/plain"
-    def generate_latest(*args, **kwargs):
+
+    def generate_latest(*args, **kwargs) -> bytes:
+        """Placeholder for generate_latest when prometheus_client is not available."""
         return b""
+
+
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Global metrics instance
@@ -96,20 +114,24 @@ class MetricsConfig:
     def __post_init__(self):
         """Validate configuration."""
         if not self.namespace:
-            raise ValueError("Namespace cannot be empty")
+            msg = "Namespace cannot be empty"
+            raise ValueError(msg)
 
         # Ensure buckets are monotonic
         for i in range(1, len(self.buckets)):
             if self.buckets[i] <= self.buckets[i - 1]:
-                raise ValueError("Histogram buckets must be monotonically increasing")
+                msg = "Histogram buckets must be monotonically increasing"
+                raise ValueError(msg)
 
 
 class FraiseQLMetrics:
     """Prometheus metrics for FraiseQL."""
 
     def __init__(
-        self, config: MetricsConfig | None = None, registry: CollectorRegistry | None = None,
-    ):
+        self,
+        config: MetricsConfig | None = None,
+        registry: CollectorRegistry | None = None,
+    ) -> None:
         """Initialize metrics with configuration."""
         self.config = config or MetricsConfig()
         self.registry = registry or CollectorRegistry()
@@ -257,12 +279,17 @@ class FraiseQLMetrics:
         )
 
     def record_query(
-        self, operation_type: str, operation_name: str, duration_ms: float, success: bool,
+        self,
+        operation_type: str,
+        operation_name: str,
+        duration_ms: float,
+        success: bool,
     ) -> None:
         """Record a GraphQL query execution."""
         self.query_total.labels(operation_type=operation_type, operation_name=operation_name).inc()
         self.query_duration.labels(
-            operation_type=operation_type, operation_name=operation_name,
+            operation_type=operation_type,
+            operation_name=operation_name,
         ).observe(duration_ms / 1000)
 
         if success:
@@ -294,7 +321,11 @@ class FraiseQLMetrics:
         self.db_connections_total.set(total)
 
     def record_db_query(
-        self, query_type: str, table_name: str, duration_ms: float, rows_affected: int = 0,
+        self,
+        query_type: str,
+        table_name: str,
+        duration_ms: float,
+        rows_affected: int = 0,
     ) -> None:
         """Record a database query execution."""
         self.db_queries_total.labels(query_type=query_type, table_name=table_name).inc()
@@ -350,7 +381,7 @@ class FraiseQLMetrics:
 class MetricsMiddleware(BaseHTTPMiddleware):
     """Middleware to collect HTTP metrics."""
 
-    def __init__(self, app, metrics: FraiseQLMetrics, config: MetricsConfig | None = None):
+    def __init__(self, app, metrics: FraiseQLMetrics, config: MetricsConfig | None = None) -> None:
         """Initialize metrics middleware."""
         super().__init__(app)
         self.metrics = metrics
@@ -388,7 +419,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
             self.metrics.record_response_time(duration)
 
-            return response
+            return response  # noqa: TRY300
 
         except Exception as e:
             duration = (time.time() - start_time) * 1000
@@ -468,7 +499,7 @@ def with_metrics(operation_type: str = "operation"):
             try:
                 result = await func(*args, **kwargs)
                 success = True
-                return result
+                return result  # noqa: TRY300
             except Exception as e:
                 metrics.record_error(
                     error_type=type(e).__name__,
@@ -495,7 +526,7 @@ def with_metrics(operation_type: str = "operation"):
             try:
                 result = func(*args, **kwargs)
                 success = True
-                return result
+                return result  # noqa: TRY300
             except Exception as e:
                 metrics.record_error(
                     error_type=type(e).__name__,

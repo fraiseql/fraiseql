@@ -10,10 +10,10 @@
       .java { fill: #007396; }
     </style>
   </defs>
-  
+
   <!-- Title -->
   <text x="350" y="30" text-anchor="middle" class="title">Architecture : PostgreSQL vs ORM</text>
-  
+
   <!-- Performance metric boxes -->
   <g transform="translate(50, 80)">
     <!-- Response time box -->
@@ -22,14 +22,14 @@
     <text x="90" y="70" text-anchor="middle" class="metric fraiseql">21x</text>
     <text x="90" y="90" text-anchor="middle" class="sublabel">plus rapide</text>
     <text x="90" y="110" text-anchor="middle" class="sublabel">(requêtes complexes)</text>
-    
+
     <!-- Memory box -->
     <rect x="210" y="0" width="180" height="120" fill="#27ae60" opacity="0.1" stroke="#27ae60" stroke-width="2" rx="10"/>
     <text x="300" y="30" text-anchor="middle" class="label" font-weight="bold">Mémoire</text>
     <text x="300" y="70" text-anchor="middle" class="metric" fill="#27ae60">83%</text>
     <text x="300" y="90" text-anchor="middle" class="sublabel">d'économie</text>
     <text x="300" y="110" text-anchor="middle" class="sublabel">(50 MB vs 300 MB)</text>
-    
+
     <!-- N+1 queries box -->
     <rect x="420" y="0" width="180" height="120" fill="#3498db" opacity="0.1" stroke="#3498db" stroke-width="2" rx="10"/>
     <text x="510" y="30" text-anchor="middle" class="label" font-weight="bold">Requêtes N+1</text>
@@ -37,55 +37,55 @@
     <text x="510" y="90" text-anchor="middle" class="sublabel">par design</text>
     <text x="510" y="110" text-anchor="middle" class="sublabel">(vues PostgreSQL)</text>
   </g>
-  
+
   <!-- Architecture comparison -->
   <g transform="translate(100, 250)">
     <!-- FraiseQL flow -->
     <text x="0" y="0" class="label" font-weight="bold" fill="#e74c3c">FraiseQL :</text>
     <rect x="0" y="10" width="80" height="30" fill="#e74c3c" opacity="0.8" rx="5"/>
     <text x="40" y="30" text-anchor="middle" class="label" fill="white">GraphQL</text>
-    
+
     <path d="M 85 25 L 115 25" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-    
+
     <rect x="120" y="10" width="80" height="30" fill="#e74c3c" opacity="0.8" rx="5"/>
     <text x="160" y="30" text-anchor="middle" class="label" fill="white">SQL View</text>
-    
+
     <path d="M 205 25 L 235 25" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-    
+
     <rect x="240" y="10" width="80" height="30" fill="#e74c3c" opacity="0.8" rx="5"/>
     <text x="280" y="30" text-anchor="middle" class="label" fill="white">JSON</text>
-    
+
     <!-- Java flow -->
     <text x="0" y="80" class="label" font-weight="bold" fill="#007396">Java + ORM :</text>
     <rect x="0" y="90" width="60" height="30" fill="#007396" opacity="0.8" rx="5"/>
     <text x="30" y="110" text-anchor="middle" class="label" fill="white" font-size="12">GraphQL</text>
-    
+
     <path d="M 65 105 L 85 105" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-    
+
     <rect x="90" y="90" width="60" height="30" fill="#007396" opacity="0.8" rx="5"/>
     <text x="120" y="110" text-anchor="middle" class="label" fill="white" font-size="12">Resolver</text>
-    
+
     <path d="M 155 105 L 175 105" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-    
+
     <rect x="180" y="90" width="60" height="30" fill="#007396" opacity="0.8" rx="5"/>
     <text x="210" y="110" text-anchor="middle" class="label" fill="white" font-size="12">ORM</text>
-    
+
     <path d="M 245 105 L 265 105" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-    
+
     <rect x="270" y="90" width="60" height="30" fill="#007396" opacity="0.8" rx="5"/>
     <text x="300" y="110" text-anchor="middle" class="label" fill="white" font-size="12">N×SQL</text>
-    
+
     <path d="M 335 105 L 355 105" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-    
+
     <rect x="360" y="90" width="60" height="30" fill="#007396" opacity="0.8" rx="5"/>
     <text x="390" y="110" text-anchor="middle" class="label" fill="white" font-size="12">Objects</text>
-    
+
     <path d="M 425 105 L 445 105" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-    
+
     <rect x="450" y="90" width="60" height="30" fill="#007396" opacity="0.8" rx="5"/>
     <text x="480" y="110" text-anchor="middle" class="label" fill="white" font-size="12">JSON</text>
   </g>
-  
+
   <!-- Arrow marker -->
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">

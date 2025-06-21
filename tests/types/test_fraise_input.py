@@ -6,7 +6,7 @@ from fraiseql.types.fraise_input import fraise_input
 from fraiseql.types.scalars.json import JSONField
 
 
-def test_simple_fraise_input_definition():
+def test_simple_fraise_input_definition() -> None:
     @fraise_input
     class SimpleInput:
         name: str
@@ -18,7 +18,7 @@ def test_simple_fraise_input_definition():
     assert SimpleInput.__fraiseql_definition__.kind == "input"
 
 
-def test_fraise_input_with_explicit_fraise_field():
+def test_fraise_input_with_explicit_fraise_field() -> None:
     @fraise_input
     class WithFraiseField:
         email: Annotated[str, fraise_field(description="User email")]
@@ -29,7 +29,7 @@ def test_fraise_input_with_explicit_fraise_field():
     assert field.field_type is str
 
 
-def test_fraise_input_default_and_factory():
+def test_fraise_input_default_and_factory() -> None:
     @fraise_input
     class WithDefaults:
         age: int = 42
@@ -40,7 +40,7 @@ def test_fraise_input_default_and_factory():
     assert isinstance(instance.tags, list)
 
 
-def test_fraise_input_supports_none_and_optional_json():
+def test_fraise_input_supports_none_and_optional_json() -> None:
     @fraise_input
     class NullableInput:
         details: JSONField | None = None
@@ -49,7 +49,7 @@ def test_fraise_input_supports_none_and_optional_json():
     assert instance.details is None
 
 
-def test_fraise_input_field_ordering():
+def test_fraise_input_field_ordering() -> None:
     @fraise_input
     class OrderedInput:
         a: str
@@ -60,7 +60,7 @@ def test_fraise_input_field_ordering():
     assert list(fields) == ["a", "b", "c"]
 
 
-def test_fraise_input_supports_inheritance():
+def test_fraise_input_supports_inheritance() -> None:
     @fraise_input
     class BaseInput:
         id_: UUID = fraise_field(field_type=UUID)
@@ -74,7 +74,7 @@ def test_fraise_input_supports_inheritance():
     assert ChildInput.__fraiseql_definition__.kind == "input"
 
 
-def test_fraise_input_type_identity():
+def test_fraise_input_type_identity() -> None:
     @fraise_input
     class Identifiable:
         id: str

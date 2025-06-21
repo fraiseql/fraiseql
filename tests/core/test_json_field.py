@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_json_field_in_mutation():
+async def test_json_field_in_mutation() -> None:
     # Clear and reset the schema registry (if needed)
     registry = SchemaRegistry.get_instance()
     registry.clear()
@@ -71,7 +71,8 @@ async def test_json_field_in_mutation():
         duplicate_user: GQLUser | None = None
 
     async def createUser(
-        info: Any, input: CreateUserInputTestGQLConversion
+        info: Any,
+        input: CreateUserInputTestGQLConversion,
     ) -> CreateUserSuccess | CreateUserError:
         return CreateUserSuccess(
             status="ok",

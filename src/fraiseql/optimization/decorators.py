@@ -47,10 +47,12 @@ def dataloader_field(
     """
     # Validation
     if not inspect.isclass(loader_class) or not issubclass(loader_class, DataLoader):
-        raise ValueError("loader_class must be a DataLoader subclass")
+        msg = "loader_class must be a DataLoader subclass"
+        raise ValueError(msg)
 
     if not key_field:
-        raise ValueError("key_field is required")
+        msg = "key_field is required"
+        raise ValueError(msg)
 
     def decorator(method: F) -> F:
         # Get method signature for validation
@@ -60,17 +62,23 @@ def dataloader_field(
         # Validate method signature
         params = list(sig.parameters.keys())
         if len(params) < 2 or params[0] != "self" or params[1] != "info":
-            raise ValueError(
+            msg = (
                 f"@dataloader_field decorated method {method.__name__} must have "
-                "signature (self, info) -> ReturnType",
+                "signature (self, info) -> ReturnType"
+            )
+            raise ValueError(
+                msg,
             )
 
         # Get return type for validation
         return_type = hints.get("return")
         if return_type is None:
-            raise ValueError(
+            msg = (
                 f"@dataloader_field decorated method {method.__name__} must have "
-                "a return type annotation",
+                "a return type annotation"
+            )
+            raise ValueError(
+                msg,
             )
 
         # Create the auto-implemented resolver
@@ -78,9 +86,12 @@ def dataloader_field(
             """Auto-generated DataLoader resolver."""
             # SECURITY: Validate self object to prevent attribute injection attacks
             if not hasattr(self, key_field):
-                raise AttributeError(
+                msg = (
                     f"Object {type(self).__name__} does not have required field '{key_field}'. "
-                    "This may indicate a security issue or misconfiguration.",
+                    "This may indicate a security issue or misconfiguration."
+                )
+                raise AttributeError(
+                    msg,
                 )
 
             # Get the key value from the parent object with validation
@@ -93,7 +104,8 @@ def dataloader_field(
                 key_value,
                 "__hash__",
             ):
-                raise ValueError(f"Key field '{key_field}' must be hashable, got {type(key_value)}")
+                msg = f"Key field '{key_field}' must be hashable, got {type(key_value)}"
+                raise ValueError(msg)
 
             # Get the DataLoader instance
             loader = get_loader(loader_class)
@@ -174,7 +186,7 @@ def dataloader_field(
                     return return_type.from_dict(result_data)
 
                 # Fallback: return raw data (safer than arbitrary construction)
-                return result_data
+                return result_data  # noqa: TRY300
 
             except Exception:
                 # CRITICAL: Never expose internal errors to prevent information leakage
@@ -182,7 +194,8 @@ def dataloader_field(
 
                 # For debugging, include more info about the return type
                 type_info = f"{return_type}" if return_type else "unknown type"
-                raise RuntimeError(f"DataLoader type conversion failed for {type_info}") from None
+                msg = f"DataLoader type conversion failed for {type_info}"
+                raise RuntimeError(msg) from None
 
         # Preserve method metadata
         auto_resolver.__name__ = method.__name__

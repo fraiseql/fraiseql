@@ -39,7 +39,7 @@ def app_with_custom_context():
             "user": None,
         }
 
-    app = create_fraiseql_app(
+    return create_fraiseql_app(
         database_url="postgresql://localhost/test",
         types=[SampleType],
         queries=[get_test],
@@ -47,10 +47,8 @@ def app_with_custom_context():
         production=False,
     )
 
-    return app
 
-
-def test_custom_context_getter(app_with_custom_context):
+def test_custom_context_getter(app_with_custom_context) -> None:
     """Test that custom context getter is used."""
     client = TestClient(app_with_custom_context)
 
@@ -72,7 +70,7 @@ def test_custom_context_getter(app_with_custom_context):
     assert data["data"]["getTest"]["customValue"] == "from_custom_context"
 
 
-def test_custom_context_getter_with_get_request(app_with_custom_context):
+def test_custom_context_getter_with_get_request(app_with_custom_context) -> None:
     """Test that custom context getter works with GET requests."""
     client = TestClient(app_with_custom_context)
 
@@ -94,7 +92,7 @@ def test_custom_context_getter_with_get_request(app_with_custom_context):
     assert data["data"]["getTest"]["customValue"] == "from_custom_context"
 
 
-def test_default_context_without_custom_getter():
+def test_default_context_without_custom_getter() -> None:
     """Test that default context is used when no custom getter provided."""
 
     # For this test, we need to provide a custom context getter

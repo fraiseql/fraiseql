@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from aiodataloader import DataLoader
@@ -180,7 +180,7 @@ class Product:
         return result.scalar() or 0
 
     @strawberry.field
-    async def reviews(self, info, limit: int = 10) -> List[Review]:
+    async def reviews(self, info, limit: int = 10) -> list[Review]:
         """Get product reviews with limit"""
         session = info.context["session"]
         result = await session.execute(
@@ -268,7 +268,7 @@ class Order:
         return OrderUser.from_model(user)
 
     @strawberry.field
-    async def items(self, info) -> List[OrderItem]:
+    async def items(self, info) -> list[OrderItem]:
         """Get order items"""
         session = info.context["session"]
         result = await session.execute(
@@ -333,7 +333,7 @@ class OrderByInput:
 
 # DataLoader factories
 def create_user_loader(session):
-    async def batch_load_users(user_ids: List[UUID]) -> List[Optional[UserModel]]:
+    async def batch_load_users(user_ids: list[UUID]) -> list[Optional[UserModel]]:
         result = await session.execute(select(UserModel).where(UserModel.id.in_(user_ids)))
         users_by_id = {user.id: user for user in result.scalars()}
         return [users_by_id.get(uid) for uid in user_ids]
@@ -342,7 +342,7 @@ def create_user_loader(session):
 
 
 def create_category_loader(session):
-    async def batch_load_categories(category_ids: List[UUID]) -> List[Optional[CategoryModel]]:
+    async def batch_load_categories(category_ids: list[UUID]) -> list[Optional[CategoryModel]]:
         result = await session.execute(
             select(CategoryModel).where(CategoryModel.id.in_(category_ids))
         )
@@ -353,7 +353,7 @@ def create_category_loader(session):
 
 
 def create_product_loader(session):
-    async def batch_load_products(product_ids: List[UUID]) -> List[Optional[ProductModel]]:
+    async def batch_load_products(product_ids: list[UUID]) -> list[Optional[ProductModel]]:
         result = await session.execute(select(ProductModel).where(ProductModel.id.in_(product_ids)))
         products_by_id = {prod.id: prod for prod in result.scalars()}
         return [products_by_id.get(pid) for pid in product_ids]

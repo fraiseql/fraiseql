@@ -6,7 +6,7 @@ import os
 import random
 import time
 from collections import deque
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import asyncpg
 import redis.asyncio as redis
@@ -24,7 +24,7 @@ DATABASE_URL_REPLICAS = os.environ.get(
 ENABLE_READ_REPLICAS = os.environ.get("ENABLE_READ_REPLICAS", "false").lower() == "true"
 
 # Global connection pools
-connection_pools: Dict[str, asyncpg.Pool] = {}
+connection_pools: dict[str, asyncpg.Pool] = {}
 redis_pool: Optional[redis.ConnectionPool] = None
 redis_client: Optional[redis.Redis] = None
 
@@ -282,7 +282,7 @@ async def health():
         try:
             await redis_conn.ping()
             redis_status = "connected"
-        except:
+        except Exception:
             pass
 
     pools = await get_connection_pools()
@@ -499,7 +499,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104
         port=8000,
         workers=1,
         loop="asyncio",

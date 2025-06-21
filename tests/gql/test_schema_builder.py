@@ -26,7 +26,7 @@ def test_fraise_field_with_annotation() -> None:
         my_field: str = fraise_field(field_type=str)
 
     field = ExampleClass.my_field
-    assert field.field_type == str, f"Expected field_type to be 'str', but got {field.field_type}"
+    assert field.field_type is str, f"Expected field_type to be 'str', but got {field.field_type}"
 
 
 def test_fraise_field_with_default() -> None:
@@ -134,7 +134,8 @@ async def test_manual_mutation_execution_v2(clear_registry) -> None:
     result = await create_user(info, user_input)
 
     assert isinstance(
-        result, CreateUserSuccess
+        result,
+        CreateUserSuccess,
     ), f"Expected success but got: {type(result).__name__} with fields: {vars(result)}"
     assert result.status == "ok"
     assert result.message == "User created"
@@ -210,9 +211,9 @@ def test_schema_structure(clear_registry) -> None:
         mutation_resolvers=[create_user],
     )
 
-    # Uncomment to debug schema
-    # from graphql import print_schema
-    # print(print_schema(schema))
+    # Debug tip: To inspect the schema structure, use:
+    # from graphql import print_schema  # noqa: ERA001
+    # print(print_schema(schema))  # noqa: ERA001
 
     assert schema.query_type.name == "Query"
     assert schema.mutation_type.name == "Mutation"
@@ -350,7 +351,7 @@ def test_mutation_through_graphql(clear_registry) -> None:
             source=mutation,
             variable_values={"input": {"email": "hello@example.com"}},
             context_value={"tenant_id": "demo", "contact_id": "test"},
-        )
+        ),
     )
 
     assert result.errors is None

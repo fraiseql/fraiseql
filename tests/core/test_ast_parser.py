@@ -1,7 +1,7 @@
 from fraiseql.core.ast_parser import FieldPath, extract_flat_paths, parse_query_ast
 
 
-def test_simple_flat_selection():
+def test_simple_flat_selection() -> None:
     query = """
     query {
         user {
@@ -18,7 +18,7 @@ def test_simple_flat_selection():
     ]
 
 
-def test_aliasing_and_nested():
+def test_aliasing_and_nested() -> None:
     query = """
     query {
         account {
@@ -37,7 +37,7 @@ def test_aliasing_and_nested():
     ]
 
 
-def test_named_fragment():
+def test_named_fragment() -> None:
     query = """
     query {
         person {
@@ -58,7 +58,7 @@ def test_named_fragment():
     ]
 
 
-def test_inline_fragment():
+def test_inline_fragment() -> None:
     query = """
     query {
         node {

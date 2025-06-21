@@ -51,14 +51,14 @@ class MockDetector(ast.NodeVisitor):
 
 def analyze_test_file(filepath: Path) -> tuple[list, list, list]:
     """Analyze a test file for mock usage."""
-    with open(filepath) as f:
+    with filepath.open() as f:
         content = f.read()
 
     try:
         tree = ast.parse(content)
         detector = MockDetector()
         detector.visit(tree)
-        return detector.mock_imports, detector.mock_usages, detector.async_functions
+        return detector.mock_imports, detector.mock_usages, detector.async_functions  # noqa: TRY300
     except SyntaxError:
         return [], [], []
 
@@ -73,7 +73,7 @@ def generate_migration_suggestions(filepath: Path, mock_info: tuple[list, list, 
     suggestions = [f"\n## Migration suggestions for {filepath.name}:\n"]
 
     # Check what's being mocked
-    with open(filepath) as f:
+    with filepath.open() as f:
         content = f.read()
 
     if "AsyncConnectionPool" in content or "psycopg" in content:
@@ -82,7 +82,7 @@ def generate_migration_suggestions(filepath: Path, mock_info: tuple[list, list, 
         suggestions.append("   - Use `@pytest.mark.database` to mark database tests")
         suggestions.append("   - Replace `mock_pool` with `db_pool` fixture")
         suggestions.append(
-            "   - Replace `mock_connection` with `db_connection` fixture"
+            "   - Replace `mock_connection` with `db_connection` fixture",
         )
         suggestions.append("")
         suggestions.append("2. Update test setup:")
@@ -91,17 +91,17 @@ def generate_migration_suggestions(filepath: Path, mock_info: tuple[list, list, 
         suggestions.append("   class TestYourClass:")
         suggestions.append("       @pytest.fixture")
         suggestions.append(
-            "       async def test_schema(self, db_connection, create_test_table):"
+            "       async def test_schema(self, db_connection, create_test_table):",
         )
         suggestions.append("           # Create your test tables here")
         suggestions.append(
-            "           await create_test_table(db_connection, 'table_name', 'CREATE TABLE ...')"
+            "           await create_test_table(db_connection, 'table_name', 'CREATE TABLE ...')",
         )
         suggestions.append("   ```")
         suggestions.append("")
         suggestions.append("3. Replace mock assertions with real queries:")
         suggestions.append(
-            "   - Instead of `mock.assert_called_with()`, verify actual database state"
+            "   - Instead of `mock.assert_called_with()`, verify actual database state",
         )
         suggestions.append("   - Use real SQL queries to check results")
         suggestions.append("")
@@ -135,15 +135,9 @@ def main():
     # Find all test files
     test_dir = Path("tests")
     if not test_dir.exists():
-        print("Error: tests directory not found")
         sys.exit(1)
 
     test_files = list(test_dir.rglob("test_*.py"))
-
-    print("# Test Migration Analysis\n")
-    print(
-        "This analysis identifies test files using mocks that could benefit from real database testing.\n"
-    )
 
     files_with_mocks = []
 
@@ -153,36 +147,18 @@ def main():
             files_with_mocks.append((test_file, mock_info))
 
     if not files_with_mocks:
-        print("No test files with database mocks found!")
         return
 
-    print(f"Found {len(files_with_mocks)} test files with mocks:\n")
-
     for test_file, _ in files_with_mocks:
-        print(f"- {test_file}")
-
-    print("\n---\n")
+        pass
 
     # Generate detailed suggestions
     for test_file, mock_info in files_with_mocks:
         suggestions = generate_migration_suggestions(test_file, mock_info)
         if suggestions:
-            print(suggestions)
-            print("\n---\n")
+            pass
 
     # General guidance
-    print("## General Migration Steps:\n")
-    print("1. Install testcontainers: `pip install testcontainers[postgres]`")
-    print("2. Update test files to use `@pytest.mark.database` for integration tests")
-    print("3. Keep unit tests with mocks for testing business logic without database")
-    print("4. Create integration test variants for critical database operations")
-    print("5. Use `--no-db` flag to skip database tests when needed")
-    print("")
-    print("## Running Tests:\n")
-    print("- All tests: `pytest`")
-    print("- Only database tests: `pytest -m database`")
-    print("- Skip database tests: `pytest --no-db`")
-    print("- With Podman: `TESTCONTAINERS_PODMAN=true pytest`")
 
 
 if __name__ == "__main__":

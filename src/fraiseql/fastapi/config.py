@@ -26,7 +26,7 @@ class FraiseQLConfig(BaseSettings):
     enable_playground: bool = True
     max_query_depth: int | None = None
     query_timeout: int = 30  # seconds
-    auto_camel_case: bool = False  # Auto-convert snake_case to camelCase in GraphQL
+    auto_camel_case: bool = True  # Auto-convert snake_case to camelCase in GraphQL
 
     # Auth settings
     auth_enabled: bool = True
@@ -74,7 +74,8 @@ class FraiseQLConfig(BaseSettings):
     def validate_auth0_config(cls, v: str | None, info) -> str | None:
         """Validate Auth0 configuration when Auth0 is selected."""
         if info.data.get("auth_provider") == "auth0" and not v:
-            raise ValueError("auth0_domain is required when using Auth0 provider")
+            msg = "auth0_domain is required when using Auth0 provider"
+            raise ValueError(msg)
         return v
 
     model_config = SettingsConfigDict(

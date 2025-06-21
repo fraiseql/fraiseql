@@ -79,7 +79,7 @@ def clear_registry():
     registry.clear()
 
 
-def test_dict_str_any_type():
+def test_dict_str_any_type() -> None:
     """Test that dict[str, Any] works properly."""
     schema = build_fraiseql_schema(query_types=[get_error])
 
@@ -96,7 +96,7 @@ def test_dict_str_any_type():
     assert details_field.type.name == "JSON"  # It's nullable, so no wrapper
 
 
-def test_plain_dict_type():
+def test_plain_dict_type() -> None:
     """Test that plain dict works."""
     schema = build_fraiseql_schema(query_types=[get_config])
 
@@ -114,7 +114,7 @@ def test_plain_dict_type():
         assert field_type.name == "JSON"
 
 
-def test_json_alias_type():
+def test_json_alias_type() -> None:
     """Test that JSON alias works."""
     schema = build_fraiseql_schema(query_types=[get_metadata])
 
@@ -132,7 +132,7 @@ def test_json_alias_type():
 
 
 @pytest.mark.asyncio
-async def test_query_execution_with_json():
+async def test_query_execution_with_json() -> None:
     """Test that JSON fields work in query execution."""
     schema = build_fraiseql_schema(query_types=[get_error, get_config, get_metadata])
 
@@ -188,7 +188,7 @@ async def test_query_execution_with_json():
 
 
 @pytest.mark.asyncio
-async def test_null_json_field():
+async def test_null_json_field() -> None:
     """Test that null JSON fields work properly."""
 
     async def get_error_no_details(info) -> ErrorWithDetails:
@@ -214,5 +214,5 @@ async def test_null_json_field():
             "message": "Simple error",
             "code": "ERR_002",
             "details": None,
-        }
+        },
     }

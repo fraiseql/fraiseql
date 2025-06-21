@@ -4,7 +4,7 @@ This shows how to create a FraiseQL app using only the @query decorator,
 which provides the cleanest and most intuitive API.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 import fraiseql
@@ -47,7 +47,7 @@ async def get_post(info, id: UUID) -> Post | None:
                 email="jane@example.com",
                 bio="GraphQL enthusiast and FraiseQL contributor",
             ),
-            published_at=datetime.now(),
+            published_at=datetime.now(tz=UTC),
             tags=["graphql", "python", "tutorial"],
         )
     return None
@@ -55,7 +55,10 @@ async def get_post(info, id: UUID) -> Post | None:
 
 @fraiseql.query
 async def list_posts(
-    info, limit: int = 10, offset: int = 0, tag: str | None = None
+    info,
+    limit: int = 10,
+    offset: int = 0,
+    tag: str | None = None,
 ) -> list[Post]:
     """List blog posts with pagination and optional tag filter."""
     # Sample data - in production, query your database
@@ -72,9 +75,9 @@ async def list_posts(
                     name="Jane Developer",
                     email="jane@example.com",
                 ),
-                published_at=datetime.now() if i % 2 == 0 else None,
+                published_at=datetime.now(tz=UTC) if i % 2 == 0 else None,
                 tags=["blog", "tutorial"] if i % 2 == 0 else ["draft"],
-            )
+            ),
         )
 
     # Filter by tag if provided
@@ -100,9 +103,9 @@ async def search_posts(info, query: str) -> list[Post]:
                     name="Jane Developer",
                     email="jane@example.com",
                 ),
-                published_at=datetime.now(),
+                published_at=datetime.now(tz=UTC),
                 tags=["graphql", "python", "tutorial"],
-            )
+            ),
         ]
     return []
 
@@ -150,41 +153,4 @@ app_with_context = create_fraiseql_app(
 if __name__ == "__main__":
     import uvicorn
 
-    print("🚀 Starting Blog API with FraiseQL")
-    print("📍 GraphQL endpoint: http://localhost:8000/graphql")
-    print()
-    print("Try these queries:")
-    print("""
-    # Get a specific post
-    query GetPost {
-        get_post(id: "123e4567-e89b-12d3-a456-426614174000") {
-            title
-            content
-            author {
-                name
-                bio
-            }
-            tags
-        }
-    }
-
-    # List posts with pagination
-    query ListPosts {
-        list_posts(limit: 5, offset: 0) {
-            id
-            title
-            published_at
-            tags
-        }
-    }
-
-    # Search posts
-    query SearchPosts {
-        search_posts(query: "fraiseql") {
-            title
-            content
-        }
-    }
-    """)
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

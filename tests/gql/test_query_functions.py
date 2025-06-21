@@ -56,20 +56,16 @@ async def get_posts(info, limit: int = 10) -> list[Post]:
             title="Hello World",
             content="This is a test post",
             author_id=UUID("123e4567-e89b-12d3-a456-426614174000"),
-        )
+        ),
     ]
 
 
 # Debug: Check type hints
-def test_debug_type_hints():
+def test_debug_type_hints() -> None:
     """Debug type hints for get_posts."""
     import typing
 
-    hints = typing.get_type_hints(get_posts)
-    print(f"Type hints for get_posts: {hints}")
-    print(f"Return type: {hints.get('return')}")
-    print(f"Origin: {typing.get_origin(hints.get('return'))}")
-    print(f"Args: {typing.get_args(hints.get('return'))}")
+    typing.get_type_hints(get_posts)
 
 
 @pytest.fixture(autouse=True)
@@ -81,7 +77,7 @@ def clear_registry():
     registry.clear()
 
 
-def test_query_functions_registration():
+def test_query_functions_registration() -> None:
     """Test that query functions can be registered and schema built."""
     # Build schema with query functions
     schema = build_fraiseql_schema(query_types=[get_user, get_post, get_posts])
@@ -125,7 +121,7 @@ def test_query_functions_registration():
 
 
 @pytest.mark.asyncio
-async def test_query_execution():
+async def test_query_execution() -> None:
     """Test that query functions can be executed."""
     # Build schema with query functions
     schema = build_fraiseql_schema(query_types=[get_user, get_post, get_posts])
@@ -154,12 +150,12 @@ async def test_query_execution():
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "name": "John Doe",
             "email": "john@example.com",
-        }
+        },
     }
 
 
 @pytest.mark.asyncio
-async def test_mixed_queries_and_types():
+async def test_mixed_queries_and_types() -> None:
     """Test that both query functions and QueryRoot types can be used together."""
 
     # Define a QueryRoot type for legacy support

@@ -39,7 +39,11 @@ def create_graphql_router(
     """Create appropriate router based on environment."""
     if config.environment == "production":
         return create_production_router(
-            schema, config, auth_provider, context_getter, turbo_registry,
+            schema,
+            config,
+            auth_provider,
+            context_getter,
+            turbo_registry,
         )
     return create_development_router(schema, config, auth_provider, context_getter)
 
@@ -121,7 +125,7 @@ def create_development_router(
                     for error in result.errors
                 ]
 
-            return response
+            return response  # noqa: TRY300
 
         except N1QueryDetectedError as e:
             # N+1 query pattern detected
@@ -170,8 +174,8 @@ def create_development_router(
         if variables:
             try:
                 parsed_variables = json.loads(variables)
-            except json.JSONDecodeError:
-                raise HTTPException(400, "Invalid JSON in variables parameter")
+            except json.JSONDecodeError as e:
+                raise HTTPException(400, "Invalid JSON in variables parameter") from e
 
         request_obj = GraphQLRequest(
             query=query,
@@ -321,9 +325,12 @@ PLAYGROUND_HTML = """
 <html>
 <head>
     <title>FraiseQL Playground</title>
-    <link rel="stylesheet" href="https://unpkg.com/graphql-playground-react/build/static/css/index.css" />
-    <link rel="shortcut icon" href="https://unpkg.com/graphql-playground-react/build/favicon.png" />
-    <script src="https://unpkg.com/graphql-playground-react/build/static/js/middleware.js"></script>
+    <link rel="stylesheet"
+          href="https://unpkg.com/graphql-playground-react/build/static/css/index.css" />
+    <link rel="shortcut icon"
+          href="https://unpkg.com/graphql-playground-react/build/favicon.png" />
+    <script
+        src="https://unpkg.com/graphql-playground-react/build/static/js/middleware.js"></script>
 </head>
 <body>
     <div id="root"></div>

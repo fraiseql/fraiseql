@@ -9,7 +9,7 @@ from fraiseql.cli.main import cli
 class TestDevCommand:
     """Test the fraiseql dev command."""
 
-    def test_dev_requires_project(self, cli_runner, temp_project_dir):
+    def test_dev_requires_project(self, cli_runner, temp_project_dir) -> None:
         """Test that dev command requires being in a project directory."""
         result = cli_runner.invoke(cli, ["dev"])
 
@@ -17,7 +17,7 @@ class TestDevCommand:
         assert "Not in a FraiseQL project directory" in result.output
         assert "Run 'fraiseql init' to create a new project" in result.output
 
-    def test_dev_starts_server(self, cli_runner, temp_project_dir):
+    def test_dev_starts_server(self, cli_runner, temp_project_dir) -> None:
         """Test that dev starts the server (mocking uvicorn)."""
         # Create a minimal project structure
         Path("pyproject.toml").write_text('[project]\nname = "test"')
@@ -40,7 +40,7 @@ class TestDevCommand:
                 log_level="info",
             )
 
-    def test_dev_custom_options(self, cli_runner, temp_project_dir):
+    def test_dev_custom_options(self, cli_runner, temp_project_dir) -> None:
         """Test dev command with custom options."""
         Path("pyproject.toml").write_text('[project]\nname = "test"')
 
@@ -50,7 +50,7 @@ class TestDevCommand:
                 [
                     "dev",
                     "--host",
-                    "0.0.0.0",
+                    "0.0.0.0",  # noqa: S104
                     "--port",
                     "3000",
                     "--no-reload",
@@ -65,13 +65,13 @@ class TestDevCommand:
 
             mock_uvicorn.run.assert_called_once_with(
                 "myapp:application",
-                host="0.0.0.0",
+                host="0.0.0.0",  # noqa: S104
                 port=3000,
                 reload=False,
                 log_level="info",
             )
 
-    def test_dev_loads_env_file(self, cli_runner, temp_project_dir):
+    def test_dev_loads_env_file(self, cli_runner, temp_project_dir) -> None:
         """Test that dev loads .env file if present."""
         Path("pyproject.toml").write_text('[project]\nname = "test"')
         Path(".env").write_text("DATABASE_URL=postgresql://test/db\nSECRET=123")
@@ -92,7 +92,7 @@ class TestDevCommand:
                 result = cli_runner.invoke(cli, ["dev"])
                 assert result.exit_code == 0
 
-    def test_dev_handles_missing_uvicorn(self, cli_runner, temp_project_dir):
+    def test_dev_handles_missing_uvicorn(self, cli_runner, temp_project_dir) -> None:
         """Test error when uvicorn is not installed."""
         Path("pyproject.toml").write_text('[project]\nname = "test"')
 

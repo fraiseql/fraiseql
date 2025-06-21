@@ -73,7 +73,7 @@ async def health():
         try:
             await redis_conn.ping()
             redis_status = "connected"
-        except:
+        except Exception:
             pass
 
     return {
@@ -372,4 +372,4 @@ async def compare_optimizations(limit: int = 100):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

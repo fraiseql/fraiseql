@@ -1,5 +1,5 @@
-"""
-E-commerce API Application
+"""E-commerce API Application
+
 Demonstrates FraiseQL's capabilities with a complete e-commerce system
 """
 
@@ -31,7 +31,8 @@ from .mutations import (
 
 # Database configuration
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://user:password@localhost:5432/ecommerce"
+    "DATABASE_URL",
+    "postgresql://user:password@localhost:5432/ecommerce",
 )
 
 
@@ -40,7 +41,10 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Create connection pool
     app.state.db_pool = await asyncpg.create_pool(
-        DATABASE_URL, min_size=10, max_size=20, command_timeout=60
+        DATABASE_URL,
+        min_size=10,
+        max_size=20,
+        command_timeout=60,
     )
 
     yield
@@ -130,7 +134,7 @@ async def health_check():
         async with app.state.db_pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
 
-        return {"status": "healthy", "database": "connected"}
+        return {"status": "healthy", "database": "connected"}  # noqa: TRY300
     except Exception as e:
         return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
 
@@ -138,19 +142,22 @@ async def health_check():
 @app.get("/api/products/search")
 async def search_products(
     q: str,
-    category: str = None,
-    min_price: float = None,
-    max_price: float = None,
-    in_stock: bool = None,
+    category: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    in_stock: bool | None = None,
     limit: int = 20,
     offset: int = 0,
 ):
-    """
-    REST endpoint for product search
+    """REST endpoint for product search
+
     Demonstrates integration with FraiseQL's query system
     """
     query = """
-    query SearchProducts($q: String!, $category: String, $minPrice: Float, $maxPrice: Float, $inStock: Boolean, $limit: Int, $offset: Int) {
+    query SearchProducts(
+        $q: String!, $category: String, $minPrice: Float, $maxPrice: Float,
+        $inStock: Boolean, $limit: Int, $offset: Int
+    ) {
         productSearch(
             where: {
                 _and: [
@@ -197,9 +204,7 @@ async def search_products(
 
 @app.get("/api/categories/tree")
 async def get_category_tree():
-    """
-    REST endpoint for category tree
-    """
+    """REST endpoint for category tree"""
     query = """
     query GetCategoryTree {
         categoryTree(
@@ -222,4 +227,4 @@ async def get_category_tree():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

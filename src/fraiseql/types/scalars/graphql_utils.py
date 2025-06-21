@@ -1,11 +1,12 @@
 """GraphQL scalar mapping utilities for FraiseQL.
 
-This module defines a mapping between common Python types (e.g., `uuid.UUID`, `datetime.datetime`)
-and their corresponding GraphQL scalar types. It supports both standard GraphQL scalars
-(e.g., `GraphQLString`, `GraphQLInt`, `GraphQLID`) and custom FraiseQL scalars with serialization logic.
+This module defines a mapping between common Python types (e.g., `uuid.UUID`,
+`datetime.datetime`) and their corresponding GraphQL scalar types. It supports both
+standard GraphQL scalars (e.g., `GraphQLString`, `GraphQLInt`, `GraphQLID`) and custom
+FraiseQL scalars with serialization logic.
 
-The core function `convert_scalar_to_graphql()` is used to translate a Python type annotation
-into its GraphQL scalar equivalent during schema generation.
+The core function `convert_scalar_to_graphql()` is used to translate a Python type
+annotation into its GraphQL scalar equivalent during schema generation.
 
 Raises:
     TypeError: If the provided Python type has no corresponding GraphQL scalar.

@@ -105,7 +105,8 @@ class FraiseQLRepository:
             ):
                 # Validate function name to prevent SQL injection
                 if not function_name.replace("_", "").replace(".", "").isalnum():
-                    raise ValueError(f"Invalid function name: {function_name}")
+                    msg = f"Invalid function name: {function_name}"
+                    raise ValueError(msg)
 
                 await cursor.execute(
                     f"SELECT * FROM {function_name}(%s::jsonb)",
@@ -125,7 +126,8 @@ class FraiseQLRepository:
                 )
                 # Validate function name to prevent SQL injection
                 if not function_name.replace("_", "").replace(".", "").isalnum():
-                    raise ValueError(f"Invalid function name: {function_name}")
+                    msg = f"Invalid function name: {function_name}"
+                    raise ValueError(msg)
 
                 result = await conn.fetchrow(
                     f"SELECT * FROM {function_name}($1::jsonb)",

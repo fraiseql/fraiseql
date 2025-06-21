@@ -17,7 +17,7 @@ from fraiseql import dataloader_field
 class User:
     id: int
     name: str
-    
+
     @dataloader_field
     async def posts(self, info) -> list['Post']:
         """This will be automatically batched."""
@@ -41,7 +41,7 @@ posts_loader = DataLoader(batch_load_posts)
 @fraiseql.type
 class User:
     id: int
-    
+
     @fraiseql.field
     async def posts(self, info) -> list['Post']:
         return await posts_loader.load(self.id)
@@ -58,17 +58,17 @@ Load related objects efficiently:
 class Author:
     id: int
     name: str
-    
+
     @dataloader_field
     async def books(self, info) -> list['Book']:
         return await Book.get_by_author_id(self.id)
-        
-@fraiseql.type  
+
+@fraiseql.type
 class Book:
     id: int
     title: str
     author_id: int
-    
+
     @dataloader_field
     async def author(self, info) -> Author:
         return await Author.get_by_id(self.author_id)
@@ -82,15 +82,15 @@ Handle complex relationships:
 @fraiseql.type
 class User:
     id: int
-    
+
     @dataloader_field
     async def groups(self, info) -> list['Group']:
         return await Group.get_by_user_id(self.id)
-        
+
 @fraiseql.type
 class Group:
     id: int
-    
+
     @dataloader_field
     async def members(self, info) -> list['User']:
         return await User.get_by_group_id(self.id)
@@ -104,7 +104,7 @@ Batch aggregation operations:
 @fraiseql.type
 class User:
     id: int
-    
+
     @dataloader_field
     async def post_count(self, info) -> int:
         counts = await Post.count_by_user_ids([self.id])
@@ -134,7 +134,7 @@ posts_by_status_loader = DataLoader(
 @fraiseql.type
 class User:
     id: int
-    
+
     @fraiseql.field
     async def published_posts(self, info) -> list['Post']:
         return await posts_by_status_loader.load((self.id, "published"))
@@ -203,7 +203,7 @@ from fraiseql.optimization import get_request_loader
 @fraiseql.type
 class User:
     id: int
-    
+
     @fraiseql.field
     async def posts(self, info) -> list['Post']:
         loader = get_request_loader(info.context, 'posts', batch_load_posts)
@@ -219,7 +219,7 @@ async def preload_user_data(info, user_ids: list[int]):
     """Preload commonly accessed data."""
     posts_loader = get_request_loader(info.context, 'posts', batch_load_posts)
     profiles_loader = get_request_loader(info.context, 'profiles', batch_load_profiles)
-    
+
     # Preload all data
     await posts_loader.load_many(user_ids)
     await profiles_loader.load_many(user_ids)
@@ -242,15 +242,15 @@ async def batch_load_posts(user_ids: list[int]) -> list[list['Post']]:
                 'content', content
             )
         ) as posts
-        FROM posts 
+        FROM posts
         WHERE user_id = ANY($1)
         GROUP BY user_id
     """
-    
+
     async with get_db_connection() as conn:
         rows = await conn.fetch(query, user_ids)
         posts_by_user = {row['user_id']: row['posts'] for row in rows}
-        
+
         return [
             [Post(**post) for post in posts_by_user.get(user_id, [])]
             for user_id in user_ids
@@ -265,7 +265,7 @@ Use raw SQL for complex queries:
 async def batch_load_user_stats(user_ids: list[int]) -> list[dict]:
     """Load aggregated user statistics."""
     query = """
-        SELECT 
+        SELECT
             u.id,
             COUNT(p.id) as post_count,
             COUNT(c.id) as comment_count,
@@ -276,11 +276,11 @@ async def batch_load_user_stats(user_ids: list[int]) -> list[dict]:
         WHERE u.id = ANY($1)
         GROUP BY u.id
     """
-    
+
     async with get_db_connection() as conn:
         rows = await conn.fetch(query, user_ids)
         stats_by_user = {row['id']: dict(row) for row in rows}
-        
+
         return [stats_by_user.get(user_id, {}) for user_id in user_ids]
 ```
 
@@ -298,18 +298,18 @@ from fraiseql.optimization import DataLoader
 async def test_posts_dataloader():
     """Test that posts are batched correctly."""
     calls = []
-    
+
     async def mock_batch_load(user_ids):
         calls.append(user_ids)
         return [[] for _ in user_ids]  # Empty results
-    
+
     loader = DataLoader(mock_batch_load)
-    
+
     # Make multiple loads
     await loader.load(1)
     await loader.load(2)
     await loader.load(3)
-    
+
     # Should be batched into a single call
     assert len(calls) == 1
     assert calls[0] == [1, 2, 3]
@@ -326,17 +326,17 @@ async def test_user_posts_integration(db_session):
     # Create test data
     user1 = await User.create(name="User 1")
     user2 = await User.create(name="User 2")
-    
+
     post1 = await Post.create(title="Post 1", user_id=user1.id)
     post2 = await Post.create(title="Post 2", user_id=user1.id)
     post3 = await Post.create(title="Post 3", user_id=user2.id)
-    
+
     # Test DataLoader
     loader = DataLoader(batch_load_posts)
-    
+
     posts1 = await loader.load(user1.id)
     posts2 = await loader.load(user2.id)
-    
+
     assert len(posts1) == 2
     assert len(posts2) == 1
     assert posts1[0].title == "Post 1"
@@ -363,11 +363,11 @@ Be careful with cached data:
 @fraiseql.mutation
 async def update_user(info, id: int, name: str) -> User:
     user = await User.update(id, name=name)
-    
+
     # Clear relevant caches
     users_loader = get_request_loader(info.context, 'users', batch_load_users)
     users_loader.clear(id)
-    
+
     return user
 ```
 
@@ -396,12 +396,12 @@ Clear caches appropriately:
 @fraiseql.middleware
 async def clear_dataloader_caches(request, call_next):
     response = await call_next(request)
-    
+
     # Clear all DataLoader caches
     if hasattr(request.state, 'dataloaders'):
         for loader in request.state.dataloaders.values():
             loader.clear_all()
-    
+
     return response
 ```
 
@@ -417,21 +417,21 @@ from fraiseql.optimization import DataLoader
 
 class MetricsDataLoader(DataLoader):
     """DataLoader with performance metrics."""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.batch_count = 0
         self.total_keys = 0
         self.total_time = 0
-    
+
     async def _dispatch_batch(self):
         start_time = time.time()
         result = await super()._dispatch_batch()
-        
+
         self.batch_count += 1
         self.total_keys += len(self._batch)
         self.total_time += time.time() - start_time
-        
+
         return result
 ```
 
@@ -447,11 +447,11 @@ logger = logging.getLogger(__name__)
 async def batch_load_posts_with_logging(user_ids: list[int]) -> list[list['Post']]:
     """Batch load posts with debug logging."""
     logger.info(f"Batch loading posts for {len(user_ids)} users: {user_ids}")
-    
+
     start_time = time.time()
     results = await batch_load_posts(user_ids)
     elapsed = time.time() - start_time
-    
+
     logger.info(f"Batch load completed in {elapsed:.3f}s")
     return results
 ```

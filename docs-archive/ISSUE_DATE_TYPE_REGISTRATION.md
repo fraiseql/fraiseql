@@ -94,15 +94,15 @@ A test should be added to verify scalar types are only registered once:
 def test_date_scalar_single_registration():
     """Ensure Date scalar is only registered once in the schema."""
     from fraiseql import build_fraiseql_schema
-    
+
     @fraise_type
     class Model1:
         date1: datetime.date
-    
-    @fraise_type  
+
+    @fraise_type
     class Model2:
         date2: datetime.date
-    
+
     # This should not raise a duplicate type error
     schema = build_fraiseql_schema(types=[Model1, Model2])
     assert "Date" in schema.type_map
@@ -110,7 +110,7 @@ def test_date_scalar_single_registration():
 
 ## Resolution
 
-**Fixed in**: June 19, 2025  
+**Fixed in**: June 19, 2025
 **Solution implemented**: Scalar Type Caching in GraphQL Type Conversion
 
 ### Changes Made
@@ -139,7 +139,7 @@ The fix ensures that:
 
 All existing tests pass, and new tests verify:
 - ✅ Date scalars are cached correctly
-- ✅ Multiple Date fields reference the same scalar instance  
+- ✅ Multiple Date fields reference the same scalar instance
 - ✅ Complex schemas with many Date fields work properly
 - ✅ Multiple schema builds don't cause registration conflicts
 

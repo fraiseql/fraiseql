@@ -10,7 +10,7 @@ from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 
-def test_date_scalar_in_fastapi_app():
+def test_date_scalar_in_fastapi_app() -> None:
     """Test Date scalar registration through FastAPI app creation."""
     # Clear registry
     registry = SchemaRegistry.get_instance()
@@ -23,12 +23,14 @@ def test_date_scalar_in_fastapi_app():
 
     @fraiseql.query
     async def get_event(info) -> Event:
-        return Event(name="Test", event_date=datetime.date.today())  # noqa: DTZ011
+        return Event(name="Test", event_date=datetime.date.today())
 
     # This might trigger duplicate registration if there's an issue
     try:
         app = create_fraiseql_app(
-            database_url="postgresql://test/test", types=[Event], queries=[get_event]
+            database_url="postgresql://test/test",
+            types=[Event],
+            queries=[get_event],
         )
         # If we get here, no duplicate registration occurred
         assert app is not None
@@ -39,7 +41,7 @@ def test_date_scalar_in_fastapi_app():
             raise
 
 
-def test_date_scalar_multiple_registrations():
+def test_date_scalar_multiple_registrations() -> None:
     """Test that Date scalar can be used across multiple schema builds."""
     # First schema build
     registry = SchemaRegistry.get_instance()
@@ -51,7 +53,7 @@ def test_date_scalar_multiple_registrations():
 
     @fraiseql.query
     async def get_model1(info) -> Model1:
-        return Model1(date1=datetime.date.today())  # noqa: DTZ011
+        return Model1(date1=datetime.date.today())
 
     schema1 = registry.build_schema()
     assert "Date" in schema1.type_map
@@ -65,14 +67,14 @@ def test_date_scalar_multiple_registrations():
 
     @fraiseql.query
     async def get_model2(info) -> Model2:
-        return Model2(date2=datetime.date.today())  # noqa: DTZ011
+        return Model2(date2=datetime.date.today())
 
     # This should not fail with duplicate Date
     schema2 = registry.build_schema()
     assert "Date" in schema2.type_map
 
 
-def test_date_scalar_with_interface():
+def test_date_scalar_with_interface() -> None:
     """Test Date scalar with interface types."""
     registry = SchemaRegistry.get_instance()
     registry.clear()
@@ -89,7 +91,7 @@ def test_date_scalar_with_interface():
 
     @fraiseql.query
     async def get_article(info) -> Article:
-        today = datetime.date.today()  # noqa: DTZ011
+        today = datetime.date.today()
         return Article(title="Test", created_date=today, published_date=today)
 
     # Should not raise duplicate Date type error

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 TurboRouter Performance Benchmark
+
 Measuring the ACTUAL performance improvement from pre-compiled queries
 
 Dr. Viktor Steinberg wants to see if this "TurboRouter" is just
@@ -14,7 +15,8 @@ import os
 import statistics
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any
 
 import httpx
 import psutil
@@ -59,7 +61,7 @@ class TurboRouterBenchmark:
     def __init__(self, endpoint: str, database_url: str):
         self.endpoint = endpoint
         self.database_url = database_url
-        self.results: List[TurboRouterResult] = []
+        self.results: list[TurboRouterResult] = []
         self.process = psutil.Process()
 
         # Test queries of varying complexity
@@ -288,7 +290,7 @@ class TurboRouterBenchmark:
 
     async def benchmark_query(
         self, query_key: str, use_turbo: bool, iterations: int = 1000, concurrent: int = 50
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Benchmark a single query with or without TurboRouter."""
         query_info = self.test_queries[query_key]
 
@@ -323,12 +325,12 @@ class TurboRouterBenchmark:
                         return -1
 
                     # Check if TurboRouter was actually used
-                    if use_turbo and data.get("extensions", {}).get("turbo") != True:
+                    if use_turbo and not data.get("extensions", {}).get("turbo"):
                         # Query not in TurboRouter, this shouldn't count
                         return -1
 
                     latency = (time.time() - start) * 1000
-                    return latency
+                    return latency  # noqa: TRY300
 
                 except Exception:
                     return -1
@@ -370,16 +372,16 @@ class TurboRouterBenchmark:
         else:
             return {"error": "All requests failed"}
 
-    def _percentile(self, data: List[float], percentile: float) -> float:
+    def _percentile(self, data: list[float], percentile: float) -> float:
         """Calculate percentile."""
         if not data:
             return 0
         index = int(len(data) * percentile / 100)
         return data[min(index, len(data) - 1)]
 
-    async def measure_overhead_breakdown(self, query_key: str) -> Dict[str, float]:
+    async def measure_overhead_breakdown(self, query_key: str) -> dict[str, float]:
         """Measure the breakdown of query processing overhead."""
-        query_info = self.test_queries[query_key]
+        self.test_queries[query_key]
 
         # This would require instrumentation in the actual FraiseQL code
         # For now, we'll estimate based on typical patterns
@@ -476,7 +478,7 @@ class TurboRouterBenchmark:
         # Generate detailed report
         self.generate_detailed_report(results)
 
-    def generate_detailed_report(self, results: List[TurboRouterResult]):
+    def generate_detailed_report(self, results: list[TurboRouterResult]):
         """Generate comprehensive TurboRouter performance report."""
         print("\n\n" + "=" * 80)
         print("TURBOROUTER PERFORMANCE REPORT")
@@ -569,7 +571,8 @@ class TurboRouterBenchmark:
         print("Would I pay extra for it? No, Redis does this better.'")
 
         # Save detailed results
-        with open("turbo_router_analysis.json", "w") as f:
+        output_path = Path("turbo_router_analysis.json")
+        with output_path.open("w") as f:
             json.dump(
                 {
                     "timestamp": time.time(),

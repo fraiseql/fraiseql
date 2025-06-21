@@ -264,7 +264,7 @@ The security middleware exposes Prometheus metrics:
 fraiseql_rate_limit_requests_total{path, status}
 fraiseql_rate_limit_violations_total{path, reason}
 
-# CSRF protection  
+# CSRF protection
 fraiseql_csrf_tokens_generated_total
 fraiseql_csrf_validation_failures_total{reason}
 
@@ -346,7 +346,7 @@ HOST=0.0.0.0
 async def auth_middleware(request: Request, call_next):
     """JWT authentication middleware."""
     auth_header = request.headers.get("Authorization")
-    
+
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]
         try:
@@ -356,7 +356,7 @@ async def auth_middleware(request: Request, call_next):
         except jwt.InvalidTokenError:
             request.state.user_id = None
             request.state.is_authenticated = False
-    
+
     return await call_next(request)
 ```
 
@@ -367,13 +367,13 @@ async def auth_middleware(request: Request, call_next):
 async def admin_only_mutation(info: fraiseql.Info) -> str:
     """Mutation that requires admin role."""
     request = info.context.get("request")
-    
+
     if not getattr(request.state, "is_admin", False):
         raise fraiseql.GraphQLError(
             "Admin access required",
             extensions={"code": "FORBIDDEN"}
         )
-    
+
     return "Admin operation successful"
 ```
 

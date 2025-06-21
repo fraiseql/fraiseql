@@ -1,10 +1,10 @@
 """Strawberry GraphQL + SQLAlchemy benchmark application"""
 
 import json
-import os
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import List, Optional
+from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, Response
 from models import (
@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
     engine, async_session = await init_db(settings.database_url)
 
     # Create results directory
-    os.makedirs(settings.results_dir, exist_ok=True)
+    Path(settings.results_dir).mkdir(parents=True, exist_ok=True)
 
     yield
 
@@ -87,7 +87,7 @@ async def lifespan(app: FastAPI):
 @strawberry.type
 class Query:
     @strawberry.field
-    async def users(self, info, limit: int = 20, offset: int = 0) -> List[User]:
+    async def users(self, info, limit: int = 20, offset: int = 0) -> list[User]:
         """Get all users with pagination"""
         with query_histogram.labels("users", "query").time():
             query_counter.labels("users", "query").inc()
@@ -120,7 +120,7 @@ class Query:
         filter: Optional[ProductFilterInput] = None,
         pagination: Optional[PaginationInput] = None,
         order_by: Optional[OrderByInput] = None,
-    ) -> List[Product]:
+    ) -> list[Product]:
         """Get products with filtering, pagination, and sorting"""
         with query_histogram.labels("products", "query").time():
             query_counter.labels("products", "query").inc()
@@ -195,7 +195,7 @@ class Query:
         info,
         filter: Optional[OrderFilterInput] = None,
         pagination: Optional[PaginationInput] = None,
-    ) -> List[Order]:
+    ) -> list[Order]:
         """Get orders with filtering and pagination"""
         with query_histogram.labels("orders", "query").time():
             query_counter.labels("orders", "query").inc()
@@ -250,7 +250,7 @@ class Query:
                 return Order.from_model(order) if order else None
 
     @strawberry.field
-    async def search_products(self, info, query: str, limit: int = 20) -> List[Product]:
+    async def search_products(self, info, query: str, limit: int = 20) -> list[Product]:
         """Full-text search on products"""
         with query_histogram.labels("search_products", "query").time():
             query_counter.labels("search_products", "query").inc()
@@ -272,7 +272,7 @@ class Query:
     @strawberry.field
     async def user_orders(
         self, info, user_id: strawberry.ID, limit: int = 20, offset: int = 0
-    ) -> List[Order]:
+    ) -> list[Order]:
         """Get all orders for a specific user"""
         with query_histogram.labels("user_orders", "query").time():
             query_counter.labels("user_orders", "query").inc()
@@ -321,7 +321,7 @@ async def health_check():
     try:
         async with async_session() as session:
             result = await session.execute(select(func.count(UserModel.id)))
-            count = result.scalar()
+            result.scalar()
         return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
     except Exception as e:
         return Response(
@@ -344,9 +344,9 @@ async def metrics():
 async def write_benchmark_result(test_name: str, result: dict):
     """Write benchmark results to file"""
     timestamp = datetime.utcnow().isoformat()
-    result_file = os.path.join(settings.results_dir, f"{test_name}_{timestamp}.json")
+    result_file = Path(settings.results_dir) / f"{test_name}_{timestamp}.json"
 
-    with open(result_file, "w") as f:
+    with result_file.open("w") as f:
         json.dump(
             {
                 "framework": "strawberry-sqlalchemy",
@@ -362,4 +362,4 @@ async def write_benchmark_result(test_name: str, result: dict):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

@@ -5,7 +5,8 @@ Provides decorators and common GraphQL types for FraiseQL.
 Exports:
 - `type`: Decorator to mark a dataclass as a GraphQL object type.
 - `input`: Decorator to mark a dataclass as a GraphQL input type.
-- `fraise_type` and `fraise_input`: Internal decorator implementations to avoid shadowing Python builtins.
+- `fraise_type` and `fraise_input`: Internal decorator implementations to avoid
+  shadowing Python builtins.
 
 Usage:
 
@@ -36,8 +37,8 @@ from .scalars.ltree import LTreeField as LTree
 from .scalars.uuid import UUIDField as UUID  # noqa: N814
 
 # Aliases for decorators
-type = fraise_type
-input = fraise_input
+type = fraise_type  # noqa: A001
+input = fraise_input  # noqa: A001
 
 __all__ = [
     "JSON",

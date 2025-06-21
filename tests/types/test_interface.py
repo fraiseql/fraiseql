@@ -11,7 +11,7 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 class TestFraiseInterface:
     """Test suite for @fraise_interface decorator and interface functionality."""
 
-    def test_basic_interface_decoration(self, clear_registry):
+    def test_basic_interface_decoration(self, clear_registry) -> None:
         """Test that @fraise_interface properly decorates a class."""
 
         @fraiseql.interface
@@ -29,7 +29,7 @@ class TestFraiseInterface:
         assert "id" in fields
         assert "created_at" in fields
 
-    def test_type_implementing_interface(self, clear_registry):
+    def test_type_implementing_interface(self, clear_registry) -> None:
         """Test a type implementing an interface."""
 
         @fraiseql.interface
@@ -60,7 +60,7 @@ class TestFraiseInterface:
         assert len(user_type.interfaces) == 1
         assert user_type.interfaces[0].name == "Node"
 
-    def test_multiple_types_implementing_same_interface(self, clear_registry):
+    def test_multiple_types_implementing_same_interface(self, clear_registry) -> None:
         """Test multiple types implementing the same interface."""
 
         @fraiseql.interface
@@ -96,7 +96,7 @@ class TestFraiseInterface:
         assert article_type.interfaces[0].name == "Timestamped"
         assert comment_type.interfaces[0].name == "Timestamped"
 
-    def test_type_implementing_multiple_interfaces(self, clear_registry):
+    def test_type_implementing_multiple_interfaces(self, clear_registry) -> None:
         """Test a type implementing multiple interfaces."""
 
         @fraiseql.interface
@@ -128,7 +128,7 @@ class TestFraiseInterface:
         interface_names = {iface.name for iface in post_type.interfaces}
         assert interface_names == {"Node", "Timestamped"}
 
-    def test_interface_field_resolution(self, clear_registry):
+    def test_interface_field_resolution(self, clear_registry) -> None:
         """Test querying through an interface field."""
 
         @fraiseql.interface
@@ -190,12 +190,11 @@ class TestFraiseInterface:
                     "price": 999.99,
                 },
                 {"id": "u2", "__typename": "User", "name": "Bob"},
-            ]
+            ],
         }
 
-    def test_interface_with_complex_types(self, clear_registry):
+    def test_interface_with_complex_types(self, clear_registry) -> None:
         """Test interface with complex field types."""
-
         from enum import Enum
 
         @fraiseql.enum
@@ -232,7 +231,7 @@ class TestFraiseInterface:
                         title="Report",
                         metadata=Metadata(tags=["important", "quarterly"], version=2),
                         status=Status.ACTIVE,
-                    )
+                    ),
                 ]
 
         schema = build_fraiseql_schema(query_types=[QueryRoot])
@@ -260,11 +259,11 @@ class TestFraiseInterface:
                     "title": "Report",
                     "metadata": {"tags": ["important", "quarterly"], "version": 2},
                     "status": "ACTIVE",
-                }
-            ]
+                },
+            ],
         }
 
-    def test_interface_inheritance(self, clear_registry):
+    def test_interface_inheritance(self, clear_registry) -> None:
         """Test interface extending another interface."""
 
         @fraiseql.interface
@@ -293,7 +292,7 @@ class TestFraiseInterface:
         person_type = schema.type_map.get("Person")
         assert len(person_type.interfaces) == 2
 
-    def test_interface_field_not_implemented_error(self, clear_registry):
+    def test_interface_field_not_implemented_error(self, clear_registry) -> None:
         """Test that missing interface fields are caught."""
 
         @fraiseql.interface
@@ -320,7 +319,7 @@ class TestFraiseInterface:
         bad_type = schema.type_map.get("BadImplementation")
         assert bad_type.interfaces[0].name == "Identifiable"
 
-    def test_interface_with_optional_fields(self, clear_registry):
+    def test_interface_with_optional_fields(self, clear_registry) -> None:
         """Test interface with optional fields."""
 
         @fraiseql.interface
@@ -362,10 +361,10 @@ class TestFraiseInterface:
             "products": [
                 {"id": "1", "name": "Widget", "description": "A useful widget"},
                 {"id": "2", "name": "Gadget", "description": None},
-            ]
+            ],
         }
 
-    def test_interface_in_schema_introspection(self, clear_registry):
+    def test_interface_in_schema_introspection(self, clear_registry) -> None:
         """Test that interfaces appear correctly in schema introspection."""
 
         @fraiseql.interface

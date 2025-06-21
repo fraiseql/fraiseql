@@ -29,7 +29,7 @@ class ComplexityConfig:
 class SubscriptionComplexityAnalyzer:
     """Analyzes subscription complexity before execution."""
 
-    def __init__(self, config: ComplexityConfig = None):
+    def __init__(self, config: ComplexityConfig = None) -> None:
         self.config = config or ComplexityConfig()
 
     def calculate_complexity(self, info: Any, field_name: str, args: dict[str, Any]) -> int:
@@ -50,8 +50,9 @@ class SubscriptionComplexityAnalyzer:
         if hasattr(info, "field_nodes") and info.field_nodes:
             depth = self._calculate_depth(info.field_nodes[0].selection_set)
             if depth > self.config.max_depth:
+                msg = f"Query depth {depth} exceeds maximum {self.config.max_depth}"
                 raise ComplexityLimitExceededError(
-                    f"Query depth {depth} exceeds maximum {self.config.max_depth}",
+                    msg,
                 )
 
             # Add cost for nested selections
@@ -130,9 +131,12 @@ def complexity(score: int | None = None, max_depth: int | None = None):
 
             # Check limit
             if complexity_score > analyzer.config.max_complexity:
-                raise ComplexityLimitExceededError(
+                msg = (
                     f"Subscription complexity {complexity_score} exceeds "
-                    f"maximum {analyzer.config.max_complexity}",
+                    f"maximum {analyzer.config.max_complexity}"
+                )
+                raise ComplexityLimitExceededError(
+                    msg,
                 )
 
             # Execute subscription

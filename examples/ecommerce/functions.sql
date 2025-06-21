@@ -46,7 +46,7 @@ BEGIN
             'code', 'VALIDATION_ERROR'
         );
     END IF;
-    
+
     -- Check if email already exists
     IF EXISTS (SELECT 1 FROM users WHERE email = input->>'email') THEN
         RETURN jsonb_build_object(
@@ -55,7 +55,7 @@ BEGIN
             'code', 'EMAIL_EXISTS'
         );
     END IF;
-    
+
     -- Create user
     INSERT INTO users (email, password_hash, name, phone)
     VALUES (
@@ -65,10 +65,10 @@ BEGIN
         input->>'phone'
     )
     RETURNING id INTO new_user_id;
-    
+
     -- Get user data
     SELECT data INTO user_data FROM v_users WHERE data->>'id' = new_user_id::text;
-    
+
     -- Return success
     RETURN jsonb_build_object(
         'type', 'success',
@@ -101,13 +101,13 @@ BEGIN
             'code', 'VALIDATION_ERROR'
         );
     END IF;
-    
+
     -- Find user
-    SELECT id, password_hash, is_active 
+    SELECT id, password_hash, is_active
     INTO user_record
-    FROM users 
+    FROM users
     WHERE email = input->>'email';
-    
+
     IF NOT FOUND THEN
         RETURN jsonb_build_object(
             'type', 'error',
@@ -115,7 +115,7 @@ BEGIN
             'code', 'INVALID_CREDENTIALS'
         );
     END IF;
-    
+
     -- Check if account is active
     IF NOT user_record.is_active THEN
         RETURN jsonb_build_object(
@@ -124,7 +124,7 @@ BEGIN
             'code', 'ACCOUNT_DISABLED'
         );
     END IF;
-    
+
     -- Verify password
     IF NOT verify_password(input->>'password', user_record.password_hash) THEN
         RETURN jsonb_build_object(
@@ -133,10 +133,10 @@ BEGIN
             'code', 'INVALID_CREDENTIALS'
         );
     END IF;
-    
+
     -- Get user data
     SELECT data INTO user_data FROM v_users WHERE data->>'id' = user_record.id::text;
-    
+
     -- Return success
     RETURN jsonb_build_object(
         'type', 'success',
@@ -160,7 +160,7 @@ BEGIN
     -- Get user from context
     user_id := (context->>'user_id')::UUID;
     quantity := COALESCE((input->>'quantity')::INT, 1);
-    
+
     -- Validate quantity
     IF quantity <= 0 THEN
         RETURN jsonb_build_object(
@@ -169,13 +169,13 @@ BEGIN
             'code', 'INVALID_QUANTITY'
         );
     END IF;
-    
+
     -- Get product info
     SELECT id, price, inventory_count, is_active
     INTO product_record
     FROM products
     WHERE id = (input->>'product_id')::UUID;
-    
+
     IF NOT FOUND THEN
         RETURN jsonb_build_object(
             'type', 'error',
@@ -183,7 +183,7 @@ BEGIN
             'code', 'PRODUCT_NOT_FOUND'
         );
     END IF;
-    
+
     -- Check if product is active
     IF NOT product_record.is_active THEN
         RETURN jsonb_build_object(
@@ -192,7 +192,7 @@ BEGIN
             'code', 'PRODUCT_UNAVAILABLE'
         );
     END IF;
-    
+
     -- Check inventory
     IF product_record.inventory_count < quantity THEN
         RETURN jsonb_build_object(
@@ -201,30 +201,30 @@ BEGIN
             'code', 'INSUFFICIENT_INVENTORY'
         );
     END IF;
-    
+
     -- Find or create cart
     IF user_id IS NOT NULL THEN
-        SELECT id INTO cart_id FROM carts 
-        WHERE user_id = user_id 
+        SELECT id INTO cart_id FROM carts
+        WHERE user_id = user_id
         AND expires_at > CURRENT_TIMESTAMP
         ORDER BY created_at DESC
         LIMIT 1;
     ELSE
         -- For anonymous users, use session_id from context
-        SELECT id INTO cart_id FROM carts 
+        SELECT id INTO cart_id FROM carts
         WHERE session_id = context->>'session_id'
         AND expires_at > CURRENT_TIMESTAMP
         ORDER BY created_at DESC
         LIMIT 1;
     END IF;
-    
+
     -- Create cart if not exists
     IF cart_id IS NULL THEN
         INSERT INTO carts (user_id, session_id)
         VALUES (user_id, context->>'session_id')
         RETURNING id INTO cart_id;
     END IF;
-    
+
     -- Add or update cart item
     INSERT INTO cart_items (cart_id, product_id, quantity, price)
     VALUES (cart_id, product_record.id, quantity, product_record.price)
@@ -232,17 +232,17 @@ BEGIN
     SET quantity = cart_items.quantity + EXCLUDED.quantity,
         price = EXCLUDED.price,
         updated_at = CURRENT_TIMESTAMP;
-    
+
     -- Update cart totals
     UPDATE carts
     SET items_count = (SELECT SUM(quantity) FROM cart_items WHERE cart_id = carts.id),
         subtotal = (SELECT SUM(quantity * price) FROM cart_items WHERE cart_id = carts.id),
         updated_at = CURRENT_TIMESTAMP
     WHERE id = cart_id;
-    
+
     -- Get updated cart data
     SELECT data INTO cart_data FROM v_carts WHERE data->>'id' = cart_id::text;
-    
+
     RETURN jsonb_build_object(
         'type', 'success',
         'cart', cart_data,
@@ -268,7 +268,7 @@ DECLARE
     product_inventory INT;
 BEGIN
     new_quantity := (input->>'quantity')::INT;
-    
+
     -- Validate quantity
     IF new_quantity < 0 THEN
         RETURN jsonb_build_object(
@@ -277,14 +277,14 @@ BEGIN
             'code', 'INVALID_QUANTITY'
         );
     END IF;
-    
+
     -- Get cart ID from cart item
     SELECT ci.cart_id, p.inventory_count
     INTO cart_id, product_inventory
     FROM cart_items ci
     JOIN products p ON ci.product_id = p.id
     WHERE ci.id = (input->>'cart_item_id')::UUID;
-    
+
     IF NOT FOUND THEN
         RETURN jsonb_build_object(
             'type', 'error',
@@ -292,7 +292,7 @@ BEGIN
             'code', 'ITEM_NOT_FOUND'
         );
     END IF;
-    
+
     -- Check inventory
     IF new_quantity > product_inventory THEN
         RETURN jsonb_build_object(
@@ -301,7 +301,7 @@ BEGIN
             'code', 'INSUFFICIENT_INVENTORY'
         );
     END IF;
-    
+
     -- Update or delete item
     IF new_quantity = 0 THEN
         DELETE FROM cart_items WHERE id = (input->>'cart_item_id')::UUID;
@@ -311,17 +311,17 @@ BEGIN
             updated_at = CURRENT_TIMESTAMP
         WHERE id = (input->>'cart_item_id')::UUID;
     END IF;
-    
+
     -- Update cart totals
     UPDATE carts
     SET items_count = (SELECT COALESCE(SUM(quantity), 0) FROM cart_items WHERE cart_id = carts.id),
         subtotal = (SELECT COALESCE(SUM(quantity * price), 0) FROM cart_items WHERE cart_id = carts.id),
         updated_at = CURRENT_TIMESTAMP
     WHERE id = cart_id;
-    
+
     -- Get updated cart data
     SELECT data INTO cart_data FROM v_carts WHERE data->>'id' = cart_id::text;
-    
+
     RETURN jsonb_build_object(
         'type', 'success',
         'cart', cart_data,
@@ -346,7 +346,7 @@ DECLARE
 BEGIN
     -- Get user from context
     user_id := (context->>'user_id')::UUID;
-    
+
     IF user_id IS NULL THEN
         RETURN jsonb_build_object(
             'type', 'error',
@@ -354,9 +354,9 @@ BEGIN
             'code', 'UNAUTHORIZED'
         );
     END IF;
-    
+
     -- Get active cart
-    SELECT c.*, 
+    SELECT c.*,
            (SELECT COUNT(*) FROM cart_items WHERE cart_id = c.id) as item_count
     INTO cart_record
     FROM carts c
@@ -364,7 +364,7 @@ BEGIN
     AND c.expires_at > CURRENT_TIMESTAMP
     ORDER BY c.created_at DESC
     LIMIT 1;
-    
+
     IF NOT FOUND OR cart_record.item_count = 0 THEN
         RETURN jsonb_build_object(
             'type', 'error',
@@ -372,7 +372,7 @@ BEGIN
             'code', 'EMPTY_CART'
         );
     END IF;
-    
+
     -- Validate addresses exist
     IF NOT EXISTS (SELECT 1 FROM addresses WHERE id = (input->>'shipping_address_id')::UUID AND user_id = user_id) THEN
         RETURN jsonb_build_object(
@@ -381,7 +381,7 @@ BEGIN
             'code', 'INVALID_ADDRESS'
         );
     END IF;
-    
+
     -- Apply coupon if provided
     IF input->>'coupon_code' IS NOT NULL THEN
         SELECT * INTO coupon_record
@@ -391,7 +391,7 @@ BEGIN
         AND valid_from <= CURRENT_TIMESTAMP
         AND (valid_until IS NULL OR valid_until > CURRENT_TIMESTAMP)
         AND (usage_limit IS NULL OR usage_count < usage_limit);
-        
+
         IF FOUND THEN
             IF coupon_record.minimum_amount IS NULL OR cart_record.subtotal >= coupon_record.minimum_amount THEN
                 IF coupon_record.discount_type = 'percentage' THEN
@@ -399,19 +399,19 @@ BEGIN
                 ELSE
                     discount := coupon_record.discount_value;
                 END IF;
-                
+
                 -- Update coupon usage
-                UPDATE coupons 
-                SET usage_count = usage_count + 1 
+                UPDATE coupons
+                SET usage_count = usage_count + 1
                 WHERE id = coupon_record.id;
             END IF;
         END IF;
     END IF;
-    
+
     -- Generate order number
-    order_number := 'ORD-' || to_char(CURRENT_DATE, 'YYYYMMDD') || '-' || 
+    order_number := 'ORD-' || to_char(CURRENT_DATE, 'YYYYMMDD') || '-' ||
                     lpad(nextval('order_number_seq')::text, 6, '0');
-    
+
     -- Create order
     INSERT INTO orders (
         order_number,
@@ -436,27 +436,27 @@ BEGIN
         cart_record.subtotal + (cart_record.subtotal * tax_rate) + shipping_cost - discount,
         input->>'notes'
     ) RETURNING id INTO order_id;
-    
+
     -- Copy cart items to order items
     INSERT INTO order_items (order_id, product_id, quantity, price, total)
     SELECT order_id, product_id, quantity, price, quantity * price
     FROM cart_items
     WHERE cart_id = cart_record.id;
-    
+
     -- Update product inventory
     UPDATE products p
     SET inventory_count = inventory_count - ci.quantity
     FROM cart_items ci
     WHERE p.id = ci.product_id
     AND ci.cart_id = cart_record.id;
-    
+
     -- Clear cart
     DELETE FROM cart_items WHERE cart_id = cart_record.id;
     DELETE FROM carts WHERE id = cart_record.id;
-    
+
     -- Get order data
     SELECT data INTO order_data FROM v_orders WHERE data->>'id' = order_id::text;
-    
+
     RETURN jsonb_build_object(
         'type', 'success',
         'order', order_data,
@@ -482,7 +482,7 @@ DECLARE
 BEGIN
     -- Get user from context
     user_id := (context->>'user_id')::UUID;
-    
+
     IF user_id IS NULL THEN
         RETURN jsonb_build_object(
             'type', 'error',
@@ -490,14 +490,14 @@ BEGIN
             'code', 'UNAUTHORIZED'
         );
     END IF;
-    
+
     -- If setting as default, unset other defaults
     IF COALESCE((input->>'is_default')::BOOLEAN, false) THEN
-        UPDATE addresses 
-        SET is_default = false 
+        UPDATE addresses
+        SET is_default = false
         WHERE user_id = user_id;
     END IF;
-    
+
     -- Create address
     INSERT INTO addresses (
         user_id,
@@ -520,10 +520,10 @@ BEGIN
         COALESCE(input->>'country', 'US'),
         COALESCE((input->>'is_default')::BOOLEAN, false)
     ) RETURNING id INTO address_id;
-    
+
     -- Get address data
     SELECT data INTO address_data FROM v_addresses WHERE data->>'id' = address_id::text;
-    
+
     RETURN jsonb_build_object(
         'type', 'success',
         'address', address_data,
@@ -543,7 +543,7 @@ DECLARE
 BEGIN
     -- Get user from context
     user_id := (context->>'user_id')::UUID;
-    
+
     IF user_id IS NULL THEN
         RETURN jsonb_build_object(
             'type', 'error',
@@ -551,7 +551,7 @@ BEGIN
             'code', 'UNAUTHORIZED'
         );
     END IF;
-    
+
     -- Validate rating
     IF (input->>'rating')::INT NOT BETWEEN 1 AND 5 THEN
         RETURN jsonb_build_object(
@@ -560,21 +560,21 @@ BEGIN
             'code', 'INVALID_RATING'
         );
     END IF;
-    
+
     -- Check if user has purchased this product
     SELECT EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM orders o
         JOIN order_items oi ON o.id = oi.order_id
         WHERE o.user_id = user_id
         AND oi.product_id = (input->>'product_id')::UUID
         AND o.status = 'delivered'
     ) INTO has_purchased;
-    
+
     -- Check for existing review
     IF EXISTS (
-        SELECT 1 FROM reviews 
-        WHERE user_id = user_id 
+        SELECT 1 FROM reviews
+        WHERE user_id = user_id
         AND product_id = (input->>'product_id')::UUID
     ) THEN
         RETURN jsonb_build_object(
@@ -583,7 +583,7 @@ BEGIN
             'code', 'DUPLICATE_REVIEW'
         );
     END IF;
-    
+
     -- Create review
     INSERT INTO reviews (
         product_id,
@@ -600,10 +600,10 @@ BEGIN
         input->>'comment',
         has_purchased
     ) RETURNING id INTO review_id;
-    
+
     -- Get review data
     SELECT data INTO review_data FROM v_reviews WHERE data->>'id' = review_id::text;
-    
+
     RETURN jsonb_build_object(
         'type', 'success',
         'review', review_data,

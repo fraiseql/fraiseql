@@ -11,18 +11,18 @@ import java.util.Map;
 public class DirectSQLService {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
-    
+
     public DirectSQLService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
     }
-    
+
     public Map<String, Object> executeGraphQLQuery(String query, Map<String, Object> variables) {
         // This mimics FraiseQL's approach - direct SQL translation
         String sql = translateGraphQLToSQL(query, variables);
         return jdbcTemplate.queryForMap(sql);
     }
-    
+
     public Map<String, Object> getUserWithPosts(Integer userId) {
         String sql = """
             SELECT jsonb_build_object(
@@ -46,10 +46,10 @@ public class DirectSQLService {
             WHERE u.id = ?
             GROUP BY u.id, u.name, u.email
         """;
-        
+
         return jdbcTemplate.queryForMap(sql, userId);
     }
-    
+
     public List<Map<String, Object>> getAllUsersWithPostCount() {
         String sql = """
             SELECT jsonb_build_object(
@@ -63,10 +63,10 @@ public class DirectSQLService {
             GROUP BY u.id, u.name, u.email
             ORDER BY u.created_at DESC
         """;
-        
+
         return jdbcTemplate.queryForList(sql);
     }
-    
+
     public Map<String, Object> getPostWithCommentsAndAuthors(Integer postId) {
         String sql = """
             SELECT jsonb_build_object(
@@ -99,10 +99,10 @@ public class DirectSQLService {
             WHERE p.id = ?
             GROUP BY p.id, p.title, p.content, u.id, u.name, u.email
         """;
-        
+
         return jdbcTemplate.queryForMap(sql, postId);
     }
-    
+
     private String translateGraphQLToSQL(String graphQLQuery, Map<String, Object> variables) {
         // Simplified translation logic - in real implementation would parse GraphQL AST
         // This is just for benchmark purposes
@@ -135,7 +135,7 @@ public class DirectSQLService {
                 ) as result
             """;
         }
-        
+
         return "SELECT '{}'::jsonb as result";
     }
 }

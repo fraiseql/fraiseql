@@ -82,10 +82,10 @@ services:
       # Change development credentials
       FRAISEQL_DEV_USERNAME: myuser
       FRAISEQL_DEV_PASSWORD: mypassword
-      
+
       # Disable features
       FRAISEQL_ENABLE_PLAYGROUND: "false"
-      
+
       # Custom database
       DATABASE_URL: postgresql://user:pass@host:5432/db
 ```
@@ -280,7 +280,7 @@ services:
     networks:
       - frontend
       - backend
-  
+
   postgres:
     networks:
       - backend  # Only accessible internally

@@ -9,7 +9,7 @@ from .commands import check, dev, generate, init, sql
 
 @click.group()
 @click.version_option(version="0.1.0", prog_name="fraiseql")
-def cli():
+def cli() -> None:
     """FraiseQL - Lightweight GraphQL-to-PostgreSQL query builder.
 
     A complete GraphQL API framework that provides strongly-typed
@@ -25,7 +25,7 @@ cli.add_command(check.check)
 cli.add_command(sql.sql)
 
 
-def main():
+def main() -> None:
     """Main entry point for the CLI."""
     try:
         cli()

@@ -2,14 +2,15 @@
 
 from graphql import graphql_sync
 
-from fraiseql import query, type
+from fraiseql import query
+from fraiseql import type as fraise_type
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
-def test_automatic_snake_to_camel_conversion(clear_registry):
+def test_automatic_snake_to_camel_conversion(clear_registry) -> None:
     """Test that snake_case fields are automatically converted to camelCase in GraphQL."""
 
-    @type
+    @fraise_type
     class Repository:
         id: int
         default_branch: str
@@ -59,7 +60,7 @@ def test_automatic_snake_to_camel_conversion(clear_registry):
             "totalCommits": 100,
             "isPrivate": False,
             "createdAtTimestamp": 1234567890.0,
-        }
+        },
     }
 
     # Verify snake_case fields don't work
@@ -76,10 +77,10 @@ def test_automatic_snake_to_camel_conversion(clear_registry):
     assert "Cannot query field" in str(result.errors[0])
 
 
-def test_camelcase_conversion_with_config(clear_registry):
+def test_camelcase_conversion_with_config(clear_registry) -> None:
     """Test enabling/disabling camelCase conversion via configuration."""
 
-    @type
+    @fraise_type
     class User:
         user_name: str
         first_name: str
@@ -128,11 +129,11 @@ def test_camelcase_conversion_with_config(clear_registry):
     assert result.data["current_user"]["user_name"] == "john_doe"
 
 
-def test_explicit_graphql_name(clear_registry):
+def test_explicit_graphql_name(clear_registry) -> None:
     """Test using explicit graphql_name parameter."""
     from fraiseql.fields import fraise_field
 
-    @type
+    @fraise_type
     class Product:
         internal_id: int = fraise_field(graphql_name="id")
         product_name: str = fraise_field(graphql_name="name")
@@ -162,18 +163,18 @@ def test_explicit_graphql_name(clear_registry):
 
     assert result.errors is None
     assert result.data == {
-        "getProduct": {"id": 1, "name": "Widget", "price": 9.99, "stockQuantity": 50}
+        "getProduct": {"id": 1, "name": "Widget", "price": 9.99, "stockQuantity": 50},
     }
 
 
-def test_mixed_case_preservation(clear_registry):
+def test_mixed_case_preservation(clear_registry) -> None:
     """Test that certain naming patterns are preserved correctly."""
 
-    @type
+    @fraise_type
     class APIConfig:
         api_key: str  # Should become apiKey
         APIVersion: str  # Should stay APIVersion
-        httpTimeout: int  # Should stay httpTimeout
+        httpTimeout: int  # Should stay httpTimeout  # noqa: N815
         URL: str  # Should stay URL
 
     @query
@@ -208,11 +209,11 @@ def test_mixed_case_preservation(clear_registry):
             "APIVersion": "v2",
             "httpTimeout": 30,
             "URL": "https://api.example.com",
-        }
+        },
     }
 
 
-def test_input_type_camelcase(clear_registry):
+def test_input_type_camelcase(clear_registry) -> None:
     """Test that input types also use camelCase."""
     from fraiseql import fraise_input, mutation
 
@@ -222,7 +223,7 @@ def test_input_type_camelcase(clear_registry):
         email_address: str
         is_admin: bool = False
 
-    @type
+    @fraise_type
     class User:
         id: int
         user_name: str
@@ -269,11 +270,11 @@ def test_input_type_camelcase(clear_registry):
             "userName": "john_doe",
             "emailAddress": "john@example.com",
             "isAdmin": True,
-        }
+        },
     }
 
 
-def test_enum_value_preservation(clear_registry):
+def test_enum_value_preservation(clear_registry) -> None:
     """Test that enum values are not converted."""
     from enum import Enum
 
@@ -285,7 +286,7 @@ def test_enum_value_preservation(clear_registry):
         inactive_user = "inactive_user"
         PendingApproval = "PendingApproval"
 
-    @type
+    @fraise_type
     class User:
         user_name: str
         user_status: UserStatus
@@ -313,16 +314,16 @@ def test_enum_value_preservation(clear_registry):
     assert result.data == {"getUser": {"userName": "john", "userStatus": "ACTIVE_USER"}}
 
 
-def test_nested_types_camelcase(clear_registry):
+def test_nested_types_camelcase(clear_registry) -> None:
     """Test camelCase conversion works with nested types."""
 
-    @type
+    @fraise_type
     class Address:
         street_line_1: str
         street_line_2: str | None
         postal_code: str
 
-    @type
+    @fraise_type
     class Company:
         company_name: str
         employee_count: int
@@ -369,5 +370,5 @@ def test_nested_types_camelcase(clear_registry):
                 "streetLine2": "Suite 400",
                 "postalCode": "12345",
             },
-        }
+        },
     }

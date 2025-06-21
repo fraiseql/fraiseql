@@ -203,7 +203,10 @@ class SchemaRegistry:
             # Use convert_type_to_graphql_output for the return type
             gql_return_type = convert_type_to_graphql_output(hints["return"])
             logger.debug(
-                f"Query {name}: return type {hints['return']} converted to {gql_return_type}",
+                "Query %s: return type %s converted to %s",
+                name,
+                hints["return"],
+                gql_return_type,
             )
             gql_args: dict[str, GraphQLArgument] = {}
 
@@ -246,7 +249,7 @@ class SchemaRegistry:
             graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
             fields[graphql_field_name] = GraphQLField(
-                type_=cast(GraphQLOutputType, gql_return_type),
+                type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 resolve=wrapped_resolver,
             )
@@ -277,10 +280,10 @@ class SchemaRegistry:
                     sig = inspect.signature(attr)
                     return_type = sig.return_annotation
                     if return_type == inspect.Signature.empty:
-                        logger.warning(f"Field method {attr_name} missing return type annotation")
+                        logger.warning("Field method %s missing return type annotation", attr_name)
                         continue
 
-                    logger.debug(f"Found @field decorated method: {attr_name}")
+                    logger.debug("Found @field decorated method: %s", attr_name)
                     gql_type = convert_type_to_graphql_output(return_type)
 
                     # Get the bound method from the instance
@@ -296,7 +299,7 @@ class SchemaRegistry:
                     )
 
                     fields[graphql_field_name] = GraphQLField(
-                        type_=cast(GraphQLOutputType, gql_type),
+                        type_=cast("GraphQLOutputType", gql_type),
                         resolve=wrapped_resolver,
                         description=getattr(attr, "__fraiseql_field_description__", None),
                     )
@@ -345,7 +348,7 @@ class SchemaRegistry:
                 )
 
                 fields[graphql_field_name] = GraphQLField(
-                    type_=cast(GraphQLOutputType, gql_type),
+                    type_=cast("GraphQLOutputType", gql_type),
                     resolve=wrapped_resolver,
                     description=field_def.description,
                 )
@@ -355,7 +358,8 @@ class SchemaRegistry:
                 logger.warning("No fields were added from QueryRoot: %s", typ.__name__)
 
         if not fields:
-            raise TypeError("Type Query must define one or more fields.")
+            msg = "Type Query must define one or more fields."
+            raise TypeError(msg)
 
         return GraphQLObjectType(name="Query", fields=MappingProxyType(fields))
 
@@ -375,7 +379,7 @@ class SchemaRegistry:
             fn.__annotations__["return"] = resolved  # override with resolved union
 
             # Use convert_type_to_graphql_output for the return type
-            gql_return_type = convert_type_to_graphql_output(cast(type, resolved))
+            gql_return_type = convert_type_to_graphql_output(cast("type", resolved))
             gql_args: dict[str, GraphQLArgument] = {}
 
             # Detect argument (usually just one input arg + info)
@@ -398,7 +402,7 @@ class SchemaRegistry:
             graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
             fields[graphql_field_name] = GraphQLField(
-                type_=cast(GraphQLOutputType, gql_return_type),
+                type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 resolve=resolver,
             )
@@ -453,7 +457,7 @@ class SchemaRegistry:
             graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
             fields[graphql_field_name] = GraphQLField(
-                type_=cast(GraphQLOutputType, gql_return_type),
+                type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 subscribe=wrapped_resolver,
                 resolve=lambda value, info, **kwargs: value,  # Pass through the yielded value

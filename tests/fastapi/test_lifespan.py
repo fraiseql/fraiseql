@@ -31,13 +31,13 @@ async def get_status(info) -> Status:
 @pytest.fixture(autouse=True)
 def reset_events():
     """Reset lifecycle events before each test."""
-    global lifecycle_events  # noqa: PLW0603
+    global lifecycle_events
     lifecycle_events = []
     yield
     lifecycle_events = []
 
 
-def test_default_lifespan():
+def test_default_lifespan() -> None:
     """Test that default lifespan works without custom lifespan."""
     app = create_fraiseql_app(
         database_url="postgresql://localhost/test",
@@ -53,7 +53,7 @@ def test_default_lifespan():
         assert response.json()["data"]["getStatus"]["message"] == "Running"
 
 
-def test_custom_lifespan():
+def test_custom_lifespan() -> None:
     """Test that custom lifespan is called and integrated."""
 
     @asynccontextmanager
@@ -100,7 +100,8 @@ def test_custom_lifespan():
 
         # Make a request
         response = client.post(
-            "/graphql", json={"query": "{ getStatus { message customResource } }"}
+            "/graphql",
+            json={"query": "{ getStatus { message customResource } }"},
         )
         assert response.status_code == 200
 
@@ -113,7 +114,7 @@ def test_custom_lifespan():
     assert "custom_shutdown" in lifecycle_events
 
 
-def test_custom_lifespan_with_context_getter():
+def test_custom_lifespan_with_context_getter() -> None:
     """Test custom lifespan combined with custom context getter."""
 
     @asynccontextmanager
@@ -151,17 +152,18 @@ def test_custom_lifespan_with_context_getter():
         assert response.status_code == 200
 
 
-def test_lifespan_error_handling():
+def test_lifespan_error_handling() -> None:
     """Test that errors in custom lifespan are handled properly."""
 
     @asynccontextmanager
     async def failing_lifespan(app: FastAPI):
         """Lifespan that fails during startup."""
         lifecycle_events.append("failing_startup")
-        raise RuntimeError("Startup failed!")
+        msg = "Startup failed!"
+        raise RuntimeError(msg)
         yield  # Never reached
 
-    def create_failing_app():
+    def create_failing_app() -> None:
         """Create app with failing lifespan."""
         app = create_fraiseql_app(
             database_url="postgresql://localhost/test",
@@ -179,7 +181,7 @@ def test_lifespan_error_handling():
         create_failing_app()
 
 
-def test_lifespan_with_existing_app():
+def test_lifespan_with_existing_app() -> None:
     """Test that custom lifespan works when extending existing app."""
 
     @asynccontextmanager

@@ -1,7 +1,5 @@
 """Minimal FraiseQL Query type to test the setup."""
 
-from typing import List
-
 from models import Product, User
 
 import fraiseql
@@ -16,10 +14,10 @@ class Query:
     ping: str = fraise_field(default="pong", description="Health check")
 
     # Database query fields
-    users: List[User] = fraise_field(
+    users: list[User] = fraise_field(
         default_factory=list, description="Query users with automatic filters"
     )
 
-    products: List[Product] = fraise_field(
+    products: list[Product] = fraise_field(
         default_factory=list, description="Query products with automatic filters"
     )

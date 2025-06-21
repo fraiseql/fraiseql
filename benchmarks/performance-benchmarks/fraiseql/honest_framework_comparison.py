@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Honest comparison of FraiseQL vs Traditional GraphQL approaches.
+
 This demonstrates what each framework can realistically achieve under optimal conditions.
 """
 

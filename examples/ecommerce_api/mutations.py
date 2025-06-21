@@ -1,5 +1,5 @@
-"""
-E-commerce API Mutations
+"""E-commerce API Mutations
+
 Demonstrates FraiseQL's mutation system with complex business logic
 """
 
@@ -31,7 +31,6 @@ async def add_to_cart(
     session_id: Optional[str] = None,
 ) -> CartMutationResult:
     """Add item to cart with inventory checking"""
-    pass
 
 
 @mutation(
@@ -46,7 +45,6 @@ async def update_cart_item(
     session_id: Optional[str] = None,
 ) -> CartMutationResult:
     """Update cart item quantity or remove if quantity is 0"""
-    pass
 
 
 @mutation(
@@ -55,10 +53,11 @@ async def update_cart_item(
     description="Remove all items from the cart",
 )
 async def clear_cart(
-    cart_id: UUID, customer_id: Optional[UUID] = None, session_id: Optional[str] = None
+    cart_id: UUID,
+    customer_id: Optional[UUID] = None,
+    session_id: Optional[str] = None,
 ) -> CartMutationResult:
     """Clear all items from cart"""
-    pass
 
 
 @mutation(
@@ -73,7 +72,6 @@ async def apply_coupon_to_cart(
     session_id: Optional[str] = None,
 ) -> CartMutationResult:
     """Apply coupon code to cart"""
-    pass
 
 
 # Order Mutations
@@ -91,7 +89,6 @@ async def create_order(
     notes: Optional[str] = None,
 ) -> OrderMutationResult:
     """Convert cart to order with inventory reservation"""
-    pass
 
 
 @mutation(
@@ -100,10 +97,11 @@ async def create_order(
     description="Update the status of an order",
 )
 async def update_order_status(
-    order_id: UUID, status: str, notes: Optional[str] = None
+    order_id: UUID,
+    status: str,
+    notes: Optional[str] = None,
 ) -> OrderMutationResult:
     """Update order status with validation"""
-    pass
 
 
 @mutation(
@@ -112,18 +110,19 @@ async def update_order_status(
     description="Process payment for an order",
 )
 async def process_order_payment(
-    order_id: UUID, payment_details: dict
+    order_id: UUID,
+    payment_details: dict,
 ) -> OrderMutationResult:
     """Process payment and update order status"""
-    pass
 
 
 @mutation(name="cancelOrder", function="cancel_order", description="Cancel an order")
 async def cancel_order(
-    order_id: UUID, customer_id: UUID, reason: str
+    order_id: UUID,
+    customer_id: UUID,
+    reason: str,
 ) -> OrderMutationResult:
     """Cancel order and release inventory"""
-    pass
 
 
 # Customer Mutations
@@ -140,7 +139,6 @@ async def register_customer(
     phone: Optional[str] = None,
 ) -> CustomerMutationResult:
     """Register new customer with email validation"""
-    pass
 
 
 @mutation(
@@ -156,7 +154,6 @@ async def update_customer_profile(
     metadata: Optional[dict] = None,
 ) -> CustomerMutationResult:
     """Update customer profile fields"""
-    pass
 
 
 @mutation(
@@ -180,7 +177,6 @@ async def add_customer_address(
     is_default: bool = False,
 ) -> AddressMutationResult:
     """Add new address to customer account"""
-    pass
 
 
 # Wishlist Mutations
@@ -198,12 +194,13 @@ async def add_to_wishlist(
     notes: Optional[str] = None,
 ) -> dict:
     """Add product to wishlist"""
-    pass
 
 
 # Review Mutations
 @mutation(
-    name="submitReview", function="submit_review", description="Submit a product review"
+    name="submitReview",
+    function="submit_review",
+    description="Submit a product review",
 )
 async def submit_review(
     customer_id: UUID,
@@ -214,7 +211,6 @@ async def submit_review(
     order_id: Optional[UUID] = None,
 ) -> ReviewMutationResult:
     """Submit product review with optional order verification"""
-    pass
 
 
 @mutation(
@@ -229,4 +225,3 @@ async def mark_review_helpful(
     session_id: Optional[str] = None,
 ) -> dict:
     """Mark review helpfulness"""
-    pass

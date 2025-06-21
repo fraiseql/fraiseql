@@ -27,7 +27,7 @@ def define_fraiseql_type(
 
     Applies FraiseQL metadata, constructs __init__, and attaches FraiseQL runtime markers.
     """
-    typed_cls = cast(type[Any], cls)
+    typed_cls = cast("type[Any]", cls)
 
     type_hints = get_type_hints(cls, include_extras=True)
     field_map, patched_annotations = collect_fraise_fields(typed_cls, type_hints, kind=kind)
@@ -81,4 +81,4 @@ def define_fraiseql_type(
 
         typed_cls.from_dict = from_dict
 
-    return cast(type[T], typed_cls)
+    return cast("type[T]", typed_cls)

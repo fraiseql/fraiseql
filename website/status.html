@@ -37,7 +37,7 @@
     <section class="readiness-overview">
         <div class="container">
             <h2>Overall Readiness Assessment</h2>
-            
+
             <div class="assessment-grid">
                 <div class="assessment-card">
                     <h3>🔐 Security</h3>
@@ -93,28 +93,28 @@
     <section class="critical-gaps">
         <div class="container">
             <h2>⚠️ Critical Gaps for Production</h2>
-            
+
             <div class="gap-list">
                 <div class="gap-item critical">
                     <h3>🚨 No Rate Limiting</h3>
                     <p>Application is vulnerable to DoS attacks. No request throttling or query complexity analysis.</p>
                 </div>
-                
+
                 <div class="gap-item critical">
                     <h3>🚨 Missing Database Migrations</h3>
                     <p>No automated migration tooling. Manual SQL scripts only. No rollback mechanisms.</p>
                 </div>
-                
+
                 <div class="gap-item critical">
                     <h3>🚨 No Backup Strategy</h3>
                     <p>No documented backup procedures or disaster recovery plans.</p>
                 </div>
-                
+
                 <div class="gap-item high">
                     <h3>⚠️ Limited Error Handling</h3>
                     <p>Stack traces may leak in production. No correlation IDs for debugging.</p>
                 </div>
-                
+
                 <div class="gap-item high">
                     <h3>⚠️ No Result Caching</h3>
                     <p>TurboRouter only caches query plans, not results. No Redis integration.</p>
@@ -126,7 +126,7 @@
     <section class="roadmap">
         <div class="container">
             <h2>🗺️ Roadmap to Production</h2>
-            
+
             <div class="timeline">
                 <div class="milestone current">
                     <h3>Alpha (Current)</h3>
@@ -138,7 +138,7 @@
                         <li>TurboRouter</li>
                     </ul>
                 </div>
-                
+
                 <div class="milestone">
                     <h3>Beta (Q1 2025)</h3>
                     <span class="version">v0.2.0b1</span>
@@ -150,7 +150,7 @@
                         <li>Error correlation</li>
                     </ul>
                 </div>
-                
+
                 <div class="milestone">
                     <h3>RC (Q2 2025)</h3>
                     <span class="version">v0.9.0rc1</span>
@@ -161,7 +161,7 @@
                         <li>Documentation complete</li>
                     </ul>
                 </div>
-                
+
                 <div class="milestone">
                     <h3>Stable (Q3 2025)</h3>
                     <span class="version">v1.0.0</span>
@@ -179,7 +179,7 @@
     <section class="current-limitations">
         <div class="container">
             <h2>📋 Current Limitations</h2>
-            
+
             <div class="limitations-grid">
                 <div class="limitation-category">
                     <h3>Database</h3>
@@ -190,7 +190,7 @@
                         <li>No automatic indexing</li>
                     </ul>
                 </div>
-                
+
                 <div class="limitation-category">
                     <h3>Features</h3>
                     <ul>
@@ -200,7 +200,7 @@
                         <li>No federation support</li>
                     </ul>
                 </div>
-                
+
                 <div class="limitation-category">
                     <h3>Performance</h3>
                     <ul>
@@ -210,7 +210,7 @@
                         <li>Memory limits not enforced</li>
                     </ul>
                 </div>
-                
+
                 <div class="limitation-category">
                     <h3>Operations</h3>
                     <ul>
@@ -227,7 +227,7 @@
     <section class="when-to-use">
         <div class="container">
             <h2>When to Use FraiseQL Today</h2>
-            
+
             <div class="use-cases">
                 <div class="use-case good">
                     <h3>✅ Good Fit</h3>
@@ -239,7 +239,7 @@
                         <li>Small-scale applications</li>
                     </ul>
                 </div>
-                
+
                 <div class="use-case bad">
                     <h3>❌ Not Ready For</h3>
                     <ul>

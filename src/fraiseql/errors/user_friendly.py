@@ -21,7 +21,7 @@ class FraiseQLError(Exception):
         doc_link: str | None = None,
         context: dict[str, Any] | None = None,
         cause: Exception | None = None,
-    ):
+    ) -> None:
         """Initialize FraiseQL error.
 
         Args:
@@ -63,7 +63,7 @@ class MissingTypeHintError(FraiseQLError):
         class_name: str,
         field_name: str,
         suggested_type: str | None = None,
-    ):
+    ) -> None:
         """Initialize missing type hint error.
 
         Args:
@@ -88,7 +88,7 @@ class MissingDatabaseViewError(FraiseQLError):
         type_name: str,
         expected_view: str,
         custom_view_name: bool = False,
-    ):
+    ) -> None:
         """Initialize missing database view error.
 
         Args:
@@ -124,7 +124,7 @@ class InvalidFieldTypeError(FraiseQLError):
         field_type: str,
         supported_types: list[str] | None = None,
         conversion_hint: str | None = None,
-    ):
+    ) -> None:
         """Initialize invalid field type error.
 
         Args:
@@ -142,7 +142,9 @@ class InvalidFieldTypeError(FraiseQLError):
             suggestion = "Check the documentation for supported field types"
 
         super().__init__(
-            message=f"Field '{field_name}' in class '{class_name}' has unsupported type '{field_type}'.",
+            message=(
+                f"Field '{field_name}' in class '{class_name}' has unsupported type '{field_type}'."
+            ),
             code="INVALID_FIELD_TYPE",
             suggestion=suggestion,
             doc_link="https://docs.fraiseql.com/errors/invalid-field-type",
@@ -158,7 +160,7 @@ class SQLGenerationError(FraiseQLError):
         reason: str,
         query_info: dict[str, Any] | None = None,
         custom_suggestion: str | None = None,
-    ):
+    ) -> None:
         """Initialize SQL generation error.
 
         Args:
@@ -190,7 +192,7 @@ class MutationNotFoundError(FraiseQLError):
         mutation_name: str,
         function_name: str,
         available_functions: list[str] | None = None,
-    ):
+    ) -> None:
         """Initialize mutation not found error.
 
         Args:
@@ -215,7 +217,9 @@ $$ LANGUAGE plpgsql;"""
             suggestion += f"\n\nAvailable mutations: {', '.join(available_functions)}"
 
         super().__init__(
-            message=f"PostgreSQL function '{function_name}' for mutation '{mutation_name}' not found.",
+            message=(
+                f"PostgreSQL function '{function_name}' for mutation '{mutation_name}' not found."
+            ),
             code="MUTATION_NOT_FOUND",
             suggestion=suggestion,
             doc_link="https://docs.fraiseql.com/errors/missing-mutation",

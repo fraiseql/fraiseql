@@ -8,7 +8,7 @@ from fraiseql.core.translate_query import translate_query
 class TestTranslateQuery:
     """Test suite for translate_query function."""
 
-    def test_translate_simple_query(self):
+    def test_translate_simple_query(self) -> None:
         """Test translating a simple GraphQL query."""
         query = """
         {
@@ -33,7 +33,7 @@ class TestTranslateQuery:
         assert "'__typename', 'User'" in sql_str
         assert 'FROM "users"' in sql_str
 
-    def test_translate_query_with_nested_fields(self):
+    def test_translate_query_with_nested_fields(self) -> None:
         """Test translating query with nested fields."""
         query = """
         {
@@ -59,7 +59,7 @@ class TestTranslateQuery:
         assert "data->'profile'->'address'->>'city'" in sql_str
         assert "data->'profile'->'address'->>'country'" in sql_str
 
-    def test_translate_query_with_where_clause(self):
+    def test_translate_query_with_where_clause(self) -> None:
         """Test translating query with WHERE clause."""
         where_clause = SQL("data->>'active' = 'true'")
 
@@ -71,7 +71,10 @@ class TestTranslateQuery:
         """
 
         result = translate_query(
-            query=query, table="users", typename="User", where_clause=where_clause
+            query=query,
+            table="users",
+            typename="User",
+            where_clause=where_clause,
         )
 
         sql_str = result.as_string(None)
@@ -80,7 +83,7 @@ class TestTranslateQuery:
         assert "WHERE" in sql_str
         assert "data->>'active' = 'true'" in sql_str
 
-    def test_translate_query_with_order_by(self):
+    def test_translate_query_with_order_by(self) -> None:
         """Test translating query with ORDER BY."""
         query = """
         {
@@ -101,7 +104,7 @@ class TestTranslateQuery:
         # Check ORDER BY is included
         assert "ORDER BY data->>'created_at' DESC, data->>'name' ASC" in sql_str
 
-    def test_translate_query_with_group_by(self):
+    def test_translate_query_with_group_by(self) -> None:
         """Test translating query with GROUP BY."""
         query = """
         {
@@ -122,7 +125,7 @@ class TestTranslateQuery:
         # Check GROUP BY is included
         assert "GROUP BY data->>'category'" in sql_str
 
-    def test_translate_query_without_typename(self):
+    def test_translate_query_without_typename(self) -> None:
         """Test translating query without typename."""
         query = """
         {
@@ -138,7 +141,7 @@ class TestTranslateQuery:
         # Should not include __typename field
         assert "'__typename'" not in sql_str
 
-    def test_translate_query_with_special_characters(self):
+    def test_translate_query_with_special_characters(self) -> None:
         """Test translating query with special table name."""
         query = """
         {
@@ -157,7 +160,7 @@ class TestTranslateQuery:
         # Table name should be properly quoted
         assert '"user-accounts"' in sql_str
 
-    def test_translate_query_with_all_clauses(self):
+    def test_translate_query_with_all_clauses(self) -> None:
         """Test translating query with all optional clauses."""
         # Only WHERE clause is supported in current implementation
         where_clause = SQL("data->>'status' = 'active'")
@@ -182,7 +185,7 @@ class TestTranslateQuery:
         assert "WHERE" in sql_str
         assert "data->>'status' = 'active'" in sql_str
 
-    def test_translate_invalid_graphql_query(self):
+    def test_translate_invalid_graphql_query(self) -> None:
         """Test that invalid GraphQL query raises error."""
         invalid_query = """
         {
@@ -194,7 +197,7 @@ class TestTranslateQuery:
         with pytest.raises(GraphQLError):
             translate_query(query=invalid_query, table="users", typename="User")
 
-    def test_translate_empty_query(self):
+    def test_translate_empty_query(self) -> None:
         """Test translating empty selection set."""
         query = """
         {
@@ -205,7 +208,7 @@ class TestTranslateQuery:
         with pytest.raises(GraphQLError):
             translate_query(query=query, table="users", typename="User")
 
-    def test_translate_query_with_nested_order_by(self):
+    def test_translate_query_with_nested_order_by(self) -> None:
         """Test translating query with nested field ORDER BY."""
         query = """
         {
@@ -232,7 +235,7 @@ class TestTranslateQuery:
             in sql_str
         )
 
-    def test_translate_query_with_nested_group_by(self):
+    def test_translate_query_with_nested_group_by(self) -> None:
         """Test translating query with nested field GROUP BY."""
         query = """
         {
@@ -254,7 +257,7 @@ class TestTranslateQuery:
         # Check nested GROUP BY
         assert "GROUP BY data->'location'->>'country', data->'location'->>'city'" in sql_str
 
-    def test_translate_query_with_all_features(self):
+    def test_translate_query_with_all_features(self) -> None:
         """Test combining WHERE, ORDER BY, and GROUP BY with nested fields."""
         query = """
         {

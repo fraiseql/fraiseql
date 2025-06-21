@@ -3,10 +3,12 @@
 Detect system CPU capabilities and determine appropriate benchmark profile.
 """
 
+import contextlib
 import json
 import multiprocessing
 import re
 import subprocess
+from pathlib import Path
 
 try:
     import psutil
@@ -59,21 +61,20 @@ def get_cpu_info():
 
     # Get memory info
     if HAS_PSUTIL:
-        try:
+        with contextlib.suppress(Exception):
             info["memory_gb"] = round(psutil.virtual_memory().total / (1024**3), 1)
-        except:
-            pass
 
     if info["memory_gb"] == 0:
         try:
             # Fallback to /proc/meminfo
-            with open("/proc/meminfo") as f:
+            meminfo_path = Path("/proc/meminfo")
+            with meminfo_path.open() as f:
                 for line in f:
                     if line.startswith("MemTotal:"):
                         kb = int(re.search(r"(\d+)", line).group(1))
                         info["memory_gb"] = round(kb / (1024**2), 1)
                         break
-        except:
+        except Exception:
             pass
 
     return info
@@ -223,8 +224,8 @@ def main():
         },
     }
 
-    config_file = "benchmark_profile.json"
-    with open(config_file, "w") as f:
+    config_file = Path("benchmark_profile.json")
+    with config_file.open("w") as f:
         json.dump(config, f, indent=2)
 
     print(f"\nConfiguration saved to: {config_file}")

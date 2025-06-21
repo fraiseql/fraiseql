@@ -6,7 +6,7 @@ from psycopg.sql import SQL, Composed, Identifier
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 
-async def setup_test_data(conn):
+async def setup_test_data(conn) -> None:
     """Create test tables and data."""
     # Create users table
     await conn.execute(
@@ -16,7 +16,7 @@ async def setup_test_data(conn):
             data JSONB NOT NULL DEFAULT '{}'::jsonb,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """
+    """,
     )
 
     # Insert test data
@@ -26,7 +26,7 @@ async def setup_test_data(conn):
         ('{"name": "John Doe", "email": "john@example.com", "active": true}'::jsonb),
         ('{"name": "Jane Smith", "email": "jane@example.com", "active": true}'::jsonb),
         ('{"name": "Bob Wilson", "email": "bob@example.com", "active": false}'::jsonb)
-    """
+    """,
     )
 
     # Create posts table
@@ -38,7 +38,7 @@ async def setup_test_data(conn):
             data JSONB NOT NULL DEFAULT '{}'::jsonb,
             published_at TIMESTAMP
         )
-    """
+    """,
     )
 
     await conn.execute(
@@ -47,13 +47,13 @@ async def setup_test_data(conn):
         (1, '{"title": "First Post", "content": "Hello World"}'::jsonb, '2024-01-01'),
         (1, '{"title": "Second Post", "content": "More content"}'::jsonb, '2024-01-02'),
         (2, '{"title": "Jane''s Post", "content": "Jane''s thoughts"}'::jsonb, NULL)
-    """
+    """,
     )
 
     await conn.commit()
 
 
-async def cleanup_test_data(conn):
+async def cleanup_test_data(conn) -> None:
     """Clean up test tables."""
     await conn.execute("DROP TABLE IF EXISTS posts CASCADE")
     await conn.execute("DROP TABLE IF EXISTS users CASCADE")
@@ -65,7 +65,7 @@ class TestFraiseQLRepositoryIntegration:
     """Integration test suite for FraiseQLRepository with real database."""
 
     @pytest.mark.asyncio
-    async def test_run_simple_query(self, db_pool):
+    async def test_run_simple_query(self, db_pool) -> None:
         """Test running a simple SQL query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -91,7 +91,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_query_with_params(self, db_pool):
+    async def test_run_query_with_params(self, db_pool) -> None:
         """Test running a query with parameters."""
         # Setup
         async with db_pool.connection() as conn:
@@ -101,7 +101,7 @@ class TestFraiseQLRepositoryIntegration:
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
             statement=SQL(
-                "SELECT id, data->>'email' as email FROM users WHERE data->>'email' = %(email)s"
+                "SELECT id, data->>'email' as email FROM users WHERE data->>'email' = %(email)s",
             ),
             params={"email": "jane@example.com"},
             fetch_result=True,
@@ -117,7 +117,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_composed_query(self, db_pool):
+    async def test_run_composed_query(self, db_pool) -> None:
         """Test running a Composed SQL query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -131,7 +131,7 @@ class TestFraiseQLRepositoryIntegration:
                     SQL("SELECT id, data FROM "),
                     Identifier("users"),
                     SQL(" WHERE (data->>'active')::boolean = %(active)s"),
-                ]
+                ],
             ),
             params={"active": True},
             fetch_result=True,
@@ -149,7 +149,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_insert_returning(self, db_pool):
+    async def test_run_insert_returning(self, db_pool) -> None:
         """Test running an INSERT with RETURNING clause."""
         # Setup
         async with db_pool.connection() as conn:
@@ -174,7 +174,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_update_query(self, db_pool):
+    async def test_run_update_query(self, db_pool) -> None:
         """Test running an UPDATE query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -187,7 +187,7 @@ class TestFraiseQLRepositoryIntegration:
         update_query = DatabaseQuery(
             statement=SQL(
                 "UPDATE users SET data = jsonb_set(data, '{active}', 'true') "
-                "WHERE data->>'name' = %(name)s"
+                "WHERE data->>'name' = %(name)s",
             ),
             params={"name": "Bob Wilson"},
             fetch_result=False,
@@ -211,7 +211,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_delete_query(self, db_pool):
+    async def test_run_delete_query(self, db_pool) -> None:
         """Test running a DELETE query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -244,7 +244,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_run_join_query(self, db_pool):
+    async def test_run_join_query(self, db_pool) -> None:
         """Test running a JOIN query."""
         # Setup
         async with db_pool.connection() as conn:
@@ -263,7 +263,7 @@ class TestFraiseQLRepositoryIntegration:
                 JOIN posts p ON u.id = p.user_id
                 WHERE p.published_at IS NOT NULL
                 ORDER BY p.published_at
-            """
+            """,
             ),
             params={},
             fetch_result=True,
@@ -281,7 +281,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_transaction_rollback(self, db_pool):
+    async def test_transaction_rollback(self, db_pool) -> None:
         """Test transaction rollback behavior."""
         repository = FraiseQLRepository(pool=db_pool)
 
@@ -294,7 +294,7 @@ class TestFraiseQLRepositoryIntegration:
             async with db_pool.connection() as conn:
                 # This should succeed
                 await conn.execute(
-                    'INSERT INTO users (data) VALUES (\'{"name": "Test User"}\'::jsonb)'
+                    'INSERT INTO users (data) VALUES (\'{"name": "Test User"}\'::jsonb)',
                 )
 
                 # This should fail (invalid foreign key)
@@ -322,7 +322,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_jsonb_operators(self, db_pool):
+    async def test_jsonb_operators(self, db_pool) -> None:
         """Test JSONB operators in queries."""
         # Setup
         async with db_pool.connection() as conn:
@@ -356,7 +356,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_aggregate_query(self, db_pool):
+    async def test_aggregate_query(self, db_pool) -> None:
         """Test aggregate functions with JSONB."""
         # Setup
         async with db_pool.connection() as conn:
@@ -373,7 +373,7 @@ class TestFraiseQLRepositoryIntegration:
                     jsonb_agg(data->>'name') as names
                 FROM users
                 GROUP BY (data->>'active')::boolean
-            """
+            """,
             ),
             params={},
             fetch_result=True,
@@ -395,7 +395,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_connection_pool_concurrency(self, db_pool):
+    async def test_connection_pool_concurrency(self, db_pool) -> None:
         """Test concurrent queries using the connection pool."""
         import asyncio
 
@@ -433,7 +433,7 @@ class TestFraiseQLRepositoryIntegration:
             await cleanup_test_data(conn)
 
     @pytest.mark.asyncio
-    async def test_error_handling(self, db_pool):
+    async def test_error_handling(self, db_pool) -> None:
         """Test error handling in repository."""
         repository = FraiseQLRepository(pool=db_pool)
 

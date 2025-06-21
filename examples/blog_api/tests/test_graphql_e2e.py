@@ -56,7 +56,7 @@ class TestGraphQLEndToEnd:
                 "name": "GraphQL User",
                 "password": "secure123",
                 "bio": "Created via GraphQL",
-            }
+            },
         }
 
         result = await self._graphql_request(async_client, mutation, variables)
@@ -72,7 +72,7 @@ class TestGraphQLEndToEnd:
         assert data["message"] == "User created successfully"
 
     async def test_create_user_duplicate_email(
-        self, async_client: AsyncClient, test_user, clean_db
+        self, async_client: AsyncClient, test_user, clean_db,
     ):
         """Test creating user with duplicate email."""
         mutation = """
@@ -95,7 +95,7 @@ class TestGraphQLEndToEnd:
                 "email": test_user.email,
                 "name": "Duplicate",
                 "password": "password",
-            }
+            },
         }
 
         result = await self._graphql_request(async_client, mutation, variables)
@@ -132,7 +132,7 @@ class TestGraphQLEndToEnd:
         assert user["name"] == test_user.name
 
     async def test_create_and_query_post(
-        self, async_client: AsyncClient, auth_headers, clean_db
+        self, async_client: AsyncClient, auth_headers, clean_db,
     ):
         """Test creating a post and then querying it."""
         # First create a post
@@ -170,11 +170,11 @@ class TestGraphQLEndToEnd:
                 "excerpt": "GraphQL test",
                 "tags": ["graphql", "test"],
                 "isPublished": True,
-            }
+            },
         }
 
         create_result = await self._graphql_request(
-            async_client, create_mutation, create_variables, auth_headers
+            async_client, create_mutation, create_variables, auth_headers,
         )
 
         assert "errors" not in create_result
@@ -216,18 +216,18 @@ class TestGraphQLEndToEnd:
         assert queried_post["comments"] == []
 
     async def test_query_posts_with_filters(
-        self, async_client: AsyncClient, test_user, create_test_post, clean_db
+        self, async_client: AsyncClient, test_user, create_test_post, clean_db,
     ):
         """Test querying posts with filters and pagination."""
         # Create test posts
         await create_test_post(
-            title="Published Python Post", is_published=True, tags=["python"]
+            title="Published Python Post", is_published=True, tags=["python"],
         )
         await create_test_post(
-            title="Draft JavaScript Post", is_published=False, tags=["javascript"]
+            title="Draft JavaScript Post", is_published=False, tags=["javascript"],
         )
         await create_test_post(
-            title="Published Tutorial", is_published=True, tags=["tutorial"]
+            title="Published Tutorial", is_published=True, tags=["tutorial"],
         )
 
         query = """
@@ -268,12 +268,12 @@ class TestGraphQLEndToEnd:
         assert "python" in posts[0]["tags"]
 
     async def test_update_post_mutation(
-        self, async_client: AsyncClient, auth_headers, create_test_post, clean_db
+        self, async_client: AsyncClient, auth_headers, create_test_post, clean_db,
     ):
         """Test updating a post via GraphQL."""
         # Create a post first
         post = await create_test_post(
-            title="Original Title", content="Original content"
+            title="Original Title", content="Original content",
         )
 
         mutation = """
@@ -306,7 +306,7 @@ class TestGraphQLEndToEnd:
         }
 
         result = await self._graphql_request(
-            async_client, mutation, variables, auth_headers
+            async_client, mutation, variables, auth_headers,
         )
 
         assert "errors" not in result
@@ -318,7 +318,7 @@ class TestGraphQLEndToEnd:
         assert set(data["updatedFields"]) == {"title", "content", "tags"}
 
     async def test_create_comment_and_replies(
-        self, async_client: AsyncClient, auth_headers, create_test_post, clean_db
+        self, async_client: AsyncClient, auth_headers, create_test_post, clean_db,
     ):
         """Test creating comments and nested replies."""
         # Create a post
@@ -339,11 +339,11 @@ class TestGraphQLEndToEnd:
         """
 
         comment_variables = {
-            "input": {"postId": str(post.id), "content": "This is a top-level comment"}
+            "input": {"postId": str(post.id), "content": "This is a top-level comment"},
         }
 
         comment_result = await self._graphql_request(
-            async_client, create_comment_mutation, comment_variables, auth_headers
+            async_client, create_comment_mutation, comment_variables, auth_headers,
         )
 
         assert "errors" not in comment_result
@@ -357,11 +357,11 @@ class TestGraphQLEndToEnd:
                 "postId": str(post.id),
                 "content": "This is a reply",
                 "parentCommentId": comment_id,
-            }
+            },
         }
 
         reply_result = await self._graphql_request(
-            async_client, create_comment_mutation, reply_variables, auth_headers
+            async_client, create_comment_mutation, reply_variables, auth_headers,
         )
 
         assert "errors" not in reply_result
@@ -386,7 +386,7 @@ class TestGraphQLEndToEnd:
         """
 
         post_result = await self._graphql_request(
-            async_client, query, {"id": str(post.id)}
+            async_client, query, {"id": str(post.id)},
         )
 
         post_data = post_result["data"]["getPost"]
@@ -402,7 +402,7 @@ class TestGraphQLEndToEnd:
         assert parent_comment["replies"][0]["content"] == "This is a reply"
 
     async def test_me_query_authenticated(
-        self, async_client: AsyncClient, auth_headers, test_user, clean_db
+        self, async_client: AsyncClient, auth_headers, test_user, clean_db,
     ):
         """Test the me query with authentication."""
         query = """
@@ -427,7 +427,7 @@ class TestGraphQLEndToEnd:
         assert me_data["name"] == test_user.name
 
     async def test_delete_post_as_admin(
-        self, async_client: AsyncClient, admin_user, create_test_post, clean_db
+        self, async_client: AsyncClient, admin_user, create_test_post, clean_db,
     ):
         """Test deleting a post as admin."""
         # Create a post
@@ -448,7 +448,7 @@ class TestGraphQLEndToEnd:
         variables = {"id": str(post.id)}
 
         result = await self._graphql_request(
-            async_client, mutation, variables, admin_headers
+            async_client, mutation, variables, admin_headers,
         )
 
         assert "errors" not in result
@@ -481,7 +481,7 @@ class TestGraphQLEndToEnd:
 
         comment1_id = await create_test_comment(str(post1.id), "Comment on post 1")
         await create_test_comment(
-            str(post1.id), "Reply to comment", parent_id=comment1_id
+            str(post1.id), "Reply to comment", parent_id=comment1_id,
         )
 
         query = """

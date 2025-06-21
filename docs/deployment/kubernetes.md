@@ -131,16 +131,16 @@ data:
   # Application settings
   APP_NAME: "FraiseQL Production"
   APP_VERSION: "1.0.0"
-  
+
   # Feature flags
   FRAISEQL_AUTO_CAMEL_CASE: "true"
   FRAISEQL_ENABLE_PLAYGROUND: "false"
   FRAISEQL_ENABLE_INTROSPECTION: "false"
-  
+
   # Performance
   FRAISEQL_ENABLE_TURBO_ROUTER: "true"
   FRAISEQL_TURBO_ROUTER_CACHE_SIZE: "2000"
-  
+
   # Monitoring
   FRAISEQL_ENABLE_METRICS: "true"
   FRAISEQL_ENABLE_TRACING: "true"

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 FraiseQL vs Strawberry Performance Benchmark Runner
+
 Uses Unix socket connections for accurate framework performance measurement
 """
 
@@ -9,8 +10,8 @@ import os
 import statistics
 import subprocess
 import time
-from datetime import datetime
-from typing import Dict
+from datetime import datetime, timezone
+from pathlib import Path
 
 # Configuration from environment
 ITERATIONS = int(os.environ.get("BENCHMARK_ITERATIONS", 30))
@@ -102,7 +103,7 @@ def print_progress_bar(current: int, total: int, width: int = 30):
     print(f"\r  [{bar}] {current}/{total} ({percent * 100:.0f}%)", end="", flush=True)
 
 
-def benchmark_service(service_name: str, config: Dict) -> Dict:
+def benchmark_service(service_name: str, config: dict) -> dict:
     """Run benchmark on a service."""
     url = config["url"]
     color = config["color"]
@@ -184,7 +185,7 @@ def benchmark_service(service_name: str, config: Dict) -> Dict:
     return results
 
 
-def print_comparison(results: Dict):
+def print_comparison(results: dict):
     """Print performance comparison."""
     if len(results) < 2:
         return
@@ -201,7 +202,7 @@ def print_comparison(results: Dict):
     fraiseql_wins = 0
     strawberry_wins = 0
 
-    for query_name, query_info in QUERIES.items():
+    for query_name in QUERIES:
         first = True
         query_results = []
 
@@ -324,16 +325,18 @@ def main():
             results[service_name] = {"error": str(e)}
 
     # Save results
-    timestamp = datetime.now().isoformat()
+    timestamp = datetime.now(tz=timezone.utc).isoformat()
     filename = f"benchmark_results_{timestamp.replace(':', '-')}.json"
 
     # Load profile info if available
     profile_info = {}
-    if os.path.exists("benchmark_profile.json"):
-        with open("benchmark_profile.json") as f:
+    profile_path = Path("benchmark_profile.json")
+    if profile_path.exists():
+        with profile_path.open() as f:
             profile_info = json.load(f)
 
-    with open(filename, "w") as f:
+    output_path = Path(filename)
+    with output_path.open("w") as f:
         json.dump(
             {
                 "timestamp": timestamp,

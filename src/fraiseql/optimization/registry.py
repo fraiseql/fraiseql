@@ -17,7 +17,7 @@ _loader_registry: ContextVar[LoaderRegistry | None] = ContextVar("loader_registr
 class LoaderRegistry:
     """Manages DataLoader instances for a request."""
 
-    def __init__(self, db: Any):
+    def __init__(self, db: Any) -> None:
         self.db = db
         self._loaders: dict[type[DataLoader], DataLoader] = {}
         self._custom_loaders: dict[str, DataLoader] = {}
@@ -34,7 +34,7 @@ class LoaderRegistry:
 
         return loader
 
-    def register_loader(self, name: str, loader: DataLoader):
+    def register_loader(self, name: str, loader: DataLoader) -> None:
         """Register a custom loader instance."""
         self._custom_loaders[name] = loader
 
@@ -42,7 +42,7 @@ class LoaderRegistry:
         """Get a custom loader by name."""
         return self._custom_loaders.get(name)
 
-    def clear_all(self):
+    def clear_all(self) -> None:
         """Clear all loader caches."""
         # CRITICAL: Prevent memory leaks by properly clearing all references
         try:
@@ -71,14 +71,18 @@ def get_loader(loader_class: type[T], **kwargs) -> T:
     """Get a DataLoader for the current request."""
     registry = LoaderRegistry.get_current()
     if not registry:
-        raise RuntimeError(
+        msg = (
             "No LoaderRegistry in context. This indicates a critical setup error - "
             "DataLoader registry was not properly initialized for this request. "
-            "Ensure middleware is correctly configured.",
+            "Ensure middleware is correctly configured."
+        )
+        raise RuntimeError(
+            msg,
         )
 
     # SECURITY: Validate loader class to prevent injection
     if not inspect.isclass(loader_class) or not issubclass(loader_class, DataLoader):
-        raise ValueError(f"Invalid loader class: {loader_class}")
+        msg = f"Invalid loader class: {loader_class}"
+        raise ValueError(msg)
 
     return registry.get_loader(loader_class, **kwargs)

@@ -35,7 +35,7 @@ scp ./deploy/nginx-fraiseql-dns4eu.conf $REMOTE_USER@$REMOTE_HOST:/tmp/
 ssh $REMOTE_USER@$REMOTE_HOST << 'EOF'
     sudo cp /tmp/nginx-fraiseql-dns4eu.conf /etc/nginx/sites-available/fraiseql.dev
     sudo ln -sf /etc/nginx/sites-available/fraiseql.dev /etc/nginx/sites-enabled/
-    
+
     # Test nginx config
     if sudo nginx -t; then
         echo "✅ Nginx configuration valid"
@@ -52,7 +52,7 @@ ssh $REMOTE_USER@$REMOTE_HOST << 'EOF'
         echo "Installing certbot..."
         sudo apt update && sudo apt install -y certbot python3-certbot-nginx
     fi
-    
+
     # Get certificate (will modify nginx config automatically)
     sudo certbot --nginx -d fraiseql.dev -d www.fraiseql.dev --non-interactive --agree-tos --email lionel.hamayon@evolution-digitale.fr
 EOF

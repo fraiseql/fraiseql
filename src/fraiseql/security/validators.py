@@ -43,11 +43,15 @@ class InputValidator:
         (r"(--|#|/\*|\*/)", "SQL comment syntax detected"),
         # Common SQL injection keywords (case-insensitive)
         (
-            r"\b(union\s+select|select\s+\*\s+from|drop\s+table|delete\s+from|insert\s+into|update\s+.+\s+set)\b",
+            r"\b(union\s+select|select\s+\*\s+from|drop\s+table|delete\s+from|"
+            r"insert\s+into|update\s+.+\s+set)\b",
             "Suspicious SQL keyword pattern",
         ),
         # SQL functions that could be dangerous
-        (r"\b(exec|execute|eval|system|cmd|xp_cmdshell)\b", "Potentially dangerous SQL function"),
+        (
+            r"\b(exec|execute|eval|system|cmd|xp_cmdshell)\b",
+            "Potentially dangerous SQL function",
+        ),
         # Stacked queries
         (r";\s*(select|insert|update|delete|drop|create|alter)", "Stacked query attempt"),
     ]
@@ -151,7 +155,10 @@ class InputValidator:
             for key, val in value.items():
                 # Validate the key itself
                 key_result = cls.validate_field_value(
-                    f"{field_name}.key", key, "key", allow_html=False,
+                    f"{field_name}.key",
+                    key,
+                    "key",
+                    allow_html=False,
                 )
                 errors.extend(key_result.errors)
 
@@ -176,7 +183,9 @@ class InputValidator:
         # Log warnings for monitoring
         if warnings:
             logger.warning(
-                f"Suspicious patterns detected in {field_name}: {warnings}",
+                "Suspicious patterns detected in %s: %s",
+                field_name,
+                warnings,
                 extra={"field": field_name, "warnings": warnings},
             )
 
@@ -242,7 +251,9 @@ class InputValidator:
 
     @classmethod
     def validate_mutation_input(
-        cls, input_dict: dict, input_type: type | None = None,
+        cls,
+        input_dict: dict,
+        input_type: type | None = None,
     ) -> ValidationResult:
         """Validate mutation input data.
 

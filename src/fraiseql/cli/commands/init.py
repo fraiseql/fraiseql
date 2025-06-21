@@ -1,6 +1,5 @@
 """Initialize a new FraiseQL project."""
 
-import os
 import subprocess
 from pathlib import Path
 
@@ -25,7 +24,7 @@ import click
     is_flag=True,
     help="Skip git initialization",
 )
-def init(project_name: str, template: str, database_url: str, no_git: bool):
+def init(project_name: str, template: str, database_url: str, no_git: bool) -> None:
     """Initialize a new FraiseQL project.
 
     Creates a new directory with the given PROJECT_NAME and sets up
@@ -36,7 +35,8 @@ def init(project_name: str, template: str, database_url: str, no_git: bool):
     # Check if directory already exists
     if project_path.exists():
         click.echo(f"Error: Directory '{project_name}' already exists", err=True)
-        raise click.ClickException(f"Directory '{project_name}' already exists")
+        msg = f"Directory '{project_name}' already exists"
+        raise click.ClickException(msg)
 
     click.echo(f"🚀 Creating FraiseQL project '{project_name}'...")
 
@@ -198,19 +198,17 @@ Your GraphQL API will be available at http://localhost:8000/graphql
 
     # Initialize git repository
     if not no_git:
-        # Change to project directory
-        original_cwd = os.getcwd()
-        os.chdir(project_path)
         try:
-            subprocess.run(["git", "init", "-q"], check=True)  # noqa: S607
-            subprocess.run(["git", "add", "."], check=True)  # noqa: S607
+            subprocess.run(["git", "init", "-q"], check=True, cwd=str(project_path))
+            subprocess.run(["git", "add", "."], check=True, cwd=str(project_path))
             subprocess.run(
-                ["git", "commit", "-q", "-m", "Initial commit from FraiseQL CLI"],  # noqa: S607
+                ["git", "commit", "-q", "-m", "Initial commit from FraiseQL CLI"],
                 check=True,
+                cwd=str(project_path),
             )
             click.echo("✅ Initialized git repository")
-        finally:
-            os.chdir(original_cwd)
+        except subprocess.CalledProcessError as e:
+            click.echo(f"⚠️ Git initialization failed: {e}", err=True)
 
     click.echo(
         f"""
@@ -229,7 +227,7 @@ Happy coding! 🎉
     )
 
 
-def create_basic_template(project_path: Path):
+def create_basic_template(project_path: Path) -> None:
     """Create a basic template with simple User type."""
     # Create main.py
     main_content = '''"""Main application entry point."""
@@ -277,7 +275,7 @@ if __name__ == "__main__":
     (project_path / "src" / "types" / "__init__.py").write_text("")
 
 
-def create_blog_template(project_path: Path):
+def create_blog_template(project_path: Path) -> None:
     """Create a blog template with User, Post, and Comment types."""
     # Create types
     user_type = '''"""User type definition."""
@@ -408,7 +406,7 @@ __all__ = ["User", "Post", "Comment"]
     )
 
 
-def create_ecommerce_template(project_path: Path):
+def create_ecommerce_template(project_path: Path) -> None:
     """Create an e-commerce template."""
     # This would create Product, Order, Customer types
     # For brevity, using basic template for now

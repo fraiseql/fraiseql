@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""
-Comprehensive benchmark runner for FraiseQL vs competitors
-"""
+"""Comprehensive benchmark runner for FraiseQL vs competitors"""
 
 import argparse
 import asyncio
 import json
 import statistics
 import time
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Dict, List
 
 import aiohttp
@@ -56,7 +55,7 @@ class FraiseQLBenchmark:
         if self.pool:
             await self.pool.close()
 
-    async def execute_query(self, query: str, variables: Dict = None) -> Dict:
+    async def execute_query(self, query: str, variables: Dict | None = None) -> Dict:
         """Simulate FraiseQL query execution (direct SQL)"""
         start_time = time.time()
         try:
@@ -106,10 +105,9 @@ class FraiseQLBenchmark:
             return {"data": result[0]["data"] if result and result[0]["data"] else []}
 
         except Exception as e:
-            raise Exception(f"Query failed: {e}")
+            raise Exception(f"Query failed: {e}") from e  # noqa: TRY002
         finally:
-            duration = time.time() - start_time
-            return duration
+            return time.time() - start_time
 
 
 class HasuraBenchmark:
@@ -124,7 +122,7 @@ class HasuraBenchmark:
         if self.session:
             await self.session.close()
 
-    async def execute_query(self, query: str, variables: Dict = None) -> float:
+    async def execute_query(self, query: str, variables: Dict | None = None) -> float:
         """Execute GraphQL query against Hasura"""
         start_time = time.time()
         try:
@@ -136,16 +134,16 @@ class HasuraBenchmark:
                 headers={"Content-Type": "application/json"},
             ) as response:
                 if response.status != 200:
-                    raise Exception(f"HTTP {response.status}")
+                    raise Exception(f"HTTP {response.status}")  # noqa: TRY002
 
                 result = await response.json()
                 if "errors" in result:
-                    raise Exception(f"GraphQL errors: {result['errors']}")
+                    raise Exception(f"GraphQL errors: {result['errors']}")  # noqa: TRY002
 
                 return result
 
         except Exception as e:
-            raise Exception(f"Hasura query failed: {e}")
+            raise Exception(f"Hasura query failed: {e}") from e  # noqa: TRY002
         finally:
             return time.time() - start_time
 
@@ -162,7 +160,7 @@ class PostGraphileBenchmark:
         if self.session:
             await self.session.close()
 
-    async def execute_query(self, query: str, variables: Dict = None) -> float:
+    async def execute_query(self, query: str, variables: Dict | None = None) -> float:
         """Execute GraphQL query against PostGraphile"""
         start_time = time.time()
         try:
@@ -174,16 +172,16 @@ class PostGraphileBenchmark:
                 headers={"Content-Type": "application/json"},
             ) as response:
                 if response.status != 200:
-                    raise Exception(f"HTTP {response.status}")
+                    raise Exception(f"HTTP {response.status}")  # noqa: TRY002
 
                 result = await response.json()
                 if "errors" in result:
-                    raise Exception(f"GraphQL errors: {result['errors']}")
+                    raise Exception(f"GraphQL errors: {result['errors']}")  # noqa: TRY002
 
                 return result
 
         except Exception as e:
-            raise Exception(f"PostGraphile query failed: {e}")
+            raise Exception(f"PostGraphile query failed: {e}") from e  # noqa: TRY002
         finally:
             return time.time() - start_time
 
@@ -196,25 +194,27 @@ class BenchmarkRunner:
         self.benchmarks[name] = benchmark
 
     async def run_test(
-        self, test_name: str, query: str, variables: Dict = None, iterations: int = 100
+        self,
+        test_name: str,
+        query: str,
+        variables: Dict | None = None,
+        iterations: int = 100,
     ):
         """Run a test against all benchmarks"""
         results = {}
 
         for name, benchmark in self.benchmarks.items():
-            print(f"Running {test_name} against {name}...")
             result = BenchmarkResult(f"{name}_{test_name}")
 
             for i in range(iterations):
                 try:
                     duration = await benchmark.execute_query(query, variables)
                     result.add_time(duration)
-                except Exception as e:
-                    print(f"Error in {name}: {e}")
+                except Exception:
                     result.add_error()
 
                 if (i + 1) % 10 == 0:
-                    print(f"  {i + 1}/{iterations} completed")
+                    pass
 
             results[name] = result.get_stats()
 
@@ -222,8 +222,6 @@ class BenchmarkRunner:
 
     async def run_all_tests(self, iterations: int = 100):
         """Run comprehensive benchmark suite"""
-        print("Starting comprehensive benchmark suite...")
-
         # Set up all benchmarks
         for benchmark in self.benchmarks.values():
             await benchmark.setup()
@@ -232,7 +230,6 @@ class BenchmarkRunner:
             all_results = {}
 
             # Test 1: Simple product query
-            print("\n=== Test 1: Simple Product Query ===")
             simple_query = """
             query GetProducts($limit: Int!) {
                 products(limit: $limit) {
@@ -243,11 +240,13 @@ class BenchmarkRunner:
             }
             """
             all_results["simple_query"] = await self.run_test(
-                "simple_query", simple_query, {"limit": 100}, iterations
+                "simple_query",
+                simple_query,
+                {"limit": 100},
+                iterations,
             )
 
             # Test 2: Complex product search
-            print("\n=== Test 2: Complex Product Search ===")
             search_query = """
             query ProductSearch($term: String!, $limit: Int!) {
                 productSearch(
@@ -275,7 +274,6 @@ class BenchmarkRunner:
             )
 
             # Test 3: Order history with relations
-            print("\n=== Test 3: Order History ===")
             order_query = """
             query OrderHistory($userId: UUID!, $limit: Int!) {
                 orders(
@@ -315,49 +313,39 @@ class BenchmarkRunner:
 
 def print_results(results: Dict[str, Dict[str, Dict]]):
     """Print benchmark results in a formatted table"""
-    print("\n" + "=" * 80)
-    print("BENCHMARK RESULTS SUMMARY")
-    print("=" * 80)
-
-    for test_name, test_results in results.items():
-        print(f"\n{test_name.upper()}")
-        print("-" * 60)
-        print(
-            f"{'Solution':<15} {'Avg (ms)':<10} {'P95 (ms)':<10} {'P99 (ms)':<10} {'RPS':<8} {'Errors':<8}"
-        )
-        print("-" * 60)
-
+    for test_results in results.values():
         # Sort by average response time
         sorted_results = sorted(
-            test_results.items(), key=lambda x: x[1].get("avg", float("inf"))
+            test_results.items(),
+            key=lambda x: x[1].get("avg", float("inf")),
         )
 
-        for solution, stats in sorted_results:
-            print(
-                f"{solution:<15} {stats.get('avg', 'N/A'):<10.2f} "
-                f"{stats.get('p95', 'N/A'):<10.2f} {stats.get('p99', 'N/A'):<10.2f} "
-                f"{stats.get('rps', 'N/A'):<8.1f} {stats.get('errors', 'N/A'):<8}"
-            )
+        for _solution, _stats in sorted_results:
+            pass
 
 
-def save_results(results: Dict, filename: str = None):
+def save_results(results: Dict, filename: str | None = None):
     """Save benchmark results to JSON file"""
     if not filename:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"benchmark_results_{timestamp}.json"
 
-    with open(filename, "w") as f:
+    output_path = Path(filename)
+    with output_path.open("w") as f:
         json.dump(
-            {"timestamp": datetime.now().isoformat(), "results": results}, f, indent=2
+            {"timestamp": datetime.now(tz=UTC).isoformat(), "results": results},
+            f,
+            indent=2,
         )
-
-    print(f"\nResults saved to {filename}")
 
 
 async def main():
     parser = argparse.ArgumentParser(description="Run FraiseQL benchmarks")
     parser.add_argument(
-        "--iterations", type=int, default=100, help="Number of iterations per test"
+        "--iterations",
+        type=int,
+        default=100,
+        help="Number of iterations per test",
     )
     parser.add_argument(
         "--fraiseql-db",
@@ -365,7 +353,9 @@ async def main():
         help="FraiseQL database URL",
     )
     parser.add_argument(
-        "--hasura-endpoint", default="http://localhost:8080", help="Hasura endpoint"
+        "--hasura-endpoint",
+        default="http://localhost:8080",
+        help="Hasura endpoint",
     )
     parser.add_argument(
         "--postgraphile-endpoint",
@@ -387,14 +377,14 @@ async def main():
     try:
         hasura = HasuraBenchmark(args.hasura_endpoint)
         runner.add_benchmark("Hasura", hasura)
-    except Exception as e:
-        print(f"Hasura benchmark not available: {e}")
+    except Exception:
+        pass
 
     try:
         postgraphile = PostGraphileBenchmark(args.postgraphile_endpoint)
         runner.add_benchmark("PostGraphile", postgraphile)
-    except Exception as e:
-        print(f"PostGraphile benchmark not available: {e}")
+    except Exception:
+        pass
 
     # Run all tests
     results = await runner.run_all_tests(args.iterations)

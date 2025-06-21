@@ -19,9 +19,12 @@ def subscription(fn: F) -> F:
                 yield task
     """
     if not inspect.isasyncgenfunction(fn):
-        raise TypeError(
+        msg = (
             f"Subscription {fn.__name__} must be an async generator function "
-            f"(use 'async def' and 'yield')",
+            f"(use 'async def' and 'yield')"
+        )
+        raise TypeError(
+            msg,
         )
 
     # Extract type hints

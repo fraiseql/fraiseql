@@ -55,7 +55,7 @@ class N1QueryDetector:
         time_window: float = 1.0,
         enabled: bool = True,
         raise_on_detection: bool = False,
-    ):
+    ) -> None:
         """Initialize N+1 query detector.
 
         Args:
@@ -128,14 +128,15 @@ class N1QueryDetector:
 
         # Log warnings if patterns detected
         if detected:
-            logger.warning(f"N+1 query pattern detected in request {self._current_request_id}:")
+            logger.warning("N+1 query pattern detected in request %s:", self._current_request_id)
             for suggestion in suggestions:
-                logger.warning(f"  - {suggestion}")
+                logger.warning("  - %s", suggestion)
 
         # Optionally raise exception
         if self.raise_on_detection and threshold_exceeded:
+            msg = f"N+1 query pattern detected: {len(detected_patterns)} patterns found"
             raise N1QueryDetectedError(
-                f"N+1 query pattern detected: {len(detected_patterns)} patterns found",
+                msg,
                 patterns=detected_patterns,
             )
 
@@ -190,7 +191,7 @@ class N1QueryDetector:
 class N1QueryDetectedError(Exception):
     """Exception raised when N+1 query pattern is detected."""
 
-    def __init__(self, message: str, patterns: list[QueryPattern]):
+    def __init__(self, message: str, patterns: list[QueryPattern]) -> None:
         super().__init__(message)
         self.patterns = patterns
 
@@ -283,7 +284,7 @@ def track_resolver_execution(func):
             field_name = info.field_name
             await detector.track_field_resolution(info, field_name, execution_time)
 
-            return result
+            return result  # noqa: TRY300
         except Exception:
             # Still track failed resolutions
             execution_time = time.time() - start_time
@@ -311,7 +312,7 @@ def track_resolver_execution(func):
                     detector.track_field_resolution(info, field_name, execution_time),
                 )
 
-                return result
+                return result  # noqa: TRY300
             except Exception:
                 execution_time = time.time() - start_time
                 field_name = info.field_name

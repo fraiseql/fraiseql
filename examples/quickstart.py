@@ -1,12 +1,12 @@
-"""
-FraiseQL Quick Start Example - pgGit Demo
+"""FraiseQL Quick Start Example - pgGit Demo
+
 A Git-like version control system for PostgreSQL using FraiseQL
 
 This example shows how to create a GraphQL API with FraiseQL that provides
 Git-like functionality for PostgreSQL database version control.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import List, Optional
 from uuid import uuid4
 
@@ -79,14 +79,14 @@ async def commits(info, limit: int = 100) -> List[Commit]:
             hash="abc123",
             message="Initial commit",
             author="dev@example.com",
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=UTC),
             parent_hash=None,
         ),
         Commit(
             hash="def456",
             message="Add user authentication",
             author="dev@example.com",
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=UTC),
             parent_hash="abc123",
         ),
     ]
@@ -101,7 +101,7 @@ async def commit(info, hash: str) -> Optional[Commit]:
             hash="abc123",
             message="Initial commit",
             author="dev@example.com",
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=UTC),
             parent_hash=None,
         )
     return None
@@ -114,14 +114,14 @@ async def branches(info) -> List[Branch]:
         Branch(
             name="main",
             commit_hash="def456",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=datetime.now(tz=UTC),
+            updated_at=datetime.now(tz=UTC),
         ),
         Branch(
             name="develop",
             commit_hash="abc123",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=datetime.now(tz=UTC),
+            updated_at=datetime.now(tz=UTC),
         ),
     ]
 
@@ -133,8 +133,8 @@ async def branch(info, name: str) -> Optional[Branch]:
         return Branch(
             name="main",
             commit_hash="def456",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=datetime.now(tz=UTC),
+            updated_at=datetime.now(tz=UTC),
         )
     return None
 
@@ -147,8 +147,8 @@ async def tags(info) -> List[Tag]:
             name="v1.0.0",
             commit_hash="abc123",
             message="First stable release",
-            created_at=datetime.now(),
-        )
+            created_at=datetime.now(tz=UTC),
+        ),
     ]
 
 
@@ -163,7 +163,7 @@ async def create_commit(info, input: CreateCommitInput) -> Commit:
         hash=commit_hash,
         message=input.message,
         author=input.author,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(tz=UTC),
         parent_hash=input.parent_hash,
     )
 
@@ -174,8 +174,8 @@ async def create_branch(info, input: CreateBranchInput) -> Branch:
     return Branch(
         name=input.name,
         commit_hash=input.commit_hash,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=datetime.now(tz=UTC),
+        updated_at=datetime.now(tz=UTC),
     )
 
 
@@ -186,7 +186,7 @@ async def create_tag(info, input: CreateTagInput) -> Tag:
         name=input.name,
         commit_hash=input.commit_hash,
         message=input.message,
-        created_at=datetime.now(),
+        created_at=datetime.now(tz=UTC),
     )
 
 
@@ -210,44 +210,5 @@ if __name__ == "__main__":
         production=False,
     )
 
-    print("🚀 Starting pgGit GraphQL API...")
-    print("📊 GraphQL Playground available at: http://localhost:8000/playground")
-    print("🔍 GraphQL endpoint at: http://localhost:8000/graphql")
-    print("\nTry these queries in the playground:")
-    print("""
-    # Get all commits
-    query {
-      commits(limit: 10) {
-        hash
-        message
-        author
-        timestamp
-      }
-    }
-
-    # Get a specific commit
-    query {
-      commit(hash: "abc123") {
-        hash
-        message
-        author
-        parentHash
-      }
-    }
-
-    # Create a new commit
-    mutation {
-      createCommit(input: {
-        message: "Fix critical bug"
-        author: "dev@example.com"
-        parentHash: "abc123"
-      }) {
-        hash
-        message
-        timestamp
-      }
-    }
-    """)
-
     # Run the server
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

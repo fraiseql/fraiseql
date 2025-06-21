@@ -34,10 +34,10 @@ def serialize_json(
     try:
         # Use json.dumps to validate serializability
         json.dumps(value)
-        return value
+        return value  # noqa: TRY300
     except (TypeError, ValueError) as e:
         msg = f"Value is not JSON-serializable: {type(value).__name__} - {e}"
-        raise GraphQLError(msg)
+        raise GraphQLError(msg) from e
 
 
 def parse_json_value(
@@ -84,9 +84,9 @@ def parse_json_literal(
         # If it fails, raise an error for non-JSON strings
         try:
             return json.loads(ast.value)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             msg = f"JSON cannot represent non-JSON string: {ast.value!r}"
-            raise GraphQLError(msg)
+            raise GraphQLError(msg) from e
 
     if isinstance(ast, IntValueNode):
         # IntValueNode stores the value as a string, convert to int

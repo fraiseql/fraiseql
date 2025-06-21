@@ -74,7 +74,7 @@ class CreateUserError:
 def setup_mutations(registry: ScopedResultRegistry):
     """Set up mutations with explicit registration."""
     builder = create_mutations(registry)
-    
+
     @builder.mutation(
         result_type=CreateUserSuccess,
         error_type=CreateUserError,
@@ -83,7 +83,7 @@ def setup_mutations(registry: ScopedResultRegistry):
     async def create_user(input: CreateUserInput):
         # Implementation
         pass
-    
+
     return builder
 ```
 
@@ -119,15 +119,15 @@ from comments.mutations import setup_comment_mutations
 # Create app with explicit registration
 def create_app():
     registry = ScopedResultRegistry()
-    
+
     # Register all mutations explicitly
     user_builder = setup_user_mutations(registry)
     post_builder = setup_post_mutations(registry)
     comment_builder = setup_comment_mutations(registry)
-    
+
     # Create app with configured registry
     app = FraiseQL(registry=registry)
-    
+
     return app
 ```
 
@@ -145,7 +145,7 @@ async def test_create_user():
     result = await create_user(...)
     assert result...
 
-@pytest.mark.asyncio  
+@pytest.mark.asyncio
 async def test_create_user_error():
     # This test might be affected by previous test
     result = await create_user(...)
@@ -165,7 +165,7 @@ async def test_create_user():
     with isolated_registry() as registry:
         builder = setup_mutations(registry)
         create_user = builder.get_mutation("create_user").function
-        
+
         result = await create_user(...)
         assert result...
 
@@ -175,7 +175,7 @@ async def test_create_user_error():
     with isolated_registry() as registry:
         builder = setup_mutations(registry)
         create_user = builder.get_mutation("create_user").function
-        
+
         result = await create_user(...)
         assert result...
 ```
@@ -190,16 +190,16 @@ Organize mutations by feature:
 # users/mutations.py
 def setup_user_mutations(registry):
     builder = create_mutations(registry)
-    
+
     @builder.mutation(...)
     async def create_user(...): ...
-    
+
     @builder.mutation(...)
     async def update_user(...): ...
-    
+
     @builder.mutation(...)
     async def delete_user(...): ...
-    
+
     return builder
 ```
 
@@ -210,12 +210,12 @@ Pass dependencies explicitly:
 ```python
 def setup_mutations(registry, config, services):
     builder = create_mutations(registry)
-    
+
     @builder.mutation(...)
     async def create_user(input, repo=services.repo):
         # Use injected services
         pass
-    
+
     return builder
 ```
 
@@ -235,7 +235,7 @@ def test_mutations(*setup_funcs):
         for setup_func in setup_funcs:
             builder = setup_func(registry)
             builders.append(builder)
-        
+
         yield registry, builders
 ```
 
@@ -269,7 +269,7 @@ app = FraiseQL(registry=registry)  # Then create app
 # Bad: Module-level registration
 builder = create_mutations(registry)  # This runs at import
 
-# Good: Function-based registration  
+# Good: Function-based registration
 def setup_mutations(registry):
     builder = create_mutations(registry)  # This runs when called
     return builder

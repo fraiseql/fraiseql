@@ -2,9 +2,9 @@
 
 ## Ticket: Production Readiness and Developer Experience Enhancement
 
-**Priority**: High  
-**Type**: Epic  
-**Components**: Core, Documentation, Infrastructure, Monitoring  
+**Priority**: High
+**Type**: Epic
+**Components**: Core, Documentation, Infrastructure, Monitoring
 **Estimated Effort**: 8-12 weeks (4 developers)
 
 ## Executive Summary
@@ -147,10 +147,10 @@ from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
 
 def setup_tracing(app: FastAPI, service_name: str = "fraiseql"):
     tracer = trace.get_tracer(__name__)
-    
+
     # Auto-instrument database calls
     PsycopgInstrumentor().instrument()
-    
+
     # Custom GraphQL instrumentation
     @app.middleware("graphql")
     async def trace_graphql(request, call_next):
@@ -258,5 +258,5 @@ def setup_tracing(app: FastAPI, service_name: str = "fraiseql"):
 
 ---
 
-**Approval Required From**: CTO, Lead Architect, Product Manager  
+**Approval Required From**: CTO, Lead Architect, Product Manager
 **Estimated ROI**: 40% reduction in production incidents, 60% faster onboarding

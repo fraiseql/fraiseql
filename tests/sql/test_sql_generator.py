@@ -4,7 +4,7 @@ from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.sql_generator import build_sql_query
 
 
-def test_basic_select_flat_fields():
+def test_basic_select_flat_fields() -> None:
     query = build_sql_query(
         table="my_table",
         field_paths=[
@@ -22,7 +22,7 @@ def test_basic_select_flat_fields():
     assert "WHERE" not in sql_str
 
 
-def test_select_with_where_clause():
+def test_select_with_where_clause() -> None:
     where = SQL("data->>'status' = 'active'")
     query = build_sql_query(
         table="users",
@@ -38,7 +38,7 @@ def test_select_with_where_clause():
     assert "WHERE data->>'status' = 'active'" in sql_str
 
 
-def test_nested_path_multiple_levels():
+def test_nested_path_multiple_levels() -> None:
     query = build_sql_query(
         table="events",
         field_paths=[
@@ -50,7 +50,7 @@ def test_nested_path_multiple_levels():
     assert "data->'location'->'address'->>'city' AS \"city\"" in sql_str
 
 
-def test_field_path_aliasing():
+def test_field_path_aliasing() -> None:
     query = build_sql_query(
         table="products",
         field_paths=[
@@ -64,7 +64,7 @@ def test_field_path_aliasing():
     assert 'AS "productPrice"' in sql_str
 
 
-def test_empty_field_paths():
+def test_empty_field_paths() -> None:
     query = build_sql_query(
         table="empty_case",
         field_paths=[],
@@ -75,7 +75,7 @@ def test_empty_field_paths():
     assert "WHERE" not in sql_str
 
 
-def test_json_output_with_typename():
+def test_json_output_with_typename() -> None:
     query = build_sql_query(
         table="accounts",
         field_paths=[
@@ -97,7 +97,7 @@ def test_json_output_with_typename():
     assert "WHERE data->>'deleted' IS NULL" in sql_str
 
 
-def test_order_by_single_field():
+def test_order_by_single_field() -> None:
     """Test ORDER BY with a single top-level field."""
     query = build_sql_query(
         table="users",
@@ -112,7 +112,7 @@ def test_order_by_single_field():
     assert "ORDER BY data->>'created_at' DESC" in sql_str
 
 
-def test_order_by_nested_field():
+def test_order_by_nested_field() -> None:
     """Test ORDER BY with nested fields."""
     query = build_sql_query(
         table="users",
@@ -129,7 +129,7 @@ def test_order_by_nested_field():
     )
 
 
-def test_order_by_multiple_fields():
+def test_order_by_multiple_fields() -> None:
     """Test ORDER BY with multiple fields including nested ones."""
     query = build_sql_query(
         table="products",
@@ -151,7 +151,7 @@ def test_order_by_multiple_fields():
     assert "data->'metadata'->>'popularity' DESC" in sql_str
 
 
-def test_group_by_single_field():
+def test_group_by_single_field() -> None:
     """Test GROUP BY with a single field."""
     query = build_sql_query(
         table="orders",
@@ -165,7 +165,7 @@ def test_group_by_single_field():
     assert "GROUP BY data->>'status'" in sql_str
 
 
-def test_group_by_nested_fields():
+def test_group_by_nested_fields() -> None:
     """Test GROUP BY with nested fields."""
     query = build_sql_query(
         table="users",
@@ -180,7 +180,7 @@ def test_group_by_nested_fields():
     assert "GROUP BY data->'address'->>'country', data->'address'->>'city'" in sql_str
 
 
-def test_group_by_deeply_nested():
+def test_group_by_deeply_nested() -> None:
     """Test GROUP BY with deeply nested fields."""
     query = build_sql_query(
         table="events",
@@ -196,7 +196,7 @@ def test_group_by_deeply_nested():
     assert "data->'location'->'venue'->>'type'" in sql_str
 
 
-def test_combined_where_group_by_order_by():
+def test_combined_where_group_by_order_by() -> None:
     """Test combining WHERE, GROUP BY, and ORDER BY clauses."""
     query = build_sql_query(
         table="sales",
@@ -225,7 +225,7 @@ def test_combined_where_group_by_order_by():
     assert "ORDER BY data->'location'->>'region' ASC" in sql_str
 
 
-def test_json_output_with_order_by():
+def test_json_output_with_order_by() -> None:
     """Test JSON output format with ORDER BY."""
     query = build_sql_query(
         table="users",
@@ -245,7 +245,7 @@ def test_json_output_with_order_by():
     assert "ORDER BY data->'profile'->>'fullName' ASC, data->>'created_at' DESC" in sql_str
 
 
-def test_empty_order_by_and_group_by():
+def test_empty_order_by_and_group_by() -> None:
     """Test that empty order_by and group_by lists don't affect the query."""
     query = build_sql_query(
         table="users",
@@ -261,7 +261,7 @@ def test_empty_order_by_and_group_by():
     assert "GROUP BY" not in sql_str
 
 
-def test_complex_nested_scenario():
+def test_complex_nested_scenario() -> None:
     """Test complex scenario with deeply nested fields in all clauses."""
     query = build_sql_query(
         table="analytics",

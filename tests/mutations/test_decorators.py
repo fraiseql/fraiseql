@@ -32,7 +32,7 @@ class DummyFailure(BaseResult):
     reasons: list[str] = fraise_field(default_factory=list)
 
 
-def test_success_decorator_correctly_sets_fields():
+def test_success_decorator_correctly_sets_fields() -> None:
     instance = DummySuccess(
         id_=uuid.uuid4(),
         updated_fields=["user"],
@@ -51,7 +51,7 @@ def test_success_decorator_correctly_sets_fields():
     assert instance.data == {"key": "value"}
 
 
-def test_success_decorator_handles_default_factory_correctly():
+def test_success_decorator_handles_default_factory_correctly() -> None:
     field_map, _ = collect_fraise_fields(DummySuccess)
 
     assert field_map["tags"].default is FRAISE_MISSING
@@ -69,7 +69,7 @@ def test_success_decorator_handles_default_factory_correctly():
     assert field_map["user"].default_factory is None
 
 
-def test_success_decorator_field_order():
+def test_success_decorator_field_order() -> None:
     field_map, _ = collect_fraise_fields(DummySuccess)
     names = [field.name for field in field_map.values()]
     assert names == [
@@ -86,7 +86,7 @@ def test_success_decorator_field_order():
     ]
 
 
-def test_success_constructor_accepts_all_fields():
+def test_success_constructor_accepts_all_fields() -> None:
     DummySuccess(
         id_=uuid.uuid4(),
         status="ok",
@@ -99,7 +99,7 @@ def test_success_constructor_accepts_all_fields():
     )
 
 
-def test_failure_decorator_field_order():
+def test_failure_decorator_field_order() -> None:
     instance = DummyFailure(
         id_=uuid.uuid4(),
         updated_fields=[],
@@ -129,7 +129,7 @@ def test_failure_decorator_field_order():
     ]
 
 
-def test_failure_decorator_handles_default_factory_correctly():
+def test_failure_decorator_handles_default_factory_correctly() -> None:
     field_map, _ = collect_fraise_fields(DummyFailure)
 
     assert field_map["reasons"].default is FRAISE_MISSING

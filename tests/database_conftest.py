@@ -5,7 +5,6 @@ using testcontainers. It automatically spins up a PostgreSQL container for each
 test session and provides connection pools and isolated test databases.
 """
 
-import asyncio
 import os
 from collections.abc import AsyncGenerator
 
@@ -95,14 +94,6 @@ def postgres_url(postgres_container) -> str:
     return url.replace("postgresql+psycopg://", "postgresql://")
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
 @pytest_asyncio.fixture(scope="session")
 async def db_pool(
     postgres_url,
@@ -131,7 +122,7 @@ async def db_pool(
             CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
             CREATE EXTENSION IF NOT EXISTS "pgcrypto";
             CREATE EXTENSION IF NOT EXISTS "ltree";
-        """
+        """,
         )
         await conn.commit()
 
@@ -231,13 +222,13 @@ async def db_connection_committed(
 
 
 # Marker for database tests
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Register custom markers."""
     config.addinivalue_line("markers", "database: mark test as requiring database access")
 
 
 # Skip database tests if --no-db flag is provided
-def pytest_addoption(parser):
+def pytest_addoption(parser) -> None:
     """Add custom command line options."""
     parser.addoption(
         "--no-db",
@@ -247,7 +238,7 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(config, items) -> None:
     """Modify test collection based on markers."""
     if config.getoption("--no-db"):
         skip_db = pytest.mark.skip(reason="Skipping database tests (--no-db flag)")

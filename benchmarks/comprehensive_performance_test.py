@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive FraiseQL Performance Benchmarks
+
 By Dr. Raj Patel, Performance Benchmark Specialist
 
 This benchmark suite measures REAL performance metrics that would satisfy
@@ -18,8 +19,8 @@ import statistics
 import string
 import time
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
-from typing import List
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import asyncpg
 import httpx
@@ -60,7 +61,7 @@ class PerformanceBenchmark:
     def __init__(self, endpoint: str, database_url: str):
         self.endpoint = endpoint
         self.database_url = database_url
-        self.results: List[BenchmarkResult] = []
+        self.results: list[BenchmarkResult] = []
         self.process = psutil.Process()
 
     async def setup_test_data(self, scale_factor: int = 1):
@@ -183,7 +184,8 @@ class PerformanceBenchmark:
 
                 await conn.executemany(
                     """
-                    INSERT INTO posts (title, slug, content, excerpt, author_id, published, view_count)
+                    INSERT INTO posts (title, slug, content, excerpt, author_id, published,
+                                    view_count)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
                     ON CONFLICT DO NOTHING
                 """,
@@ -324,7 +326,7 @@ class PerformanceBenchmark:
         # Memory and CPU before
         gc.collect()
         memory_start = self.process.memory_info().rss / 1024 / 1024  # MB
-        cpu_start = self.process.cpu_percent(interval=0.1)
+        self.process.cpu_percent(interval=0.1)
 
         # Track latencies
         latencies = []
@@ -353,7 +355,7 @@ class PerformanceBenchmark:
                     if "errors" in data:
                         return -1
 
-                    return latency
+                    return latency  # noqa: TRY300
 
                 except Exception as e:
                     print(f"Request error: {e}")
@@ -429,7 +431,7 @@ class PerformanceBenchmark:
             print("   ❌ All requests failed!")
             return None
 
-    def _percentile(self, data: List[float], percentile: float) -> float:
+    def _percentile(self, data: list[float], percentile: float) -> float:
         """Calculate percentile."""
         if not data:
             return 0
@@ -557,8 +559,8 @@ class PerformanceBenchmark:
                 """,
                 "variables": {
                     "userId": "00000000-0000-0000-0000-000000000001",
-                    "startDate": (datetime.now() - timedelta(days=30)).isoformat(),
-                    "endDate": datetime.now().isoformat(),
+                    "startDate": (datetime.now(tz=timezone.utc) - timedelta(days=30)).isoformat(),
+                    "endDate": datetime.now(tz=timezone.utc).isoformat(),
                 },
             },
             # 5. Full text search
@@ -641,7 +643,8 @@ class PerformanceBenchmark:
 
             # Create table
             print(
-                f"{'DB Size':<10} {'Users':<10} {'RPS':<10} {'Avg (ms)':<10} {'P95 (ms)':<10} {'P99 (ms)':<10} {'Errors':<10} {'Memory':<10}"
+                f"{'DB Size':<10} {'Users':<10} {'RPS':<10} {'Avg (ms)':<10} "
+                f"{'P95 (ms)':<10} {'P99 (ms)':<10} {'Errors':<10} {'Memory':<10}"
             )
             print("-" * 80)
 
@@ -670,13 +673,15 @@ class PerformanceBenchmark:
             print(f"\n✅ Best throughput: {best_rps.requests_per_second:.1f} RPS")
             print(f"   Scenario: {best_rps.scenario}")
             print(
-                f"   Config: {best_rps.concurrent_users} users, {best_rps.database_size_gb:.1f}GB DB"
+                f"   Config: {best_rps.concurrent_users} users, "
+                f"{best_rps.database_size_gb:.1f}GB DB"
             )
 
             print(f"\n❌ Worst throughput: {worst_rps.requests_per_second:.1f} RPS")
             print(f"   Scenario: {worst_rps.scenario}")
             print(
-                f"   Config: {worst_rps.concurrent_users} users, {worst_rps.database_size_gb:.1f}GB DB"
+                f"   Config: {worst_rps.concurrent_users} users, "
+                f"{worst_rps.database_size_gb:.1f}GB DB"
             )
 
             print(f"\n✅ Best latency: {best_latency.avg_latency_ms:.1f}ms average")
@@ -703,9 +708,12 @@ class PerformanceBenchmark:
 
         # Save results to JSON
         results_data = [asdict(r) for r in self.results]
-        with open("benchmark_results.json", "w") as f:
+        output_path = Path("benchmark_results.json")
+        with output_path.open("w") as f:
             json.dump(
-                {"timestamp": datetime.now().isoformat(), "results": results_data}, f, indent=2
+                {"timestamp": datetime.now(tz=timezone.utc).isoformat(), "results": results_data},
+                f,
+                indent=2,
             )
 
         print("\n\n📄 Full results saved to benchmark_results.json")
@@ -748,7 +756,7 @@ async def main():
                 print("\n❌ FraiseQL server not responding!")
                 print("   Please start the server first.")
                 return
-    except:
+    except Exception:
         print("\n❌ Cannot connect to FraiseQL server!")
         print("   Please start the server first.")
         return

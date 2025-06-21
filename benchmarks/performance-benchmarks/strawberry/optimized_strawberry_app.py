@@ -14,7 +14,7 @@ import os
 import time
 from collections import defaultdict
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import asyncpg
 import redis.asyncio as redis
@@ -70,6 +70,8 @@ class PerformanceMonitor:
 monitor = PerformanceMonitor()
 
 # DataLoader implementations for N+1 elimination
+import contextlib
+
 from strawberry.dataloader import DataLoader
 
 
@@ -124,10 +126,8 @@ def cached_resolver(ttl: int = 300):
             result = await func(*args, **kwargs)
 
             if redis_conn:
-                try:
+                with contextlib.suppress(Exception):
                     await redis_conn.setex(cache_key, ttl, json.dumps(result, default=str))
-                except Exception:
-                    pass
 
             return result
 
@@ -137,7 +137,7 @@ def cached_resolver(ttl: int = 300):
 
 
 # DataLoader for departments by organization
-async def load_departments_by_organization(organization_ids: List[str]) -> List[List[Dict]]:
+async def load_departments_by_organization(organization_ids: list[str]) -> list[list[dict]]:
     """Efficiently load departments for multiple organizations."""
     pool = await get_connection_pool()
     monitor.record_dataloader("departments_by_org", len(organization_ids), 1)
@@ -170,7 +170,7 @@ async def load_departments_by_organization(organization_ids: List[str]) -> List[
 
 
 # DataLoader for teams by department
-async def load_teams_by_department(department_ids: List[str]) -> List[List[Dict]]:
+async def load_teams_by_department(department_ids: list[str]) -> list[list[dict]]:
     """Efficiently load teams for multiple departments."""
     pool = await get_connection_pool()
     monitor.record_dataloader("teams_by_dept", len(department_ids), 1)
@@ -199,7 +199,7 @@ async def load_teams_by_department(department_ids: List[str]) -> List[List[Dict]
 
 
 # DataLoader for employees by team
-async def load_employees_by_team(team_ids: List[str]) -> List[List[Dict]]:
+async def load_employees_by_team(team_ids: list[str]) -> list[list[dict]]:
     """Efficiently load employees for multiple teams."""
     pool = await get_connection_pool()
     monitor.record_dataloader("employees_by_team", len(team_ids), 1)
@@ -233,7 +233,7 @@ async def load_employees_by_team(team_ids: List[str]) -> List[List[Dict]]:
 
 
 # DataLoader for projects by department
-async def load_projects_by_department(department_ids: List[str]) -> List[List[Dict]]:
+async def load_projects_by_department(department_ids: list[str]) -> list[list[dict]]:
     """Efficiently load projects for multiple departments."""
     pool = await get_connection_pool()
     monitor.record_dataloader("projects_by_dept", len(department_ids), 1)
@@ -279,7 +279,7 @@ async def load_projects_by_department(department_ids: List[str]) -> List[List[Di
 
 
 # DataLoader for project members
-async def load_project_members(project_ids: List[str]) -> List[List[Dict]]:
+async def load_project_members(project_ids: list[str]) -> list[list[dict]]:
     """Efficiently load project members."""
     pool = await get_connection_pool()
     monitor.record_dataloader("project_members", len(project_ids), 1)
@@ -310,7 +310,7 @@ async def load_project_members(project_ids: List[str]) -> List[List[Dict]]:
 
 
 # DataLoader for tasks by project
-async def load_tasks_by_project(project_ids: List[str]) -> List[List[Dict]]:
+async def load_tasks_by_project(project_ids: list[str]) -> list[list[dict]]:
     """Efficiently load tasks for multiple projects."""
     pool = await get_connection_pool()
     monitor.record_dataloader("tasks_by_project", len(project_ids), 1)
@@ -376,8 +376,8 @@ class Employee:
     level: int
     salary: Optional[float]
     hire_date: date
-    skills: Optional[List[Dict]] = None
-    certifications: Optional[List[Dict]] = None
+    skills: Optional[list[dict]] = None
+    certifications: Optional[list[dict]] = None
     created_at: datetime
 
 
@@ -388,10 +388,10 @@ class Team:
     description: Optional[str]
     formation_date: Optional[date]
     is_active: bool
-    performance_metrics: Optional[Dict] = None
+    performance_metrics: Optional[dict] = None
 
     @strawberry.field
-    async def employees(self, limit: int = 10) -> List[Employee]:
+    async def employees(self, limit: int = 10) -> list[Employee]:
         monitor.record_resolver("team.employees")
         employees_data = await employees_loader.load(self.id)
         return [Employee(**emp_data) for emp_data in employees_data[:limit]]
@@ -414,13 +414,13 @@ class Department:
     updated_at: datetime
 
     @strawberry.field
-    async def teams(self, limit: int = 10) -> List[Team]:
+    async def teams(self, limit: int = 10) -> list[Team]:
         monitor.record_resolver("department.teams")
         teams_data = await teams_loader.load(self.id)
         return [Team(**team_data) for team_data in teams_data[:limit]]
 
     @strawberry.field
-    async def projects(self, limit: int = 10) -> List["Project"]:
+    async def projects(self, limit: int = 10) -> list["Project"]:
         monitor.record_resolver("department.projects")
         projects_data = await projects_loader.load(self.id)
         return [Project(**proj_data) for proj_data in projects_data[:limit]]
@@ -454,7 +454,7 @@ class Task:
     estimated_hours: Optional[float]
     actual_hours: Optional[float]
     due_date: Optional[date]
-    tags: Optional[List[str]] = None
+    tags: Optional[list[str]] = None
     assigned_to: Optional[TaskAssignee]
     comment_count: int
 
@@ -469,20 +469,20 @@ class Project:
     budget: Optional[float]
     start_date: Optional[date]
     end_date: Optional[date]
-    milestones: Optional[List[Dict]] = None
-    dependencies: Optional[List[Dict]] = None
+    milestones: Optional[list[dict]] = None
+    dependencies: Optional[list[dict]] = None
     lead_employee_id: Optional[str]
     task_count: int
     team_size: int
 
     @strawberry.field
-    async def team_members(self, limit: int = 10) -> List[ProjectMember]:
+    async def team_members(self, limit: int = 10) -> list[ProjectMember]:
         monitor.record_resolver("project.team_members")
         members_data = await project_members_loader.load(self.id)
         return [ProjectMember(**member_data) for member_data in members_data[:limit]]
 
     @strawberry.field
-    async def recent_tasks(self, limit: int = 5) -> List[Task]:
+    async def recent_tasks(self, limit: int = 5) -> list[Task]:
         monitor.record_resolver("project.recent_tasks")
         tasks_data = await tasks_loader.load(self.id)
         return [
@@ -505,13 +505,13 @@ class Organization:
     description: Optional[str]
     industry: str
     founded_date: Optional[date]
-    headquarters_address: Optional[Dict] = None
-    metadata: Optional[Dict] = None
+    headquarters_address: Optional[dict] = None
+    metadata: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
 
     @strawberry.field
-    async def departments(self, limit: int = 10) -> List[Department]:
+    async def departments(self, limit: int = 10) -> list[Department]:
         monitor.record_resolver("organization.departments")
         departments_data = await departments_loader.load(self.id)
         return [Department(**dept_data) for dept_data in departments_data[:limit]]
@@ -563,7 +563,7 @@ class Organization:
 class Query:
     @strawberry.field
     @cached_resolver(ttl=300)
-    async def organizations(self, limit: int = 10) -> List[Organization]:
+    async def organizations(self, limit: int = 10) -> list[Organization]:
         monitor.record_resolver("query.organizations")
         monitor.record_query()
 
@@ -584,7 +584,7 @@ class Query:
 
     @strawberry.field
     @cached_resolver(ttl=300)
-    async def organizations_hierarchy(self, limit: int = 5) -> List[Organization]:
+    async def organizations_hierarchy(self, limit: int = 5) -> list[Organization]:
         """Optimized hierarchy query with DataLoaders."""
         monitor.record_resolver("query.organizations_hierarchy")
         monitor.record_query()
@@ -621,10 +621,10 @@ class Query:
 
     @strawberry.field
     @cached_resolver(ttl=300)
-    async def projects_deep(
-        self, statuses: List[str] = ["planning", "in_progress"], limit: int = 10
-    ) -> List[Project]:
+    async def projects_deep(self, statuses: list[str] = None, limit: int = 10) -> list[Project]:
         """Optimized deep project query."""
+        if statuses is None:
+            statuses = ["planning", "in_progress"]
         monitor.record_resolver("query.projects_deep")
         monitor.record_query()
 
@@ -667,7 +667,7 @@ class Query:
 
     @strawberry.field
     @cached_resolver(ttl=180)
-    async def enterprise_stats(self) -> Dict[str, Any]:
+    async def enterprise_stats(self) -> dict[str, Any]:
         """Optimized aggregation query."""
         monitor.record_resolver("query.enterprise_stats")
         monitor.record_query()
@@ -690,7 +690,7 @@ class Query:
             return dict(stats)
 
     @strawberry.field
-    async def performance_stats(self) -> Dict[str, Any]:
+    async def performance_stats(self) -> dict[str, Any]:
         """Get Strawberry performance statistics."""
         return monitor.get_stats()
 
@@ -853,4 +853,4 @@ async def stats():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8001, workers=1, loop="asyncio", access_log=False)
+    uvicorn.run(app, host="0.0.0.0", port=8001, workers=1, loop="asyncio", access_log=False)  # noqa: S104

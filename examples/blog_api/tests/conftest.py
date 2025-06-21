@@ -6,6 +6,7 @@ import os
 # Add parent directory to path for imports
 import sys
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from uuid import uuid4
 
 import psycopg
@@ -16,7 +17,7 @@ from httpx import AsyncClient
 
 from fraiseql.auth import UserContext
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Import after path is set up
 from db import BlogRepository
@@ -26,13 +27,7 @@ from models import User
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://localhost/blog_test")
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    yield loop
-    loop.close()
+# Event loop fixture removed - let pytest-asyncio handle it
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -53,7 +48,7 @@ async def clean_db(
     """Clean the database before and after each test."""
     # Clean all tables
     await db_connection.execute(
-        "TRUNCATE TABLE tb_comments, tb_posts, tb_users CASCADE"
+        "TRUNCATE TABLE tb_comments, tb_posts, tb_users CASCADE",
     )
     await db_connection.commit()
 
@@ -61,7 +56,7 @@ async def clean_db(
 
     # Clean again after test
     await db_connection.execute(
-        "TRUNCATE TABLE tb_comments, tb_posts, tb_users CASCADE"
+        "TRUNCATE TABLE tb_comments, tb_posts, tb_users CASCADE",
     )
     await db_connection.commit()
 
@@ -81,7 +76,7 @@ async def test_user(blog_repo: BlogRepository) -> dict:
             "name": "Test User",
             "bio": "Test bio",
             "password_hash": "hashed_password",
-        }
+        },
     )
 
     assert result["success"]
@@ -98,7 +93,7 @@ async def admin_user(blog_repo: BlogRepository) -> dict:
             "name": "Admin User",
             "bio": "Admin bio",
             "password_hash": "hashed_password",
-        }
+        },
     )
 
     assert result["success"]
@@ -192,7 +187,7 @@ async def create_test_post(blog_repo: BlogRepository, test_user: dict):
                 "excerpt": f"Excerpt for {title}",
                 "tags": tags or ["test"],
                 "is_published": is_published,
-            }
+            },
         )
 
         assert result["success"]
@@ -210,7 +205,7 @@ async def create_test_comment(blog_repo: BlogRepository, test_user: User):
     """Factory fixture to create test comments."""
 
     async def _create_comment(
-        post_id: str, content: str = "Test comment", parent_id: str | None = None
+        post_id: str, content: str = "Test comment", parent_id: str | None = None,
     ):
         result = await blog_repo.create_comment(
             {
@@ -218,7 +213,7 @@ async def create_test_comment(blog_repo: BlogRepository, test_user: User):
                 "author_id": str(test_user.id),
                 "content": content,
                 "parent_id": parent_id,
-            }
+            },
         )
 
         assert result["success"]

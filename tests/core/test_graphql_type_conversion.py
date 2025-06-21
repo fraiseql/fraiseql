@@ -28,14 +28,14 @@ from fraiseql.types.scalars.json import JSONField, parse_json_literal
 class TestConvertTypeToGraphQLInput:
     """Test suite for convert_type_to_graphql_input function."""
 
-    def test_basic_scalar_types(self):
+    def test_basic_scalar_types(self) -> None:
         """Test conversion of basic Python scalar types."""
         assert convert_type_to_graphql_input(str) == GraphQLString
         assert convert_type_to_graphql_input(int) == GraphQLInt
         assert convert_type_to_graphql_input(float) == GraphQLFloat
         assert convert_type_to_graphql_input(bool) == GraphQLBoolean
 
-    def test_list_types(self):
+    def test_list_types(self) -> None:
         """Test conversion of list types."""
         result = convert_type_to_graphql_input(list[str])
         assert isinstance(result, GraphQLList)
@@ -45,14 +45,14 @@ class TestConvertTypeToGraphQLInput:
         assert isinstance(result, GraphQLList)
         assert result.of_type == GraphQLInt
 
-    def test_nested_list_types(self):
+    def test_nested_list_types(self) -> None:
         """Test conversion of nested list types."""
         result = convert_type_to_graphql_input(list[list[str]])
         assert isinstance(result, GraphQLList)
         assert isinstance(result.of_type, GraphQLList)
         assert result.of_type.of_type == GraphQLString
 
-    def test_simple_fraise_input_class(self):
+    def test_simple_fraise_input_class(self) -> None:
         """Test conversion of simple FraiseQL input class."""
 
         @fraise_input
@@ -70,7 +70,7 @@ class TestConvertTypeToGraphQLInput:
         assert fields["name"].type == GraphQLString
         assert fields["age"].type == GraphQLInt
 
-    def test_fraise_input_with_defaults(self):
+    def test_fraise_input_with_defaults(self) -> None:
         """Test conversion of FraiseQL input class with defaults."""
 
         @fraise_input
@@ -88,7 +88,7 @@ class TestConvertTypeToGraphQLInput:
         assert fields["age"].type == GraphQLInt
         assert fields["active"].type == GraphQLBoolean
 
-    def test_fraise_input_with_list_fields(self):
+    def test_fraise_input_with_list_fields(self) -> None:
         """Test conversion of FraiseQL input class with list fields."""
 
         @fraise_input
@@ -105,7 +105,7 @@ class TestConvertTypeToGraphQLInput:
         assert isinstance(fields["scores"].type, GraphQLList)
         assert fields["scores"].type.of_type == GraphQLInt
 
-    def test_fraise_input_with_fraise_field_annotation(self):
+    def test_fraise_input_with_fraise_field_annotation(self) -> None:
         """Test conversion of FraiseQL input class with fraise_field annotations."""
 
         @fraise_input
@@ -120,7 +120,7 @@ class TestConvertTypeToGraphQLInput:
         assert fields["email"].type == GraphQLString
         assert fields["count"].type == GraphQLInt
 
-    def test_fraise_input_inheritance(self):
+    def test_fraise_input_inheritance(self) -> None:
         """Test conversion of inherited FraiseQL input classes."""
 
         @fraise_input
@@ -141,7 +141,7 @@ class TestConvertTypeToGraphQLInput:
         assert "age" in fields
         assert len(fields) == 3
 
-    def test_nested_fraise_input_classes(self):
+    def test_nested_fraise_input_classes(self) -> None:
         """Test conversion of nested FraiseQL input classes."""
 
         @fraise_input
@@ -162,17 +162,17 @@ class TestConvertTypeToGraphQLInput:
         assert isinstance(fields["address"].type, GraphQLInputObjectType)
         assert fields["address"].type.name == "AddressInput"
 
-    def test_union_types_raise_error(self):
+    def test_union_types_raise_error(self) -> None:
         """Test that Union types raise TypeError."""
         with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
-            convert_type_to_graphql_input(Union[str, int])  # type: ignore
+            convert_type_to_graphql_input(Union[str, int])  # type: ignore[arg-type]
 
-    def test_annotated_union_types_raise_error(self):
+    def test_annotated_union_types_raise_error(self) -> None:
         """Test that Annotated Union types raise TypeError."""
         with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
-            convert_type_to_graphql_input(Annotated[str | int, "some annotation"])  # type: ignore
+            convert_type_to_graphql_input(Annotated[str | int, "some annotation"])  # type: ignore[arg-type]
 
-    def test_invalid_type_raises_error(self):
+    def test_invalid_type_raises_error(self) -> None:
         """Test that invalid types raise TypeError."""
 
         class RegularClass:
@@ -181,7 +181,7 @@ class TestConvertTypeToGraphQLInput:
         with pytest.raises(TypeError, match="Invalid type passed to convert_type_to_graphql_input"):
             convert_type_to_graphql_input(RegularClass)
 
-    def test_non_input_fraise_type_raises_error(self):
+    def test_non_input_fraise_type_raises_error(self) -> None:
         """Test that non-input FraiseQL types raise TypeError."""
 
         @fraise_type
@@ -195,14 +195,14 @@ class TestConvertTypeToGraphQLInput:
 class TestConvertTypeToGraphQLOutput:
     """Test suite for convert_type_to_graphql_output function."""
 
-    def test_basic_scalar_types(self):
+    def test_basic_scalar_types(self) -> None:
         """Test conversion of basic Python scalar types."""
         assert convert_type_to_graphql_output(str) == GraphQLString
         assert convert_type_to_graphql_output(int) == GraphQLInt
         assert convert_type_to_graphql_output(float) == GraphQLFloat
         assert convert_type_to_graphql_output(bool) == GraphQLBoolean
 
-    def test_list_types(self):
+    def test_list_types(self) -> None:
         """Test conversion of list types."""
         result = convert_type_to_graphql_output(list[str])
         assert isinstance(result, GraphQLList)
@@ -212,18 +212,18 @@ class TestConvertTypeToGraphQLOutput:
         assert isinstance(result, GraphQLList)
         assert result.of_type == GraphQLInt
 
-    def test_nested_list_types(self):
+    def test_nested_list_types(self) -> None:
         """Test conversion of nested list types."""
         result = convert_type_to_graphql_output(list[list[str]])
         assert isinstance(result, GraphQLList)
         assert isinstance(result.of_type, GraphQLList)
         assert result.of_type.of_type == GraphQLString
 
-    def test_simple_fraise_output_class(self):
+    def test_simple_fraise_output_class(self) -> None:
         """Test conversion of simple FraiseQL output class."""
 
         @fraise_type
-        class UserGQLConversion_1:
+        class UserGQLConversion_1:  # noqa: N801
             name: str
             age: int
 
@@ -237,7 +237,7 @@ class TestConvertTypeToGraphQLOutput:
         assert fields["name"].type == GraphQLString
         assert fields["age"].type == GraphQLInt
 
-    def test_fraise_output_with_list_fields(self):
+    def test_fraise_output_with_list_fields(self) -> None:
         """Test conversion of FraiseQL output class with list fields."""
 
         @fraise_type
@@ -254,7 +254,7 @@ class TestConvertTypeToGraphQLOutput:
         assert isinstance(fields["scores"].type, GraphQLList)
         assert fields["scores"].type.of_type == GraphQLInt
 
-    def test_fraise_output_with_fraise_field_annotation(self):
+    def test_fraise_output_with_fraise_field_annotation(self) -> None:
         """Test conversion of FraiseQL output class with fraise_field annotations."""
 
         @fraise_type
@@ -269,7 +269,7 @@ class TestConvertTypeToGraphQLOutput:
         assert fields["email"].type == GraphQLString
         assert fields["count"].type == GraphQLInt
 
-    def test_fraise_output_inheritance(self):
+    def test_fraise_output_inheritance(self) -> None:
         """Test conversion of inherited FraiseQL output classes."""
 
         @fraise_type
@@ -290,7 +290,7 @@ class TestConvertTypeToGraphQLOutput:
         assert "age" in fields
         assert len(fields) == 3
 
-    def test_nested_fraise_output_classes(self):
+    def test_nested_fraise_output_classes(self) -> None:
         """Test conversion of nested FraiseQL output classes."""
 
         @fraise_type
@@ -299,7 +299,7 @@ class TestConvertTypeToGraphQLOutput:
             city: str
 
         @fraise_type
-        class UserGQLConversion_2:
+        class UserGQLConversion_2:  # noqa: N801
             name: str
             address: Address
 
@@ -311,7 +311,7 @@ class TestConvertTypeToGraphQLOutput:
         assert isinstance(fields["address"].type, GraphQLObjectType)
         assert fields["address"].type.name == "Address"
 
-    def test_optional_types(self, clear_registry):
+    def test_optional_types(self, clear_registry) -> None:
         """Test conversion of optional types (T | None)."""
 
         @fraise_type
@@ -334,7 +334,7 @@ class TestConvertTypeToGraphQLOutput:
         assert name_field.type == GraphQLString
         assert age_field.type == GraphQLInt  # Optional wrapper should be removed
 
-    def test_success_failure_types(self):
+    def test_success_failure_types(self) -> None:
         """Test conversion of success/failure types."""
 
         # This test assumes you have success/failure type decorators
@@ -351,7 +351,7 @@ class TestConvertTypeToGraphQLOutput:
         assert isinstance(result, GraphQLObjectType)
         assert result.name == "CreateUserSuccess"
 
-    def test_bare_union_types_raise_error(self):
+    def test_bare_union_types_raise_error(self) -> None:
         """Test that bare Union types raise TypeError."""
         with pytest.raises(
             TypeError,
@@ -359,7 +359,7 @@ class TestConvertTypeToGraphQLOutput:
         ):
             convert_type_to_graphql_output(Union[str, int])
 
-    def test_invalid_type_raises_error(self):
+    def test_invalid_type_raises_error(self) -> None:
         """Test that invalid types raise TypeError."""
 
         class RegularClass:
@@ -368,7 +368,7 @@ class TestConvertTypeToGraphQLOutput:
         with pytest.raises(TypeError, match="Unsupported output type"):
             convert_type_to_graphql_output(RegularClass)
 
-    def test_non_output_fraise_type_raises_error(self):
+    def test_non_output_fraise_type_raises_error(self) -> None:
         """Test that non-output FraiseQL types raise TypeError."""
 
         @fraise_input
@@ -382,7 +382,7 @@ class TestConvertTypeToGraphQLOutput:
 class TestEdgeCases:
     """Test edge cases and error conditions for both conversion functions."""
 
-    def test_empty_fraise_input_class(self):
+    def test_empty_fraise_input_class(self) -> None:
         """Test conversion of empty FraiseQL input class."""
 
         @fraise_input
@@ -394,7 +394,7 @@ class TestEdgeCases:
         assert result.name == "EmptyInput"
         assert len(result.fields) == 0
 
-    def test_empty_fraise_output_class(self):
+    def test_empty_fraise_output_class(self) -> None:
         """Test conversion of empty FraiseQL output class."""
 
         @fraise_type
@@ -406,7 +406,7 @@ class TestEdgeCases:
         assert result.name == "EmptyOutput"
         assert len(result.fields) == 0
 
-    def test_deeply_nested_lists(self):
+    def test_deeply_nested_lists(self) -> None:
         """Test conversion of deeply nested list types."""
         result_input = convert_type_to_graphql_input(list[list[list[str]]])
         assert isinstance(result_input, GraphQLList)
@@ -420,7 +420,7 @@ class TestEdgeCases:
         assert isinstance(result_output.of_type.of_type, GraphQLList)
         assert result_output.of_type.of_type.of_type == GraphQLString
 
-    def test_complex_nested_structure(self, clear_registry):
+    def test_complex_nested_structure(self, clear_registry) -> None:
         """Test conversion of complex nested structures."""
 
         @fraise_input
@@ -452,25 +452,25 @@ class TestEdgeCases:
 class TestCustomScalarTypes:
     """Test conversion of custom scalar types like UUID and JSONField."""
 
-    def test_uuid_type_handling(self):
+    def test_uuid_type_handling(self) -> None:
         """Test that UUID types are handled appropriately."""
         assert convert_type_to_graphql_input(UUID)
         assert convert_type_to_graphql_output(UUID)
 
-    def test_json_field_type_handling(self):
+    def test_json_field_type_handling(self) -> None:
         """Test that JSONField types are handled appropriately."""
         assert convert_type_to_graphql_input(JSONField)
         assert convert_type_to_graphql_output(JSONField)
 
-    def test_fraise_input_with_custom_scalars(self):
+    def test_fraise_input_with_custom_scalars(self) -> None:
         """Test FraiseQL input classes with custom scalar fields."""
 
         @fraise_input
         class InputWithCustomScalars:
             name: str
-            # These will likely fail until custom scalar support is added
-            # user_id: UUID
-            # metadata: JSONField
+            # Fields to add when custom scalar support is implemented:
+            # - user_id: UUID
+            # - metadata: JSONField
 
         # For now, just test the working parts
         result = convert_type_to_graphql_input(InputWithCustomScalars)
@@ -480,10 +480,10 @@ class TestCustomScalarTypes:
 
 # 1. Test for recursive structures with JSONField
 class TestRecursiveJSONField:
-    """Test recursive structures with JSONField"""
+    """Test recursive structures with JSONField."""
 
-    def test_recursive_input(self):
-        """Test recursive JSONField in input"""
+    def test_recursive_input(self) -> None:
+        """Test recursive JSONField in input."""
 
         @fraise_input
         class RecursiveInput:
@@ -496,13 +496,13 @@ class TestRecursiveJSONField:
 
 
 class TestMissingFieldsInComplexTypes:
-    """Test how missing or None fields in complex input types are handled"""
+    """Test how missing or None fields in complex input types are handled."""
 
-    def test_optional_json_field(self):
-        """Test that optional JSONField can be missing"""
+    def test_optional_json_field(self) -> None:
+        """Test that optional JSONField can be missing."""
 
         @fraise_input
-        class CreateUserInputTestGQLConversion_2:
+        class CreateUserInputTestGQLConversion_2:  # noqa: N801
             name: str
             metadata: JSONField | None = None
 
@@ -512,8 +512,8 @@ class TestMissingFieldsInComplexTypes:
         assert "metadata" in result.fields
         assert result.fields["metadata"].type.name == "JSON"
 
-    def test_optional_field_with_default(self):
-        """Test that optional fields with default values are handled correctly"""
+    def test_optional_field_with_default(self) -> None:
+        """Test that optional fields with default values are handled correctly."""
 
         @fraise_input
         class InputWithDefaults:
@@ -532,9 +532,9 @@ class TestMissingFieldsInComplexTypes:
 
 # 4. Performance test for deeply nested structures
 class TestPerformance:
-    """Test conversion of deeply nested structures for performance"""
+    """Test conversion of deeply nested structures for performance."""
 
-    def test_deeply_nested_lists(self):
+    def test_deeply_nested_lists(self) -> None:
         """Test conversion of deeply nested list types."""
         start = time.time()
 
@@ -548,7 +548,7 @@ class TestPerformance:
         end = time.time()
         assert (end - start) < 1  # Conversion should take less than 1 second
 
-    def test_deeply_nested_json(self):
+    def test_deeply_nested_json(self) -> None:
         """Test conversion of deeply nested JSONField."""
         start = time.time()
 
@@ -567,10 +567,10 @@ class TestPerformance:
 
 # 5. Test handling of circular or deeply nested recursive structures
 class TestCircularRecursiveStructures:
-    """Test for circular or recursive types"""
+    """Test for circular or recursive types."""
 
-    def test_recursive_structure_in_input(self):
-        """Test handling circular references in input types"""
+    def test_recursive_structure_in_input(self) -> None:
+        """Test handling circular references in input types."""
 
         @fraise_input
         class RecursiveInput:
@@ -584,8 +584,8 @@ class TestCircularRecursiveStructures:
         assert isinstance(result, GraphQLInputObjectType)
         assert "field" in result.fields
 
-    def test_recursive_structure_in_output(self):
-        """Test handling circular references in output types"""
+    def test_recursive_structure_in_output(self) -> None:
+        """Test handling circular references in output types."""
 
         @fraise_type
         class RecursiveOutput:
@@ -602,10 +602,10 @@ class TestCircularRecursiveStructures:
 
 # 6. Edge case for handling invalid JSONField data
 class TestInvalidJSONFieldData:
-    """Test invalid JSONField data cases"""
+    """Test invalid JSONField data cases."""
 
-    def test_invalid_json_data(self):
-        """Test that JSONField type conversion works correctly"""
+    def test_invalid_json_data(self) -> None:
+        """Test that JSONField type conversion works correctly."""
 
         @fraise_input
         class ValidJSONInput:
@@ -619,8 +619,8 @@ class TestInvalidJSONFieldData:
         # The actual JSON validation happens at runtime when parsing values,
         # not during type conversion
 
-    def test_invalid_json_literal(self):
-        """Test invalid JSON literal (e.g., non-JSON string)"""
+    def test_invalid_json_literal(self) -> None:
+        """Test invalid JSON literal (e.g., non-JSON string)."""
         invalid_json = '{"key": "value",}'  # Invalid JSON syntax (extra comma)
 
         with pytest.raises(
@@ -628,15 +628,15 @@ class TestInvalidJSONFieldData:
             match="JSON cannot represent.*literal of type str",
         ):
             # Ensure that parsing invalid JSON literals raises an error
-            parse_json_literal(invalid_json)  # type: ignore
+            parse_json_literal(invalid_json)  # type: ignore[arg-type]
 
 
 # 7. Test for handling of `JSONField` and `List` of `JSONField`
 class TestJSONFieldWithList:
-    """Test handling of JSONField with nested lists"""
+    """Test handling of JSONField with nested lists."""
 
-    def test_json_field_with_list(self):
-        """Test JSONField inside a list"""
+    def test_json_field_with_list(self) -> None:
+        """Test JSONField inside a list."""
 
         @fraise_input
         class InputWithListOfJSON:
@@ -647,8 +647,8 @@ class TestJSONFieldWithList:
         assert "items" in result.fields
         assert isinstance(result.fields["items"].type, GraphQLList)
 
-    def test_list_of_json_field_in_output(self):
-        """Test list of JSONField in output"""
+    def test_list_of_json_field_in_output(self) -> None:
+        """Test list of JSONField in output."""
 
         @fraise_type
         class OutputWithListOfJSON:

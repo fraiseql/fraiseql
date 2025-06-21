@@ -5,10 +5,10 @@ class TestFunctionNameValidation:
     """Test the function name validation logic that prevents SQL injection."""
 
     def validate_function_name(self, function_name: str) -> bool:
-        """Replicate the validation logic from db.py"""
+        """Replicate the validation logic from db.py."""
         return function_name.replace("_", "").replace(".", "").isalnum()
 
-    def test_valid_function_names(self):
+    def test_valid_function_names(self) -> None:
         """Test that valid function names pass validation."""
         valid_names = [
             "create_user",
@@ -28,7 +28,7 @@ class TestFunctionNameValidation:
         for name in valid_names:
             assert self.validate_function_name(name), f"'{name}' should be valid"
 
-    def test_malicious_function_names_rejected(self):
+    def test_malicious_function_names_rejected(self) -> None:
         """Test that malicious function names are rejected."""
         malicious_names = [
             "'; DROP TABLE users; --",
@@ -48,7 +48,7 @@ class TestFunctionNameValidation:
         for name in malicious_names:
             assert not self.validate_function_name(name), f"'{name}' should be rejected"
 
-    def test_edge_case_function_names(self):
+    def test_edge_case_function_names(self) -> None:
         """Test edge cases for function name validation."""
         edge_cases = [
             ("", False),  # Empty string
@@ -85,7 +85,7 @@ class TestFunctionNameValidation:
             else:
                 assert not result, f"'{function_name}' should be invalid but was accepted"
 
-    def test_validation_prevents_common_sql_injection_patterns(self):
+    def test_validation_prevents_common_sql_injection_patterns(self) -> None:
         """Test that validation prevents common SQL injection attack patterns."""
         injection_patterns = [
             # Comment-based injections
@@ -126,10 +126,10 @@ class TestFunctionNameValidation:
 
         for pattern in injection_patterns:
             assert not self.validate_function_name(
-                pattern
+                pattern,
             ), f"Injection pattern '{pattern}' should be blocked"
 
-    def test_unicode_and_encoding_attacks(self):
+    def test_unicode_and_encoding_attacks(self) -> None:
         """Test that validation handles Unicode and encoding-based attacks."""
         unicode_attacks = [
             "func\u0027DROP TABLE",  # Unicode single quote
@@ -144,14 +144,14 @@ class TestFunctionNameValidation:
 
         for attack in unicode_attacks:
             assert not self.validate_function_name(
-                attack
+                attack,
             ), f"Unicode attack '{attack}' should be blocked"
 
 
 class TestSecurityBestPractices:
     """Test additional security best practices."""
 
-    def test_whitelist_approach_demonstration(self):
+    def test_whitelist_approach_demonstration(self) -> None:
         """Demonstrate a whitelist approach for maximum security."""
         # This would be the most secure approach
         allowed_functions = {
@@ -184,7 +184,7 @@ class TestSecurityBestPractices:
         # Note: This approach requires maintaining a function registry
         # but provides the highest security level
 
-    def test_function_signature_validation(self):
+    def test_function_signature_validation(self) -> None:
         """Test validation of function signatures to ensure they match expected patterns."""
         import re
 

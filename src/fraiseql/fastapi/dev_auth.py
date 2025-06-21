@@ -23,7 +23,7 @@ class DevAuthMiddleware(BaseHTTPMiddleware):
     only be used in non-production environments.
     """
 
-    def __init__(self, app, username: str, password: str):
+    def __init__(self, app, username: str, password: str) -> None:
         """Initialize the development auth middleware.
 
         Args:

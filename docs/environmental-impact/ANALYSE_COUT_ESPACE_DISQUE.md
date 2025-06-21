@@ -70,7 +70,7 @@
 ALTER TABLE grande_table SET (toast_compression = 'lz4');
 
 -- Vues matérialisées incrémentales (PG15+)
-CREATE MATERIALIZED VIEW vue_stats 
+CREATE MATERIALIZED VIEW vue_stats
 WITH (timescaledb.continuous) AS ...
 
 -- Partitionnement pour archivage

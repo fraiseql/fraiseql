@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Framework Comparison Benchmarks
+
 Comparing FraiseQL against Hasura, PostGraphile, and traditional ORMs
 
 This provides honest, reproducible comparisons that Dr. Viktor Steinberg
@@ -14,8 +15,9 @@ import statistics
 import subprocess
 import time
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Dict, List
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 import docker
 import httpx
@@ -180,7 +182,7 @@ class FrameworkBenchmarkRunner:
         try:
             if config.docker_image:
                 # Use Docker for Hasura/PostGraphile
-                container = self.docker_client.containers.run(
+                self.docker_client.containers.run(
                     config.docker_image,
                     name=f"bench_{framework_key}",
                     ports={
@@ -202,7 +204,7 @@ class FrameworkBenchmarkRunner:
 
                 # Health check
                 async with httpx.AsyncClient() as client:
-                    for i in range(30):
+                    for _i in range(30):
                         try:
                             response = await client.get(
                                 config.endpoint.replace("/graphql", "/health")
@@ -210,7 +212,7 @@ class FrameworkBenchmarkRunner:
                             if response.status_code == 200:
                                 print(f"   ✅ {config.name} is ready!")
                                 return True
-                        except:
+                        except Exception:
                             pass
                         await asyncio.sleep(1)
             else:
@@ -261,7 +263,7 @@ class FrameworkBenchmarkRunner:
         query_key: str,
         concurrent_users: int = 100,
         total_requests: int = 1000,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Benchmark a specific framework with a query."""
         config = self.frameworks[framework_key]
         query_info = self.test_queries[query_key]
@@ -290,7 +292,7 @@ class FrameworkBenchmarkRunner:
                         return -1
 
                     latency = (time.time() - start) * 1000
-                    return latency
+                    return latency  # noqa: TRY300
 
                 except Exception:
                     return -1
@@ -337,7 +339,7 @@ class FrameworkBenchmarkRunner:
         else:
             return {"framework": config.name, "query": query_key, "error": "All requests failed"}
 
-    def _percentile(self, data: List[float], percentile: float) -> float:
+    def _percentile(self, data: list[float], percentile: float) -> float:
         """Calculate percentile."""
         if not data:
             return 0
@@ -391,7 +393,7 @@ class FrameworkBenchmarkRunner:
         # Generate comparison report
         self.generate_comparison_report(all_results)
 
-    def generate_comparison_report(self, results: List[Dict[str, Any]]):
+    def generate_comparison_report(self, results: list[dict[str, Any]]):
         """Generate detailed comparison report."""
         print("\n\n" + "=" * 80)
         print("FRAMEWORK COMPARISON RESULTS")
@@ -486,8 +488,13 @@ class FrameworkBenchmarkRunner:
                         print(f"    - Memory: {memory_ratio:.2f}x more efficient")
 
         # Save detailed results
-        with open("framework_comparison_results.json", "w") as f:
-            json.dump({"timestamp": datetime.now().isoformat(), "results": results}, f, indent=2)
+        output_path = Path("framework_comparison_results.json")
+        with output_path.open("w") as f:
+            json.dump(
+                {"timestamp": datetime.now(tz=timezone.utc).isoformat(), "results": results},
+                f,
+                indent=2,
+            )
 
         print("\n\n📄 Detailed results saved to framework_comparison_results.json")
 
