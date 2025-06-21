@@ -63,7 +63,7 @@ def test_middleware_creation():
         else:
             pass
 
-        return True
+        return True  # noqa: TRY300
 
     except Exception:
         import traceback
@@ -100,7 +100,7 @@ def test_individual_components():
         header_value = csp.to_header_value()
         assert "default-src 'self'" in header_value
 
-        return True
+        return True  # noqa: TRY300
 
     except Exception:
         return False
@@ -150,7 +150,7 @@ def test_configuration_helpers():
         assert prod_headers.hsts
         assert not dev_headers.hsts
 
-        return True
+        return True  # noqa: TRY300
 
     except Exception:
         return False

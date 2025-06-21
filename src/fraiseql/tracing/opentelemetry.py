@@ -360,7 +360,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 if response.status_code >= 400:
                     span.set_status(Status(StatusCode.ERROR, f"HTTP {response.status_code}"))
 
-                return response
+                return response  # noqa: TRY300
 
             except Exception as e:
                 # Record exception

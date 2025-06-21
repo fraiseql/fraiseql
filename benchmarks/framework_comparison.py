@@ -291,7 +291,7 @@ class FrameworkBenchmarkRunner:
                         return -1
 
                     latency = (time.time() - start) * 1000
-                    return latency
+                    return latency  # noqa: TRY300
 
                 except Exception:
                     return -1

@@ -41,7 +41,7 @@ async def test_testcontainers():
                     result = await cur.fetchone()
                     assert result[0] == {"test": True}
 
-        return True
+        return True  # noqa: TRY300
 
     except Exception:
         return False
@@ -82,7 +82,7 @@ async def test_connection_pool():
         finally:
             postgres.stop()
 
-        return True
+        return True  # noqa: TRY300
 
     except Exception:
         return False
@@ -154,7 +154,7 @@ async def test_fraiseql_repository():
         finally:
             postgres.stop()
 
-        return True
+        return True  # noqa: TRY300
 
     except Exception:
         import traceback

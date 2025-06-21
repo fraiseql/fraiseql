@@ -186,7 +186,7 @@ def dataloader_field(
                     return return_type.from_dict(result_data)
 
                 # Fallback: return raw data (safer than arbitrary construction)
-                return result_data
+                return result_data  # noqa: TRY300
 
             except Exception:
                 # CRITICAL: Never expose internal errors to prevent information leakage

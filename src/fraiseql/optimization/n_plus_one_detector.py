@@ -284,7 +284,7 @@ def track_resolver_execution(func):
             field_name = info.field_name
             await detector.track_field_resolution(info, field_name, execution_time)
 
-            return result
+            return result  # noqa: TRY300
         except Exception:
             # Still track failed resolutions
             execution_time = time.time() - start_time
@@ -312,7 +312,7 @@ def track_resolver_execution(func):
                     detector.track_field_resolution(info, field_name, execution_time),
                 )
 
-                return result
+                return result  # noqa: TRY300
             except Exception:
                 execution_time = time.time() - start_time
                 field_name = info.field_name

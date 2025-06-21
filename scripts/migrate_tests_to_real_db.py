@@ -58,7 +58,7 @@ def analyze_test_file(filepath: Path) -> tuple[list, list, list]:
         tree = ast.parse(content)
         detector = MockDetector()
         detector.visit(tree)
-        return detector.mock_imports, detector.mock_usages, detector.async_functions
+        return detector.mock_imports, detector.mock_usages, detector.async_functions  # noqa: TRY300
     except SyntaxError:
         return [], [], []
 

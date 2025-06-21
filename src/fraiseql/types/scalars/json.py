@@ -34,7 +34,7 @@ def serialize_json(
     try:
         # Use json.dumps to validate serializability
         json.dumps(value)
-        return value
+        return value  # noqa: TRY300
     except (TypeError, ValueError) as e:
         msg = f"Value is not JSON-serializable: {type(value).__name__} - {e}"
         raise GraphQLError(msg) from e

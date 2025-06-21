@@ -354,7 +354,7 @@ class PerformanceBenchmark:
                     if "errors" in data:
                         return -1
 
-                    return latency
+                    return latency  # noqa: TRY300
 
                 except Exception as e:
                     print(f"Request error: {e}")

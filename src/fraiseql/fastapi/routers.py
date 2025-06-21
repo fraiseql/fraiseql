@@ -128,7 +128,7 @@ def create_development_router(
                     for error in result.errors
                 ]
 
-            return response
+            return response  # noqa: TRY300
 
         except N1QueryDetectedError as e:
             # N+1 query pattern detected

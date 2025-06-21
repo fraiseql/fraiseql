@@ -34,7 +34,7 @@ try:
                 "postgresql://benchmark:benchmark@localhost:5432/benchmark_db"
             )
             await conn.close()
-            return True
+            return True  # noqa: TRY300
         except Exception:
             return False
 

@@ -94,7 +94,7 @@ def test_middleware_integration():
         with contextlib.suppress(Exception):
             response = client.post("/test")
 
-        return True
+        return True  # noqa: TRY300
 
     except Exception:
         import traceback
@@ -141,7 +141,7 @@ def test_security_example():
                 os.environ.clear()
                 os.environ.update(old_env)
 
-        return True
+        return True  # noqa: TRY300
 
     except Exception:
         return False

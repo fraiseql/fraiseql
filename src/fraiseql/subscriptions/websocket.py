@@ -166,7 +166,7 @@ class WebSocketConnection:
                     code=4400,
                     reason="Connection initialisation must be first message",
                 )
-                return
+                return  # noqa: TRY300
 
             except TimeoutError:
                 await self._close(code=4408, reason="Connection initialisation timeout")

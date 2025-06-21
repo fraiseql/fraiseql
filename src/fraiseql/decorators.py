@@ -113,7 +113,7 @@ def field(
                             result = await func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
                         await detector.track_field_resolution(info, info.field_name, execution_time)
-                        return result
+                        return result  # noqa: TRY300
                     except Exception:
                         execution_time = time.time() - start_time
                         await detector.track_field_resolution(info, info.field_name, execution_time)
@@ -146,7 +146,7 @@ def field(
                         _ = asyncio.create_task(  # noqa: RUF006
                             detector.track_field_resolution(info, info.field_name, execution_time),
                         )
-                        return result
+                        return result  # noqa: TRY300
                     except Exception:
                         execution_time = time.time() - start_time
                         _ = asyncio.create_task(  # noqa: RUF006

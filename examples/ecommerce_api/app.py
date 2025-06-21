@@ -129,7 +129,7 @@ async def health_check():
         async with app.state.db_pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
 
-        return {"status": "healthy", "database": "connected"}
+        return {"status": "healthy", "database": "connected"}  # noqa: TRY300
     except Exception as e:
         return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
 
