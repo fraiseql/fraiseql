@@ -7,7 +7,8 @@ import pytest
 
 from fraiseql import subscription
 from fraiseql.gql.schema_builder import SchemaRegistry
-from fraiseql.subscriptions import cache, complexity, filter
+from fraiseql.subscriptions import cache, complexity
+from fraiseql.subscriptions import filter as sub_filter
 
 
 class TestSubscriptionDecorator:
@@ -96,7 +97,7 @@ class TestSubscriptionFiltering:
         """Test filter allowing access."""
 
         @subscription
-        @filter("True")  # Always allow
+        @sub_filter("True")  # Always allow
         async def filtered_sub(info) -> AsyncGenerator[str]:
             yield "allowed"
 
@@ -112,7 +113,7 @@ class TestSubscriptionFiltering:
         """Test filter denying access."""
 
         @subscription
-        @filter("False")  # Always deny
+        @sub_filter("False")  # Always deny
         async def denied_sub(info) -> AsyncGenerator[str]:
             yield "denied"
 

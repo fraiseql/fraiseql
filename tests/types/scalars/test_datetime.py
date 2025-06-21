@@ -23,7 +23,7 @@ def test_serialize_datetime() -> None:
 def test_serialize_non_datetime() -> None:
     # Test serializing non-datetime value
     with pytest.raises(GraphQLError):
-        serialize_datetime("not a datetime")  # type: ignore
+        serialize_datetime("not a datetime")  # type: ignore[arg-type]
 
 
 def test_parse_datetime_value() -> None:

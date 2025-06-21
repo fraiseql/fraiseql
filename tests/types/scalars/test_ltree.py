@@ -86,4 +86,4 @@ def test_parse_ltree_literal_invalid_value() -> None:
 
     ast = FakeNode()
     with pytest.raises(GraphQLError):
-        parse_ltree_literal(ast, None)  # type: ignore
+        parse_ltree_literal(ast, None)  # type: ignore[arg-type]

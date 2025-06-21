@@ -310,9 +310,9 @@ class TestTracingMiddleware:
 
         async def mock_call_next_error(req) -> Never:
             msg = "Test error"
-            raise Exception(msg)
+            raise RuntimeError(msg)
 
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             await self.middleware.process_request(request, mock_call_next_error)
 
         self.provider.force_flush()

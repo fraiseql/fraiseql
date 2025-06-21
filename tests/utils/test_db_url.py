@@ -85,10 +85,11 @@ class TestUrlToPsycopg2:
         """Test URL with query parameters."""
         url = "postgresql://myuser@localhost:5432/mydb?sslmode=require&connect_timeout=10"
         result = url_to_psycopg2(url)
-        assert (
-            result
-            == "dbname='mydb' user='myuser' host='localhost' port='5432' sslmode='require' connect_timeout='10'"
+        expected = (
+            "dbname='mydb' user='myuser' host='localhost' "
+            "port='5432' sslmode='require' connect_timeout='10'"
         )
+        assert result == expected
 
     def test_postgres_scheme(self) -> None:
         """Test with postgres:// scheme."""

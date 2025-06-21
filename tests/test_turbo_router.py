@@ -280,7 +280,9 @@ class TestTurboRouter:
         assert turbo_registry.get("query Q2 { field2 }") is not None
 
     @pytest.mark.asyncio
-    async def test_turbo_router_error_handling(self, turbo_registry, sample_query, sample_sql) -> None:
+    async def test_turbo_router_error_handling(
+        self, turbo_registry, sample_query, sample_sql,
+    ) -> None:
         """Test error handling in turbo router execution."""
         # Register a query
         turbo_query = TurboQuery(
