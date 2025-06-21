@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 TurboRouter Performance Benchmark
+
 Measuring the ACTUAL performance improvement from pre-compiled queries
 
 Dr. Viktor Steinberg wants to see if this "TurboRouter" is just

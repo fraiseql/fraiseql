@@ -1,4 +1,5 @@
 """Real-time Chat API Mutations
+
 Demonstrates FraiseQL's mutation system with real-time features
 """
 

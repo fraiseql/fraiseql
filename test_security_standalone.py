@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Standalone test runner for FraiseQL security modules.
+
 This avoids the complex project dependencies and conftest issues.
 """
 

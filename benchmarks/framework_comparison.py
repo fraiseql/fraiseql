@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Framework Comparison Benchmarks
+
 Comparing FraiseQL against Hasura, PostGraphile, and traditional ORMs
 
 This provides honest, reproducible comparisons that Dr. Viktor Steinberg

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 FraiseQL vs Strawberry Performance Benchmark Runner
+
 Uses Unix socket connections for accurate framework performance measurement
 """
 

@@ -1,4 +1,5 @@
 """Minimal pgGit Demo - The simplest possible example
+
 This shows the absolute minimum code needed to get FraiseQL working
 """
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive FraiseQL Performance Benchmarks
+
 By Dr. Raj Patel, Performance Benchmark Specialist
 
 This benchmark suite measures REAL performance metrics that would satisfy

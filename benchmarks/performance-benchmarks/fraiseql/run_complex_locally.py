@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Run the complex domain benchmark locally without Docker.
+
 This script starts the FraiseQL complex app and runs benchmarks against it.
 """
 

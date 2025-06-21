@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Final benchmark comparing:
+
 1. Ultra-optimized FraiseQL (original)
 2. Ultra-optimized FraiseQL with read replicas + Nginx
 3. Strawberry GraphQL (baseline)

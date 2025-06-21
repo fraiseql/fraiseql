@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive benchmark of ultra-optimized Strawberry GraphQL.
+
 This tests Strawberry under its absolute best conditions.
 """
 

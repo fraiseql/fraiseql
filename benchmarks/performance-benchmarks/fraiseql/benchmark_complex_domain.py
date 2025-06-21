@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive benchmark comparing FraiseQL and Strawberry on:
+
 1. Simple queries (baseline)
 2. Complex nested queries (where FraiseQL should excel)
 3. Mutations (create, update operations)

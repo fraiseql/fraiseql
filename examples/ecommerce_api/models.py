@@ -1,4 +1,5 @@
 """E-commerce API Models
+
 Demonstrates FraiseQL's type system with complex e-commerce entities
 """
 

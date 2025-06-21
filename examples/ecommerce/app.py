@@ -324,7 +324,7 @@ if __name__ == "__main__":
     # Run the application
     uvicorn.run(
         "app:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104
         port=8000,
         reload=not is_production,
         log_level="info" if is_production else "debug",

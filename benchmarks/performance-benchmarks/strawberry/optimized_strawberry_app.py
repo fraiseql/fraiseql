@@ -855,4 +855,4 @@ async def stats():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8001, workers=1, loop="asyncio", access_log=False)
+    uvicorn.run(app, host="0.0.0.0", port=8001, workers=1, loop="asyncio", access_log=False)  # noqa: S104

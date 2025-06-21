@@ -1,4 +1,5 @@
 """E-commerce API Mutations
+
 Demonstrates FraiseQL's mutation system with complex business logic
 """
 
