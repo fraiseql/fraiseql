@@ -10,8 +10,8 @@ from typing import ClassVar
 class SchemaConfig:
     """Configuration for GraphQL schema generation."""
 
-    camel_case_fields: bool = False
-    """Whether to convert snake_case field names to camelCase in GraphQL schema."""
+    camel_case_fields: bool = True
+    """Whether to convert snake_case field names to camelCase in GraphQL schema (default: True)."""
 
     _instance: ClassVar[SchemaConfig | None] = None
 

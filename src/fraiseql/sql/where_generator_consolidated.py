@@ -77,7 +77,7 @@ class WhereClauseMixin:
 
             if self._config.validation_mode == ValidationMode.STRICT:
                 # Check for SQL injection patterns
-                validation_result = InputValidator.validate_field(field_name, value)
+                validation_result = InputValidator.validate_field_value(field_name, value)
                 if not validation_result.is_valid:
                     raise SQLGenerationError(
                         operation="WHERE clause generation",

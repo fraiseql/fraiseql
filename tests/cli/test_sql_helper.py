@@ -345,35 +345,40 @@ class TestFieldMapping:
     """Test field mapping utilities."""
 
     def test_auto_detect_mapping(self) -> None:
-        """Test automatic field mapping detection."""
+        """Test automatic field mapping detection with exact matches only."""
         mapper = FieldMapping()
 
-        # Mock database columns
+        # Mock database columns - only is_active matches exactly
         db_columns = ["user_id", "user_email", "user_name", "created_date", "is_active"]
 
         # Auto-detect mapping for User type
         mapping = mapper.auto_detect(User, db_columns)
 
-        assert mapping["id"] == "user_id"
-        assert mapping["email"] == "user_email"
-        assert mapping["name"] == "user_name"
-        assert mapping["created_at"] == "created_date"
-        assert mapping["is_active"] == "is_active"
+        # Only exact matches should be found
+        assert mapping == {"is_active": "is_active"}
+        
+        # Test with exact matches
+        db_columns_exact = ["id", "email", "name", "created_at", "is_active"]
+        mapping_exact = mapper.auto_detect(User, db_columns_exact)
+        
+        assert mapping_exact["id"] == "id"
+        assert mapping_exact["email"] == "email"
+        assert mapping_exact["name"] == "name"
+        assert mapping_exact["created_at"] == "created_at"
+        assert mapping_exact["is_active"] == "is_active"
 
     def test_mapping_suggestions(self) -> None:
-        """Test field mapping suggestions."""
+        """Test field mapping suggestions returns all columns sorted."""
         mapper = FieldMapping()
 
-        # Get suggestions for ambiguous mappings
+        # Get suggestions - should return all columns sorted alphabetically
         suggestions = mapper.suggest_mapping(
             field_name="email",
             available_columns=["email_address", "user_email", "contact_email", "mail"],
         )
 
-        # Should rank by similarity
-        assert suggestions[0] == "user_email"  # Contains 'email'
-        assert suggestions[1] == "email_address"  # Contains 'email'
-        assert "mail" in suggestions  # Partial match
+        # Should return all columns in alphabetical order
+        assert suggestions == ["contact_email", "email_address", "mail", "user_email"]
 
     def test_type_compatibility_check(self) -> None:
         """Test checking type compatibility."""

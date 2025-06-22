@@ -228,83 +228,36 @@ class FieldMapping:
     """Utilities for mapping fields between GraphQL and database."""
 
     def auto_detect(self, cls: type, db_columns: list[str]) -> dict[str, str]:
-        """Auto-detect field mapping based on column names.
+        """Auto-detect field mapping based on exact column name matches.
 
         Args:
             cls: The dataclass type
             db_columns: List of database column names
 
         Returns:
-            Mapping of class field names to database columns
+            Mapping of class field names to database columns (only exact matches)
         """
         type_hints = get_type_hints(cls)
         mapping = {}
 
         for field_name in type_hints:
-            # Try exact match
+            # Only exact match
             if field_name in db_columns:
                 mapping[field_name] = field_name
-                continue
-
-            # Try snake_case match
-            snake_name = to_snake_case(field_name)
-            if snake_name in db_columns:
-                mapping[field_name] = snake_name
-                continue
-
-            # Try with table prefix
-            for col in db_columns:
-                if col.endswith((f"_{field_name}", f"_{snake_name}")):
-                    mapping[field_name] = col
-                    break
-
-            # Try partial match
-            if field_name not in mapping:
-                for col in db_columns:
-                    if field_name in col or col in field_name:
-                        mapping[field_name] = col
-                        break
 
         return mapping
 
     def suggest_mapping(self, field_name: str, available_columns: list[str]) -> list[str]:
-        """Suggest possible column mappings for a field.
+        """Return all available columns for manual mapping selection.
 
         Args:
             field_name: The field name to map
             available_columns: List of available database columns
 
         Returns:
-            Sorted list of column suggestions
+            List of all available columns (sorted alphabetically)
         """
-        scores = {}
-
-        for col in available_columns:
-            score = 0
-
-            # Exact match
-            if col == field_name:
-                score = 100
-            # Case-insensitive match
-            elif col.lower() == field_name.lower():
-                score = 90
-            # Contains field name
-            elif field_name in col:
-                score = 80
-            # Field name contains column
-            elif col in field_name:
-                score = 70
-            # Partial match
-            else:
-                # Calculate similarity
-                common = set(field_name.lower()) & set(col.lower())
-                score = len(common) * 10
-
-            if score > 0:
-                scores[col] = score
-
-        # Sort by score
-        return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+        return sorted(available_columns)
 
     def is_compatible(self, db_type: str, python_type: type) -> bool:
         """Check if database type is compatible with Python type.

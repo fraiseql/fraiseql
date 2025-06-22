@@ -513,7 +513,7 @@ def build_fraiseql_schema(
     query_types: list[type | Callable[..., Any]] | None = None,
     mutation_resolvers: list[type | Callable[..., Any]] | None = None,
     subscription_resolvers: list[Callable[..., Any]] | None = None,
-    camel_case_fields: bool = False,
+    camel_case_fields: bool = True,
 ) -> GraphQLSchema:
     """Compose a full GraphQL schema from query types, mutation resolvers, and subscriptions.
 
