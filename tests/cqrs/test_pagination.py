@@ -139,17 +139,9 @@ async def setup_pagination_tables(db_connection):
         """,
         )
 
-        # Clear any existing data
-        await cursor.execute("TRUNCATE items")
-        await db_connection.commit()
-
     yield db_connection
-
-    # Cleanup
-    async with db_connection.cursor() as cursor:
-        await cursor.execute("DROP VIEW IF EXISTS v_items")
-        await cursor.execute("DROP TABLE IF EXISTS items")
-        await db_connection.commit()
+    
+    # No cleanup needed - transaction will be rolled back automatically
 
 
 @pytest.mark.database
@@ -177,7 +169,7 @@ class TestCursorPaginator:
                     (uuid_str, psycopg.types.json.Json(item)),
                 )
 
-            await conn.commit()
+            # No commit needed - within test transaction
 
     @pytest.mark.asyncio
     async def test_paginate_forward_basic(self, setup_pagination_tables) -> None:
@@ -261,7 +253,7 @@ class TestCursorPaginator:
                     ),
                 ),
             )
-            await db_connection.commit()
+            # No commit needed - within test transaction
 
         paginator = CursorPaginator(db_connection)
         params = PaginationParams(first=10, order_by="createdAt")
@@ -313,7 +305,7 @@ class TestRepositoryIntegration:
                     "INSERT INTO items (id, data) VALUES (%s::uuid, %s::jsonb)",
                     (uuid_str, psycopg.types.json.Json(item)),
                 )
-            await db_connection.commit()
+            # No commit needed - within test transaction
 
         # Test pagination through repository
         repo = CQRSRepository(db_connection)
