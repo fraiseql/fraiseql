@@ -24,6 +24,7 @@ class FraiseQLConfig(BaseSettings):
     # GraphQL settings
     enable_introspection: bool = True
     enable_playground: bool = True
+    playground_tool: Literal["graphiql", "apollo-sandbox"] = "graphiql"  # Which GraphQL IDE to use
     max_query_depth: int | None = None
     query_timeout: int = 30  # seconds
     auto_camel_case: bool = True  # Auto-convert snake_case to camelCase in GraphQL

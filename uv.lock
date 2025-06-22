@@ -442,7 +442,7 @@ wheels = [
 
 [[package]]
 name = "fraiseql"
-version = "0.1.0a9"
+version = "0.1.0a10"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -475,6 +475,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-watch" },
     { name = "pytest-xdist" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "testcontainers" },
     { name = "tox" },
@@ -521,6 +522,7 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "python-dateutil", specifier = ">=2.8.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.4" },
     { name = "testcontainers", extras = ["postgres"], marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "tox", marker = "extra == 'dev'", specifier = ">=4.0.0" },

@@ -13,7 +13,7 @@ from mutations import (
     update_post,
 )
 
-from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.fastapi import create_fraiseql_app, FraiseQLConfig
 
 # Create the FraiseQL app
 app = create_fraiseql_app(
@@ -39,6 +39,10 @@ app = create_fraiseql_app(
     description="A simple blog API built with FraiseQL",
     # Production mode from environment
     production=os.getenv("ENV") == "production",
+    # Optional: Configure GraphQL IDE
+    # config=FraiseQLConfig(
+    #     playground_tool="apollo-sandbox"  # or "graphiql" (default)
+    # )
 )
 
 

@@ -1,17 +1,30 @@
-# GraphQL Playground
+# GraphQL Development Tools
 
-FraiseQL includes an interactive GraphQL Playground that provides a powerful interface for exploring and testing your API during development.
+FraiseQL includes interactive GraphQL development tools that provide a powerful interface for exploring and testing your API during development. You can choose between GraphiQL 2.0 (default) or Apollo Sandbox.
 
-## What is GraphQL Playground?
+## Available Tools
 
-GraphQL Playground is an in-browser IDE for exploring GraphQL APIs. It provides:
+### GraphiQL 2.0 (Default)
+
+GraphiQL is the reference implementation of a GraphQL IDE, offering:
 
 - **Interactive query editor** with syntax highlighting and auto-completion
 - **Schema explorer** to browse all available types, queries, and mutations
 - **Query history** to revisit previous queries
-- **Multiple tabs** for organizing different queries
 - **Real-time error highlighting** and helpful error messages
 - **Documentation browser** with descriptions from your schema
+- **Keyboard shortcuts** for productivity
+
+### Apollo Sandbox
+
+Apollo Sandbox is Apollo's cloud-powered GraphQL IDE that provides:
+
+- **Modern interface** with enhanced UI/UX
+- **Schema visualization** with interactive graphs
+- **Advanced query building** with field search
+- **Response mocking** for testing edge cases
+- **Operation collections** for organizing queries
+- **Cloud sync** for accessing queries across devices
 
 ## Accessing the Playground
 
@@ -78,21 +91,34 @@ Add custom headers for authentication or other purposes:
 
 ## Configuration
 
-### Enabling/Disabling Playground
+### Choosing Your Development Tool
 
-GraphQL Playground is enabled by default in development mode. You can control it through:
+You can select which GraphQL IDE to use through the `playground_tool` configuration:
 
 #### Via Configuration Object
 
 ```python
 from fraiseql.fastapi import create_fraiseql_app, FraiseQLConfig
 
+# Use GraphiQL (default)
 app = create_fraiseql_app(
     database_url="postgresql://localhost/mydb",
     types=[User, Post],
     config=FraiseQLConfig(
-        enable_playground=True,  # Enable playground
-        enable_introspection=True  # Enable schema introspection
+        enable_playground=True,
+        playground_tool="graphiql",  # Options: "graphiql" or "apollo-sandbox"
+        enable_introspection=True
+    )
+)
+
+# Use Apollo Sandbox
+app = create_fraiseql_app(
+    database_url="postgresql://localhost/mydb",
+    types=[User, Post],
+    config=FraiseQLConfig(
+        enable_playground=True,
+        playground_tool="apollo-sandbox",
+        enable_introspection=True
     )
 )
 ```
@@ -100,8 +126,14 @@ app = create_fraiseql_app(
 #### Via Environment Variables
 
 ```bash
-# Enable playground
+# Enable playground with GraphiQL (default)
 export FRAISEQL_ENABLE_PLAYGROUND=true
+export FRAISEQL_PLAYGROUND_TOOL=graphiql
+export FRAISEQL_ENABLE_INTROSPECTION=true
+
+# Enable playground with Apollo Sandbox
+export FRAISEQL_ENABLE_PLAYGROUND=true
+export FRAISEQL_PLAYGROUND_TOOL=apollo-sandbox
 export FRAISEQL_ENABLE_INTROSPECTION=true
 
 # Disable playground (automatic in production)

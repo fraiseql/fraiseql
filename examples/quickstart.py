@@ -208,6 +208,8 @@ if __name__ == "__main__":
         version="0.1.0",
         # Enable GraphQL Playground (default in development)
         production=False,
+        # Optional: Choose between "graphiql" (default) or "apollo-sandbox"
+        # config=FraiseQLConfig(playground_tool="apollo-sandbox")
     )
 
     # Run the server

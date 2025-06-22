@@ -189,8 +189,11 @@ def create_development_router(
 
         @router.get("/playground", response_class=HTMLResponse)
         async def graphql_playground():
-            """Serve GraphQL Playground interface."""
-            return PLAYGROUND_HTML
+            """Serve GraphQL development tool interface."""
+            if config.playground_tool == "apollo-sandbox":
+                return APOLLO_SANDBOX_HTML
+            # Default to GraphiQL
+            return GRAPHIQL_HTML
 
     if config.enable_introspection:
         # Introspection is handled by GraphQL itself when enabled
@@ -319,31 +322,84 @@ def create_production_router(
     return router
 
 
-# GraphQL Playground HTML
-PLAYGROUND_HTML = """
+# GraphiQL 2.0 HTML
+GRAPHIQL_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>FraiseQL Playground</title>
-    <link rel="stylesheet"
-          href="https://unpkg.com/graphql-playground-react/build/static/css/index.css" />
-    <link rel="shortcut icon"
-          href="https://unpkg.com/graphql-playground-react/build/favicon.png" />
+    <title>FraiseQL GraphiQL</title>
+    <style>
+        body {
+            height: 100%;
+            margin: 0;
+            width: 100%;
+            overflow: hidden;
+        }
+        #graphiql {
+            height: 100vh;
+        }
+    </style>
     <script
-        src="https://unpkg.com/graphql-playground-react/build/static/js/middleware.js"></script>
+        crossorigin
+        src="https://unpkg.com/react@18/umd/react.production.min.js"
+    ></script>
+    <script
+        crossorigin
+        src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"
+    ></script>
+    <link rel="stylesheet" href="https://unpkg.com/graphiql/graphiql.min.css" />
 </head>
 <body>
-    <div id="root"></div>
+    <div id="graphiql">Loading...</div>
+    <script
+        src="https://unpkg.com/graphiql/graphiql.min.js"
+        type="application/javascript"
+    ></script>
     <script>
-        window.addEventListener('load', function (event) {
-            GraphQLPlayground.init(document.getElementById('root'), {
-                endpoint: '/graphql',
-                settings: {
-                    'request.credentials': 'include',
-                    'editor.theme': 'dark'
-                }
-            })
-        })
+        ReactDOM.render(
+            React.createElement(GraphiQL, {
+                fetcher: GraphiQL.createFetcher({
+                    url: '/graphql',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                }),
+                defaultEditorToolsVisibility: true,
+            }),
+            document.getElementById('graphiql'),
+        );
+    </script>
+</body>
+</html>
+"""
+
+# Apollo Sandbox HTML
+APOLLO_SANDBOX_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FraiseQL Apollo Sandbox</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #sandbox {
+            height: 100vh;
+            width: 100vw;
+        }
+    </style>
+</head>
+<body>
+    <div id="sandbox"></div>
+    <script src="https://embeddable-sandbox.cdn.apollographql.com/_latest/embeddable-sandbox.umd.production.min.js"></script>
+    <script>
+        new window.EmbeddedSandbox({
+            target: '#sandbox',
+            initialEndpoint: '/graphql',
+            includeCookies: true,
+        });
     </script>
 </body>
 </html>

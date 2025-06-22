@@ -423,7 +423,7 @@ def create_development_security_config() -> SecurityHeadersConfig:
     config.cross_origin_resource_policy = None
 
     # Include docs in excluded paths
-    config.exclude_paths = {"/docs", "/redoc", "/openapi.json", "/graphql"}
+    config.exclude_paths = {"/docs", "/redoc", "/openapi.json", "/graphql", "/playground"}
 
     return config
 
@@ -443,10 +443,25 @@ def create_graphql_security_config(
 
     # If GraphQL Playground/GraphiQL is enabled
     if enable_introspection:
-        config.csp.add_directive(CSPDirective.SCRIPT_SRC, ["'self'", "'unsafe-inline'"])
-        config.csp.add_directive(CSPDirective.STYLE_SRC, ["'self'", "'unsafe-inline'"])
+        config.csp.add_directive(CSPDirective.SCRIPT_SRC, [
+            "'self'",
+            "'unsafe-inline'",
+            "'unsafe-eval'",  # Required for GraphiQL
+            "https://unpkg.com",  # For GraphiQL CDN
+            "https://embeddable-sandbox.cdn.apollographql.com",  # For Apollo Sandbox
+        ])
+        config.csp.add_directive(CSPDirective.STYLE_SRC, [
+            "'self'",
+            "'unsafe-inline'",
+            "https://unpkg.com",  # For GraphiQL styles
+        ])
         config.csp.add_directive(CSPDirective.IMG_SRC, ["'self'", "data:"])
+        config.csp.add_directive(CSPDirective.CONNECT_SRC, [
+            "'self'",
+            "https://embeddable-sandbox.cdn.apollographql.com",  # For Apollo Sandbox API calls
+        ])
         config.exclude_paths.add("/graphql")
+        config.exclude_paths.add("/playground")
 
     # Frame protection
     config.frame_options = FrameOptions.DENY
