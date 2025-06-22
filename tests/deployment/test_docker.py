@@ -18,13 +18,17 @@ class TestDockerfile:
         dockerfile_path = Path("Dockerfile")
         assert dockerfile_path.exists(), "Dockerfile must exist in project root"
 
-    @requires_docker
+    @requires_any_container
     def test_dockerfile_syntax(self) -> None:
         """Test Dockerfile syntax is valid."""
+        runtime = check_container_runtime()
+        if runtime is None:
+            pytest.skip("No container runtime available")
+        
         # This will be validated when we build the image
         result = subprocess.run(
             [
-                "docker",
+                runtime,
                 "build",
                 "--no-cache",
                 "-f",

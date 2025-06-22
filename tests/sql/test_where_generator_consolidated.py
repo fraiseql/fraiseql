@@ -33,7 +33,7 @@ class Product:
     id: int
     name: str
     price: Decimal
-    tags: list[str] = None
+    tags: list[str] | None = None
 
 
 class TestWhereGeneratorBasic:

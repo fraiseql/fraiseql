@@ -238,14 +238,11 @@ class FieldMapping:
             Mapping of class field names to database columns (only exact matches)
         """
         type_hints = get_type_hints(cls)
-        mapping = {}
-
-        for field_name in type_hints:
-            # Only exact match
-            if field_name in db_columns:
-                mapping[field_name] = field_name
-
-        return mapping
+        return {
+            field_name: field_name
+            for field_name in type_hints
+            if field_name in db_columns
+        }
 
     def suggest_mapping(self, field_name: str, available_columns: list[str]) -> list[str]:
         """Return all available columns for manual mapping selection.
