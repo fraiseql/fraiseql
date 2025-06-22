@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from fraiseql import fraise_field, fraise_type
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry
-from tests.utils.container_utils import requires_docker
+from tests.utils.container_utils import requires_any_container
 
 # This test uses the unified container system from database_conftest.py
 # Each test runs in its own transaction that is rolled back automatically
@@ -26,7 +26,7 @@ class User:
     email: str = fraise_field(description="User's email")
 
 
-@requires_docker
+@requires_any_container
 class TestTurboRouterIntegration:
     """Test TurboRouter integration with the full FastAPI stack."""
 
