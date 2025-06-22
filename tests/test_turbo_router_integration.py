@@ -1,4 +1,8 @@
-"""Integration tests for TurboRouter with FastAPI."""
+"""Integration tests for TurboRouter with FastAPI.
+
+🚀 Uses FraiseQL's UNIFIED CONTAINER system - see database_conftest.py
+A single PostgreSQL container runs for ALL tests with socket communication.
+"""
 
 import psycopg_pool
 import pytest
@@ -10,6 +14,9 @@ from fraiseql import fraise_field, fraise_type
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry
 from tests.utils.container_utils import requires_docker
+
+# Note: This test currently uses its own container via testcontainers
+# TODO: Migrate to use the unified container system from database_conftest.py
 
 
 @fraise_type

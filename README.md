@@ -491,10 +491,10 @@ source .venv/bin/activate
 # Install in development mode
 pip install -e ".[dev]"
 
-# Run tests
+# Run tests (uses unified container for performance)
 pytest  # Automatically detects available container runtime
 
-# Or explicitly with Podman
+# Or explicitly with Podman (recommended for socket performance)
 TESTCONTAINERS_PODMAN=true pytest
 
 # Skip container-based tests if no runtime available
@@ -503,12 +503,12 @@ pytest -m "not docker"
 
 ### Container Runtime
 
-FraiseQL's test suite includes integration tests that use containers. We support both Docker and Podman:
+FraiseQL uses a **unified container approach** for testing - a single PostgreSQL container runs for the entire test session with socket-based communication, providing 5-10x faster test execution.
 
-- **Podman** (recommended): Rootless, daemonless container runtime
+- **Podman** (recommended): Rootless, daemonless, uses Unix domain sockets
 - **Docker**: Traditional container runtime
 
-Tests requiring containers are automatically skipped if neither is available. See [docs/testing/container-tests.md](docs/testing/container-tests.md) for details.
+Tests requiring containers are automatically skipped if neither is available. See [docs/testing/unified-container-testing.md](docs/testing/unified-container-testing.md) for architecture details.
 
 ### Code Quality
 

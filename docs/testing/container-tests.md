@@ -1,10 +1,22 @@
 # Container-based Testing
 
+🚀 **FraiseQL uses a UNIFIED CONTAINER APPROACH** - see [unified-container-testing.md](unified-container-testing.md) for architecture details.
+
 FraiseQL includes integration tests that require a container runtime for running PostgreSQL and other services. We support both Docker and Podman as container runtimes.
+
+## Unified Container System
+
+**Key Innovation**: FraiseQL uses a single PostgreSQL container for the entire test session with socket-based communication, providing:
+- 🚀 5-10x faster test execution
+- 🔌 Unix domain socket communication (with Podman)
+- 🔄 Connection pooling
+- 📦 Container caching across test runs
+
+See [unified-container-testing.md](unified-container-testing.md) for full details.
 
 ## Container Runtime Requirements
 
-Some tests require containers to run real PostgreSQL instances for integration testing. These tests are automatically skipped if no container runtime is available.
+The unified container system requires either Docker or Podman. Tests are automatically skipped if no runtime is available.
 
 ### Supported Runtimes
 
