@@ -22,7 +22,7 @@ def get_metric_value(registry, metric_name: str, labels: dict | None = None) -> 
     # For counter metrics, Prometheus adds a _total suffix to the sample name
     # but the metric family name might not have it
     base_metric_name = metric_name.replace("_total", "")
-    
+
     # For histogram/summary metrics, handle _sum, _count, _bucket suffixes
     is_histogram_component = any(metric_name.endswith(suffix) for suffix in ["_sum", "_count", "_bucket"])
     if is_histogram_component:
@@ -31,12 +31,12 @@ def get_metric_value(registry, metric_name: str, labels: dict | None = None) -> 
             if metric_name.endswith(suffix):
                 base_metric_name = metric_name[:-len(suffix)]
                 break
-    
+
     for metric_family in registry.collect():
         if metric_family.name == base_metric_name or metric_family.name == metric_name:
             for sample in metric_family.samples:
                 # Check if this is the sample we're looking for
-                if (sample.name == metric_name or 
+                if (sample.name == metric_name or
                     sample.name == base_metric_name + "_total" or
                     (is_histogram_component and sample.name == metric_name)):
                     if labels:
@@ -190,7 +190,7 @@ class TestFraiseQLMetrics:
         async def run_all():
             tasks = [record_queries() for _ in range(5)]
             await asyncio.gather(*tasks)
-        
+
         asyncio.run(run_all())
 
         # Should have recorded 500 queries total

@@ -24,7 +24,7 @@ class TestDockerfile:
         runtime = check_container_runtime()
         if runtime is None:
             pytest.skip("No container runtime available")
-        
+
         # This will be validated when we build the image
         result = subprocess.run(
             [

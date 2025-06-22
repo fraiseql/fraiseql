@@ -17,9 +17,9 @@ class User:
 @fraiseql.type
 class QueryRoot:
     """Simple query root for testing."""
-    
+
     test_field: str = fraiseql.fraise_field(description="Test field", purpose="output")
-    
+
     def resolve_test_field(self, info) -> str:
         return "test_value"
 
@@ -31,7 +31,7 @@ def test_graphiql_default(clear_registry):
         types=[User, QueryRoot],
         production=False,
     )
-    
+
     with TestClient(app) as client:
         response = client.get("/playground")
         assert response.status_code == 200
@@ -51,7 +51,7 @@ def test_apollo_sandbox_config(clear_registry):
             playground_tool="apollo-sandbox"
         )
     )
-    
+
     with TestClient(app) as client:
         response = client.get("/playground")
         assert response.status_code == 200
@@ -71,7 +71,7 @@ def test_graphiql_explicit_config(clear_registry):
             playground_tool="graphiql"
         )
     )
-    
+
     with TestClient(app) as client:
         response = client.get("/playground")
         assert response.status_code == 200
@@ -86,7 +86,7 @@ def test_playground_disabled_in_production(clear_registry):
         types=[User, QueryRoot],
         production=True,
     )
-    
+
     with TestClient(app) as client:
         response = client.get("/playground")
         assert response.status_code == 404
@@ -96,7 +96,7 @@ def test_playground_tool_env_var(monkeypatch):
     """Test playground tool configuration via environment variable."""
     monkeypatch.setenv("FRAISEQL_DATABASE_URL", "postgresql://localhost/test")
     monkeypatch.setenv("FRAISEQL_PLAYGROUND_TOOL", "apollo-sandbox")
-    
+
     config = FraiseQLConfig()
     assert config.playground_tool == "apollo-sandbox"
 

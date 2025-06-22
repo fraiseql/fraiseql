@@ -356,11 +356,11 @@ class TestFieldMapping:
 
         # Only exact matches should be found
         assert mapping == {"is_active": "is_active"}
-        
+
         # Test with exact matches
         db_columns_exact = ["id", "email", "name", "created_at", "is_active"]
         mapping_exact = mapper.auto_detect(User, db_columns_exact)
-        
+
         assert mapping_exact["id"] == "id"
         assert mapping_exact["email"] == "email"
         assert mapping_exact["name"] == "name"

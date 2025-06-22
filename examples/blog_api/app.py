@@ -13,7 +13,7 @@ from mutations import (
     update_post,
 )
 
-from fraiseql.fastapi import create_fraiseql_app, FraiseQLConfig
+from fraiseql.fastapi import create_fraiseql_app
 
 # Create the FraiseQL app
 app = create_fraiseql_app(

@@ -109,7 +109,7 @@ def otel_collector_container():
     """Start OpenTelemetry collector for tracing tests."""
     if not HAS_DOCKER:
         pytest.skip("Container runtime not available")
-    
+
     container = GenericContainer(
         image="otel/opentelemetry-collector:latest",
         ports={"4317": 4317},  # gRPC port
