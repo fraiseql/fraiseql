@@ -56,9 +56,11 @@ class TestRateLimitStore:
     @pytest.mark.asyncio
     async def test_set_and_get(self, rate_limit_store) -> None:
         """Test setting and getting values."""
-        await rate_limit_store.set("test_key", 1234567890.0, 5, 60)
+        import time
+        test_timestamp = time.time()
+        await rate_limit_store.set("test_key", test_timestamp, 5, 60)
         timestamp, count = await rate_limit_store.get("test_key")
-        assert timestamp == 1234567890.0
+        assert timestamp == test_timestamp
         assert count == 5
 
     @pytest.mark.asyncio
