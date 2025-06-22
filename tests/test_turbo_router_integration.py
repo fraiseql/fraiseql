@@ -4,19 +4,17 @@
 A single PostgreSQL container runs for ALL tests with socket communication.
 """
 
-import psycopg_pool
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from testcontainers.postgres import PostgresContainer
 
 from fraiseql import fraise_field, fraise_type
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry
 from tests.utils.container_utils import requires_docker
 
-# Note: This test currently uses its own container via testcontainers
-# TODO: Migrate to use the unified container system from database_conftest.py
+# This test uses the unified container system from database_conftest.py
+# Each test runs in its own transaction that is rolled back automatically
 
 
 @fraise_type
@@ -33,48 +31,32 @@ class TestTurboRouterIntegration:
     """Test TurboRouter integration with the full FastAPI stack."""
 
     @pytest_asyncio.fixture
-    async def postgres_container(self):
-        """Create a PostgreSQL container for testing."""
-        with PostgresContainer("postgres:16") as postgres:
-            yield postgres
-
-    @pytest_asyncio.fixture
-    async def db_pool(self, postgres_container):
-        """Create database pool."""
-        pool = psycopg_pool.AsyncConnectionPool(
-            postgres_container.get_connection_url(),
-            min_size=1,
-            max_size=5,
+    async def setup_test_data(self, db_connection):
+        """Create tables and insert test data within test transaction."""
+        # Create tables
+        await db_connection.execute(
+            """
+            CREATE TABLE users (
+                id SERIAL PRIMARY KEY,
+                data JSONB NOT NULL DEFAULT '{}',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMPTZ
+            )
+        """,
         )
 
-        # Create tables
-        async with pool.connection() as conn:
-            await conn.execute(
-                """
-                CREATE TABLE users (
-                    id SERIAL PRIMARY KEY,
-                    data JSONB NOT NULL DEFAULT '{}',
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                    deleted_at TIMESTAMPTZ
-                )
-            """,
-            )
+        # Insert test data
+        await db_connection.execute(
+            """
+            INSERT INTO users (data) VALUES
+            ('{"name": "Alice", "email": "alice@example.com"}'::jsonb),
+            ('{"name": "Bob", "email": "bob@example.com"}'::jsonb),
+            ('{"name": "Charlie", "email": "charlie@example.com"}'::jsonb)
+        """,
+        )
 
-            # Insert test data
-            await conn.execute(
-                """
-                INSERT INTO users (data) VALUES
-                ('{"name": "Alice", "email": "alice@example.com"}'::jsonb),
-                ('{"name": "Bob", "email": "bob@example.com"}'::jsonb),
-                ('{"name": "Charlie", "email": "charlie@example.com"}'::jsonb)
-            """,
-            )
-
-            await conn.commit()
-
-        yield pool
-        await pool.close()
+        # No commit needed - transaction will be rolled back after test
 
     @pytest.fixture
     def turbo_registry(self):
@@ -129,7 +111,7 @@ class TestTurboRouterIntegration:
         return registry
 
     @pytest_asyncio.fixture
-    async def app(self, db_pool, turbo_registry):
+    async def app(self, db_pool, turbo_registry, setup_test_data):
         """Create FastAPI app with TurboRouter enabled."""
         # Mock the database pool in the app
         from fraiseql.fastapi.dependencies import set_db_pool
