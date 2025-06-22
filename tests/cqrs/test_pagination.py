@@ -1,4 +1,8 @@
-"""Tests for PostgreSQL cursor-based pagination."""
+"""Tests for PostgreSQL cursor-based pagination.
+
+🚀 Uses FraiseQL's UNIFIED CONTAINER system - see database_conftest.py
+A single PostgreSQL container runs for ALL tests with socket communication.
+"""
 
 import base64
 
@@ -114,26 +118,10 @@ class TestPaginationParams:
 
 
 @pytest_asyncio.fixture
-async def db_connection():
-    """Create a database connection for tests using the demo database."""
-    # Use the same database config as the mutations demo
-    db_config = {
-        "host": "localhost",
-        "port": 5433,
-        "dbname": "fraiseql_demo",
-        "user": "fraiseql",
-        "password": "fraiseql",
-    }
-
-    # Check if the database is available
-    try:
-        conn = await psycopg.AsyncConnection.connect(**db_config)
-    except Exception as e:
-        pytest.skip(f"PostgreSQL database not available: {e}. Run 'podman-compose up -d' first.")
-        return
-
-    # Create test table and view
-    async with conn.cursor() as cursor:
+async def setup_pagination_tables(db_connection):
+    """Set up test tables for pagination tests using unified container system."""
+    async with db_connection.cursor() as cursor:
+        # Create test table
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS items (
@@ -143,6 +131,7 @@ async def db_connection():
         """,
         )
 
+        # Create view
         await cursor.execute(
             """
             CREATE OR REPLACE VIEW v_items AS
@@ -152,13 +141,18 @@ async def db_connection():
 
         # Clear any existing data
         await cursor.execute("TRUNCATE items")
-        await conn.commit()
+        await db_connection.commit()
 
-    yield conn
+    yield db_connection
 
-    await conn.close()
+    # Cleanup
+    async with db_connection.cursor() as cursor:
+        await cursor.execute("DROP VIEW IF EXISTS v_items")
+        await cursor.execute("DROP TABLE IF EXISTS items")
+        await db_connection.commit()
 
 
+@pytest.mark.database
 class TestCursorPaginator:
     """Test CursorPaginator functionality with real database."""
 
@@ -186,11 +180,11 @@ class TestCursorPaginator:
             await conn.commit()
 
     @pytest.mark.asyncio
-    async def test_paginate_forward_basic(self, db_connection) -> None:
+    async def test_paginate_forward_basic(self, setup_pagination_tables) -> None:
         """Test basic forward pagination."""
-        await self.setup_test_data(db_connection)
+        await self.setup_test_data(setup_pagination_tables)
 
-        paginator = CursorPaginator(db_connection)
+        paginator = CursorPaginator(setup_pagination_tables)
         params = PaginationParams(first=2, order_by="createdAt")
         result = await paginator.paginate("v_items", params)
 
@@ -216,7 +210,8 @@ class TestCursorPaginator:
         assert result["total_count"] == 5
 
     @pytest.mark.asyncio
-    async def test_paginate_with_after_cursor(self, db_connection) -> None:
+    async def test_paginate_with_after_cursor(self, setup_pagination_tables) -> None:
+        db_connection = setup_pagination_tables
         """Test pagination with after cursor."""
         await self.setup_test_data(db_connection)
 
@@ -231,7 +226,8 @@ class TestCursorPaginator:
         assert result["page_info"]["has_next_page"] is True
 
     @pytest.mark.asyncio
-    async def test_paginate_backward(self, db_connection) -> None:
+    async def test_paginate_backward(self, setup_pagination_tables) -> None:
+        db_connection = setup_pagination_tables
         """Test backward pagination."""
         await self.setup_test_data(db_connection)
 
@@ -246,7 +242,8 @@ class TestCursorPaginator:
         assert result["page_info"]["has_previous_page"] is True
 
     @pytest.mark.asyncio
-    async def test_paginate_with_filters(self, db_connection) -> None:
+    async def test_paginate_with_filters(self, setup_pagination_tables) -> None:
+        db_connection = setup_pagination_tables
         """Test pagination with filters."""
         await self.setup_test_data(db_connection)
 
@@ -277,7 +274,8 @@ class TestCursorPaginator:
         assert result["total_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_empty_results(self, db_connection) -> None:
+    async def test_empty_results(self, setup_pagination_tables) -> None:
+        db_connection = setup_pagination_tables
         """Test pagination with empty results."""
         # Don't insert any data
         paginator = CursorPaginator(db_connection)
@@ -292,11 +290,13 @@ class TestCursorPaginator:
         assert result["total_count"] == 0
 
 
+@pytest.mark.database
 class TestRepositoryIntegration:
     """Test pagination integration with CQRSRepository."""
 
     @pytest.mark.asyncio
-    async def test_repository_paginate_method(self, db_connection) -> None:
+    async def test_repository_paginate_method(self, setup_pagination_tables) -> None:
+        db_connection = setup_pagination_tables
         """Test the paginate method on CQRSRepository."""
         # Set up test data
         async with db_connection.cursor() as cursor:
