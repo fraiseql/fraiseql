@@ -23,7 +23,7 @@ def check_container_runtime() -> Literal["docker", "podman"] | None:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=5
+                timeout=5,
             )
             if result.returncode == 0:
                 return "docker"
@@ -38,7 +38,7 @@ def check_container_runtime() -> Literal["docker", "podman"] | None:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=5
+                timeout=5,
             )
             if result.returncode == 0:
                 return "podman"
