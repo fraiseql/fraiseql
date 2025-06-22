@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.utils.container_utils import requires_docker
+from tests.utils.container_utils import requires_any_container, check_container_runtime
 
 
 class TestDockerfile:
@@ -99,7 +99,7 @@ class TestDockerfile:
         assert "hadolint" in content or "# docker run --rm -i hadolint/hadolint" in content
 
 
-@requires_docker
+@requires_any_container
 class TestDockerBuild:
     """Test Docker image building."""
 
@@ -157,11 +157,12 @@ class TestDockerBuild:
 
     def test_healthcheck_endpoint(self, docker_image) -> None:
         """Test that health check endpoint works."""
+        runtime = check_container_runtime()
         # Start container
         container_name = "fraiseql-health-test"
         subprocess.run(
             [
-                "docker",
+                runtime,
                 "run",
                 "-d",
                 "--name",
@@ -182,7 +183,7 @@ class TestDockerBuild:
 
             # Check health endpoint
             result = subprocess.run(
-                ["docker", "exec", container_name, "curl", "-f", "http://localhost:8000/health"],
+                [runtime, "exec", container_name, "curl", "-f", "http://localhost:8000/health"],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -192,7 +193,7 @@ class TestDockerBuild:
 
         finally:
             # Cleanup
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, check=False)
+            subprocess.run([runtime, "rm", "-f", container_name], capture_output=True, check=False)
 
 
 class TestDockerSecurity:
