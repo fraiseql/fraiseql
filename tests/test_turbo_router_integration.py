@@ -9,6 +9,7 @@ from testcontainers.postgres import PostgresContainer
 from fraiseql import fraise_field, fraise_type
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry
+from tests.utils.container_utils import requires_docker
 
 
 @fraise_type
@@ -20,6 +21,7 @@ class User:
     email: str = fraise_field(description="User's email")
 
 
+@requires_docker
 class TestTurboRouterIntegration:
     """Test TurboRouter integration with the full FastAPI stack."""
 

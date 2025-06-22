@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from tests.utils.container_utils import requires_docker
+
 
 class TestDockerfile:
     """Test Dockerfile configurations."""
@@ -16,6 +18,7 @@ class TestDockerfile:
         dockerfile_path = Path("Dockerfile")
         assert dockerfile_path.exists(), "Dockerfile must exist in project root"
 
+    @requires_docker
     def test_dockerfile_syntax(self) -> None:
         """Test Dockerfile syntax is valid."""
         # This will be validated when we build the image
@@ -96,6 +99,7 @@ class TestDockerfile:
         assert "hadolint" in content or "# docker run --rm -i hadolint/hadolint" in content
 
 
+@requires_docker
 class TestDockerBuild:
     """Test Docker image building."""
 

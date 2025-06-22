@@ -475,7 +475,7 @@ This simplicity means:
 
 - Python 3.11+
 - PostgreSQL 13+
-- Podman or Docker (for testing)
+- Podman or Docker (optional, for integration tests)
 
 ### Setting Up
 
@@ -492,8 +492,23 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Run tests
+pytest  # Automatically detects available container runtime
+
+# Or explicitly with Podman
 TESTCONTAINERS_PODMAN=true pytest
+
+# Skip container-based tests if no runtime available
+pytest -m "not docker"
 ```
+
+### Container Runtime
+
+FraiseQL's test suite includes integration tests that use containers. We support both Docker and Podman:
+
+- **Podman** (recommended): Rootless, daemonless container runtime
+- **Docker**: Traditional container runtime
+
+Tests requiring containers are automatically skipped if neither is available. See [docs/testing/container-tests.md](docs/testing/container-tests.md) for details.
 
 ### Code Quality
 
