@@ -104,7 +104,8 @@ SELECT jsonb_build_object(
     'email', email,
     'name', name
 ) as data
-FROM {type_name.lower()}s;"""
+FROM {type_name.lower()}s;
+"""
 
         super().__init__(
             message=f"Database view '{expected_view}' for type '{type_name}' not found.",
@@ -211,7 +212,8 @@ BEGIN
         'message', 'Created successfully'
     );
 END;
-$$ LANGUAGE plpgsql;"""
+$$ LANGUAGE plpgsql;
+"""
 
         if available_functions:
             suggestion += f"\n\nAvailable mutations: {', '.join(available_functions)}"
