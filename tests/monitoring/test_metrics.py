@@ -5,6 +5,7 @@ from typing import Never
 from unittest.mock import Mock
 
 import pytest
+from prometheus_client import REGISTRY
 
 from fraiseql.monitoring.metrics import (
     FraiseQLMetrics,
@@ -13,6 +14,40 @@ from fraiseql.monitoring.metrics import (
     get_metrics,
     setup_metrics,
 )
+
+
+def get_metric_value(registry, metric_name: str, labels: dict | None = None) -> float:
+    """Get the current value of a metric from the registry."""
+    total = 0.0
+    # For counter metrics, Prometheus adds a _total suffix to the sample name
+    # but the metric family name might not have it
+    base_metric_name = metric_name.replace("_total", "")
+    
+    # For histogram/summary metrics, handle _sum, _count, _bucket suffixes
+    is_histogram_component = any(metric_name.endswith(suffix) for suffix in ["_sum", "_count", "_bucket"])
+    if is_histogram_component:
+        # Extract base name for histogram (remove the suffix)
+        for suffix in ["_sum", "_count", "_bucket"]:
+            if metric_name.endswith(suffix):
+                base_metric_name = metric_name[:-len(suffix)]
+                break
+    
+    for metric_family in registry.collect():
+        if metric_family.name == base_metric_name or metric_family.name == metric_name:
+            for sample in metric_family.samples:
+                # Check if this is the sample we're looking for
+                if (sample.name == metric_name or 
+                    sample.name == base_metric_name + "_total" or
+                    (is_histogram_component and sample.name == metric_name)):
+                    if labels:
+                        # Check if sample labels match
+                        if all(sample.labels.get(k) == v for k, v in labels.items()):
+                            return sample.value
+                    else:
+                        # Sum all samples if no labels specified
+                        if sample.value is not None:
+                            total += sample.value
+    return total
 
 
 class TestFraiseQLMetrics:
@@ -37,9 +72,9 @@ class TestFraiseQLMetrics:
         )
 
         # Check counters
-        assert metrics.query_total._value.get() > 0
-        assert metrics.query_success._value.get() > 0
-        assert metrics.query_errors._value.get() == 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_graphql_queries_total") > 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_graphql_queries_success") > 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_graphql_queries_errors") == 0
 
         # Record an error
         metrics.record_query(
@@ -49,7 +84,7 @@ class TestFraiseQLMetrics:
             success=False,
         )
 
-        assert metrics.query_errors._value.get() > 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_graphql_queries_errors") > 0
 
     def test_mutation_metrics(self) -> None:
         """Test mutation execution metrics."""
@@ -62,8 +97,8 @@ class TestFraiseQLMetrics:
             result_type="CreateUserSuccess",
         )
 
-        assert metrics.mutation_total._value.get() > 0
-        assert metrics.mutation_success._value.get() > 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_graphql_mutations_total") > 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_graphql_mutations_success") > 0
 
     def test_database_metrics(self) -> None:
         """Test database connection metrics."""
@@ -72,9 +107,9 @@ class TestFraiseQLMetrics:
         # Test connection pool metrics
         metrics.update_db_connections(active=5, idle=10, total=15)
 
-        assert metrics.db_connections_active._value.get() == 5
-        assert metrics.db_connections_idle._value.get() == 10
-        assert metrics.db_connections_total._value.get() == 15
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_db_connections_active") == 5
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_db_connections_idle") == 10
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_db_connections_total") == 15
 
         # Test query metrics
         metrics.record_db_query(
@@ -84,7 +119,7 @@ class TestFraiseQLMetrics:
             rows_affected=10,
         )
 
-        assert metrics.db_queries_total._value.get() > 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_db_queries_total") > 0
 
     def test_cache_metrics(self) -> None:
         """Test cache hit/miss metrics."""
@@ -95,8 +130,8 @@ class TestFraiseQLMetrics:
         metrics.record_cache_hit("turbo_router")
         metrics.record_cache_miss("turbo_router")
 
-        hits = metrics.cache_hits._value.get()
-        misses = metrics.cache_misses._value.get()
+        hits = get_metric_value(metrics.registry, f"{metrics.config.namespace}_cache_hits_total")
+        misses = get_metric_value(metrics.registry, f"{metrics.config.namespace}_cache_misses_total")
 
         assert hits == 2
         assert misses == 1
@@ -122,7 +157,7 @@ class TestFraiseQLMetrics:
             operation="getUsers",
         )
 
-        assert metrics.errors_total._value.get() >= 2
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_errors_total") >= 2
 
     def test_performance_metrics(self) -> None:
         """Test performance tracking."""
@@ -133,8 +168,9 @@ class TestFraiseQLMetrics:
             metrics.record_response_time(duration)
 
         # Check histogram data
-        histogram_data = metrics.response_time_histogram._sum._value.get()
-        assert histogram_data > 0
+        # For histogram, we need to check the sum metric
+        histogram_sum = get_metric_value(metrics.registry, f"{metrics.config.namespace}_response_time_seconds_sum")
+        assert histogram_sum > 0
 
     def test_concurrent_metrics(self) -> None:
         """Test metrics under concurrent access."""
@@ -151,12 +187,14 @@ class TestFraiseQLMetrics:
                 await asyncio.sleep(0.001)
 
         # Run concurrent tasks
-        loop = asyncio.new_event_loop()
-        tasks = [record_queries() for _ in range(5)]
-        loop.run_until_complete(asyncio.gather(*tasks))
+        async def run_all():
+            tasks = [record_queries() for _ in range(5)]
+            await asyncio.gather(*tasks)
+        
+        asyncio.run(run_all())
 
         # Should have recorded 500 queries total
-        assert metrics.query_total._value.get() >= 500
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_graphql_queries_total") >= 500
 
 
 class TestMetricsMiddleware:
@@ -166,7 +204,7 @@ class TestMetricsMiddleware:
     async def test_middleware_records_metrics(self) -> None:
         """Test middleware records request metrics."""
         metrics = FraiseQLMetrics()
-        middleware = MetricsMiddleware(metrics=metrics)
+        middleware = MetricsMiddleware(app=None, metrics=metrics)
 
         # Mock request
         request = Mock()
@@ -184,13 +222,13 @@ class TestMetricsMiddleware:
 
         # Check metrics were recorded
         assert response.status_code == 200
-        assert metrics.http_requests_total._value.get() > 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_http_requests_total") > 0
 
     @pytest.mark.asyncio
     async def test_middleware_handles_errors(self) -> None:
         """Test middleware handles errors properly."""
         metrics = FraiseQLMetrics()
-        middleware = MetricsMiddleware(metrics=metrics)
+        middleware = MetricsMiddleware(app=None, metrics=metrics)
 
         request = Mock()
         request.url.path = "/graphql"
@@ -206,14 +244,14 @@ class TestMetricsMiddleware:
             await middleware.process_request(request, mock_call_next_error)
 
         # Error metrics should be recorded
-        assert metrics.http_requests_total._value.get() > 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_http_requests_total") > 0
 
     @pytest.mark.asyncio
     async def test_middleware_excludes_health_checks(self) -> None:
         """Test middleware excludes health check endpoints."""
         config = MetricsConfig(exclude_paths={"/health", "/ready"})
         metrics = FraiseQLMetrics()
-        middleware = MetricsMiddleware(metrics=metrics, config=config)
+        middleware = MetricsMiddleware(app=None, metrics=metrics, config=config)
 
         # Health check request
         request = Mock()
@@ -226,7 +264,7 @@ class TestMetricsMiddleware:
         await middleware.process_request(request, mock_call_next)
 
         # Should not record metrics for health checks
-        assert metrics.http_requests_total._value.get() == 0
+        assert get_metric_value(metrics.registry, f"{metrics.config.namespace}_http_requests_total") == 0
 
 
 class TestMetricsConfig:
@@ -280,7 +318,13 @@ class TestMetricsSetup:
         metrics = setup_metrics(app, config)
 
         # Should add middleware
-        assert any(isinstance(m, MetricsMiddleware) for m in app.middleware)
+        # Check that middleware was added by looking at app's middleware stack
+        middleware_found = False
+        for middleware in app.user_middleware:
+            if hasattr(middleware, 'cls') and middleware.cls == MetricsMiddleware:
+                middleware_found = True
+                break
+        assert middleware_found
 
         # Should add metrics endpoint
         assert any(route.path == "/metrics" for route in app.routes)
