@@ -68,6 +68,10 @@ def postgres_container():
     - Communicates via socket (not HTTP)
     - Dramatically faster than per-test containers
     """
+    # Skip if using external database (e.g., GitHub Actions service container)
+    if os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL"):
+        return None
+    
     if not HAS_DOCKER:
         pytest.skip("Docker not available")
 
@@ -99,7 +103,16 @@ def postgres_container():
 
 @pytest.fixture(scope="session")
 def postgres_url(postgres_container) -> str:
-    """Get the PostgreSQL connection URL from the container."""
+    """Get the PostgreSQL connection URL from the container or environment."""
+    # Check for external database URL (e.g., GitHub Actions)
+    external_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    if external_url:
+        return external_url
+    
+    # Otherwise use testcontainers
+    if postgres_container is None:
+        pytest.skip("No database available")
+    
     # testcontainers returns postgresql+psycopg:// but psycopg3 expects postgresql://
     url = postgres_container.get_connection_url()
     return url.replace("postgresql+psycopg://", "postgresql://")
