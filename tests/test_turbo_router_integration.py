@@ -26,6 +26,7 @@ class User:
     email: str = fraise_field(description="User's email")
 
 
+@pytest.mark.database
 @requires_any_container
 class TestTurboRouterIntegration:
     """Test TurboRouter integration with the full FastAPI stack."""

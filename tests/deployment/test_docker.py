@@ -93,11 +93,13 @@ class TestDockerfile:
 
         # Check for proper layer caching
         assert "COPY requirements.txt" in content or "COPY pyproject.toml" in content
-        assert (
-            content.index("COPY requirements") < content.index("COPY src/")
-            if "COPY src/" in content
-            else True
-        )
+        
+        # Check that dependencies are copied before source code
+        if "COPY src/" in content:
+            if "COPY requirements.txt" in content:
+                assert content.index("COPY requirements.txt") < content.index("COPY src/")
+            elif "COPY pyproject.toml" in content:
+                assert content.index("COPY pyproject.toml") < content.index("COPY src/")
 
         # Check for security scanning comment
         assert "hadolint" in content or "# docker run --rm -i hadolint/hadolint" in content
