@@ -191,7 +191,7 @@ class TestDockerBuild:
                 "python",
                 "-m",
                 "uvicorn",
-                "fraiseql.fastapi.app:create_app",
+                "fraiseql.fastapi.app:create_fraiseql_app",
                 "--factory",
                 "--host",
                 "0.0.0.0",
