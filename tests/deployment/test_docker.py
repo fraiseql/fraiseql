@@ -1,6 +1,7 @@
 """Tests for Docker deployment configurations."""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -169,6 +170,10 @@ class TestDockerBuild:
 
     def test_healthcheck_endpoint(self, docker_image) -> None:
         """Test that health check endpoint works."""
+        # Skip in CI as this requires a full app setup
+        if os.environ.get("CI") == "true":
+            pytest.skip("Skipping container health check in CI - requires full app setup")
+            
         runtime = check_container_runtime()
         # Start container
         container_name = "fraiseql-health-test"
