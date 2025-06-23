@@ -85,6 +85,7 @@ docs = [
   "pymdown-extensions>=10.0",
 ]
 tracing = [
+  "wrapt>=1.16.0",  # Minimum version for Python 3.11+ compatibility
   "opentelemetry-api>=1.20.0",
   "opentelemetry-sdk>=1.20.0",
   "opentelemetry-instrumentation-psycopg>=0.40b0",
