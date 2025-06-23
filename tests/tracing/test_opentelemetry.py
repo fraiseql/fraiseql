@@ -31,7 +31,7 @@ except ImportError:
 # Skip entire module if opentelemetry is not installed
 pytestmark = pytest.mark.skipif(
     not OPENTELEMETRY_AVAILABLE,
-    reason="OpenTelemetry not installed"
+    reason="OpenTelemetry not installed",
 )
 
 
