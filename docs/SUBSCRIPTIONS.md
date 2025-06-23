@@ -7,7 +7,7 @@ FraiseQL provides powerful real-time subscription capabilities using WebSockets 
 Subscriptions in FraiseQL enable real-time communication between your server and clients. They're perfect for:
 
 - Live notifications
-- Real-time data updates  
+- Real-time data updates
 - Chat applications
 - Live dashboards
 - Collaborative editing
@@ -71,10 +71,10 @@ import asyncpg
 @fraiseql.subscription
 async def post_updates(info) -> AsyncGenerator['Post', None]:
     """Stream database changes for posts."""
-    
+
     async with asyncpg.connect(DATABASE_URL) as conn:
         await conn.add_listener('post_changes', message_handler)
-        
+
         async for notification in listen_for_changes(conn):
             post_data = json.loads(notification.payload)
             yield Post(**post_data)
@@ -90,11 +90,11 @@ import redis.asyncio as redis
 @fraiseql.subscription
 async def notifications(info, user_id: int) -> AsyncGenerator['Notification', None]:
     """Stream notifications from Redis."""
-    
+
     r = redis.Redis()
     pubsub = r.pubsub()
     await pubsub.subscribe(f'user:{user_id}:notifications')
-    
+
     async for message in pubsub.listen():
         if message['type'] == 'message':
             notification_data = json.loads(message['data'])
@@ -113,10 +113,10 @@ websocket_manager = WebSocketManager()
 @fraiseql.subscription
 async def live_updates(info) -> AsyncGenerator[dict, None]:
     """Stream live updates via WebSocket."""
-    
+
     # Register connection
     connection_id = await websocket_manager.connect(info.context['websocket'])
-    
+
     try:
         async for update in websocket_manager.listen(connection_id):
             yield update
@@ -138,7 +138,7 @@ from fraiseql.auth import requires_auth
 async def private_messages(info) -> AsyncGenerator[Message, None]:
     """Stream private messages for authenticated users."""
     user = info.context['user']
-    
+
     async for message in private_message_stream(user.id):
         yield message
 ```
@@ -238,7 +238,7 @@ from gql.transport.websockets import WebsocketsTransport
 
 async def subscription_client():
     transport = WebsocketsTransport(url="ws://localhost:8000/graphql/ws")
-    
+
     async with Client(transport=transport) as session:
         subscription = gql("""
             subscription {
@@ -249,7 +249,7 @@ async def subscription_client():
                 }
             }
         """)
-        
+
         async for result in session.subscribe(subscription):
             print(f"Received: {result}")
 ```
@@ -289,7 +289,7 @@ async def resilient_subscription(info) -> AsyncGenerator[Message, None]:
     """Auto-recovering subscription."""
     retry_count = 0
     max_retries = 3
-    
+
     while retry_count < max_retries:
         try:
             async for message in message_stream():
@@ -299,7 +299,7 @@ async def resilient_subscription(info) -> AsyncGenerator[Message, None]:
             retry_count += 1
             if retry_count >= max_retries:
                 raise
-            
+
             await asyncio.sleep(2 ** retry_count)  # Exponential backoff
 ```
 
@@ -332,10 +332,10 @@ async def memory_efficient_subscription(info) -> AsyncGenerator[Message, None]:
     """Memory-efficient subscription."""
     buffer_size = 100
     buffer = []
-    
+
     async for message in message_stream():
         buffer.append(message)
-        
+
         if len(buffer) >= buffer_size:
             # Yield buffered messages
             for msg in buffer:
@@ -353,13 +353,13 @@ async def batched_updates(info) -> AsyncGenerator[list[Message], None]:
     """Batch updates for efficiency."""
     batch_size = 10
     batch_timeout = 1.0  # seconds
-    
+
     batch = []
     last_yield = time.time()
-    
+
     async for message in message_stream():
         batch.append(message)
-        
+
         if len(batch) >= batch_size or (time.time() - last_yield) >= batch_timeout:
             yield batch
             batch = []
@@ -379,17 +379,17 @@ from unittest.mock import AsyncMock
 @pytest.mark.asyncio
 async def test_message_subscription():
     """Test message subscription logic."""
-    
+
     # Mock the message stream
     async def mock_stream():
         yield {"id": 1, "content": "Hello"}
         yield {"id": 2, "content": "World"}
-    
+
     # Test subscription
     messages = []
     async for message in message_subscription_handler(mock_stream()):
         messages.append(message)
-    
+
     assert len(messages) == 2
     assert messages[0].content == "Hello"
 ```
@@ -406,9 +406,9 @@ from fraiseql.testing import GraphQLWebSocketClient
 @pytest.mark.asyncio
 async def test_subscription_integration():
     """Test subscription with WebSocket client."""
-    
+
     client = GraphQLWebSocketClient("ws://localhost:8000/graphql/ws")
-    
+
     subscription = """
         subscription {
             messages {
@@ -416,14 +416,14 @@ async def test_subscription_integration():
             }
         }
     """
-    
+
     # Subscribe and collect messages
     messages = []
     async for result in client.subscribe(subscription):
         messages.append(result['data']['messages'])
         if len(messages) >= 2:
             break
-    
+
     assert len(messages) == 2
 ```
 
@@ -457,7 +457,7 @@ async def send_message(info, room_id: str, content: str) -> ChatMessage:
         content=content,
         user_id=info.context['user'].id
     )
-    
+
     # Notify subscribers
     await publish_to_chat_stream(room_id, message)
     return message
@@ -470,15 +470,15 @@ async def send_message(info, room_id: str, content: str) -> ChatMessage:
 async def user_notifications(info) -> AsyncGenerator[Notification, None]:
     """User-specific notifications."""
     user_id = info.context['user'].id
-    
+
     async for notification in notification_stream(user_id):
         yield notification
 
-@fraiseql.mutation  
+@fraiseql.mutation
 async def mark_notification_read(info, notification_id: int) -> Notification:
     """Mark notification as read."""
     notification = await Notification.mark_read(notification_id)
-    
+
     # Update live subscribers
     await publish_notification_update(notification)
     return notification
@@ -513,11 +513,11 @@ redis_client = redis.Redis()
 @fraiseql.subscription
 async def distributed_updates(info) -> AsyncGenerator[Message, None]:
     """Subscription that works across multiple servers."""
-    
+
     # Subscribe to Redis channel
     pubsub = redis_client.pubsub()
     await pubsub.subscribe('global_updates')
-    
+
     async for message in pubsub.listen():
         if message['type'] == 'message':
             yield Message(**json.loads(message['data']))
@@ -535,9 +535,9 @@ metrics = SubscriptionMetrics()
 @fraiseql.subscription
 async def monitored_subscription(info) -> AsyncGenerator[Message, None]:
     """Subscription with monitoring."""
-    
+
     metrics.active_subscriptions.inc()
-    
+
     try:
         async for message in message_stream():
             metrics.messages_sent.inc()

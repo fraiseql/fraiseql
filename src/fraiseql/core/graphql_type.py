@@ -79,7 +79,10 @@ def _convert_fraise_union(
     for arg in args:
         gql = convert_type_to_graphql_output(arg)
         if not isinstance(gql, GraphQLObjectType):
-            msg = f"GraphQLUnionType can only include GraphQLObjectType members, got: {type(gql)} from {arg!r}"
+            msg = (
+                f"GraphQLUnionType can only include GraphQLObjectType members, "
+                f"got: {type(gql)} from {arg!r}"
+            )
             raise TypeError(msg)
         gql_object_types.append(gql)
 
@@ -169,7 +172,8 @@ def convert_type_to_graphql_input(
             if field_type == JSONScalar:
                 try:
                     # Assuming the field has some default value to validate
-                    parse_json_value(getattr(typ, name, None))  # Validate the field's default value
+                    # Validate the field's default value
+                    parse_json_value(getattr(typ, name, None))
                 except GraphQLError as e:
                     msg = f"Invalid JSON value in field {name}: {e!s}"
                     raise GraphQLError(msg) from None
@@ -298,7 +302,7 @@ def convert_type_to_graphql_output(
         if isinstance(typ, type):
             key = (f"scalar_{typ.__name__}", typ.__module__)
             if key in _graphql_type_cache:
-                return cast(GraphQLScalarType, _graphql_type_cache[key])
+                return cast("GraphQLScalarType", _graphql_type_cache[key])
 
         scalar_gql = convert_scalar_to_graphql(typ)
 
@@ -306,7 +310,7 @@ def convert_type_to_graphql_output(
         if isinstance(typ, type):
             _graphql_type_cache[key] = scalar_gql
 
-        return scalar_gql
+        return scalar_gql  # noqa: TRY300
     except TypeError:
         pass  # Not a scalar — continue
 
@@ -315,11 +319,8 @@ def convert_type_to_graphql_output(
         key = (typ.__name__, typ.__module__)
         if key in _graphql_type_cache:
             return cast(
-                GraphQLObjectType
-                | GraphQLList[Any]
-                | GraphQLScalarType
-                | GraphQLUnionType
-                | GraphQLInterfaceType,
+                "GraphQLObjectType | GraphQLList[Any] | GraphQLScalarType | "
+                "GraphQLUnionType | GraphQLInterfaceType",
                 _graphql_type_cache[key],
             )
 
@@ -352,7 +353,8 @@ def convert_type_to_graphql_output(
 
                             return resolve_field
 
-                        # Use explicit graphql_name if provided, otherwise convert to camelCase if configured
+                        # Use explicit graphql_name if provided, otherwise convert to
+                        # camelCase if configured
                         config = SchemaConfig.get_instance()
                         if field.graphql_name:
                             graphql_field_name = field.graphql_name
@@ -436,13 +438,17 @@ def convert_type_to_graphql_output(
                             )
 
                             gql_fields[graphql_field_name] = GraphQLField(
-                                type_=cast(GraphQLOutputType, gql_return_type),
+                                type_=cast("GraphQLOutputType", gql_return_type),
                                 resolve=wrapped_resolver,
                                 description=description,
                             )
 
                         except Exception as e:
-                            logger.warning("Failed to process custom field %s: %s", attr_name, e)
+                            logger.warning(
+                                "Failed to process custom field %s: %s",
+                                attr_name,
+                                e,
+                            )
                             continue
 
                 # Get interfaces this type implements
@@ -479,7 +485,8 @@ def convert_type_to_graphql_output(
                 for name, field in fields.items():
                     field_type = field.field_type or type_hints.get(name)
                     if field_type is not None:
-                        # Use explicit graphql_name if provided, otherwise convert to camelCase if configured
+                        # Use explicit graphql_name if provided, otherwise convert to
+                        # camelCase if configured
                         config = SchemaConfig.get_instance()
                         if field.graphql_name:
                             graphql_field_name = field.graphql_name
@@ -526,15 +533,18 @@ def translate_query_from_type(
         or not hasattr(root_type, "__gql_table__")
         or root_type.__gql_table__ is None
     ):
-        msg = f"{root_type.__name__} must be a FraiseQL output type decorated with @fraise_type and linked to a SQL table"
+        msg = (
+            f"{root_type.__name__} must be a FraiseQL output type decorated "
+            f"with @fraise_type and linked to a SQL table"
+        )
         raise ValueError(
             msg,
         )
     where_clause: SQL | None = None
     if where:
         where_clause = where.to_sql()
-    table: str = cast(str, root_type.__gql_table__)
-    typename: str = cast(str, root_type.__gql_typename__)
+    table: str = cast("str", root_type.__gql_table__)
+    typename: str = cast("str", root_type.__gql_typename__)
     return translate_query(
         query=query,
         table=table,

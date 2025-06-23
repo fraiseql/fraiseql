@@ -118,13 +118,13 @@ Control nullability at different levels:
 class User:
     # Non-nullable list of non-nullable strings
     tags: list[str]
-    
+
     # Nullable list of non-nullable strings
     optional_tags: list[str] | None
-    
+
     # Non-nullable list of nullable strings
     maybe_tags: list[str | None]
-    
+
     # Nullable list of nullable strings
     all_optional: list[str | None] | None
 ```
@@ -173,13 +173,13 @@ class CreateUserInput:
     name: str
     email: str
     age: int
-    
+
     @validator('email')
     def validate_email(cls, v):
         if '@' not in v:
             raise ValueError('Invalid email format')
         return v
-    
+
     @validator('age')
     def validate_age(cls, v):
         if v < 0 or v > 150:
@@ -313,7 +313,7 @@ Handle union type resolution:
 @fraiseql.union
 class SearchResult:
     types = [User, Post, Comment]
-    
+
     @staticmethod
     def resolve_type(obj, info, type_):
         if hasattr(obj, 'email'):
@@ -394,7 +394,7 @@ Fields with custom resolvers:
 class User:
     first_name: str
     last_name: str
-    
+
     @fraiseql.field
     def full_name(self, info) -> str:
         return f"{self.first_name} {self.last_name}"
@@ -408,7 +408,7 @@ Fields that perform async operations:
 @fraiseql.type
 class User:
     id: int
-    
+
     @fraiseql.field
     async def posts(self, info) -> list['Post']:
         return await Post.get_by_user_id(self.id)
@@ -422,7 +422,7 @@ Fields that accept arguments:
 @fraiseql.type
 class User:
     id: int
-    
+
     @fraiseql.field
     def posts(self, info, limit: int = 10, offset: int = 0) -> list['Post']:
         return Post.get_by_user_id(self.id, limit=limit, offset=offset)
@@ -489,7 +489,7 @@ class User(BaseModel):
     name: str
     email: str
     age: int
-    
+
     @validator('email')
     def validate_email(cls, v):
         if '@' not in v:
@@ -519,7 +519,7 @@ Handle success/error cases:
 class CreateUserSuccess:
     user: User
 
-@fraiseql.type  
+@fraiseql.type
 class CreateUserError:
     message: str
     code: str

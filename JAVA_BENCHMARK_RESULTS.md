@@ -8,7 +8,7 @@ I've created a comprehensive Java benchmark suite to test FraiseQL's performance
 
 ### Three Implementation Approaches:
 1. **FraiseQL** - Python with PostgreSQL views/functions
-2. **Java Spring + JPA/Hibernate** - Traditional ORM approach  
+2. **Java Spring + JPA/Hibernate** - Traditional ORM approach
 3. **Java Optimized** - Direct SQL with JSONB (mimicking FraiseQL's approach)
 
 ### Key Components Built:

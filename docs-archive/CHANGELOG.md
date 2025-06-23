@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0a11] - 2025-06-22
+
+### Added
+- **Unified Container Testing Architecture**: Revolutionary approach to database testing
+  - Single PostgreSQL container shared across entire test session
+  - 5-10x faster test execution compared to per-test containers
+  - Automatic Podman/Docker runtime detection
+  - Socket-based communication for optimal performance
+  - Tests automatically skip when no container runtime available
+
+### Changed
+- **GraphQL Interface Updates**: Enhanced developer experience
+  - Replaced GraphQL Playground with GraphiQL 2.0 or Apollo Sandbox options
+  - CamelCase field conversion now enabled by default for better GraphQL compatibility
+  - Improved SQL helper with cleaner dictionary comprehension
+
+### Fixed
+- **SQL WHERE Generation**: Critical fixes for complex queries
+  - Fixed array containment operator for list fields (e.g., `tags_contains` now uses JSONB `@>`)
+  - Fixed nested field access with double underscore notation (e.g., `profile__city`)
+  - Improved type detection for Union types in Python 3.10+ syntax
+- **Testing Infrastructure**: Enhanced reliability
+  - Fixed security tests for CSRF protection and rate limiting
+  - Updated Prometheus metrics tests to use proper API
+  - Fixed async event loop handling in tests
+  - Achieved 100% linting compliance across codebase
+
+### Developer Experience
+- Comprehensive container runtime documentation
+- Improved test isolation and reliability
+- Better error messages for container-related issues
+- Simplified test execution with automatic runtime detection
+
+## [0.1.0a10] - 2025-06-21
+
+### Changed
+- Major test infrastructure improvements
+- Enhanced CI/CD pipeline reliability
+
+## [0.1.0a7] - 2025-06-19
+
+### Added
+- N+1 query detection in development mode
+- Comprehensive Strawberry migration support
+- Full JSON/dict type support in GraphQL schemas
+
+## [0.1.0a6] - 2025-06-18
+
+### Added
+- WebSocket subscriptions support
+- Query registration patterns documentation
+- Enhanced examples and migration guides
+
 ## [0.1.0a5] - 2025-06-17
 
 ### Added

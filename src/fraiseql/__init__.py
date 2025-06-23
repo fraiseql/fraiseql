@@ -67,6 +67,7 @@ except ImportError:
 __version__ = "0.1.0a8"
 
 __all__ = [
+    "JSON",
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
@@ -77,7 +78,6 @@ __all__ = [
     "Edge",
     "EmailAddress",
     "FraiseQLConfig",
-    "JSON",
     "PageInfo",
     "PaginatedResponse",
     "UserContext",

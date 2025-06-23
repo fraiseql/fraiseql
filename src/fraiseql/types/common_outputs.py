@@ -1,6 +1,7 @@
 """Module for defining common GraphQL mutation result types and status mappings.
 
-This module includes types for handling mutation results and a mapping of mutation statuses to error codes.
+This module includes types for handling mutation results and a mapping of mutation
+statuses to error codes.
 """
 
 import uuid

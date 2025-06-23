@@ -129,14 +129,14 @@ Identify and register your most frequently used queries:
 # Register during app startup
 async def register_critical_queries(registry: TurboRegistry):
     """Register performance-critical queries."""
-    
+
     # User authentication query
     registry.register(TurboQuery(
         graphql_query="query CurrentUser { currentUser { id role permissions } }",
         sql_template="...",
         param_mapping={},
     ))
-    
+
     # Dashboard data query
     registry.register(TurboQuery(
         graphql_query="query Dashboard($userId: ID!) { ... }",
@@ -191,7 +191,7 @@ TurboQuery(
     sql_template="""
         SELECT jsonb_agg(...) as result
         FROM users
-        WHERE 
+        WHERE
             (%(name_pattern)s IS NULL OR name ILIKE %(name_pattern)s)
             AND (%(min_age)s IS NULL OR age >= %(min_age)s)
     """,
@@ -274,7 +274,7 @@ registry.register(TurboQuery(
             )
         ) as result
         FROM products
-        WHERE 
+        WHERE
             deleted_at IS NULL
             AND (%(category)s IS NULL OR data->>'category' = %(category)s)
         LIMIT %(limit)s

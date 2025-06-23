@@ -171,7 +171,7 @@ class GreenMetrics:
         self.baseline_watts = 45  # FraiseQL
         self.pue = 1.33
         self.carbon_intensity = 230  # g/kWh (EU avg)
-    
+
     def carbon_per_request(self, cpu_percent, requests_per_hour):
         watts = self.baseline_watts * (cpu_percent / 100)
         kwh = (watts * self.pue) / 1000

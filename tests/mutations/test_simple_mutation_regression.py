@@ -29,7 +29,7 @@ def clear_registry():
 # Types from the quickstart example that failed
 @fraiseql.type
 class Branch:
-    """A branch pointing to a specific commit"""
+    """A branch pointing to a specific commit."""
 
     name: str = fraise_field(description="Branch name")
     commit_hash: str = fraise_field(description="Current commit hash")
@@ -46,7 +46,7 @@ class CreateBranchInput:
 # This is the exact mutation pattern from the quickstart that failed in 0.1.0a5
 @fraiseql.mutation
 async def create_branch(info, input: CreateBranchInput) -> Branch:
-    """Create a new branch"""
+    """Create a new branch."""
     return Branch(
         name=input.name,
         commit_hash=input.commit_hash,
@@ -55,7 +55,7 @@ async def create_branch(info, input: CreateBranchInput) -> Branch:
     )
 
 
-def test_quickstart_mutation_pattern_works():
+def test_quickstart_mutation_pattern_works() -> None:
     """Test that the mutation pattern from quickstart.py works."""
     # This should not raise "TypeError: Mutation create_branch must define 'success' type"
     assert hasattr(create_branch, "__fraiseql_mutation__")
@@ -64,7 +64,7 @@ def test_quickstart_mutation_pattern_works():
 
 
 @pytest.mark.asyncio
-async def test_quickstart_mutation_can_execute():
+async def test_quickstart_mutation_can_execute() -> None:
     """Test that quickstart mutations can be executed."""
     # Create test input
     test_input = CreateBranchInput(name="feature/test", commit_hash="abc123")
@@ -83,7 +83,7 @@ async def test_quickstart_mutation_can_execute():
     assert isinstance(result.updated_at, datetime)
 
 
-def test_simple_mutation_in_schema():
+def test_simple_mutation_in_schema() -> None:
     """Test that simple mutations are correctly added to GraphQL schema."""
     from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 
@@ -119,7 +119,7 @@ def test_simple_mutation_in_schema():
     assert "createBranch" in schema.mutation_type.fields
 
 
-def test_quickstart_app_creation():
+def test_quickstart_app_creation() -> None:
     """Test that quickstart app can be created with simple mutations."""
     from fraiseql import create_fraiseql_app
     from fraiseql.gql.schema_builder import SchemaRegistry
@@ -147,7 +147,7 @@ def test_quickstart_app_creation():
     assert app is not None
 
 
-def test_both_mutation_styles_in_same_app():
+def test_both_mutation_styles_in_same_app() -> None:
     """Test that both mutation styles can coexist."""
     from fraiseql.gql.schema_builder import SchemaRegistry
 

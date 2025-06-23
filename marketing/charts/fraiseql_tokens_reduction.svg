@@ -12,11 +12,11 @@
       .savings { fill: #27ae60; font: bold 32px sans-serif; }
     </style>
   </defs>
-  
+
   <!-- Title -->
   <text x="300" y="35" text-anchor="middle" class="title">Impact IA : Réduction des Tokens LLM</text>
   <text x="300" y="55" text-anchor="middle" class="subtitle">FraiseQL vs Java Spring Boot</text>
-  
+
   <!-- Main comparison -->
   <g transform="translate(100, 100)">
     <!-- FraiseQL bar -->
@@ -24,27 +24,27 @@
     <text x="75" y="140" text-anchor="middle" class="value">3,200</text>
     <text x="75" y="190" text-anchor="middle" class="value" fill="white">tokens</text>
     <text x="75" y="250" text-anchor="middle" class="label">FraiseQL</text>
-    
+
     <!-- Java bar -->
     <rect x="250" y="0" width="150" height="230" class="java" opacity="0.8"/>
     <text x="325" y="-10" text-anchor="middle" class="value">8,000</text>
     <text x="325" y="120" text-anchor="middle" class="value" fill="white">tokens</text>
     <text x="325" y="250" text-anchor="middle" class="label">Java + Spring</text>
-    
+
     <!-- Savings circle -->
     <circle cx="200" cy="100" r="50" fill="#27ae60" opacity="0.9"/>
     <text x="200" y="110" text-anchor="middle" class="savings" fill="white">-60%</text>
   </g>
-  
+
   <!-- Breakdown boxes -->
   <g transform="translate(50, 380)">
     <rect x="0" y="0" width="230" height="40" fill="#e74c3c" opacity="0.1" stroke="#e74c3c" stroke-width="2" rx="5"/>
     <text x="115" y="25" text-anchor="middle" class="label">Python + SQL uniquement</text>
-    
+
     <rect x="270" y="0" width="230" height="40" fill="#007396" opacity="0.1" stroke="#007396" stroke-width="2" rx="5"/>
     <text x="385" y="25" text-anchor="middle" class="label">Java + SQL + Annotations + Config</text>
   </g>
-  
+
   <!-- Benefits note -->
   <text x="300" y="80" text-anchor="middle" class="label" font-size="13" fill="#666">
     = Moins de contexte IA = Génération plus rapide et précise

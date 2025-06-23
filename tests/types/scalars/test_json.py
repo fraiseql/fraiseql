@@ -13,19 +13,19 @@ from fraiseql.types.scalars.json import (
 class TestJSONScalar:
     """Test suite for JSON scalar type."""
 
-    def test_serialize_dict(self):
+    def test_serialize_dict(self) -> None:
         """Test serializing dictionary values."""
         data = {"key": "value", "number": 42}
         result = serialize_json(data)
         assert result == data
 
-    def test_serialize_list(self):
+    def test_serialize_list(self) -> None:
         """Test serializing list values."""
         data = [1, 2, 3, "four"]
         result = serialize_json(data)
         assert result == data
 
-    def test_serialize_primitive_types(self):
+    def test_serialize_primitive_types(self) -> None:
         """Test serializing primitive types."""
         assert serialize_json("string") == "string"
         assert serialize_json(123) == 123
@@ -33,55 +33,55 @@ class TestJSONScalar:
         assert serialize_json(True) is True
         assert serialize_json(None) is None
 
-    def test_serialize_nested_structures(self):
+    def test_serialize_nested_structures(self) -> None:
         """Test serializing nested data structures."""
         data = {
             "user": {
                 "name": "John",
                 "tags": ["admin", "user"],
                 "metadata": {"created": "2023-01-01", "active": True},
-            }
+            },
         }
         result = serialize_json(data)
         assert result == data
 
-    def test_parse_json_value_from_dict(self):
+    def test_parse_json_value_from_dict(self) -> None:
         """Test parsing JSON value from dictionary."""
         data = {"key": "value"}
         result = parse_json_value(data)
         assert result == data
 
-    def test_parse_json_value_from_string(self):
+    def test_parse_json_value_from_string(self) -> None:
         """Test parsing JSON value from JSON string - returns as-is."""
         json_string = '{"key": "value", "number": 42}'
         result = parse_json_value(json_string)
         assert result == json_string  # parse_json_value doesn't parse strings
 
-    def test_parse_json_value_invalid_string(self):
+    def test_parse_json_value_invalid_string(self) -> None:
         """Test parsing invalid JSON string - returns as-is."""
         invalid_json = "{invalid json}"
         # parse_json_value accepts any string as-is
         result = parse_json_value(invalid_json)
         assert result == invalid_json
 
-    def test_parse_json_value_none(self):
+    def test_parse_json_value_none(self) -> None:
         """Test parsing None value."""
         assert parse_json_value(None) is None
 
-    def test_parse_json_literal_string(self):
+    def test_parse_json_literal_string(self) -> None:
         """Test parsing JSON literal from string AST node."""
         ast = StringValueNode(value='{"key": "value"}')
         result = parse_json_literal(ast)
         assert result == {"key": "value"}
 
-    def test_parse_json_literal_invalid_json(self):
+    def test_parse_json_literal_invalid_json(self) -> None:
         """Test parsing invalid JSON literal raises error."""
         ast = StringValueNode(value="{invalid}")
         # Invalid JSON strings should raise an error
         with pytest.raises(GraphQLError, match="JSON cannot represent non-JSON string"):
             parse_json_literal(ast)
 
-    def test_parse_json_literal_non_string_node(self):
+    def test_parse_json_literal_non_string_node(self) -> None:
         """Test parsing non-string AST nodes."""
         # JSON scalar accepts various literal types
 
@@ -94,11 +94,12 @@ class TestJSONScalar:
 
         ast_var = VariableNode(name={"value": "myVar"})
         with pytest.raises(
-            GraphQLError, match="JSON cannot represent literal of type VariableNode"
+            GraphQLError,
+            match="JSON cannot represent literal of type VariableNode",
         ):
             parse_json_literal(ast_var)
 
-    def test_parse_json_literal_complex_json(self):
+    def test_parse_json_literal_complex_json(self) -> None:
         """Test parsing complex JSON literal."""
         json_str = '{"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], "count": 2}'
         ast = StringValueNode(value=json_str)
@@ -108,7 +109,7 @@ class TestJSONScalar:
         assert len(result["users"]) == 2
         assert result["users"][0]["name"] == "Alice"
 
-    def test_json_scalar_integration(self):
+    def test_json_scalar_integration(self) -> None:
         """Test JSONScalar integration."""
         # Test serialize
         data = {"test": True}

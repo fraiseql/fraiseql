@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from datetime import UTC
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -26,17 +27,15 @@ class Task:
 @fraiseql.query
 async def current_time(info) -> str:
     """Get current server time."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # Define subscriptions
 @subscription
-async def task_feed(info) -> AsyncGenerator[Task, None]:
+async def task_feed(info) -> AsyncGenerator[Task]:
     """Subscribe to new tasks as they're created."""
-    print("Starting task feed subscription")
-
     for i in range(10):
         await asyncio.sleep(1)  # Simulate real-time updates
 
@@ -47,10 +46,7 @@ async def task_feed(info) -> AsyncGenerator[Task, None]:
             created_at=f"2025-01-19T10:{i:02d}:00Z",
         )
 
-        print(f"Yielding task: {task.title}")
         yield task
-
-    print("Task feed subscription completed")
 
 
 # Create FastAPI app
@@ -178,7 +174,8 @@ async def graphql_ws_endpoint(websocket: WebSocket):
     if "graphql-ws" in websocket.headers.get("sec-websocket-protocol", "").split(", "):
         subprotocol = "graphql-ws"
     elif "graphql-transport-ws" in websocket.headers.get(
-        "sec-websocket-protocol", ""
+        "sec-websocket-protocol",
+        "",
     ).split(", "):
         subprotocol = "graphql-transport-ws"
 
@@ -186,14 +183,16 @@ async def graphql_ws_endpoint(websocket: WebSocket):
 
     # Add connection to manager
     connection = await subscription_manager.add_connection(
-        websocket, subprotocol=subprotocol, context={"websocket": websocket}
+        websocket,
+        subprotocol=subprotocol,
+        context={"websocket": websocket},
     )
 
     try:
         # Handle connection
         await connection.handle()
     except WebSocketDisconnect:
-        print(f"Client {connection.connection_id} disconnected")
+        pass
     finally:
         # Remove connection
         await subscription_manager.remove_connection(connection.connection_id)
@@ -202,7 +201,4 @@ async def graphql_ws_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     import uvicorn
 
-    print("Starting server at http://localhost:8000")
-    print("Open http://localhost:8000 in your browser to test WebSocket subscriptions")
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

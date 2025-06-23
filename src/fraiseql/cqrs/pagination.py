@@ -34,7 +34,7 @@ class PaginationParams:
         before: str | None = None,
         order_by: str = "id",
         order_direction: str = "ASC",
-    ):
+    ) -> None:
         """Initialize pagination parameters.
 
         Args:
@@ -47,13 +47,16 @@ class PaginationParams:
         """
         # Validate pagination arguments
         if first is not None and last is not None:
-            raise ValueError("Cannot specify both 'first' and 'last'")
+            msg = "Cannot specify both 'first' and 'last'"
+            raise ValueError(msg)
 
         if first is not None and first < 0:
-            raise ValueError("'first' must be non-negative")
+            msg = "'first' must be non-negative"
+            raise ValueError(msg)
 
         if last is not None and last < 0:
-            raise ValueError("'last' must be non-negative")
+            msg = "'last' must be non-negative"
+            raise ValueError(msg)
 
         self.first = first
         self.after = after
@@ -74,7 +77,7 @@ class PaginationParams:
 class CursorPaginator:
     """Implements cursor-based pagination for PostgreSQL JSONB views."""
 
-    def __init__(self, connection: AsyncConnection):
+    def __init__(self, connection: AsyncConnection) -> None:
         """Initialize paginator with database connection."""
         self.connection = connection
 
@@ -153,7 +156,8 @@ class CursorPaginator:
         # Add LIMIT
         limit = params.first if params.is_forward else params.last
         if limit is None:
-            raise ValueError("Either 'first' or 'last' must be specified")
+            msg = "Either 'first' or 'last' must be specified"
+            raise ValueError(msg)
         # Fetch one extra to determine if there are more pages
         query_parts.append(SQL(" LIMIT %s"))
         query_params.append(limit + 1)

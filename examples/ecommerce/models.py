@@ -1,6 +1,5 @@
 """E-commerce data models for FraiseQL example."""
 
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -14,6 +13,7 @@ from fraiseql import fraise_field
 @fraiseql.enum
 class OrderStatus(Enum):
     """Order status enumeration."""
+
     PENDING = "pending"
     PROCESSING = "processing"
     SHIPPED = "shipped"
@@ -25,6 +25,7 @@ class OrderStatus(Enum):
 @fraiseql.enum
 class PaymentStatus(Enum):
     """Payment status enumeration."""
+
     PENDING = "pending"
     AUTHORIZED = "authorized"
     CAPTURED = "captured"
@@ -35,6 +36,7 @@ class PaymentStatus(Enum):
 @fraiseql.enum
 class ProductCategory(Enum):
     """Product categories."""
+
     ELECTRONICS = "electronics"
     CLOTHING = "clothing"
     BOOKS = "books"
@@ -48,6 +50,7 @@ class ProductCategory(Enum):
 @fraiseql.type
 class User:
     """E-commerce user account."""
+
     id: UUID
     email: str = fraise_field(description="User's email address")
     name: str = fraise_field(description="Full name")
@@ -61,6 +64,7 @@ class User:
 @fraiseql.type
 class Address:
     """Shipping/billing address."""
+
     id: UUID
     user_id: UUID = fraise_field(description="User who owns this address")
     label: str = fraise_field(description="Address label (Home, Work, etc)")
@@ -77,6 +81,7 @@ class Address:
 @fraiseql.type
 class Product:
     """Product in the catalog."""
+
     id: UUID
     sku: str = fraise_field(description="Stock keeping unit")
     name: str = fraise_field(description="Product name")
@@ -97,6 +102,7 @@ class Product:
 @fraiseql.type
 class Cart:
     """Shopping cart."""
+
     id: UUID
     user_id: Optional[UUID] = fraise_field(description="User ID if logged in")
     session_id: Optional[str] = fraise_field(description="Session ID for guests")
@@ -110,6 +116,7 @@ class Cart:
 @fraiseql.type
 class CartItem:
     """Item in shopping cart."""
+
     id: UUID
     cart_id: UUID = fraise_field(description="Cart this item belongs to")
     product_id: UUID = fraise_field(description="Product being purchased")
@@ -122,27 +129,28 @@ class CartItem:
 @fraiseql.type
 class Order:
     """Customer order."""
+
     id: UUID
     order_number: str = fraise_field(description="Human-readable order number")
     user_id: UUID = fraise_field(description="Customer who placed order")
     status: OrderStatus = fraise_field(description="Current order status")
     payment_status: PaymentStatus = fraise_field(description="Payment status")
-    
+
     # Addresses
     shipping_address_id: UUID = fraise_field(description="Shipping address")
     billing_address_id: UUID = fraise_field(description="Billing address")
-    
+
     # Amounts
     subtotal: Decimal = fraise_field(description="Subtotal before tax/shipping")
     tax_amount: Decimal = fraise_field(description="Tax amount")
     shipping_amount: Decimal = fraise_field(description="Shipping cost")
     discount_amount: Decimal = fraise_field(default=Decimal("0"), description="Discount applied")
     total: Decimal = fraise_field(description="Total amount")
-    
+
     # Tracking
     tracking_number: Optional[str] = fraise_field(description="Shipping tracking number")
     notes: Optional[str] = fraise_field(description="Order notes")
-    
+
     # Timestamps
     placed_at: datetime = fraise_field(description="When order was placed")
     shipped_at: Optional[datetime] = fraise_field(description="When order shipped")
@@ -150,9 +158,10 @@ class Order:
     cancelled_at: Optional[datetime] = fraise_field(description="When order cancelled")
 
 
-@fraiseql.type  
+@fraiseql.type
 class OrderItem:
     """Item in an order."""
+
     id: UUID
     order_id: UUID = fraise_field(description="Order this item belongs to")
     product_id: UUID = fraise_field(description="Product ordered")
@@ -165,6 +174,7 @@ class OrderItem:
 @fraiseql.type
 class Review:
     """Product review."""
+
     id: UUID
     product_id: UUID = fraise_field(description="Product being reviewed")
     user_id: UUID = fraise_field(description="User who wrote review")
@@ -181,6 +191,7 @@ class Review:
 @fraiseql.type
 class Coupon:
     """Discount coupon."""
+
     id: UUID
     code: str = fraise_field(description="Coupon code")
     description: str = fraise_field(description="Coupon description")
@@ -198,6 +209,7 @@ class Coupon:
 @fraiseql.type
 class WishlistItem:
     """User's wishlist item."""
+
     id: UUID
     user_id: UUID = fraise_field(description="User who added item")
     product_id: UUID = fraise_field(description="Product in wishlist")
@@ -206,9 +218,11 @@ class WishlistItem:
 
 # Input types for mutations
 
+
 @fraiseql.input
 class RegisterInput:
     """User registration input."""
+
     email: str
     password: str
     name: str
@@ -218,6 +232,7 @@ class RegisterInput:
 @fraiseql.input
 class LoginInput:
     """User login input."""
+
     email: str
     password: str
 
@@ -225,6 +240,7 @@ class LoginInput:
 @fraiseql.input
 class AddToCartInput:
     """Add item to cart input."""
+
     product_id: UUID
     quantity: int = 1
 
@@ -232,6 +248,7 @@ class AddToCartInput:
 @fraiseql.input
 class UpdateCartItemInput:
     """Update cart item input."""
+
     cart_item_id: UUID
     quantity: int
 
@@ -239,6 +256,7 @@ class UpdateCartItemInput:
 @fraiseql.input
 class CheckoutInput:
     """Checkout input."""
+
     shipping_address_id: UUID
     billing_address_id: Optional[UUID] = None  # Use shipping if not provided
     coupon_code: Optional[str] = None
@@ -248,6 +266,7 @@ class CheckoutInput:
 @fraiseql.input
 class CreateAddressInput:
     """Create address input."""
+
     label: str
     street1: str
     street2: Optional[str] = None
@@ -261,6 +280,7 @@ class CreateAddressInput:
 @fraiseql.input
 class CreateReviewInput:
     """Create review input."""
+
     product_id: UUID
     rating: int  # 1-5
     title: str
@@ -270,6 +290,7 @@ class CreateReviewInput:
 @fraiseql.input
 class ProductFilterInput:
     """Product search filters."""
+
     category: Optional[ProductCategory] = None
     min_price: Optional[Decimal] = None
     max_price: Optional[Decimal] = None
@@ -280,9 +301,11 @@ class ProductFilterInput:
 
 # Success/Error types for mutations
 
+
 @fraiseql.success
 class AuthSuccess:
     """Successful authentication."""
+
     user: User
     token: str
     message: str = "Authentication successful"
@@ -291,13 +314,15 @@ class AuthSuccess:
 @fraiseql.failure
 class AuthError:
     """Authentication error."""
+
     message: str
     code: str = "AUTH_ERROR"
 
 
-@fraiseql.success  
+@fraiseql.success
 class CartSuccess:
     """Successful cart operation."""
+
     cart: Cart
     message: str
 
@@ -305,6 +330,7 @@ class CartSuccess:
 @fraiseql.failure
 class CartError:
     """Cart operation error."""
+
     message: str
     code: str = "CART_ERROR"
 
@@ -312,6 +338,7 @@ class CartError:
 @fraiseql.success
 class OrderSuccess:
     """Successful order operation."""
+
     order: Order
     message: str
 
@@ -319,6 +346,7 @@ class OrderSuccess:
 @fraiseql.failure
 class OrderError:
     """Order operation error."""
+
     message: str
     code: str = "ORDER_ERROR"
 
@@ -326,6 +354,7 @@ class OrderError:
 @fraiseql.success
 class AddressSuccess:
     """Successful address operation."""
+
     address: Address
     message: str
 
@@ -333,6 +362,7 @@ class AddressSuccess:
 @fraiseql.failure
 class AddressError:
     """Address operation error."""
+
     message: str
     code: str = "ADDRESS_ERROR"
 
@@ -340,6 +370,7 @@ class AddressError:
 @fraiseql.success
 class ReviewSuccess:
     """Successful review operation."""
+
     review: Review
     message: str
 
@@ -347,5 +378,6 @@ class ReviewSuccess:
 @fraiseql.failure
 class ReviewError:
     """Review operation error."""
+
     message: str
     code: str = "REVIEW_ERROR"

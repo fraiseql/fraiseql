@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Final benchmark comparing:
+
 1. Ultra-optimized FraiseQL (original)
 2. Ultra-optimized FraiseQL with read replicas + Nginx
 3. Strawberry GraphQL (baseline)
@@ -9,9 +10,10 @@ Final benchmark comparing:
 import asyncio
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 from statistics import mean, median, quantiles, stdev
-from typing import Any, Dict
+from typing import Any
 
 import aiohttp
 
@@ -31,7 +33,7 @@ TEST_CONFIGS = [
 ]
 
 
-async def make_request(session: aiohttp.ClientSession, url: str, query: str) -> Dict[str, Any]:
+async def make_request(session: aiohttp.ClientSession, url: str, query: str) -> dict[str, Any]:
     """Make a single GraphQL request and measure latency."""
     start_time = time.time()
 
@@ -60,7 +62,7 @@ async def make_request(session: aiohttp.ClientSession, url: str, query: str) -> 
 
 async def run_benchmark(
     framework: str, base_url: str, query_type: str, num_requests: int, limit: int = 100
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run benchmark for a specific framework and query."""
     print(f"\n🏃 Running {framework} benchmark: {query_type} x{num_requests} (limit={limit})")
 
@@ -184,16 +186,16 @@ async def run_benchmark(
 async def check_health(name: str, url: str) -> bool:
     """Check if service is healthy."""
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{url}/health", timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    print(f"✅ {name} is healthy: {data.get('status', 'unknown')}")
-                    if "optimizations" in data:
-                        print(f"   Optimizations: {', '.join(data['optimizations'])}")
-                    return True
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(f"{url}/health", timeout=aiohttp.ClientTimeout(total=5)) as response,
+        ):
+            if response.status == 200:
+                data = await response.json()
+                print(f"✅ {name} is healthy: {data.get('status', 'unknown')}")
+                if "optimizations" in data:
+                    print(f"   Optimizations: {', '.join(data['optimizations'])}")
+                return True
     except Exception as e:
         print(f"❌ {name} health check failed: {e}")
     return False
@@ -204,7 +206,7 @@ async def main():
     print("=" * 80)
     print("🏆 FINAL ULTRA-OPTIMIZED FRAISEQL BENCHMARK")
     print("=" * 80)
-    print(f"Timestamp: {datetime.now().isoformat()}")
+    print(f"Timestamp: {datetime.now(tz=timezone.utc).isoformat()}")
 
     # Check service health
     print("\n🔍 Checking services...")
@@ -247,13 +249,14 @@ async def main():
             await asyncio.sleep(1)
 
     # Save results
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"benchmark_final_results_{timestamp}.json"
 
-    with open(filename, "w") as f:
+    output_path = Path(filename)
+    with output_path.open("w") as f:
         json.dump(
             {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
                 "configurations": {
                     "fraiseql_ultra": "Multi-tier pools + Multi-level cache + Projection tables",
                     "fraiseql_replicas": "Ultra + Read replicas + Nginx load balancing",
@@ -292,7 +295,7 @@ async def main():
             # Sort by performance
             config_results.sort(key=lambda x: x["requests_per_second"], reverse=True)
 
-            best_rps = config_results[0]["requests_per_second"]
+            config_results[0]["requests_per_second"]
 
             for i, result in enumerate(config_results):
                 rps = result["requests_per_second"]

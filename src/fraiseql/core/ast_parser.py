@@ -54,7 +54,8 @@ def extract_flat_paths(
         selection: The selection set to process.
         fragments: The fragment definition map.
         path: The current path of JSON keys being built.
-        transform_path: An optional function to transform each path segment (e.g. camelCase → snake_case).
+        transform_path: An optional function to transform each path segment
+            (e.g. camelCase → snake_case).
 
     Returns:
         A flat list of FieldPath with alias and transformed path list.
@@ -73,7 +74,12 @@ def extract_flat_paths(
 
         if field.selection_set:
             result.extend(
-                extract_flat_paths(field.selection_set, fragments, current_path, transform_path),
+                extract_flat_paths(
+                    field.selection_set,
+                    fragments,
+                    current_path,
+                    transform_path,
+                ),
             )
         else:
             result.append(FieldPath(alias=alias, path=current_path))

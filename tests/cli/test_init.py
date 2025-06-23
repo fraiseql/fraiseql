@@ -1,6 +1,6 @@
 """Tests for the init command."""
 
-import os
+from pathlib import Path
 
 from fraiseql.cli.main import cli
 
@@ -8,7 +8,7 @@ from fraiseql.cli.main import cli
 class TestInitCommand:
     """Test the fraiseql init command."""
 
-    def test_init_creates_project_structure(self, cli_runner, temp_project_dir):
+    def test_init_creates_project_structure(self, cli_runner, temp_project_dir) -> None:
         """Test that init creates the expected project structure."""
         result = cli_runner.invoke(cli, ["init", "myproject"])
 
@@ -33,17 +33,17 @@ class TestInitCommand:
         assert (project_path / "README.md").exists()
         assert (project_path / "src" / "main.py").exists()
 
-    def test_init_with_existing_directory(self, cli_runner, temp_project_dir):
+    def test_init_with_existing_directory(self, cli_runner, temp_project_dir) -> None:
         """Test that init fails if directory already exists."""
         # Create directory first
-        os.mkdir("myproject")
+        Path("myproject").mkdir()
 
         result = cli_runner.invoke(cli, ["init", "myproject"])
 
         assert result.exit_code != 0
         assert "Directory 'myproject' already exists" in result.output
 
-    def test_init_basic_template(self, cli_runner, temp_project_dir):
+    def test_init_basic_template(self, cli_runner, temp_project_dir) -> None:
         """Test basic template creation."""
         result = cli_runner.invoke(cli, ["init", "myproject", "--template", "basic"])
 
@@ -55,7 +55,7 @@ class TestInitCommand:
         assert "class User:" in main_py
         assert "fraiseql.create_fraiseql_app" in main_py
 
-    def test_init_blog_template(self, cli_runner, temp_project_dir):
+    def test_init_blog_template(self, cli_runner, temp_project_dir) -> None:
         """Test blog template creation."""
         result = cli_runner.invoke(cli, ["init", "myproject", "--template", "blog"])
 
@@ -72,7 +72,7 @@ class TestInitCommand:
         assert "class User:" in user_py
         assert 'posts: list["Post"]' in user_py
 
-    def test_init_custom_database_url(self, cli_runner, temp_project_dir):
+    def test_init_custom_database_url(self, cli_runner, temp_project_dir) -> None:
         """Test custom database URL in .env file."""
         custom_url = "postgresql://user:pass@host:5432/mydb"
         result = cli_runner.invoke(cli, ["init", "myproject", "--database-url", custom_url])
@@ -83,7 +83,7 @@ class TestInitCommand:
         env_content = (temp_project_dir / "myproject" / ".env").read_text()
         assert f"DATABASE_URL={custom_url}" in env_content
 
-    def test_init_no_git(self, cli_runner, temp_project_dir):
+    def test_init_no_git(self, cli_runner, temp_project_dir) -> None:
         """Test --no-git flag skips git initialization."""
         result = cli_runner.invoke(cli, ["init", "myproject", "--no-git"])
 
@@ -93,7 +93,7 @@ class TestInitCommand:
         # Check no .git directory
         assert not (temp_project_dir / "myproject" / ".git").exists()
 
-    def test_init_pyproject_content(self, cli_runner, temp_project_dir):
+    def test_init_pyproject_content(self, cli_runner, temp_project_dir) -> None:
         """Test pyproject.toml has correct content."""
         result = cli_runner.invoke(cli, ["init", "testproject"])
 
@@ -106,7 +106,7 @@ class TestInitCommand:
         assert "[tool.ruff]" in pyproject
         assert "[tool.pyright]" in pyproject
 
-    def test_init_creates_proper_gitignore(self, cli_runner, temp_project_dir):
+    def test_init_creates_proper_gitignore(self, cli_runner, temp_project_dir) -> None:
         """Test .gitignore contains necessary patterns."""
         result = cli_runner.invoke(cli, ["init", "myproject"])
 

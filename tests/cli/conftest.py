@@ -1,6 +1,5 @@
 """Shared fixtures for CLI tests."""
 
-import os
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -31,19 +30,15 @@ def cli_runner() -> CliRunner:
 
 
 @pytest.fixture
-def temp_project_dir() -> Generator[Path, None, None]:
+def temp_project_dir(monkeypatch) -> Generator[Path]:
     """Create a temporary directory for project testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        original_cwd = os.getcwd()
-        os.chdir(tmpdir)
-        try:
-            yield Path(tmpdir)
-        finally:
-            os.chdir(original_cwd)
+        monkeypatch.chdir(tmpdir)
+        yield Path(tmpdir)
 
 
 @pytest.fixture
-def mock_database_url(monkeypatch):
+def mock_database_url(monkeypatch) -> None:
     """Mock DATABASE_URL environment variable."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/testdb")
 

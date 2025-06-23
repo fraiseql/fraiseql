@@ -1,13 +1,13 @@
-"""
-Real-time Chat API Application
+"""Real-time Chat API Application
+
 Demonstrates FraiseQL's real-time capabilities with WebSocket subscriptions
 """
 
 import asyncio
 import json
 import os
-from contextlib import asynccontextmanager
-from typing import Dict, Set
+from contextlib import asynccontextmanager, suppress
+from typing import Annotated, Dict, Set
 
 import asyncpg
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -32,7 +32,8 @@ from .mutations import (
 
 # Database configuration
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://user:password@localhost:5432/realtime_chat"
+    "DATABASE_URL",
+    "postgresql://user:password@localhost:5432/realtime_chat",
 )
 
 # Security
@@ -49,7 +50,7 @@ class ConnectionManager:
         # websocket -> user_id
         self.connection_users: Dict[WebSocket, str] = {}
 
-    async def connect(self, websocket: WebSocket, user_id: str, room_id: str = None):
+    async def connect(self, websocket: WebSocket, user_id: str, room_id: str | None = None):
         """Connect a WebSocket and associate with user/room"""
         await websocket.accept()
 
@@ -65,8 +66,6 @@ class ConnectionManager:
                 self.room_connections[room_id] = set()
             self.room_connections[room_id].add(websocket)
 
-        print(f"User {user_id} connected via WebSocket")
-
     def disconnect(self, websocket: WebSocket):
         """Disconnect a WebSocket"""
         user_id = self.connection_users.pop(websocket, None)
@@ -77,10 +76,8 @@ class ConnectionManager:
                 del self.user_connections[user_id]
 
         # Remove from room connections
-        for room_id, connections in self.room_connections.items():
+        for connections in self.room_connections.values():
             connections.discard(websocket)
-
-        print(f"User {user_id} disconnected")
 
     async def send_to_room(self, room_id: str, message: dict):
         """Send message to all connections in a room"""
@@ -89,7 +86,7 @@ class ConnectionManager:
             for connection in self.room_connections[room_id]:
                 try:
                     await connection.send_text(json.dumps(message))
-                except:
+                except Exception:
                     disconnected.add(connection)
 
             # Clean up disconnected connections
@@ -103,7 +100,7 @@ class ConnectionManager:
             for connection in self.user_connections[user_id]:
                 try:
                     await connection.send_text(json.dumps(message))
-                except:
+                except Exception:
                     disconnected.add(connection)
 
             # Clean up disconnected connections
@@ -120,7 +117,10 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Create connection pool
     app.state.db_pool = await asyncpg.create_pool(
-        DATABASE_URL, min_size=10, max_size=20, command_timeout=60
+        DATABASE_URL,
+        min_size=10,
+        max_size=20,
+        command_timeout=60,
     )
 
     # Start PostgreSQL LISTEN task
@@ -130,10 +130,8 @@ async def lifespan(app: FastAPI):
 
     # Cancel the listen task and close connection pool
     listen_task.cancel()
-    try:
+    with suppress(asyncio.CancelledError):
         await listen_task
-    except asyncio.CancelledError:
-        pass
     await app.state.db_pool.close()
 
 
@@ -169,8 +167,8 @@ async def handle_message_event(connection, pid, channel, payload):
         }
 
         await manager.send_to_room(str(room_id), event)
-    except Exception as e:
-        print(f"Error handling message event: {e}")
+    except Exception:
+        pass
 
 
 async def handle_typing_event(connection, pid, channel, payload):
@@ -187,8 +185,8 @@ async def handle_typing_event(connection, pid, channel, payload):
         }
 
         await manager.send_to_room(str(room_id), event)
-    except Exception as e:
-        print(f"Error handling typing event: {e}")
+    except Exception:
+        pass
 
 
 async def handle_presence_event(connection, pid, channel, payload):
@@ -209,8 +207,8 @@ async def handle_presence_event(connection, pid, channel, payload):
 
         if data.get("room_id"):
             await manager.send_to_room(str(data["room_id"]), event)
-    except Exception as e:
-        print(f"Error handling presence event: {e}")
+    except Exception:
+        pass
 
 
 async def fetch_message_data(connection, message_id):
@@ -234,8 +232,8 @@ async def get_current_user(
     # For demo, assume token is just the user_id
     try:
         return token  # This should be proper JWT validation
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid token") from e
 
 
 # Create FastAPI app
@@ -328,14 +326,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 room_id = message["room_id"]
                 async with app.state.db_pool.acquire() as conn:
                     await conn.execute(
-                        "SELECT set_typing_indicator($1, $2, true)", room_id, user_id
+                        "SELECT set_typing_indicator($1, $2, true)",
+                        room_id,
+                        user_id,
                     )
 
             elif message["type"] == "typing_stop":
                 room_id = message["room_id"]
                 async with app.state.db_pool.acquire() as conn:
                     await conn.execute(
-                        "SELECT set_typing_indicator($1, $2, false)", room_id, user_id
+                        "SELECT set_typing_indicator($1, $2, false)",
+                        room_id,
+                        user_id,
                     )
 
     except WebSocketDisconnect:
@@ -380,12 +382,10 @@ async def get_room_messages(
     room_id: str,
     limit: int = 50,
     offset: int = 0,
-    before: str = None,
+    before: str | None = None,
     user_id: str = Depends(get_current_user),
 ):
-    """
-    REST endpoint for fetching room messages with pagination
-    """
+    """REST endpoint for fetching room messages with pagination"""
     query = """
     query GetRoomMessages($roomId: UUID!, $limit: Int!, $offset: Int!, $before: DateTime) {
         messageThread(
@@ -418,11 +418,10 @@ async def get_room_messages(
 
 @app.get("/api/users/{user_id}/conversations")
 async def get_user_conversations(
-    user_id: str, current_user: str = Depends(get_current_user)
+    user_id: str,
+    current_user: Annotated[str, Depends(get_current_user)],
 ):
-    """
-    REST endpoint for fetching user's conversations
-    """
+    """REST endpoint for fetching user's conversations"""
     if user_id != current_user:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -451,4 +450,4 @@ async def get_user_conversations(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

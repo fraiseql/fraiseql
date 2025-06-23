@@ -8,14 +8,14 @@ from fraiseql.cli.main import cli
 class TestCheckCommand:
     """Test the fraiseql check command."""
 
-    def test_check_requires_project(self, cli_runner, temp_project_dir):
+    def test_check_requires_project(self, cli_runner, temp_project_dir) -> None:
         """Test that check requires being in a project directory."""
         result = cli_runner.invoke(cli, ["check"])
 
         assert result.exit_code != 0
         assert "Not in a FraiseQL project directory" in result.output
 
-    def test_check_with_valid_project(self, cli_runner, temp_project_dir):
+    def test_check_with_valid_project(self, cli_runner, temp_project_dir) -> None:
         """Test check command with a valid project structure."""
         # Create project structure
         Path("pyproject.toml").write_text('[project]\nname = "test"')
@@ -43,7 +43,7 @@ class QueryRoot:
         return []
 
 app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
-"""
+""",
         )
 
         result = cli_runner.invoke(cli, ["check"])
@@ -56,7 +56,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         assert "✅ Found FraiseQL app" in result.output
         assert "✨ All checks passed!" in result.output
 
-    def test_check_missing_directories(self, cli_runner, temp_project_dir):
+    def test_check_missing_directories(self, cli_runner, temp_project_dir) -> None:
         """Test check warns about missing directories."""
         Path("pyproject.toml").write_text('[project]\nname = "test"')
         Path("src").mkdir()
@@ -68,7 +68,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         assert "❌ migrations/ (missing)" in result.output
         assert "Warning: Missing directories: tests, migrations" in result.output
 
-    def test_check_missing_main_py(self, cli_runner, temp_project_dir):
+    def test_check_missing_main_py(self, cli_runner, temp_project_dir) -> None:
         """Test check fails when main.py is missing."""
         Path("pyproject.toml").write_text('[project]\nname = "test"')
         Path("src").mkdir()
@@ -78,7 +78,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         assert result.exit_code != 0
         assert "❌ src/main.py not found" in result.output
 
-    def test_check_no_app_in_main(self, cli_runner, temp_project_dir):
+    def test_check_no_app_in_main(self, cli_runner, temp_project_dir) -> None:
         """Test check warns when no app is found in main.py."""
         Path("pyproject.toml").write_text('[project]\nname = "test"')
         Path("src").mkdir()
@@ -91,7 +91,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         assert result.exit_code == 0  # Still passes but with warning
         assert "⚠️  No 'app' found in src/main.py" in result.output
 
-    def test_check_import_error(self, cli_runner, temp_project_dir):
+    def test_check_import_error(self, cli_runner, temp_project_dir) -> None:
         """Test check handles import errors gracefully."""
         Path("pyproject.toml").write_text('[project]\nname = "test"')
         Path("src").mkdir()
@@ -103,7 +103,7 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
         assert "❌ Import error:" in result.output
         assert "Make sure all dependencies are installed" in result.output
 
-    def test_check_type_validation_error(self, cli_runner, temp_project_dir):
+    def test_check_type_validation_error(self, cli_runner, temp_project_dir) -> None:
         """Test check handles type validation errors."""
         Path("pyproject.toml").write_text('[project]\nname = "test"')
         Path("src").mkdir()
@@ -122,7 +122,7 @@ class BadType:
     self: "BadType"
 
 app = fraiseql.create_fraiseql_app(types=[BadType])
-"""
+""",
         )
 
         result = cli_runner.invoke(cli, ["check"])

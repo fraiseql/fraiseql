@@ -2,11 +2,12 @@
 Optimized Strawberry GraphQL implementation with DataLoaders and best practices.
 """
 
+import contextlib
 import json
 import os
 from collections import defaultdict
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import asyncpg
 import redis.asyncio as redis
@@ -137,7 +138,7 @@ class Stats:
 @strawberry.type
 class Query:
     @strawberry.field
-    async def organizations(self, limit: int = 10) -> List[Organization]:
+    async def organizations(self, limit: int = 10) -> list[Organization]:
         monitor.record_resolver("query.organizations")
         monitor.record_query()
 
@@ -157,7 +158,7 @@ class Query:
             return [Organization(**dict(row)) for row in rows]
 
     @strawberry.field
-    async def departments(self, limit: int = 20) -> List[Department]:
+    async def departments(self, limit: int = 20) -> list[Department]:
         monitor.record_resolver("query.departments")
         monitor.record_query()
 
@@ -176,9 +177,9 @@ class Query:
             return [Department(**dict(row)) for row in rows]
 
     @strawberry.field
-    async def projects_deep(
-        self, statuses: List[str] = ["planning", "in_progress"], limit: int = 10
-    ) -> List[Project]:
+    async def projects_deep(self, statuses: list[str] = None, limit: int = 10) -> list[Project]:
+        if statuses is None:
+            statuses = ["planning", "in_progress"]
         monitor.record_resolver("query.projects_deep")
         monitor.record_query()
 
@@ -247,15 +248,13 @@ class Query:
 
             # Cache for 5 minutes
             if redis_conn:
-                try:
+                with contextlib.suppress(Exception):
                     await redis_conn.setex(cache_key, 300, json.dumps(dict(stats), default=str))
-                except Exception:
-                    pass
 
             return result
 
     @strawberry.field
-    async def performance_stats(self) -> Dict[str, Any]:
+    async def performance_stats(self) -> dict[str, Any]:
         return monitor.get_stats()
 
 
@@ -327,4 +326,4 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8001, workers=1, loop="asyncio", access_log=False)
+    uvicorn.run(app, host="0.0.0.0", port=8001, workers=1, loop="asyncio", access_log=False)  # noqa: S104

@@ -10,38 +10,38 @@ from fraiseql.utils.db_url import (
 class TestPsycopg2ToUrl:
     """Test psycopg2 to URL conversion."""
 
-    def test_basic_conversion(self):
+    def test_basic_conversion(self) -> None:
         """Test basic connection string conversion."""
         conn_str = "dbname='mydb' user='myuser' host='localhost' port='5432'"
         result = psycopg2_to_url(conn_str)
         assert result == "postgresql://myuser@localhost:5432/mydb"
 
-    def test_with_password(self):
+    def test_with_password(self) -> None:
         """Test conversion with password."""
         conn_str = "dbname='mydb' user='myuser' password='mypass' host='localhost'"
         result = psycopg2_to_url(conn_str)
         assert result == "postgresql://myuser:mypass@localhost:5432/mydb"
 
-    def test_password_special_chars(self):
+    def test_password_special_chars(self) -> None:
         """Test password with special characters."""
         conn_str = "dbname='mydb' user='myuser' password='my@pass#word!' host='localhost'"
         result = psycopg2_to_url(conn_str)
         # Password should be URL-encoded
         assert result == "postgresql://myuser:my%40pass%23word%21@localhost:5432/mydb"
 
-    def test_unquoted_values(self):
+    def test_unquoted_values(self) -> None:
         """Test connection string with unquoted values."""
         conn_str = "dbname=mydb user=myuser host=localhost port=5432"
         result = psycopg2_to_url(conn_str)
         assert result == "postgresql://myuser@localhost:5432/mydb"
 
-    def test_mixed_quoted_unquoted(self):
+    def test_mixed_quoted_unquoted(self) -> None:
         """Test mixed quoted and unquoted values."""
         conn_str = "dbname='my db' user=myuser password='my pass' host=localhost"
         result = psycopg2_to_url(conn_str)
         assert result == "postgresql://myuser:my+pass@localhost:5432/my db"
 
-    def test_extra_parameters(self):
+    def test_extra_parameters(self) -> None:
         """Test with extra parameters like sslmode."""
         conn_str = (
             "dbname='mydb' user='myuser' host='localhost' sslmode='require' connect_timeout='10'"
@@ -51,13 +51,13 @@ class TestPsycopg2ToUrl:
             result == "postgresql://myuser@localhost:5432/mydb?sslmode=require&connect_timeout=10"
         )
 
-    def test_real_world_example(self):
+    def test_real_world_example(self) -> None:
         """Test real-world example from user."""
         conn_str = "dbname='printoptim_db_local' user='lionel' host='localhost'"
         result = psycopg2_to_url(conn_str)
         assert result == "postgresql://lionel@localhost:5432/printoptim_db_local"
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         """Test with minimal connection string."""
         conn_str = "dbname='mydb'"
         result = psycopg2_to_url(conn_str)
@@ -67,13 +67,13 @@ class TestPsycopg2ToUrl:
 class TestUrlToPsycopg2:
     """Test URL to psycopg2 conversion."""
 
-    def test_basic_conversion(self):
+    def test_basic_conversion(self) -> None:
         """Test basic URL conversion."""
         url = "postgresql://myuser@localhost:5432/mydb"
         result = url_to_psycopg2(url)
         assert result == "dbname='mydb' user='myuser' host='localhost' port='5432'"
 
-    def test_with_password(self):
+    def test_with_password(self) -> None:
         """Test URL with password."""
         url = "postgresql://myuser:mypass@localhost:5432/mydb"
         result = url_to_psycopg2(url)
@@ -81,16 +81,17 @@ class TestUrlToPsycopg2:
             result == "dbname='mydb' user='myuser' password='mypass' host='localhost' port='5432'"
         )
 
-    def test_with_query_params(self):
+    def test_with_query_params(self) -> None:
         """Test URL with query parameters."""
         url = "postgresql://myuser@localhost:5432/mydb?sslmode=require&connect_timeout=10"
         result = url_to_psycopg2(url)
-        assert (
-            result
-            == "dbname='mydb' user='myuser' host='localhost' port='5432' sslmode='require' connect_timeout='10'"
+        expected = (
+            "dbname='mydb' user='myuser' host='localhost' "
+            "port='5432' sslmode='require' connect_timeout='10'"
         )
+        assert result == expected
 
-    def test_postgres_scheme(self):
+    def test_postgres_scheme(self) -> None:
         """Test with postgres:// scheme."""
         url = "postgres://myuser@localhost/mydb"
         result = url_to_psycopg2(url)
@@ -102,7 +103,7 @@ class TestUrlToPsycopg2:
 class TestNormalizeDatabaseUrl:
     """Test database URL normalization."""
 
-    def test_already_url(self):
+    def test_already_url(self) -> None:
         """Test that URLs are returned unchanged."""
         urls = [
             "postgresql://user@localhost/db",
@@ -112,13 +113,13 @@ class TestNormalizeDatabaseUrl:
         for url in urls:
             assert normalize_database_url(url) == url
 
-    def test_psycopg2_format(self):
+    def test_psycopg2_format(self) -> None:
         """Test that psycopg2 format is converted."""
         conn_str = "dbname='mydb' user='myuser' host='localhost'"
         result = normalize_database_url(conn_str)
         assert result == "postgresql://myuser@localhost:5432/mydb"
 
-    def test_mixed_input(self):
+    def test_mixed_input(self) -> None:
         """Test various input formats."""
         # URL format - unchanged
         url = "postgresql://user@localhost/db"
@@ -135,14 +136,14 @@ class TestNormalizeDatabaseUrl:
 class TestRoundTrip:
     """Test round-trip conversions."""
 
-    def test_url_roundtrip(self):
+    def test_url_roundtrip(self) -> None:
         """Test URL -> psycopg2 -> URL conversion."""
         original = "postgresql://myuser:mypass@localhost:5432/mydb"
         psycopg2 = url_to_psycopg2(original)
         back_to_url = psycopg2_to_url(psycopg2)
         assert back_to_url == original
 
-    def test_psycopg2_roundtrip_basic(self):
+    def test_psycopg2_roundtrip_basic(self) -> None:
         """Test psycopg2 -> URL -> psycopg2 conversion (basic)."""
         # Note: Order might change, so we parse and compare components
         original = "dbname='mydb' user='myuser' host='localhost' port='5432'"

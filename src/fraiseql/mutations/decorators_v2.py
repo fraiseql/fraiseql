@@ -32,7 +32,7 @@ class MutationBuilder:
     dependency injection for the registry.
     """
 
-    def __init__(self, registry: ResultRegistry):
+    def __init__(self, registry: ResultRegistry) -> None:
         """Initialize with a registry instance.
 
         Args:
@@ -131,7 +131,7 @@ def create_mutations(registry: ResultRegistry) -> MutationBuilder:
 class MutationRegistry:
     """Registry for mutation functions with explicit registration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._mutations: dict[str, MutationMetadata] = {}
         self._builders: list[MutationBuilder] = []
 

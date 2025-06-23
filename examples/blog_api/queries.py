@@ -1,15 +1,17 @@
 """Example blog API queries using FraiseQL with CQRS."""
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
 from dataloaders import CommentsByPostDataLoader, PostDataLoader, UserDataLoader
-from db import BlogRepository
 from models import Comment, Post, PostFilters, PostOrderBy, User
 
 import fraiseql
 from fraiseql.auth import requires_auth
 from fraiseql.optimization.registry import get_loader
+
+if TYPE_CHECKING:
+    from db import BlogRepository
 
 
 @fraiseql.query
@@ -74,7 +76,10 @@ async def get_posts(
 
     # Get posts from view
     posts_data = await db.get_posts(
-        filters=filter_dict, order_by=order_clause, limit=limit, offset=offset
+        filters=filter_dict,
+        order_by=order_clause,
+        limit=limit,
+        offset=offset,
     )
 
     return [Post.from_dict(data) for data in posts_data]
@@ -139,11 +144,7 @@ async def resolve_comment_replies(comment: Comment, info) -> list[Comment]:
     all_comments = await comments_loader.load(UUID(comment.post_id))
 
     # Filter for replies to this comment
-    return [
-        Comment.from_dict(c)
-        for c in all_comments
-        if c.get("parentCommentId") == comment.id
-    ]
+    return [Comment.from_dict(c) for c in all_comments if c.get("parentCommentId") == comment.id]
 
 
 async def resolve_user_posts(user: User, info) -> list[Post]:

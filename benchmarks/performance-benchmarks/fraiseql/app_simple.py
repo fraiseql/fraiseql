@@ -1,7 +1,7 @@
 """Simplified FraiseQL benchmark application for testing"""
 
 import os
-from typing import List, Optional
+from typing import Optional
 
 from fraiseql import fraise_field, fraise_type
 from fraiseql.fastapi import create_fraiseql_app
@@ -36,10 +36,10 @@ class Order:
 # Query root
 @fraise_type
 class Query:
-    users: List[User] = fraise_field(purpose="list all users")
+    users: list[User] = fraise_field(purpose="list all users")
     user: Optional[User] = fraise_field(purpose="get user by ID")
-    products: List[Product] = fraise_field(purpose="list all products")
-    orders: List[Order] = fraise_field(purpose="list all orders")
+    products: list[Product] = fraise_field(purpose="list all products")
+    orders: list[Order] = fraise_field(purpose="list all orders")
 
 
 # Database URL without pydantic
@@ -59,4 +59,4 @@ app = create_fraiseql_app(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

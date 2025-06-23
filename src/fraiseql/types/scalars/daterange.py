@@ -38,7 +38,10 @@ def serialize_date_range(value: Any) -> str:
     if isinstance(value, str):
         # Add validation logic here if needed
         return value
-    msg = f"DateRange cannot represent non-string value: {value!r}. Expected a valid date range string."
+    msg = (
+        f"DateRange cannot represent non-string value: {value!r}. "
+        f"Expected a valid date range string."
+    )
     raise GraphQLError(msg)
 
 
@@ -52,13 +55,17 @@ def parse_date_range_value(value: Any) -> str | None:
         The parsed date range string.
 
     Raises:
-        GraphQLError: If the value is not a string or None, or if the date range format is invalid.
+        GraphQLError: If the value is not a string or None, or if the date range
+            format is invalid.
     """
     if value is None:
         return None
 
     if not isinstance(value, str):
-        msg = f"DateRange cannot represent non-string value: {value!r}. Expected a valid date range string."
+        msg = (
+            f"DateRange cannot represent non-string value: {value!r}. "
+            f"Expected a valid date range string."
+        )
         raise GraphQLError(msg)
 
     # Regular expression to match the date range pattern
@@ -66,7 +73,10 @@ def parse_date_range_value(value: Any) -> str | None:
     match = re.match(pattern, value)
 
     if not match:
-        msg = f"Invalid date range format: {value}. Expected format like '[YYYY-MM-DD, YYYY-MM-DD]' or '(YYYY-MM-DD, YYYY-MM-DD)'."
+        msg = (
+            f"Invalid date range format: {value}. "
+            f"Expected format like '[YYYY-MM-DD, YYYY-MM-DD]' or '(YYYY-MM-DD, YYYY-MM-DD)'."
+        )
         raise GraphQLError(msg)
 
     start_date_str, end_date_str = match.groups()
@@ -92,7 +102,8 @@ def parse_date_range_literal(
         The parsed date range string.
 
     Raises:
-        GraphQLError: If the AST node is not a StringValueNode or if the date range format is invalid.
+        GraphQLError: If the AST node is not a StringValueNode or if the date range
+            format is invalid.
     """
     _ = variables
     if isinstance(ast, StringValueNode):
@@ -102,18 +113,27 @@ def parse_date_range_literal(
         match = re.match(pattern, date_range_str)
 
         if not match:
-            msg = f"Invalid date range format: {date_range_str}. Expected format like '[YYYY-MM-DD, YYYY-MM-DD]' or '(YYYY-MM-DD, YYYY-MM-DD)'."
+            msg = (
+                f"Invalid date range format: {date_range_str}. "
+                f"Expected format like '[YYYY-MM-DD, YYYY-MM-DD]' or '(YYYY-MM-DD, YYYY-MM-DD)'."
+            )
             raise GraphQLError(msg)
 
         start_date_str, end_date_str = match.groups()
 
         if not is_valid_date(start_date_str) or not is_valid_date(end_date_str):
-            msg = f"Invalid date in range: {date_range_str}. Dates should be in the format YYYY-MM-DD."
+            msg = (
+                f"Invalid date in range: {date_range_str}. "
+                f"Dates should be in the format YYYY-MM-DD."
+            )
             raise GraphQLError(msg)
 
         return date_range_str
 
-    msg = f"DateRange cannot represent non-string literal: {getattr(ast, 'value', None)!r}. Expected a valid date range string."
+    msg = (
+        f"DateRange cannot represent non-string literal: {getattr(ast, 'value', None)!r}. "
+        f"Expected a valid date range string."
+    )
     raise GraphQLError(msg)
 
 
@@ -123,8 +143,10 @@ DateRangeScalar = GraphQLScalarType(
     Examples of date range formats:
     - Inclusive range: '[YYYY-MM-DD, YYYY-MM-DD]' includes both start and end dates.
     - Exclusive range: '(YYYY-MM-DD, YYYY-MM-DD)' excludes both start and end dates.
-    - Left-inclusive range: '[YYYY-MM-DD, YYYY-MM-DD)' includes the start date but excludes the end date.
-    - Right-inclusive range: '(YYYY-MM-DD, YYYY-MM-DD]' excludes the start date but includes the end date.
+    - Left-inclusive range: '[YYYY-MM-DD, YYYY-MM-DD)' includes the start date but
+      excludes the end date.
+    - Right-inclusive range: '(YYYY-MM-DD, YYYY-MM-DD]' excludes the start date but
+      includes the end date.
     """,
     serialize=serialize_date_range,
     parse_value=parse_date_range_value,

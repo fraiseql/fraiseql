@@ -10,7 +10,7 @@ from fraiseql.core.graphql_type import (
 from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 
 
-def test_scalar_caching_prevents_duplicates():
+def test_scalar_caching_prevents_duplicates() -> None:
     """Test that scalar types are cached to prevent duplicate registrations."""
     # Clear cache to start fresh
     _graphql_type_cache.clear()
@@ -34,7 +34,7 @@ def test_scalar_caching_prevents_duplicates():
     assert cached_scalar is date_gql1
 
 
-def test_different_scalars_cached_separately():
+def test_different_scalars_cached_separately() -> None:
     """Test that different scalar types are cached separately."""
     _graphql_type_cache.clear()
 
@@ -55,7 +55,7 @@ def test_different_scalars_cached_separately():
     assert datetime_gql is not int_gql
 
 
-def test_complex_scenario_with_caching():
+def test_complex_scenario_with_caching() -> None:
     """Test a complex scenario that would previously cause duplicate registrations."""
     _graphql_type_cache.clear()
     registry = SchemaRegistry.get_instance()
@@ -91,12 +91,12 @@ def test_complex_scenario_with_caching():
     # Queries and mutations
     @fraiseql.query
     async def get_users(info) -> list[User]:
-        today = datetime.date.today()  # noqa: DTZ011
+        today = datetime.date.today()
         return [User(name="Test", birth_date=today, registration_date=today)]
 
     @fraiseql.query
     async def get_events(info) -> list[Event]:
-        today = datetime.date.today()  # noqa: DTZ011
+        today = datetime.date.today()
         return [Event(title="Test", start_date=today, end_date=today, created_date=today)]
 
     @fraiseql.mutation
@@ -105,7 +105,7 @@ def test_complex_scenario_with_caching():
             title=input.title,
             start_date=input.start_date,
             end_date=input.end_date,
-            created_date=datetime.date.today(),  # noqa: DTZ011
+            created_date=datetime.date.today(),
         )
 
     # Build schema - this should not fail with duplicate Date registrations
@@ -147,7 +147,7 @@ def test_complex_scenario_with_caching():
     assert birth_date_type is date_type
 
 
-def test_cache_behavior_across_schema_builds():
+def test_cache_behavior_across_schema_builds() -> None:
     """Test caching behavior when building multiple schemas."""
     _graphql_type_cache.clear()
 
@@ -158,7 +158,7 @@ def test_cache_behavior_across_schema_builds():
 
     @fraiseql.query
     async def query1(info) -> Model1:
-        return Model1(date_field=datetime.date.today())  # noqa: DTZ011
+        return Model1(date_field=datetime.date.today())
 
     schema1 = build_fraiseql_schema(query_types=[Model1, query1])
     date_type1 = schema1.type_map["Date"]
@@ -175,7 +175,7 @@ def test_cache_behavior_across_schema_builds():
 
     @fraiseql.query
     async def query2(info) -> Model2:
-        return Model2(another_date=datetime.date.today())  # noqa: DTZ011
+        return Model2(another_date=datetime.date.today())
 
     schema2 = build_fraiseql_schema(query_types=[Model2, query2])
     date_type2 = schema2.type_map["Date"]

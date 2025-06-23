@@ -1,9 +1,9 @@
 """Example blog API mutations using FraiseQL with CQRS."""
 
 import hashlib
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from db import BlogRepository
 from models import (
     Comment,
     CreateCommentInput,
@@ -22,9 +22,13 @@ from models import (
 
 from fraiseql.auth import requires_auth, requires_permission
 
+if TYPE_CHECKING:
+    from db import BlogRepository
+
 
 async def create_user(
-    info, input: CreateUserInput
+    info,
+    input: CreateUserInput,
 ) -> CreateUserSuccess | CreateUserError:
     """Create a new user account using CQRS SQL function."""
     db: BlogRepository = info.context["db"]
@@ -50,12 +54,13 @@ async def create_user(
             "bio": input.bio,
             "avatar_url": input.avatar_url,
             "password_hash": password_hash,
-        }
+        },
     )
 
     if not result["success"]:
         return CreateUserError(
-            message=result.get("error", "Failed to create user"), code="CREATE_FAILED"
+            message=result.get("error", "Failed to create user"),
+            code="CREATE_FAILED",
         )
 
     # Fetch the created user from the view
@@ -63,7 +68,8 @@ async def create_user(
 
     if not user_data:
         return CreateUserError(
-            message="User created but could not be retrieved", code="RETRIEVAL_ERROR"
+            message="User created but could not be retrieved",
+            code="RETRIEVAL_ERROR",
         )
 
     # Convert to User model using automatic from_dict
@@ -73,7 +79,8 @@ async def create_user(
 
 @requires_auth
 async def create_post(
-    info, input: CreatePostInput
+    info,
+    input: CreatePostInput,
 ) -> CreatePostSuccess | CreatePostError:
     """Create a new blog post using CQRS SQL function."""
     db: BlogRepository = info.context["db"]
@@ -88,12 +95,13 @@ async def create_post(
             "excerpt": input.excerpt,
             "tags": input.tags or [],
             "is_published": input.is_published,
-        }
+        },
     )
 
     if not result["success"]:
         return CreatePostError(
-            message=result.get("error", "Failed to create post"), code="CREATE_FAILED"
+            message=result.get("error", "Failed to create post"),
+            code="CREATE_FAILED",
         )
 
     # Fetch the created post from the view
@@ -101,7 +109,8 @@ async def create_post(
 
     if not post_data:
         return CreatePostError(
-            message="Post created but could not be retrieved", code="RETRIEVAL_ERROR"
+            message="Post created but could not be retrieved",
+            code="RETRIEVAL_ERROR",
         )
 
     # Convert to Post model using automatic from_dict
@@ -111,7 +120,9 @@ async def create_post(
 
 @requires_auth
 async def update_post(
-    info, id: UUID, input: UpdatePostInput
+    info,
+    id: UUID,
+    input: UpdatePostInput,
 ) -> UpdatePostSuccess | UpdatePostError:
     """Update an existing blog post using CQRS SQL function."""
     db: BlogRepository = info.context["db"]
@@ -126,7 +137,8 @@ async def update_post(
     # Check ownership (unless admin)
     if post_data["authorId"] != user.user_id and "admin" not in user.roles:
         return UpdatePostError(
-            message="You can only edit your own posts", code="FORBIDDEN"
+            message="You can only edit your own posts",
+            code="FORBIDDEN",
         )
 
     # Build update data
@@ -161,7 +173,8 @@ async def update_post(
 
     if not result["success"]:
         return UpdatePostError(
-            message=result.get("error", "Failed to update post"), code="UPDATE_FAILED"
+            message=result.get("error", "Failed to update post"),
+            code="UPDATE_FAILED",
         )
 
     # Fetch updated post from view
@@ -169,7 +182,8 @@ async def update_post(
 
     if not updated_post_data:
         return UpdatePostError(
-            message="Post updated but could not be retrieved", code="RETRIEVAL_ERROR"
+            message="Post updated but could not be retrieved",
+            code="RETRIEVAL_ERROR",
         )
 
     # Convert to Post model using automatic from_dict
@@ -195,10 +209,8 @@ async def create_comment(info, input: CreateCommentInput) -> Comment:
             "post_id": str(input.post_id),
             "author_id": user.user_id,
             "content": input.content,
-            "parent_id": str(input.parent_comment_id)
-            if input.parent_comment_id
-            else None,
-        }
+            "parent_id": str(input.parent_comment_id) if input.parent_comment_id else None,
+        },
     )
 
     if not result["success"]:
@@ -209,7 +221,8 @@ async def create_comment(info, input: CreateCommentInput) -> Comment:
 
     # Find the comment we just created
     comment_data = next(
-        (c for c in comments_data if c["id"] == result["comment_id"]), None
+        (c for c in comments_data if c["id"] == result["comment_id"]),
+        None,
     )
 
     if not comment_data:

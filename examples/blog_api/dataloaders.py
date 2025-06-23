@@ -41,7 +41,7 @@ class CommentsByPostDataLoader(DataLoader[UUID, List[Dict[str, Any]]]):
         """Batch load comments by post IDs."""
         # Fetch all comments for all posts at once
         all_comments = await self.db.get_comments_by_post_ids(
-            [str(pid) for pid in post_ids]
+            [str(pid) for pid in post_ids],
         )
 
         # Group comments by post_id (handle both camelCase and snake_case)

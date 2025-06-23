@@ -1,6 +1,7 @@
 """Tests for WebSocket subscription transport."""
 
 import asyncio
+import contextlib
 import json
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
@@ -20,40 +21,42 @@ from fraiseql.subscriptions.websocket import (
 class MockWebSocket:
     """Mock WebSocket for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.sent_messages = []
         self.closed = False
         self.close_code = None
         self.close_reason = None
         self._receive_queue = asyncio.Queue()
 
-    async def send(self, message: str):
+    async def send(self, message: str) -> None:
         """Mock sending a message."""
         if self.closed:
-            raise RuntimeError("WebSocket is closed")
+            msg = "WebSocket is closed"
+            raise RuntimeError(msg)
         self.sent_messages.append(json.loads(message))
 
     async def receive(self) -> dict[str, Any]:
         """Mock receiving a message."""
         if self.closed:
-            raise RuntimeError("WebSocket is closed")
+            msg = "WebSocket is closed"
+            raise RuntimeError(msg)
         return await self._receive_queue.get()
 
-    async def close(self, code: int = 1000, reason: str = ""):
+    async def close(self, code: int = 1000, reason: str = "") -> None:
         """Mock closing the connection."""
         self.closed = True
         self.close_code = code
         self.close_reason = reason
 
-    async def accept(self, subprotocol: str | None = None):
+    async def accept(self, subprotocol: str | None = None) -> None:
         """Mock accepting the connection."""
         self.subprotocol = subprotocol
 
-    def add_incoming_message(self, message: dict[str, Any]):
+    def add_incoming_message(self, message: dict[str, Any]) -> None:
         """Add a message to be received."""
         self._receive_queue.put_nowait({"type": "websocket.receive", "text": json.dumps(message)})
 
-    def add_disconnect(self):
+    def add_disconnect(self) -> None:
         """Add a disconnect message."""
         self._receive_queue.put_nowait({"type": "websocket.disconnect", "code": 1000})
 
@@ -62,7 +65,7 @@ class MockWebSocket:
 class TestWebSocketConnection:
     """Test WebSocket connection handling."""
 
-    async def test_connection_init(self):
+    async def test_connection_init(self) -> None:
         """Test connection initialization."""
         ws = MockWebSocket()
         conn = WebSocketConnection(ws, subprotocol=SubProtocol.GRAPHQL_WS)
@@ -72,14 +75,14 @@ class TestWebSocketConnection:
         assert conn.connection_id is not None
         assert len(conn.subscriptions) == 0
 
-    async def test_graphql_ws_handshake(self):
+    async def test_graphql_ws_handshake(self) -> None:
         """Test GraphQL-WS protocol handshake."""
         ws = MockWebSocket()
         conn = WebSocketConnection(ws, subprotocol=SubProtocol.GRAPHQL_WS)
 
         # Send connection_init
         ws.add_incoming_message(
-            {"type": MessageType.CONNECTION_INIT, "payload": {"auth": "token123"}}
+            {"type": MessageType.CONNECTION_INIT, "payload": {"auth": "token123"}},
         )
 
         # Start handling
@@ -96,7 +99,7 @@ class TestWebSocketConnection:
         ws.add_disconnect()
         await handle_task
 
-    async def test_graphql_transport_ws_handshake(self):
+    async def test_graphql_transport_ws_handshake(self) -> None:
         """Test GraphQL-Transport-WS protocol handshake."""
         ws = MockWebSocket()
         conn = WebSocketConnection(ws, subprotocol=SubProtocol.GRAPHQL_TRANSPORT_WS)
@@ -118,7 +121,7 @@ class TestWebSocketConnection:
         ws.add_disconnect()
         await handle_task
 
-    async def test_subscription_flow(self):
+    async def test_subscription_flow(self) -> None:
         """Test complete subscription flow."""
         ws = MockWebSocket()
         conn = WebSocketConnection(ws, subprotocol=SubProtocol.GRAPHQL_WS)
@@ -149,7 +152,7 @@ class TestWebSocketConnection:
                     "id": "sub1",
                     "type": MessageType.SUBSCRIBE,
                     "payload": {"query": "subscription { counter }", "variables": {}},
-                }
+                },
             )
 
             # Start handling
@@ -177,12 +180,10 @@ class TestWebSocketConnection:
             # Clean up
             conn.state = ConnectionState.CLOSING
             handle_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await handle_task
-            except asyncio.CancelledError:
-                pass
 
-    async def test_subscription_error_handling(self):
+    async def test_subscription_error_handling(self) -> None:
         """Test subscription error handling."""
         ws = MockWebSocket()
         conn = WebSocketConnection(ws, subprotocol=SubProtocol.GRAPHQL_WS)
@@ -204,7 +205,7 @@ class TestWebSocketConnection:
                     "id": "sub1",
                     "type": MessageType.SUBSCRIBE,
                     "payload": {"query": "subscription { invalid }", "variables": {}},
-                }
+                },
             )
 
             # Start handling
@@ -225,7 +226,7 @@ class TestWebSocketConnection:
             ws.add_disconnect()
             await handle_task
 
-    async def test_ping_pong(self):
+    async def test_ping_pong(self) -> None:
         """Test ping/pong keep-alive."""
         ws = MockWebSocket()
         conn = WebSocketConnection(ws, subprotocol=SubProtocol.GRAPHQL_WS)
@@ -250,11 +251,13 @@ class TestWebSocketConnection:
         ws.add_disconnect()
         await handle_task
 
-    async def test_connection_timeout(self):
+    async def test_connection_timeout(self) -> None:
         """Test connection initialization timeout."""
         ws = MockWebSocket()
         conn = WebSocketConnection(
-            ws, subprotocol=SubProtocol.GRAPHQL_WS, connection_init_timeout=0.1
+            ws,
+            subprotocol=SubProtocol.GRAPHQL_WS,
+            connection_init_timeout=0.1,
         )
 
         # Don't send connection_init
@@ -268,24 +271,22 @@ class TestWebSocketConnection:
         assert ws.close_code == 4408
         assert "Connection initialisation timeout" in ws.close_reason
 
-        try:
+        with contextlib.suppress(TimeoutError):
             await handle_task
-        except TimeoutError:
-            pass
 
 
 @pytest.mark.asyncio
 class TestSubscriptionManager:
     """Test subscription manager."""
 
-    async def test_manager_initialization(self):
+    async def test_manager_initialization(self) -> None:
         """Test manager initialization."""
         manager = SubscriptionManager()
 
         assert len(manager.connections) == 0
         assert manager.schema is None
 
-    async def test_add_remove_connection(self):
+    async def test_add_remove_connection(self) -> None:
         """Test adding and removing connections."""
         manager = SubscriptionManager()
         ws = MockWebSocket()
@@ -300,7 +301,7 @@ class TestSubscriptionManager:
         assert conn.connection_id not in manager.connections
         assert len(manager.connections) == 0
 
-    async def test_broadcast(self):
+    async def test_broadcast(self) -> None:
         """Test broadcasting to multiple connections."""
         manager = SubscriptionManager()
 
@@ -331,7 +332,7 @@ class TestSubscriptionManager:
             assert ws.sent_messages[0]["type"] == MessageType.NEXT
             assert ws.sent_messages[0]["payload"]["data"]["announcement"] == "Hello everyone!"
 
-    async def test_connection_cleanup_on_error(self):
+    async def test_connection_cleanup_on_error(self) -> None:
         """Test connection cleanup when error occurs."""
         manager = SubscriptionManager()
         ws = MockWebSocket()
@@ -354,7 +355,7 @@ class TestSubscriptionManager:
         # Connection should be removed
         assert conn_id not in manager.connections
 
-    async def test_protocol_selection(self):
+    async def test_protocol_selection(self) -> None:
         """Test WebSocket subprotocol selection."""
         manager = SubscriptionManager()
 
@@ -373,7 +374,7 @@ class TestSubscriptionManager:
         conn3 = await manager.add_connection(ws3, subprotocol=None)
         assert conn3.subprotocol == SubProtocol.GRAPHQL_WS
 
-    async def test_concurrent_subscriptions(self):
+    async def test_concurrent_subscriptions(self) -> None:
         """Test handling multiple concurrent subscriptions."""
         manager = SubscriptionManager()
         ws = MockWebSocket()
@@ -415,10 +416,12 @@ class TestSubscriptionManager:
 class TestGraphQLWSMessage:
     """Test GraphQL WS message handling."""
 
-    def test_message_serialization(self):
+    def test_message_serialization(self) -> None:
         """Test message serialization."""
         msg = GraphQLWSMessage(
-            type=MessageType.NEXT, id="sub1", payload={"data": {"hello": "world"}}
+            type=MessageType.NEXT,
+            id="sub1",
+            payload={"data": {"hello": "world"}},
         )
 
         serialized = msg.to_dict()
@@ -426,7 +429,7 @@ class TestGraphQLWSMessage:
         assert serialized["id"] == "sub1"
         assert serialized["payload"]["data"]["hello"] == "world"
 
-    def test_message_deserialization(self):
+    def test_message_deserialization(self) -> None:
         """Test message deserialization."""
         data = {
             "type": "subscribe",
@@ -440,7 +443,7 @@ class TestGraphQLWSMessage:
         assert msg.payload["query"] == "subscription { test }"
         assert msg.payload["variables"]["id"] == 123
 
-    def test_invalid_message_type(self):
+    def test_invalid_message_type(self) -> None:
         """Test invalid message type handling."""
         # Invalid message types are now accepted but kept as-is
         msg = GraphQLWSMessage.from_dict({"type": "invalid_type", "id": "sub1"})

@@ -9,7 +9,7 @@ from fraiseql.core.translate_query import translate_query
 class TestAutoCamelCaseIntegration:
     """Test auto camelCase feature with real FraiseQL types."""
 
-    def test_fraise_type_with_snake_case_fields(self, clear_registry):
+    def test_fraise_type_with_snake_case_fields(self, clear_registry) -> None:
         """Test that @fraise_type works with snake_case fields when auto_camel_case is enabled."""
 
         @fraiseql.type
@@ -71,7 +71,7 @@ class TestAutoCamelCaseIntegration:
         assert "'isActive', data->>'is_active'" in sql_str_with
         assert "'createdAt', data->>'created_at'" in sql_str_with
 
-    def test_nested_types_with_auto_camel_case(self, clear_registry):
+    def test_nested_types_with_auto_camel_case(self, clear_registry) -> None:
         """Test nested types with auto camelCase conversion."""
 
         @fraiseql.type
@@ -112,7 +112,7 @@ class TestAutoCamelCaseIntegration:
         assert "'postalCode', data->'home_address'->>'postal_code'" in sql_str
         assert "'countryCode', data->'home_address'->>'country_code'" in sql_str
 
-    def test_mixed_case_scenarios(self, clear_registry):
+    def test_mixed_case_scenarios(self, clear_registry) -> None:
         """Test scenarios with mixed camelCase and snake_case."""
 
         @fraiseql.type
@@ -149,7 +149,7 @@ class TestAutoCamelCaseIntegration:
         assert "'name', data->>'name'" in sql_str
         assert "'email', data->>'email'" in sql_str
 
-    def test_enum_fields_with_auto_camel_case(self, clear_registry):
+    def test_enum_fields_with_auto_camel_case(self, clear_registry) -> None:
         """Test enum fields with auto camelCase conversion."""
 
         @fraiseql.enum
@@ -184,7 +184,7 @@ class TestAutoCamelCaseIntegration:
         assert "'accountStatus', data->>'account_status'" in sql_str
         assert "'preferredLanguage', data->>'preferred_language'" in sql_str
 
-    def test_complex_real_world_scenario(self, clear_registry):
+    def test_complex_real_world_scenario(self, clear_registry) -> None:
         """Test a complex real-world scenario with multiple levels of nesting."""
 
         @fraiseql.enum

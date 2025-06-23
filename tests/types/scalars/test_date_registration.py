@@ -17,7 +17,7 @@ def clear_registry():
     registry.clear()
 
 
-def test_date_scalar_single_registration():
+def test_date_scalar_single_registration() -> None:
     """Ensure Date scalar is only registered once in the schema."""
 
     @fraiseql.type
@@ -32,11 +32,11 @@ def test_date_scalar_single_registration():
 
     @fraiseql.query
     async def get_model1(info) -> Model1:
-        return Model1(name="Test", date1=datetime.date.today())  # noqa: DTZ011
+        return Model1(name="Test", date1=datetime.date.today())
 
     @fraiseql.query
     async def get_model2(info) -> Model2:
-        return Model2(title="Test", date2=datetime.date.today())  # noqa: DTZ011
+        return Model2(title="Test", date2=datetime.date.today())
 
     # This should not raise a duplicate type error
     registry = SchemaRegistry.get_instance()
@@ -52,7 +52,7 @@ def test_date_scalar_single_registration():
     assert date_count == 1, f"Date scalar registered {date_count} times, expected 1"
 
 
-def test_multiple_date_fields_in_single_type():
+def test_multiple_date_fields_in_single_type() -> None:
     """Test that multiple date fields in one type don't cause issues."""
 
     @fraiseql.type
@@ -64,7 +64,7 @@ def test_multiple_date_fields_in_single_type():
 
     @fraiseql.query
     async def get_event(info) -> Event:
-        today = datetime.date.today()  # noqa: DTZ011
+        today = datetime.date.today()
         return Event(name="Conference", start_date=today, end_date=today, created_date=today)
 
     # Should not raise duplicate type error
@@ -75,7 +75,7 @@ def test_multiple_date_fields_in_single_type():
     assert schema.type_map["Date"].name == "Date"
 
 
-def test_date_in_nested_types():
+def test_date_in_nested_types() -> None:
     """Test Date scalar in nested type structures."""
 
     @fraiseql.type

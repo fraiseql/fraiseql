@@ -12,7 +12,7 @@ def get_fragments(query: str) -> dict[str, FragmentDefinitionNode]:
     }
 
 
-def test_named_fragment_resolution():
+def test_named_fragment_resolution() -> None:
     query = """
     query {
         viewer {
@@ -34,7 +34,7 @@ def test_named_fragment_resolution():
     assert {f.name.value for f in fields} == {"id", "username"}
 
 
-def test_inline_fragment_typename_match():
+def test_inline_fragment_typename_match() -> None:
     query = """
     query {
         node {
@@ -53,7 +53,7 @@ def test_inline_fragment_typename_match():
     assert fields[0].name.value == "email"
 
 
-def test_inline_fragment_typename_mismatch():
+def test_inline_fragment_typename_mismatch() -> None:
     query = """
     query {
         node {
@@ -71,7 +71,7 @@ def test_inline_fragment_typename_mismatch():
     assert fields == []
 
 
-def test_deduplication_by_alias():
+def test_deduplication_by_alias() -> None:
     query = """
     query {
         thing {

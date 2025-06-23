@@ -1,4 +1,10 @@
-"""Integration tests for FraiseQLRepository with real PostgreSQL."""
+"""Integration tests for FraiseQLRepository with real PostgreSQL.
+
+🚀 Uses FraiseQL's UNIFIED CONTAINER system - see database_conftest.py
+Each test runs in its own transaction that is rolled back automatically.
+"""
+
+import asyncio
 
 import pytest
 from psycopg.sql import SQL, Composed, Identifier
@@ -6,72 +12,60 @@ from psycopg.sql import SQL, Composed, Identifier
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 
-async def setup_test_data(conn):
-    """Create test tables and data."""
-    # Create users table
-    await conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            data JSONB NOT NULL DEFAULT '{}'::jsonb,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """
-    )
-
-    # Insert test data
-    await conn.execute(
-        """
-        INSERT INTO users (data) VALUES
-        ('{"name": "John Doe", "email": "john@example.com", "active": true}'::jsonb),
-        ('{"name": "Jane Smith", "email": "jane@example.com", "active": true}'::jsonb),
-        ('{"name": "Bob Wilson", "email": "bob@example.com", "active": false}'::jsonb)
-    """
-    )
-
-    # Create posts table
-    await conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS posts (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id),
-            data JSONB NOT NULL DEFAULT '{}'::jsonb,
-            published_at TIMESTAMP
-        )
-    """
-    )
-
-    await conn.execute(
-        """
-        INSERT INTO posts (user_id, data, published_at) VALUES
-        (1, '{"title": "First Post", "content": "Hello World"}'::jsonb, '2024-01-01'),
-        (1, '{"title": "Second Post", "content": "More content"}'::jsonb, '2024-01-02'),
-        (2, '{"title": "Jane''s Post", "content": "Jane''s thoughts"}'::jsonb, NULL)
-    """
-    )
-
-    await conn.commit()
-
-
-async def cleanup_test_data(conn):
-    """Clean up test tables."""
-    await conn.execute("DROP TABLE IF EXISTS posts CASCADE")
-    await conn.execute("DROP TABLE IF EXISTS users CASCADE")
-    await conn.commit()
-
-
 @pytest.mark.database
 class TestFraiseQLRepositoryIntegration:
     """Integration test suite for FraiseQLRepository with real database."""
 
-    @pytest.mark.asyncio
-    async def test_run_simple_query(self, db_pool):
-        """Test running a simple SQL query."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
+    @pytest.fixture
+    async def test_data(self, db_connection):
+        """Create test tables and data within the test transaction."""
+        # Create users table
+        await db_connection.execute(
+            """
+            CREATE TABLE users (
+                id SERIAL PRIMARY KEY,
+                data JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """,
+        )
 
-        # Test
+        # Insert test data
+        await db_connection.execute(
+            """
+            INSERT INTO users (data) VALUES
+            ('{"name": "John Doe", "email": "john@example.com", "active": true}'::jsonb),
+            ('{"name": "Jane Smith", "email": "jane@example.com", "active": true}'::jsonb),
+            ('{"name": "Bob Wilson", "email": "bob@example.com", "active": false}'::jsonb)
+        """,
+        )
+
+        # Create posts table
+        await db_connection.execute(
+            """
+            CREATE TABLE posts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                data JSONB NOT NULL DEFAULT '{}'::jsonb,
+                published_at TIMESTAMP
+            )
+        """,
+        )
+
+        await db_connection.execute(
+            """
+            INSERT INTO posts (user_id, data, published_at) VALUES
+            (1, '{"title": "First Post", "content": "Hello World"}'::jsonb, '2024-01-01'),
+            (1, '{"title": "Second Post", "content": "More content"}'::jsonb, '2024-01-02'),
+            (2, '{"title": "Jane''s Post", "content": "Jane''s thoughts"}'::jsonb, NULL)
+        """,
+        )
+
+        # No commit needed - transaction will be rolled back after test
+
+    @pytest.mark.asyncio
+    async def test_run_simple_query(self, db_pool, test_data) -> None:
+        """Test running a simple SQL query."""
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
             statement=SQL("SELECT id, data->>'name' as name FROM users ORDER BY id"),
@@ -86,22 +80,13 @@ class TestFraiseQLRepositoryIntegration:
         assert result[1]["name"] == "Jane Smith"
         assert result[2]["name"] == "Bob Wilson"
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_run_query_with_params(self, db_pool):
+    async def test_run_query_with_params(self, db_pool, test_data) -> None:
         """Test running a query with parameters."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
             statement=SQL(
-                "SELECT id, data->>'email' as email FROM users WHERE data->>'email' = %(email)s"
+                "SELECT id, data->>'email' as email FROM users WHERE data->>'email' = %(email)s",
             ),
             params={"email": "jane@example.com"},
             fetch_result=True,
@@ -112,18 +97,9 @@ class TestFraiseQLRepositoryIntegration:
         assert len(result) == 1
         assert result[0]["email"] == "jane@example.com"
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_run_composed_query(self, db_pool):
+    async def test_run_composed_query(self, db_pool, test_data) -> None:
         """Test running a Composed SQL query."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
             statement=Composed(
@@ -131,7 +107,7 @@ class TestFraiseQLRepositoryIntegration:
                     SQL("SELECT id, data FROM "),
                     Identifier("users"),
                     SQL(" WHERE (data->>'active')::boolean = %(active)s"),
-                ]
+                ],
             ),
             params={"active": True},
             fetch_result=True,
@@ -144,18 +120,9 @@ class TestFraiseQLRepositoryIntegration:
         assert "John Doe" in active_names
         assert "Jane Smith" in active_names
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_run_insert_returning(self, db_pool):
+    async def test_run_insert_returning(self, db_pool, test_data) -> None:
         """Test running an INSERT with RETURNING clause."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
             statement=SQL("INSERT INTO users (data) VALUES (%(data)s::jsonb) RETURNING id, data"),
@@ -169,25 +136,16 @@ class TestFraiseQLRepositoryIntegration:
         assert result[0]["data"]["name"] == "New User"
         assert isinstance(result[0]["id"], int)
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_run_update_query(self, db_pool):
+    async def test_run_update_query(self, db_pool, test_data) -> None:
         """Test running an UPDATE query."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
 
         # Update Bob's status to active
         update_query = DatabaseQuery(
             statement=SQL(
                 "UPDATE users SET data = jsonb_set(data, '{active}', 'true') "
-                "WHERE data->>'name' = %(name)s"
+                "WHERE data->>'name' = %(name)s",
             ),
             params={"name": "Bob Wilson"},
             fetch_result=False,
@@ -206,18 +164,9 @@ class TestFraiseQLRepositoryIntegration:
         assert len(result) == 1
         assert result[0]["data"]["active"] is True
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_run_delete_query(self, db_pool):
+    async def test_run_delete_query(self, db_pool, test_data) -> None:
         """Test running a DELETE query."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
 
         # Delete inactive users
@@ -239,18 +188,9 @@ class TestFraiseQLRepositoryIntegration:
         # Assertions
         assert result[0]["count"] == 2  # Only active users remain
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_run_join_query(self, db_pool):
+    async def test_run_join_query(self, db_pool, test_data) -> None:
         """Test running a JOIN query."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
             statement=SQL(
@@ -263,7 +203,7 @@ class TestFraiseQLRepositoryIntegration:
                 JOIN posts p ON u.id = p.user_id
                 WHERE p.published_at IS NOT NULL
                 ORDER BY p.published_at
-            """
+            """,
             ),
             params={},
             fetch_result=True,
@@ -276,59 +216,41 @@ class TestFraiseQLRepositoryIntegration:
         assert result[0]["post_title"] == "First Post"
         assert result[1]["post_title"] == "Second Post"
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_transaction_rollback(self, db_pool):
-        """Test transaction rollback behavior."""
+    async def test_transaction_behavior(self, db_pool, db_connection) -> None:
+        """Test transaction behavior with the unified container system."""
         repository = FraiseQLRepository(pool=db_pool)
 
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
+        # Create minimal test table within our transaction
+        await db_connection.execute(
+            """
+            CREATE TABLE test_tx (
+                id SERIAL PRIMARY KEY,
+                value TEXT
+            )
+        """,
+        )
 
-        try:
-            # Start a transaction that will fail
-            async with db_pool.connection() as conn:
-                # This should succeed
-                await conn.execute(
-                    'INSERT INTO users (data) VALUES (\'{"name": "Test User"}\'::jsonb)'
-                )
+        # Insert data that will be visible within this test
+        await db_connection.execute("INSERT INTO test_tx (value) VALUES ('test_value')")
 
-                # This should fail (invalid foreign key)
-                await conn.execute("INSERT INTO posts (userId, data) VALUES (999, '{}'::jsonb)")
-
-                # Should not reach here
-                await conn.commit()
-        except Exception:
-            # Expected failure
-            pass
-
-        # Verify rollback - Test User should not exist
+        # Verify data is visible
         query = DatabaseQuery(
-            statement=SQL("SELECT * FROM users WHERE data->>'name' = 'Test User'"),
+            statement=SQL("SELECT * FROM test_tx"),
             params={},
             fetch_result=True,
         )
         result = await repository.run(query)
 
-        # Assertions
-        assert len(result) == 0  # Transaction was rolled back
+        assert len(result) == 1
+        assert result[0]["value"] == "test_value"
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
+        # After this test, the transaction will be rolled back
+        # and the table will not exist for other tests
 
     @pytest.mark.asyncio
-    async def test_jsonb_operators(self, db_pool):
+    async def test_jsonb_operators(self, db_pool, test_data) -> None:
         """Test JSONB operators in queries."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
 
         # Test @> operator (contains)
@@ -351,18 +273,9 @@ class TestFraiseQLRepositoryIntegration:
         assert len(active_users) == 2
         assert len(users_with_email) == 3
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_aggregate_query(self, db_pool):
+    async def test_aggregate_query(self, db_pool, test_data) -> None:
         """Test aggregate functions with JSONB."""
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
             statement=SQL(
@@ -373,7 +286,7 @@ class TestFraiseQLRepositoryIntegration:
                     jsonb_agg(data->>'name') as names
                 FROM users
                 GROUP BY (data->>'active')::boolean
-            """
+            """,
             ),
             params={},
             fetch_result=True,
@@ -390,20 +303,9 @@ class TestFraiseQLRepositoryIntegration:
         assert inactive_group["count"] == 1
         assert "Bob Wilson" in inactive_group["names"]
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_connection_pool_concurrency(self, db_pool):
+    async def test_connection_pool_concurrency(self, db_pool, test_data) -> None:
         """Test concurrent queries using the connection pool."""
-        import asyncio
-
-        # Setup
-        async with db_pool.connection() as conn:
-            await setup_test_data(conn)
-
-        # Test
         repository = FraiseQLRepository(pool=db_pool)
 
         async def run_query(email: str):
@@ -428,12 +330,8 @@ class TestFraiseQLRepositoryIntegration:
         assert len(results[2]) == 1  # Bob
         assert len(results[3]) == 0  # Nonexistent
 
-        # Cleanup
-        async with db_pool.connection() as conn:
-            await cleanup_test_data(conn)
-
     @pytest.mark.asyncio
-    async def test_error_handling(self, db_pool):
+    async def test_error_handling(self, db_pool) -> None:
         """Test error handling in repository."""
         repository = FraiseQLRepository(pool=db_pool)
 

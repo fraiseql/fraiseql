@@ -47,7 +47,8 @@ def safe_create_where_type_with_validation(cls: type[object]) -> type[DynamicTyp
         validation_result = InputValidator.validate_where_clause(conditions)
 
         if not validation_result.is_valid:
-            raise ValueError(f"Input validation failed: {'; '.join(validation_result.errors)}")
+            msg = f"Input validation failed: {'; '.join(validation_result.errors)}"
+            raise ValueError(msg)
 
         # Log warnings if any (but don't block execution)
         if validation_result.warnings:
@@ -55,7 +56,8 @@ def safe_create_where_type_with_validation(cls: type[object]) -> type[DynamicTyp
 
             logger = logging.getLogger(__name__)
             logger.warning(
-                f"Suspicious patterns detected in WHERE clause: {validation_result.warnings}",
+                "Suspicious patterns detected in WHERE clause: %s",
+                validation_result.warnings,
             )
 
         # If validation passes, generate SQL using original method
@@ -103,7 +105,7 @@ def create_secure_where_builder(cls: type[object]) -> "WhereBuilder":
 class WhereBuilder:
     """Fluent builder for secure WHERE clauses."""
 
-    def __init__(self, cls: type[object]):
+    def __init__(self, cls: type[object]) -> None:
         self.cls = cls
         self.conditions = {}
         self._errors = []
@@ -169,7 +171,7 @@ class WhereBuilder:
         self._add_condition(field, "is_null", value)
         return self
 
-    def _add_condition(self, field: str, operator: str, value: Any):
+    def _add_condition(self, field: str, operator: str, value: Any) -> None:
         """Add a condition with validation."""
         # Validate immediately
         result = InputValidator.validate_field_value(field, value)
@@ -194,13 +196,14 @@ class WhereBuilder:
             ValueError: If validation errors exist
         """
         if self._errors:
-            raise ValueError(f"Validation errors: {'; '.join(self._errors)}")
+            msg = f"Validation errors: {'; '.join(self._errors)}"
+            raise ValueError(msg)
 
         if self._warnings:
             import logging
 
             logger = logging.getLogger(__name__)
-            logger.warning(f"WHERE clause warnings: {self._warnings}")
+            logger.warning("WHERE clause warnings: %s", self._warnings)
 
         # Create WHERE type instance
         where_type = safe_create_where_type_with_validation(self.cls)
@@ -208,7 +211,8 @@ class WhereBuilder:
 
         result = where_instance.to_sql()
         if result is None:
-            raise ValueError("No conditions to build")
+            msg = "No conditions to build"
+            raise ValueError(msg)
         return result
 
     def validate(self) -> ValidationResult:
@@ -232,8 +236,7 @@ def migrate_to_validated_where(cls: type[object]) -> type[DynamicType]:
     import warnings
 
     warnings.warn(
-        "Consider using safe_create_where_type_with_validation directly "
-        "for better error handling",
+        "Consider using safe_create_where_type_with_validation directly for better error handling",
         DeprecationWarning,
         stacklevel=2,
     )

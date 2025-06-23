@@ -1,5 +1,4 @@
-"""
-Example: Secure GraphQL API with FraiseQL Security
+"""Example: Secure GraphQL API with FraiseQL Security
 
 This example demonstrates how to set up a production-ready GraphQL API
 with comprehensive security features including:
@@ -14,17 +13,18 @@ Usage:
 """
 
 import os
-from typing import Optional, List
+from datetime import UTC, datetime
+from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
 
 from fastapi import FastAPI, Request
+
 import fraiseql
 from fraiseql.security import (
-    setup_security,
-    setup_production_security,
+    create_security_config_for_graphql,
     setup_development_security,
-    create_security_config_for_graphql
+    setup_production_security,
+    setup_security,
 )
 
 # Environment configuration
@@ -116,25 +116,25 @@ class PostError:
 class Query:
     @fraiseql.field
     async def posts(
-        self, 
+        self,
         info: fraiseql.Info,
         limit: int = 20,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Post]:
         """Get all published posts."""
         # In a real application, this would query the database
         return []
-    
+
     @fraiseql.field
     async def post(self, info: fraiseql.Info, id: UUID) -> Optional[Post]:
         """Get a specific post by ID."""
         return None
-    
+
     @fraiseql.field
     async def user(self, info: fraiseql.Info, id: UUID) -> Optional[User]:
         """Get user by ID."""
         return None
-    
+
     @fraiseql.field
     async def me(self, info: fraiseql.Info) -> Optional[User]:
         """Get current authenticated user."""
@@ -142,7 +142,7 @@ class Query:
         user_id = getattr(info.context.get("request", {}).state, "user_id", None)
         if not user_id:
             return None
-        
+
         # Return current user (would query database in real app)
         return None
 
@@ -150,36 +150,42 @@ class Query:
 # Mutation Type
 @fraiseql.mutation
 async def create_post(
-    info: fraiseql.Info, 
-    input: CreatePostInput
+    info: fraiseql.Info,
+    input: CreatePostInput,
 ) -> PostResult:
     """Create a new post (requires authentication and CSRF token)."""
     request = info.context.get("request")
-    
+
     # Check authentication
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
-        return PostResult(error=PostError(
-            message="Authentication required",
-            code="UNAUTHORIZED"
-        ))
-    
+        return PostResult(
+            error=PostError(
+                message="Authentication required",
+                code="UNAUTHORIZED",
+            ),
+        )
+
     # Validate input (basic example)
     if len(input.title.strip()) < 3:
-        return PostResult(error=PostError(
-            message="Title must be at least 3 characters",
-            code="VALIDATION_ERROR"
-        ))
-    
+        return PostResult(
+            error=PostError(
+                message="Title must be at least 3 characters",
+                code="VALIDATION_ERROR",
+            ),
+        )
+
     if len(input.content.strip()) < 10:
-        return PostResult(error=PostError(
-            message="Content must be at least 10 characters",
-            code="VALIDATION_ERROR"
-        ))
-    
+        return PostResult(
+            error=PostError(
+                message="Content must be at least 10 characters",
+                code="VALIDATION_ERROR",
+            ),
+        )
+
     # In a real application, save to database
     # post = await create_post_in_db(user_id, input.title, input.content, input.published)
-    
+
     # Return success result
     post = Post(
         id=UUID("123e4567-e89b-12d3-a456-426614174000"),
@@ -187,74 +193,80 @@ async def create_post(
         content=input.content,
         author_id=user_id,
         published=input.published,
-        created_at=datetime.now(),
-        updated_at=datetime.now()
+        created_at=datetime.now(tz=UTC),
+        updated_at=datetime.now(tz=UTC),
     )
-    
-    return PostResult(success=PostSuccess(
-        post=post,
-        message="Post created successfully"
-    ))
+
+    return PostResult(
+        success=PostSuccess(
+            post=post,
+            message="Post created successfully",
+        ),
+    )
 
 
 @fraiseql.mutation
 async def update_post(
     info: fraiseql.Info,
-    input: UpdatePostInput
+    input: UpdatePostInput,
 ) -> PostResult:
     """Update an existing post (requires authentication and CSRF token)."""
     request = info.context.get("request")
-    
+
     # Check authentication
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
-        return PostResult(error=PostError(
-            message="Authentication required",
-            code="UNAUTHORIZED"
-        ))
-    
+        return PostResult(
+            error=PostError(
+                message="Authentication required",
+                code="UNAUTHORIZED",
+            ),
+        )
+
     # In a real application:
     # 1. Check if post exists
     # 2. Check if user owns the post
     # 3. Update the post
     # 4. Return updated post
-    
-    return PostResult(error=PostError(
-        message="Post not found or access denied",
-        code="NOT_FOUND"
-    ))
+
+    return PostResult(
+        error=PostError(
+            message="Post not found or access denied",
+            code="NOT_FOUND",
+        ),
+    )
 
 
 @fraiseql.mutation
 async def create_comment(
     info: fraiseql.Info,
-    input: CreateCommentInput
+    input: CreateCommentInput,
 ) -> Comment:
     """Create a comment on a post."""
     request = info.context.get("request")
-    
+
     # Check authentication
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
         raise fraiseql.GraphQLError(
             "Authentication required",
-            extensions={"code": "UNAUTHORIZED"}
+            extensions={"code": "UNAUTHORIZED"},
         )
-    
+
     # Validate input
     if len(input.content.strip()) < 5:
         raise fraiseql.GraphQLError(
             "Comment must be at least 5 characters",
-            extensions={"code": "VALIDATION_ERROR"}
+            extensions={"code": "VALIDATION_ERROR"},
         )
-    
+
     # In a real application, save to database
     return Comment(
         id=UUID("123e4567-e89b-12d3-a456-426614174001"),
         content=input.content,
         post_id=input.post_id,
         author_id=user_id,
-        created_at=datetime.now()
+        created_at=datetime.now(tz=UTC),
     )
 
 
@@ -263,10 +275,10 @@ async def auth_middleware(request: Request, call_next):
     """Simple authentication middleware."""
     # Check for Authorization header
     auth_header = request.headers.get("Authorization")
-    
+
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        
+
         # In a real app, validate JWT token
         if token == "valid-token":
             request.state.user_id = UUID("123e4567-e89b-12d3-a456-426614174002")
@@ -277,24 +289,22 @@ async def auth_middleware(request: Request, call_next):
     else:
         request.state.user_id = None
         request.state.is_authenticated = False
-    
-    response = await call_next(request)
-    return response
+
+    return await call_next(request)
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    
     # Create FastAPI app
     app = FastAPI(
         title="Secure GraphQL API",
         description="Example of a secure GraphQL API using FraiseQL",
-        version="1.0.0"
+        version="1.0.0",
     )
-    
+
     # Add authentication middleware first
     app.middleware("http")(auth_middleware)
-    
+
     # Set up security based on environment
     if ENVIRONMENT == "production":
         # Production security setup
@@ -302,53 +312,41 @@ def create_app() -> FastAPI:
         if REDIS_URL:
             try:
                 import redis.asyncio as redis
+
                 redis_client = redis.from_url(REDIS_URL)
             except ImportError:
-                print("Warning: redis not installed, using in-memory rate limiting")
-        
-        security_middleware = setup_production_security(
+                pass
+
+        setup_production_security(
             app=app,
             secret_key=SECRET_KEY,
             domain=DOMAIN,
             trusted_origins=set(TRUSTED_ORIGINS),
-            redis_client=redis_client
+            redis_client=redis_client,
         )
-        
-        print("✅ Production security enabled:")
-        print(f"  - Rate limiting: {'Redis' if redis_client else 'In-memory'}")
-        print("  - CSRF protection: Enabled")
-        print("  - Security headers: Strict")
-        print(f"  - Trusted origins: {TRUSTED_ORIGINS}")
-    
+
     elif ENVIRONMENT == "development":
         # Development security setup (more permissive)
-        security_middleware = setup_development_security(
+        setup_development_security(
             app=app,
-            secret_key=SECRET_KEY
+            secret_key=SECRET_KEY,
         )
-        
-        print("🔧 Development security enabled:")
-        print("  - Rate limiting: Permissive")
-        print("  - CSRF protection: Relaxed")
-        print("  - Security headers: Development-friendly")
-    
+
     else:
         # Custom security setup for GraphQL
         config = create_security_config_for_graphql(
             secret_key=SECRET_KEY,
             environment=ENVIRONMENT,
             trusted_origins=TRUSTED_ORIGINS,
-            enable_introspection=(ENVIRONMENT != "production")
+            enable_introspection=(ENVIRONMENT != "production"),
         )
-        
-        security_middleware = setup_security(
+
+        setup_security(
             app=app,
             secret_key=SECRET_KEY,
-            custom_config=config
+            custom_config=config,
         )
-        
-        print("🔒 Custom GraphQL security enabled")
-    
+
     # Create FraiseQL app
     fraiseql_app = fraiseql.create_fraiseql_app(
         database_url=DATABASE_URL,
@@ -356,89 +354,57 @@ def create_app() -> FastAPI:
         mutations=[create_post, update_post, create_comment],
         title="Secure GraphQL API",
         description="Production-ready GraphQL API with comprehensive security",
-        production=(ENVIRONMENT == "production")
+        production=(ENVIRONMENT == "production"),
     )
-    
+
     # Mount GraphQL endpoint
     app.mount("/graphql", fraiseql_app)
-    
+
     # Health check endpoints
     @app.get("/health")
     async def health():
         return {"status": "healthy", "environment": ENVIRONMENT}
-    
+
     @app.get("/security-info")
     async def security_info():
         """Endpoint to check security configuration (development only)."""
         if ENVIRONMENT == "production":
             return {"error": "Not available in production"}
-        
+
         return {
             "environment": ENVIRONMENT,
             "security_features": {
                 "rate_limiting": "enabled",
-                "csrf_protection": "enabled", 
+                "csrf_protection": "enabled",
                 "security_headers": "enabled",
-                "input_validation": "enabled"
+                "input_validation": "enabled",
             },
             "trusted_origins": TRUSTED_ORIGINS,
-            "csrf_token_endpoint": "/csrf-token"
+            "csrf_token_endpoint": "/csrf-token",
         }
-    
+
     return app
 
 
 def main():
     """Run the application."""
     import uvicorn
-    
+
     app = create_app()
-    
+
     # Run with uvicorn
     port = int(os.getenv("PORT", 8000))
-    host = os.getenv("HOST", "0.0.0.0")
-    
-    print(f"\n🚀 Starting Secure GraphQL API")
-    print(f"   Environment: {ENVIRONMENT}")
-    print(f"   GraphQL endpoint: http://{host}:{port}/graphql")
-    print(f"   Health check: http://{host}:{port}/health")
-    
+    host = os.getenv("HOST", "0.0.0.0")  # noqa: S104
+
     if ENVIRONMENT != "production":
-        print(f"   GraphQL Playground: http://{host}:{port}/graphql")
-        print(f"   Security info: http://{host}:{port}/security-info")
-        print(f"   CSRF token: http://{host}:{port}/csrf-token")
-    
-    print("\n🔐 Security Features Enabled:")
-    print("   ✅ Rate limiting (GraphQL operation-aware)")
-    print("   ✅ CSRF protection for mutations")
-    print("   ✅ Comprehensive security headers")
-    print("   ✅ Input validation and sanitization")
-    print("   ✅ Authentication middleware")
-    
-    print("\n📚 Example Requests:")
-    print("""
-   # Get CSRF token (development)
-   curl http://localhost:8000/csrf-token
-   
-   # Query posts (no auth required)
-   curl -X POST http://localhost:8000/graphql \\
-     -H "Content-Type: application/json" \\
-     -d '{"query": "{ posts { id title } }"}'
-   
-   # Create post (requires auth + CSRF token)
-   curl -X POST http://localhost:8000/graphql \\
-     -H "Content-Type: application/json" \\
-     -H "Authorization: Bearer valid-token" \\
-     -H "X-CSRF-Token: YOUR_CSRF_TOKEN" \\
-     -d '{"query": "mutation { createPost(input: {title: \\"Test\\", content: \\"Hello World\\"}) { ... on PostSuccess { post { id title } message } ... on PostError { message code } } }"}'
-    """)
-    
+        pass
+
     uvicorn.run(
         app,
         host=host,
         port=port,
         reload=(ENVIRONMENT == "development"),
-        log_level="info"
+        log_level="info",
     )
 
 

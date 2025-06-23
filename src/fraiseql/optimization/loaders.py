@@ -10,7 +10,7 @@ from fraiseql.optimization.dataloader import DataLoader
 class UserLoader(DataLoader[UUID, dict[str, Any]]):
     """DataLoader for loading users by ID."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         super().__init__()
         self.db = db
 
@@ -35,7 +35,7 @@ class UserLoader(DataLoader[UUID, dict[str, Any]]):
 class ProjectLoader(DataLoader[UUID, dict[str, Any]]):
     """DataLoader for loading projects by ID."""
 
-    def __init__(self, db):
+    def __init__(self, db) -> None:
         super().__init__()
         self.db = db
 
@@ -56,7 +56,7 @@ class ProjectLoader(DataLoader[UUID, dict[str, Any]]):
 class TasksByProjectLoader(DataLoader[UUID, list[dict[str, Any]]]):
     """DataLoader for loading tasks by project ID."""
 
-    def __init__(self, db, limit: int = 100):
+    def __init__(self, db, limit: int = 100) -> None:
         super().__init__()
         self.db = db
         self.limit = limit
@@ -95,7 +95,7 @@ class TasksByProjectLoader(DataLoader[UUID, list[dict[str, Any]]]):
 class GenericForeignKeyLoader(DataLoader[UUID, dict[str, Any]]):
     """Generic loader for foreign key relationships."""
 
-    def __init__(self, db, table: str, key_field: str = "id"):
+    def __init__(self, db, table: str, key_field: str = "id") -> None:
         super().__init__()
         self.db = db
         self.table = table
@@ -105,15 +105,18 @@ class GenericForeignKeyLoader(DataLoader[UUID, dict[str, Any]]):
         """Load multiple records by key."""
         # CRITICAL: Enhanced SQL injection prevention
         if not self.table.replace("_", "").replace(".", "").isalnum():
-            raise ValueError(f"Invalid table name: {self.table}")
+            msg = f"Invalid table name: {self.table}"
+            raise ValueError(msg)
 
         # CRITICAL: Validate key_field to prevent SQL injection
         if not self.key_field.replace("_", "").isalnum():
-            raise ValueError(f"Invalid key field: {self.key_field}")
+            msg = f"Invalid key field: {self.key_field}"
+            raise ValueError(msg)
 
         # CRITICAL: Validate keys to prevent injection
         if not all(isinstance(k, str | int | bytes) or hasattr(k, "__str__") for k in keys):
-            raise ValueError("All keys must be safely serializable")
+            msg = "All keys must be safely serializable"
+            raise ValueError(msg)
 
         # Use parameterized query construction
         query = f"""

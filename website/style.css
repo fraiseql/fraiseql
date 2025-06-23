@@ -972,27 +972,27 @@ footer a:hover {
     .hero h1 {
         font-size: 2.5rem;
     }
-    
+
     .code-example {
         grid-template-columns: 1fr;
     }
-    
+
     .arrow {
         transform: rotate(90deg);
     }
-    
+
     .cta-buttons {
         flex-direction: column;
     }
-    
+
     .nav-links {
         gap: 1rem;
     }
-    
+
     .feature-card {
         margin-bottom: 1rem;
     }
-    
+
     .benefit-grid {
         grid-template-columns: 1fr;
     }

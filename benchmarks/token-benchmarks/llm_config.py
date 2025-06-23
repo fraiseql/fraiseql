@@ -107,8 +107,8 @@ class OpenAIClient:
                 import openai
 
                 self._client = openai.AsyncOpenAI(api_key=self.config.api_key)
-            except ImportError:
-                raise ImportError("OpenAI package not installed. Run: pip install openai")
+            except ImportError as e:
+                raise ImportError("OpenAI package not installed. Run: pip install openai") from e
         return self._client
 
     async def generate(
@@ -165,8 +165,10 @@ class AnthropicClient:
                 import anthropic
 
                 self._client = anthropic.AsyncAnthropic(api_key=self.config.api_key)
-            except ImportError:
-                raise ImportError("Anthropic package not installed. Run: pip install anthropic")
+            except ImportError as e:
+                raise ImportError(
+                    "Anthropic package not installed. Run: pip install anthropic"
+                ) from e
         return self._client
 
     async def generate(

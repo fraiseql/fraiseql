@@ -13,48 +13,70 @@ from typing import Any, Optional
 from fastapi import FastAPI, Request, Response
 
 try:
-    from opentelemetry import context as otel_context  # type: ignore
-    from opentelemetry import trace  # type: ignore
-    from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # type: ignore
-    from opentelemetry.exporter.zipkin.json import ZipkinExporter  # type: ignore
-    from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor  # type: ignore
-    from opentelemetry.propagate import extract, inject  # type: ignore
-    from opentelemetry.sdk.resources import Resource  # type: ignore
-    from opentelemetry.sdk.trace import TracerProvider  # type: ignore
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
-    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased  # type: ignore
-    from opentelemetry.semconv.trace import SpanAttributes  # type: ignore
-    from opentelemetry.trace import Status, StatusCode  # type: ignore
+    from opentelemetry import context as otel_context  # type: ignore[import-untyped]
+    from opentelemetry import trace  # type: ignore[import-untyped]
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore[import-untyped]
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore[import-not-found,import-untyped]
+        OTLPSpanExporter,
+    )
+    from opentelemetry.exporter.zipkin.json import ZipkinExporter  # type: ignore[import-untyped]
+    from opentelemetry.instrumentation.psycopg import (  # type: ignore[import-not-found,import-untyped]
+        PsycopgInstrumentor,
+    )
+    from opentelemetry.propagate import extract, inject  # type: ignore[import-untyped]
+    from opentelemetry.sdk.resources import Resource  # type: ignore[import-untyped]
+    from opentelemetry.sdk.trace import TracerProvider  # type: ignore[import-untyped]
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore[import-untyped]
+    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased  # type: ignore[import-untyped]
+    from opentelemetry.semconv.trace import SpanAttributes  # type: ignore[import-untyped]
+    from opentelemetry.trace import Status, StatusCode  # type: ignore[import-untyped]
+
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False
     # Define placeholder classes and functions
-    trace = None  # type: ignore
-    otel_context = None  # type: ignore
-    JaegerExporter = None  # type: ignore
-    OTLPSpanExporter = None  # type: ignore
-    ZipkinExporter = None  # type: ignore
-    PsycopgInstrumentor = None  # type: ignore
-    extract = lambda *args, **kwargs: {}  # type: ignore
-    inject = lambda *args, **kwargs: None  # type: ignore
-    Resource = None  # type: ignore
-    TracerProvider = None  # type: ignore
-    BatchSpanProcessor = None  # type: ignore
-    TraceIdRatioBased = None  # type: ignore
-    class SpanAttributes:  # type: ignore
+    trace = None  # type: ignore[assignment]
+    otel_context = None  # type: ignore[assignment]
+    JaegerExporter = None  # type: ignore[assignment]
+    OTLPSpanExporter = None  # type: ignore[assignment]
+    ZipkinExporter = None  # type: ignore[assignment]
+    PsycopgInstrumentor = None  # type: ignore[assignment]
+
+    def extract(*args, **kwargs):  # type: ignore[misc]
+        """Placeholder for extract when opentelemetry is not available."""
+        return {}
+
+    def inject(*args, **kwargs) -> None:  # type: ignore[misc]
+        """Placeholder for inject when opentelemetry is not available."""
+        return
+
+    Resource = None  # type: ignore[assignment]
+    TracerProvider = None  # type: ignore[assignment]
+    BatchSpanProcessor = None  # type: ignore[assignment]
+    TraceIdRatioBased = None  # type: ignore[assignment]
+
+    class SpanAttributes:  # type: ignore[misc]
         HTTP_METHOD = "http.method"
         HTTP_URL = "http.url"
         HTTP_STATUS_CODE = "http.status_code"
+        HTTP_TARGET = "http.target"
+        HTTP_SCHEME = "http.scheme"
+        HTTP_HOST = "http.host"
         GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
         GRAPHQL_OPERATION_NAME = "graphql.operation.name"
-    class StatusCode:  # type: ignore
+        DB_SYSTEM = "db.system"
+        DB_STATEMENT = "db.statement"
+
+    class StatusCode:  # type: ignore[misc]
         OK = "OK"
         ERROR = "ERROR"
-    class Status:  # type: ignore
-        def __init__(self, code, description=""):
+
+    class Status:  # type: ignore[misc]
+        def __init__(self, code, description="") -> None:
             self.code = code
             self.description = description
+
+
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Global tracer instance
@@ -98,16 +120,18 @@ class TracingConfig:
     def __post_init__(self):
         """Validate configuration."""
         if not 0.0 <= self.sample_rate <= 1.0:
-            raise ValueError("sample_rate must be between 0.0 and 1.0")
+            msg = "sample_rate must be between 0.0 and 1.0"
+            raise ValueError(msg)
 
         if self.export_format not in ("otlp", "jaeger", "zipkin"):
-            raise ValueError("export_format must be one of: otlp, jaeger, zipkin")
+            msg = "export_format must be one of: otlp, jaeger, zipkin"
+            raise ValueError(msg)
 
 
 class FraiseQLTracer:
     """OpenTelemetry tracer for FraiseQL operations."""
 
-    def __init__(self, config: TracingConfig | None = None):
+    def __init__(self, config: TracingConfig | None = None) -> None:
         """Initialize tracer with configuration."""
         self.config = config or TracingConfig()
         self.tracer = self._setup_tracer()
@@ -116,11 +140,11 @@ class FraiseQLTracer:
         if self.config.enabled and OPENTELEMETRY_AVAILABLE and PsycopgInstrumentor is not None:
             PsycopgInstrumentor().instrument()
 
-    def _setup_tracer(self) -> "trace.Tracer":
+    def _setup_tracer(self):
         """Set up OpenTelemetry tracer with configured exporter."""
         if not self.config.enabled or not OPENTELEMETRY_AVAILABLE:
             # Return no-op tracer when disabled or not available
-            return trace.get_tracer(__name__) if trace else None  # type: ignore
+            return trace.get_tracer(__name__) if trace else None  # type: ignore[return-value]
 
         # Create resource with service information
         resource = Resource.create(
@@ -138,7 +162,7 @@ class FraiseQLTracer:
         # Create tracer provider
         provider = TracerProvider(resource=resource, sampler=sampler) if TracerProvider else None
         if not provider:
-            return trace.get_tracer(__name__) if trace else None  # type: ignore
+            return trace.get_tracer(__name__) if trace else None  # type: ignore[return-value]
 
         # Add span processor with appropriate exporter
         if self.config.export_endpoint and BatchSpanProcessor:
@@ -159,7 +183,7 @@ class FraiseQLTracer:
         """Create appropriate span exporter based on configuration."""
         if not OPENTELEMETRY_AVAILABLE:
             return None
-            
+
         if self.config.export_format == "otlp" and OTLPSpanExporter:
             return OTLPSpanExporter(
                 endpoint=self.config.export_endpoint,
@@ -209,7 +233,10 @@ class FraiseQLTracer:
 
     @contextmanager
     def trace_graphql_mutation(
-        self, operation_name: str, query: str, variables: dict | None = None,
+        self,
+        operation_name: str,
+        query: str,
+        variables: dict | None = None,
     ):
         """Trace a GraphQL mutation operation."""
         with self.tracer.start_as_current_span(
@@ -293,7 +320,7 @@ class FraiseQLTracer:
 class TracingMiddleware(BaseHTTPMiddleware):
     """Middleware to trace HTTP requests."""
 
-    def __init__(self, app, tracer: FraiseQLTracer):
+    def __init__(self, app, tracer: FraiseQLTracer) -> None:
         """Initialize tracing middleware."""
         super().__init__(app)
         self.tracer = tracer
@@ -338,7 +365,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
                 if response.status_code >= 400:
                     span.set_status(Status(StatusCode.ERROR, f"HTTP {response.status_code}"))
 
-                return response
+                return response  # noqa: TRY300
 
             except Exception as e:
                 # Record exception

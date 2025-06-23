@@ -8,7 +8,7 @@ echo "===================================="
 echo -n "A record:    "
 dig +short fraiseql.dev A
 
-# Check AAAA record  
+# Check AAAA record
 echo -n "AAAA record: "
 dig +short fraiseql.dev AAAA
 

@@ -2,20 +2,17 @@
 
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timedelta
 
 import fraiseql
 from fraiseql import Info
 
-from .models import (
-    User, Product, Cart, Order, Review, Address,
-    ProductFilterInput, OrderStatus
-)
+from .models import Address, Cart, Order, OrderStatus, Product, ProductFilterInput, Review, User
 
 
 @fraiseql.type
 class ProductConnection:
     """Paginated product results."""
+
     items: list[Product]
     total_count: int
     has_next_page: bool
@@ -25,6 +22,7 @@ class ProductConnection:
 @fraiseql.type
 class OrderConnection:
     """Paginated order results."""
+
     items: list[Order]
     total_count: int
     has_next_page: bool
@@ -34,6 +32,7 @@ class OrderConnection:
 @fraiseql.type
 class ReviewConnection:
     """Paginated review results."""
+
     items: list[Review]
     total_count: int
     average_rating: float
@@ -42,6 +41,7 @@ class ReviewConnection:
 @fraiseql.type
 class CartWithItems:
     """Cart with its items."""
+
     cart: Cart
     items: list[CartItem]
     recommended_products: list[Product]
@@ -50,6 +50,7 @@ class CartWithItems:
 @fraiseql.type
 class OrderWithDetails:
     """Order with full details."""
+
     order: Order
     items: list[OrderItem]
     shipping_address: Address
@@ -60,6 +61,7 @@ class OrderWithDetails:
 @fraiseql.type
 class ProductWithReviews:
     """Product with reviews."""
+
     product: Product
     reviews: ReviewConnection
     average_rating: float
@@ -70,6 +72,7 @@ class ProductWithReviews:
 @fraiseql.type
 class DashboardStats:
     """User dashboard statistics."""
+
     total_orders: int
     total_spent: fraiseql.Decimal
     average_order_value: fraiseql.Decimal
@@ -81,30 +84,30 @@ class DashboardStats:
 @fraiseql.type
 class Query:
     """Root query type for e-commerce."""
-    
+
     # User queries
     @fraiseql.field
     async def me(self, info: Info) -> Optional[User]:
         """Get current authenticated user."""
         # Requires authentication
         return None  # Placeholder
-    
+
     @fraiseql.field
     async def user(self, info: Info, id: UUID) -> Optional[User]:
         """Get user by ID (admin only)."""
         return None  # Placeholder
-    
+
     # Product queries
     @fraiseql.field
     async def product(self, info: Info, id: UUID) -> Optional[Product]:
         """Get product by ID."""
         return None  # Placeholder
-    
+
     @fraiseql.field
     async def product_by_sku(self, info: Info, sku: str) -> Optional[Product]:
         """Get product by SKU."""
         return None  # Placeholder
-    
+
     @fraiseql.field
     async def products(
         self,
@@ -113,53 +116,53 @@ class Query:
         sort_by: str = "created_at",
         sort_order: str = "desc",
         limit: int = 20,
-        offset: int = 0
+        offset: int = 0,
     ) -> ProductConnection:
         """Search and filter products."""
         return ProductConnection(
             items=[],
             total_count=0,
             has_next_page=False,
-            has_previous_page=False
+            has_previous_page=False,
         )
-    
+
     @fraiseql.field
     async def featured_products(self, info: Info, limit: int = 8) -> list[Product]:
         """Get featured products."""
         return []
-    
+
     @fraiseql.field
     async def best_sellers(self, info: Info, limit: int = 10) -> list[Product]:
         """Get best selling products."""
         return []
-    
+
     @fraiseql.field
     async def new_arrivals(self, info: Info, limit: int = 10) -> list[Product]:
         """Get newest products."""
         return []
-    
+
     @fraiseql.field
     async def product_with_reviews(
         self,
         info: Info,
         id: UUID,
         review_limit: int = 10,
-        review_offset: int = 0
+        review_offset: int = 0,
     ) -> Optional[ProductWithReviews]:
         """Get product with reviews and related products."""
         return None  # Placeholder
-    
+
     # Cart queries
     @fraiseql.field
     async def my_cart(self, info: Info) -> Optional[CartWithItems]:
         """Get current user's cart with items."""
         return None  # Placeholder
-    
+
     @fraiseql.field
     async def cart(self, info: Info, id: UUID) -> Optional[Cart]:
         """Get cart by ID."""
         return None  # Placeholder
-    
+
     # Order queries
     @fraiseql.field
     async def my_orders(
@@ -167,37 +170,37 @@ class Query:
         info: Info,
         status: Optional[OrderStatus] = None,
         limit: int = 20,
-        offset: int = 0
+        offset: int = 0,
     ) -> OrderConnection:
         """Get current user's orders."""
         return OrderConnection(
             items=[],
             total_count=0,
             has_next_page=False,
-            has_previous_page=False
+            has_previous_page=False,
         )
-    
+
     @fraiseql.field
     async def order(self, info: Info, id: UUID) -> Optional[OrderWithDetails]:
         """Get order by ID with full details."""
         return None  # Placeholder
-    
+
     @fraiseql.field
     async def order_by_number(self, info: Info, order_number: str) -> Optional[OrderWithDetails]:
         """Get order by order number."""
         return None  # Placeholder
-    
+
     # Address queries
     @fraiseql.field
     async def my_addresses(self, info: Info) -> list[Address]:
         """Get current user's addresses."""
         return []
-    
+
     @fraiseql.field
     async def address(self, info: Info, id: UUID) -> Optional[Address]:
         """Get address by ID."""
         return None  # Placeholder
-    
+
     # Review queries
     @fraiseql.field
     async def product_reviews(
@@ -206,20 +209,20 @@ class Query:
         product_id: UUID,
         limit: int = 20,
         offset: int = 0,
-        sort_by: str = "created_at"
+        sort_by: str = "created_at",
     ) -> ReviewConnection:
         """Get reviews for a product."""
         return ReviewConnection(
             items=[],
             total_count=0,
-            average_rating=0.0
+            average_rating=0.0,
         )
-    
+
     @fraiseql.field
     async def my_reviews(self, info: Info) -> list[Review]:
         """Get current user's reviews."""
         return []
-    
+
     # Dashboard/Stats queries
     @fraiseql.field
     async def my_dashboard(self, info: Info) -> DashboardStats:
@@ -230,31 +233,31 @@ class Query:
             average_order_value=fraiseql.Decimal("0"),
             wishlist_count=0,
             review_count=0,
-            points_balance=0
+            points_balance=0,
         )
-    
+
     @fraiseql.field
     async def my_wishlist(self, info: Info) -> list[Product]:
         """Get current user's wishlist."""
         return []
-    
+
     # Search
     @fraiseql.field
     async def search_products(
         self,
         info: Info,
         query: str,
-        limit: int = 20
+        limit: int = 20,
     ) -> list[Product]:
         """Full-text search products."""
         return []
-    
+
     @fraiseql.field
     async def search_suggestions(
         self,
         info: Info,
         query: str,
-        limit: int = 5
+        limit: int = 5,
     ) -> list[str]:
         """Get search suggestions."""
         return []

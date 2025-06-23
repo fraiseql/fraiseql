@@ -25,7 +25,7 @@ from fraiseql.core.graphql_type import (
 
 
 def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
-    """Wrap an async resolver function into a GraphQLField with typed arguments and input coercion."""
+    """Wrap an async resolver function into a GraphQLField with typed arguments and input coercion."""  # noqa: E501
     sig = signature(fn)
     args: dict[str, GraphQLArgument] = {}
 
@@ -34,10 +34,10 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
         if name == "info":
             continue
         gql_input_type = convert_type_to_graphql_input(param.annotation)
-        args[name] = GraphQLArgument(GraphQLNonNull(cast(Any, gql_input_type)))
+        args[name] = GraphQLArgument(GraphQLNonNull(cast("Any", gql_input_type)))
 
     gql_output_type = convert_type_to_graphql_output(sig.return_annotation)
-    gql_output_type_cast = cast(GraphQLOutputType, gql_output_type)
+    gql_output_type_cast = cast("GraphQLOutputType", gql_output_type)
 
     async def resolver(root: object, info: GraphQLResolveInfo, **kwargs: object) -> object:
         _ = root
@@ -49,6 +49,7 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
 
             if (
                 isinstance(value, dict)
+                and expected_type is not None
                 and isclass(expected_type)
                 and (
                     is_dataclass(expected_type) or hasattr(expected_type, "__fraiseql_definition__")

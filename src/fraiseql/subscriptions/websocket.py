@@ -80,7 +80,8 @@ class GraphQLWSMessage:
         """Create from received dictionary."""
         msg_type = data.get("type")
         if not msg_type:
-            raise ValueError("Message type is required")
+            msg = "Message type is required"
+            raise ValueError(msg)
 
         # Handle legacy message types
         if msg_type == MessageType.START:
@@ -101,7 +102,7 @@ class WebSocketConnection:
         subprotocol: SubProtocol = SubProtocol.GRAPHQL_WS,
         connection_init_timeout: float = 10.0,
         keep_alive_interval: float = 30.0,
-    ):
+    ) -> None:
         self.websocket = websocket
         self.connection_id = connection_id or str(uuid4())
         self.subprotocol = subprotocol
@@ -118,7 +119,7 @@ class WebSocketConnection:
         self._keep_alive_task: asyncio.Task | None = None
         self._message_queue: asyncio.Queue = asyncio.Queue()
 
-    async def handle(self):
+    async def handle(self) -> None:
         """Handle the WebSocket connection lifecycle."""
         try:
             # Wait for connection_init
@@ -132,14 +133,14 @@ class WebSocketConnection:
             await self._message_loop()
 
         except asyncio.CancelledError:
-            logger.info(f"Connection {self.connection_id} cancelled")
+            logger.info("Connection %s cancelled", self.connection_id)
         except Exception as e:
-            logger.error(f"Connection {self.connection_id} error: {e}")
+            logger.exception("Connection %s error", self.connection_id)
             await self._send_error(None, str(e))
         finally:
             await self._cleanup()
 
-    async def _wait_for_connection_init(self):
+    async def _wait_for_connection_init(self) -> None:
         """Wait for connection_init message."""
         timeout = self.connection_init_timeout
         deadline = asyncio.get_event_loop().time() + timeout
@@ -158,20 +159,20 @@ class WebSocketConnection:
                     await self.send_message(GraphQLWSMessage(type=MessageType.CONNECTION_ACK))
 
                     self.state = ConnectionState.READY
-                    logger.info(f"Connection {self.connection_id} initialized")
+                    logger.info("Connection %s initialized", self.connection_id)
                     return
                 # Unexpected message before init
                 await self._close(
                     code=4400,
                     reason="Connection initialisation must be first message",
                 )
-                return
+                return  # noqa: TRY300
 
             except TimeoutError:
                 await self._close(code=4408, reason="Connection initialisation timeout")
                 raise
 
-    async def _message_loop(self):
+    async def _message_loop(self) -> None:
         """Main message processing loop."""
         while self.state == ConnectionState.READY:
             try:
@@ -183,7 +184,7 @@ class WebSocketConnection:
                 if "disconnect" in str(e).lower():
                     # Normal disconnect
                     break
-                logger.error(f"Message handling error: {e}")
+                logger.exception("Message handling error")
                 await self._send_error(None, str(e))
 
     async def _receive_message(self) -> GraphQLWSMessage:
@@ -193,7 +194,8 @@ class WebSocketConnection:
         # Handle disconnect
         if raw_message.get("type") == "websocket.disconnect":
             self.state = ConnectionState.CLOSING
-            raise WebSocketError("Client disconnected")
+            msg = "Client disconnected"
+            raise WebSocketError(msg)
 
         # Parse message
         text = raw_message.get("text", "")
@@ -201,21 +203,22 @@ class WebSocketConnection:
             data = json.loads(text)
             return GraphQLWSMessage.from_dict(data)
         except (json.JSONDecodeError, ValueError) as e:
-            raise WebSocketError(f"Invalid message format: {e}")
+            msg = f"Invalid message format: {e}"
+            raise WebSocketError(msg) from e
 
-    async def send_message(self, message: GraphQLWSMessage):
+    async def send_message(self, message: GraphQLWSMessage) -> None:
         """Send a message to the client."""
         if self.state not in (ConnectionState.READY, ConnectionState.CONNECTING):
             return
 
         try:
             await self.websocket.send(json.dumps(message.to_dict()))
-        except Exception as e:
-            logger.error(f"Failed to send message: {e}")
+        except Exception:
+            logger.exception("Failed to send message")
             self.state = ConnectionState.CLOSING
             raise
 
-    async def _handle_message(self, message: GraphQLWSMessage):
+    async def _handle_message(self, message: GraphQLWSMessage) -> None:
         """Handle incoming message based on type."""
         handlers = {
             MessageType.SUBSCRIBE: self._handle_subscribe,
@@ -228,9 +231,9 @@ class WebSocketConnection:
         if handler:
             await handler(message)
         else:
-            logger.warning(f"Unknown message type: {message.type}")
+            logger.warning("Unknown message type: %s", message.type)
 
-    async def _handle_subscribe(self, message: GraphQLWSMessage):
+    async def _handle_subscribe(self, message: GraphQLWSMessage) -> None:
         """Handle subscription request."""
         if not message.id:
             await self._send_error(None, "Subscription ID is required")
@@ -267,14 +270,14 @@ class WebSocketConnection:
                 await self._send_error(message.id, result)
 
         except Exception as e:
-            logger.error(f"Subscription error: {e}")
+            logger.exception("Subscription error")
             await self._send_error(message.id, str(e))
 
     async def _handle_subscription_generator(
         self,
         subscription_id: str,
         result_iterator: AsyncIterator[ExecutionResult],
-    ):
+    ) -> None:
         """Handle subscription result generator."""
         try:
             async for result in result_iterator:
@@ -304,29 +307,29 @@ class WebSocketConnection:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            logger.error(f"Subscription {subscription_id} error: {e}")
+            logger.exception("Subscription %s error", subscription_id)
             await self._send_error(subscription_id, str(e))
         finally:
             # Clean up
             self.subscriptions.pop(subscription_id, None)
 
-    async def _handle_complete(self, message: GraphQLWSMessage):
+    async def _handle_complete(self, message: GraphQLWSMessage) -> None:
         """Handle subscription completion request."""
         if message.id and message.id in self.subscriptions:
             task = self.subscriptions.pop(message.id)
             task.cancel()
-            logger.info(f"Subscription {message.id} completed")
+            logger.info("Subscription %s completed", message.id)
 
-    async def _handle_terminate(self, message: GraphQLWSMessage):
+    async def _handle_terminate(self, message: GraphQLWSMessage) -> None:
         """Handle connection termination request."""
         self.state = ConnectionState.CLOSING
         await self._close(code=1000, reason="Client requested termination")
 
-    async def _handle_ping(self, message: GraphQLWSMessage):
+    async def _handle_ping(self, message: GraphQLWSMessage) -> None:
         """Handle ping message."""
         await self.send_message(GraphQLWSMessage(type=MessageType.PONG, payload=message.payload))
 
-    async def _send_error(self, subscription_id: str | None, error: Any):
+    async def _send_error(self, subscription_id: str | None, error: Any) -> None:
         """Send error message."""
         payload = {"errors": [str(error)]} if isinstance(error, str) else error
 
@@ -334,7 +337,7 @@ class WebSocketConnection:
             GraphQLWSMessage(type=MessageType.ERROR, id=subscription_id, payload=payload),
         )
 
-    async def _keep_alive(self):
+    async def _keep_alive(self) -> None:
         """Send periodic keep-alive pings."""
         while self.state == ConnectionState.READY:
             try:
@@ -350,11 +353,11 @@ class WebSocketConnection:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"Keep-alive error: {e}")
+            except Exception:
+                logger.exception("Keep-alive error")
                 break
 
-    async def _close(self, code: int = 1000, reason: str = ""):
+    async def _close(self, code: int = 1000, reason: str = "") -> None:
         """Close the WebSocket connection."""
         if self.state == ConnectionState.CLOSED:
             return
@@ -363,12 +366,12 @@ class WebSocketConnection:
 
         try:
             await self.websocket.close(code=code, reason=reason)
-        except Exception as e:
-            logger.error(f"Error closing WebSocket: {e}")
+        except Exception:
+            logger.exception("Error closing WebSocket")
 
         self.state = ConnectionState.CLOSED
 
-    async def _cleanup(self):
+    async def _cleanup(self) -> None:
         """Clean up resources."""
         # Cancel keep-alive
         if self._keep_alive_task:
@@ -385,13 +388,13 @@ class WebSocketConnection:
         self.subscriptions.clear()
         self.state = ConnectionState.CLOSED
 
-        logger.info(f"Connection {self.connection_id} cleaned up")
+        logger.info("Connection %s cleaned up", self.connection_id)
 
 
 class SubscriptionManager:
     """Manages all WebSocket subscription connections."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.connections: dict[str, WebSocketConnection] = {}
         self.schema: GraphQLSchema | None = None
         self._lock = asyncio.Lock()
@@ -420,24 +423,24 @@ class SubscriptionManager:
         async with self._lock:
             self.connections[connection.connection_id] = connection
 
-        logger.info(f"Added connection {connection.connection_id}")
+        logger.info("Added connection %s", connection.connection_id)
         return connection
 
-    async def remove_connection(self, connection_id: str):
+    async def remove_connection(self, connection_id: str) -> None:
         """Remove a connection."""
         async with self._lock:
             connection = self.connections.pop(connection_id, None)
 
         if connection:
             await connection._cleanup()
-            logger.info(f"Removed connection {connection_id}")
+            logger.info("Removed connection %s", connection_id)
 
     async def broadcast(
         self,
         message: GraphQLWSMessage,
         subscription_id: str | None = None,
         filter_fn: Any | None = None,
-    ):
+    ) -> None:
         """Broadcast message to all connections."""
         # Get active connections
         async with self._lock:
@@ -460,7 +463,7 @@ class SubscriptionManager:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def close_all(self):
+    async def close_all(self) -> None:
         """Close all connections."""
         async with self._lock:
             connections = list(self.connections.values())

@@ -1,3 +1,4 @@
+from typing import Never
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -13,14 +14,12 @@ class TestFraiseQLRepository:
     @pytest.fixture
     def mock_pool(self):
         """Create a mock connection pool."""
-        pool = AsyncMock(spec=AsyncConnectionPool)
-        return pool
+        return AsyncMock(spec=AsyncConnectionPool)
 
     @pytest.fixture
     def repository(self, mock_pool):
         """Create a repository instance with mocked pool."""
-        repo = FraiseQLRepository(pool=mock_pool)
-        return repo
+        return FraiseQLRepository(pool=mock_pool)
 
     def _setup_mocks(self, mock_pool, mock_cursor):
         """Helper to set up the mock connection and cursor properly."""
@@ -44,7 +43,7 @@ class TestFraiseQLRepository:
         return mock_connection
 
     @pytest.mark.asyncio
-    async def test_run_simple_query(self, repository, mock_pool):
+    async def test_run_simple_query(self, repository, mock_pool) -> None:
         """Test running a simple SQL query."""
         # Setup mock cursor
         mock_cursor = AsyncMock()
@@ -66,7 +65,7 @@ class TestFraiseQLRepository:
         mock_cursor.execute.assert_called_once_with(query.statement, query.params)
 
     @pytest.mark.asyncio
-    async def test_run_query_with_params(self, repository, mock_pool):
+    async def test_run_query_with_params(self, repository, mock_pool) -> None:
         """Test running a query with parameters."""
         mock_cursor = AsyncMock()
         mock_cursor.fetchall.return_value = [{"id": 1, "email": "test@example.com"}]
@@ -87,7 +86,7 @@ class TestFraiseQLRepository:
         mock_cursor.execute.assert_called_once_with(query.statement, query.params)
 
     @pytest.mark.asyncio
-    async def test_run_composed_query(self, repository, mock_pool):
+    async def test_run_composed_query(self, repository, mock_pool) -> None:
         """Test running a Composed SQL query."""
         mock_cursor = AsyncMock()
         mock_cursor.fetchall.return_value = [{"count": 5}]
@@ -108,7 +107,7 @@ class TestFraiseQLRepository:
         mock_cursor.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_empty_result(self, repository, mock_pool):
+    async def test_run_empty_result(self, repository, mock_pool) -> None:
         """Test running a query that returns no results."""
         mock_cursor = AsyncMock()
         mock_cursor.fetchall.return_value = []
@@ -127,7 +126,7 @@ class TestFraiseQLRepository:
         mock_cursor.execute.assert_called_once_with(query.statement, query.params)
 
     @pytest.mark.asyncio
-    async def test_connection_error_handling(self, repository, mock_pool):
+    async def test_connection_error_handling(self, repository, mock_pool) -> None:
         """Test handling of connection errors."""
         # Make the connection raise an error
         mock_pool.connection.side_effect = Exception("Connection pool error")
@@ -138,7 +137,7 @@ class TestFraiseQLRepository:
             await repository.run(query)
 
     @pytest.mark.asyncio
-    async def test_cursor_error_handling(self, repository, mock_pool):
+    async def test_cursor_error_handling(self, repository, mock_pool) -> None:
         """Test handling of cursor execution errors."""
         mock_cursor = AsyncMock()
         mock_cursor.execute.side_effect = Exception("Query execution error")
@@ -146,13 +145,15 @@ class TestFraiseQLRepository:
         self._setup_mocks(mock_pool, mock_cursor)
 
         query = DatabaseQuery(
-            statement=SQL("SELECT * FROM invalid_table"), params={}, fetch_result=True
+            statement=SQL("SELECT * FROM invalid_table"),
+            params={},
+            fetch_result=True,
         )
 
         with pytest.raises(Exception, match="Query execution error"):
             await repository.run(query)
 
-    def test_repository_initialization(self):
+    def test_repository_initialization(self) -> None:
         """Test repository initialization with pool."""
         mock_pool = MagicMock(spec=AsyncConnectionPool)
         repo = FraiseQLRepository(pool=mock_pool)
@@ -160,7 +161,7 @@ class TestFraiseQLRepository:
         assert repo._pool is mock_pool
 
     @pytest.mark.asyncio
-    async def test_dict_row_factory(self, repository, mock_pool):
+    async def test_dict_row_factory(self, repository, mock_pool) -> None:
         """Test that dict_row factory is used for cursor."""
         mock_cursor = AsyncMock()
         mock_cursor.fetchall.return_value = [{"id": 1}]
@@ -176,7 +177,7 @@ class TestFraiseQLRepository:
         mock_connection.cursor.assert_called_once_with(row_factory=dict_row)
 
     @pytest.mark.asyncio
-    async def test_sql_with_jsonb(self, repository, mock_pool):
+    async def test_sql_with_jsonb(self, repository, mock_pool) -> None:
         """Test running query with JSONB operations."""
         mock_cursor = AsyncMock()
         mock_cursor.fetchall.return_value = [{"data": {"name": "John", "age": 30}}]
@@ -197,7 +198,7 @@ class TestFraiseQLRepository:
         mock_cursor.execute.assert_called_once_with(query.statement, query.params)
 
     @pytest.mark.asyncio
-    async def test_run_in_transaction(self, repository, mock_pool):
+    async def test_run_in_transaction(self, repository, mock_pool) -> None:
         """Test running a function inside a transaction."""
         # Mock transaction context manager
         mock_transaction_cm = Mock()
@@ -216,7 +217,7 @@ class TestFraiseQLRepository:
         mock_pool.connection.return_value = mock_connection_cm
 
         # Define a test function to run in transaction
-        async def test_func(conn, value):
+        async def test_func(conn, value) -> str:
             return f"Result: {value}"
 
         result = await repository.run_in_transaction(test_func, "test_value")
@@ -227,7 +228,7 @@ class TestFraiseQLRepository:
         mock_connection.transaction.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_in_transaction_with_error(self, repository, mock_pool):
+    async def test_run_in_transaction_with_error(self, repository, mock_pool) -> None:
         """Test transaction rollback on error."""
         # Mock transaction context manager
         mock_transaction_cm = Mock()
@@ -246,19 +247,20 @@ class TestFraiseQLRepository:
         mock_pool.connection.return_value = mock_connection_cm
 
         # Define a test function that raises an error
-        async def failing_func(conn):
-            raise ValueError("Transaction error")
+        async def failing_func(conn) -> Never:
+            msg = "Transaction error"
+            raise ValueError(msg)
 
         with pytest.raises(ValueError, match="Transaction error"):
             await repository.run_in_transaction(failing_func)
 
-    def test_get_pool(self, repository, mock_pool):
+    def test_get_pool(self, repository, mock_pool) -> None:
         """Test getting the underlying connection pool."""
         pool = repository.get_pool()
         assert pool is mock_pool
 
     @pytest.mark.asyncio
-    async def test_no_fetch_result(self, repository, mock_pool):
+    async def test_no_fetch_result(self, repository, mock_pool) -> None:
         """Test running a query with fetch_result=False."""
         mock_cursor = AsyncMock()
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Run the complex domain benchmark locally without Docker.
+
 This script starts the FraiseQL complex app and runs benchmarks against it.
 """
 
@@ -10,6 +11,7 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 
 def signal_handler(sig, frame):
@@ -33,8 +35,8 @@ try:
                 "postgresql://benchmark:benchmark@localhost:5432/benchmark_db"
             )
             await conn.close()
-            return True
-        except:
+            return True  # noqa: TRY300
+        except Exception:
             return False
 
     if not asyncio.run(check_db()):
@@ -58,7 +60,7 @@ try:
     r = redis.Redis(host="localhost", port=6379)
     r.ping()
     print("✅ Redis connection successful")
-except:
+except Exception:
     print("⚠️  Redis not accessible - will run without caching")
 
 # Start the FraiseQL complex app
@@ -110,7 +112,8 @@ try:
 
         if not exists:
             print("📦 Creating benchmark schema...")
-            with open("init-db-complex.sql") as f:
+            sql_path = Path("init-db-complex.sql")
+            with sql_path.open() as f:
                 schema_sql = f.read()
             await conn.execute(schema_sql)
             print("✅ Complex schema created")
@@ -129,7 +132,8 @@ try:
 
             if org_count == 0:
                 print("⚠️  No data found, initializing...")
-                with open("init-db-complex.sql") as f:
+                sql_path = Path("init-db-complex.sql")
+                with sql_path.open() as f:
                     schema_sql = f.read()
                 await conn.execute(schema_sql)
                 print("✅ Test data loaded")

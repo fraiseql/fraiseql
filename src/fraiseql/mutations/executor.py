@@ -92,7 +92,11 @@ def parse_mutation_result(
                 for err in errors_data
             ],
         )
-    return error_cls(status="failed:unknown_status", message=message, errors=errors)  # type: ignore[call-arg]
+    return error_cls(
+        status="failed:unknown_status",
+        message=message,
+        errors=errors,
+    )  # type: ignore[call-arg]
 
 
 async def run_fraiseql_mutation(

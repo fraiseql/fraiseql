@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Demonstrate FraiseQL's complex query capabilities with example SQL.
+
 This shows what FraiseQL would generate for deeply nested GraphQL queries.
 """
 

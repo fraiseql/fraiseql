@@ -39,6 +39,10 @@ app = create_fraiseql_app(
     description="A simple blog API built with FraiseQL",
     # Production mode from environment
     production=os.getenv("ENV") == "production",
+    # Optional: Configure GraphQL IDE
+    # config=FraiseQLConfig(
+    #     playground_tool="apollo-sandbox"  # or "graphiql" (default)
+    # )
 )
 
 
@@ -96,7 +100,7 @@ if __name__ == "__main__":
     # Run the application
     uvicorn.run(
         "app:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104
         port=8000,
         reload=os.getenv("ENV") != "production",
     )

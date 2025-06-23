@@ -17,11 +17,12 @@ _auth_provider: AuthProvider | None = None
 def get_db_pool():
     """Get the database connection pool."""
     if _db_pool is None:
-        raise RuntimeError("Database pool not initialized. Call create_fraiseql_app first.")
+        msg = "Database pool not initialized. Call create_fraiseql_app first."
+        raise RuntimeError(msg)
     return _db_pool
 
 
-def set_db_pool(pool):
+def set_db_pool(pool) -> None:
     """Set the database connection pool (called by create_app)."""
     global _db_pool
     _db_pool = pool
@@ -32,7 +33,7 @@ def get_auth_provider() -> AuthProvider | None:
     return _auth_provider
 
 
-def set_auth_provider(provider: AuthProvider | None):
+def set_auth_provider(provider: AuthProvider | None) -> None:
     """Set the auth provider (called by create_app)."""
     global _auth_provider
     _auth_provider = provider

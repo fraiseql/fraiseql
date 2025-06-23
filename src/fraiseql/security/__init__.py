@@ -142,7 +142,7 @@ class SecurityConfig:
         custom_rate_limits: list[RateLimitRule] | None = None,
         custom_csrf_config: CSRFConfig | None = None,
         custom_security_headers: SecurityHeadersConfig | None = None,
-    ):
+    ) -> None:
         self.secret_key = secret_key
         self.environment = environment
         self.domain = domain or "localhost"
@@ -245,7 +245,7 @@ def setup_security(
             )
             middleware_instances["rate_limiting"] = rate_limiting_middleware
         except Exception as e:
-            logger.warning(f"Failed to set up rate limiting: {e}")
+            logger.warning("Failed to set up rate limiting: %s", e)
 
     # 2. Set up CSRF protection
     if config.enable_csrf_protection:
@@ -269,7 +269,7 @@ def setup_security(
             )
             middleware_instances["csrf"] = csrf_middleware
         except Exception as e:
-            logger.warning(f"Failed to set up CSRF protection: {e}")
+            logger.warning("Failed to set up CSRF protection: %s", e)
 
     # 3. Set up security headers
     if config.enable_security_headers:
@@ -295,7 +295,7 @@ def setup_security(
             )
             middleware_instances["security_headers"] = headers_middleware
         except Exception as e:
-            logger.warning(f"Failed to set up security headers: {e}")
+            logger.warning("Failed to set up security headers: %s", e)
 
     # 4. Set up input validation (if available)
     if config.enable_input_validation:
@@ -304,7 +304,7 @@ def setup_security(
             # This would be integrated with the FraiseQL query processing
             pass
         except Exception as e:
-            logger.warning(f"Failed to set up input validation: {e}")
+            logger.warning("Failed to set up input validation: %s", e)
 
     return middleware_instances
 
@@ -438,7 +438,7 @@ def setup_production_security(
 
 def setup_development_security(
     app: FastAPI,
-    secret_key: str = "dev-secret-key-change-in-production",  # noqa: S107 - dev only
+    secret_key: str = "dev-secret-key-change-in-production",
 ) -> dict[str, Any]:
     """Set up development security with permissive settings."""
     return setup_security(

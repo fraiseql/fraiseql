@@ -85,7 +85,8 @@ class AuthProvider(ABC):
             NotImplementedError: If provider doesn't support refresh
             AuthenticationError: If refresh token is invalid
         """
-        raise NotImplementedError("Token refresh not supported by this provider")
+        msg = "Token refresh not supported by this provider"
+        raise NotImplementedError(msg)
 
     async def revoke_token(self, token: str) -> None:
         """Revoke a token.
@@ -96,7 +97,8 @@ class AuthProvider(ABC):
         Raises:
             NotImplementedError: If provider doesn't support revocation
         """
-        raise NotImplementedError("Token revocation not supported by this provider")
+        msg = "Token revocation not supported by this provider"
+        raise NotImplementedError(msg)
 
 
 class AuthenticationError(Exception):

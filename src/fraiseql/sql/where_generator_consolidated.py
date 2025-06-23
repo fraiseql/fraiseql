@@ -48,7 +48,7 @@ class WhereClauseMixin:
     _config: WhereGeneratorConfig
     _conditions: dict[str, Any]
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """Initialize with field values."""
         self._config = getattr(self.__class__, "_config", WhereGeneratorConfig())
         self._conditions = {}
@@ -68,19 +68,24 @@ class WhereClauseMixin:
             if len(value) > self._config.max_string_length:
                 raise SQLGenerationError(
                     operation="WHERE clause generation",
-                    reason=f"Field '{field_name}' exceeds maximum length ({self._config.max_string_length})",
+                    reason=(
+                        f"Field '{field_name}' exceeds maximum length "
+                        f"({self._config.max_string_length})"
+                    ),
                     custom_suggestion=f"Reduce the length of the {field_name} filter",
                 )
 
             if self._config.validation_mode == ValidationMode.STRICT:
                 # Check for SQL injection patterns
-                validation_result = InputValidator.validate_field(field_name, value)
-                if not validation_result.is_valid:
+                validation_result = InputValidator.validate_field_value(field_name, value)
+                if not validation_result.is_valid or validation_result.warnings:
                     raise SQLGenerationError(
                         operation="WHERE clause generation",
                         reason="SQL injection pattern detected",
                         query_info={"field": field_name, "value": value},
-                        custom_suggestion="Remove SQL keywords and special characters from the filter",
+                        custom_suggestion=(
+                            "Remove SQL keywords and special characters from the filter"
+                        ),
                     )
 
         # Numeric validation
@@ -98,7 +103,7 @@ class WhereClauseMixin:
                 raise SQLGenerationError(
                     operation="WHERE clause generation",
                     reason=f"Field '{field_name}' exceeds maximum numeric value",
-                    custom_suggestion=f"Use a value less than {self._config.max_numeric_value}",
+                    custom_suggestion=(f"Use a value less than {self._config.max_numeric_value}"),
                 )
 
         # List validation
@@ -106,7 +111,10 @@ class WhereClauseMixin:
             if len(value) > self._config.max_list_length:
                 raise SQLGenerationError(
                     operation="WHERE clause generation",
-                    reason=f"Field '{field_name}' list exceeds maximum length ({self._config.max_list_length})",
+                    reason=(
+                        f"Field '{field_name}' list exceeds maximum length "
+                        f"({self._config.max_list_length})"
+                    ),
                     custom_suggestion="Reduce the number of items in the filter list",
                 )
 
@@ -127,9 +135,24 @@ class WhereClauseMixin:
             parts = mapped_name.split("__")
             # Build nested JSON access: data->'part1'->'part2'->>'final'
             path = SQL(self._config.table_prefix)
-            for _i, part in enumerate(parts[:-1]):
+            for i, part in enumerate(parts):
+                if i == len(parts) - 1:
+                    # Last part uses ->>
+                    return SQL("{}->>{}").format(path, Literal(part))
+                # Intermediate parts use ->
                 path = SQL("{}->{}").format(path, Literal(part))
-            return SQL("{}->>{}").format(path, Literal(parts[-1]))
+            return path
+
+        # Check if field_name contains __ (for nested field that's not in mapping)
+        if self._config.enable_nested_access and "__" in field_name:
+            parts = field_name.split("__")
+            path = SQL(self._config.table_prefix)
+            for i, part in enumerate(parts):
+                if i == len(parts) - 1:
+                    return SQL("{}->>{}").format(path, Literal(part))
+                path = SQL("{}->{}").format(path, Literal(part))
+            return path
+
         return SQL("{}->>{}").format(SQL(self._config.table_prefix), Literal(mapped_name))
 
     def _get_typed_field_path(self, field_name: str, field_type: type) -> SQL | Composed:
@@ -152,7 +175,11 @@ class WhereClauseMixin:
         return base_path
 
     def _build_condition(
-        self, field_name: str, operator: str, value: Any, field_type: type,
+        self,
+        field_name: str,
+        operator: str,
+        value: Any,
+        field_type: type,
     ) -> Composed:
         """Build a single WHERE condition."""
         # Validate the value
@@ -185,7 +212,10 @@ class WhereClauseMixin:
 
         if operator == "array_contains":
             # For JSONB array contains
-            json_path = SQL("{}->{}").format(SQL(self._config.table_prefix), Literal(field_name))
+            json_path = SQL("{}->{}").format(
+                SQL(self._config.table_prefix),
+                Literal(field_name),
+            )
             return SQL("{} @> {}").format(json_path, Placeholder())
 
         # Standard operators
@@ -222,14 +252,32 @@ class WhereClauseMixin:
             if operator == "is_null":
                 continue
 
-            # Transform value for special operators
+            # Get field type from original class for proper handling
+            original_type_hints = get_type_hints(self.__class__._original_class)
+            field_type = original_type_hints.get(field_name, str)
+
+            # Check if contains should be array_contains based on field type
+            actual_operator = operator
             if operator == "contains":
+                origin = get_origin(field_type)
+                if origin is list or (
+                    origin in (Union, type(int | None))
+                    and any(
+                        get_origin(arg) is list
+                        for arg in get_args(field_type)
+                        if arg is not type(None)
+                    )
+                ):
+                    actual_operator = "array_contains"
+
+            # Transform value for special operators
+            if actual_operator == "contains":
                 params.append(f"%{value}%")
             elif operator == "starts_with":
                 params.append(f"{value}%")
             elif operator == "ends_with":
                 params.append(f"%{value}")
-            elif operator == "array_contains" and field_name == "tags":
+            elif actual_operator == "array_contains":
                 # Convert to JSON array
                 params.append(json.dumps([value]))
             else:
@@ -243,7 +291,6 @@ class WhereClauseMixin:
             return None
 
         conditions = []
-        type_hints = get_type_hints(self.__class__._original_class)
 
         # Handle special keys first
         if "_or" in self._conditions:
@@ -268,40 +315,78 @@ class WhereClauseMixin:
             if and_conditions:
                 conditions.append(SQL("({})").format(SQL(" AND ").join(and_conditions)))
 
+        # Get type hints from the ORIGINAL class, not the WHERE class
+        original_type_hints = get_type_hints(self.__class__._original_class)
+
         # Process regular fields
         for key, value in sorted(self._conditions.items()):
             if key.startswith("_"):
                 continue  # Skip special keys
 
-            # Parse field name and operator
-            parts = key.split("_")
+            # Check for nested field access first
+            if self._config.enable_nested_access and "__" in key:
+                # For nested access, check if the base field exists
+                base_field = key.split("__")[0]
+                if base_field in original_type_hints:
+                    field_name = key  # Use the full key as field name
+                    operator = "eq"
+                else:
+                    # Not a valid nested field, continue with normal parsing
+                    field_name = None
+                    operator = None
+            else:
+                field_name = None
+                operator = None
 
-            # Find the actual field name (handling operators like _not_in)
-            field_name = None
-            operator = "eq"
+            # If not a nested field, parse normally
+            if field_name is None:
+                # Parse field name and operator
+                parts = key.split("_")
 
-            # Try to match field names from longest to shortest
-            for i in range(len(parts), 0, -1):
-                potential_field = "_".join(parts[:i])
-                if potential_field in type_hints:
-                    field_name = potential_field
-                    operator = "_".join(parts[i:]) if i < len(parts) else "eq"
-                    break
+                # Find the actual field name (handling operators like _not_in)
+                field_name = None
+                operator = "eq"
 
-            if not field_name:
-                field_name = parts[0]
-                operator = "_".join(parts[1:]) if len(parts) > 1 else "eq"
+                # Try to match field names from longest to shortest
+                for i in range(len(parts), 0, -1):
+                    potential_field = "_".join(parts[:i])
+                    if potential_field in original_type_hints:
+                        field_name = potential_field
+                        operator = "_".join(parts[i:]) if i < len(parts) else "eq"
+                        break
+
+                if not field_name:
+                    # Default to using first part as field name
+                    field_name = parts[0]
+                    operator = "_".join(parts[1:]) if len(parts) > 1 else "eq"
 
             # Skip if field is excluded
             if field_name in self._config.excluded_fields:
                 continue
 
-            # Handle array contains specially
-            if field_name == "tags" and operator == "contains":
-                operator = "array_contains"
+            # Get field type from original class
+            if "__" in field_name and self._config.enable_nested_access:
+                # For nested fields, get the base field type
+                base_field = field_name.split("__")[0]
+                field_type = original_type_hints.get(base_field, str)
+            else:
+                field_type = original_type_hints.get(field_name, str)
 
-            # Get field type
-            field_type = type_hints.get(field_name, str)
+            # Handle array contains specially for list fields
+            if operator == "contains":
+                origin = get_origin(field_type)
+                # Handle both list[str] and Optional[list[str]]
+                if origin is list:
+                    operator = "array_contains"
+                elif origin in (Union, type(int | None)):  # Handle Union and UnionType
+                    # Check if it's Optional[list[...]]
+                    args = get_args(field_type)
+                    for arg in args:
+                        if arg is not type(None) and get_origin(arg) is list:
+                            operator = "array_contains"
+                            break
+                elif field_type is list:  # Handle bare list type
+                    operator = "array_contains"
 
             # Build condition
             condition = self._build_condition(field_name, operator, value, field_type)
@@ -365,6 +450,10 @@ def create_where_type(cls: type, config: WhereGeneratorConfig | None = None) -> 
             attributes[f"{field_name}_starts_with"] = None
             attributes[f"{field_name}_ends_with"] = None
 
+        # For list fields, add contains operator for array containment
+        if origin is list:
+            attributes[f"{field_name}_contains"] = None
+
         # Common operators for all types
         attributes[f"{field_name}_not"] = None
         attributes[f"{field_name}_in"] = None
@@ -374,6 +463,12 @@ def create_where_type(cls: type, config: WhereGeneratorConfig | None = None) -> 
     # Add special operators
     attributes["_or"] = None
     attributes["_and"] = None
+
+    # Add a custom __setattr__ to handle dynamic attributes
+    def custom_setattr(self, name: str, value: Any) -> None:
+        self.__dict__[name] = value
+
+    attributes["__setattr__"] = custom_setattr
 
     # Create the WHERE class
     return type(

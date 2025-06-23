@@ -4,9 +4,9 @@ Performance benchmark results analyzer and report generator
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +22,7 @@ class BenchmarkAnalyzer:
         self.frameworks = ["fraiseql", "strawberry-sqlalchemy", "graphene-sqlalchemy", "ariadne"]
         self.test_types = ["simple-queries", "nested-queries", "load-test"]
 
-    def load_results(self) -> Dict[str, Dict[str, Any]]:
+    def load_results(self) -> dict[str, dict[str, Any]]:
         """Load all benchmark results from JSON files"""
         results = {}
 
@@ -37,12 +37,12 @@ class BenchmarkAnalyzer:
                 if files:
                     # Get the most recent file
                     latest_file = max(files, key=lambda f: f.stat().st_mtime)
-                    with open(latest_file) as f:
+                    with latest_file.open() as f:
                         results[framework][test_type] = json.load(f)
 
         return results
 
-    def generate_comparison_table(self, results: Dict[str, Dict[str, Any]]) -> str:
+    def generate_comparison_table(self, results: dict[str, dict[str, Any]]) -> str:
         """Generate a comparison table of key metrics"""
         table_data = []
         headers = [
@@ -72,7 +72,7 @@ class BenchmarkAnalyzer:
 
         return tabulate(table_data, headers=headers, tablefmt="pipe")
 
-    def generate_response_time_chart(self, results: Dict[str, Dict[str, Any]]):
+    def generate_response_time_chart(self, results: dict[str, dict[str, Any]]):
         """Generate response time comparison charts"""
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -111,7 +111,7 @@ class BenchmarkAnalyzer:
         plt.savefig(self.reports_dir / "response_time_comparison.png", dpi=300)
         plt.close()
 
-    def generate_throughput_chart(self, results: Dict[str, Dict[str, Any]]):
+    def generate_throughput_chart(self, results: dict[str, dict[str, Any]]):
         """Generate throughput comparison chart"""
         fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -149,7 +149,7 @@ class BenchmarkAnalyzer:
         plt.savefig(self.reports_dir / "throughput_comparison.png", dpi=300)
         plt.close()
 
-    def generate_error_rate_chart(self, results: Dict[str, Dict[str, Any]]):
+    def generate_error_rate_chart(self, results: dict[str, dict[str, Any]]):
         """Generate error rate comparison chart"""
         fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -192,11 +192,13 @@ class BenchmarkAnalyzer:
         plt.savefig(self.reports_dir / "error_rate_comparison.png", dpi=300)
         plt.close()
 
-    def generate_markdown_report(self, results: Dict[str, Dict[str, Any]]) -> str:
+    def generate_markdown_report(self, results: dict[str, dict[str, Any]]) -> str:
         """Generate comprehensive markdown report"""
         report = []
         report.append("# FraiseQL Performance Benchmark Report")
-        report.append(f"\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        report.append(
+            f"\nGenerated: {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
+        )
         report.append("\n## Executive Summary")
 
         # Find the best performer for each metric
@@ -302,14 +304,15 @@ class BenchmarkAnalyzer:
         report = self.generate_markdown_report(results)
 
         report_path = (
-            self.reports_dir / f"benchmark_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            self.reports_dir
+            / f"benchmark_report_{datetime.now(tz=timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
         )
-        with open(report_path, "w") as f:
+        with report_path.open("w") as f:
             f.write(report)
 
         # Also save the latest report
         latest_path = self.reports_dir / "latest_report.md"
-        with open(latest_path, "w") as f:
+        with latest_path.open("w") as f:
             f.write(report)
 
         print(f"Analysis complete! Reports saved to {self.reports_dir}")

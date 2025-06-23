@@ -8,62 +8,62 @@
       .grid { stroke: #ddd; stroke-width: 1; stroke-dasharray: 5,5; }
     </style>
   </defs>
-  
+
   <!-- Title -->
   <text x="350" y="30" text-anchor="middle" class="title">Débit (Requêtes/seconde)</text>
-  
+
   <!-- Y-axis -->
   <line x1="80" y1="60" x2="80" y2="340" class="axis"/>
-  
+
   <!-- X-axis -->
   <line x1="80" y1="340" x2="620" y2="340" class="axis"/>
-  
+
   <!-- Grid lines and labels -->
   <line x1="80" y1="310" x2="620" y2="310" class="grid"/>
   <text x="70" y="315" text-anchor="end" class="label">500</text>
-  
+
   <line x1="80" y1="280" x2="620" y2="280" class="grid"/>
   <text x="70" y="285" text-anchor="end" class="label">1000</text>
-  
+
   <line x1="80" y1="250" x2="620" y2="250" class="grid"/>
   <text x="70" y="255" text-anchor="end" class="label">1500</text>
-  
+
   <line x1="80" y1="220" x2="620" y2="220" class="grid"/>
   <text x="70" y="225" text-anchor="end" class="label">2000</text>
-  
+
   <line x1="80" y1="190" x2="620" y2="190" class="grid"/>
   <text x="70" y="195" text-anchor="end" class="label">2500</text>
-  
+
   <line x1="80" y1="160" x2="620" y2="160" class="grid"/>
   <text x="70" y="165" text-anchor="end" class="label">3000</text>
-  
+
   <!-- Target line -->
   <line x1="80" y1="220" x2="620" y2="220" stroke="#27ae60" stroke-width="2" stroke-dasharray="8,4"/>
   <text x="625" y="225" class="label" fill="#27ae60">Objectif</text>
-  
+
   <!-- Bars -->
   <!-- FraiseQL: 2632 req/s -->
   <rect x="120" y="182" width="80" height="158" fill="#e74c3c" opacity="0.8"/>
   <text x="160" y="175" text-anchor="middle" class="value">2632</text>
-  
+
   <!-- Strawberry: 1149 req/s -->
   <rect x="250" y="271" width="80" height="69" fill="#f39c12" opacity="0.8"/>
   <text x="290" y="265" text-anchor="middle" class="value">1149</text>
-  
+
   <!-- Flask+GraphQL: 892 req/s -->
   <rect x="380" y="286" width="80" height="54" fill="#95a5a6" opacity="0.8"/>
   <text x="420" y="280" text-anchor="middle" class="value">892</text>
-  
+
   <!-- FastAPI+GraphQL: 1876 req/s -->
   <rect x="510" y="228" width="80" height="112" fill="#3498db" opacity="0.8"/>
   <text x="550" y="220" text-anchor="middle" class="value">1876</text>
-  
+
   <!-- X-axis labels -->
   <text x="160" y="360" text-anchor="middle" class="label">FraiseQL</text>
   <text x="290" y="360" text-anchor="middle" class="label">Strawberry</text>
   <text x="420" y="360" text-anchor="middle" class="label">Flask+GraphQL</text>
   <text x="550" y="360" text-anchor="middle" class="label">FastAPI+GraphQL</text>
-  
+
   <!-- Y-axis title -->
   <text x="30" y="200" text-anchor="middle" class="label" transform="rotate(-90, 30, 200)">Requêtes/seconde</text>
 </svg>

@@ -97,7 +97,7 @@ scrape_configs:
       target_label: __address__
     - action: labelmap
       regex: __meta_kubernetes_pod_label_(.+)
-    
+
   - job_name: 'postgresql'
     static_configs:
     - targets: ['postgres-exporter:9187']
@@ -290,7 +290,7 @@ async def get_user(user_id: int):
     span = trace.get_current_span()
     span.set_attribute("user.id", user_id)
     span.set_attribute("user.type", "premium")
-    
+
     # Your logic here
     return user
 ```
@@ -402,7 +402,7 @@ groups:
   rules:
   - alert: HighErrorRate
     expr: |
-      100 * sum(rate(fraiseql_graphql_queries_errors[5m])) 
+      100 * sum(rate(fraiseql_graphql_queries_errors[5m]))
       / sum(rate(fraiseql_graphql_queries_total[5m])) > 1
     for: 5m
     labels:
@@ -437,7 +437,7 @@ groups:
 
   - alert: CacheHitRateLow
     expr: |
-      sum(rate(fraiseql_cache_hits_total[5m])) 
+      sum(rate(fraiseql_cache_hits_total[5m]))
       / (sum(rate(fraiseql_cache_hits_total[5m])) + sum(rate(fraiseql_cache_misses_total[5m]))) < 0.7
     for: 15m
     labels:
@@ -499,13 +499,13 @@ slis:
     query: |
       sum(rate(fraiseql_http_requests_total{status!~"5.."}[5m]))
       / sum(rate(fraiseql_http_requests_total[5m]))
-    
+
   - name: latency
     query: |
-      histogram_quantile(0.95, 
+      histogram_quantile(0.95,
         sum(rate(fraiseql_response_time_seconds_bucket{status!~"5.."}[5m])) by (le)
       ) < 1
-    
+
   - name: error_rate
     query: |
       1 - (
@@ -618,7 +618,5 @@ slis:
 
 ## Next Steps
 
-- [Performance Tuning](./performance.md) - Optimization guide
-- [Disaster Recovery](./disaster-recovery.md) - Backup and restore
-- [Security Monitoring](./security-monitoring.md) - Security-focused monitoring
-- [Cost Optimization](./cost-optimization.md) - Reduce monitoring costs
+- [Docker Deployment](./docker.md) - Container deployment guide
+- [Kubernetes Deployment](./kubernetes.md) - Container orchestration

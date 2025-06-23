@@ -1,7 +1,7 @@
 """FraiseQL benchmark application using updated architecture."""
 
-import os
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import Response
 from models import (
@@ -117,9 +117,9 @@ async def metrics():
 
 
 # Initialize results directory
-os.makedirs(settings.results_dir, exist_ok=True)
+Path(settings.results_dir).mkdir(parents=True, exist_ok=True)
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104

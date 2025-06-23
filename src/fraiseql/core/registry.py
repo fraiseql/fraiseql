@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from threading import Lock
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fraiseql.core.types import MutationField, QueryField, SubscriptionField
+if TYPE_CHECKING:
+    from fraiseql.core.types import MutationField, QueryField, SubscriptionField
 
 
 class TypeRegistry:
@@ -22,7 +23,7 @@ class TypeRegistry:
                 cls._instance._initialized = False
             return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         if self._initialized:
             return
 
@@ -32,19 +33,19 @@ class TypeRegistry:
         self._types: dict[str, Any] = {}
         self._initialized = True
 
-    def register_query(self, field: QueryField):
+    def register_query(self, field: QueryField) -> None:
         """Register a query field."""
         self._queries[field.name] = field
 
-    def register_mutation(self, field: MutationField):
+    def register_mutation(self, field: MutationField) -> None:
         """Register a mutation field."""
         self._mutations[field.name] = field
 
-    def register_subscription(self, field: SubscriptionField):
+    def register_subscription(self, field: SubscriptionField) -> None:
         """Register a subscription field."""
         self._subscriptions[field.name] = field
 
-    def register_type(self, name: str, type_def: Any):
+    def register_type(self, name: str, type_def: Any) -> None:
         """Register a GraphQL type."""
         self._types[name] = type_def
 
@@ -64,7 +65,7 @@ class TypeRegistry:
         """Get all registered types."""
         return self._types.copy()
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all registrations."""
         self._queries.clear()
         self._mutations.clear()

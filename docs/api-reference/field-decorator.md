@@ -10,7 +10,7 @@ import fraiseql
 @fraiseql.type
 class User:
     id: int
-    
+
     @fraiseql.field
     def full_name(self, info) -> str:
         """Get the user's full name."""
@@ -41,7 +41,7 @@ def get_post_count(user, info):
 @fraiseql.type
 class User:
     id: int
-    
+
     @fraiseql.field(resolver=get_post_count)
     def post_count(self) -> int:
         pass  # Implementation provided by resolver
@@ -110,7 +110,7 @@ class User:
     async def posts(self, info) -> list['Post']:
         db = info.context["db"]
         return await db.fetch_all(
-            "SELECT * FROM posts WHERE user_id = %s", 
+            "SELECT * FROM posts WHERE user_id = %s",
             (self.id,)
         )
 ```

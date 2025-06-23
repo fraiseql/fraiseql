@@ -148,7 +148,7 @@ class MetriquesSobriete:
         self.requetes_jour = 100_000
         self.cout_mensuel_cible = 140  # EUR
         self.temps_reponse_cible = 50  # ms
-    
+
     def alerte_derive(self, metriques_actuelles):
         if metriques_actuelles['cout'] > self.cout_mensuel_cible * 1.2:
             return "Attention : dépassement budget de 20%"

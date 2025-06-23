@@ -18,7 +18,7 @@ from fraiseql.types.scalars.json import (
 class TestJSONValidation:
     """Test JSON validation at various stages."""
 
-    def test_parse_json_literal_invalid_syntax(self):
+    def test_parse_json_literal_invalid_syntax(self) -> None:
         """Test parsing invalid JSON syntax."""
         # Invalid JSON strings
         invalid_jsons = [
@@ -33,7 +33,7 @@ class TestJSONValidation:
             with pytest.raises(GraphQLError, match="JSON cannot represent"):
                 parse_json_literal(invalid_json)
 
-    def test_parse_json_value_non_serializable(self):
+    def test_parse_json_value_non_serializable(self) -> None:
         """Test that non-JSON serializable Python objects raise errors."""
 
         # Non-serializable Python objects
@@ -50,12 +50,12 @@ class TestJSONValidation:
             with pytest.raises(GraphQLError, match="JSON cannot represent"):
                 parse_json_value(value)
 
-    def test_json_field_with_invalid_default(self):
-        """Test that invalid default values in JSON fields are caught during GraphQL type conversion."""
+    def test_json_field_with_invalid_default(self) -> None:
+        """Test that invalid default values in JSON fields are caught."""
         # The validation happens when converting to GraphQL types, not at class definition
 
         class NonSerializable:
-            def __repr__(self):
+            def __repr__(self) -> str:
                 return "<NonSerializable>"
 
         @fraise_input
@@ -71,7 +71,7 @@ class TestJSONValidation:
             convert_type_to_graphql_input(InvalidDefaultInput)
 
     @pytest.mark.asyncio
-    async def test_graphql_mutation_with_invalid_json(self, clear_registry):
+    async def test_graphql_mutation_with_invalid_json(self, clear_registry) -> None:
         """Test that invalid JSON in GraphQL mutations is rejected."""
 
         @fraise_type
@@ -163,7 +163,7 @@ class TestJSONValidation:
         )
 
     @pytest.mark.asyncio
-    async def test_graphql_query_with_json_literal(self, clear_registry):
+    async def test_graphql_query_with_json_literal(self, clear_registry) -> None:
         """Test JSON literal parsing in GraphQL queries."""
 
         @fraise_type
@@ -205,7 +205,7 @@ class TestJSONValidation:
         assert result.errors is not None
         assert len(result.errors) > 0
 
-    def test_json_field_type_validation(self):
+    def test_json_field_type_validation(self) -> None:
         """Test that JSONField only accepts dict-like objects at runtime."""
         from fraiseql.types.scalars.json import JSONField
 
@@ -226,7 +226,7 @@ class TestJSONFieldInMutations:
     """Test JSON field behavior in mutation contexts."""
 
     @pytest.mark.asyncio
-    async def test_mutation_with_nested_invalid_json(self, clear_registry):
+    async def test_mutation_with_nested_invalid_json(self, clear_registry) -> None:
         """Test deeply nested invalid JSON structures."""
 
         @fraise_type
@@ -291,7 +291,7 @@ class TestJSONFieldInMutations:
 class TestJSONScalarCoercion:
     """Test JSON scalar coercion and validation."""
 
-    def test_json_scalar_serialize(self):
+    def test_json_scalar_serialize(self) -> None:
         """Test JSONScalar serialization."""
         # Valid values should serialize successfully
         valid_values = [
@@ -317,21 +317,21 @@ class TestJSONScalarCoercion:
             JSONScalar.serialize({1, 2, 3})
         assert "not JSON-serializable" in str(exc_info.value)
         assert "set" in str(exc_info.value)
-        
+
         # Test other non-serializable types
         class CustomObject:
             pass
-        
+
         with pytest.raises(GraphQLError) as exc_info:
             JSONScalar.serialize(CustomObject())
         assert "not JSON-serializable" in str(exc_info.value)
-        
+
         # Test function
         with pytest.raises(GraphQLError) as exc_info:
             JSONScalar.serialize(lambda x: x)
         assert "not JSON-serializable" in str(exc_info.value)
 
-    def test_json_scalar_parse_value(self):
+    def test_json_scalar_parse_value(self) -> None:
         """Test JSONScalar parse_value (from variables)."""
         # Valid values should parse successfully
         valid_values = [
@@ -352,7 +352,7 @@ class TestJSONScalarCoercion:
         with pytest.raises(GraphQLError):
             JSONScalar.parse_value(lambda x: x)
 
-    def test_json_scalar_parse_literal(self):
+    def test_json_scalar_parse_literal(self) -> None:
         """Test JSONScalar parse_literal (from query)."""
         from graphql.language import parse_value
 

@@ -118,7 +118,7 @@ class User:
     email: str
     name: str
     created_at: datetime
-    
+
     @fraiseql.field
     async def orders(self, info: fraiseql.Info) -> list["Order"]:
         # FraiseQL will handle the SQL generation
@@ -154,10 +154,10 @@ class User:
     email: str
     name: str
     created_at: datetime
-    
+
     @fraiseql.field
     async def orders(
-        self, 
+        self,
         info: fraiseql.Info,
         first: Optional[int] = None,
         after: Optional[str] = None
@@ -190,7 +190,7 @@ class User:
     id: UUID
     email: str
     name: str
-    
+
     @classmethod
     def can_read(cls, info: fraiseql.Info, obj: "User") -> bool:
         # Check if user can read this object
@@ -212,7 +212,7 @@ FraiseQL handles this at the application level:
 @fraiseql.field
 async def users(self, info: fraiseql.Info) -> list[User]:
     current_user_id = info.context.get("user_id")
-    
+
     # Apply filtering based on permissions
     if info.context.get("is_admin"):
         return []  # Return all users
@@ -263,17 +263,17 @@ async def register(info: fraiseql.Info, input: RegisterInput) -> RegisterResult:
     try:
         # Hash password
         password_hash = hash_password(input.password)
-        
+
         # Create user in database
         user_id = await create_user(
             email=input.email,
             password_hash=password_hash,
             name=input.name
         )
-        
+
         # Generate token
         token = generate_jwt(user_id)
-        
+
         return RegisterResult(
             success=True,
             user=User(id=user_id, email=input.email, name=input.name),
@@ -300,12 +300,12 @@ module.exports = makeExtendSchemaPlugin({
       email: String!
       password: String!
     }
-    
+
     type RegisterPayload {
       user: User
       token: String
     }
-    
+
     extend type Mutation {
       register(input: RegisterInput!): RegisterPayload
     }
@@ -345,7 +345,7 @@ FraiseQL subscription:
 ```python
 @fraiseql.subscription
 async def order_updates(
-    info: fraiseql.Info, 
+    info: fraiseql.Info,
     user_id: UUID
 ) -> AsyncIterator[Order]:
     # Use PostgreSQL LISTEN/NOTIFY
@@ -375,7 +375,7 @@ FraiseQL computed field:
 class User:
     first_name: str
     last_name: str
-    
+
     @fraiseql.field
     @property
     def full_name(self) -> str:
@@ -386,7 +386,7 @@ class User:
 
 PostGraphile smart comment:
 ```sql
-COMMENT ON FUNCTION user_full_name(users) IS 
+COMMENT ON FUNCTION user_full_name(users) IS
   E'@fieldName fullName\n@computedField';
 ```
 
@@ -472,19 +472,19 @@ class UserFilter:
 
 @fraiseql.field
 async def users(
-    self, 
+    self,
     info: fraiseql.Info,
     where: Optional[UserFilter] = None
 ) -> list[User]:
     # Build SQL query based on filters
     conditions = []
-    
+
     if where:
         if where.age_gte:
             conditions.append(f"age >= {where.age_gte}")
         if where.email_ilike:
             conditions.append(f"email ILIKE {where.email_ilike}")
-    
+
     # Execute query
     return await fetch_users(conditions)
 ```
@@ -526,7 +526,7 @@ class CreateUserInput:
 
 @fraiseql.mutation
 async def create_user(
-    info: fraiseql.Info, 
+    info: fraiseql.Info,
     input: CreateUserInput
 ) -> User:
     # Create user
@@ -534,7 +534,7 @@ async def create_user(
         email=input.email,
         name=input.name
     )
-    
+
     # Create addresses if provided
     if input.addresses:
         for address in input.addresses:
@@ -543,7 +543,7 @@ async def create_user(
                 street=address.street,
                 city=address.city
             )
-    
+
     return await get_user(user_id)
 ```
 
@@ -571,7 +571,7 @@ def test_hasura_compatible_query():
             }
         }
     """
-    
+
     # FraiseQL handles the query
     result = graphql_sync(schema, query)
     assert not result.errors
@@ -589,12 +589,12 @@ async def benchmark_query():
     hasura_start = time.time()
     await fetch_from_hasura(query)
     hasura_time = time.time() - hasura_start
-    
+
     # FraiseQL query time
     fraiseql_start = time.time()
     await fetch_from_fraiseql(query)
     fraiseql_time = time.time() - fraiseql_start
-    
+
     print(f"Hasura: {hasura_time:.3f}s")
     print(f"FraiseQL: {fraiseql_time:.3f}s")
     print(f"Improvement: {hasura_time / fraiseql_time:.1f}x")

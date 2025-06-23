@@ -131,8 +131,6 @@ class QueryRoot:
 
 async def demo():
     """Run the mutation demo."""
-    print("=== FraiseQL Mutation Demo ===\n")
-
     # Connect to database
     async with await psycopg.AsyncConnection.connect(**DB_CONFIG) as conn:
         db = CQRSRepository(conn)
@@ -145,91 +143,65 @@ async def demo():
         info = MockInfo(db)
 
         # 1. Create a new user
-        print("1. Creating a new user...")
         create_input = CreateUserInput(
-            name="John Doe", email="john@example.com", role="admin"
+            name="John Doe",
+            email="john@example.com",
+            role="admin",
         )
 
         result = await CreateUser.__fraiseql_resolver__(info, create_input)
 
         if isinstance(result, CreateUserSuccess):
-            print(f"✓ Success: {result.message}")
-            print(f"  User: {result.user.name} ({result.user.email})")
-            print(f"  ID: {result.user.id}")
-            print(f"  Role: {result.user.role}")
             user_id = result.user.id
         else:
-            print(f"✗ Error: {result.message}")
             if result.conflict_user:
-                print(f"  Existing user: {result.conflict_user.email}")
-                print(f"  Suggested email: {result.suggested_email}")
+                pass
             return
 
         # 2. Try to create the same user again (should fail)
-        print("\n2. Attempting to create duplicate user...")
         result2 = await CreateUser.__fraiseql_resolver__(info, create_input)
 
-        if isinstance(result2, CreateUserError):
-            print(f"✓ Expected error: {result2.message}")
-            if result2.conflict_user:
-                print(f"  Conflict with: {result2.conflict_user.name}")
-                print(f"  Suggested alternative: {result2.suggested_email}")
+        if isinstance(result2, CreateUserError) and result2.conflict_user:
+            pass
 
         # 3. Update the user
-        print("\n3. Updating user...")
         update_input = UpdateUserInput(id=user_id, name="Jane Doe", role="superadmin")
 
         update_result = await UpdateUser.__fraiseql_resolver__(info, update_input)
 
         if isinstance(update_result, UpdateUserSuccess):
-            print(f"✓ Success: {update_result.message}")
             if update_result.updated_fields:
-                print(f"  Updated fields: {', '.join(update_result.updated_fields)}")
-            print(f"  New name: {update_result.user.name}")
-            print(f"  New role: {update_result.user.role}")
+                pass
         else:
-            print(f"✗ Error: {update_result.message}")
+            pass
 
         # 4. Try to update non-existent user
-        print("\n4. Attempting to update non-existent user...")
         fake_id = UUID("00000000-0000-0000-0000-000000000000")
         bad_update = UpdateUserInput(id=fake_id, name="Ghost")
 
         bad_result = await UpdateUser.__fraiseql_resolver__(info, bad_update)
 
         if isinstance(bad_result, UpdateUserError):
-            print(f"✓ Expected error: {bad_result.message}")
-            print(f"  Not found: {bad_result.not_found}")
+            pass
 
         # 5. Delete the user
-        print("\n5. Deleting user...")
         delete_input = DeleteUserInput(id=user_id)
 
         delete_result = await DeleteUser.__fraiseql_resolver__(info, delete_input)
 
         if isinstance(delete_result, DeleteUserSuccess):
-            print(f"✓ Success: {delete_result.message}")
-            print(
-                f"  Deleted user: {delete_result.user.name} ({delete_result.user.email})"
-            )
+            pass
         else:
-            print(f"✗ Error: {delete_result.message}")
+            pass
 
         # 6. Build and show GraphQL schema
-        print("\n6. GraphQL Schema:")
         schema = fraiseql.build_fraiseql_schema(
             query_types=[QueryRoot],
             mutation_resolvers=[CreateUser, UpdateUser, DeleteUser],
         )
 
-        print("  Query fields:", list(schema.query_type.fields.keys()))
-        print("  Mutation fields:", list(schema.mutation_type.fields.keys()))
-
         # Show mutation details
-        create_field = schema.mutation_type.fields["createUser"]
-        print("\n  createUser mutation:")
-        print(f"    Input type: {create_field.args['input'].type}")
-        print(f"    Return type: {create_field.type}")
+        schema.mutation_type.fields["createUser"]
 
 
 if __name__ == "__main__":

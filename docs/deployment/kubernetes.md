@@ -7,8 +7,8 @@ Deploy FraiseQL on Kubernetes for production-grade container orchestration with 
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Production Setup](#production-setup)
-- [Monitoring & Observability](#monitoring--observability)
-- [Scaling & Performance](#scaling--performance)
+- [Monitoring & Observability](#monitoring-observability)
+- [Scaling & Performance](#scaling-performance)
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
 
@@ -131,16 +131,16 @@ data:
   # Application settings
   APP_NAME: "FraiseQL Production"
   APP_VERSION: "1.0.0"
-  
+
   # Feature flags
   FRAISEQL_AUTO_CAMEL_CASE: "true"
   FRAISEQL_ENABLE_PLAYGROUND: "false"
   FRAISEQL_ENABLE_INTROSPECTION: "false"
-  
+
   # Performance
   FRAISEQL_ENABLE_TURBO_ROUTER: "true"
   FRAISEQL_TURBO_ROUTER_CACHE_SIZE: "2000"
-  
+
   # Monitoring
   FRAISEQL_ENABLE_METRICS: "true"
   FRAISEQL_ENABLE_TRACING: "true"
@@ -750,7 +750,5 @@ sum(container_memory_usage_bytes{pod=~"fraiseql-.*"}) by (pod)
 
 ## Next Steps
 
-- [Helm Chart](./helm.md) - Package deployments with Helm
-- [Cloud Providers](./cloud.md) - EKS, GKE, AKS specific guides
-- [GitOps Setup](./gitops.md) - Automated deployments with ArgoCD
-- [Disaster Recovery](./disaster-recovery.md) - Backup and restore strategies
+- [Docker Deployment](./docker.md) - Container basics
+- [Monitoring Setup](./monitoring.md) - Advanced monitoring configuration

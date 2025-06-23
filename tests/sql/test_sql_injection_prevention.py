@@ -26,7 +26,7 @@ UserWhere = safe_create_where_type(User)
 class TestSQLInjectionPrevention:
     """Test suite to verify SQL injection vulnerabilities are prevented."""
 
-    def test_basic_parameterization(self):
+    def test_basic_parameterization(self) -> None:
         """Test that basic filters use parameterized queries."""
         where = UserWhere(name={"eq": "Alice"}, age={"gt": 21})
         composed = where.to_sql()
@@ -39,7 +39,7 @@ class TestSQLInjectionPrevention:
         assert "(data ->> 'name') = 'Alice'" in sql_str
         assert "(data ->> 'age') > 21" in sql_str  # Numbers aren't quoted
 
-    def test_string_injection_attempts(self):
+    def test_string_injection_attempts(self) -> None:
         """Test that SQL injection in string values is prevented."""
         injection_attempts = [
             "'; DROP TABLE users; --",
@@ -66,7 +66,7 @@ class TestSQLInjectionPrevention:
             # No SQL keywords should be executable
             assert "DROP TABLE" not in sql_str or "DROP TABLE" in repr(sql_str).replace("\\", "")
 
-    def test_boolean_handling(self):
+    def test_boolean_handling(self) -> None:
         """Test that boolean values are correctly converted to strings for JSONB."""
         where_true = UserWhere(is_admin={"eq": True})
         where_false = UserWhere(is_admin={"eq": False})
@@ -78,7 +78,7 @@ class TestSQLInjectionPrevention:
         assert "'true'" in sql_true
         assert "'false'" in sql_false
 
-    def test_list_injection_attempts(self):
+    def test_list_injection_attempts(self) -> None:
         """Test that SQL injection in list values is prevented."""
         malicious_list = [
             "normal_user",
@@ -98,7 +98,7 @@ class TestSQLInjectionPrevention:
         # Dangerous SQL should be quoted
         assert "DROP TABLE users" not in sql_str or "DROP TABLE" in repr(sql_str)
 
-    def test_all_operators_are_safe(self):
+    def test_all_operators_are_safe(self) -> None:
         """Test that all operators use parameterization."""
         test_cases = [
             ("eq", "' OR '1'='1"),
@@ -131,7 +131,7 @@ class TestSQLInjectionPrevention:
                 assert " > " in sql_str
             # ... other operators are similarly safe
 
-    def test_uuid_and_date_safety(self):
+    def test_uuid_and_date_safety(self) -> None:
         """Test that special types are safely handled."""
         test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
         test_date = datetime(2024, 12, 31, 12, 0, 0, tzinfo=UTC)
@@ -146,7 +146,7 @@ class TestSQLInjectionPrevention:
         assert "12345678" in sql_str
         assert "2024-12-31" in sql_str
 
-    def test_null_handling(self):
+    def test_null_handling(self) -> None:
         """Test that null checks don't allow injection."""
         where_null = UserWhere(email={"isnull": True})
         where_not_null = UserWhere(email={"isnull": False})
@@ -160,7 +160,7 @@ class TestSQLInjectionPrevention:
         # No values are inserted, so no injection possible
         assert "=" not in sql_null.split("IS NULL")[0].split("email")[-1]
 
-    def test_complex_combined_injection(self):
+    def test_complex_combined_injection(self) -> None:
         """Test complex injection attempts with multiple fields."""
         where = UserWhere(
             name={"eq": "'; DROP TABLE users; --"},
@@ -182,7 +182,7 @@ class TestSQLInjectionPrevention:
         assert "DROP TABLE" not in sql_str or "DROP TABLE" in repr(sql_str)
         assert "DELETE FROM" not in sql_str or "DELETE FROM" in repr(sql_str)
 
-    def test_special_characters_handling(self):
+    def test_special_characters_handling(self) -> None:
         """Test that special characters are safely handled."""
         special_chars = [
             "O'Reilly",  # Single quote
@@ -201,7 +201,7 @@ class TestSQLInjectionPrevention:
             assert composed is not None
             # Psycopg's Literal handles all special characters safely
 
-    def test_nested_filter_safety(self):
+    def test_nested_filter_safety(self) -> None:
         """Test that nested filters maintain safety."""
 
         @dataclass
@@ -232,7 +232,7 @@ class TestSQLInjectionPrevention:
         "operator",
         ["depth_eq", "depth_gt", "depth_lt", "isdescendant", "strictly_contains"],
     )
-    def test_advanced_operators_safety(self, operator):
+    def test_advanced_operators_safety(self, operator) -> None:
         """Test that advanced operators are safe from injection."""
         if operator in ["depth_eq", "depth_gt", "depth_lt"]:
             # These expect numeric values
@@ -255,7 +255,7 @@ class TestSQLInjectionPrevention:
             assert " @> " in sql_str
             assert " != " in sql_str
 
-    def test_empty_and_none_values(self):
+    def test_empty_and_none_values(self) -> None:
         """Test that empty and None values are handled safely."""
         # Empty string
         where_empty = UserWhere(name={"eq": ""})
@@ -271,7 +271,7 @@ class TestSQLInjectionPrevention:
         assert "email" not in sql_str  # None fields are not included
 
 
-def test_actual_database_execution():
+def test_actual_database_execution() -> None:
     """Integration test placeholder.
 
     In a real integration test, this would verify that the parameterized
@@ -279,4 +279,3 @@ def test_actual_database_execution():
     """
     # This test is a placeholder - actual database testing would be done
     # in integration tests with proper database fixtures
-    pass

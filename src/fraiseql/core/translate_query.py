@@ -30,7 +30,8 @@ def translate_query(
         where_clause: Optional SQL WHERE clause to filter results.
         order_by: Optional list of (field_path, direction) tuples for ORDER BY.
         group_by: Optional list of field paths for GROUP BY.
-        auto_camel_case: Whether to automatically convert snake_case DB fields to camelCase GraphQL fields.
+        auto_camel_case: Whether to automatically convert snake_case DB fields to
+            camelCase GraphQL fields.
 
     Returns:
         A psycopg `Composed` or `SQL` object representing the SQL query.

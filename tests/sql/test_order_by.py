@@ -1,19 +1,19 @@
 from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
 
 
-def test_single_order_by():
+def test_single_order_by() -> None:
     ob = OrderBy(field="email")
     result = ob.to_sql().as_string(None)
     assert result == "data ->> 'email' ASC"
 
 
-def test_nested_order_by_desc():
+def test_nested_order_by_desc() -> None:
     ob = OrderBy(field="profile.age", direction="desc")
     result = ob.to_sql().as_string(None)
     assert result == "data -> 'profile' ->> 'age' DESC"
 
 
-def test_order_by_set_multiple():
+def test_order_by_set_multiple() -> None:
     obs = OrderBySet(
         [
             OrderBy(field="profile.last_name", direction="asc"),

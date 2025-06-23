@@ -82,7 +82,7 @@ def isolated_registry():
 class RegistryManager:
     """Manages registry instances and provides dependency injection."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._default_registry = ScopedResultRegistry()
         self._current_registry = self._default_registry
 

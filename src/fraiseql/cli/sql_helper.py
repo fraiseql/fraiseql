@@ -83,7 +83,10 @@ class ViewGenerator:
         join_fields = []
         if options.joins:
             for join in options.joins:
-                join_sql += f"\n    LEFT JOIN {join['target_table']} ON {table_name}.{join['join_column']} = {join['target_table']}.id"
+                join_sql += (
+                    f"\n    LEFT JOIN {join['target_table']} "
+                    f"ON {table_name}.{join['join_column']} = {join['target_table']}.id"
+                )
 
                 # Build nested object for join
                 join_obj_fields = [
@@ -91,7 +94,7 @@ class ViewGenerator:
                     for field in join["target_fields"]
                 ]
 
-                join_obj_str = ',\n'.join(join_obj_fields)
+                join_obj_str = ",\n".join(join_obj_fields)
                 join_fields.append(
                     f"        '{join['field']}', jsonb_build_object(\n{join_obj_str}\n        )",
                 )
@@ -172,7 +175,10 @@ ORDER BY {order_clause};"""
 
     @staticmethod
     def relationship(
-        parent_table: str, child_table: str, relationship_field: str, foreign_key: str,
+        parent_table: str,
+        child_table: str,
+        relationship_field: str,
+        foreign_key: str,
     ) -> str:
         """Generate relationship query pattern."""
         return f"""-- One-to-many relationship: {parent_table}.{relationship_field}
@@ -222,83 +228,29 @@ class FieldMapping:
     """Utilities for mapping fields between GraphQL and database."""
 
     def auto_detect(self, cls: type, db_columns: list[str]) -> dict[str, str]:
-        """Auto-detect field mapping based on column names.
+        """Auto-detect field mapping based on exact column name matches.
 
         Args:
             cls: The dataclass type
             db_columns: List of database column names
 
         Returns:
-            Mapping of class field names to database columns
+            Mapping of class field names to database columns (only exact matches)
         """
         type_hints = get_type_hints(cls)
-        mapping = {}
-
-        for field_name in type_hints:
-            # Try exact match
-            if field_name in db_columns:
-                mapping[field_name] = field_name
-                continue
-
-            # Try snake_case match
-            snake_name = to_snake_case(field_name)
-            if snake_name in db_columns:
-                mapping[field_name] = snake_name
-                continue
-
-            # Try with table prefix
-            for col in db_columns:
-                if col.endswith((f"_{field_name}", f"_{snake_name}")):
-                    mapping[field_name] = col
-                    break
-
-            # Try partial match
-            if field_name not in mapping:
-                for col in db_columns:
-                    if field_name in col or col in field_name:
-                        mapping[field_name] = col
-                        break
-
-        return mapping
+        return {field_name: field_name for field_name in type_hints if field_name in db_columns}
 
     def suggest_mapping(self, field_name: str, available_columns: list[str]) -> list[str]:
-        """Suggest possible column mappings for a field.
+        """Return all available columns for manual mapping selection.
 
         Args:
             field_name: The field name to map
             available_columns: List of available database columns
 
         Returns:
-            Sorted list of column suggestions
+            List of all available columns (sorted alphabetically)
         """
-        scores = {}
-
-        for col in available_columns:
-            score = 0
-
-            # Exact match
-            if col == field_name:
-                score = 100
-            # Case-insensitive match
-            elif col.lower() == field_name.lower():
-                score = 90
-            # Contains field name
-            elif field_name in col:
-                score = 80
-            # Field name contains column
-            elif col in field_name:
-                score = 70
-            # Partial match
-            else:
-                # Calculate similarity
-                common = set(field_name.lower()) & set(col.lower())
-                score = len(common) * 10
-
-            if score > 0:
-                scores[col] = score
-
-        # Sort by score
-        return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+        return sorted(available_columns)
 
     def is_compatible(self, db_type: str, python_type: type) -> bool:
         """Check if database type is compatible with Python type.
@@ -339,7 +291,7 @@ class FieldMapping:
 class SQLHelper:
     """Main SQL helper for beginners."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize SQL helper."""
         self.generator = ViewGenerator()
         self.mapper = FieldMapping()
@@ -400,11 +352,11 @@ class SQLHelper:
         if include_indexes:
             parts.append("-- Create indexes for better performance")
 
-            for field_name in type_hints.keys():
-                if field_name in ("email", "name", "created_at"):
-                    parts.append(
-                        f"CREATE INDEX idx_{table_name}_{field_name} ON {table_name}({field_name});",
-                    )
+            parts.extend(
+                f"CREATE INDEX idx_{table_name}_{field_name} ON {table_name}({field_name});"
+                for field_name in type_hints
+                if field_name in ("email", "name", "created_at")
+            )
 
             parts.append("")
 
@@ -431,9 +383,9 @@ class SQLHelper:
 
                     if field_type is str:
                         if field_name == "email":
-                            values.append(f"'sample.user{i+1}@example.com'")
+                            values.append(f"'sample.user{i + 1}@example.com'")
                         else:
-                            values.append(f"'Sample {field_name.title()} {i+1}'")
+                            values.append(f"'Sample {field_name.title()} {i + 1}'")
                     elif field_type is bool:
                         values.append("true")
                     elif field_type in (int, float):
@@ -448,7 +400,10 @@ class SQLHelper:
         return "\n".join(parts)
 
     def generate_migration(
-        self, cls: type, existing_schema: dict, field_mapping: dict[str, str],
+        self,
+        cls: type,
+        existing_schema: dict,
+        field_mapping: dict[str, str],
     ) -> str:
         """Generate migration SQL from existing table to FraiseQL view.
 
@@ -514,7 +469,8 @@ class SQLHelper:
 
         # Check view naming convention
         if "create view" in sql.lower() and not re.search(
-            r"create\s+(or\s+replace\s+)?view\s+v_\w+", sql.lower(),
+            r"create\s+(or\s+replace\s+)?view\s+v_\w+",
+            sql.lower(),
         ):
             result.warnings.append("View name should follow convention: v_tablename")
 
@@ -540,7 +496,9 @@ class SQLHelper:
 
             if "CREATE VIEW" in line_stripped.upper():
                 view_match = re.search(
-                    r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)", line_stripped, re.IGNORECASE,
+                    r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)",
+                    line_stripped,
+                    re.IGNORECASE,
                 )
                 if view_match:
                     explanations.append(f"This SQL creates a view named '{view_match.group(1)}'")
@@ -554,7 +512,8 @@ class SQLHelper:
             elif re.match(r"^\s*'(\w+)',\s*(\w+)", line_stripped):
                 match = re.match(r"^\s*'(\w+)',\s*(\w+)", line_stripped)
                 explanations.append(
-                    f"'{match.group(1)}', {match.group(2)}: Maps the '{match.group(2)}' column to JSON field '{match.group(1)}'",
+                    f"'{match.group(1)}', {match.group(2)}: "
+                    f"Maps the '{match.group(2)}' column to JSON field '{match.group(1)}'",
                 )
 
             elif "as data" in line_stripped.lower():

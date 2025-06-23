@@ -39,11 +39,11 @@ def resolve_all_fields(
 
     def resolve(sel: SelectionNode) -> None:
         if sel.kind == "field":
-            field_node = cast(FieldNode, sel)
+            field_node = cast("FieldNode", sel)
             result.append(field_node)
 
         elif sel.kind == "fragment_spread":
-            frag_spread = cast(FragmentSpreadNode, sel)
+            frag_spread = cast("FragmentSpreadNode", sel)
             name = frag_spread.name.value
             if name not in fragments:
                 msg = f"Fragment '{name}' not found"
@@ -53,7 +53,7 @@ def resolve_all_fields(
                 resolve(frag_sel)
 
         elif sel.kind == "inline_fragment":
-            inline_frag = cast(InlineFragmentNode, sel)
+            inline_frag = cast("InlineFragmentNode", sel)
             type_condition = (
                 inline_frag.type_condition.name.value if inline_frag.type_condition else None
             )

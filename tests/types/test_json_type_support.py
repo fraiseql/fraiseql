@@ -35,7 +35,7 @@ def clear_registry():
 class TestJSONTypeSupport:
     """Test that FraiseQL supports JSON/dict types properly."""
 
-    def test_dict_str_any_field_type(self):
+    def test_dict_str_any_field_type(self) -> None:
         """Test that dict[str, Any] fields work in types."""
 
         @fraiseql.type
@@ -60,7 +60,7 @@ class TestJSONTypeSupport:
             )
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[ConfigData],
             queries=[get_config],
             production=False,
@@ -79,7 +79,7 @@ class TestJSONTypeSupport:
                                 metadata
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -92,7 +92,7 @@ class TestJSONTypeSupport:
             assert config["settings"]["features"] == ["feature1", "feature2"]
             assert config["metadata"]["version"] == "1.0.0"
 
-    def test_json_scalar_type(self):
+    def test_json_scalar_type(self) -> None:
         """Test that JSON scalar type is available and works."""
 
         @fraiseql.type
@@ -116,7 +116,7 @@ class TestJSONTypeSupport:
             )
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[Document],
             queries=[get_document],
             production=False,
@@ -134,7 +134,7 @@ class TestJSONTypeSupport:
                                 content
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -146,7 +146,7 @@ class TestJSONTypeSupport:
             assert len(doc["content"]["sections"]) == 2
             assert doc["content"]["metadata"]["author"] == "John Doe"
 
-    def test_json_input_type(self):
+    def test_json_input_type(self) -> None:
         """Test that JSON/dict can be used in input types."""
 
         @fraiseql.input
@@ -176,7 +176,7 @@ class TestJSONTypeSupport:
             return "1.0.0"
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[Document],
             queries=[version],
             mutations=[create_document],
@@ -191,7 +191,7 @@ class TestJSONTypeSupport:
                         mutation {
                             createDocument(input: {
                                 title: "New Document"
-                                content: "{\\"text\\": \\"Hello World\\", \\"format\\": \\"markdown\\", \\"metadata\\": {\\"created\\": \\"2024-01-01\\"}}"
+                                content: "{\\"text\\": \\"Hello World\\", \\"format\\": \\"markdown\\", \\"metadata\\": {\\"created\\": \\"2024-01-01\\"}}"  # noqa: E501
                                 tags: ["new", "important"]
                             }) {
                                 id
@@ -200,7 +200,7 @@ class TestJSONTypeSupport:
                                 tags
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -214,7 +214,7 @@ class TestJSONTypeSupport:
             assert doc["content"]["metadata"]["created"] == "2024-01-01"
             assert doc["tags"] == ["new", "important"]
 
-    def test_nested_json_structures(self):
+    def test_nested_json_structures(self) -> None:
         """Test deeply nested JSON structures."""
 
         @fraiseql.type
@@ -239,16 +239,16 @@ class TestJSONTypeSupport:
                                         "enabled": True,
                                         "categories": ["updates", "alerts"],
                                     },
-                                }
+                                },
                             },
-                        }
+                        },
                     ],
                     "pagination": {"page": 1, "total": 100, "per_page": 10},
                 },
             )
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[APIResponse],
             queries=[get_api_response],
             production=False,
@@ -265,7 +265,7 @@ class TestJSONTypeSupport:
                                 data
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -281,7 +281,7 @@ class TestJSONTypeSupport:
             assert users[0]["preferences"]["notifications"]["push"]["enabled"] is True
             assert "updates" in users[0]["preferences"]["notifications"]["push"]["categories"]
 
-    def test_optional_json_fields(self):
+    def test_optional_json_fields(self) -> None:
         """Test that Optional JSON fields work correctly."""
 
         @fraiseql.type
@@ -292,7 +292,7 @@ class TestJSONTypeSupport:
             metadata: dict[str, Any] | None = None
 
         @fraiseql.query
-        async def get_users(info) -> list[User]:
+        async def getUsers(info) -> list[User]:
             return [
                 User(
                     id=UUID("123e4567-e89b-12d3-a456-426614174000"),
@@ -309,9 +309,9 @@ class TestJSONTypeSupport:
             ]
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[User],
-            queries=[get_users],
+            queries=[getUsers],
             production=False,
         )
 
@@ -327,7 +327,7 @@ class TestJSONTypeSupport:
                                 metadata
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -346,7 +346,7 @@ class TestJSONTypeSupport:
             assert users[1]["preferences"] is None
             assert users[1]["metadata"] is None
 
-    def test_json_field_resolver(self):
+    def test_json_field_resolver(self) -> None:
         """Test that field resolvers can return JSON data."""
 
         @fraiseql.type
@@ -365,13 +365,13 @@ class TestJSONTypeSupport:
                 }
 
         @fraiseql.query
-        async def get_product(info) -> Product:
+        async def getProduct(info) -> Product:
             return Product(id=UUID("123e4567-e89b-12d3-a456-426614174000"), name="Widget Pro")
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[Product],
-            queries=[get_product],
+            queries=[getProduct],
             production=False,
         )
 
@@ -387,7 +387,7 @@ class TestJSONTypeSupport:
                                 specifications
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -405,7 +405,7 @@ class TestJSONTypeSupport:
 class TestJSONValidation:
     """Test JSON type validation and error handling."""
 
-    def test_json_validation_in_mutations(self):
+    def test_json_validation_in_mutations(self) -> None:
         """Test that invalid JSON structures are handled properly."""
 
         @fraiseql.input
@@ -419,7 +419,7 @@ class TestJSONValidation:
             message: str
 
         @fraiseql.mutation
-        async def update_settings(info, input: UpdateSettingsInput) -> Result:
+        async def updateSettings(info, input: UpdateSettingsInput) -> Result:
             # Validate the settings structure
             if "theme" not in input.settings:
                 return Result(success=False, message="Settings must include 'theme'")
@@ -431,10 +431,10 @@ class TestJSONValidation:
             return "1.0.0"
 
         app = create_fraiseql_app(
-            database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+            database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
             types=[Result],
             queries=[version],
-            mutations=[update_settings],
+            mutations=[updateSettings],
             production=False,
         )
 
@@ -453,7 +453,7 @@ class TestJSONValidation:
                                 message
                             }
                         }
-                    """
+                    """,
                 },
             )
 
@@ -476,7 +476,7 @@ class TestJSONValidation:
                                 message
                             }
                         }
-                    """
+                    """,
                 },
             )
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from fraiseql import fraise_type
@@ -16,8 +15,8 @@ class Category:
     id: UUID
     name: str
     slug: str
-    description: Optional[str]
-    parent_id: Optional[UUID]
+    description: str | None
+    parent_id: UUID | None
 
 
 @fraise_type
@@ -34,7 +33,7 @@ class User:
     order_count: int
     total_spent: float
     review_count: int
-    average_rating: Optional[float]
+    average_rating: float | None
 
 
 @fraise_type
@@ -52,8 +51,8 @@ class Review:
 
     id: UUID
     rating: int
-    title: Optional[str]
-    comment: Optional[str]
+    title: str | None
+    comment: str | None
     created_at: datetime
     user: ProductReviewUser
 
@@ -66,8 +65,8 @@ class ProductReview:
     user_id: UUID
     product_id: UUID
     rating: int
-    title: Optional[str]
-    comment: Optional[str]
+    title: str | None
+    comment: str | None
     created_at: datetime
 
 
@@ -78,7 +77,7 @@ class Product:
     id: UUID
     name: str
     slug: str
-    description: Optional[str]
+    description: str | None
     price: float
     stock_quantity: int
     tags: list[str]
@@ -86,7 +85,7 @@ class Product:
     updated_at: datetime
     # Aggregated fields from view
     review_count: int
-    average_rating: Optional[float]
+    average_rating: float | None
     categories: list[Category]
     reviews: list[Review]
 

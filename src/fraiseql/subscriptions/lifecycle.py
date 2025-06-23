@@ -49,7 +49,11 @@ class SubscriptionLifecycle:
                 and info.context
                 and info.context.get("debug_subscriptions")
             ):
-                logger.debug(f"Subscription {info.context.get('subscription_id')} emitted: {event}")
+                logger.debug(
+                    "Subscription %s emitted: %s",
+                    info.context.get("subscription_id"),
+                    event,
+                )
 
             return result
 
@@ -60,7 +64,7 @@ class SubscriptionLifecycle:
         """Hook called when subscription completes."""
 
         @wraps(func)
-        async def wrapper(info, **kwargs):
+        async def wrapper(info, **kwargs) -> None:
             # Calculate duration
             start_time = None
             if hasattr(info, "context") and info.context:
@@ -68,7 +72,7 @@ class SubscriptionLifecycle:
 
             if start_time:
                 duration = (datetime.now(UTC) - start_time).total_seconds()
-                logger.info(f"Subscription duration: {duration}s")
+                logger.info("Subscription duration: %ss", duration)
 
             # Call hook
             await func(info, **kwargs)

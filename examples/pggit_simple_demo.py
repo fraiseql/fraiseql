@@ -1,9 +1,9 @@
-"""
-Minimal pgGit Demo - The simplest possible example
+"""Minimal pgGit Demo - The simplest possible example
+
 This shows the absolute minimum code needed to get FraiseQL working
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import List
 
 import fraiseql
@@ -27,13 +27,13 @@ async def commits(info) -> List[Commit]:
             hash="abc123",
             message="Initial commit",
             author="dev@example.com",
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=UTC),
         ),
         Commit(
             hash="def456",
             message="Add feature X",
             author="dev@example.com",
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=UTC),
         ),
     ]
 
@@ -47,9 +47,5 @@ if __name__ == "__main__":
         types=[Commit],
         production=False,  # Enables GraphQL Playground
     )
-
-    print("✅ GraphQL API ready!")
-    print("🎮 Playground: http://localhost:8000/playground")
-    print("📡 Endpoint: http://localhost:8000/graphql")
 
     uvicorn.run(app, port=8000)

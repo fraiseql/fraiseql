@@ -1,5 +1,4 @@
-"""
-Test cart operations for the e-commerce API
+"""Test cart operations for the e-commerce API
 """
 
 from decimal import Decimal
@@ -30,7 +29,7 @@ async def test_add_to_cart(test_client, sample_product_variant):
     variables = {"variantId": str(sample_product_variant["id"]), "quantity": 2}
 
     response = await test_client.post(
-        "/graphql", json={"query": query, "variables": variables}
+        "/graphql", json={"query": query, "variables": variables},
     )
 
     assert response.status_code == 200
@@ -65,7 +64,7 @@ async def test_update_cart_item_quantity(test_client, cart_with_items):
     variables = {"cartItemId": cart_item["id"], "quantity": 5}
 
     response = await test_client.post(
-        "/graphql", json={"query": query, "variables": variables}
+        "/graphql", json={"query": query, "variables": variables},
     )
 
     assert response.status_code == 200
@@ -93,7 +92,7 @@ async def test_remove_cart_item(test_client, cart_with_items):
     variables = {"cartItemId": cart_item["id"]}
 
     response = await test_client.post(
-        "/graphql", json={"query": query, "variables": variables}
+        "/graphql", json={"query": query, "variables": variables},
     )
 
     assert response.status_code == 200
@@ -123,7 +122,7 @@ async def test_apply_coupon(test_client, cart_with_items, valid_coupon):
     variables = {"cartId": cart_with_items["id"], "couponCode": valid_coupon["code"]}
 
     response = await test_client.post(
-        "/graphql", json={"query": query, "variables": variables}
+        "/graphql", json={"query": query, "variables": variables},
     )
 
     assert response.status_code == 200
@@ -153,7 +152,7 @@ async def test_cart_inventory_validation(test_client, low_stock_variant):
     }
 
     response = await test_client.post(
-        "/graphql", json={"query": query, "variables": variables}
+        "/graphql", json={"query": query, "variables": variables},
     )
 
     assert response.status_code == 200
@@ -179,7 +178,7 @@ async def test_clear_cart(test_client, cart_with_items):
     variables = {"cartId": cart_with_items["id"]}
 
     response = await test_client.post(
-        "/graphql", json={"query": query, "variables": variables}
+        "/graphql", json={"query": query, "variables": variables},
     )
 
     assert response.status_code == 200

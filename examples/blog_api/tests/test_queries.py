@@ -55,7 +55,7 @@ class TestQueries:
     async def test_me_authenticated(self, blog_repo, test_user, clean_db):
         """Test getting current authenticated user."""
         user_context = UserContext(
-            user_id=str(test_user.id), email=test_user.email, roles=test_user.roles
+            user_id=str(test_user.id), email=test_user.email, roles=test_user.roles,
         )
         info = self._create_info(blog_repo, user_context)
 
@@ -79,7 +79,7 @@ class TestQueries:
 
         # Set initial view count
         await blog_repo.connection.execute(
-            "UPDATE tb_posts SET view_count = 5 WHERE id = %s", (post.id,)
+            "UPDATE tb_posts SET view_count = 5 WHERE id = %s", (post.id,),
         )
 
         result = await get_post(info, post.id)
@@ -115,12 +115,12 @@ class TestQueries:
         assert post_ids == {post1.id, post2.id, post3.id}
 
     async def test_get_posts_with_filters(
-        self, blog_repo, test_user, create_test_post, clean_db
+        self, blog_repo, test_user, create_test_post, clean_db,
     ):
         """Test getting posts with filters."""
         # Create posts with different properties
         published = await create_test_post(
-            title="Published", is_published=True, tags=["python"]
+            title="Published", is_published=True, tags=["python"],
         )
         await create_test_post(title="Draft", is_published=False, tags=["javascript"])
 
@@ -183,7 +183,7 @@ class TestQueries:
         assert len(result) == 2
 
     async def test_get_comments_for_post(
-        self, blog_repo, create_test_post, create_test_comment, clean_db
+        self, blog_repo, create_test_post, create_test_comment, clean_db,
     ):
         """Test getting comments for a post."""
         post = await create_test_post()
@@ -201,7 +201,7 @@ class TestQueries:
         assert contents == {"First comment", "Second comment", "Reply"}
 
     async def test_resolve_post_author(
-        self, blog_repo, test_user, create_test_post, clean_db
+        self, blog_repo, test_user, create_test_post, clean_db,
     ):
         """Test resolving post author."""
         post = await create_test_post()
@@ -214,7 +214,7 @@ class TestQueries:
         assert author.email == test_user.email
 
     async def test_resolve_post_comments(
-        self, blog_repo, create_test_post, create_test_comment, clean_db
+        self, blog_repo, create_test_post, create_test_comment, clean_db,
     ):
         """Test resolving post comments."""
         post = await create_test_post()
@@ -229,7 +229,7 @@ class TestQueries:
         assert contents == {"Comment 1", "Comment 2"}
 
     async def test_resolve_comment_author(
-        self, blog_repo, test_user, create_test_post, create_test_comment, clean_db
+        self, blog_repo, test_user, create_test_post, create_test_comment, clean_db,
     ):
         """Test resolving comment author."""
         post = await create_test_post()
@@ -245,7 +245,7 @@ class TestQueries:
         assert author.id == test_user.id
 
     async def test_resolve_comment_replies(
-        self, blog_repo, create_test_post, create_test_comment, clean_db
+        self, blog_repo, create_test_post, create_test_comment, clean_db,
     ):
         """Test resolving comment replies."""
         post = await create_test_post()
@@ -264,7 +264,7 @@ class TestQueries:
         assert reply_contents == {"Reply 1", "Reply 2"}
 
     async def test_resolve_user_posts(
-        self, blog_repo, test_user, create_test_post, clean_db
+        self, blog_repo, test_user, create_test_post, clean_db,
     ):
         """Test resolving user's posts."""
         # Create posts for the user
@@ -273,14 +273,14 @@ class TestQueries:
 
         # Create post for different user
         other_user_result = await blog_repo.create_user(
-            {"email": "other@example.com", "name": "Other User"}
+            {"email": "other@example.com", "name": "Other User"},
         )
         await blog_repo.create_post(
             {
                 "author_id": other_user_result["user_id"],
                 "title": "Other User Post",
                 "content": "Content",
-            }
+            },
         )
 
         info = self._create_info(blog_repo)

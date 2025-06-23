@@ -19,7 +19,7 @@ from fraiseql.types.generic import (
 class TestGenericTypes:
     """Test generic type functionality."""
 
-    def test_pagination_types_are_defined(self, clear_registry):
+    def test_pagination_types_are_defined(self, clear_registry) -> None:
         """Test that the basic pagination types are defined correctly."""
         # PageInfo should be a regular FraiseQL type
         assert hasattr(PageInfo, "__fraiseql_definition__")
@@ -32,7 +32,7 @@ class TestGenericTypes:
         # PaginatedResponse should be an alias for Connection
         assert PaginatedResponse is Connection
 
-    def test_is_generic_type_detection(self, clear_registry):
+    def test_is_generic_type_detection(self, clear_registry) -> None:
         """Test detection of generic types."""
         # Basic types should not be generic
         assert not is_generic_type(str)
@@ -44,7 +44,7 @@ class TestGenericTypes:
         assert is_generic_type(Edge[int])
         assert is_generic_type(list[str])
 
-    def test_is_fraise_generic_detection(self, clear_registry):
+    def test_is_fraise_generic_detection(self, clear_registry) -> None:
         """Test detection of FraiseQL generic types."""
 
         # Create a test type
@@ -61,7 +61,7 @@ class TestGenericTypes:
         assert not is_fraise_generic(list[User])
         assert not is_fraise_generic(dict[str, User])
 
-    def test_concrete_type_creation(self, clear_registry):
+    def test_concrete_type_creation(self, clear_registry) -> None:
         """Test creation of concrete types from generics."""
 
         @fraiseql.type
@@ -85,7 +85,7 @@ class TestGenericTypes:
         assert "page_info" in fields
         assert "total_count" in fields
 
-    def test_concrete_type_caching(self, clear_registry):
+    def test_concrete_type_caching(self, clear_registry) -> None:
         """Test that concrete types are cached for efficiency."""
 
         @fraiseql.type
@@ -100,7 +100,7 @@ class TestGenericTypes:
 
         assert concrete1 is concrete2
 
-    def test_graphql_conversion_with_generics(self, clear_registry):
+    def test_graphql_conversion_with_generics(self, clear_registry) -> None:
         """Test that generic types convert to GraphQL correctly."""
 
         @fraiseql.type
@@ -126,7 +126,7 @@ class TestGenericTypes:
         assert "pageInfo" in fields  # FraiseQL uses camelCase field names now
         assert "totalCount" in fields
 
-    def test_nested_generic_conversion(self, clear_registry):
+    def test_nested_generic_conversion(self, clear_registry) -> None:
         """Test that nested generics like list[Edge[T]] work correctly."""
 
         @fraiseql.type
@@ -147,7 +147,7 @@ class TestGenericTypes:
         assert "node" in fields
         assert "cursor" in fields
 
-    def test_multiple_generic_args_error(self, clear_registry):
+    def test_multiple_generic_args_error(self, clear_registry) -> None:
         """Test that generic types with multiple args raise appropriate errors."""
         T = TypeVar("T")
         U = TypeVar("U")
@@ -171,7 +171,7 @@ class TestGenericTypes:
             # If it fails, that's expected for now
             pass
 
-    def test_paginated_response_alias(self, clear_registry):
+    def test_paginated_response_alias(self, clear_registry) -> None:
         """Test that PaginatedResponse works as an alias for Connection."""
 
         @fraiseql.type

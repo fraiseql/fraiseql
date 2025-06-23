@@ -76,7 +76,9 @@ class BlogRepository(BaseCQRSRepository):
     async def get_comments_by_post(self, post_id: UUID) -> list[dict[str, Any]]:
         """Get comments for a post."""
         return await self.select_from_json_view(
-            "v_comments", where={"postId": str(post_id)}, order_by="createdAt_asc"
+            "v_comments",
+            where={"postId": str(post_id)},
+            order_by="createdAt_asc",
         )
 
     # Mutation operations (using base class methods)
@@ -104,7 +106,8 @@ class BlogRepository(BaseCQRSRepository):
     async def increment_view_count(self, post_id: UUID) -> dict[str, Any]:
         """Increment post view count."""
         return await self.call_function(
-            "fn_increment_view_count", {"post_id": str(post_id)}
+            "fn_increment_view_count",
+            {"post_id": str(post_id)},
         )
 
     # Batch methods for DataLoader support
@@ -115,7 +118,8 @@ class BlogRepository(BaseCQRSRepository):
             return []
 
         return await self.select_from_json_view(
-            "v_users", where={"id": {"$in": user_ids}}
+            "v_users",
+            where={"id": {"$in": user_ids}},
         )
 
     async def get_posts_by_ids(self, post_ids: list[str]) -> list[dict[str, Any]]:
@@ -124,16 +128,19 @@ class BlogRepository(BaseCQRSRepository):
             return []
 
         return await self.select_from_json_view(
-            "v_posts", where={"id": {"$in": post_ids}}
+            "v_posts",
+            where={"id": {"$in": post_ids}},
         )
 
     async def get_comments_by_post_ids(
-        self, post_ids: list[str]
+        self,
+        post_ids: list[str],
     ) -> list[dict[str, Any]]:
         """Get all comments for multiple posts."""
         if not post_ids:
             return []
 
         return await self.select_from_json_view(
-            "v_comments", where={"postId": {"$in": post_ids}}
+            "v_comments",
+            where={"postId": {"$in": post_ids}},
         )

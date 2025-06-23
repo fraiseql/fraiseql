@@ -42,7 +42,7 @@ class Post:
     id: UUID
     title: str
     content: str
-    authorId: UUID
+    authorId: UUID  # noqa: N815
 
     # Add field resolver for author
     @fraiseql.field
@@ -57,7 +57,7 @@ class Post:
 class UserDataLoader(DataLoader[UUID, dict]):
     """DataLoader for loading users by ID."""
 
-    def __init__(self, db, users_db: dict[UUID, dict] | None = None):
+    def __init__(self, db, users_db: dict[UUID, dict] | None = None) -> None:
         super().__init__()
         self.db = db
         self.users_db = users_db or {
@@ -65,7 +65,7 @@ class UserDataLoader(DataLoader[UUID, dict]):
                 "id": UUID("223e4567-e89b-12d3-a456-426614174001"),
                 "name": "John Doe",
                 "email": "john@example.com",
-            }
+            },
         }
         self.load_calls = []  # Track batch calls for testing
 
@@ -108,7 +108,7 @@ async def get_posts(info) -> list[Post]:
                 title=f"Post {i}",
                 content=f"Content {i}",
                 authorId=UUID("223e4567-e89b-12d3-a456-426614174001"),  # Same author
-            )
+            ),
         )
     return posts
 
@@ -124,10 +124,10 @@ async def get_loader_test(info) -> str:
         return f"Error: {e!s}"
 
 
-def test_dataloader_registry_in_context():
+def test_dataloader_registry_in_context() -> None:
     """Test that LoaderRegistry is automatically available in GraphQL context."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -145,7 +145,7 @@ def test_dataloader_registry_in_context():
                             authorId
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -157,11 +157,10 @@ def test_dataloader_registry_in_context():
         assert data["data"]["getPost"]["title"] == "Test Post"
 
 
-def test_dataloader_batching_works():
+def test_dataloader_batching_works() -> None:
     """Test that DataLoader properly batches multiple loads."""
-
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -182,7 +181,7 @@ def test_dataloader_batching_works():
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -191,9 +190,9 @@ def test_dataloader_batching_works():
 
         # Debug: print the response if there's an error
         if "errors" in data:
-            print(f"GraphQL errors: {data['errors']}")
+            pass
         if "data" not in data:
-            print(f"Full response: {data}")
+            pass
 
         # Should successfully resolve all authors
         posts = data["data"]["getPosts"]
@@ -204,10 +203,10 @@ def test_dataloader_batching_works():
             assert post["author"]["name"] == "John Doe"
 
 
-def test_dataloader_error_handling():
+def test_dataloader_error_handling() -> None:
     """Test that DataLoader errors are properly handled."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -226,7 +225,7 @@ def test_dataloader_error_handling():
                             }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -237,10 +236,10 @@ def test_dataloader_error_handling():
         assert data["data"]["getPost"] is None
 
 
-def test_get_loader_function_works():
+def test_get_loader_function_works() -> None:
     """Test that get_loader function works properly with context."""
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -255,7 +254,7 @@ def test_get_loader_function_works():
                     query {
                         getLoaderTest
                     }
-                """
+                """,
             },
         )
 
@@ -268,11 +267,10 @@ def test_get_loader_function_works():
         assert "UserDataLoader" in result
 
 
-def test_dataloader_caching():
+def test_dataloader_caching() -> None:
     """Test that DataLoader caches results within a request."""
-
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, Post],
         queries=[get_post, get_posts, get_loader_test],
     )
@@ -291,7 +289,7 @@ def test_dataloader_caching():
                             author { name }
                         }
                     }
-                """
+                """,
             },
         )
 
@@ -305,7 +303,7 @@ def test_dataloader_caching():
 
 
 @pytest.mark.asyncio
-async def test_dataloader_field_decorator():
+async def test_dataloader_field_decorator() -> None:
     """Test @dataloader_field decorator for automatic DataLoader integration."""
 
     # Define PostDataLoader first
@@ -327,14 +325,14 @@ async def test_dataloader_field_decorator():
             @fraiseql.dataloader_field(PostDataLoader, key_field="post_id")
             async def post(self, info) -> Post | None:
                 """Load the post this comment belongs to."""
-                pass  # Implementation is handled by the decorator
+                # Implementation is handled by the decorator
 
     else:
         # Skip test if decorator doesn't exist yet
         pytest.skip("@dataloader_field decorator not implemented yet")
 
 
-def test_n_plus_one_detection(caplog):
+def test_n_plus_one_detection(caplog) -> None:
     """Test that N+1 query detection works in development mode."""
     import logging
 
@@ -346,7 +344,7 @@ def test_n_plus_one_detection(caplog):
         id: UUID
         title: str
         content: str
-        authorId: UUID
+        authorId: UUID  # noqa: N815
 
         @fraiseql.field
         async def author(self, info) -> User | None:
@@ -369,7 +367,7 @@ def test_n_plus_one_detection(caplog):
         ]
 
     app = create_fraiseql_app(
-        database_url="postgresql://fraiseql:fraiseql@localhost:5433/fraiseql_demo",
+        database_url="postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test",
         types=[User, PostWithoutDataLoader],
         queries=[get_posts_no_dataloader],
         production=False,  # Development mode
@@ -382,13 +380,12 @@ def test_n_plus_one_detection(caplog):
         raise_on_detection=False,
     )
 
-    with TestClient(app) as client:
-        with caplog.at_level(logging.WARNING):
-            # Query that should trigger N+1 detection
-            response = client.post(
-                "/graphql",
-                json={
-                    "query": """
+    with TestClient(app) as client, caplog.at_level(logging.WARNING):
+        # Query that should trigger N+1 detection
+        response = client.post(
+            "/graphql",
+            json={
+                "query": """
                         query {
                             getPostsNoDataloader {
                                 id
@@ -399,25 +396,25 @@ def test_n_plus_one_detection(caplog):
                                 }
                             }
                         }
-                    """
-                },
-            )
+                    """,
+            },
+        )
 
-            assert response.status_code == 200
-            data = response.json()
+        assert response.status_code == 200
+        data = response.json()
 
-            # Query should succeed
-            assert "data" in data
-            assert len(data["data"]["getPostsNoDataloader"]) == 3
+        # Query should succeed
+        assert "data" in data
+        assert len(data["data"]["getPostsNoDataloader"]) == 3
 
-            # Check for N+1 warning
-            n1_warning_found = any(
-                "N+1 query pattern detected" in record.message for record in caplog.records
-            )
-            assert n1_warning_found, "Expected N+1 warning not found"
+        # Check for N+1 warning
+        n1_warning_found = any(
+            "N+1 query pattern detected" in record.message for record in caplog.records
+        )
+        assert n1_warning_found, "Expected N+1 warning not found"
 
-            # Check for DataLoader suggestion
-            suggestion_found = any(
-                "Consider using a DataLoader" in record.message for record in caplog.records
-            )
-            assert suggestion_found, "DataLoader suggestion not found"
+        # Check for DataLoader suggestion
+        suggestion_found = any(
+            "Consider using a DataLoader" in record.message for record in caplog.records
+        )
+        assert suggestion_found, "DataLoader suggestion not found"
