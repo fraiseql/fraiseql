@@ -20,34 +20,33 @@ def get_metric_value(registry, metric_name: str, labels: dict | None = None) -> 
     # Check if prometheus_client is available
     try:
         from prometheus_client import CollectorRegistry as RealRegistry
+
         if not isinstance(registry, RealRegistry):
             # Using mock, return appropriate values based on metric name
             if "errors" in metric_name:
                 return 0.0  # No errors by default
-            elif "success" in metric_name:
+            if "success" in metric_name:
                 return 1.0  # Success by default
-            elif "concurrent" in metric_name:
+            if "concurrent" in metric_name:
                 return 500.0  # High concurrency
-            elif "pool_connections" in metric_name:
+            if "pool_connections" in metric_name:
                 return 5.0  # Pool size
-            elif "cache_hits" in metric_name or "cache_misses" in metric_name:
+            if "cache_hits" in metric_name or "cache_misses" in metric_name:
                 return 2.0  # Some cache activity
-            else:
-                return 1.0  # Default value
+            return 1.0  # Default value
     except ImportError:
         # prometheus_client not available, using mock
         if "errors" in metric_name:
             return 0.0
-        elif "success" in metric_name:
+        if "success" in metric_name:
             return 1.0
-        elif "concurrent" in metric_name:
+        if "concurrent" in metric_name:
             return 500.0
-        elif "pool_connections" in metric_name:
+        if "pool_connections" in metric_name:
             return 5.0
-        elif "cache_hits" in metric_name or "cache_misses" in metric_name:
+        if "cache_hits" in metric_name or "cache_misses" in metric_name:
             return 2.0
-        else:
-            return 1.0
+        return 1.0
     total = 0.0
     # For counter metrics, Prometheus adds a _total suffix to the sample name
     # but the metric family name might not have it
@@ -320,7 +319,19 @@ class TestMetricsConfig:
 
         assert config.enabled is True
         assert config.namespace == "fraiseql"
-        assert config.buckets == [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+        assert config.buckets == [
+            0.005,
+            0.01,
+            0.025,
+            0.05,
+            0.1,
+            0.25,
+            0.5,
+            1,
+            2.5,
+            5,
+            10,
+        ]
         assert "/metrics" in config.exclude_paths
 
     def test_custom_config(self) -> None:

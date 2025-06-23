@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import fraiseql
-from fraiseql.fastapi import create_fraiseql_app, FraiseQLConfig
+from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 
 # Simple test type to satisfy schema requirements
@@ -67,7 +67,8 @@ def test_graphiql_explicit_config(clear_registry):
         types=[User, QueryRoot],
         production=False,
         config=FraiseQLConfig(
-            database_url="postgresql://localhost/test", playground_tool="graphiql"
+            database_url="postgresql://localhost/test",
+            playground_tool="graphiql",
         ),
     )
 

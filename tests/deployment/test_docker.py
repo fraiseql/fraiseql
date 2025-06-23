@@ -217,13 +217,13 @@ class TestDockerBuild:
                 check=False,
             )
             pytest.fail(
-                f"Container failed to start: {start_result.stderr}\n"
-                f"Logs: {logs_result.stdout}"
+                f"Container failed to start: {start_result.stderr}\nLogs: {logs_result.stdout}",
             )
 
         try:
             # Wait for startup
             import time
+
             max_retries = 10
             for i in range(max_retries):
                 time.sleep(1)
@@ -245,13 +245,19 @@ class TestDockerBuild:
                         check=False,
                     )
                     pytest.fail(
-                        f"Container stopped. Logs:\n{logs_result.stdout}\n"
-                        f"{logs_result.stderr}"
+                        f"Container stopped. Logs:\n{logs_result.stdout}\n{logs_result.stderr}",
                     )
 
                 # Try health check
                 result = subprocess.run(
-                    [runtime, "exec", container_name, "curl", "-f", "http://localhost:8000/health"],
+                    [
+                        runtime,
+                        "exec",
+                        container_name,
+                        "curl",
+                        "-f",
+                        "http://localhost:8000/health",
+                    ],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -302,9 +308,9 @@ class TestDockerSecurity:
                     has_security_scan = True
                     break
 
-        assert (
-            has_security_scan or Path("docs/deployment/docker-security.md").exists()
-        ), "Should have security scanning in CI or documentation"
+        assert has_security_scan or Path("docs/deployment/docker-security.md").exists(), (
+            "Should have security scanning in CI or documentation"
+        )
 
 
 class TestDockerCompose:
