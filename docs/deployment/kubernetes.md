@@ -750,7 +750,5 @@ sum(container_memory_usage_bytes{pod=~"fraiseql-.*"}) by (pod)
 
 ## Next Steps
 
-- [Helm Chart](./helm.md) - Package deployments with Helm
-- [Cloud Providers](./cloud.md) - EKS, GKE, AKS specific guides
-- [GitOps Setup](./gitops.md) - Automated deployments with ArgoCD
-- [Disaster Recovery](./disaster-recovery.md) - Backup and restore strategies
+- [Docker Deployment](./docker.md) - Container basics
+- [Monitoring Setup](./monitoring.md) - Advanced monitoring configuration

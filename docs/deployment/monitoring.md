@@ -618,7 +618,5 @@ slis:
 
 ## Next Steps
 
-- [Performance Tuning](./performance.md) - Optimization guide
-- [Disaster Recovery](./disaster-recovery.md) - Backup and restore
-- [Security Monitoring](./security-monitoring.md) - Security-focused monitoring
-- [Cost Optimization](./cost-optimization.md) - Reduce monitoring costs
+- [Docker Deployment](./docker.md) - Container deployment guide
+- [Kubernetes Deployment](./kubernetes.md) - Container orchestration

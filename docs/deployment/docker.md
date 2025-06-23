@@ -373,6 +373,4 @@ docker-compose exec fraiseql curl -X POST http://localhost:8000/graphql \
 ## Next Steps
 
 - [Kubernetes Deployment](./kubernetes.md) - For container orchestration
-- [Cloud Deployment](./cloud.md) - AWS, GCP, Azure guides
 - [Monitoring Setup](./monitoring.md) - Advanced monitoring configuration
-- [Security Hardening](./security.md) - Production security checklist
