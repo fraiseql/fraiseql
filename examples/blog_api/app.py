@@ -3,7 +3,7 @@
 import os
 
 # Import queries module to ensure @query decorators are registered
-import queries  # noqa: F401
+import queries
 from models import Comment, Post, User
 from mutations import (
     create_comment,
