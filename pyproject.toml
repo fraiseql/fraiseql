@@ -238,6 +238,17 @@ ignore = [
   "PLR0913", # Too many arguments OK in examples
   "N802",    # Function names OK in examples
   "N806",    # Variable names OK in examples
+  "ASYNC110", # asyncio.sleep in while loop OK in examples
+  "FAST002", # FastAPI deps without Annotated OK in examples
+  "FAST003", # FastAPI deps OK in examples
+  "S603",    # Subprocess OK in examples
+  "S607",    # Subprocess OK in examples
+  "DTZ005",  # Datetime OK in examples
+  "DTZ007",  # Datetime OK in examples
+  "SIM118",  # Dictionary keys OK in examples
+  "C901",    # Complex functions OK in examples
+  "PLR0912", # Too many branches OK in examples
+  "PLR0915", # Too many statements OK in examples
 ]
 "benchmarks/**/*.py" = [
   "ALL",     # Ignore all rules for benchmarks - they're not production code
