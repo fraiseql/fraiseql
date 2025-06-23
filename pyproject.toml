@@ -219,6 +219,29 @@ ignore = [
 "src/fraiseql/cli/commands/*.py" = [
   "T201",    # Print statements OK in CLI commands
 ]
+"examples/**/*.py" = [
+  "E402",    # Module level import not at top of file
+  "F401",    # Unused imports OK in examples
+  "F841",    # Unused variables OK in examples  
+  "ERA001",  # Commented-out code OK in examples
+  "T201",    # Print statements OK in examples
+  "S101",    # Assert OK in examples
+  "PLR2004", # Magic values OK in examples
+  "S311",    # Random OK for demo purposes
+  "RUF001",  # Ambiguous characters OK
+  "RUF002",  # Ambiguous characters OK
+  "RUF003",  # Ambiguous characters OK
+  "E741",    # Ambiguous variable names OK in examples
+  "B008",    # Function calls in arguments OK
+  "UP032",   # f-string usage OK
+  "B018",    # Useless expressions OK in examples
+  "PLR0913", # Too many arguments OK in examples
+  "N802",    # Function names OK in examples
+  "N806",    # Variable names OK in examples
+]
+"benchmarks/**/*.py" = [
+  "ALL",     # Ignore all rules for benchmarks - they're not production code
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
