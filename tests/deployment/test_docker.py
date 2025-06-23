@@ -115,7 +115,7 @@ class TestDockerBuild:
         runtime = check_container_runtime()
         if runtime is None:
             pytest.skip("No container runtime available")
-            
+
         image_name = "fraiseql-test:latest"
 
         # Build the image
@@ -172,7 +172,7 @@ class TestDockerBuild:
         runtime = check_container_runtime()
         # Start container
         container_name = "fraiseql-health-test"
-        
+
         # Start container with minimal env vars (no database required for health check)
         start_result = subprocess.run(
             [
@@ -202,7 +202,7 @@ class TestDockerBuild:
             text=True,
             check=False,
         )
-        
+
         if start_result.returncode != 0:
             # Get container logs for debugging
             logs_result = subprocess.run(
@@ -219,7 +219,7 @@ class TestDockerBuild:
             max_retries = 10
             for i in range(max_retries):
                 time.sleep(1)
-                
+
                 # Check if container is still running
                 check_result = subprocess.run(
                     [runtime, "ps", "-q", "-f", f"name={container_name}"],
@@ -227,7 +227,7 @@ class TestDockerBuild:
                     text=True,
                     check=False,
                 )
-                
+
                 if not check_result.stdout.strip():
                     # Container stopped, get logs
                     logs_result = subprocess.run(
@@ -237,7 +237,7 @@ class TestDockerBuild:
                         check=False,
                     )
                     pytest.fail(f"Container stopped. Logs:\n{logs_result.stdout}\n{logs_result.stderr}")
-                
+
                 # Try health check
                 result = subprocess.run(
                     [runtime, "exec", container_name, "curl", "-f", "http://localhost:8000/health"],
@@ -245,7 +245,7 @@ class TestDockerBuild:
                     text=True,
                     check=False,
                 )
-                
+
                 if result.returncode == 0:
                     break
                 elif i == max_retries - 1:
