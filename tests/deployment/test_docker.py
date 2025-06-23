@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests.utils.container_utils import requires_any_container, check_container_runtime
+from tests.utils.container_utils import check_container_runtime, requires_any_container
 
 
 class TestDockerfile:
@@ -199,9 +199,9 @@ class TestDockerBuild:
                 "fraiseql.fastapi.app:create_fraiseql_app",
                 "--factory",
                 "--host",
-                "0.0.0.0",
+                "0.0.0.0",  # noqa: S104
                 "--port",
-                "8000"
+                "8000",
             ],
             capture_output=True,
             text=True,
@@ -216,7 +216,10 @@ class TestDockerBuild:
                 text=True,
                 check=False,
             )
-            pytest.fail(f"Container failed to start: {start_result.stderr}\nLogs: {logs_result.stdout}")
+            pytest.fail(
+                f"Container failed to start: {start_result.stderr}\n"
+                f"Logs: {logs_result.stdout}"
+            )
 
         try:
             # Wait for startup
@@ -241,7 +244,10 @@ class TestDockerBuild:
                         text=True,
                         check=False,
                     )
-                    pytest.fail(f"Container stopped. Logs:\n{logs_result.stdout}\n{logs_result.stderr}")
+                    pytest.fail(
+                        f"Container stopped. Logs:\n{logs_result.stdout}\n"
+                        f"{logs_result.stderr}"
+                    )
 
                 # Try health check
                 result = subprocess.run(
@@ -253,7 +259,7 @@ class TestDockerBuild:
 
                 if result.returncode == 0:
                     break
-                elif i == max_retries - 1:
+                if i == max_retries - 1:
                     pytest.fail(f"Health check failed after {max_retries} retries: {result.stderr}")
 
         finally:
