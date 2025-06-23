@@ -6,7 +6,18 @@ from uuid import UUID
 import fraiseql
 from fraiseql import Info
 
-from .models import Address, Cart, Order, OrderStatus, Product, ProductFilterInput, Review, User
+from .models import (
+    Address,
+    Cart,
+    CartItem,
+    Order,
+    OrderItem,
+    OrderStatus,
+    Product,
+    ProductFilterInput,
+    Review,
+    User,
+)
 
 
 @fraiseql.type
