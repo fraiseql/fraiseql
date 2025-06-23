@@ -148,7 +148,7 @@ class FraiseQLTracer:
 
         # If a tracer provider is already set (e.g., in tests), use it
         existing_provider = trace.get_tracer_provider()
-        if existing_provider and hasattr(existing_provider, '_resource'):
+        if existing_provider and hasattr(existing_provider, "_resource"):
             return trace.get_tracer(__name__)
 
         # Create resource with service information
@@ -215,7 +215,7 @@ class FraiseQLTracer:
             # No-op context manager when tracer is not available
             yield None
             return
-            
+
         with self.tracer.start_as_current_span(
             f"graphql.query.{operation_name}",
             kind=trace.SpanKind.SERVER,
@@ -253,7 +253,7 @@ class FraiseQLTracer:
             # No-op context manager when tracer is not available
             yield None
             return
-            
+
         with self.tracer.start_as_current_span(
             f"graphql.mutation.{operation_name}",
             kind=trace.SpanKind.SERVER,
@@ -284,7 +284,7 @@ class FraiseQLTracer:
             # No-op context manager when tracer is not available
             yield None
             return
-            
+
         with self.tracer.start_as_current_span(
             f"db.{query_type}.{table}",
             kind=trace.SpanKind.CLIENT,
