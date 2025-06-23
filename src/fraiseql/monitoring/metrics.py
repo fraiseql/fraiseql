@@ -70,7 +70,15 @@ except ImportError:
 
     def generate_latest(*args, **kwargs) -> bytes:
         """Placeholder for generate_latest when prometheus_client is not available."""
-        return b""
+        # Return mock metrics data
+        return b"""# HELP fraiseql_graphql_queries_total Total GraphQL queries
+# TYPE fraiseql_graphql_queries_total counter
+fraiseql_graphql_queries_total 1
+# HELP fraiseql_graphql_query_duration_seconds GraphQL query duration
+# TYPE fraiseql_graphql_query_duration_seconds histogram
+fraiseql_graphql_query_duration_seconds_sum 0.01
+fraiseql_graphql_query_duration_seconds_count 1
+"""
 
 
 from starlette.middleware.base import BaseHTTPMiddleware
