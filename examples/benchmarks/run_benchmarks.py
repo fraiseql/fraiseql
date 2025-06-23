@@ -106,8 +106,8 @@ class FraiseQLBenchmark:
 
         except Exception as e:
             raise Exception(f"Query failed: {e}") from e  # noqa: TRY002
-        finally:
-            return time.time() - start_time
+
+        return time.time() - start_time
 
 
 class HasuraBenchmark:
@@ -144,8 +144,8 @@ class HasuraBenchmark:
 
         except Exception as e:
             raise Exception(f"Hasura query failed: {e}") from e  # noqa: TRY002
-        finally:
-            return time.time() - start_time
+
+        return time.time() - start_time
 
 
 class PostGraphileBenchmark:
@@ -182,8 +182,8 @@ class PostGraphileBenchmark:
 
         except Exception as e:
             raise Exception(f"PostGraphile query failed: {e}") from e  # noqa: TRY002
-        finally:
-            return time.time() - start_time
+
+        return time.time() - start_time
 
 
 class BenchmarkRunner:

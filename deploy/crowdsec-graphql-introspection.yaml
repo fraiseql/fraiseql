@@ -1,0 +1,13 @@
+# GraphQL introspection abuse detection
+type: trigger
+name: fraiseql/graphql-introspection
+description: "Detect GraphQL introspection queries in production"
+filter: |
+  evt.Meta.log_type == 'nginx' &&
+  evt.Parsed.request contains '__schema' ||
+  evt.Parsed.request contains '__type'
+blackhole: 1h
+labels:
+  service: graphql
+  type: introspection
+  remediation: true

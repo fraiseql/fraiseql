@@ -46,8 +46,10 @@ This means your GraphQL queries become simple `SELECT` statements from views, wh
 ```bash
 pip install fraiseql
 
-# With Auth0 support:
-pip install "fraiseql[auth0]"
+# With optional features:
+pip install "fraiseql[auth0]"      # Auth0 authentication
+pip install "fraiseql[tracing]"    # OpenTelemetry tracing
+pip install "fraiseql[dev]"        # Development dependencies
 ```
 
 ## Documentation

@@ -12,7 +12,7 @@ Please report security vulnerabilities to security@fraiseql.com or through GitHu
 
 ## Scope
 
-This security policy applies to the FraiseQL library itself (`src/fraiseql`). 
+This security policy applies to the FraiseQL library itself (`src/fraiseql`).
 
 ### Out of Scope
 

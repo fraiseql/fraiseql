@@ -155,3 +155,6 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 /private/
+
+# Benchmark results
+benchmarks/performance-benchmarks/results-aggregator/*.json

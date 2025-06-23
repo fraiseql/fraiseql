@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fraiseql"
-version = "0.1.0a10"
+version = "0.1.0a11"
 description = "Lightweight GraphQL-to-PostgreSQL query builder using jsonb"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
@@ -113,7 +113,7 @@ target-version = ["py313"]
 src = ["src"]
 target-version = "py313"
 line-length = 100
-exclude = ["tests"]
+exclude = ["tests", "benchmarks", "java-benchmark"]
 fix = true
 
 [tool.ruff.lint]
@@ -218,6 +218,50 @@ ignore = [
 ]
 "src/fraiseql/cli/commands/*.py" = [
   "T201",    # Print statements OK in CLI commands
+]
+"examples/**/*.py" = [
+  "E402",    # Module level import not at top of file
+  "F401",    # Unused imports OK in examples
+  "F841",    # Unused variables OK in examples
+  "ERA001",  # Commented-out code OK in examples
+  "T201",    # Print statements OK in examples
+  "S101",    # Assert OK in examples
+  "PLR2004", # Magic values OK in examples
+  "S311",    # Random OK for demo purposes
+  "RUF001",  # Ambiguous characters OK
+  "RUF002",  # Ambiguous characters OK
+  "RUF003",  # Ambiguous characters OK
+  "E741",    # Ambiguous variable names OK in examples
+  "B008",    # Function calls in arguments OK
+  "UP032",   # f-string usage OK
+  "B018",    # Useless expressions OK in examples
+  "PLR0913", # Too many arguments OK in examples
+  "N802",    # Function names OK in examples
+  "N806",    # Variable names OK in examples
+  "ASYNC110", # asyncio.sleep in while loop OK in examples
+  "FAST002", # FastAPI deps without Annotated OK in examples
+  "FAST003", # FastAPI deps OK in examples
+  "S603",    # Subprocess OK in examples
+  "S607",    # Subprocess OK in examples
+  "DTZ005",  # Datetime OK in examples
+  "DTZ007",  # Datetime OK in examples
+  "SIM118",  # Dictionary keys OK in examples
+  "C901",    # Complex functions OK in examples
+  "PLR0912", # Too many branches OK in examples
+  "PLR0915", # Too many statements OK in examples
+  "PLW1508", # Invalid env var default OK in examples
+]
+"benchmarks/**/*.py" = [
+  "ALL",     # Ignore all rules for benchmarks - they're not production code
+]
+"marketing/**/*.py" = [
+  "ALL",     # Marketing visualizations - not production code
+]
+"scripts/**/*.py" = [
+  "ALL",     # Utility scripts - not production code
+]
+"simple_benchmark.py" = [
+  "ALL",     # Single file benchmark
 ]
 
 [tool.ruff.lint.pydocstyle]
