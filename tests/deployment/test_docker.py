@@ -93,7 +93,7 @@ class TestDockerfile:
 
         # Check for proper layer caching
         assert "COPY requirements.txt" in content or "COPY pyproject.toml" in content
-        
+
         # Check that dependencies are copied before source code
         if "COPY src/" in content:
             if "COPY requirements.txt" in content:
