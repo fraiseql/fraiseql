@@ -308,9 +308,9 @@ class TestDockerSecurity:
                     has_security_scan = True
                     break
 
-        assert has_security_scan or Path("docs/deployment/docker-security.md").exists(), (
-            "Should have security scanning in CI or documentation"
-        )
+        assert (
+            has_security_scan or Path("docs/deployment/docker-security.md").exists()
+        ), "Should have security scanning in CI or documentation"
 
 
 class TestDockerCompose:
