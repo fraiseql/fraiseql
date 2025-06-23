@@ -12,7 +12,7 @@ try:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
     from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-    
+
     # Only import if opentelemetry is available
     from fraiseql.tracing.opentelemetry import (
         FraiseQLTracer,
@@ -23,7 +23,7 @@ try:
         trace_database_query,
         trace_graphql_operation,
     )
-    
+
     OPENTELEMETRY_AVAILABLE = True
 except ImportError:
     OPENTELEMETRY_AVAILABLE = False
