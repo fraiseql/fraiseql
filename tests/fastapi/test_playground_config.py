@@ -47,7 +47,8 @@ def test_apollo_sandbox_config(clear_registry):
         types=[User, QueryRoot],
         production=False,
         config=FraiseQLConfig(
-            database_url="postgresql://localhost/test", playground_tool="apollo-sandbox"
+            database_url="postgresql://localhost/test",
+            playground_tool="apollo-sandbox",
         ),
     )
 

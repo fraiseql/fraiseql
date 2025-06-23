@@ -191,7 +191,7 @@ class TestDockerBuild:
                 "-e",
                 "FRAISEQL_PRODUCTION=false",  # Disable production mode
                 "-e",
-                "FRAISEQL_DEV_MODE=true",     # Enable dev mode (no DB required)
+                "FRAISEQL_DEV_MODE=true",  # Enable dev mode (no DB required)
                 docker_image,
                 "python",
                 "-m",
