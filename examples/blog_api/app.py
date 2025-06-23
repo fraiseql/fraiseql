@@ -39,10 +39,6 @@ app = create_fraiseql_app(
     description="A simple blog API built with FraiseQL",
     # Production mode from environment
     production=os.getenv("ENV") == "production",
-    # Optional: Configure GraphQL IDE
-    # config=FraiseQLConfig(
-    #     playground_tool="apollo-sandbox"  # or "graphiql" (default)
-    # )
 )
 
 
