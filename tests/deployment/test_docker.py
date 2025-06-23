@@ -173,7 +173,7 @@ class TestDockerBuild:
         # Skip in CI as this requires a full app setup
         if os.environ.get("CI") == "true":
             pytest.skip("Skipping container health check in CI - requires full app setup")
-            
+
         runtime = check_container_runtime()
         # Start container
         container_name = "fraiseql-health-test"

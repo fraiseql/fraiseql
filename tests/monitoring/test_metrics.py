@@ -26,7 +26,7 @@ def get_metric_value(registry, metric_name: str, labels: dict | None = None) -> 
     except ImportError:
         # prometheus_client not available, using mock
         return 1.0
-        
+
     total = 0.0
     # For counter metrics, Prometheus adds a _total suffix to the sample name
     # but the metric family name might not have it
