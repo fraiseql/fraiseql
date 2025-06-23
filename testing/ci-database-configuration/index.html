@@ -12,7 +12,7 @@
         <meta name="author" content="Lionel Hamayon">
       
       
-        <link rel="canonical" href="https://fraiseql.readthedocs.io/api-reference/testfoundry/">
+        <link rel="canonical" href="https://fraiseql.readthedocs.io/testing/ci-database-configuration/">
       
       
       
@@ -22,7 +22,7 @@
     
     
       
-        <title>TestFoundry API Reference - FraiseQL Documentation</title>
+        <title>CI/CD Database Configuration - FraiseQL Documentation</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#testfoundry-api-reference" class="md-skip">
+        <a href="#cicd-database-configuration" class="md-skip">
           Skip to content
         </a>
       
@@ -108,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              TestFoundry API Reference
+              CI/CD Database Configuration
             
           </span>
         </div>
@@ -286,7 +286,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../" class="md-tabs__link">
+        <a href="../../api-reference/" class="md-tabs__link">
           
   
   
@@ -847,7 +847,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../api-reference/" class="md-nav__link ">
               
   
   
@@ -882,7 +882,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../application/" class="md-nav__link">
+      <a href="../../api-reference/application/" class="md-nav__link">
         
   
   
@@ -905,7 +905,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decorators/" class="md-nav__link">
+      <a href="../../api-reference/decorators/" class="md-nav__link">
         
   
   
@@ -939,6 +939,8 @@
       
         
           
+        
+      
         
       
         
@@ -1067,6 +1069,29 @@
   
   <span class="md-ellipsis">
     Performance
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/turbo-router/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    TurboRouter
     
   </span>
   
@@ -1674,37 +1699,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#basic-usage" class="md-nav__link">
+  <a href="#configuration-methods" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Usage
+      Configuration Methods
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cli-commands" class="md-nav__link">
-    <span class="md-ellipsis">
-      CLI Commands
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="CLI Commands">
+    <nav class="md-nav" aria-label="Configuration Methods">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#generate-tests" class="md-nav__link">
+  <a href="#1-testcontainers-local-development" class="md-nav__link">
     <span class="md-ellipsis">
-      Generate Tests
+      1. Testcontainers (Local Development)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#run-tests" class="md-nav__link">
+  <a href="#2-external-database-cicd" class="md-nav__link">
     <span class="md-ellipsis">
-      Run Tests
+      2. External Database (CI/CD)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-github-actions-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. GitHub Actions Configuration
     </span>
   </a>
   
@@ -1716,75 +1741,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuration" class="md-nav__link">
+  <a href="#test-markers" class="md-nav__link">
     <span class="md-ellipsis">
-      Configuration
+      Test Markers
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#api-reference" class="md-nav__link">
+  <a href="#environment-variables" class="md-nav__link">
     <span class="md-ellipsis">
-      API Reference
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="API Reference">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#foundrygenerator" class="md-nav__link">
-    <span class="md-ellipsis">
-      FoundryGenerator
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="FoundryGenerator">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#methods" class="md-nav__link">
-    <span class="md-ellipsis">
-      Methods
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#test-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      Test Types
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#example-output" class="md-nav__link">
-    <span class="md-ellipsis">
-      Example Output
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#best-practices" class="md-nav__link">
-    <span class="md-ellipsis">
-      Best Practices
+      Environment Variables
     </span>
   </a>
   
@@ -1801,18 +1769,27 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#common-issues" class="md-nav__link">
+  <a href="#dockerpodman-not-available" class="md-nav__link">
     <span class="md-ellipsis">
-      Common Issues
+      Docker/Podman Not Available
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#debug-mode" class="md-nav__link">
+  <a href="#permission-denied-errors" class="md-nav__link">
     <span class="md-ellipsis">
-      Debug Mode
+      Permission Denied Errors
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disk-space-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      Disk Space Issues
     </span>
   </a>
   
@@ -1824,9 +1801,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#integration-with-ci" class="md-nav__link">
+  <a href="#best-practices" class="md-nav__link">
     <span class="md-ellipsis">
-      Integration with CI
+      Best Practices
     </span>
   </a>
   
@@ -1851,110 +1828,123 @@
   
 
 
-<h1 id="testfoundry-api-reference">TestFoundry API Reference<a class="headerlink" href="#testfoundry-api-reference" title="Permanent link">&para;</a></h1>
-<p>TestFoundry is a test generation tool for FraiseQL applications that creates comprehensive pgTAP tests for your database operations.</p>
+<h1 id="cicd-database-configuration">CI/CD Database Configuration<a class="headerlink" href="#cicd-database-configuration" title="Permanent link">&para;</a></h1>
+<p>This document explains how FraiseQL's test suite handles database connections in different environments.</p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>TestFoundry automatically generates tests for:
-- Valid operations (happy path)
-- Constraint violations (unique, foreign key, check)
-- Edge cases and boundary conditions
-- Authorization rules</p>
-<h2 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.extensions.testfoundry</span><span class="w"> </span><span class="kn">import</span> <span class="n">FoundryGenerator</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Generate pgTAP tests for your mutations</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">generator</span> <span class="o">=</span> <span class="n">FoundryGenerator</span><span class="p">(</span><span class="n">repository</span><span class="p">)</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">tests</span> <span class="o">=</span> <span class="k">await</span> <span class="n">generator</span><span class="o">.</span><span class="n">generate_tests_for_entity</span><span class="p">(</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">entity_name</span><span class="o">=</span><span class="s2">&quot;users&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">table_name</span><span class="o">=</span><span class="s2">&quot;tb_users&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">input_type_name</span><span class="o">=</span><span class="s2">&quot;user_input&quot;</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span>
-</code></pre></div>
-<h2 id="cli-commands">CLI Commands<a class="headerlink" href="#cli-commands" title="Permanent link">&para;</a></h2>
-<h3 id="generate-tests">Generate Tests<a class="headerlink" href="#generate-tests" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Generate tests for a specific entity</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>fraiseql<span class="w"> </span>testfoundry<span class="w"> </span>generate<span class="w"> </span>User
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Generate tests for all entities</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>fraiseql<span class="w"> </span>testfoundry<span class="w"> </span>generate<span class="w"> </span>--all
-</code></pre></div>
-<h3 id="run-tests">Run Tests<a class="headerlink" href="#run-tests" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Run all generated tests</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>fraiseql<span class="w"> </span>testfoundry<span class="w"> </span>run
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Run tests for specific entity</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>fraiseql<span class="w"> </span>testfoundry<span class="w"> </span>run<span class="w"> </span>--entity<span class="w"> </span>User
-</code></pre></div>
-<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<p>TestFoundry can be configured through your <code>pyproject.toml</code> file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">[tool.fraiseql.testfoundry]</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">output_directory</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;tests/generated&quot;</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">test_framework</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;pgtap&quot;</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">include_performance_tests</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
-</code></pre></div>
-<h2 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h2>
-<h3 id="foundrygenerator">FoundryGenerator<a class="headerlink" href="#foundrygenerator" title="Permanent link">&para;</a></h3>
-<p>The main class for generating tests.</p>
-<h4 id="methods">Methods<a class="headerlink" href="#methods" title="Permanent link">&para;</a></h4>
-<ul>
-<li><code>generate_tests_for_entity(entity_name, table_name, input_type_name)</code>: Generate tests for a specific entity</li>
-<li><code>generate_all_tests()</code>: Generate tests for all registered entities</li>
-<li><code>validate_entity(entity_name)</code>: Validate entity configuration</li>
-</ul>
-<h3 id="test-types">Test Types<a class="headerlink" href="#test-types" title="Permanent link">&para;</a></h3>
-<p>TestFoundry generates several types of tests:</p>
+<p>FraiseQL supports multiple database configuration methods to accommodate different CI/CD environments:</p>
 <ol>
-<li><strong>CRUD Operation Tests</strong>: Basic create, read, update, delete operations</li>
-<li><strong>Constraint Tests</strong>: Database constraint validation</li>
-<li><strong>Business Logic Tests</strong>: Custom validation rules</li>
-<li><strong>Performance Tests</strong>: Query performance validation</li>
-<li><strong>Authorization Tests</strong>: Permission and role-based access tests</li>
+<li><strong>Testcontainers</strong> (default for local development)</li>
+<li><strong>External Database</strong> (for CI/CD environments like GitHub Actions)</li>
+<li><strong>Podman Support</strong> (alternative to Docker)</li>
 </ol>
-<h2 id="example-output">Example Output<a class="headerlink" href="#example-output" title="Permanent link">&para;</a></h2>
-<p>Generated tests follow pgTAP conventions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">-- Test user creation</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">plan</span><span class="p">(</span><span class="mi">3</span><span class="p">);</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1">-- Test valid user creation</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ok</span><span class="p">(</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">create_user</span><span class="p">(</span><span class="s1">&#39;{&quot;email&quot;: &quot;test@example.com&quot;, &quot;name&quot;: &quot;Test User&quot;}&#39;</span><span class="p">::</span><span class="n">jsonb</span><span class="p">)).</span><span class="n">success</span><span class="p">,</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="s1">&#39;User creation should succeed with valid data&#39;</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">);</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1">-- Test duplicate email constraint</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">throws_ok</span><span class="p">(</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="err">$$</span><span class="k">SELECT</span><span class="w"> </span><span class="n">create_user</span><span class="p">(</span><span class="s1">&#39;{&quot;email&quot;: &quot;test@example.com&quot;, &quot;name&quot;: &quot;Duplicate&quot;}&#39;</span><span class="p">::</span><span class="n">jsonb</span><span class="p">)</span><span class="err">$$</span><span class="p">,</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="s1">&#39;unique_violation&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="s1">&#39;User creation should fail with duplicate email&#39;</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">);</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">finish</span><span class="p">();</span>
+<h2 id="configuration-methods">Configuration Methods<a class="headerlink" href="#configuration-methods" title="Permanent link">&para;</a></h2>
+<h3 id="1-testcontainers-local-development">1. Testcontainers (Local Development)<a class="headerlink" href="#1-testcontainers-local-development" title="Permanent link">&para;</a></h3>
+<p>By default, tests use testcontainers to spin up a PostgreSQL container:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Standard test run (uses Docker)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pytest
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># With Podman</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TESTCONTAINERS_PODMAN</span><span class="o">=</span><span class="nb">true</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TESTCONTAINERS_RYUK_DISABLED</span><span class="o">=</span><span class="nb">true</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>pytest
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Or use the helper script</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>./scripts/test_with_podman.sh
 </code></pre></div>
+<h3 id="2-external-database-cicd">2. External Database (CI/CD)<a class="headerlink" href="#2-external-database-cicd" title="Permanent link">&para;</a></h3>
+<p>In CI/CD environments, you can use an external PostgreSQL service:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Set the database URL</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TEST_DATABASE_URL</span><span class="o">=</span>postgresql://user:pass@localhost:5432/test_db
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># or</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">DATABASE_URL</span><span class="o">=</span>postgresql://user:pass@localhost:5432/test_db
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># Run tests</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>pytest
+</code></pre></div>
+<p>When <code>TEST_DATABASE_URL</code> or <code>DATABASE_URL</code> is set, the test suite will:
+- Skip testcontainers initialization
+- Use the provided database URL directly
+- Still maintain test isolation via transactions</p>
+<h3 id="3-github-actions-configuration">3. GitHub Actions Configuration<a class="headerlink" href="#3-github-actions-configuration" title="Permanent link">&para;</a></h3>
+<p>Our GitHub Actions workflows use service containers:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">services</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">postgres</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:16-alpine</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">env</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fraiseql</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fraiseql</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fraiseql_test</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432:5432</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="nt">env</span><span class="p">:</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="nt">TEST_DATABASE_URL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test</span>
+</code></pre></div>
+<h2 id="test-markers">Test Markers<a class="headerlink" href="#test-markers" title="Permanent link">&para;</a></h2>
+<p>Database tests are marked with <code>@pytest.mark.database</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">database</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">TestDatabaseIntegration</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_something</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">db_pool</span><span class="p">):</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="c1"># Test code</span>
+</code></pre></div>
+<p>To run only non-database tests:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pytest<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;not database&quot;</span>
+</code></pre></div></p>
+<h2 id="environment-variables">Environment Variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TEST_DATABASE_URL</code></td>
+<td>External database URL (preferred)</td>
+<td><code>postgresql://user:pass@host:5432/db</code></td>
+</tr>
+<tr>
+<td><code>DATABASE_URL</code></td>
+<td>Alternative database URL</td>
+<td><code>postgresql://user:pass@host:5432/db</code></td>
+</tr>
+<tr>
+<td><code>TESTCONTAINERS_PODMAN</code></td>
+<td>Enable Podman support</td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>TESTCONTAINERS_RYUK_DISABLED</code></td>
+<td>Disable Ryuk for Podman</td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="dockerpodman-not-available">Docker/Podman Not Available<a class="headerlink" href="#dockerpodman-not-available" title="Permanent link">&para;</a></h3>
+<p>If you see "Docker not available" errors:
+1. Install Docker or Podman
+2. For Podman, set the environment variables:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TESTCONTAINERS_PODMAN</span><span class="o">=</span><span class="nb">true</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">TESTCONTAINERS_RYUK_DISABLED</span><span class="o">=</span><span class="nb">true</span>
+</code></pre></div></p>
+<h3 id="permission-denied-errors">Permission Denied Errors<a class="headerlink" href="#permission-denied-errors" title="Permanent link">&para;</a></h3>
+<p>For Docker socket permission errors:
+- Add your user to the docker group: <code>sudo usermod -aG docker $USER</code>
+- Or use Podman which doesn't require root</p>
+<h3 id="disk-space-issues">Disk Space Issues<a class="headerlink" href="#disk-space-issues" title="Permanent link">&para;</a></h3>
+<p>If you encounter "no space left on device":
+- Clean up containers: <code>podman system prune -a --volumes -f</code>
+- Clear Docker cache: <code>docker system prune -a --volumes -f</code></p>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Run tests regularly</strong>: Include TestFoundry tests in your CI/CD pipeline</li>
-<li><strong>Review generated tests</strong>: Always review generated tests before committing</li>
-<li><strong>Customize as needed</strong>: Generated tests are starting points - customize for your needs</li>
-<li><strong>Keep tests updated</strong>: Regenerate tests when your schema changes</li>
+<li><strong>Local Development</strong>: Use testcontainers for isolation and reproducibility</li>
+<li><strong>CI/CD</strong>: Use service containers with <code>TEST_DATABASE_URL</code> for speed</li>
+<li><strong>Test Isolation</strong>: All database tests run in transactions that are rolled back</li>
+<li><strong>Parallel Testing</strong>: The unified container system supports parallel test execution</li>
 </ol>
-<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
-<h3 id="common-issues">Common Issues<a class="headerlink" href="#common-issues" title="Permanent link">&para;</a></h3>
-<ol>
-<li><strong>Missing entity configuration</strong>: Ensure entities are properly registered</li>
-<li><strong>Database connection errors</strong>: Verify database connection settings</li>
-<li><strong>Permission issues</strong>: Ensure test database has proper permissions</li>
-</ol>
-<h3 id="debug-mode">Debug Mode<a class="headerlink" href="#debug-mode" title="Permanent link">&para;</a></h3>
-<p>Enable debug mode for detailed output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>fraiseql<span class="w"> </span>testfoundry<span class="w"> </span>generate<span class="w"> </span>--debug<span class="w"> </span>User
-</code></pre></div>
-<h2 id="integration-with-ci">Integration with CI<a class="headerlink" href="#integration-with-ci" title="Permanent link">&para;</a></h2>
-<p>Example GitHub Actions workflow:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run TestFoundry tests</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="no">fraiseql testfoundry run</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="no">pg_prove tests/generated/*.sql</span>
-</code></pre></div>
 
 
 

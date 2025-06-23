@@ -961,6 +961,8 @@
       
         
       
+        
+      
     
     
     
@@ -1067,6 +1069,29 @@
   
   <span class="md-ellipsis">
     Performance
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/turbo-router/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    TurboRouter
     
   </span>
   
@@ -1796,7 +1821,6 @@
 <li><strong>Migrations</strong>: Generate SQL migrations from your Python types</li>
 <li><strong>CRUD Operations</strong>: Generate complete Create, Read, Update, Delete mutations</li>
 <li><strong>GraphQL Schema</strong>: Export your schema for documentation or tooling</li>
-<li><strong>TestFoundry Tests</strong>: Generate pgTAP tests for your database operations</li>
 </ul>
 <h2 id="migration-generation">Migration Generation<a class="headerlink" href="#migration-generation" title="Permanent link">&para;</a></h2>
 <p>Generate database migrations that follow FraiseQL's CQRS pattern:</p>
@@ -1883,7 +1907,6 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Generate everything for a new entity</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>fraiseql<span class="w"> </span>generate<span class="w"> </span>migration<span class="w"> </span>User
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>fraiseql<span class="w"> </span>generate<span class="w"> </span>crud<span class="w"> </span>User
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>fraiseql<span class="w"> </span>testfoundry<span class="w"> </span>generate<span class="w"> </span>User
 </code></pre></div>
 <h3 id="template-customization">Template Customization<a class="headerlink" href="#template-customization" title="Permanent link">&para;</a></h3>
 <p>FraiseQL uses Jinja2 templates for code generation. You can customize them by creating a <code>.fraiseql/templates/</code> directory in your project.</p>
@@ -1941,7 +1964,6 @@
 </ol>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Learn about <a href="../../api-reference/testfoundry/">TestFoundry</a> for automated testing</li>
 <li>Explore <a href="../../mutations/">custom mutations</a> for complex business logic</li>
 <li>Read about <a href="../../advanced/performance/">performance optimization</a> for generated code</li>
 </ul>

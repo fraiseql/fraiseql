@@ -969,6 +969,8 @@
       
         
       
+        
+      
     
     
     
@@ -1076,6 +1078,29 @@
   
   <span class="md-ellipsis">
     Performance
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="turbo-router/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    TurboRouter
     
   </span>
   
@@ -1710,6 +1735,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#turborouter" class="md-nav__link">
+    <span class="md-ellipsis">
+      TurboRouter
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pagination" class="md-nav__link">
     <span class="md-ellipsis">
       Pagination
@@ -1849,6 +1883,8 @@
 <p>Comprehensive security guide covering SQL injection prevention, input validation, authentication, and production hardening.</p>
 <h2 id="performance-optimization"><a href="performance/">Performance Optimization</a><a class="headerlink" href="#performance-optimization" title="Permanent link">&para;</a></h2>
 <p>Optimize your FraiseQL API for production with materialized views, connection pooling, query caching, and monitoring.</p>
+<h2 id="turborouter"><a href="turbo-router/">TurboRouter</a><a class="headerlink" href="#turborouter" title="Permanent link">&para;</a></h2>
+<p>Learn about FraiseQL's high-performance query execution engine that bypasses GraphQL overhead for registered queries.</p>
 <h2 id="pagination"><a href="pagination/">Pagination</a><a class="headerlink" href="#pagination" title="Permanent link">&para;</a></h2>
 <p>Implement efficient pagination using cursor-based and offset-based approaches, following the GraphQL Relay specification.</p>
 <h2 id="database-first-architecture">Database First Architecture<a class="headerlink" href="#database-first-architecture" title="Permanent link">&para;</a></h2>
@@ -1870,7 +1906,7 @@
 <li>Bypasses GraphQL validation for known queries</li>
 <li>Direct SQL execution with minimal overhead</li>
 <li>No schema introspection for security</li>
-<li>Pre-compiled query cache for maximum performance</li>
+<li>Query result caching for maximum performance</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Enable production mode</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">app</span> <span class="o">=</span> <span class="n">fraiseql</span><span class="o">.</span><span class="n">create_fraiseql_app</span><span class="p">(</span>

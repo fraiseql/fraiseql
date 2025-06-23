@@ -970,6 +970,8 @@
       
         
       
+        
+      
     
     
     
@@ -1076,6 +1078,29 @@
   
   <span class="md-ellipsis">
     Performance
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/turbo-router/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    TurboRouter
     
   </span>
   
@@ -1743,9 +1768,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#testfoundry" class="md-nav__link">
+  <a href="#turborouter" class="md-nav__link">
     <span class="md-ellipsis">
-      TestFoundry
+      TurboRouter
     </span>
   </a>
   
@@ -1874,13 +1899,13 @@
 <li>Custom authentication provider support</li>
 <li>Role-based access control</li>
 </ul>
-<h2 id="testfoundry"><a href="testfoundry/">TestFoundry</a><a class="headerlink" href="#testfoundry" title="Permanent link">&para;</a></h2>
-<p>Automated test generation for database operations and GraphQL mutations.</p>
+<h2 id="turborouter">TurboRouter<a class="headerlink" href="#turborouter" title="Permanent link">&para;</a></h2>
+<p>High-performance query execution engine:</p>
 <ul>
-<li>Automatic pgTAP test generation</li>
-<li>Constraint violation testing</li>
-<li>Authorization testing</li>
-<li>Custom scenario support</li>
+<li><code>TurboQuery</code> - Define pre-validated queries with SQL templates</li>
+<li><code>TurboRegistry</code> - Manage registered queries with LRU cache</li>
+<li><code>TurboRouter</code> - Execute registered queries with minimal overhead</li>
+<li>Automatic fallback to standard GraphQL execution</li>
 </ul>
 <h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
 <h3 id="import-aliases">Import Aliases<a class="headerlink" href="#import-aliases" title="Permanent link">&para;</a></h3>
@@ -2002,7 +2027,7 @@
 </tr>
 <tr>
 <td><code>FRAISEQL_AUTO_CAMEL_CASE</code></td>
-<td><code>true</code></td>
+<td><code>false</code></td>
 <td>Auto convert snake_case to camelCase</td>
 </tr>
 <tr>
@@ -2014,6 +2039,16 @@
 <td><code>FRAISEQL_DEV_USERNAME</code></td>
 <td><code>admin</code></td>
 <td>Development authentication username</td>
+</tr>
+<tr>
+<td><code>FRAISEQL_ENABLE_TURBO_ROUTER</code></td>
+<td><code>true</code></td>
+<td>Enable TurboRouter for registered queries</td>
+</tr>
+<tr>
+<td><code>FRAISEQL_TURBO_ROUTER_CACHE_SIZE</code></td>
+<td><code>1000</code></td>
+<td>Max number of queries in TurboRouter cache</td>
 </tr>
 <tr>
 <td><code>DATABASE_URL</code></td>
