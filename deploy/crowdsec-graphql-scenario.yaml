@@ -15,33 +15,3 @@ labels:
   service: graphql
   type: rate_limit
   remediation: true
-
----
-# GraphQL introspection abuse detection
-type: trigger
-name: fraiseql/graphql-introspection
-description: "Detect GraphQL introspection queries in production"
-filter: |
-  evt.Meta.log_type == 'nginx' &&
-  evt.Parsed.request contains '__schema' ||
-  evt.Parsed.request contains '__type'
-blackhole: 1h
-labels:
-  service: graphql
-  type: introspection
-  remediation: true
-
----
-# GraphQL query depth attack
-type: trigger
-name: fraiseql/graphql-depth-attack
-description: "Detect deeply nested GraphQL queries"
-filter: |
-  evt.Meta.log_type == 'nginx' &&
-  evt.Parsed.request contains '/graphql' &&
-  len(evt.Parsed.request) > 5000
-blackhole: 30m
-labels:
-  service: graphql
-  type: query_depth
-  remediation: true

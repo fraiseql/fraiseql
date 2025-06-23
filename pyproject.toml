@@ -113,7 +113,7 @@ target-version = ["py313"]
 src = ["src"]
 target-version = "py313"
 line-length = 100
-exclude = ["tests"]
+exclude = ["tests", "benchmarks", "java-benchmark"]
 fix = true
 
 [tool.ruff.lint]
