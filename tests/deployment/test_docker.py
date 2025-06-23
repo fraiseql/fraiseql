@@ -112,27 +112,32 @@ class TestDockerBuild:
     @pytest.fixture
     def docker_image(self):
         """Build test Docker image."""
+        runtime = check_container_runtime()
+        if runtime is None:
+            pytest.skip("No container runtime available")
+            
         image_name = "fraiseql-test:latest"
 
         # Build the image
         result = subprocess.run(
-            ["docker", "build", "-t", image_name, "."],
+            [runtime, "build", "-t", image_name, "."],
             capture_output=True,
             text=True,
             check=False,
         )
 
-        assert result.returncode == 0, f"Docker build failed: {result.stderr}"
+        assert result.returncode == 0, f"{runtime} build failed: {result.stderr}"
 
         yield image_name
 
         # Cleanup
-        subprocess.run(["docker", "rmi", image_name], capture_output=True, check=False)
+        subprocess.run([runtime, "rmi", image_name], capture_output=True, check=False)
 
     def test_image_size(self, docker_image) -> None:
         """Test that Docker image size is reasonable."""
+        runtime = check_container_runtime()
         result = subprocess.run(
-            ["docker", "images", docker_image, "--format", "{{.Size}}"],
+            [runtime, "images", docker_image, "--format", "{{.Size}}"],
             capture_output=True,
             text=True,
             check=False,
@@ -148,8 +153,9 @@ class TestDockerBuild:
 
     def test_image_labels(self, docker_image) -> None:
         """Test that Docker image has proper labels."""
+        runtime = check_container_runtime()
         result = subprocess.run(
-            ["docker", "inspect", docker_image],
+            [runtime, "inspect", docker_image],
             capture_output=True,
             text=True,
             check=False,
@@ -166,7 +172,9 @@ class TestDockerBuild:
         runtime = check_container_runtime()
         # Start container
         container_name = "fraiseql-health-test"
-        subprocess.run(
+        
+        # Start container with minimal env vars (no database required for health check)
+        start_result = subprocess.run(
             [
                 runtime,
                 "run",
@@ -175,27 +183,73 @@ class TestDockerBuild:
                 container_name,
                 "-p",
                 "8000:8000",
+                "-e",
+                "FRAISEQL_PRODUCTION=false",  # Disable production mode
+                "-e",
+                "FRAISEQL_DEV_MODE=true",     # Enable dev mode (no DB required)
                 docker_image,
+                "python",
+                "-m",
+                "uvicorn",
+                "fraiseql.fastapi.app:create_app",
+                "--factory",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000"
             ],
             capture_output=True,
+            text=True,
             check=False,
         )
-
-        try:
-            # Wait for startup
-            import time
-
-            time.sleep(5)
-
-            # Check health endpoint
-            result = subprocess.run(
-                [runtime, "exec", container_name, "curl", "-f", "http://localhost:8000/health"],
+        
+        if start_result.returncode != 0:
+            # Get container logs for debugging
+            logs_result = subprocess.run(
+                [runtime, "logs", container_name],
                 capture_output=True,
                 text=True,
                 check=False,
             )
+            pytest.fail(f"Container failed to start: {start_result.stderr}\nLogs: {logs_result.stdout}")
 
-            assert result.returncode == 0, "Health check failed"
+        try:
+            # Wait for startup
+            import time
+            max_retries = 10
+            for i in range(max_retries):
+                time.sleep(1)
+                
+                # Check if container is still running
+                check_result = subprocess.run(
+                    [runtime, "ps", "-q", "-f", f"name={container_name}"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                
+                if not check_result.stdout.strip():
+                    # Container stopped, get logs
+                    logs_result = subprocess.run(
+                        [runtime, "logs", container_name],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    pytest.fail(f"Container stopped. Logs:\n{logs_result.stdout}\n{logs_result.stderr}")
+                
+                # Try health check
+                result = subprocess.run(
+                    [runtime, "exec", container_name, "curl", "-f", "http://localhost:8000/health"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                
+                if result.returncode == 0:
+                    break
+                elif i == max_retries - 1:
+                    pytest.fail(f"Health check failed after {max_retries} retries: {result.stderr}")
 
         finally:
             # Cleanup

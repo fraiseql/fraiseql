@@ -7,8 +7,8 @@ Deploy FraiseQL on Kubernetes for production-grade container orchestration with 
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Production Setup](#production-setup)
-- [Monitoring & Observability](#monitoring--observability)
-- [Scaling & Performance](#scaling--performance)
+- [Monitoring & Observability](#monitoring-observability)
+- [Scaling & Performance](#scaling-performance)
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
 
