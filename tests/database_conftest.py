@@ -70,7 +70,8 @@ def postgres_container():
     """
     # Skip if using external database (e.g., GitHub Actions service container)
     if os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL"):
-        return None
+        yield None
+        return
 
     if not HAS_DOCKER:
         pytest.skip("Docker not available")

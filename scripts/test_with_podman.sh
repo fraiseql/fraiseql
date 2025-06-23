@@ -14,6 +14,11 @@ else
     echo "Database tests will be skipped"
 fi
 
+# Activate virtual environment if it exists
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+fi
+
 # Run tests
 echo "Running tests..."
-pytest "$@"
+python -m pytest "$@"

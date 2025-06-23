@@ -5,25 +5,37 @@ from unittest.mock import Mock
 
 import pytest
 
-# Skip tests if opentelemetry is not installed
-pytest.importorskip("opentelemetry")
+# Check if opentelemetry is available before importing anything
+try:
+    import opentelemetry  # noqa: F401
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    
+    # Only import if opentelemetry is available
+    from fraiseql.tracing.opentelemetry import (
+        FraiseQLTracer,
+        TracingConfig,
+        TracingMiddleware,
+        get_tracer,
+        setup_tracing,
+        trace_database_query,
+        trace_graphql_operation,
+    )
+    
+    OPENTELEMETRY_AVAILABLE = True
+except ImportError:
+    OPENTELEMETRY_AVAILABLE = False
+
+# Skip entire module if opentelemetry is not installed
+pytestmark = pytest.mark.skipif(
+    not OPENTELEMETRY_AVAILABLE,
+    reason="OpenTelemetry not installed"
+)
+
 
 from typing import Never
-
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-from fraiseql.tracing.opentelemetry import (
-    FraiseQLTracer,
-    TracingConfig,
-    TracingMiddleware,
-    get_tracer,
-    setup_tracing,
-    trace_database_query,
-    trace_graphql_operation,
-)
 
 
 class TestTracingConfig:

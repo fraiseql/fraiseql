@@ -84,6 +84,14 @@ docs = [
   "mkdocs-mermaid2-plugin>=1.0.0",
   "pymdown-extensions>=10.0",
 ]
+tracing = [
+  "opentelemetry-api>=1.20.0",
+  "opentelemetry-sdk>=1.20.0",
+  "opentelemetry-instrumentation-psycopg>=0.40b0",
+  "opentelemetry-exporter-otlp>=1.20.0",
+  "opentelemetry-exporter-jaeger>=1.20.0",
+  "opentelemetry-exporter-zipkin>=1.20.0",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
