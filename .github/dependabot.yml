@@ -1,32 +1,23 @@
-# Dependabot configuration for automated dependency updates
 version: 2
 updates:
-  # Python dependencies
+  # Python dependencies - main project only
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    labels:
-      - "dependencies"
-      - "python"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    pull-request-branch-name:
-      separator: "-"
+    # Ignore benchmark and example directories
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    open-pull-requests-limit: 10
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    labels:
-      - "dependencies"
-      - "github-actions"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
+
+# Note: We intentionally do not scan benchmark directories as they:
+# - Are not part of the distributed package
+# - Contain outdated dependencies for comparison purposes
+# - Are only used in isolated development environments
