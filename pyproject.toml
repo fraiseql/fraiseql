@@ -249,9 +249,19 @@ ignore = [
   "C901",    # Complex functions OK in examples
   "PLR0912", # Too many branches OK in examples
   "PLR0915", # Too many statements OK in examples
+  "PLW1508", # Invalid env var default OK in examples
 ]
 "benchmarks/**/*.py" = [
   "ALL",     # Ignore all rules for benchmarks - they're not production code
+]
+"marketing/**/*.py" = [
+  "ALL",     # Marketing visualizations - not production code
+]
+"scripts/**/*.py" = [
+  "ALL",     # Utility scripts - not production code
+]
+"simple_benchmark.py" = [
+  "ALL",     # Single file benchmark
 ]
 
 [tool.ruff.lint.pydocstyle]
