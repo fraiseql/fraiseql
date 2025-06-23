@@ -140,7 +140,7 @@ async def setup_pagination_tables(db_connection):
         )
 
     yield db_connection
-    
+
     # No cleanup needed - transaction will be rolled back automatically
 
 
