@@ -146,6 +146,11 @@ class FraiseQLTracer:
             # Return no-op tracer when disabled or not available
             return trace.get_tracer(__name__) if trace else None  # type: ignore[return-value]
 
+        # If a tracer provider is already set (e.g., in tests), use it
+        existing_provider = trace.get_tracer_provider()
+        if existing_provider and hasattr(existing_provider, '_resource'):
+            return trace.get_tracer(__name__)
+
         # Create resource with service information
         resource = Resource.create(
             {
@@ -206,6 +211,11 @@ class FraiseQLTracer:
     @contextmanager
     def trace_graphql_query(self, operation_name: str, query: str, variables: dict | None = None):
         """Trace a GraphQL query operation."""
+        if not self.tracer:
+            # No-op context manager when tracer is not available
+            yield None
+            return
+            
         with self.tracer.start_as_current_span(
             f"graphql.query.{operation_name}",
             kind=trace.SpanKind.SERVER,
@@ -239,6 +249,11 @@ class FraiseQLTracer:
         variables: dict | None = None,
     ):
         """Trace a GraphQL mutation operation."""
+        if not self.tracer:
+            # No-op context manager when tracer is not available
+            yield None
+            return
+            
         with self.tracer.start_as_current_span(
             f"graphql.mutation.{operation_name}",
             kind=trace.SpanKind.SERVER,
@@ -265,6 +280,11 @@ class FraiseQLTracer:
     @contextmanager
     def trace_database_query(self, query_type: str, table: str, sql: str):
         """Trace a database query."""
+        if not self.tracer:
+            # No-op context manager when tracer is not available
+            yield None
+            return
+            
         with self.tracer.start_as_current_span(
             f"db.{query_type}.{table}",
             kind=trace.SpanKind.CLIENT,
@@ -333,6 +353,10 @@ class TracingMiddleware(BaseHTTPMiddleware):
         """Process request and create trace span."""
         # Skip excluded paths
         if request.url.path in self.tracer.config.exclude_paths:
+            return await call_next(request)
+
+        # If tracer is not available, pass through
+        if not self.tracer.tracer:
             return await call_next(request)
 
         # Extract trace context from headers

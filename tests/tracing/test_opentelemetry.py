@@ -260,7 +260,8 @@ class TestTracingMiddleware:
 
         self.config = TracingConfig()
         self.tracer = FraiseQLTracer(self.config)
-        self.middleware = TracingMiddleware(tracer=self.tracer)
+        self.app = Mock()  # Mock app for middleware
+        self.middleware = TracingMiddleware(self.app, tracer=self.tracer)
 
     @pytest.mark.asyncio
     async def test_middleware_traces_requests(self) -> None:
