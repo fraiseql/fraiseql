@@ -98,7 +98,9 @@ class TestSQLInjectionPrevention:
                 fetch_result=True,
             )
             count_result = await repo.run(count_query)
-            assert count_result[0]["count"] == 3, f"Table corrupted after injection attempt: {malicious}"
+            assert count_result[0]["count"] == 3, (
+                f"Table corrupted after injection attempt: {malicious}"
+            )
 
     @pytest.mark.asyncio
     async def test_sql_injection_in_list_operations(self, db_pool, test_users) -> None:
@@ -121,9 +123,9 @@ class TestSQLInjectionPrevention:
         results = await repo.run(query)
 
         # Should only match exact values, not execute injection
-        assert all(
-            r["data"]["role"] in ["user", "admin"] for r in results
-        ), "IN operator allowed injection"
+        assert all(r["data"]["role"] in ["user", "admin"] for r in results), (
+            "IN operator allowed injection"
+        )
 
         # Verify table integrity
         count_query = DatabaseQuery(
@@ -181,7 +183,9 @@ class TestSQLInjectionPrevention:
                 fetch_result=True,
             )
             count_result = await repo.run(count_query)
-            assert count_result[0]["count"] == 3, f"Database corrupted with special character: {special!r}"
+            assert count_result[0]["count"] == 3, (
+                f"Database corrupted with special character: {special!r}"
+            )
 
     @pytest.mark.asyncio
     async def test_verify_parameterization(self, db_pool, test_users) -> None:

@@ -47,9 +47,8 @@ def test_apollo_sandbox_config(clear_registry):
         types=[User, QueryRoot],
         production=False,
         config=FraiseQLConfig(
-            database_url="postgresql://localhost/test",
-            playground_tool="apollo-sandbox"
-        )
+            database_url="postgresql://localhost/test", playground_tool="apollo-sandbox"
+        ),
     )
 
     with TestClient(app) as client:
@@ -67,9 +66,8 @@ def test_graphiql_explicit_config(clear_registry):
         types=[User, QueryRoot],
         production=False,
         config=FraiseQLConfig(
-            database_url="postgresql://localhost/test",
-            playground_tool="graphiql"
-        )
+            database_url="postgresql://localhost/test", playground_tool="graphiql"
+        ),
     )
 
     with TestClient(app) as client:
@@ -104,7 +102,4 @@ def test_playground_tool_env_var(monkeypatch):
 def test_invalid_playground_tool():
     """Test that invalid playground tool raises error."""
     with pytest.raises(ValueError, match="playground_tool"):
-        FraiseQLConfig(
-            database_url="postgresql://localhost/test",
-            playground_tool="invalid-tool"
-        )
+        FraiseQLConfig(database_url="postgresql://localhost/test", playground_tool="invalid-tool")

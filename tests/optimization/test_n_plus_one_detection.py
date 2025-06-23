@@ -73,7 +73,7 @@ async def get_articles(info) -> list[Article]:
                 title=f"Article {i}",
                 content=f"Content for article {i}",
                 authorId=uuid4(),
-        ),
+            ),
         )
     return articles
 
@@ -162,7 +162,7 @@ def test_n1_detection_with_raise_enabled() -> None:
         response = client.post(
             "/graphql",
             json={
-                    "query": """
+                "query": """
                         query {
                             getArticles {
                                 id
@@ -174,7 +174,7 @@ def test_n1_detection_with_raise_enabled() -> None:
                             }
                         }
                     """,
-                },
+            },
         )
 
         # With raise_on_detection=True, the query should fail
@@ -211,7 +211,7 @@ def test_n1_detection_respects_threshold() -> None:
         response = client.post(
             "/graphql",
             json={
-                    "query": """
+                "query": """
                         query {
                             getArticles {
                                 id
@@ -221,7 +221,7 @@ def test_n1_detection_respects_threshold() -> None:
                             }
                         }
                     """,
-                },
+            },
         )
 
         assert response.status_code == 200
@@ -317,6 +317,7 @@ def test_n1_detection_single_query_no_warning(caplog) -> None:
 
 def test_field_decorator_without_n1_tracking() -> None:
     """Test that field decorator can disable N+1 tracking."""
+
     @fraiseql.type
     class Product:
         id: UUID

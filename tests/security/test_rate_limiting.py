@@ -57,6 +57,7 @@ class TestRateLimitStore:
     async def test_set_and_get(self, rate_limit_store) -> None:
         """Test setting and getting values."""
         import time
+
         test_timestamp = time.time()
         await rate_limit_store.set("test_key", test_timestamp, 5, 60)
         timestamp, count = await rate_limit_store.get("test_key")

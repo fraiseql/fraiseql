@@ -29,16 +29,18 @@ def get_metric_value(registry, metric_name: str, labels: dict | None = None) -> 
         # Extract base name for histogram (remove the suffix)
         for suffix in ["_sum", "_count", "_bucket"]:
             if metric_name.endswith(suffix):
-                base_metric_name = metric_name[:-len(suffix)]
+                base_metric_name = metric_name[: -len(suffix)]
                 break
 
     for metric_family in registry.collect():
         if metric_family.name in (base_metric_name, metric_name):
             for sample in metric_family.samples:
                 # Check if this is the sample we're looking for
-                if (sample.name == metric_name or
-                    sample.name == base_metric_name + "_total" or
-                    (is_histogram_component and sample.name == metric_name)):
+                if (
+                    sample.name == metric_name
+                    or sample.name == base_metric_name + "_total"
+                    or (is_histogram_component and sample.name == metric_name)
+                ):
                     if labels:
                         # Check if sample labels match
                         if all(sample.labels.get(k) == v for k, v in labels.items()):
