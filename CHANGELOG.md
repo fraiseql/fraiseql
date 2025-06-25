@@ -5,6 +5,29 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0a13] - 2025-01-25
+
+### Added
+- Dual-mode repository instantiation feature for development/production environments
+  - Development mode: Full recursive instantiation of typed objects for better DX
+  - Production mode: Raw dictionary data with zero overhead for maximum performance
+- New repository methods: `find()` and `find_one()` with mode-aware returns
+- Automatic type conversion for UUID and datetime fields in development mode
+- Circular reference detection and caching to handle complex object graphs
+- Maximum recursion depth protection (10 levels)
+- CamelCase to snake_case field name conversion
+- Environment-based mode detection via `FRAISEQL_ENV` variable
+- Per-request mode override through context
+
+### Changed
+- `FraiseQLRepository` constructor now accepts optional context parameter
+- Repository can operate in two modes based on environment or context settings
+
+### Technical Details
+- Mode detection priority: context override > environment variable > default (production)
+- Comprehensive test coverage with 11 unit tests
+- Zero breaking changes - existing code continues to work unchanged
+
 ## [0.1.0a12] - 2025-01-24
 
 ### Added
@@ -61,5 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Query optimization with TurboRouter
 - Subscription support (experimental)
 
+[0.1.0a13]: https://github.com/fraiseql/fraiseql/compare/v0.1.0a12...v0.1.0a13
+[0.1.0a12]: https://github.com/fraiseql/fraiseql/compare/v0.1.0a11...v0.1.0a12
 [0.1.0a11]: https://github.com/fraiseql/fraiseql/compare/v0.1.0a10...v0.1.0a11
 [0.1.0a10]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0a10

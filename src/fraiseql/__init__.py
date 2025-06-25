@@ -64,7 +64,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "0.1.0a8"
+__version__ = "0.1.0a13"
 
 __all__ = [
     "JSON",
