@@ -164,7 +164,7 @@ class FraiseQLRepository:
 
         # Development: Full instantiation
         type_class = self._get_type_for_view(view_name)
-        return [self._instantiate_recursive(type_class, row) for row in rows]
+        return [self._instantiate_from_row(type_class, row) for row in rows]
 
     async def find_one(self, view_name: str, **kwargs) -> Optional[Union[dict[str, Any], Any]]:
         """Find single record with mode-appropriate return type."""
@@ -186,7 +186,11 @@ class FraiseQLRepository:
             return row
 
         type_class = self._get_type_for_view(view_name)
-        return self._instantiate_recursive(type_class, row)
+        return self._instantiate_from_row(type_class, row)
+
+    def _instantiate_from_row(self, type_class: type, row: dict[str, Any]) -> Any:
+        """Instantiate a type from the 'data' JSONB column."""
+        return self._instantiate_recursive(type_class, row["data"])
 
     def _instantiate_recursive(
         self,

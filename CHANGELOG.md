@@ -5,6 +5,22 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0a14] - 2025-01-25
+
+### Changed
+- **BREAKING**: Repository instantiation now exclusively uses JSONB `data` column pattern
+  - All type instantiation comes from a `data` JSONB column in the database
+  - Other columns (id, tenant_id, etc.) are used only for filtering and access control
+  - Removed backward compatibility with row-level field instantiation
+- Simplified `_instantiate_from_row()` to always expect a `data` column
+- Aligned with PrintOptim architecture for consistency
+
+### Technical Details
+- Tables/views must have a `data` column (JSONB) containing the complete object representation
+- Single type definition per entity (no more dual-type pattern)
+- Cleaner separation between data storage and access control
+- KISS principle: one pattern, no fallbacks
+
 ## [0.1.0a13] - 2025-01-25
 
 ### Added
@@ -84,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Query optimization with TurboRouter
 - Subscription support (experimental)
 
+[0.1.0a14]: https://github.com/fraiseql/fraiseql/compare/v0.1.0a13...v0.1.0a14
 [0.1.0a13]: https://github.com/fraiseql/fraiseql/compare/v0.1.0a12...v0.1.0a13
 [0.1.0a12]: https://github.com/fraiseql/fraiseql/compare/v0.1.0a11...v0.1.0a12
 [0.1.0a11]: https://github.com/fraiseql/fraiseql/compare/v0.1.0a10...v0.1.0a11
