@@ -6,7 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from graphql import GraphQLSchema, graphql, parse, validate
 from pydantic import BaseModel
 
@@ -163,13 +163,24 @@ def create_development_router(
 
     @router.get("/graphql")
     async def graphql_get_endpoint(
-        query: str,
-        http_request: Request,
+        query: str | None = None,
+        http_request: Request = None,
         variables: str | None = None,
         operationName: str | None = None,  # noqa: N803 - GraphQL spec requires this name
         context: dict[str, Any] = context_dependency,
     ):
         """Handle GraphQL GET requests."""
+        # If no query is provided and playground is enabled, serve the playground HTML
+        if query is None and config.enable_playground:
+            if config.playground_tool == "apollo-sandbox":
+                return HTMLResponse(content=APOLLO_SANDBOX_HTML)
+            # Default to GraphiQL
+            return HTMLResponse(content=GRAPHIQL_HTML)
+        
+        # If no query is provided and playground is disabled, return an error
+        if query is None:
+            raise HTTPException(400, "Query parameter is required")
+        
         parsed_variables = None
         if variables:
             try:
@@ -185,15 +196,6 @@ def create_development_router(
 
         return await graphql_endpoint(request_obj, http_request, context)
 
-    if config.enable_playground:
-
-        @router.get("/playground", response_class=HTMLResponse)
-        async def graphql_playground():
-            """Serve GraphQL development tool interface."""
-            if config.playground_tool == "apollo-sandbox":
-                return APOLLO_SANDBOX_HTML
-            # Default to GraphiQL
-            return GRAPHIQL_HTML
 
     if config.enable_introspection:
         # Introspection is handled by GraphQL itself when enabled
