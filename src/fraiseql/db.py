@@ -14,6 +14,7 @@ from psycopg.sql import SQL, Composed
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.utils.casing import to_snake_case
+from fraiseql.partial_instantiation import create_partial_instance
 
 logger = logging.getLogger(__name__)
 
@@ -214,8 +215,17 @@ class FraiseQLRepository:
         data: dict[str, Any],
         cache: Optional[dict[str, Any]] = None,
         depth: int = 0,
+        partial: bool = True,
     ) -> Any:
-        """Recursively instantiate nested objects (dev mode only)."""
+        """Recursively instantiate nested objects (dev mode only).
+        
+        Args:
+            type_class: The type to instantiate
+            data: The data dictionary
+            cache: Cache for circular reference detection
+            depth: Current recursion depth
+            partial: Whether to allow partial instantiation (default True in dev mode)
+        """
         if cache is None:
             cache = {}
 
@@ -254,6 +264,7 @@ class FraiseQLRepository:
                         processed_value,
                         cache,
                         depth + 1,
+                        partial=partial,
                     )
             elif (
                 hasattr(type_class, "__gql_type_hints__")
@@ -264,7 +275,7 @@ class FraiseQLRepository:
                 item_type = self._extract_list_type(field_type)
                 if item_type and hasattr(item_type, "__fraiseql_definition__"):
                     processed_value = [
-                        self._instantiate_recursive(item_type, item, cache, depth + 1)
+                        self._instantiate_recursive(item_type, item, cache, depth + 1, partial=partial)
                         for item in processed_value
                     ]
 
@@ -300,8 +311,14 @@ class FraiseQLRepository:
 
             snake_data[snake_key] = processed_value
 
-        # Create instance
-        instance = type_class(**snake_data)
+        # Create instance - use partial instantiation in development mode
+        if partial and self.mode == "development":
+            # Always use partial instantiation in development mode
+            # This allows GraphQL queries to request only needed fields
+            instance = create_partial_instance(type_class, snake_data)
+        else:
+            # Production mode or explicit non-partial - use regular instantiation
+            instance = type_class(**snake_data)
 
         # Cache it
         if "id" in data:
