@@ -1,0 +1,159 @@
+name: Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for changelog generation
+
+    - name: Get version from tag
+      id: get_version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Generate changelog
+      id: changelog
+      uses: mikepenz/release-changelog-builder-action@v5
+      with:
+        configurationJson: |
+          {
+            "template": "## What's Changed\n\n#{{UNCATEGORIZED}}\n\n**Full Changelog**: #{{RELEASE_DIFF}}",
+            "pr_template": "- #{{TITLE}} by @#{{AUTHOR}} in ##{{NUMBER}}",
+            "categories": [
+              {
+                "title": "## 🚀 Features",
+                "labels": ["feature", "enhancement"]
+              },
+              {
+                "title": "## 🐛 Bug Fixes",
+                "labels": ["bug", "fix"]
+              },
+              {
+                "title": "## 📚 Documentation",
+                "labels": ["documentation", "docs"]
+              },
+              {
+                "title": "## 🧰 Maintenance",
+                "labels": ["chore", "maintenance", "dependencies"]
+              },
+              {
+                "title": "## ⚡ Performance",
+                "labels": ["performance"]
+              }
+            ]
+          }
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ steps.get_version.outputs.version }}
+        body: |
+          ## FraiseQL ${{ steps.get_version.outputs.version }}
+
+          ${{ steps.changelog.outputs.changelog }}
+
+          ## Installation
+
+          ```bash
+          pip install fraiseql==${{ steps.get_version.outputs.version }}
+          ```
+
+          ## Docker
+
+          ```bash
+          docker pull ghcr.io/fraiseql/fraiseql:${{ steps.get_version.outputs.version }}
+          ```
+        draft: false
+        prerelease: ${{ contains(steps.get_version.outputs.version, 'rc') || contains(steps.get_version.outputs.version, 'beta') || contains(steps.get_version.outputs.version, 'alpha') }}
+
+  build-artifacts:
+    name: Build Release Artifacts
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+
+    - name: Build package
+      run: python -m build
+
+    - name: Upload wheel to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./dist/fraiseql-${{ needs.create-release.outputs.version }}-py3-none-any.whl
+        asset_name: fraiseql-${{ needs.create-release.outputs.version }}-py3-none-any.whl
+        asset_content_type: application/zip
+
+    - name: Upload sdist to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./dist/fraiseql-${{ needs.create-release.outputs.version }}.tar.gz
+        asset_name: fraiseql-${{ needs.create-release.outputs.version }}.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Store artifacts for publish job
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+  trigger-publish:
+    name: Trigger PyPI Publish
+    needs: [create-release, build-artifacts]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Trigger publish workflow
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          await github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'publish.yml',
+            ref: context.ref,
+            inputs: {
+              test_pypi: 'false'
+            }
+          });

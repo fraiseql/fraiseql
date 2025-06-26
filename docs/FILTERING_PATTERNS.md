@@ -2,6 +2,8 @@
 
 This guide covers how to implement efficient filtering in FraiseQL queries using `where` input types and repository patterns.
 
+> **Note**: For a comprehensive guide on all supported WHERE operators and advanced filtering capabilities, see the [WHERE Types Guide](WHERE_TYPES.md).
+
 ## Table of Contents
 
 1. [The Problem with Manual Filtering](#the-problem-with-manual-filtering)

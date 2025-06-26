@@ -9,11 +9,30 @@ from .user_friendly import (
     SQLGenerationError,
 )
 
+from .exceptions import (
+    FraiseQLException,
+    PartialInstantiationError,
+    WhereClauseError,
+    QueryValidationError,
+    DatabaseQueryError,
+    TypeRegistrationError,
+    ResolverError,
+)
+
 __all__ = [
+    # User-friendly errors
     "FraiseQLError",
     "InvalidFieldTypeError",
     "MissingDatabaseViewError",
     "MissingTypeHintError",
     "MutationNotFoundError",
     "SQLGenerationError",
+    # Enhanced exceptions with context
+    "FraiseQLException",
+    "PartialInstantiationError",
+    "WhereClauseError",
+    "QueryValidationError",
+    "DatabaseQueryError",
+    "TypeRegistrationError",
+    "ResolverError",
 ]

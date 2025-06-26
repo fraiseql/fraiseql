@@ -1,8 +1,9 @@
-name: CI
+name: CI/CD
 
 on:
   push:
     branches: [ main, develop ]
+    tags: ['v*']
   pull_request:
     branches: [ main ]
 
@@ -10,12 +11,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  PYTHON_VERSION: "3.11"
-
 jobs:
-  lint:
-    name: Lint & Format Check
+  quality:
+    name: Code Quality
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -23,68 +21,46 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-lint-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-lint-
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install ruff black
-
-    - name: Run Ruff linter
-      run: |
-        ruff check src/ tests/ --output-format=github
-
-    - name: Check code formatting with Black
-      run: |
-        black --check --diff src/ tests/
-
-  type-check:
-    name: Type Checking
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-type-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-type-
+        python-version: '3.13'
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
 
+    - name: Run Ruff linter
+      run: |
+        ruff check src/ tests/ --output-format=github
+
+    - name: Check code formatting with Ruff
+      run: |
+        ruff format --check src/ tests/
+
     - name: Run Pyright type checker
       run: |
         pyright src/
 
   test:
-    name: Test Python ${{ matrix.python-version }}
+    name: Test Python ${{ matrix.python-version }} / PostgreSQL ${{ matrix.postgres-version }}
+    needs: quality
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
+        postgres-version: ["15", "16"]
+        exclude:
+          # Reduce matrix size by excluding some combinations
+          - python-version: "3.11"
+            postgres-version: "15"
+          - python-version: "3.12"
+            postgres-version: "15"
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres-version }}
         env:
           POSTGRES_USER: fraiseql
           POSTGRES_PASSWORD: fraiseql
@@ -104,14 +80,8 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-test-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-test-${{ matrix.python-version }}-
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
 
     - name: Install dependencies
       run: |
@@ -121,6 +91,7 @@ jobs:
     - name: Run tests with coverage
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
       run: |
         pytest --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v
 
@@ -129,14 +100,37 @@ jobs:
       with:
         file: ./coverage.xml
         flags: unittests
-        name: Python-${{ matrix.python-version }}
+        name: Python-${{ matrix.python-version }}-PG${{ matrix.postgres-version }}
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
 
+  test-unit-only:
+    name: Unit Tests Only (No Database)
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run unit tests only (no database)
+      run: |
+        pytest -m "not database" -v
+
   test-examples:
     name: Test Examples
+    needs: quality
     runs-on: ubuntu-latest
-    needs: [lint, type-check]
     services:
       postgres:
         image: postgres:16
@@ -158,7 +152,9 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: "3.13"
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
 
     - name: Install FraiseQL
       run: |
@@ -178,13 +174,50 @@ jobs:
         pip install -r requirements.txt 2>/dev/null || pip install psycopg[pool]
         python -m py_compile app.py models.py mutations.py
 
+  test-with-podman:
+    name: Test with Podman (Experimental)
+    needs: quality
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+
+    - name: Install Podman
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y podman
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run tests with Podman
+      env:
+        TESTCONTAINERS_PODMAN: true
+        TESTCONTAINERS_RYUK_DISABLED: true
+      run: |
+        # Start Podman socket service
+        systemctl --user start podman.socket || true
+        # Run only database tests with Podman
+        pytest -m database -v || echo "Podman tests failed - this is expected in CI"
+
   all-checks-pass:
     name: All Checks Pass
     runs-on: ubuntu-latest
-    needs: [lint, type-check, test, test-examples]
+    needs: [quality, test, test-unit-only, test-examples]
     if: always()
     steps:
       - name: Decide whether the needed jobs succeeded or failed
         uses: re-actors/alls-green@release/v1
         with:
+          allowed-skips: test-with-podman
           jobs: ${{ toJSON(needs) }}

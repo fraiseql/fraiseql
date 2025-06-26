@@ -1,0 +1,364 @@
+name: Performance Benchmarks
+
+on:
+  pull_request:
+    paths:
+      - 'src/fraiseql/sql/**'
+      - 'src/fraiseql/db.py'
+      - 'src/fraiseql/gql/schema_builder.py'
+      - 'src/fraiseql/fastapi/turbo_router.py'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Run Performance Benchmarks
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_bench
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed to get base branch for comparison
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev,tracing]"
+        pip install pytest-benchmark pytest-codspeed asv
+
+    - name: Create benchmark directory
+      run: mkdir -p benchmarks/results
+
+    - name: Run SQL generation benchmarks
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_bench
+      run: |
+        cat > benchmarks/test_sql_generation.py << 'EOF'
+        import pytest
+        from fraiseql.sql.where_generator import WhereGenerator
+        from fraiseql.gql.schema_builder import SchemaBuilder
+        from fraiseql import fraise_type
+        from typing import Optional
+        from datetime import datetime
+
+        @fraise_type
+        class User:
+            id: int
+            name: str
+            email: str
+            created_at: datetime
+            is_active: bool
+            age: Optional[int] = None
+
+        @fraise_type
+        class Post:
+            id: int
+            title: str
+            content: str
+            author_id: int
+            created_at: datetime
+            views: int
+            tags: list[str]
+
+        def setup_module():
+            """Setup test data structures"""
+            global schema_builder, where_generator
+            schema_builder = SchemaBuilder()
+            schema_builder.add_type(User)
+            schema_builder.add_type(Post)
+            where_generator = WhereGenerator()
+
+        @pytest.mark.benchmark(group="where-simple")
+        def test_simple_where_generation(benchmark):
+            """Benchmark simple WHERE clause generation"""
+            filters = {"id": 1, "is_active": True}
+            result = benchmark(where_generator.generate, "users", filters)
+            assert "id = $1" in result[0]
+            assert "is_active = $2" in result[0]
+
+        @pytest.mark.benchmark(group="where-complex")
+        def test_complex_where_generation(benchmark):
+            """Benchmark complex WHERE clause with operators"""
+            filters = {
+                "age__gte": 18,
+                "age__lt": 65,
+                "created_at__gte": "2024-01-01",
+                "name__ilike": "%john%",
+                "email__in": ["john@example.com", "jane@example.com"]
+            }
+            result = benchmark(where_generator.generate, "users", filters)
+            assert len(result[1]) == 5
+
+        @pytest.mark.benchmark(group="where-nested")
+        def test_nested_where_generation(benchmark):
+            """Benchmark nested WHERE clause generation"""
+            filters = {
+                "_or": [
+                    {"age__gte": 18, "is_active": True},
+                    {"email__ilike": "%admin%"}
+                ],
+                "created_at__gte": "2024-01-01"
+            }
+            result = benchmark(where_generator.generate, "users", filters)
+            assert "(" in result[0] and ")" in result[0]
+
+        @pytest.mark.benchmark(group="schema-build")
+        def test_schema_building(benchmark):
+            """Benchmark GraphQL schema building"""
+            builder = SchemaBuilder()
+            
+            def build_schema():
+                builder.add_type(User)
+                builder.add_type(Post)
+                return builder.build()
+            
+            schema = benchmark(build_schema)
+            assert schema is not None
+        EOF
+
+        # Run benchmarks and save results
+        pytest benchmarks/test_sql_generation.py \
+          --benchmark-only \
+          --benchmark-json=benchmarks/results/benchmark.json \
+          --benchmark-warmup=on \
+          --benchmark-disable-gc
+
+    - name: Run query execution benchmarks
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_bench
+      run: |
+        cat > benchmarks/test_query_execution.py << 'EOF'
+        import pytest
+        import asyncio
+        from fraiseql import FraiseQL, fraise_type
+        from fraiseql.db import FraiseQLRepository
+        from typing import Optional
+        from datetime import datetime
+        import random
+        import string
+
+        @fraise_type
+        class BenchUser:
+            id: int
+            username: str
+            email: str
+            created_at: datetime
+            metadata: dict
+
+        @pytest.fixture(scope="module")
+        def event_loop():
+            loop = asyncio.get_event_loop_policy().new_event_loop()
+            yield loop
+            loop.close()
+
+        @pytest.fixture(scope="module")
+        async def db():
+            import os
+            repo = FraiseQLRepository(os.environ["DATABASE_URL"])
+            await repo.init()
+            
+            # Create test table
+            await repo.execute("""
+                CREATE TABLE IF NOT EXISTS bench_users (
+                    id SERIAL PRIMARY KEY,
+                    data JSONB NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Insert test data
+            users = []
+            for i in range(1000):
+                username = ''.join(random.choices(string.ascii_lowercase, k=10))
+                users.append({
+                    "id": i + 1,
+                    "username": f"user_{username}",
+                    "email": f"{username}@example.com",
+                    "created_at": datetime.now().isoformat(),
+                    "metadata": {"score": random.randint(1, 100), "active": random.choice([True, False])}
+                })
+            
+            for user in users:
+                await repo.execute(
+                    "INSERT INTO bench_users (data) VALUES ($1)",
+                    user
+                )
+            
+            yield repo
+            
+            # Cleanup
+            await repo.execute("DROP TABLE IF EXISTS bench_users")
+            await repo.close()
+
+        @pytest.mark.asyncio
+        @pytest.mark.benchmark(group="query-simple")
+        async def test_simple_query_execution(benchmark, db):
+            """Benchmark simple query execution"""
+            async def run_query():
+                return await db.fetch(
+                    "SELECT data FROM bench_users WHERE data->>'username' = $1",
+                    "user_abcdefghij"
+                )
+            
+            result = await benchmark(run_query)
+
+        @pytest.mark.asyncio
+        @pytest.mark.benchmark(group="query-complex")
+        async def test_complex_query_execution(benchmark, db):
+            """Benchmark complex query with JSONB operations"""
+            async def run_query():
+                return await db.fetch("""
+                    SELECT data FROM bench_users 
+                    WHERE (data->'metadata'->>'score')::int > $1
+                    AND data->'metadata'->>'active' = 'true'
+                    ORDER BY data->>'created_at' DESC
+                    LIMIT 10
+                """, 50)
+            
+            result = await benchmark(run_query)
+
+        @pytest.mark.asyncio
+        @pytest.mark.benchmark(group="query-aggregate")
+        async def test_aggregate_query_execution(benchmark, db):
+            """Benchmark aggregate query execution"""
+            async def run_query():
+                return await db.fetch("""
+                    SELECT 
+                        COUNT(*) as total,
+                        AVG((data->'metadata'->>'score')::int) as avg_score,
+                        COUNT(*) FILTER (WHERE data->'metadata'->>'active' = 'true') as active_count
+                    FROM bench_users
+                """)
+            
+            result = await benchmark(run_query)
+        EOF
+
+        # Run async benchmarks
+        pytest benchmarks/test_query_execution.py \
+          --benchmark-only \
+          --benchmark-json=benchmarks/results/query_benchmark.json \
+          --benchmark-warmup=on \
+          -v
+
+    - name: Generate benchmark report
+      if: github.event_name == 'pull_request'
+      run: |
+        python -c "
+        import json
+        import statistics
+
+        # Load benchmark results
+        with open('benchmarks/results/benchmark.json', 'r') as f:
+            sql_results = json.load(f)
+        
+        try:
+            with open('benchmarks/results/query_benchmark.json', 'r') as f:
+                query_results = json.load(f)
+            all_benchmarks = sql_results['benchmarks'] + query_results['benchmarks']
+        except:
+            all_benchmarks = sql_results['benchmarks']
+
+        # Generate markdown report
+        report = '## Performance Benchmark Results\\n\\n'
+        report += '| Benchmark | Mean | Std Dev | Min | Max |\\n'
+        report += '|-----------|------|---------|-----|-----|\\n'
+
+        for bench in all_benchmarks:
+            name = bench['name'].replace('test_', '').replace('_', ' ').title()
+            stats = bench['stats']
+            mean = stats['mean'] * 1000  # Convert to ms
+            stddev = stats['stddev'] * 1000
+            min_val = stats['min'] * 1000
+            max_val = stats['max'] * 1000
+            
+            report += f'| {name} | {mean:.3f}ms | {stddev:.3f}ms | {min_val:.3f}ms | {max_val:.3f}ms |\\n'
+
+        # Write report to file
+        with open('benchmarks/results/report.md', 'w') as f:
+            f.write(report)
+        "
+
+    - name: Comment PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('benchmarks/results/report.md', 'utf8');
+          
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const botComment = comments.find(comment => 
+            comment.user.type === 'Bot' && 
+            comment.body.includes('Performance Benchmark Results')
+          );
+          
+          const body = `${report}\n\n<sub>Generated by Performance Benchmark workflow</sub>`;
+          
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          }
+
+    - name: Upload benchmark artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: benchmarks/results/
+
+    - name: Store benchmark results for comparison
+      if: github.ref == 'refs/heads/main'
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        tool: 'pytest'
+        output-file-path: benchmarks/results/benchmark.json
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+        comment-on-alert: true
+        alert-threshold: '150%'
+        comment-always: false
+        save-data-file: true

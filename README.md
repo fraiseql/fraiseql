@@ -13,7 +13,7 @@
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
 [![codecov](https://codecov.io/gh/fraiseql/fraiseql/branch/main/graph/badge.svg)](https://codecov.io/gh/fraiseql/fraiseql)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![PyPI version](https://badge.fury.io/py/fraiseql.svg)](https://badge.fury.io/py/fraiseql)
+[![PyPI version](https://img.shields.io/badge/pypi-v0.1.0a18-blue.svg)](https://badge.fury.io/py/fraiseql)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
@@ -26,6 +26,7 @@
 | 🚀 [Getting Started Guide](docs/GETTING_STARTED.md) | 📖 [API Reference](docs/API_REFERENCE.md) | 🏗️ [Architecture](docs/ARCHITECTURE.md) |
 | 📚 [Query Patterns](docs/QUERY_PATTERNS.md) | 🔧 [Common Patterns](docs/COMMON_PATTERNS.md) | 🔄 [Migration Guide](docs/MIGRATION_TO_JSONB_PATTERN.md) |
 | 🔍 [Filtering Patterns](docs/FILTERING_PATTERNS.md) | 💡 [Examples](examples/) | 📝 [Contributing](CONTRIBUTING.md) |
+| 🔍 [WHERE Types Guide](docs/WHERE_TYPES.md) | 🆕 [Partial Instantiation](docs/PARTIAL_INSTANTIATION.md) | |
 | ❓ [Troubleshooting](docs/TROUBLESHOOTING.md) | | |
 
 ## 🎯 Core Concepts
@@ -95,7 +96,9 @@ pip install "fraiseql[tracing]"    # OpenTelemetry tracing
 pip install "fraiseql[dev]"        # Development dependencies
 ```
 
-> ⚠️ **Breaking Change in v0.1.0a14**: All database views must now return data in a JSONB `data` column. See the [Migration Guide](docs/MIGRATION_TO_JSONB_PATTERN.md) for details.
+> ⚠️ **Breaking Changes**: 
+> - **v0.1.0a14**: All database views must now return data in a JSONB `data` column. See the [Migration Guide](docs/MIGRATION_TO_JSONB_PATTERN.md)
+> - **v0.1.0a18**: Partial object instantiation is now supported in development mode, allowing nested queries to request only specific fields
 
 ## 🚀 Quick Start
 
@@ -202,6 +205,62 @@ SELECT id, jsonb_build_object(
 
 👉 **See the [Getting Started Guide](docs/GETTING_STARTED.md) for a complete walkthrough**
 
+## 🆕 New in v0.1.0a18: Partial Object Instantiation
+
+FraiseQL now supports partial object instantiation for nested queries in development mode. This means you can request only the fields you need from nested objects without errors:
+
+```graphql
+query GetUsers {
+  users {
+    id
+    name
+    profile {
+      avatar  # Only request avatar, not all profile fields
+    }
+  }
+}
+```
+
+```python
+@fraise_type
+class Profile:
+    id: UUID
+    avatar: str
+    email: str      # Required but not requested - no error!
+    bio: str        # Required but not requested - no error!
+```
+
+This brings FraiseQL closer to GraphQL's promise of "ask for what you need, get exactly that". See the [Partial Instantiation Guide](docs/PARTIAL_INSTANTIATION.md) for details.
+
+### Complex Nested Query Example
+
+With partial instantiation, you can now build efficient queries that traverse multiple levels of relationships:
+
+```graphql
+query BlogDashboard {
+  posts(where: { published_at: { neq: null } }) {
+    id
+    title
+    published_at
+    author {
+      name
+      profile {
+        avatar  # Only need avatar for display
+      }
+    }
+    comments {
+      id
+      content
+      author {
+        name  # Only need commenter's name
+      }
+    }
+  }
+}
+```
+
+All nested objects will be properly instantiated with only the requested fields, avoiding errors from missing required fields in the type definitions.
+
 ## 🎯 Why FraiseQL?
 
 ### The Problem
@@ -213,6 +272,7 @@ Traditional GraphQL servers require complex resolver hierarchies, N+1 query prob
 - **No resolver classes** - just functions
 - **Type-safe** with full IDE support
 - **Production-ready** with auth, caching, and monitoring
+- **Partial field selection** (v0.1.0a18+) for optimal queries
 
 ## 📚 Learn More
 
