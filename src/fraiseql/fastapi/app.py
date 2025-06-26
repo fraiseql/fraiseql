@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fraiseql.auth.auth0 import Auth0Config
 from fraiseql.auth.base import AuthProvider
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.fastapi.dependencies import get_db_pool, set_auth_provider, set_db_pool
+from fraiseql.fastapi.dependencies import get_db_pool, set_auth_provider, set_db_pool, set_fraiseql_config
 from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.fastapi.turbo import TurboRegistry
 from fraiseql.gql.schema_builder import build_fraiseql_schema
@@ -124,6 +124,7 @@ def create_fraiseql_app(
             raise ValueError(msg)
 
     set_auth_provider(auth_provider)
+    set_fraiseql_config(config)
 
     # Create lifespan context manager for the app
     if lifespan is None:

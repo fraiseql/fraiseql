@@ -12,6 +12,7 @@ from fraiseql.optimization.registry import LoaderRegistry
 # Global instances (will be set by create_app)
 _db_pool = None
 _auth_provider: AuthProvider | None = None
+_fraiseql_config = None
 
 
 def get_db_pool():
@@ -39,6 +40,17 @@ def set_auth_provider(provider: AuthProvider | None) -> None:
     _auth_provider = provider
 
 
+def get_fraiseql_config():
+    """Get the FraiseQL configuration."""
+    return _fraiseql_config
+
+
+def set_fraiseql_config(config) -> None:
+    """Set the FraiseQL configuration (called by create_app)."""
+    global _fraiseql_config
+    _fraiseql_config = config
+
+
 # FastAPI dependencies
 security = HTTPBearer(auto_error=False)
 
@@ -46,7 +58,14 @@ security = HTTPBearer(auto_error=False)
 async def get_db() -> FraiseQLRepository:
     """Get database repository instance."""
     pool = get_db_pool()
-    return FraiseQLRepository(pool=pool)
+    config = get_fraiseql_config()
+    
+    # Create repository with mode from config
+    context = {}
+    if config and hasattr(config, 'environment'):
+        context["mode"] = "development" if config.environment == "development" else "production"
+    
+    return FraiseQLRepository(pool=pool, context=context)
 
 
 async def get_token(
@@ -132,9 +151,13 @@ async def build_graphql_context(
     # Set as current registry for this request context
     LoaderRegistry.set_current(loader_registry)
 
+    config = get_fraiseql_config()
+    mode = "development" if config and config.environment == "development" else "production"
+
     return {
         "db": db,
         "user": user,
         "authenticated": user is not None,
         "loader_registry": loader_registry,
+        "mode": mode,
     }
