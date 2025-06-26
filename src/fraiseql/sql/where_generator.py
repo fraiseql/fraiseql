@@ -13,6 +13,8 @@ and similar query builders.
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import date, datetime
+from decimal import Decimal
 from functools import cache
 from typing import (
     Any,
@@ -44,13 +46,14 @@ class DynamicType(Protocol):
         """
 
 
-def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
+def build_operator_composed(path_sql: SQL, op: str, val: object, field_type: type | None = None) -> Composed:
     """Build parameterized SQL for a specific operator using psycopg Composed.
 
     Args:
         path_sql: The SQL object representing the JSONB path expression.
         op: The operator name.
         val: The value to compare against.
+        field_type: Optional type hint for proper casting.
 
     Returns:
         A psycopg Composed object with properly parameterized SQL.
@@ -62,9 +65,27 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
             return Composed([path_sql, SQL(" IS NULL")])
         return Composed([path_sql, SQL(" IS NOT NULL")])
 
-    # For JSONB text extraction (->>) we need to convert booleans to strings
-    # since data->>'field' returns text, not boolean
+    # Determine if we need type casting based on the value type and operator
+    # For comparisons, we need to cast the JSONB text to the appropriate type
+    
+    # Handle booleans first (before checking for numeric cast)
     if isinstance(val, bool):
+        # For booleans, we cast the path to boolean
+        path_sql = Composed([path_sql, SQL("::boolean")])
+    elif op in ("gt", "gte", "lt", "lte") or (op in ("eq", "neq") and not isinstance(val, str)):
+        # Need type casting for non-string comparisons
+        if isinstance(val, (int, float, Decimal)):
+            # Cast to numeric for numeric comparison
+            path_sql = Composed([path_sql, SQL("::numeric")])
+        elif isinstance(val, datetime):
+            # Cast to timestamp for datetime comparison
+            path_sql = Composed([path_sql, SQL("::timestamp")])
+        elif isinstance(val, date):
+            # Cast to date for date comparison
+            path_sql = Composed([path_sql, SQL("::date")])
+    
+    # For booleans in text comparison, convert value but not for casting
+    if isinstance(val, bool) and op in ("eq", "neq") and False:  # Disabled - we cast to boolean above
         val = str(val).lower()  # Convert True to 'true', False to 'false'
 
     if op == "eq":
@@ -92,9 +113,15 @@ def build_operator_composed(path_sql: SQL, op: str, val: object) -> Composed:
         return Composed([path_sql, SQL(" ~ "), Literal(str(val)), SQL(".*")])
     if op == "in":
         if isinstance(val, list):
-            # Convert booleans to strings for JSONB text comparison
-            converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
-            literals = [Literal(v) for v in converted_vals]
+            # Determine type from list values
+            if val and all(isinstance(v, (int, float, Decimal)) for v in val):
+                # Numeric IN clause - cast path to numeric
+                path_sql = Composed([path_sql, SQL("::numeric")])
+                literals = [Literal(v) for v in val]
+            else:
+                # String/mixed IN clause
+                converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
+                literals = [Literal(v) for v in converted_vals]
             parts = [path_sql, SQL(" IN (")]
             for i, lit in enumerate(literals):
                 if i > 0:
@@ -146,6 +173,7 @@ def _make_filter_field_composed(
     name: str,
     valdict: dict[str, object],
     json_path: str,
+    field_type: type | None = None,
 ) -> Composed | None:
     """Generate a parameterized SQL expression for a single field filter.
 
@@ -153,6 +181,7 @@ def _make_filter_field_composed(
         name: Field name to filter.
         valdict: Dict mapping operator strings to filter values.
         json_path: SQL JSON path expression string accessing the field.
+        field_type: Optional type hint for the field.
 
     Returns:
         Composed SQL WHERE clause for the field, or None if no valid operators found.
@@ -165,7 +194,7 @@ def _make_filter_field_composed(
         try:
             # Build the JSONB path expression
             path_sql = Composed([SQL("("), SQL(json_path), SQL(" ->> "), Literal(name), SQL(")")])
-            condition = build_operator_composed(path_sql, op, val)
+            condition = build_operator_composed(path_sql, op, val, field_type)
             conditions.append(condition)
         except ValueError:
             # Skip unsupported operators
@@ -184,11 +213,12 @@ def _make_filter_field_composed(
     return Composed(result_parts)
 
 
-def _build_where_to_sql(fields: list[str]) -> Callable[[object], Composed | None]:
+def _build_where_to_sql(fields: list[str], type_hints: dict[str, type] | None = None) -> Callable[[object], Composed | None]:
     """Build a `to_sql` method for a dynamic filter dataclass.
 
     Args:
         fields: List of filter field names.
+        type_hints: Optional mapping of field names to their types.
 
     Returns:
         A function suitable as a `to_sql(self)` method returning Composed SQL.
@@ -204,7 +234,8 @@ def _build_where_to_sql(fields: list[str]) -> Callable[[object], Composed | None
                 if sql:
                     conditions.append(sql)
             elif isinstance(val, dict):
-                cond = _make_filter_field_composed(name, cast("dict[str, object]", val), "data")
+                field_type = type_hints.get(name) if type_hints else None
+                cond = _make_filter_field_composed(name, cast("dict[str, object]", val), "data", field_type)
                 if cond:
                     conditions.append(cond)
 
@@ -261,7 +292,7 @@ def safe_create_where_type(cls: type[object]) -> type[DynamicType] | object:
 
     field_names = list(type_hints.keys())
     attrs["__annotations__"] = annotations
-    attrs["to_sql"] = _build_where_to_sql(field_names)
+    attrs["to_sql"] = _build_where_to_sql(field_names, type_hints)
 
     where_name = f"{cls.__name__}Where"
     return dataclass(type(where_name, (), attrs))

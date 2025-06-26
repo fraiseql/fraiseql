@@ -207,6 +207,9 @@ CREATE INDEX idx_wishlist_user_id ON wishlist_items(user_id);
 -- Users view
 CREATE OR REPLACE VIEW v_users AS
 SELECT
+    id,                      -- For filtering
+    email,                   -- For unique lookups
+    is_active,               -- For filtering active users
     jsonb_build_object(
         'id', id,
         'email', email,
@@ -222,6 +225,9 @@ FROM users;
 -- Addresses view
 CREATE OR REPLACE VIEW v_addresses AS
 SELECT
+    id,                      -- For filtering
+    user_id,                 -- For user's addresses
+    is_default,              -- For finding default address
     jsonb_build_object(
         'id', id,
         'user_id', user_id,
@@ -240,6 +246,12 @@ FROM addresses;
 -- Products view
 CREATE OR REPLACE VIEW v_products AS
 SELECT
+    id,                      -- For filtering
+    sku,                     -- For SKU lookups
+    category,                -- For category filtering
+    price,                   -- For price range queries
+    stock_quantity,          -- For availability checks
+    is_active,               -- For active products only
     jsonb_build_object(
         'id', id,
         'sku', sku,

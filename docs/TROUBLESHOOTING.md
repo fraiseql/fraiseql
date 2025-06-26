@@ -1,6 +1,14 @@
 # FraiseQL Troubleshooting Guide
 
-## Common Issues and Solutions
+## Table of Contents
+
+1. [Common Query Issues](#common-query-issues)
+2. [Repository and Database Issues](#repository-and-database-issues) 
+3. [Input Type Issues](#input-type-issues)
+4. [Migration from Traditional GraphQL](#migration-from-traditional-graphql)
+5. [Performance Issues](#performance-issues)
+
+## Common Query Issues
 
 ### 1. AttributeError: module 'fraiseql' has no attribute 'build_schema'
 
@@ -183,6 +191,208 @@ When something isn't working, check:
    python your_app.py
    # Should show: "Uvicorn running on http://0.0.0.0:8000"
    ```
+
+## Repository and Database Issues
+
+### 'FraiseQLRepository' object has no attribute 'find'
+
+**Problem**: Getting AttributeError when trying to use repository methods.
+
+**Possible Causes**:
+1. Using an older version of FraiseQL
+2. Repository not properly instantiated
+3. Wrong import or type
+
+**Solution**:
+```python
+# 1. Check version
+pip show fraiseql  # Should be v0.1.0a14+
+
+# 2. Debug repository type
+@fraiseql.query
+async def debug_repo(info) -> str:
+    db = info.context["db"]
+    return f"Type: {type(db)}, Has find: {hasattr(db, 'find')}"
+
+# 3. Ensure proper context setup
+from fraiseql.db import FraiseQLRepository
+
+async def get_context(request: Request) -> dict[str, Any]:
+    pool = request.app.state.db_pool
+    repo = FraiseQLRepository(pool, context={"mode": "development"})
+    return {"db": repo}
+```
+
+### Repository returns None or empty results
+
+**Problem**: Queries return no data even though database has records.
+
+**Possible Causes**:
+1. View doesn't have required `data` column
+2. Incorrect filters being applied
+3. Tenant filtering excluding all records
+
+**Solution**:
+```sql
+-- Check view structure
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'your_view' AND column_name = 'data';
+
+-- Ensure view has proper structure
+CREATE VIEW user_view AS
+SELECT 
+    id, email, status,  -- Filtering columns
+    jsonb_build_object(
+        'id', id,
+        'email', email,
+        'name', name
+    ) as data  -- REQUIRED data column!
+FROM users;
+```
+
+## Input Type Issues
+
+### 'dict' object has no attribute 'field_name'
+
+**Problem**: AttributeError when accessing fields on input types.
+
+**Cause**: GraphQL sometimes passes input types as dicts instead of typed objects.
+
+**Solution**: Always handle both cases:
+```python
+@fraiseql.query
+async def users(info, where: UserWhereInput | None = None) -> list[User]:
+    if where:
+        # Safe access pattern
+        def get_field(field_name: str):
+            if isinstance(where, dict):
+                return where.get(field_name)
+            else:
+                return getattr(where, field_name, None)
+        
+        email = get_field('email')
+        status = get_field('status')
+```
+
+### Where input defined but filtering not working
+
+**Problem**: Queries accept where parameter but don't actually filter results.
+
+**Solution**: Implement filter building logic:
+```python
+@fraiseql.query
+async def machines(info, where: MachineWhereInput | None = None) -> list[Machine]:
+    db = info.context["db"]
+    
+    # Don't forget to build and use filters!
+    filters = _build_filters(where)
+    return await db.find("machine_view", **filters)
+
+def _build_filters(where: MachineWhereInput | dict | None) -> dict[str, Any]:
+    filters = {}
+    if not where:
+        return filters
+    
+    # Handle both dict and object
+    get_field = (lambda f: where.get(f)) if isinstance(where, dict) else (lambda f: getattr(where, f, None))
+    
+    # Add each filter
+    if get_field('status'):
+        filters['status'] = get_field('status')
+    
+    return filters
+```
+
+## Migration from Traditional GraphQL
+
+### TypeError: Type Query must define one or more fields
+
+**Problem**: Trying to use class-based Query type.
+
+**Cause**: FraiseQL doesn't use resolver classes.
+
+**Solution**: Use function decorators instead:
+```python
+# ❌ WRONG - Class-based approach
+@fraiseql.type
+class Query:
+    async def users(self, info) -> list[User]:
+        pass
+
+# ✅ CORRECT - Function-based approach
+@fraiseql.query
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("user_view")
+```
+
+### 'NoneType' object has no attribute 'context'
+
+**Problem**: Info parameter is None in query function.
+
+**Possible Causes**:
+1. Using `resolve_` prefix on method names
+2. Wrong parameter order (info must be first)
+3. Using class-based resolvers
+
+**Solution**:
+```python
+# ❌ WRONG - resolve_ prefix
+async def resolve_users(self, info):
+    pass
+
+# ❌ WRONG - info not first
+async def users(id: int, info) -> User:
+    pass
+
+# ✅ CORRECT - @fraiseql.query with info first
+@fraiseql.query
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("user_view")
+```
+
+## Performance Issues
+
+### Queries returning too much data
+
+**Problem**: Fetching all records then filtering in Python.
+
+**Solution**: Use database-level filtering:
+```python
+# ❌ WRONG - Fetching everything
+@fraiseql.query
+async def active_users(info) -> list[User]:
+    db = info.context["db"]
+    all_users = await db.find("user_view")  # Gets ALL users!
+    return [u for u in all_users if u.is_active]  # Filters in Python
+
+# ✅ CORRECT - Filter at database level
+@fraiseql.query
+async def active_users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("user_view", is_active=True)  # Database filters
+```
+
+### Complex filtering is slow
+
+**Problem**: Using custom SQL for every query with complex filters.
+
+**Solution**: Pre-compute common filters in database views:
+```sql
+CREATE VIEW machine_view AS
+SELECT 
+    id, status, tenant_id,
+    -- Pre-compute boolean filters
+    (removed_at IS NULL) as is_active,
+    (stock_location_id IS NOT NULL) as is_stock,
+    -- JSONB data
+    jsonb_build_object(...) as data
+FROM machines;
+
+-- Add indexes for common filter combinations
+CREATE INDEX idx_machine_active ON machines(tenant_id) WHERE removed_at IS NULL;
+```
 
 ## Getting Help
 

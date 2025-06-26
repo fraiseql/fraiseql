@@ -19,29 +19,72 @@
 
 **FraiseQL** is a Python framework that translates GraphQL queries directly into PostgreSQL queries, embracing a CQRS (Command Query Responsibility Segregation) architecture where database views handle queries and PostgreSQL functions handle mutations.
 
-## Core Architecture
+## ⚡ Quick Links
 
-FraiseQL takes a different approach to GraphQL:
+| Getting Started | Reference | Learn More |
+|----------------|-----------|------------|
+| 🚀 [Getting Started Guide](docs/GETTING_STARTED.md) | 📖 [API Reference](docs/API_REFERENCE.md) | 🏗️ [Architecture](docs/ARCHITECTURE.md) |
+| 📚 [Query Patterns](docs/QUERY_PATTERNS.md) | 🔧 [Common Patterns](docs/COMMON_PATTERNS.md) | 🔄 [Migration Guide](docs/MIGRATION_TO_JSONB_PATTERN.md) |
+| 🔍 [Filtering Patterns](docs/FILTERING_PATTERNS.md) | 💡 [Examples](examples/) | 📝 [Contributing](CONTRIBUTING.md) |
+| ❓ [Troubleshooting](docs/TROUBLESHOOTING.md) | | |
 
-- **Queries** → PostgreSQL Views (optimized reads)
-- **Mutations** → PostgreSQL Functions (business logic in the database)
-- **Types** → Python dataclasses (with GraphQL decorators)
+## 🎯 Core Concepts
 
-This means your GraphQL queries become simple `SELECT` statements from views, while mutations call PostgreSQL functions that return structured results.
+FraiseQL has four fundamental patterns:
 
-## Key Features
+### 1. Types are Python Classes
+```python
+@fraise_type
+class User:
+    id: UUID
+    name: str
+    email: str
+```
 
-- 🚀 **Code Generation** - Generate migrations, CRUD operations, and schemas from your types
-- 🏗️ **CQRS Architecture** - Clear separation between reads (views) and writes (functions)
-- 🍓 **Strawberry-Inspired API** - Familiar decorator patterns for Python developers
-- 🔐 **Type-Safe** - Full type hints with Python 3.11+ and runtime validation
-- 🛡️ **SQL Injection Safe** - All queries use parameterized SQL
-- 🔌 **Pluggable Auth** - Modular authentication system (Auth0 provider included)
-- ⚡ **FastAPI Integration** - Production-ready ASGI application
-- 🏎️ **TurboRouter** - Near-zero overhead for registered queries (< 0.1ms)
-- 📊 **5-10x Faster** - Benchmarked performance advantage over traditional GraphQL
+### 2. Queries are Functions (Not Resolvers!)
+```python
+@fraiseql.query
+async def get_user(info, id: UUID) -> User:
+    # 'info' is ALWAYS first parameter
+    db = info.context["db"]
+    return await db.find_one("user_view", id=id)
+```
 
-## Installation
+### 3. All Data in JSONB Column (v0.1.0a14+)
+```sql
+CREATE VIEW user_view AS
+SELECT 
+    id,              -- For filtering
+    tenant_id,       -- For access control
+    jsonb_build_object(
+        'id', id,
+        'name', name,
+        'email', email
+    ) as data        -- REQUIRED: All object data here
+FROM users;
+```
+
+### 4. Repository Handles Database
+```python
+# No manual connection management needed
+db = info.context["db"]  # FraiseQLRepository
+user = await db.find_one("user_view", id=user_id)
+```
+
+## ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🚀 **Simple Patterns** | Decorator-based API with no resolver classes |
+| 📊 **JSONB-First** | All data flows through JSONB columns for consistency |
+| 🔐 **Type-Safe** | Full type hints with Python 3.11+ |
+| 🛡️ **SQL Injection Safe** | Parameterized queries throughout |
+| 🔌 **Pluggable Auth** | Built-in Auth0, easy to add others |
+| ⚡ **FastAPI Integration** | Production-ready ASGI application |
+| 🏎️ **High Performance** | Direct SQL queries, no N+1 problems |
+| 🎯 **CQRS Architecture** | Views for queries, functions for mutations |
+
+## 📦 Installation
 
 ```bash
 pip install fraiseql
@@ -52,294 +95,134 @@ pip install "fraiseql[tracing]"    # OpenTelemetry tracing
 pip install "fraiseql[dev]"        # Development dependencies
 ```
 
-## Documentation
+> ⚠️ **Breaking Change in v0.1.0a14**: All database views must now return data in a JSONB `data` column. See the [Migration Guide](docs/MIGRATION_TO_JSONB_PATTERN.md) for details.
 
-- 📚 [Quick Start Guide](docs/QUICKSTART_GUIDE.md) - Get started in 5 minutes
-- 🔧 [API Reference](docs/API_REFERENCE_QUICK.md) - All decorators and functions
-- ❓ [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
-- 💡 [Examples](examples/) - Working code examples
+## 🚀 Quick Start
 
-## Quick Start
-
-### 1. Basic Example
+### 1. Hello World (No Database)
 
 ```python
 import fraiseql
 from datetime import datetime
-from typing import List, Optional
+from uuid import UUID, uuid4
 
-# Define your types
-@fraiseql.type
-class Post:
-    id: int
+# Define a type
+@fraise_type
+class Book:
+    id: UUID
     title: str
-    content: str
-    created_at: datetime
+    author: str
+    published: datetime
 
-# Create queries
+# Create a query (NOT a resolver!)
 @fraiseql.query
-async def posts(info) -> List[Post]:
-    """Get all posts"""
+async def books(info) -> list[Book]:
+    """Get all books."""
+    # 'info' is ALWAYS the first parameter
     return [
-        Post(id=1, title="Hello", content="World", created_at=datetime.now())
+        Book(
+            id=uuid4(),
+            title="The Great Gatsby",
+            author="F. Scott Fitzgerald",
+            published=datetime(1925, 4, 10)
+        )
     ]
 
-@fraiseql.query
-async def post(info, id: int) -> Optional[Post]:
-    """Get a post by ID"""
-    if id == 1:
-        return Post(id=1, title="Hello", content="World", created_at=datetime.now())
-    return None
-
 # Create the app
-if __name__ == "__main__":
-    import uvicorn
+app = fraiseql.create_fraiseql_app(
+    types=[Book],
+    production=False  # Enables GraphQL Playground
+)
 
-    app = fraiseql.create_fraiseql_app(
-        types=[Post],
-        production=False  # Enables GraphQL Playground
-    )
-
-    print("GraphQL Playground: http://localhost:8000/playground")
-    uvicorn.run(app, port=8000)
+# Run with: uvicorn app:app --reload
+# Visit: http://localhost:8000/graphql
 ```
 
-### 2. With Database Integration
+### 2. With Database (The Right Way)
 
 ```python
-import fraiseql
-from fraiseql import fraise_field
+# First, create your database view with JSONB data column:
+"""
+CREATE VIEW book_view AS
+SELECT 
+    id,              -- For filtering
+    author,          -- For author queries
+    published,       -- For date filtering
+    jsonb_build_object(
+        'id', id,
+        'title', title,
+        'author', author,
+        'published', published
+    ) as data        -- REQUIRED: All object data here!
+FROM books;
+"""
 
-@fraiseql.type
-class User:
-    id: int
-    email: str = fraise_field(description="User's email address")
-    name: str = fraise_field(description="Display name")
-
+# Then create your query:
 @fraiseql.query
-async def get_user(info, id: int) -> Optional[User]:
-    db = info.context["db"]
-    result = await db.fetch_one("SELECT * FROM users WHERE id = %s", (id,))
-    return User(**result) if result else None
-
-# Create mutations
-@fraiseql.input
-class CreateUserInput:
-    email: str
-    name: str
-
-@fraiseql.mutation
-async def create_user(info, input: CreateUserInput) -> User:
-    db = info.context["db"]
-    result = await db.fetch_one(
-        "INSERT INTO users (email, name) VALUES (%s, %s) RETURNING *",
-        (input.email, input.name)
-    )
-    return User(**result)
+async def books(info, author: str | None = None) -> list[Book]:
+    """Get books, optionally filtered by author."""
+    db = info.context["db"]  # FraiseQLRepository
+    
+    if author:
+        return await db.find("book_view", author=author)
+    return await db.find("book_view")
 
 # Create app with database
 app = fraiseql.create_fraiseql_app(
-    database_url="postgresql://user:pass@localhost/dbname",
-    types=[User],
+    database_url="postgresql://localhost/mydb",
+    types=[Book],
     production=False
 )
 ```
 
-### 3. CLI Usage (Alternative)
-
-```bash
-# Create a new FraiseQL project
-fraiseql init my-api
-cd my-api
-
-# Start development server
-fraiseql dev
-```
-
-### 4. Define Your Types
+### 3. Common Mistakes to Avoid
 
 ```python
-from uuid import UUID
-from fraiseql import fraise_type, fraise_input, field
+# ❌ WRONG: Don't use resolver classes
+class Query:
+    async def resolve_users(self, info):
+        pass
 
-@fraise_type
-class User:
-    id: UUID
-    email: str = field(description="User's email address")
-    name: str = field(description="Display name")
-    post_count: int = field(description="Number of posts by this user")
+# ✅ CORRECT: Use @fraiseql.query decorator
+@fraiseql.query
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("user_view")
+
+# ❌ WRONG: Don't forget the data column
+CREATE VIEW bad_view AS
+SELECT id, name, email FROM users;
+
+# ✅ CORRECT: Always include JSONB data column
+CREATE VIEW good_view AS
+SELECT id, jsonb_build_object(
+    'id', id, 'name', name, 'email', email
+) as data FROM users;
 ```
 
-### 2. Set Up Your Database
+👉 **See the [Getting Started Guide](docs/GETTING_STARTED.md) for a complete walkthrough**
 
-Create a view that returns JSONB matching your GraphQL type:
+## 🎯 Why FraiseQL?
 
-```sql
-CREATE VIEW user_profile AS
-SELECT
-    jsonb_build_object(
-        'id', u.id,
-        'email', u.email,
-        'name', u.name,
-        'post_count', COUNT(p.id)
-    ) as data
-FROM users u
-LEFT JOIN posts p ON p.author_id = u.id
-GROUP BY u.id;
-```
+### The Problem
+Traditional GraphQL servers require complex resolver hierarchies, N+1 query problems, and lots of boilerplate.
 
-### 3. Create Mutations with PostgreSQL Functions
+### The FraiseQL Solution
+- **Direct SQL queries** from GraphQL queries
+- **JSONB pattern** for consistent data access
+- **No resolver classes** - just functions
+- **Type-safe** with full IDE support
+- **Production-ready** with auth, caching, and monitoring
 
-```python
-@fraise_input
-class CreateUserInput:
-    email: str
-    name: str
+## 📚 Learn More
 
-@success
-class CreateUserSuccess:
-    user: User
-    message: str = "User created successfully"
-
-@failure
-class CreateUserError:
-    message: str
-    code: str = field(description="Error code for client handling")
-
-@mutation
-class CreateUser:
-    input: CreateUserInput
-    success: CreateUserSuccess
-    error: CreateUserError
-```
-
-The corresponding PostgreSQL function:
-
-```sql
-CREATE FUNCTION graphql.create_user(input jsonb)
-RETURNS jsonb AS $$
-DECLARE
-    new_user_id uuid;
-BEGIN
-    -- Validate email uniqueness
-    IF EXISTS (SELECT 1 FROM users WHERE email = input->>'email') THEN
-        RETURN jsonb_build_object(
-            'type', 'error',
-            'message', 'Email already exists',
-            'code', 'EMAIL_EXISTS'
-        );
-    END IF;
-
-    -- Create user
-    INSERT INTO users (email, name)
-    VALUES (input->>'email', input->>'name')
-    RETURNING id INTO new_user_id;
-
-    -- Return success with the created user
-    RETURN jsonb_build_object(
-        'type', 'success',
-        'user', (
-            SELECT data FROM user_profile
-            WHERE data->>'id' = new_user_id::text
-        ),
-        'message', 'User created successfully'
-    );
-END;
-$$ LANGUAGE plpgsql;
-```
-
-### 4. Create Your App
-
-```python
-from fraiseql import create_fraiseql_app
-
-app = create_fraiseql_app(
-    database_url="postgresql://localhost/mydb",
-    types=[User],
-    mutations=[CreateUser],
-)
-
-# Run with: uvicorn app:app --reload
-```
-
-## Code Generation
-
-FraiseQL includes powerful code generation tools to speed up development:
-
-### Generate Migrations
-
-```bash
-# Generate a migration for your User type
-fraiseql generate migration User --table users
-
-# Output: migrations/20240615123045_create_users.sql
-```
-
-### Generate CRUD Operations
-
-```bash
-# Generate complete CRUD mutations for a type
-fraiseql generate crud User
-
-# Output: src/mutations/user_mutations.py
-```
-
-### Generate GraphQL Schema
-
-```bash
-# Export your complete GraphQL schema
-fraiseql generate schema --output schema.graphql
-```
-
-
-## Query Your API
-
-Visit `http://localhost:8000/playground` for the GraphQL Playground, or send queries to `/graphql`:
-
-```graphql
-mutation {
-  createUser(input: { email: "alice@example.com", name: "Alice" }) {
-    ... on CreateUserSuccess {
-      user {
-        id
-        email
-        name
-        postCount
-      }
-      message
-    }
-    ... on CreateUserError {
-      message
-      code
-    }
-  }
-}
-```
-
-## CQRS Philosophy
-
-FraiseQL embraces CQRS by clearly separating:
-
-### Queries (Read Side)
-
-- Use PostgreSQL views for data composition
-- Leverage database query optimization
-- Support materialized views or projection tables for performance
-- Enable complex aggregations at the database level
-
-### Mutations (Write Side)
-
-- PostgreSQL functions contain business logic
-- Transactional consistency guaranteed
-- Return structured success/error responses
-- Support complex workflows and validations
-
-This separation provides several benefits:
-
-- **Performance**: Optimized read models without affecting write logic
-- **Scalability**: Read and write sides can be scaled independently
-- **Maintainability**: Business logic lives in one place (database functions)
-- **Flexibility**: Views can be optimized without changing mutation logic
+| Topic | Description |
+|-------|-------------|
+| [Query Patterns](docs/QUERY_PATTERNS.md) | How to write queries the FraiseQL way |
+| [JSONB Pattern](docs/ARCHITECTURE.md#the-jsonb-data-column-pattern) | Why all data goes in a JSONB column |
+| [Multi-Tenancy](docs/COMMON_PATTERNS.md#multi-tenant-applications) | Building SaaS applications |
+| [Authentication](docs/COMMON_PATTERNS.md#authentication--authorization) | Adding auth to your API |
+| [Testing](docs/testing/unified-container-testing.md) | Our unified container approach |
 
 ## Real-World Example
 
@@ -369,13 +252,16 @@ With a corresponding view:
 ```sql
 CREATE VIEW post_details AS
 SELECT
+    p.id,                    -- For filtering
+    p.author_id,             -- For joins
+    p.published_at,          -- For filtering by date
     jsonb_build_object(
         'id', p.id,
         'title', p.title,
         'content', p.content,
         'author', (
             SELECT data FROM user_profile
-            WHERE data->>'id' = p.author_id::text
+            WHERE id = p.author_id  -- Use id column for filtering
         ),
         'comments', (
             SELECT jsonb_agg(
@@ -384,7 +270,7 @@ SELECT
                     'content', c.content,
                     'author', (
                         SELECT data FROM user_profile
-                        WHERE data->>'id' = c.author_id::text
+                        WHERE id = c.author_id  -- Use id column for filtering
                     ),
                     'created_at', c.created_at
                 )
@@ -395,7 +281,7 @@ SELECT
         ),
         'tags', p.tags,
         'published_at', p.published_at
-    ) as data
+    ) as data                -- All object data in 'data' column
 FROM posts p;
 ```
 
@@ -455,12 +341,15 @@ class Product:
 # And the corresponding SQL view
 """
 CREATE VIEW product_catalog AS
-SELECT jsonb_build_object(
-    'id', id,
-    'name', name,
-    'price', price,
-    'in_stock', quantity > 0
-) as data
+SELECT 
+    id,              -- For filtering
+    category_id,     -- For joins
+    jsonb_build_object(
+        'id', id,
+        'name', name,
+        'price', price,
+        'in_stock', quantity > 0
+    ) as data        -- All product data in 'data' column
 FROM products;
 """
 ```

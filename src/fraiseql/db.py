@@ -5,6 +5,7 @@ import os
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Optional, TypeVar, Union, get_args, get_origin
 from uuid import UUID
 
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+# Type registry for development mode
+_type_registry: dict[str, type] = {}
+
 
 @dataclass
 class DatabaseQuery:
@@ -26,6 +30,18 @@ class DatabaseQuery:
     statement: Composed | SQL
     params: Mapping[str, object]
     fetch_result: bool = True
+
+
+def register_type_for_view(view_name: str, type_class: type) -> None:
+    """Register a type class for a specific view name.
+    
+    This is used in development mode to instantiate proper types from view data.
+    
+    Args:
+        view_name: The database view name
+        type_class: The Python type class decorated with @fraise_type
+    """
+    _type_registry[view_name] = type_class
 
 
 class FraiseQLRepository:
@@ -275,6 +291,12 @@ class FraiseQLRepository:
                         )
                     except ValueError:  # noqa: SIM105
                         pass  # Keep original value if not valid datetime
+                # Check if field is Decimal and value is numeric
+                elif actual_field_type == Decimal and isinstance(processed_value, (int, float, str)):
+                    try:
+                        processed_value = Decimal(str(processed_value))
+                    except (ValueError, TypeError):  # noqa: SIM105
+                        pass  # Keep original value if not valid decimal
 
             snake_data[snake_key] = processed_value
 
@@ -317,33 +339,83 @@ class FraiseQLRepository:
 
     def _get_type_for_view(self, view_name: str) -> type:
         """Get the type class for a given view name."""
-        # This would normally look up the type from a registry
-        # For now, we'll raise NotImplementedError
-        # In real implementation, this would be populated from @fraise_type decorators
-        raise NotImplementedError(f"Type registry lookup for {view_name} not implemented")
+        # Check the global type registry
+        if view_name in _type_registry:
+            return _type_registry[view_name]
+        
+        # Try to find type by convention (remove _view suffix and check)
+        type_name = view_name.replace("_view", "")
+        for registered_view, type_class in _type_registry.items():
+            if registered_view.lower().replace("_", "") == type_name.lower().replace("_", ""):
+                return type_class
+        
+        raise NotImplementedError(f"Type registry lookup for {view_name} not implemented. Available views: {list(_type_registry.keys())}")
 
     def _build_find_query(self, view_name: str, **kwargs) -> DatabaseQuery:
-        """Build a SELECT query for finding multiple records."""
-        # Simple implementation for testing
-        # In real implementation, this would use the SQL generator
-        if kwargs:
-            where_parts = []
-            params = {}
-            for key, value in kwargs.items():
-                where_parts.append(f"{key} = %({key})s")
-                params[key] = value
-            where_clause = " WHERE " + " AND ".join(where_parts)
-            statement = SQL(f"SELECT * FROM {view_name}{where_clause}")
-        else:
-            statement = SQL(f"SELECT * FROM {view_name}")
-            params = {}
-
+        """Build a SELECT query for finding multiple records.
+        
+        Supports both simple key-value filters and where types with to_sql() methods.
+        """
+        from psycopg.sql import SQL, Identifier, Literal, Placeholder
+        
+        where_parts = []
+        params = {}
+        param_counter = 0
+        
+        # Extract special parameters
+        where_obj = kwargs.pop('where', None)
+        limit = kwargs.pop('limit', None)
+        offset = kwargs.pop('offset', None) 
+        order_by = kwargs.pop('order_by', None)
+        
+        # Process where object if it has to_sql method
+        if where_obj and hasattr(where_obj, 'to_sql'):
+            where_composed = where_obj.to_sql()
+            if where_composed:
+                # The where type returns a Composed object with JSONB paths
+                # We need to add it as a SQL fragment
+                where_parts.append(where_composed)
+        
+        # Process remaining kwargs as simple equality filters
+        for key, value in kwargs.items():
+            param_name = f"param_{param_counter}"
+            where_parts.append(f"{key} = %({param_name})s")
+            params[param_name] = value
+            param_counter += 1
+        
+        # Build SQL using proper composition
+        query_parts = [SQL("SELECT * FROM ") + Identifier(view_name)]
+        
+        if where_parts:
+            # Separate SQL/Composed objects from string parts
+            where_sql_parts = []
+            for part in where_parts:
+                if isinstance(part, (SQL, Composed)):
+                    where_sql_parts.append(part)
+                else:
+                    where_sql_parts.append(SQL(part))
+            
+            query_parts.append(SQL(" WHERE "))
+            for i, part in enumerate(where_sql_parts):
+                if i > 0:
+                    query_parts.append(SQL(" AND "))
+                query_parts.append(part)
+        
+        # Handle order_by
+        if order_by:
+            query_parts.append(SQL(" ORDER BY ") + SQL(order_by))
+        
+        # Handle limit and offset
+        if limit is not None:
+            query_parts.append(SQL(" LIMIT ") + Literal(limit))
+            if offset is not None:
+                query_parts.append(SQL(" OFFSET ") + Literal(offset))
+        
+        statement = SQL("").join(query_parts)
         return DatabaseQuery(statement=statement, params=params, fetch_result=True)
 
     def _build_find_one_query(self, view_name: str, **kwargs) -> DatabaseQuery:
         """Build a SELECT query for finding a single record."""
-        # Build base query
-        query = self._build_find_query(view_name, **kwargs)
-        # Add LIMIT 1
-        statement = SQL(str(query.statement) + " LIMIT 1")
-        return DatabaseQuery(statement=statement, params=query.params, fetch_result=True)
+        # Force limit=1 for find_one
+        kwargs['limit'] = 1
+        return self._build_find_query(view_name, **kwargs)

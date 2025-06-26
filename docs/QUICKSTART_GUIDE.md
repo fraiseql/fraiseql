@@ -8,6 +8,8 @@ Get up and running with FraiseQL in 5 minutes!
 pip install fraiseql
 ```
 
+> **Note**: Version 0.1.0a14+ requires all database views to return data in a JSONB `data` column. See the [Migration Guide](MIGRATION_TO_JSONB_PATTERN.md) if upgrading from earlier versions.
+
 ## Basic Usage
 
 ### 1. Import FraiseQL
@@ -166,20 +168,36 @@ if __name__ == "__main__":
 
 ## Common Patterns
 
-### Database Integration
+### Database Integration with JSONB Pattern
 
 ```python
-from fraiseql.repository import FraiseQLRepository
+from fraiseql.db import FraiseQLRepository
+
+# Your database view must follow the JSONB pattern:
+# CREATE VIEW user_view AS
+# SELECT 
+#     id,              -- For filtering
+#     tenant_id,       -- For access control
+#     jsonb_build_object(
+#         'id', id,
+#         'email', email,
+#         'name', name,
+#         'created_at', created_at
+#     ) as data        -- All type data here
+# FROM users;
 
 # In your queries/mutations
 @fraiseql.query
 async def get_user(info, id: int) -> Optional[User]:
     db: FraiseQLRepository = info.context["db"]
-    user_data = await db.fetch_one(
-        "SELECT * FROM users WHERE id = %s",
-        (id,)
-    )
-    return User(**user_data) if user_data else None
+    # FraiseQL automatically instantiates from the 'data' column
+    return await db.find_one("user_view", id=id)
+
+@fraiseql.query
+async def list_users(info, limit: int = 20) -> List[User]:
+    db: FraiseQLRepository = info.context["db"]
+    # Returns list of User objects in development mode
+    return await db.find("user_view", limit=limit)
 ```
 
 ### Authentication
