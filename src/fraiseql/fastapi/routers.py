@@ -73,11 +73,17 @@ def create_development_router(
 
     # Create context dependency based on whether custom context_getter is provided
     if context_getter:
+        # When custom context_getter is provided, merge it with the default context
+        async def get_merged_context(
+            http_request: Request,
+            default_context: dict[str, Any] = Depends(build_graphql_context),
+        ) -> dict[str, Any]:
+            # Get custom context
+            custom_context = await context_getter(http_request)
+            # Merge with default context (custom values override defaults)
+            return {**default_context, **custom_context}
 
-        async def get_context(http_request: Request) -> dict[str, Any]:
-            return await context_getter(http_request)
-
-        context_dependency = Depends(get_context)
+        context_dependency = Depends(get_merged_context)
     else:
         context_dependency = Depends(build_graphql_context)
 
@@ -227,11 +233,17 @@ def create_production_router(
 
     # Create context dependency based on whether custom context_getter is provided
     if context_getter:
+        # When custom context_getter is provided, merge it with the default context
+        async def get_merged_context(
+            http_request: Request,
+            default_context: dict[str, Any] = Depends(build_graphql_context),
+        ) -> dict[str, Any]:
+            # Get custom context
+            custom_context = await context_getter(http_request)
+            # Merge with default context (custom values override defaults)
+            return {**default_context, **custom_context}
 
-        async def get_context(http_request: Request) -> dict[str, Any]:
-            return await context_getter(http_request)
-
-        context_dependency = Depends(get_context)
+        context_dependency = Depends(get_merged_context)
     else:
         context_dependency = Depends(build_graphql_context)
 
