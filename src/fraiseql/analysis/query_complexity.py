@@ -100,7 +100,9 @@ class QueryComplexityAnalyzer(Visitor):
     """Analyzes GraphQL query complexity by visiting AST nodes."""
 
     def __init__(
-        self, schema: GraphQLSchema | None = None, config: ComplexityConfig | None = None
+        self,
+        schema: GraphQLSchema | None = None,
+        config: ComplexityConfig | None = None,
     ) -> None:
         """Initialize the analyzer.
 

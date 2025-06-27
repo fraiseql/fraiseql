@@ -135,7 +135,7 @@ jobs:
 # fraiseql/debug.py
 def explain_query(query: DatabaseQuery) -> str:
     """Return EXPLAIN ANALYZE output for a query."""
-    
+
 def profile_resolver(resolver_func):
     """Decorator to profile resolver performance."""
 ```
@@ -145,7 +145,7 @@ def profile_resolver(resolver_func):
 # fraiseql/validation.py
 def validate_where_input(where_obj: Any, type_class: type) -> list[str]:
     """Validate where input against type fields."""
-    
+
 def validate_selection_set(info: GraphQLResolveInfo) -> list[str]:
     """Validate that selected fields exist on type."""
 ```
@@ -172,7 +172,7 @@ async def db_health():
 # fraiseql/cache.py
 class QueryCache:
     """LRU cache for frequently executed queries."""
-    
+
     async def get_or_execute(
         self,
         query: DatabaseQuery,

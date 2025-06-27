@@ -30,12 +30,12 @@ Every database view in FraiseQL must follow this structure:
 
 ```sql
 CREATE VIEW entity_view AS
-SELECT 
+SELECT
     -- Filtering/access columns
     id,                      -- Primary key
     tenant_id,               -- Multi-tenancy
     status,                  -- Business filters
-    
+
     -- Data column (REQUIRED)
     jsonb_build_object(
         -- All fields for type instantiation
@@ -100,10 +100,10 @@ class FraiseQLRepository:
         self._pool = pool
         self.context = context or {}
         self.mode = self._determine_mode()
-    
+
     async def find(self, view_name: str, **filters) -> list[T]:
         """Find multiple records."""
-        
+
     async def find_one(self, view_name: str, **filters) -> T | None:
         """Find single record."""
 ```
@@ -286,7 +286,7 @@ CREATE INDEX idx_users_tenant ON users(tenant_id);
 CREATE INDEX idx_users_status ON users(status);
 
 -- Use filtering columns in WHERE
-SELECT * FROM user_view 
+SELECT * FROM user_view
 WHERE tenant_id = $1  -- Good: column filter
 AND status = 'active' -- Good: column filter
 -- Not: WHERE data->>'status' = 'active'

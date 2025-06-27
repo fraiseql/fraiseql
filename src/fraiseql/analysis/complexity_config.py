@@ -71,7 +71,7 @@ class ComplexityConfig:
             "notifications",
             "events",
             "records",
-        ]
+        ],
     )
     """Patterns that indicate array fields"""
 

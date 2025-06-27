@@ -32,7 +32,7 @@ Create FraiseQL-compatible wrapper views that:
 ```sql
 -- Create a FraiseQL-compatible view
 CREATE VIEW fraiseql.v_item_category AS
-SELECT 
+SELECT
     id,
     json_data as data,  -- CRITICAL: Rename to 'data'
     -- Extract fields used in WHERE clauses
@@ -55,11 +55,11 @@ async def item_categories(
     parent_id: uuid.UUID | None = None,
 ) -> list[ItemCategory]:
     db = info.context["db"]
-    
+
     where_clause = {}
     if parent_id is not None:
         where_clause["parent_id"] = {"eq": parent_id}
-    
+
     return await db.find(
         "fraiseql.v_item_category",  # Use the new view
         where=where_clause,

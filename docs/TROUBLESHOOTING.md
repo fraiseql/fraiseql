@@ -3,7 +3,7 @@
 ## Table of Contents
 
 1. [Common Query Issues](#common-query-issues)
-2. [Repository and Database Issues](#repository-and-database-issues) 
+2. [Repository and Database Issues](#repository-and-database-issues)
 3. [Input Type Issues](#input-type-issues)
 4. [Migration from Traditional GraphQL](#migration-from-traditional-graphql)
 5. [Performance Issues](#performance-issues)
@@ -235,12 +235,12 @@ async def get_context(request: Request) -> dict[str, Any]:
 **Solution**:
 ```sql
 -- Check view structure
-SELECT column_name FROM information_schema.columns 
+SELECT column_name FROM information_schema.columns
 WHERE table_name = 'your_view' AND column_name = 'data';
 
 -- Ensure view has proper structure
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id, email, status,  -- Filtering columns
     jsonb_build_object(
         'id', id,
@@ -269,7 +269,7 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
                 return where.get(field_name)
             else:
                 return getattr(where, field_name, None)
-        
+
         email = get_field('email')
         status = get_field('status')
 ```
@@ -283,7 +283,7 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 @fraiseql.query
 async def machines(info, where: MachineWhereInput | None = None) -> list[Machine]:
     db = info.context["db"]
-    
+
     # Don't forget to build and use filters!
     filters = _build_filters(where)
     return await db.find("machine_view", **filters)
@@ -292,14 +292,14 @@ def _build_filters(where: MachineWhereInput | dict | None) -> dict[str, Any]:
     filters = {}
     if not where:
         return filters
-    
+
     # Handle both dict and object
     get_field = (lambda f: where.get(f)) if isinstance(where, dict) else (lambda f: getattr(where, f, None))
-    
+
     # Add each filter
     if get_field('status'):
         filters['status'] = get_field('status')
-    
+
     return filters
 ```
 
@@ -381,7 +381,7 @@ async def active_users(info) -> list[User]:
 **Solution**: Pre-compute common filters in database views:
 ```sql
 CREATE VIEW machine_view AS
-SELECT 
+SELECT
     id, status, tenant_id,
     -- Pre-compute boolean filters
     (removed_at IS NULL) as is_active,

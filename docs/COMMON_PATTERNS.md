@@ -25,16 +25,16 @@ async def get_context(request: Request) -> dict[str, Any]:
     """Extract tenant from request header."""
     pool = request.app.state.db_pool
     tenant_id = request.headers.get("x-tenant-id")
-    
+
     if not tenant_id:
         raise HTTPException(400, "Missing tenant ID")
-    
+
     # Pass tenant to repository context
     repo = FraiseQLRepository(pool, context={
         "tenant_id": tenant_id,
         "mode": "development"
     })
-    
+
     return {
         "db": repo,
         "tenant_id": tenant_id,
@@ -54,7 +54,7 @@ app = create_fraiseql_app(
 ```sql
 -- Always include tenant_id in views
 CREATE VIEW tenant_users AS
-SELECT 
+SELECT
     id,
     tenant_id,           -- Required for filtering
     email,
@@ -84,11 +84,11 @@ async def users(info, role: str | None = None) -> list[User]:
     """Get users for current tenant."""
     db = info.context["db"]
     tenant_id = info.context["tenant_id"]
-    
+
     filters = {"tenant_id": tenant_id}
     if role:
         filters["role"] = role
-    
+
     return await db.find("tenant_users", **filters)
 
 @fraiseql.query
@@ -96,10 +96,10 @@ async def user(info, id: UUID) -> User | None:
     """Get single user ensuring tenant isolation."""
     db = info.context["db"]
     tenant_id = info.context["tenant_id"]
-    
+
     # Always include tenant_id in single queries too!
-    return await db.find_one("tenant_users", 
-        id=id, 
+    return await db.find_one("tenant_users",
+        id=id,
         tenant_id=tenant_id
     )
 ```
@@ -142,7 +142,7 @@ async def my_posts(info) -> list[Post]:
     """Only authenticated users can see their posts."""
     db = info.context["db"]
     user = info.context["user"]  # Guaranteed to exist
-    
+
     return await db.find("post_view", author_id=user.user_id)
 
 @fraiseql.query
@@ -168,15 +168,15 @@ async def project(info, id: UUID) -> Project | None:
     """Get project with custom permission check."""
     db = info.context["db"]
     user = info.context.get("user")
-    
+
     project = await db.find_one("project_view", id=id)
     if not project:
         return None
-    
+
     # Custom permission logic
     if project.is_private and (not user or user.user_id != project.owner_id):
         raise GraphQLError("Permission denied")
-    
+
     return project
 ```
 
@@ -212,23 +212,23 @@ async def posts_paginated(
 ) -> PostConnection:
     """Paginated posts with cursor."""
     db = info.context["db"]
-    
+
     # Decode cursor to get offset
     offset = 0
     if after:
         import base64
         offset = int(base64.b64decode(after).decode())
-    
+
     # Fetch one extra to check for next page
-    posts = await db.find("post_view", 
+    posts = await db.find("post_view",
         limit=first + 1,
         offset=offset,
         order_by=order_by
     )
-    
+
     has_next = len(posts) > first
     posts = posts[:first]  # Remove extra
-    
+
     # Build edges with cursors
     edges = []
     for i, post in enumerate(posts):
@@ -236,7 +236,7 @@ async def posts_paginated(
             str(offset + i).encode()
         ).decode()
         edges.append(PostEdge(node=post, cursor=cursor))
-    
+
     return PostConnection(
         edges=edges,
         page_info=PageInfo(
@@ -268,17 +268,17 @@ async def posts_offset(
 ) -> PaginatedPosts:
     """Simple offset pagination."""
     db = info.context["db"]
-    
+
     offset = (page - 1) * per_page
-    
+
     posts = await db.find("post_view",
         limit=per_page,
         offset=offset
     )
-    
+
     total = await db.count("post_view")
     pages = (total + per_page - 1) // per_page
-    
+
     return PaginatedPosts(
         items=posts,
         total=total,
@@ -311,56 +311,56 @@ async def filtered_posts(
 ) -> list[Post]:
     """Advanced post filtering."""
     db = info.context["db"]
-    
+
     # Build WHERE conditions
     conditions = []
     params = {}
-    
+
     if filter:
         if filter.author_id:
             conditions.append("author_id = %(author_id)s")
             params["author_id"] = filter.author_id
-            
+
         if filter.status:
             conditions.append("status = %(status)s")
             params["status"] = filter.status
-            
+
         if filter.tags:
             conditions.append("tags && %(tags)s")  # Array overlap
             params["tags"] = filter.tags
-            
+
         if filter.created_after:
             conditions.append("created_at >= %(created_after)s")
             params["created_after"] = filter.created_after
-            
+
         if filter.created_before:
             conditions.append("created_at <= %(created_before)s")
             params["created_before"] = filter.created_before
-            
+
         if filter.search:
             conditions.append(
                 "to_tsvector('english', title || ' ' || content) @@ "
                 "plainto_tsquery('english', %(search)s)"
             )
             params["search"] = filter.search
-    
+
     # Build query
     query = "SELECT * FROM post_view"
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
-    
+
     query += f" ORDER BY {order_by} {'DESC' if order_desc else 'ASC'}"
-    
+
     # Execute with custom SQL
     from fraiseql.db import DatabaseQuery
     from psycopg.sql import SQL
-    
+
     results = await db.run(DatabaseQuery(
         statement=SQL(query),
         params=params,
         fetch_result=True
     ))
-    
+
     # In dev mode, instantiate manually
     if db.mode == "development":
         return [Post(**row["data"]) for row in results]
@@ -372,11 +372,11 @@ async def filtered_posts(
 ```sql
 -- Add search vector to view
 CREATE VIEW post_search AS
-SELECT 
+SELECT
     id,
     author_id,
     status,
-    to_tsvector('english', title || ' ' || content || ' ' || 
+    to_tsvector('english', title || ' ' || content || ' ' ||
         coalesce(array_to_string(tags, ' '), '')) as search_vector,
     ts_rank(
         to_tsvector('english', title || ' ' || content),
@@ -393,7 +393,7 @@ SELECT
 FROM posts;
 
 -- Index for performance
-CREATE INDEX idx_posts_search ON posts 
+CREATE INDEX idx_posts_search ON posts
 USING gin(to_tsvector('english', title || ' ' || content));
 ```
 
@@ -406,23 +406,23 @@ async def search_posts(
 ) -> list[Post]:
     """Full-text search posts."""
     db = info.context["db"]
-    
+
     # Custom query for search
     from psycopg.sql import SQL
-    
+
     sql = SQL("""
         SELECT * FROM post_search
         WHERE search_vector @@ plainto_tsquery('english', %(query)s)
         ORDER BY rank DESC
         LIMIT %(limit)s
     """)
-    
+
     results = await db.run(DatabaseQuery(
         statement=sql,
         params={"query": query, "limit": limit},
         fetch_result=True
     ))
-    
+
     return [Post(**row["data"]) for row in results]
 ```
 
@@ -432,7 +432,7 @@ async def search_posts(
 
 ```sql
 CREATE VIEW author_with_posts AS
-SELECT 
+SELECT
     a.id,
     a.tenant_id,
     jsonb_build_object(
@@ -479,7 +479,7 @@ async def author_with_posts(info, id: UUID) -> AuthorWithPosts | None:
 
 ```sql
 CREATE VIEW post_with_tags AS
-SELECT 
+SELECT
     p.id,
     jsonb_build_object(
         'id', p.id,
@@ -521,9 +521,9 @@ async def create_posts_batch(
     """Create multiple posts in one mutation."""
     db = info.context["db"]
     user = info.context["user"]
-    
+
     created_posts = []
-    
+
     # Use transaction for atomicity
     async with db._pool.connection() as conn:
         async with conn.transaction():
@@ -539,11 +539,11 @@ async def create_posts_batch(
                     "author_id": user.user_id,
                     "tags": input_data.tags
                 })
-                
+
                 # Fetch complete post
                 post = await db.find_one("post_view", id=result["id"])
                 created_posts.append(post)
-    
+
     return created_posts
 ```
 
@@ -563,30 +563,30 @@ async def update_posts_batch(
 ) -> list[Post]:
     """Update multiple posts at once."""
     db = info.context["db"]
-    
+
     # Build update fields
     updates = []
     params = {"ids": input.ids}
-    
+
     if input.status is not None:
         updates.append("status = %(status)s")
         params["status"] = input.status
-        
+
     if input.tags is not None:
         updates.append("tags = %(tags)s")
         params["tags"] = input.tags
-    
+
     if not updates:
         raise GraphQLError("No fields to update")
-    
+
     # Execute batch update
     async with db._pool.connection() as conn:
         await conn.execute(f"""
-            UPDATE posts 
+            UPDATE posts
             SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP
             WHERE id = ANY(%(ids)s)
         """, params)
-    
+
     # Return updated posts
     return await db.find("post_view", id=input.ids)
 ```
@@ -615,7 +615,7 @@ async def create_post_safe(
     """Create post with structured error handling."""
     db = info.context["db"]
     errors = []
-    
+
     # Validation
     if len(input.title) < 3:
         errors.append(Error(
@@ -623,22 +623,22 @@ async def create_post_safe(
             code="TITLE_TOO_SHORT",
             field="title"
         ))
-    
+
     if len(input.content) < 10:
         errors.append(Error(
             message="Content too short",
             code="CONTENT_TOO_SHORT",
             field="content"
         ))
-    
+
     if errors:
         return PostResult(errors=errors)
-    
+
     try:
         # Create post
         post = await create_post_internal(db, input)
         return PostResult(post=post)
-        
+
     except UniqueViolationError:
         return PostResult(errors=[Error(
             message="A post with this title already exists",
@@ -701,17 +701,17 @@ redis_client = redis.from_url("redis://localhost")
 async def cached_user(info, id: UUID) -> User | None:
     """Get user with Redis caching."""
     cache_key = f"user:{id}"
-    
+
     # Try cache first
     cached = await redis_client.get(cache_key)
     if cached:
         data = json.loads(cached)
         return User(**data)
-    
+
     # Fetch from database
     db = info.context["db"]
     user = await db.find_one("user_view", id=id)
-    
+
     if user:
         # Cache for 1 hour
         await redis_client.setex(
@@ -719,20 +719,20 @@ async def cached_user(info, id: UUID) -> User | None:
             timedelta(hours=1),
             json.dumps(user.dict() if hasattr(user, 'dict') else user)
         )
-    
+
     return user
 
 @fraiseql.mutation
 async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
     """Update user and invalidate cache."""
     db = info.context["db"]
-    
+
     # Update in database
     user = await update_user_internal(db, id, input)
-    
+
     # Invalidate cache
     await redis_client.delete(f"user:{id}")
-    
+
     return user
 ```
 
@@ -750,22 +750,22 @@ def cache_query(ttl: int = 300):
             # Generate cache key from function name and args
             key_data = f"{func.__name__}:{json.dumps(kwargs, sort_keys=True)}"
             cache_key = hashlib.md5(key_data.encode()).hexdigest()
-            
+
             # Try cache
             cached = await redis_client.get(cache_key)
             if cached:
                 return json.loads(cached)
-            
+
             # Execute query
             result = await func(info, **kwargs)
-            
+
             # Cache result
             await redis_client.setex(
                 cache_key,
                 ttl,
                 json.dumps(result, default=str)
             )
-            
+
             return result
         return wrapper
     return decorator
@@ -795,11 +795,11 @@ async def upload_file(
     # Save file
     file_id = uuid4()
     file_path = f"uploads/{user.user_id}/{file_id}_{file.filename}"
-    
+
     async with aiofiles.open(file_path, 'wb') as f:
         content = await file.read()
         await f.write(content)
-    
+
     # Store metadata in database
     async with db_pool.connection() as conn:
         await conn.execute("""
@@ -813,7 +813,7 @@ async def upload_file(
             "size": len(content),
             "content_type": file.content_type
         })
-    
+
     return {"file_id": str(file_id)}
 
 # Reference uploaded files in GraphQL
@@ -834,13 +834,13 @@ async def create_post_with_image(
 ) -> Post:
     """Create post with uploaded image."""
     db = info.context["db"]
-    
+
     # Verify file exists if provided
     if image_id:
         file = await db.find_one("file_view", id=image_id)
         if not file:
             raise GraphQLError("Invalid file ID")
-    
+
     # Create post with image reference
     # ...
 ```
@@ -861,12 +861,12 @@ async def post_created(info, author_id: UUID | None = None):
     """Subscribe to new posts."""
     queue = asyncio.Queue()
     channel = f"posts:{author_id}" if author_id else "posts:all"
-    
+
     # Register subscriber
     if channel not in subscribers:
         subscribers[channel] = []
     subscribers[channel].append(queue)
-    
+
     try:
         while True:
             post = await queue.get()
@@ -883,17 +883,17 @@ async def create_post_with_notification(
     """Create post and notify subscribers."""
     db = info.context["db"]
     user = info.context["user"]
-    
+
     # Create post
     post = await create_post_internal(db, input, user.user_id)
-    
+
     # Notify subscribers
     channels = [f"posts:all", f"posts:{user.user_id}"]
     for channel in channels:
         if channel in subscribers:
             for queue in subscribers[channel]:
                 await queue.put(post)
-    
+
     return post
 ```
 

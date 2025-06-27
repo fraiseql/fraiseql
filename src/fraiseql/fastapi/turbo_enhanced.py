@@ -10,7 +10,6 @@ This module extends the basic TurboRouter with:
 from __future__ import annotations
 
 import time
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -330,4 +329,3 @@ class EnhancedTurboRouter(TurboRouter):
                 "cache_priority_score": turbo_query.cache_score,
             }
         return None
-

@@ -47,7 +47,10 @@ class DynamicType(Protocol):
 
 
 def build_operator_composed(
-    path_sql: SQL, op: str, val: object, field_type: type | None = None
+    path_sql: SQL,
+    op: str,
+    val: object,
+    field_type: type | None = None,
 ) -> Composed:
     """Build parameterized SQL for a specific operator using psycopg Composed.
 
@@ -218,7 +221,8 @@ def _make_filter_field_composed(
 
 
 def _build_where_to_sql(
-    fields: list[str], type_hints: dict[str, type] | None = None
+    fields: list[str],
+    type_hints: dict[str, type] | None = None,
 ) -> Callable[[object], Composed | None]:
     """Build a `to_sql` method for a dynamic filter dataclass.
 
@@ -242,7 +246,10 @@ def _build_where_to_sql(
             elif isinstance(val, dict):
                 field_type = type_hints.get(name) if type_hints else None
                 cond = _make_filter_field_composed(
-                    name, cast("dict[str, object]", val), "data", field_type
+                    name,
+                    cast("dict[str, object]", val),
+                    "data",
+                    field_type,
                 )
                 if cond:
                     conditions.append(cond)

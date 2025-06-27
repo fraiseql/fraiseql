@@ -327,4 +327,3 @@ class TestFieldAuthIntegration:
 
         assert result.data["getDocument"]["title"] == "Test Document"
         # Content access depends on field resolver implementation
-
