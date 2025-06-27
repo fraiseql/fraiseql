@@ -211,7 +211,7 @@ def field(
         wrapped_func.__fraiseql_field_description__ = description
         wrapped_func.__name__ = func.__name__
         wrapped_func.__doc__ = func.__doc__
-        
+
         # Store the original function for field authorization
         wrapped_func.__fraiseql_original_func__ = func
 

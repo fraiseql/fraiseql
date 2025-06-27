@@ -276,7 +276,11 @@ class FraiseQLRepository:
                 if item_type and hasattr(item_type, "__fraiseql_definition__"):
                     processed_value = [
                         self._instantiate_recursive(
-                            item_type, item, cache, depth + 1, partial=partial
+                            item_type,
+                            item,
+                            cache,
+                            depth + 1,
+                            partial=partial,
                         )
                         for item in processed_value
                     ]
@@ -306,7 +310,8 @@ class FraiseQLRepository:
                         pass  # Keep original value if not valid datetime
                 # Check if field is Decimal and value is numeric
                 elif actual_field_type == Decimal and isinstance(
-                    processed_value, (int, float, str)
+                    processed_value,
+                    (int, float, str),
                 ):
                     try:
                         processed_value = Decimal(str(processed_value))
@@ -371,7 +376,7 @@ class FraiseQLRepository:
                 return type_class
 
         raise NotImplementedError(
-            f"Type registry lookup for {view_name} not implemented. Available views: {list(_type_registry.keys())}"
+            f"Type registry lookup for {view_name} not implemented. Available views: {list(_type_registry.keys())}",
         )
 
     def _build_find_query(self, view_name: str, **kwargs) -> DatabaseQuery:

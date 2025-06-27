@@ -62,7 +62,7 @@ class Allocation:
     is_future: bool
     is_reserved: bool
     is_stock: bool
-    
+
     # JSONB nested fields - FraiseQL will automatically extract these
     # from the 'data' column in development mode
     identifier: Optional[str]
@@ -88,7 +88,7 @@ The key is how your database view returns the data. Your view should return the 
 
 ```sql
 CREATE VIEW tv_allocation AS
-SELECT 
+SELECT
     a.id,
     a.machine_id,
     a.machine_item_id,
@@ -159,8 +159,8 @@ print(allocation["identifier"])  # Direct field
    os.environ["FRAISEQL_ENV"] = "development"
    allocation = await repo.find_one("tv_allocation", id=test_id)
    assert isinstance(allocation.machine, Machine)
-   
-   # Production mode test  
+
+   # Production mode test
    os.environ["FRAISEQL_ENV"] = "production"
    allocation = await repo.find_one("tv_allocation", id=test_id)
    assert isinstance(allocation["machine"], dict)
@@ -175,7 +175,7 @@ If you can't modify the database view to extract fields, you'll need to handle i
 class Allocation:
     # ... fields ...
     data: dict
-    
+
     def get_machine(self) -> Optional[Machine]:
         """Manually instantiate Machine from JSONB data."""
         if not self.data or "machine" not in self.data:

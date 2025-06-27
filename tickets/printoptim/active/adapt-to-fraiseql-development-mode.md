@@ -122,8 +122,8 @@ print(isinstance(machine, dict))  # True in production
 # Before
 async def get_available_machines(repo: FraiseQLRepository) -> list[dict]:
     query = """
-    SELECT * FROM machine_view 
-    WHERE status = 'available' 
+    SELECT * FROM machine_view
+    WHERE status = 'available'
     ORDER BY name
     """
     machines = await repo.run(query)
@@ -148,7 +148,7 @@ def test_dual_mode_compatibility():
     machine = await dev_repo.find_one("machine_view", id="test-id")
     assert isinstance(machine, Machine)
     assert hasattr(machine, 'name')
-    
+
     # Test with prod mode
     prod_repo = FraiseQLRepository(pool, {"mode": "production"})
     machine = await prod_repo.find_one("machine_view", id="test-id")

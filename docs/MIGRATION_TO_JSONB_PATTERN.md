@@ -28,7 +28,7 @@ FraiseQL **only** instantiates types from a `data` JSONB column:
 ```sql
 -- Types instantiated from individual columns
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,
     email,
     name,
@@ -40,7 +40,7 @@ FROM users;
 ```sql
 -- All data in JSONB 'data' column
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     tenant_id,       -- For access control
     jsonb_build_object(
@@ -57,7 +57,7 @@ FROM users;
 #### Old Pattern
 ```sql
 CREATE VIEW post_with_author AS
-SELECT 
+SELECT
     p.id,
     p.title,
     p.content,
@@ -71,7 +71,7 @@ JOIN users u ON p.author_id = u.id;
 #### New Pattern
 ```sql
 CREATE VIEW post_with_author AS
-SELECT 
+SELECT
     p.id,           -- For filtering
     p.author_id,    -- For joins
     jsonb_build_object(
@@ -140,7 +140,7 @@ print(user["data"]["email"])  # Dict access
 
 ```sql
 CREATE VIEW tenant_users AS
-SELECT 
+SELECT
     id,
     tenant_id,      -- For access control
     jsonb_build_object(
@@ -157,7 +157,7 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 
 ```sql
 CREATE VIEW user_stats AS
-SELECT 
+SELECT
     u.id,
     jsonb_build_object(
         'id', u.id,
@@ -177,7 +177,7 @@ GROUP BY u.id;
 
 ```sql
 CREATE MATERIALIZED VIEW product_catalog AS
-SELECT 
+SELECT
     p.id,
     p.category_id,  -- For filtering
     jsonb_build_object(
@@ -196,7 +196,7 @@ SELECT
     ) as data
 FROM products p;
 
-CREATE INDEX idx_product_catalog_category 
+CREATE INDEX idx_product_catalog_category
 ON product_catalog(category_id);
 ```
 
@@ -248,7 +248,7 @@ jsonb_build_object(
    ```sql
    -- Good: Filter on column
    SELECT * FROM user_view WHERE tenant_id = $1;
-   
+
    -- Avoid: Filter on JSONB
    SELECT * FROM user_view WHERE data->>'tenant_id' = $1;
    ```

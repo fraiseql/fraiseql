@@ -71,7 +71,7 @@ SELECT
     id,
     tenant_id,
     status,
-    
+
     -- Data column (for object instantiation)
     jsonb_build_object(
         'field1', value1,
@@ -137,7 +137,7 @@ SELECT
         'post_count', (
             SELECT COUNT(*) FROM posts WHERE author_id = u.id
         ),
-        'last_login_days_ago', 
+        'last_login_days_ago',
             EXTRACT(DAY FROM NOW() - last_login_at)::int
     ) as data
 FROM users u;
@@ -294,7 +294,7 @@ SELECT
 FROM posts;
 
 -- Create index for performance
-CREATE INDEX idx_searchable_posts_search 
+CREATE INDEX idx_searchable_posts_search
 ON posts USING gin(to_tsvector('english', title || ' ' || content));
 ```
 
@@ -453,8 +453,8 @@ Check that:
 1. **Add indexes on filter columns**:
 ```sql
 CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_tenant_active 
-    ON users(tenant_id, is_active) 
+CREATE INDEX idx_users_tenant_active
+    ON users(tenant_id, is_active)
     WHERE deleted_at IS NULL;
 ```
 

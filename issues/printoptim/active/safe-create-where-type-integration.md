@@ -14,32 +14,32 @@ Currently, we have to write this for every entity:
 def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: str | None) -> dict[str, Any]:
     """Convert machine where input to database filters."""
     filters = {}
-    
+
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     if not where:
         return filters
-    
+
     # Handle both MachineWhereInput instances and dicts
     def get_field(field_name: str):
         if isinstance(where, dict):
             return where.get(field_name)
         else:
             return getattr(where, field_name, None)
-    
+
     # Define field mappings
     DIRECT_FIELDS = [
         'id', 'identifier', 'model_id', 'contract_id', 'order_id',
         'customer_organization_id', 'provider_organization_id'
     ]
-    
+
     # Add all direct field filters
     for field in DIRECT_FIELDS:
         value = get_field(field)
         if value is not None:
             filters[field] = value
-    
+
     return filters
 ```
 
@@ -71,13 +71,13 @@ async def machines(
     where: MachineWhereInput | None = None,
 ) -> list[Machine]:
     """Retrieve a list of machines with filtering."""
-    
+
     db = info.context["db"]
     tenant_id = # ... get tenant_id
-    
+
     # Automatically build filters from where input using safe_create_where_type
     filters = convert_where_input_to_filters(where, _MachineWhere, tenant_id=tenant_id)
-    
+
     return await db.find("tb_machine",
         **filters,
         limit=limit,

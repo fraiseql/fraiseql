@@ -84,7 +84,7 @@ class TestRepositoryWhereIntegration:
             # Create views with JSONB data column
             await conn.execute("""
                 CREATE OR REPLACE VIEW test_product_view AS
-                SELECT 
+                SELECT
                     id, name, price, stock, created_at, is_active, category,
                     jsonb_build_object(
                         'id', id,
@@ -100,7 +100,7 @@ class TestRepositoryWhereIntegration:
 
             await conn.execute("""
                 CREATE OR REPLACE VIEW test_order_view AS
-                SELECT 
+                SELECT
                     id, product_id, quantity, total, order_date, status,
                     jsonb_build_object(
                         'id', id,
@@ -118,7 +118,7 @@ class TestRepositoryWhereIntegration:
             await conn.execute(
                 """
                 INSERT INTO test_products (id, name, price, stock, created_at, is_active, category)
-                VALUES 
+                VALUES
                     (%s, 'Widget A', 19.99, 100, '2024-01-01 10:00:00+00', true, 'widgets'),
                     (%s, 'Widget B', 29.99, 50, '2024-01-02 10:00:00+00', true, 'widgets'),
                     (%s, 'Gadget X', 99.99, 10, '2024-01-03 10:00:00+00', false, 'gadgets'),
@@ -130,7 +130,7 @@ class TestRepositoryWhereIntegration:
             await conn.execute(
                 """
                 INSERT INTO test_orders (id, product_id, quantity, total, order_date, status)
-                VALUES 
+                VALUES
                     (%s, %s, 2, 39.98, '2024-01-05', 'completed'),
                     (%s, %s, 1, 19.99, '2024-01-06', 'pending'),
                     (%s, %s, 3, 89.97, '2024-01-07', 'completed')

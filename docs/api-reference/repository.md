@@ -42,7 +42,7 @@ async def my_query(info) -> Result:
 async def bad_query(info) -> Result:
     # Don't do this!
     db = FraiseQLRepository(connection)
-    
+
 # ❌ WRONG: Don't use raw connections
 @fraiseql.query
 async def bad_query(info) -> Result:
@@ -124,7 +124,7 @@ async def users_without_profile(info) -> list[User]:
 CREATE VIEW user_view AS
 SELECT
     id,              -- Available for filtering
-    email,           -- Available for filtering  
+    email,           -- Available for filtering
     role,            -- Available for filtering
     is_active,       -- Available for filtering
     jsonb_build_object(
@@ -238,11 +238,11 @@ async def active_user_count(info) -> int:
 @fraiseql.query
 async def paginated_users(info, page: int = 1, per_page: int = 20) -> PaginatedUsers:
     db = info.context["db"]
-    
+
     offset = (page - 1) * per_page
     users = await db.find("user_view", limit=per_page, offset=offset)
     total = await db.count("user_view")
-    
+
     return PaginatedUsers(
         items=users,
         total=total,
@@ -285,39 +285,39 @@ async def call_function(
 @fraiseql.mutation
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
-    
+
     result = await db.call_function(
         "create_user",
         email=input.email,
         name=input.name,
         password_hash=hash_password(input.password)
     )
-    
+
     return User(**result)
 
 # Update mutation
 @fraiseql.mutation
 async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
     db = info.context["db"]
-    
+
     result = await db.call_function(
         "update_user",
         user_id=id,
         updates=input.__dict__  # Pass as JSONB
     )
-    
+
     return User(**result)
 
 # Delete mutation
 @fraiseql.mutation
 async def delete_user(info, id: UUID) -> bool:
     db = info.context["db"]
-    
+
     result = await db.call_function(
         "delete_user",
         user_id=id
     )
-    
+
     return result["success"]
 ```
 
@@ -336,11 +336,11 @@ BEGIN
     INSERT INTO users (email, name, password_hash)
     VALUES (email, name, password_hash)
     RETURNING id INTO new_user_id;
-    
+
     SELECT data INTO result
     FROM user_view
     WHERE id = new_user_id;
-    
+
     RETURN result;
 END;
 $$ LANGUAGE plpgsql;
@@ -370,12 +370,12 @@ from psycopg.sql import SQL
 @fraiseql.query
 async def search_posts(info, search_term: str) -> list[Post]:
     db = info.context["db"]
-    
+
     query = DatabaseQuery(
         statement=SQL("""
             SELECT data
             FROM post_view
-            WHERE to_tsvector('english', title || ' ' || content) 
+            WHERE to_tsvector('english', title || ' ' || content)
                 @@ plainto_tsquery('english', %(search)s)
             ORDER BY ts_rank(
                 to_tsvector('english', title || ' ' || content),
@@ -385,7 +385,7 @@ async def search_posts(info, search_term: str) -> list[Post]:
         params={"search": search_term},
         fetch_result=True
     )
-    
+
     results = await db.run(query)
     return [Post(**row["data"]) for row in results]
 ```
@@ -398,9 +398,9 @@ Execute raw SQL returning a single row.
 @fraiseql.query
 async def user_stats(info, user_id: UUID) -> dict:
     db = info.context["db"]
-    
+
     result = await db.fetch_one("""
-        SELECT 
+        SELECT
             COUNT(DISTINCT p.id) as post_count,
             COUNT(DISTINCT c.id) as comment_count,
             MAX(p.created_at) as last_post_date
@@ -410,7 +410,7 @@ async def user_stats(info, user_id: UUID) -> dict:
         WHERE u.id = %s
         GROUP BY u.id
     """, (user_id,))
-    
+
     return dict(result) if result else {}
 ```
 
@@ -422,19 +422,19 @@ Execute raw SQL returning multiple rows.
 @fraiseql.query
 async def user_activity_feed(info, user_id: UUID, limit: int = 50) -> list[Activity]:
     db = info.context["db"]
-    
+
     results = await db.fetch_many("""
         (
             SELECT 'post' as type, id, title as content, created_at
             FROM posts WHERE author_id = %s
         ) UNION ALL (
-            SELECT 'comment' as type, id, content, created_at  
+            SELECT 'comment' as type, id, content, created_at
             FROM comments WHERE author_id = %s
         )
         ORDER BY created_at DESC
         LIMIT %s
     """, (user_id, user_id, limit))
-    
+
     return [Activity(**dict(row)) for row in results]
 ```
 
@@ -453,29 +453,29 @@ async def transfer_credits(
     amount: int
 ) -> TransferResult:
     db = info.context["db"]
-    
+
     async with db._pool.connection() as conn:
         async with conn.transaction():
             # Deduct from sender
             await conn.execute("""
-                UPDATE users 
-                SET credits = credits - %s 
+                UPDATE users
+                SET credits = credits - %s
                 WHERE id = %s AND credits >= %s
             """, (amount, from_user_id, amount))
-            
+
             # Add to receiver
             await conn.execute("""
-                UPDATE users 
-                SET credits = credits + %s 
+                UPDATE users
+                SET credits = credits + %s
                 WHERE id = %s
             """, (amount, to_user_id))
-            
+
             # Create transfer record
             await conn.execute("""
                 INSERT INTO transfers (from_user_id, to_user_id, amount)
                 VALUES (%s, %s, %s)
             """, (from_user_id, to_user_id, amount))
-    
+
     return TransferResult(success=True, amount=amount)
 ```
 
@@ -525,7 +525,7 @@ repo = FraiseQLRepository(pool, mode="production")   # Optimized queries
 async def tenant_users(info) -> list[User]:
     db = info.context["db"]
     tenant_id = info.context["tenant_id"]
-    
+
     # Always filter by tenant
     return await db.find("user_view", tenant_id=tenant_id)
 
@@ -533,7 +533,7 @@ async def tenant_users(info) -> list[User]:
 async def tenant_user(info, id: UUID) -> Optional[User]:
     db = info.context["db"]
     tenant_id = info.context["tenant_id"]
-    
+
     # Include tenant check in single queries too!
     return await db.find_one(
         "user_view",
@@ -562,9 +562,9 @@ async def users_paginated(
     filter: Optional[UserFilter] = None
 ) -> PaginatedUsers:
     db = info.context["db"]
-    
+
     offset = (page - 1) * per_page
-    
+
     # Build filters
     filters = {}
     if filter:
@@ -572,7 +572,7 @@ async def users_paginated(
             filters["role"] = filter.role
         if filter.is_active is not None:
             filters["is_active"] = filter.is_active
-    
+
     # Get items and count
     items = await db.find(
         "user_view",
@@ -581,7 +581,7 @@ async def users_paginated(
         **filters
     )
     total = await db.count("user_view", **filters)
-    
+
     return PaginatedUsers(
         items=items,
         total=total,
@@ -598,14 +598,14 @@ async def users_paginated(
 @fraiseql.query
 async def users_with_stats(info) -> list[UserWithStats]:
     db = info.context["db"]
-    
+
     # Get users
     users = await db.find("user_view", is_active=True)
     user_ids = [u.id for u in users]
-    
+
     # Batch load stats
     stats = await db.fetch_many("""
-        SELECT 
+        SELECT
             author_id as user_id,
             COUNT(*) as post_count,
             MAX(created_at) as last_post_date
@@ -613,10 +613,10 @@ async def users_with_stats(info) -> list[UserWithStats]:
         WHERE author_id = ANY(%s)
         GROUP BY author_id
     """, (user_ids,))
-    
+
     # Combine data
     stats_map = {s["user_id"]: s for s in stats}
-    
+
     return [
         UserWithStats(
             **user.__dict__,
@@ -635,7 +635,7 @@ from psycopg import errors
 @fraiseql.mutation
 async def create_user_safe(info, input: CreateUserInput) -> CreateUserResult:
     db = info.context["db"]
-    
+
     try:
         result = await db.call_function(
             "create_user",
@@ -643,7 +643,7 @@ async def create_user_safe(info, input: CreateUserInput) -> CreateUserResult:
             name=input.name
         )
         return CreateUserSuccess(user=User(**result))
-        
+
     except errors.UniqueViolation as e:
         if "users_email_key" in str(e):
             return CreateUserError(
@@ -652,7 +652,7 @@ async def create_user_safe(info, input: CreateUserInput) -> CreateUserResult:
                 field="email"
             )
         raise
-        
+
     except errors.CheckViolation as e:
         return CreateUserError(
             message="Invalid data provided",

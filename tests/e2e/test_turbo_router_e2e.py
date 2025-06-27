@@ -351,4 +351,3 @@ class TestTurboRouterAsync:
         metrics = registry.get_metrics()
         assert metrics["cache_size"] <= 5
         assert metrics["total_queries_analyzed"] == 10
-
