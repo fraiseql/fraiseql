@@ -5,7 +5,7 @@ early and ensure their queries are well-formed.
 """
 
 from dataclasses import fields, is_dataclass
-from typing import Any, Optional, Type, get_args, get_origin, get_type_hints
+from typing import Any, Optional, Type, cast, get_args, get_origin, get_type_hints
 
 from graphql import GraphQLResolveInfo
 
