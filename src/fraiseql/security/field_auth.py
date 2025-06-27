@@ -75,98 +75,97 @@ def authorize_field(
 
     def decorator(func: T) -> T:
         """Wrap the field resolver with authorization logic."""
-        # Check if this is already a wrapped resolver from @field decorator
-        is_field_wrapped = hasattr(func, "__fraiseql_field__")
+        # Get the actual function to check if it's async
         actual_func = func
+        if hasattr(func, "__fraiseql_original_func__"):
+            actual_func = func.__fraiseql_original_func__
 
-        # For methods, we need to handle both sync and async
         is_async = asyncio.iscoroutinefunction(actual_func)
 
         if is_async:
 
-            @functools.wraps(actual_func)
-            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                # Handle both method calls and GraphQL resolver calls
-                if len(args) >= 2 and hasattr(args[1], "field_name"):
-                    # GraphQL resolver call: (self/root, info, ...)
-                    self_or_root = args[0]
-                    info = args[1]
-                    resolver_args = args[2:]
-                else:
-                    # Direct method call for testing
-                    self_or_root = args[0]
-                    info = args[1] if len(args) > 1 else None
-                    resolver_args = args[2:] if len(args) > 2 else ()
-
-                # Check permission
+            @functools.wraps(func)
+            async def async_auth_wrapper(root, info, *args: Any, **kwargs: Any) -> Any:
+                # Check permission first
                 if asyncio.iscoroutinefunction(permission_check):
-                    authorized = await permission_check(info, *resolver_args, **kwargs)
+                    authorized = await permission_check(info, *args, **kwargs)
                 else:
-                    authorized = permission_check(info, *resolver_args, **kwargs)
+                    authorized = permission_check(info, *args, **kwargs)
 
                 if not authorized:
-                    field_name = info.field_name if hasattr(info, "field_name") else "field"
+                    field_name = getattr(info, "field_name", "field")
                     raise FieldAuthorizationError(
                         error_message or f"Not authorized to access field '{field_name}'",
                     )
 
-                # Call the original resolver
-                return await actual_func(*args, **kwargs)
+                # Call the original function
+                return await func(root, info, *args, **kwargs)
 
-            # Preserve field decorator metadata if present
-            if is_field_wrapped:
-                async_wrapper.__fraiseql_field__ = True
-                if hasattr(func, "__fraiseql_field_description__"):
-                    async_wrapper.__fraiseql_field_description__ = (
-                        func.__fraiseql_field_description__
-                    )
-
-            return async_wrapper  # type: ignore[return-value]
-
-        @functools.wraps(actual_func)
-        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Handle both method calls and GraphQL resolver calls
-            if len(args) >= 2 and hasattr(args[1], "field_name"):
-                # GraphQL resolver call: (self/root, info, ...)
-                self_or_root = args[0]
-                info = args[1]
-                resolver_args = args[2:]
-            else:
-                # Direct method call for testing
-                self_or_root = args[0]
-                info = args[1] if len(args) > 1 else None
-                resolver_args = args[2:] if len(args) > 2 else ()
-
-            # Check permission
-            if asyncio.iscoroutinefunction(permission_check):
-                # If permission check is async but resolver is sync,
-                # we need to run it in an event loop
-                loop = asyncio.new_event_loop()
-                try:
-                    authorized = loop.run_until_complete(
-                        permission_check(info, *resolver_args, **kwargs),
-                    )
-                finally:
-                    loop.close()
-            else:
-                authorized = permission_check(info, *resolver_args, **kwargs)
-
-            if not authorized:
-                field_name = info.field_name if hasattr(info, "field_name") else "field"
-                raise FieldAuthorizationError(
-                    error_message or f"Not authorized to access field '{field_name}'",
+            # Preserve field metadata
+            if hasattr(func, "__fraiseql_field__"):
+                async_auth_wrapper.__fraiseql_field__ = func.__fraiseql_field__
+                async_auth_wrapper.__fraiseql_field_resolver__ = func.__fraiseql_field_resolver__
+                async_auth_wrapper.__fraiseql_field_description__ = getattr(
+                    func, "__fraiseql_field_description__", None
                 )
+                if hasattr(func, "__fraiseql_original_func__"):
+                    async_auth_wrapper.__fraiseql_original_func__ = func.__fraiseql_original_func__
 
-            # Call the original resolver
-            return actual_func(*args, **kwargs)
+            return async_auth_wrapper  # type: ignore[return-value]
 
-        # Preserve field decorator metadata if present
-        if is_field_wrapped:
-            sync_wrapper.__fraiseql_field__ = True
-            if hasattr(func, "__fraiseql_field_description__"):
-                sync_wrapper.__fraiseql_field_description__ = func.__fraiseql_field_description__
+        else:
 
-        return sync_wrapper  # type: ignore[return-value]
+            @functools.wraps(func)
+            def sync_auth_wrapper(root, info, *args: Any, **kwargs: Any) -> Any:
+                # Check permission first
+                if asyncio.iscoroutinefunction(permission_check):
+                    # Handle async permission check in sync context
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # We're in an async context, create a task
+                            future = asyncio.ensure_future(permission_check(info, *args, **kwargs))
+                            # This is not ideal but necessary for sync resolvers
+                            authorized = asyncio.run_coroutine_threadsafe(
+                                permission_check(info, *args, **kwargs), loop
+                            ).result()
+                        else:
+                            # No running loop, use run_until_complete
+                            authorized = loop.run_until_complete(
+                                permission_check(info, *args, **kwargs)
+                            )
+                    except RuntimeError:
+                        # No event loop, create a new one
+                        loop = asyncio.new_event_loop()
+                        try:
+                            authorized = loop.run_until_complete(
+                                permission_check(info, *args, **kwargs)
+                            )
+                        finally:
+                            loop.close()
+                else:
+                    authorized = permission_check(info, *args, **kwargs)
+
+                if not authorized:
+                    field_name = getattr(info, "field_name", "field")
+                    raise FieldAuthorizationError(
+                        error_message or f"Not authorized to access field '{field_name}'",
+                    )
+
+                # Call the original function
+                return func(root, info, *args, **kwargs)
+
+            # Preserve field metadata
+            if hasattr(func, "__fraiseql_field__"):
+                sync_auth_wrapper.__fraiseql_field__ = func.__fraiseql_field__
+                sync_auth_wrapper.__fraiseql_field_resolver__ = func.__fraiseql_field_resolver__
+                sync_auth_wrapper.__fraiseql_field_description__ = getattr(
+                    func, "__fraiseql_field_description__", None
+                )
+                if hasattr(func, "__fraiseql_original_func__"):
+                    sync_auth_wrapper.__fraiseql_original_func__ = func.__fraiseql_original_func__
+
+            return sync_auth_wrapper  # type: ignore[return-value]
 
     return decorator
 

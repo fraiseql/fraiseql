@@ -31,7 +31,7 @@ class User:
     id: int
     username: str
     public_profile: PublicProfile
-    
+
     @field
     def private_profile(self) -> PrivateProfile:
         """Private profile - requires authentication and ownership."""
@@ -41,7 +41,7 @@ class User:
             phone="+1234567890",
             address="123 Main St",
         )
-    
+
     @field
     def admin_notes(self) -> str:
         """Admin-only field."""
@@ -55,7 +55,7 @@ async def me(info) -> User | None:
     user_id = info.context.get("user_id")
     if not user_id:
         return None
-    
+
     return User(
         id=user_id,
         username=f"user{user_id}",
@@ -81,25 +81,23 @@ async def get_user(info, user_id: int) -> User:
 
 class TestFieldAuthE2E:
     """End-to-end tests for field-level authorization."""
-    
+
     @pytest.fixture
     def app(self):
         """Create test application with field auth."""
-        # Create schema
-        schema = build_fraiseql_schema(query_types=[me, get_user])
-        
-        # Create app
+        # Create app with test database URL
         app = create_fraiseql_app(
-            schema=schema,
-            path="/graphql",
+            database_url="postgresql://test:test@localhost/test",
+            types=[User, PublicProfile, PrivateProfile],
+            queries=[me, get_user],
         )
-        
+
         # Add auth simulation middleware
         @app.middleware("http")
         async def auth_middleware(request, call_next):
             # Simulate auth from headers
             auth_header = request.headers.get("Authorization", "")
-            
+
             # Simple auth simulation
             if auth_header.startswith("Bearer "):
                 token = auth_header[7:]
@@ -109,17 +107,17 @@ class TestFieldAuthE2E:
                 elif token.startswith("user-"):
                     request.state.user_id = int(token.split("-")[1])
                     request.state.is_admin = False
-            
+
             response = await call_next(request)
             return response
-        
+
         return app
-    
+
     @pytest.fixture
     def client(self, app):
         """Create test client."""
         return TestClient(app)
-    
+
     def test_public_fields_accessible(self, client):
         """Test that public fields are accessible without auth."""
         query = """
@@ -134,15 +132,15 @@ class TestFieldAuthE2E:
             }
         }
         """
-        
+
         response = client.post("/graphql", json={"query": query})
         assert response.status_code == 200
-        
+
         data = response.json()
         assert data["data"]["getUser"]["id"] == 1
         assert data["data"]["getUser"]["username"] == "user1"
         assert data["data"]["getUser"]["publicProfile"]["bio"] == "A test user"
-    
+
     def test_authenticated_user_query(self, client):
         """Test authenticated user can query their own data."""
         query = """
@@ -157,17 +155,17 @@ class TestFieldAuthE2E:
             }
         }
         """
-        
+
         # Without auth
         response = client.post("/graphql", json={"query": query})
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["me"] is None
-        
+
         # With auth
         headers = {"Authorization": "Bearer user-123"}
         response = client.post(
-            "/graphql", 
+            "/graphql",
             json={"query": query},
             headers=headers,
         )
@@ -175,7 +173,7 @@ class TestFieldAuthE2E:
         data = response.json()
         assert data["data"]["me"]["id"] == 123
         assert data["data"]["me"]["username"] == "user123"
-    
+
     def test_graphql_error_handling(self, client):
         """Test GraphQL error responses for auth failures."""
         # Query with private field
@@ -191,21 +189,21 @@ class TestFieldAuthE2E:
             }
         }
         """
-        
+
         # Execute query - should get partial result with error
         response = client.post("/graphql", json={"query": query})
         assert response.status_code == 200
-        
+
         data = response.json()
         # Should have partial data
         assert data["data"]["getUser"]["id"] == 1
         assert data["data"]["getUser"]["username"] == "user1"
         # Private field should be null due to auth error
         assert data["data"]["getUser"]["privateProfile"] is None
-        
+
         # Should have errors (if field auth is properly integrated)
         # Note: This would require proper integration with GraphQL execution
-    
+
     def test_multiple_auth_levels(self, client):
         """Test different authorization levels."""
         queries = {
@@ -227,7 +225,7 @@ class TestFieldAuthE2E:
             }
             """,
         }
-        
+
         # Test as regular user
         headers = {"Authorization": "Bearer user-2"}
         response = client.post(
@@ -238,7 +236,7 @@ class TestFieldAuthE2E:
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["me"]["id"] == 2
-        
+
         # Test admin query as non-admin (would fail on adminNotes field)
         response = client.post(
             "/graphql",
@@ -247,7 +245,7 @@ class TestFieldAuthE2E:
         )
         assert response.status_code == 200
         # Admin field would be null or error
-    
+
     def test_context_propagation(self, client):
         """Test that context is properly propagated to field resolvers."""
         # This test verifies the auth context reaches field-level resolvers
@@ -262,7 +260,7 @@ class TestFieldAuthE2E:
             }
         }
         """
-        
+
         # Make authenticated request
         headers = {"Authorization": "Bearer user-456"}
         response = client.post(
@@ -270,10 +268,10 @@ class TestFieldAuthE2E:
             json={"query": query},
             headers=headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Verify user data matches auth token
         assert data["data"]["me"]["id"] == 456
         assert data["data"]["me"]["username"] == "user456"
@@ -281,25 +279,25 @@ class TestFieldAuthE2E:
 
 class TestFieldAuthIntegration:
     """Integration tests for field authorization with GraphQL execution."""
-    
+
     def test_authorize_decorator_with_graphql(self):
         """Test authorize_field decorator in GraphQL context."""
-        
+
         @fraise_type
         class SecureDocument:
             title: str
-            
+
             @field
             def content(self) -> str:
                 # Check authorization in resolver
                 return "Secret content"
-        
+
         @query
         def get_document(info) -> SecureDocument:
             return SecureDocument(title="Test Document")
-        
+
         schema = build_fraiseql_schema(query_types=[get_document])
-        
+
         # Test query
         query_str = """
         query {
@@ -309,23 +307,24 @@ class TestFieldAuthIntegration:
             }
         }
         """
-        
+
         # Execute without auth context
         result = graphql_sync(
             schema,
             query_str,
             context_value={},
         )
-        
+
         # Should get title but content might fail
         assert result.data["getDocument"]["title"] == "Test Document"
-        
+
         # Execute with auth context
         result = graphql_sync(
             schema,
             query_str,
             context_value={"authenticated": True},
         )
-        
+
         assert result.data["getDocument"]["title"] == "Test Document"
         # Content access depends on field resolver implementation
+

@@ -23,7 +23,7 @@ class Product:
     price: float
 
 
-@fraise_type  
+@fraise_type
 class OrderItem:
     product: Product
     quantity: int
@@ -75,7 +75,7 @@ async def get_customer_full(info, customer_id: int) -> Customer:
                 price=10.0 + item_id,
             )
             items.append(OrderItem(product=product, quantity=item_id + 1))
-        
+
         orders.append(
             Order(
                 id=order_id,
@@ -83,7 +83,7 @@ async def get_customer_full(info, customer_id: int) -> Customer:
                 total=sum(item.product.price * item.quantity for item in items),
             )
         )
-    
+
     return Customer(
         id=customer_id,
         name=f"Customer {customer_id}",
@@ -94,14 +94,14 @@ async def get_customer_full(info, customer_id: int) -> Customer:
 
 class TestTurboRouterE2E:
     """End-to-end tests for TurboRouter with complexity analysis."""
-    
+
     @pytest.fixture
     def app(self):
         """Create test application with enhanced TurboRouter."""
         schema = build_fraiseql_schema(
             query_types=[get_product, get_customer, get_customer_full],
         )
-        
+
         # Create enhanced registry
         self.registry = EnhancedTurboRegistry(
             max_size=10,
@@ -109,19 +109,20 @@ class TestTurboRouterE2E:
             max_total_weight=50.0,
             schema=schema,
         )
-        
+
         self.turbo_router = EnhancedTurboRouter(self.registry)
-        
+
         app = create_fraiseql_app(
-            schema=schema,
-            path="/graphql",
+            database_url="postgresql://test:test@localhost/test",
+            types=[Product, OrderItem, Order, Customer],
+            queries=[get_product, get_customer, get_customer_full],
         )
-        
+
         # Add metrics endpoint
         @app.get("/turbo/metrics")
         async def get_metrics():
             return self.registry.get_metrics()
-        
+
         # Add query analysis endpoint
         @app.post("/turbo/analyze")
         async def analyze_query(query: str):
@@ -131,14 +132,14 @@ class TestTurboRouterE2E:
                 "cache_weight": weight,
                 "should_cache": self.registry.should_cache(score),
             }
-        
+
         return app
-    
+
     @pytest.fixture
     def client(self, app):
         """Create test client."""
         return TestClient(app)
-    
+
     def test_simple_query_cached(self, client):
         """Test that simple queries are cached."""
         # Analyze simple query
@@ -151,14 +152,14 @@ class TestTurboRouterE2E:
             }
         }
         """
-        
+
         response = client.post("/turbo/analyze", json=simple_query)
         assert response.status_code == 200
         data = response.json()
         assert data["should_cache"] is True
         assert data["complexity"] < 20
         assert data["cache_weight"] <= 0.5
-    
+
     def test_complex_query_rejected(self, client):
         """Test that complex queries are rejected from cache."""
         # Create a deeply nested query
@@ -183,27 +184,27 @@ class TestTurboRouterE2E:
             }
         }
         """
-        
+
         response = client.post("/turbo/analyze", json=complex_query)
         assert response.status_code == 200
         data = response.json()
         assert data["should_cache"] is False
         assert data["complexity"] > 100
         assert data["cache_weight"] >= 3.0
-    
+
     def test_cache_metrics(self, client):
         """Test cache metrics tracking."""
         # Get initial metrics
         response = client.get("/turbo/metrics")
         assert response.status_code == 200
         metrics = response.json()
-        
+
         assert metrics["total_queries_analyzed"] >= 0
         assert metrics["cache_size"] >= 0
         assert metrics["hit_rate"] >= 0.0
         assert "total_weight" in metrics
         assert "weight_utilization" in metrics
-    
+
     def test_graphql_query_execution(self, client):
         """Test actual GraphQL query execution."""
         # Execute a simple query
@@ -216,18 +217,18 @@ class TestTurboRouterE2E:
             }
         }
         """
-        
+
         response = client.post(
             "/graphql",
             json={"query": query},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["getProduct"]["id"] == 1
         assert data["data"]["getProduct"]["name"] == "Product 1"
         assert data["data"]["getProduct"]["price"] == 19.99
-    
+
     def test_moderate_query_caching(self, client):
         """Test moderate complexity query caching decision."""
         moderate_query = """
@@ -243,16 +244,16 @@ class TestTurboRouterE2E:
             }
         }
         """
-        
+
         response = client.post("/turbo/analyze", json=moderate_query)
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should be cached but with moderate weight
         assert data["should_cache"] is True
         assert 20 <= data["complexity"] <= 100
         assert 0.5 <= data["cache_weight"] <= 2.0
-    
+
     def test_query_with_variables(self, client):
         """Test GraphQL query with variables."""
         query = """
@@ -264,19 +265,19 @@ class TestTurboRouterE2E:
             }
         }
         """
-        
+
         variables = {"productId": 42}
-        
+
         response = client.post(
             "/graphql",
             json={"query": query, "variables": variables},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["getProduct"]["id"] == 42
         assert data["data"]["getProduct"]["name"] == "Product 42"
-    
+
     def test_introspection_query_complexity(self, client):
         """Test that introspection queries have appropriate complexity."""
         introspection_query = """
@@ -295,11 +296,11 @@ class TestTurboRouterE2E:
             }
         }
         """
-        
+
         response = client.post("/turbo/analyze", json=introspection_query)
         assert response.status_code == 200
         data = response.json()
-        
+
         # Introspection queries should have high complexity
         assert data["complexity"] > 50
         # But might still be cacheable depending on threshold
@@ -309,17 +310,17 @@ class TestTurboRouterE2E:
 @pytest.mark.asyncio
 class TestTurboRouterAsync:
     """Async tests for TurboRouter functionality."""
-    
+
     async def test_concurrent_queries(self):
         """Test handling of concurrent queries."""
         schema = build_fraiseql_schema(query_types=[get_product])
-        
+
         registry = EnhancedTurboRegistry(
             max_size=5,
             max_complexity=100,
             schema=schema,
         )
-        
+
         # Register multiple queries concurrently
         queries = []
         for i in range(10):
@@ -331,22 +332,23 @@ class TestTurboRouterAsync:
                 }}
             }}
             """
-            
+
             turbo_query = TurboQuery(
                 graphql_query=query,
                 sql_template=f"SELECT * FROM products WHERE id = {i}",
                 param_mapping={},
             )
             queries.append(turbo_query)
-        
+
         # Register all queries concurrently
         tasks = [registry.register(q) for q in queries]
         results = await asyncio.gather(*[asyncio.create_task(t) for t in tasks])
-        
+
         # Should have at most max_size queries cached
         assert len(registry) <= 5
-        
+
         # Check metrics
         metrics = registry.get_metrics()
         assert metrics["cache_size"] <= 5
         assert metrics["total_queries_analyzed"] == 10
+

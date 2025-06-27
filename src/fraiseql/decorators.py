@@ -48,9 +48,45 @@ def query(fn: F | None = None) -> F | Callable[[F], F]:
     return decorator(fn)
 
 
-# Field decorator for QueryRoot pattern
 @overload
-def field(method: F) -> F: ...
+def subscription(fn: F) -> F: ...
+
+
+@overload
+def subscription() -> Callable[[F], F]: ...
+
+
+def subscription(fn: F | None = None) -> F | Callable[[F], F]:
+    """Decorator to mark a function as a GraphQL subscription.
+
+    This is a convenience decorator that registers the function with the schema.
+
+    Usage:
+        @fraiseql.subscription
+        async def on_post_created(info) -> AsyncGenerator[Post, None]:
+            # Subscribe to post creation events
+            async for post in post_events():
+                yield post
+    """
+
+    def decorator(func: F) -> F:
+        # Register with schema
+        registry = SchemaRegistry.get_instance()
+        registry.register_subscription(func)
+        return func
+
+    if fn is None:
+        return decorator
+    return decorator(fn)
+
+
+@overload
+def field(
+    method: F,
+    *,
+    resolver: Callable[..., Any] | None = None,
+    description: str | None = None,
+) -> F: ...
 
 
 @overload
@@ -66,37 +102,40 @@ def field(
     *,
     resolver: Callable[..., Any] | None = None,
     description: str | None = None,
-    track_n1: bool = True,  # Enable N+1 tracking by default
 ) -> F | Callable[[F], F]:
-    """Decorator to mark a method as a GraphQL field resolver.
+    """Decorator to mark a method as a GraphQL field with optional resolver.
 
-    This is used with the QueryRoot pattern to define field resolvers.
-    In development mode, this decorator also tracks field resolutions
-    for N+1 query detection.
+    This decorator should be applied to methods of @fraise_type decorated classes.
+    It allows defining custom field resolvers and adding field descriptions.
 
-    Usage:
-        @fraiseql.type
-        class QueryRoot:
-            @fraiseql.field
-            def version(self, root, info) -> str:
-                return "1.0.0"
+    Args:
+        method: The method to decorate (when used without parentheses)
+        resolver: Optional custom resolver function
+        description: Field description for GraphQL schema
 
-            @fraiseql.field(description="Get current user")
-            async def me(self, root, info) -> User:
-                return await get_current_user(info)
+    Returns:
+        Decorated method with field metadata
+
+    Example:
+        @fraise_type
+        class User:
+            name: str
+
+            @field(description="User's full display name")
+            def display_name(self) -> str:
+                return f"User: {self.name}"
+
+            @field(resolver=fetch_posts_for_user)
+            async def posts(self) -> list[Post]:
+                # This will use fetch_posts_for_user as resolver
+                pass
     """
 
     def decorator(func: F) -> F:
-        # Store metadata on the method
-        func.__fraiseql_field__ = True
-        func.__fraiseql_field_resolver__ = resolver or func
-        func.__fraiseql_field_description__ = description
+        # Determine if the function is async
+        is_async = asyncio.iscoroutinefunction(func)
 
-        if not track_n1:
-            return func
-
-        # Wrap the resolver to track N+1 queries
-        if asyncio.iscoroutinefunction(func):
+        if is_async:
 
             async def async_wrapped_resolver(root, info, *args, **kwargs):
                 # Check if N+1 detector is available in context
@@ -112,11 +151,16 @@ def field(
                         else:
                             result = await func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
-                        await detector.track_field_resolution(info, info.field_name, execution_time)
+                        # Create task to track asynchronously
+                        _ = asyncio.create_task(  # noqa: RUF006
+                            detector.track_field_resolution(info, info.field_name, execution_time),
+                        )
                         return result  # noqa: TRY300
                     except Exception:
                         execution_time = time.time() - start_time
-                        await detector.track_field_resolution(info, info.field_name, execution_time)
+                        _ = asyncio.create_task(  # noqa: RUF006
+                            detector.track_field_resolution(info, info.field_name, execution_time),
+                        )
                         raise
                 # Call the original method - if it's a bound method, use root as self
                 elif hasattr(func, "__self__"):
@@ -167,6 +211,9 @@ def field(
         wrapped_func.__fraiseql_field_description__ = description
         wrapped_func.__name__ = func.__name__
         wrapped_func.__doc__ = func.__doc__
+        
+        # Store the original function for field authorization
+        wrapped_func.__fraiseql_original_func__ = func
 
         # Copy type annotations
         if hasattr(func, "__annotations__"):
