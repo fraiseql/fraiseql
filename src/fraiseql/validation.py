@@ -282,7 +282,14 @@ def _get_field_type(type_class: Type[Any], field_name: str) -> Optional[Type]:
     if is_dataclass(type_class):
         for field in fields(type_class):
             if field.name == field_name:
-                return field.type
+                # Ensure we return a proper type object
+                field_type = field.type
+                if isinstance(field_type, type):
+                    return field_type
+                # Handle string annotations or forward references
+                if isinstance(field_type, str):
+                    return None
+                return cast(Type[Any], field_type)
 
     # Try __annotations__
     if hasattr(type_class, "__annotations__") and field_name in type_class.__annotations__:
