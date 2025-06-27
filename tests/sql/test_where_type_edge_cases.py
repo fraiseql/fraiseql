@@ -78,9 +78,9 @@ class TestComplexNestedWhereConditions:
                             "id": {"between": [1, 10]},
                             "value": {"startswith": "prefix_"},
                             "items": {"contains": ["item1", "item2"]},
-                        }
+                        },
                     },
-                }
+                },
             },
         )
 

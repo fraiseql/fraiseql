@@ -1,5 +1,14 @@
 """FraiseQL error handling module."""
 
+from .exceptions import (
+    DatabaseQueryError,
+    FraiseQLException,
+    PartialInstantiationError,
+    QueryValidationError,
+    ResolverError,
+    TypeRegistrationError,
+    WhereClauseError,
+)
 from .user_friendly import (
     FraiseQLError,
     InvalidFieldTypeError,
@@ -7,16 +16,6 @@ from .user_friendly import (
     MissingTypeHintError,
     MutationNotFoundError,
     SQLGenerationError,
-)
-
-from .exceptions import (
-    FraiseQLException,
-    PartialInstantiationError,
-    WhereClauseError,
-    QueryValidationError,
-    DatabaseQueryError,
-    TypeRegistrationError,
-    ResolverError,
 )
 
 __all__ = [

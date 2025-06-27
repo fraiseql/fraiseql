@@ -45,6 +45,14 @@ from .csrf_protection import (
     setup_csrf_protection,
 )
 
+# Field-level authorization
+from .field_auth import (
+    FieldAuthorizationError,
+    any_permission,
+    authorize_field,
+    combine_permissions,
+)
+
 # Rate limiting
 from .rate_limiting import (
     GraphQLRateLimiter,
@@ -107,6 +115,11 @@ __all__ = [
     "SecurityHeadersConfig",
     "SecurityHeadersMiddleware",
     "ValidationResult",
+    # Field-level authorization
+    "FieldAuthorizationError",
+    "authorize_field",
+    "combine_permissions",
+    "any_permission",
     "create_api_csp",
     "create_default_rate_limit_rules",
     "create_development_csp",

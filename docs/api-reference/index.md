@@ -2,14 +2,45 @@
 
 Complete reference for all FraiseQL APIs, decorators, and utilities.
 
-## [Decorators](./decorators.md)
-Core decorators for defining GraphQL types, inputs, enums, and mutations.
+## Core References
+
+### [Complete Decorator Reference](./decorators-complete.md) 🆕
+Comprehensive guide to all FraiseQL decorators with examples and common mistakes.
 
 - `@fraiseql.type` - Define GraphQL object types
+- `@fraiseql.query` - Define GraphQL queries (NOT `resolve_` methods!)
+- `@fraiseql.mutation` - Define GraphQL mutations
 - `@fraiseql.input` - Define GraphQL input types
 - `@fraiseql.enum` - Define GraphQL enum types
-- `@fraiseql.interface` - Define GraphQL interface types
-- `@fraiseql.result`, `@fraiseql.success`, `@fraiseql.failure` - Result unions
+- `@fraiseql.field` - Custom field resolvers
+- `@fraiseql.interface` - Define GraphQL interfaces
+- `@fraiseql.subscription` - Real-time subscriptions
+- Result pattern decorators (`@fraiseql.result`, `@fraiseql.success`, `@fraiseql.failure`)
+
+### [Repository API](./repository.md) 🆕
+Complete FraiseQLRepository reference for database operations.
+
+- `find()` - Query multiple records from views
+- `find_one()` - Query single record
+- `count()` - Count records
+- `call_function()` - Call PostgreSQL functions
+- Transaction support
+- Advanced query methods
+
+### [Context Reference](./context.md) 🆕
+Understanding and using GraphQL context in FraiseQL.
+
+- Default context structure
+- Accessing database, user, and request info
+- Custom context with `context_getter`
+- Authentication context
+- Multi-tenant patterns
+- Testing with context
+
+## Quick Links
+
+### [Legacy Decorators Guide](./decorators.md)
+Original decorator reference (see Complete Decorator Reference above for latest).
 
 ## Field Definitions and Scalars
 

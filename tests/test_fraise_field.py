@@ -40,9 +40,9 @@ def test_fraise_field_with_default_factory() -> None:
     field = fraise_field(field_type=int, default_factory=default_value)
 
     # Assert that the default factory is correctly set
-    assert (
-        field.default_factory() == 100
-    ), f"Expected default value to be 100, but got {field.default_factory()}"
+    assert field.default_factory() == 100, (
+        f"Expected default value to be 100, but got {field.default_factory()}"
+    )
 
 
 def test_fraise_field_with_invalid_purpose() -> None:

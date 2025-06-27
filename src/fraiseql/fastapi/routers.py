@@ -6,7 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from graphql import GraphQLSchema, graphql, parse, validate
 from pydantic import BaseModel
 
@@ -182,11 +182,11 @@ def create_development_router(
                 return HTMLResponse(content=APOLLO_SANDBOX_HTML)
             # Default to GraphiQL
             return HTMLResponse(content=GRAPHIQL_HTML)
-        
+
         # If no query is provided and playground is disabled, return an error
         if query is None:
             raise HTTPException(400, "Query parameter is required")
-        
+
         parsed_variables = None
         if variables:
             try:
@@ -201,7 +201,6 @@ def create_development_router(
         )
 
         return await graphql_endpoint(request_obj, http_request, context)
-
 
     if config.enable_introspection:
         # Introspection is handled by GraphQL itself when enabled

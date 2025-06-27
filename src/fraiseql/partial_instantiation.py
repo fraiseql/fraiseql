@@ -4,9 +4,8 @@ This module provides utilities for creating partial instances of FraiseQL types
 when only a subset of fields is requested in a GraphQL query.
 """
 
-from typing import Any, Optional, get_type_hints
 import dataclasses
-from collections.abc import Mapping
+from typing import Any, get_type_hints
 
 from .errors.exceptions import PartialInstantiationError
 
@@ -35,7 +34,7 @@ def create_partial_instance(type_class: type, data: dict[str, Any]) -> Any:
         # For regular classes, try to instantiate with available data
         try:
             return type_class(**data)
-        except TypeError as e:
+        except TypeError:
             # If instantiation fails due to missing required fields,
             # create a minimal instance
             return _create_minimal_instance(type_class, data)
@@ -93,7 +92,7 @@ def _create_partial_dataclass(type_class: type, data: dict[str, Any]) -> Any:
         # Create instance with partial data
         try:
             instance = type_class(**partial_data)
-        except Exception as e:
+        except Exception:
             # If instantiation still fails (e.g., due to __post_init__ validation),
             # create an instance without calling __init__
             instance = object.__new__(type_class)
@@ -107,14 +106,14 @@ def _create_partial_dataclass(type_class: type, data: dict[str, Any]) -> Any:
                     raise PartialInstantiationError(
                         type_name=type_class.__name__,
                         field_name=field_name,
-                        reason=f"Failed to set attribute: {str(attr_error)}",
+                        reason=f"Failed to set attribute: {attr_error!s}",
                         available_fields=set(data.keys()),
                         cause=attr_error,
                     )
 
         # Mark this as a partial instance
-        setattr(instance, "__fraiseql_partial__", True)
-        setattr(instance, "__fraiseql_fields__", set(data.keys()))
+        instance.__fraiseql_partial__ = True
+        instance.__fraiseql_fields__ = set(data.keys())
 
         return instance
 
@@ -125,7 +124,7 @@ def _create_partial_dataclass(type_class: type, data: dict[str, Any]) -> Any:
         raise PartialInstantiationError(
             type_name=type_class.__name__,
             field_name=failed_field,
-            reason=f"Failed to create partial dataclass: {str(e)}",
+            reason=f"Failed to create partial dataclass: {e!s}",
             available_fields=set(data.keys()),
             requested_fields={f.name for f in fields},
             cause=e,
@@ -139,7 +138,7 @@ def _create_minimal_instance(type_class: type, data: dict[str, Any]) -> Any:
         type_hints = get_type_hints(type_class)
     except Exception:
         # If we can't get type hints, use the data keys
-        type_hints = {k: Any for k in data.keys()}
+        type_hints = dict.fromkeys(data.keys(), Any)
 
     # Build kwargs with None for missing required fields
     kwargs = {}
@@ -151,7 +150,7 @@ def _create_minimal_instance(type_class: type, data: dict[str, Any]) -> Any:
 
     try:
         instance = type_class(**kwargs)
-    except Exception as e:
+    except Exception:
         # If we still can't instantiate, create an empty instance
         # and set attributes directly
         try:
@@ -162,15 +161,15 @@ def _create_minimal_instance(type_class: type, data: dict[str, Any]) -> Any:
             raise PartialInstantiationError(
                 type_name=type_class.__name__,
                 field_name=key if "key" in locals() else None,
-                reason=f"Failed to create minimal instance: {str(attr_error)}",
+                reason=f"Failed to create minimal instance: {attr_error!s}",
                 available_fields=set(data.keys()),
                 requested_fields=set(type_hints.keys()),
                 cause=attr_error,
             )
 
     # Mark as partial
-    setattr(instance, "__fraiseql_partial__", True)
-    setattr(instance, "__fraiseql_fields__", set(data.keys()))
+    instance.__fraiseql_partial__ = True
+    instance.__fraiseql_fields__ = set(data.keys())
 
     return instance
 

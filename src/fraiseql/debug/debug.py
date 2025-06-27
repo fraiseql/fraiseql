@@ -352,7 +352,7 @@ class QueryDebugger:
                 "params": params,
                 "duration_ms": duration_ms,
                 "timestamp": time.time(),
-            }
+            },
         )
 
     def get_summary(self) -> str:

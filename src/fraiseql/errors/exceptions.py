@@ -108,7 +108,7 @@ class PartialInstantiationError(FraiseQLException):
             hints.append(f"Available fields: {', '.join(sorted(available_fields))}")
 
         hints.append(
-            "Check that your database view returns all requested fields in the 'data' JSONB column"
+            "Check that your database view returns all requested fields in the 'data' JSONB column",
         )
 
         super().__init__(
@@ -164,7 +164,7 @@ class WhereClauseError(FraiseQLException):
 
         if "_and" in str(where_input) or "_or" in str(where_input):
             hints.append(
-                "Logical operators should contain arrays: {_and: [{condition1}, {condition2}]}"
+                "Logical operators should contain arrays: {_and: [{condition1}, {condition2}]}",
             )
 
         super().__init__(
@@ -274,7 +274,7 @@ class DatabaseQueryError(FraiseQLException):
         if "does not exist" in error_msg:
             if view_name:
                 hints.append(
-                    f"Create the view '{view_name}' or check the view name in @fraise_type decorator"
+                    f"Create the view '{view_name}' or check the view name in @fraise_type decorator",
                 )
             hints.append("Run 'fraiseql generate views' to create missing views")
 

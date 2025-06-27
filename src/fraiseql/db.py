@@ -13,8 +13,8 @@ from psycopg.rows import dict_row
 from psycopg.sql import SQL, Composed
 from psycopg_pool import AsyncConnectionPool
 
-from fraiseql.utils.casing import to_snake_case
 from fraiseql.partial_instantiation import create_partial_instance
+from fraiseql.utils.casing import to_snake_case
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,9 @@ class DatabaseQuery:
 
 def register_type_for_view(view_name: str, type_class: type) -> None:
     """Register a type class for a specific view name.
-    
+
     This is used in development mode to instantiate proper types from view data.
-    
+
     Args:
         view_name: The database view name
         type_class: The Python type class decorated with @fraise_type
@@ -218,7 +218,7 @@ class FraiseQLRepository:
         partial: bool = True,
     ) -> Any:
         """Recursively instantiate nested objects (dev mode only).
-        
+
         Args:
             type_class: The type to instantiate
             data: The data dictionary
@@ -275,7 +275,9 @@ class FraiseQLRepository:
                 item_type = self._extract_list_type(field_type)
                 if item_type and hasattr(item_type, "__fraiseql_definition__"):
                     processed_value = [
-                        self._instantiate_recursive(item_type, item, cache, depth + 1, partial=partial)
+                        self._instantiate_recursive(
+                            item_type, item, cache, depth + 1, partial=partial
+                        )
                         for item in processed_value
                     ]
 
@@ -291,7 +293,7 @@ class FraiseQLRepository:
                 if actual_field_type == UUID and isinstance(processed_value, str):
                     try:
                         processed_value = UUID(processed_value)
-                    except ValueError:  # noqa: SIM105
+                    except ValueError:
                         pass  # Keep original value if not valid UUID
                 # Check if field is datetime and value is string
                 elif actual_field_type == datetime and isinstance(processed_value, str):
@@ -300,13 +302,15 @@ class FraiseQLRepository:
                         processed_value = datetime.fromisoformat(
                             processed_value.replace("Z", "+00:00"),
                         )
-                    except ValueError:  # noqa: SIM105
+                    except ValueError:
                         pass  # Keep original value if not valid datetime
                 # Check if field is Decimal and value is numeric
-                elif actual_field_type == Decimal and isinstance(processed_value, (int, float, str)):
+                elif actual_field_type == Decimal and isinstance(
+                    processed_value, (int, float, str)
+                ):
                     try:
                         processed_value = Decimal(str(processed_value))
-                    except (ValueError, TypeError):  # noqa: SIM105
+                    except (ValueError, TypeError):
                         pass  # Keep original value if not valid decimal
 
             snake_data[snake_key] = processed_value
@@ -359,50 +363,52 @@ class FraiseQLRepository:
         # Check the global type registry
         if view_name in _type_registry:
             return _type_registry[view_name]
-        
+
         # Try to find type by convention (remove _view suffix and check)
         type_name = view_name.replace("_view", "")
         for registered_view, type_class in _type_registry.items():
             if registered_view.lower().replace("_", "") == type_name.lower().replace("_", ""):
                 return type_class
-        
-        raise NotImplementedError(f"Type registry lookup for {view_name} not implemented. Available views: {list(_type_registry.keys())}")
+
+        raise NotImplementedError(
+            f"Type registry lookup for {view_name} not implemented. Available views: {list(_type_registry.keys())}"
+        )
 
     def _build_find_query(self, view_name: str, **kwargs) -> DatabaseQuery:
         """Build a SELECT query for finding multiple records.
-        
+
         Supports both simple key-value filters and where types with to_sql() methods.
         """
-        from psycopg.sql import SQL, Identifier, Literal, Placeholder
-        
+        from psycopg.sql import SQL, Identifier, Literal
+
         where_parts = []
         params = {}
         param_counter = 0
-        
+
         # Extract special parameters
-        where_obj = kwargs.pop('where', None)
-        limit = kwargs.pop('limit', None)
-        offset = kwargs.pop('offset', None) 
-        order_by = kwargs.pop('order_by', None)
-        
+        where_obj = kwargs.pop("where", None)
+        limit = kwargs.pop("limit", None)
+        offset = kwargs.pop("offset", None)
+        order_by = kwargs.pop("order_by", None)
+
         # Process where object if it has to_sql method
-        if where_obj and hasattr(where_obj, 'to_sql'):
+        if where_obj and hasattr(where_obj, "to_sql"):
             where_composed = where_obj.to_sql()
             if where_composed:
                 # The where type returns a Composed object with JSONB paths
                 # We need to add it as a SQL fragment
                 where_parts.append(where_composed)
-        
+
         # Process remaining kwargs as simple equality filters
         for key, value in kwargs.items():
             param_name = f"param_{param_counter}"
             where_parts.append(f"{key} = %({param_name})s")
             params[param_name] = value
             param_counter += 1
-        
+
         # Build SQL using proper composition
         query_parts = [SQL("SELECT * FROM ") + Identifier(view_name)]
-        
+
         if where_parts:
             # Separate SQL/Composed objects from string parts
             where_sql_parts = []
@@ -411,28 +417,28 @@ class FraiseQLRepository:
                     where_sql_parts.append(part)
                 else:
                     where_sql_parts.append(SQL(part))
-            
+
             query_parts.append(SQL(" WHERE "))
             for i, part in enumerate(where_sql_parts):
                 if i > 0:
                     query_parts.append(SQL(" AND "))
                 query_parts.append(part)
-        
+
         # Handle order_by
         if order_by:
             query_parts.append(SQL(" ORDER BY ") + SQL(order_by))
-        
+
         # Handle limit and offset
         if limit is not None:
             query_parts.append(SQL(" LIMIT ") + Literal(limit))
             if offset is not None:
                 query_parts.append(SQL(" OFFSET ") + Literal(offset))
-        
+
         statement = SQL("").join(query_parts)
         return DatabaseQuery(statement=statement, params=params, fetch_result=True)
 
     def _build_find_one_query(self, view_name: str, **kwargs) -> DatabaseQuery:
         """Build a SELECT query for finding a single record."""
         # Force limit=1 for find_one
-        kwargs['limit'] = 1
+        kwargs["limit"] = 1
         return self._build_find_query(view_name, **kwargs)

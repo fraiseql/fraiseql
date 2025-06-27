@@ -25,9 +25,9 @@ def test_patch_missing_field_types(test_class) -> None:
     field1 = test_class.field1
     field2 = test_class.field2
 
-    assert (
-        field1.field_type is str
-    ), f"Expected field1 to have type 'str', but got {field1.field_type}"
-    assert (
-        field2.field_type is int
-    ), f"Expected field2 to have type 'int', but got {field2.field_type}"
+    assert field1.field_type is str, (
+        f"Expected field1 to have type 'str', but got {field1.field_type}"
+    )
+    assert field2.field_type is int, (
+        f"Expected field2 to have type 'int', but got {field2.field_type}"
+    )

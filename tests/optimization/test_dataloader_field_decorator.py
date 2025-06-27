@@ -301,9 +301,9 @@ def test_dataloader_field_batching(register_test_queries, test_database_url) -> 
         # Both should resolve authors (would be batched in real implementation)
         assert data["data"]["post"]["author"]["name"] == "John Doe"
         assert data["data"]["comment"]["author"]["name"] == "Jane Smith"
-        assert (
-            data["data"]["comment"]["post"] is not None
-        ), f"Comment post is None! Full comment: {data['data']['comment']}"
+        assert data["data"]["comment"]["post"] is not None, (
+            f"Comment post is None! Full comment: {data['data']['comment']}"
+        )
         assert data["data"]["comment"]["post"]["author"]["name"] == "John Doe"
 
 

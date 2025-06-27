@@ -46,7 +46,9 @@ class DynamicType(Protocol):
         """
 
 
-def build_operator_composed(path_sql: SQL, op: str, val: object, field_type: type | None = None) -> Composed:
+def build_operator_composed(
+    path_sql: SQL, op: str, val: object, field_type: type | None = None
+) -> Composed:
     """Build parameterized SQL for a specific operator using psycopg Composed.
 
     Args:
@@ -67,7 +69,7 @@ def build_operator_composed(path_sql: SQL, op: str, val: object, field_type: typ
 
     # Determine if we need type casting based on the value type and operator
     # For comparisons, we need to cast the JSONB text to the appropriate type
-    
+
     # Handle booleans first (before checking for numeric cast)
     if isinstance(val, bool):
         # For booleans, we cast the path to boolean
@@ -83,9 +85,11 @@ def build_operator_composed(path_sql: SQL, op: str, val: object, field_type: typ
         elif isinstance(val, date):
             # Cast to date for date comparison
             path_sql = Composed([path_sql, SQL("::date")])
-    
+
     # For booleans in text comparison, convert value but not for casting
-    if isinstance(val, bool) and op in ("eq", "neq") and False:  # Disabled - we cast to boolean above
+    if (
+        isinstance(val, bool) and op in ("eq", "neq") and False
+    ):  # Disabled - we cast to boolean above
         val = str(val).lower()  # Convert True to 'true', False to 'false'
 
     if op == "eq":
@@ -213,7 +217,9 @@ def _make_filter_field_composed(
     return Composed(result_parts)
 
 
-def _build_where_to_sql(fields: list[str], type_hints: dict[str, type] | None = None) -> Callable[[object], Composed | None]:
+def _build_where_to_sql(
+    fields: list[str], type_hints: dict[str, type] | None = None
+) -> Callable[[object], Composed | None]:
     """Build a `to_sql` method for a dynamic filter dataclass.
 
     Args:
@@ -235,7 +241,9 @@ def _build_where_to_sql(fields: list[str], type_hints: dict[str, type] | None = 
                     conditions.append(sql)
             elif isinstance(val, dict):
                 field_type = type_hints.get(name) if type_hints else None
-                cond = _make_filter_field_composed(name, cast("dict[str, object]", val), "data", field_type)
+                cond = _make_filter_field_composed(
+                    name, cast("dict[str, object]", val), "data", field_type
+                )
                 if cond:
                     conditions.append(cond)
 
