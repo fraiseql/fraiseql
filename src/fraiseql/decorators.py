@@ -151,16 +151,20 @@ def field(
                         else:
                             result = await func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
-                        # Create task to track asynchronously
-                        _ = asyncio.create_task(  # noqa: RUF006
+                        # Track field resolution without blocking
+                        # Using create_task is safe here as detector manages its own lifecycle
+                        task = asyncio.create_task(
                             detector.track_field_resolution(info, info.field_name, execution_time),
                         )
+                        # Add error handler to prevent unhandled exceptions
+                        task.add_done_callback(lambda t: t.exception() if t.done() else None)
                         return result  # noqa: TRY300
                     except Exception:
                         execution_time = time.time() - start_time
-                        _ = asyncio.create_task(  # noqa: RUF006
+                        task = asyncio.create_task(
                             detector.track_field_resolution(info, info.field_name, execution_time),
                         )
+                        task.add_done_callback(lambda t: t.exception() if t.done() else None)
                         raise
                 # Call the original method - if it's a bound method, use root as self
                 elif hasattr(func, "__self__"):
@@ -186,16 +190,20 @@ def field(
                         else:
                             result = func(root, info, *args, **kwargs)
                         execution_time = time.time() - start_time
-                        # Create task to track asynchronously
-                        _ = asyncio.create_task(  # noqa: RUF006
+                        # Track field resolution without blocking
+                        # Using create_task is safe here as detector manages its own lifecycle
+                        task = asyncio.create_task(
                             detector.track_field_resolution(info, info.field_name, execution_time),
                         )
+                        # Add error handler to prevent unhandled exceptions
+                        task.add_done_callback(lambda t: t.exception() if t.done() else None)
                         return result  # noqa: TRY300
                     except Exception:
                         execution_time = time.time() - start_time
-                        _ = asyncio.create_task(  # noqa: RUF006
+                        task = asyncio.create_task(
                             detector.track_field_resolution(info, info.field_name, execution_time),
                         )
+                        task.add_done_callback(lambda t: t.exception() if t.done() else None)
                         raise
                 # Call the original method - if it's a bound method, use root as self
                 elif hasattr(func, "__self__"):
@@ -211,7 +219,7 @@ def field(
         wrapped_func.__fraiseql_field_description__ = description
         wrapped_func.__name__ = func.__name__
         wrapped_func.__doc__ = func.__doc__
-        
+
         # Store the original function for field authorization
         wrapped_func.__fraiseql_original_func__ = func
 

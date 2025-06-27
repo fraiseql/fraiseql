@@ -28,7 +28,7 @@ class TestFieldAuthorization:
         def get_user(info) -> User:
             return User(name="Test User")
 
-        schema = build_fraiseql_schema(query_types=[get_user])
+        build_fraiseql_schema(query_types=[get_user])
 
         # Create mock info with admin context
         class MockInfo:
@@ -56,7 +56,7 @@ class TestFieldAuthorization:
         def get_user(info) -> User:
             return User(name="Test User")
 
-        schema = build_fraiseql_schema(query_types=[get_user])
+        build_fraiseql_schema(query_types=[get_user])
 
         # Create mock info without admin context
         class MockInfo:
@@ -227,7 +227,7 @@ class TestFieldAuthorization:
         schema = build_fraiseql_schema(query_types=[secure_data])
 
         # Test authenticated access
-        query = """
+        query_str = """
         query {
             secureData {
                 publicInfo
@@ -238,7 +238,7 @@ class TestFieldAuthorization:
 
         result = graphql_sync(
             schema,
-            query,
+            query_str,
             context_value={"authenticated": True},
         )
 
@@ -253,7 +253,7 @@ class TestFieldAuthorization:
         # Test unauthenticated access
         result = graphql_sync(
             schema,
-            query,
+            query_str,
             context_value={"authenticated": False},
         )
 

@@ -59,7 +59,7 @@ def create_partial_instance(type_class: type, data: dict[str, Any]) -> Any:
             available_fields=available_fields,
             requested_fields=expected_fields,
             cause=e,
-        )
+        ) from e
 
 
 def _create_partial_dataclass(type_class: type, data: dict[str, Any]) -> Any:
@@ -109,13 +109,11 @@ def _create_partial_dataclass(type_class: type, data: dict[str, Any]) -> Any:
                         reason=f"Failed to set attribute: {attr_error!s}",
                         available_fields=set(data.keys()),
                         cause=attr_error,
-                    )
+                    ) from attr_error
 
         # Mark this as a partial instance
         instance.__fraiseql_partial__ = True
         instance.__fraiseql_fields__ = set(data.keys())
-
-        return instance
 
     except Exception as e:
         if isinstance(e, PartialInstantiationError):
@@ -128,7 +126,9 @@ def _create_partial_dataclass(type_class: type, data: dict[str, Any]) -> Any:
             available_fields=set(data.keys()),
             requested_fields={f.name for f in fields},
             cause=e,
-        )
+        ) from e
+    else:
+        return instance
 
 
 def _create_minimal_instance(type_class: type, data: dict[str, Any]) -> Any:
@@ -143,10 +143,7 @@ def _create_minimal_instance(type_class: type, data: dict[str, Any]) -> Any:
     # Build kwargs with None for missing required fields
     kwargs = {}
     for field_name in type_hints:
-        if field_name in data:
-            kwargs[field_name] = data[field_name]
-        else:
-            kwargs[field_name] = None
+        kwargs[field_name] = data.get(field_name)
 
     try:
         instance = type_class(**kwargs)
@@ -165,7 +162,7 @@ def _create_minimal_instance(type_class: type, data: dict[str, Any]) -> Any:
                 available_fields=set(data.keys()),
                 requested_fields=set(type_hints.keys()),
                 cause=attr_error,
-            )
+            ) from attr_error
 
     # Mark as partial
     instance.__fraiseql_partial__ = True

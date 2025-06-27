@@ -1,8 +1,8 @@
 """End-to-end tests for TurboRouter with query complexity analysis."""
 
-import pytest
 import asyncio
-from fastapi import FastAPI
+
+import pytest
 from fastapi.testclient import TestClient
 
 from fraiseql import fraise_type, query
@@ -81,7 +81,7 @@ async def get_customer_full(info, customer_id: int) -> Customer:
                 id=order_id,
                 items=items,
                 total=sum(item.product.price * item.quantity for item in items),
-            )
+            ),
         )
 
     return Customer(
@@ -112,8 +112,16 @@ class TestTurboRouterE2E:
 
         self.turbo_router = EnhancedTurboRouter(self.registry)
 
+        import os
+
+        # Use environment variable or default test URL
+        database_url = os.environ.get(
+            "TEST_DATABASE_URL",
+            "postgresql://localhost/fraiseql_test",
+        )
+
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url=database_url,
             types=[Product, OrderItem, Order, Customer],
             queries=[get_product, get_customer, get_customer_full],
         )
@@ -342,7 +350,7 @@ class TestTurboRouterAsync:
 
         # Register all queries concurrently
         tasks = [registry.register(q) for q in queries]
-        results = await asyncio.gather(*[asyncio.create_task(t) for t in tasks])
+        await asyncio.gather(*[asyncio.create_task(t) for t in tasks])
 
         # Should have at most max_size queries cached
         assert len(registry) <= 5
@@ -351,4 +359,3 @@ class TestTurboRouterAsync:
         metrics = registry.get_metrics()
         assert metrics["cache_size"] <= 5
         assert metrics["total_queries_analyzed"] == 10
-

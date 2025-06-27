@@ -98,6 +98,8 @@ __all__ = [
     "CSRFTokenGenerator",
     "CSRFTokenStorage",
     "ContentSecurityPolicy",
+    # Field-level authorization
+    "FieldAuthorizationError",
     "FrameOptions",
     "GraphQLCSRFValidator",
     "GraphQLRateLimiter",
@@ -115,11 +117,9 @@ __all__ = [
     "SecurityHeadersConfig",
     "SecurityHeadersMiddleware",
     "ValidationResult",
-    # Field-level authorization
-    "FieldAuthorizationError",
+    "any_permission",
     "authorize_field",
     "combine_permissions",
-    "any_permission",
     "create_api_csp",
     "create_default_rate_limit_rules",
     "create_development_csp",

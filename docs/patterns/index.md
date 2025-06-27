@@ -42,6 +42,9 @@ Implement cursor and offset-based pagination.
 ### 🔍 [Filtering & Search](../COMMON_PATTERNS.md#filtering--search)
 Complex queries with full-text search.
 
+### ⚡ [Complexity-Based Caching](./complexity-based-caching.md)
+Intelligent cache management using query complexity analysis.
+
 ## Quick Start Example
 
 Here's the FraiseQL pattern in action:

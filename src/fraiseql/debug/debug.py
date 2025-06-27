@@ -8,6 +8,7 @@ import functools
 import inspect
 import json
 import time
+import types
 from typing import Any, Callable, Optional, TypeVar, cast
 
 import structlog
@@ -149,8 +150,6 @@ def profile_resolver(
 
                         logger.info("resolver_profiled", **log_context)
 
-                    return result
-
                 except Exception as e:
                     # Log error with context
                     duration_ms = (time.perf_counter() - start_time) * 1000
@@ -160,6 +159,8 @@ def profile_resolver(
 
                     logger.error("resolver_failed", **log_context)
                     raise
+                else:
+                    return result
 
             return cast(T, async_wrapper)
 
@@ -198,8 +199,6 @@ def profile_resolver(
 
                     logger.info("resolver_profiled", **log_context)
 
-                return result
-
             except Exception as e:
                 # Log error with context
                 duration_ms = (time.perf_counter() - start_time) * 1000
@@ -209,6 +208,8 @@ def profile_resolver(
 
                 logger.error("resolver_failed", **log_context)
                 raise
+            else:
+                return result
 
         return cast(T, sync_wrapper)
 
@@ -338,10 +339,16 @@ class QueryDebugger:
 
     async def __aenter__(self) -> "QueryDebugger":
         self.start_time = time.perf_counter()
-        # TODO: Hook into query execution to capture queries
+        # TODO(fraiseql): Hook into query execution to capture queries
+        # https://github.com/fraiseql/fraiseql/issues/TBD
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
         self.end_time = time.perf_counter()
 
     def add_query(self, sql: str, params: dict[str, Any], duration_ms: float) -> None:

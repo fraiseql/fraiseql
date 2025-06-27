@@ -19,19 +19,19 @@ from .user_friendly import (
 )
 
 __all__ = [
+    "DatabaseQueryError",
     # User-friendly errors
     "FraiseQLError",
+    # Enhanced exceptions with context
+    "FraiseQLException",
     "InvalidFieldTypeError",
     "MissingDatabaseViewError",
     "MissingTypeHintError",
     "MutationNotFoundError",
-    "SQLGenerationError",
-    # Enhanced exceptions with context
-    "FraiseQLException",
     "PartialInstantiationError",
-    "WhereClauseError",
     "QueryValidationError",
-    "DatabaseQueryError",
-    "TypeRegistrationError",
     "ResolverError",
+    "SQLGenerationError",
+    "TypeRegistrationError",
+    "WhereClauseError",
 ]

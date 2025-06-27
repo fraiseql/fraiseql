@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from graphql import GraphQLEnumType
-
 from fraiseql.config.schema_config import SchemaConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from graphql import GraphQLEnumType
 
 logger = logging.getLogger(__name__)
 

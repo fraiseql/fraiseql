@@ -274,7 +274,8 @@ class DatabaseQueryError(FraiseQLException):
         if "does not exist" in error_msg:
             if view_name:
                 hints.append(
-                    f"Create the view '{view_name}' or check the view name in @fraise_type decorator",
+                    f"Create the view '{view_name}' or check the view name "
+                    "in @fraise_type decorator",
                 )
             hints.append("Run 'fraiseql generate views' to create missing views")
 

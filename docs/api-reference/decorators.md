@@ -335,6 +335,127 @@ class Mutation:
         pass
 ```
 
+## Field Authorization Decorators
+
+### @authorize_field
+
+Add field-level authorization to GraphQL fields:
+
+```python
+from fraiseql.security.field_auth import authorize_field
+
+@fraiseql.type
+class User:
+    id: UUID
+    name: str  # Public field
+    
+    @field
+    @authorize_field(lambda info: info.context.get("is_admin", False))
+    def email(self) -> str:
+        """Email visible only to admins."""
+        return self._email
+    
+    @field
+    @authorize_field(
+        lambda info: info.context.get("user_id") == self.id,
+        error_message="You can only view your own phone number"
+    )
+    def phone(self) -> str:
+        """Phone visible only to owner."""
+        return self._phone
+```
+
+### Parameters
+
+- **permission_check**: A callable that takes GraphQLResolveInfo and returns bool
+- **error_message** (optional): Custom error message for authorization failures
+
+### Async Permission Checks
+
+The decorator supports both sync and async permission checks:
+
+```python
+async def check_premium_subscription(info) -> bool:
+    """Check if user has premium subscription."""
+    user = info.context.get("user")
+    if not user:
+        return False
+    
+    # Async database check
+    subscription = await db.get_subscription(user["id"])
+    return subscription and subscription.tier == "premium"
+
+@fraiseql.type
+class PremiumContent:
+    title: str
+    
+    @field
+    @authorize_field(check_premium_subscription)
+    async def exclusive_data(self) -> str:
+        return "Premium content"
+```
+
+### Combining Permission Checks
+
+Use helper functions to combine multiple checks:
+
+```python
+from fraiseql.security.field_auth import (
+    combine_permissions,  # AND logic
+    any_permission,      # OR logic
+)
+
+# Check: authenticated AND (admin OR owner)
+is_authenticated = lambda info: info.context.get("user") is not None
+is_admin = lambda info: info.context.get("is_admin", False)
+is_owner = lambda info: info.context.get("user_id") == self.id
+
+complex_check = combine_permissions(
+    is_authenticated,
+    any_permission(is_admin, is_owner)
+)
+
+@field
+@authorize_field(complex_check)
+def sensitive_data(self) -> str:
+    return "secret"
+```
+
+### Field Arguments in Permissions
+
+Permission checks receive field arguments:
+
+```python
+def can_access_user_data(info, user_id: int) -> bool:
+    """Check if current user can access requested user's data."""
+    current_user = info.context.get("user")
+    if not current_user:
+        return False
+    
+    # Admins can access anyone
+    if current_user.get("role") == "admin":
+        return True
+    
+    # Users can only access their own data
+    return current_user.get("id") == user_id
+
+@fraiseql.type
+class Query:
+    @field
+    @authorize_field(can_access_user_data)
+    def user_profile(self, info, user_id: int) -> UserProfile:
+        return get_user_profile(user_id)
+```
+
+### Performance Note
+
+When using async permission checks with sync resolvers, a warning will be issued:
+
+```
+Using async permission check with sync resolver 'field_name'. 
+Consider making the resolver async for better performance.
+```
+
 ## Authentication Decorators
 
 ### @requires_auth

@@ -118,7 +118,7 @@ class TestDualModeJSONBPattern:
 
     def test_production_mode_returns_raw_dict(self, mock_pool, sample_allocation_row):
         """Test that production mode returns raw dict."""
-        repo = FraiseQLRepository(mock_pool, {"mode": "production"})
+        FraiseQLRepository(mock_pool, {"mode": "production"})
 
         # In production, find_one would return the raw row
         # The row contains both filtering columns and data column

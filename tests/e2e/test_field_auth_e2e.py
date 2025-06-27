@@ -1,13 +1,11 @@
 """End-to-end tests for field-level authorization."""
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from graphql import graphql_sync
 
 from fraiseql import fraise_type, query
 from fraiseql.decorators import field
-from fraiseql.security.field_auth import authorize_field, FieldAuthorizationError
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
@@ -85,9 +83,17 @@ class TestFieldAuthE2E:
     @pytest.fixture
     def app(self):
         """Create test application with field auth."""
+        import os
+
+        # Use environment variable or default test URL
+        database_url = os.environ.get(
+            "TEST_DATABASE_URL",
+            "postgresql://localhost/fraiseql_test",
+        )
+
         # Create app with test database URL
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url=database_url,
             types=[User, PublicProfile, PrivateProfile],
             queries=[me, get_user],
         )
@@ -108,8 +114,7 @@ class TestFieldAuthE2E:
                     request.state.user_id = int(token.split("-")[1])
                     request.state.is_admin = False
 
-            response = await call_next(request)
-            return response
+            return await call_next(request)
 
         return app
 
@@ -327,4 +332,3 @@ class TestFieldAuthIntegration:
 
         assert result.data["getDocument"]["title"] == "Test Document"
         # Content access depends on field resolver implementation
-

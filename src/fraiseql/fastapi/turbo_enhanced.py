@@ -10,7 +10,6 @@ This module extends the basic TurboRouter with:
 from __future__ import annotations
 
 import time
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -82,7 +81,8 @@ class EnhancedTurboRegistry(TurboRegistry):
 
         Args:
             max_size: Maximum number of queries to cache
-            max_complexity: Maximum complexity score for a cacheable query (uses config default if None)
+            max_complexity: Max complexity score for caching
+                (uses config default if None)
             max_total_weight: Maximum total weight of cached queries
             schema: Optional GraphQL schema for analysis
             config: Complexity configuration (uses default if None)
@@ -229,10 +229,13 @@ class EnhancedTurboRegistry(TurboRegistry):
 
         if result is not None:
             self._metrics["cache_hits"] += 1
-        else:
-            self._metrics["cache_misses"] += 1
-
-        return result  # type: ignore
+            # Ensure we return the correct type
+            if isinstance(result, EnhancedTurboQuery):
+                return result
+            # This shouldn't happen if registry is used correctly
+            return None
+        self._metrics["cache_misses"] += 1
+        return None
 
     def get_metrics(self) -> dict[str, Any]:
         """Get cache performance metrics.
@@ -330,4 +333,3 @@ class EnhancedTurboRouter(TurboRouter):
                 "cache_priority_score": turbo_query.cache_score,
             }
         return None
-

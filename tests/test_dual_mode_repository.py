@@ -75,14 +75,14 @@ class TestDualModeRepository:
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 data JSONB DEFAULT '{}'::jsonb
             );
-            
+
             CREATE TABLE IF NOT EXISTS users (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 name TEXT NOT NULL,
                 email TEXT NOT NULL,
                 role TEXT DEFAULT 'user'
             );
-            
+
             CREATE TABLE IF NOT EXISTS orders (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 product_id UUID REFERENCES products(id),
@@ -90,22 +90,22 @@ class TestDualModeRepository:
                 data JSONB DEFAULT '{}'::jsonb,
                 tags TEXT[] DEFAULT '{}'
             );
-            
+
             CREATE TABLE IF NOT EXISTS projects (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 name TEXT NOT NULL,
                 lead_id UUID NOT NULL REFERENCES users(id)
             );
-            
+
             CREATE TABLE IF NOT EXISTS project_members (
                 project_id UUID NOT NULL REFERENCES projects(id),
                 user_id UUID NOT NULL REFERENCES users(id),
                 PRIMARY KEY (project_id, user_id)
             );
-            
+
             -- Create views that mimic GraphQL return format (camelCase)
             CREATE OR REPLACE VIEW tv_product AS
-            SELECT 
+            SELECT
                 id,
                 name,
                 status,
@@ -113,17 +113,17 @@ class TestDualModeRepository:
                 created_at as "createdAt",
                 data
             FROM products;
-            
+
             CREATE OR REPLACE VIEW tv_user AS
-            SELECT 
+            SELECT
                 id,
                 name,
                 email,
                 role
             FROM users;
-            
+
             CREATE OR REPLACE VIEW tv_order AS
-            SELECT 
+            SELECT
                 o.id,
                 o.product_id as "productId",
                 o.user_id as "userId",
@@ -133,17 +133,17 @@ class TestDualModeRepository:
                 (SELECT row_to_json(p.*) FROM tv_product p WHERE p.id = o.product_id) as product,
                 (SELECT row_to_json(u.*) FROM tv_user u WHERE u.id = o.user_id) as user
             FROM orders o;
-            
+
             CREATE OR REPLACE VIEW tv_project AS
-            SELECT 
+            SELECT
                 p.id,
                 p.name,
                 p.lead_id as "leadId",
                 (SELECT row_to_json(u.*) FROM tv_user u WHERE u.id = p.lead_id) as lead,
                 COALESCE(
                     (SELECT json_agg(row_to_json(u.*))
-                     FROM tv_user u 
-                     JOIN project_members pm ON u.id = pm.user_id 
+                     FROM tv_user u
+                     JOIN project_members pm ON u.id = pm.user_id
                      WHERE pm.project_id = p.id),
                     '[]'::json
                 ) as members
@@ -389,10 +389,12 @@ class TestDualModeRepository:
         repo = FraiseQLRepository(db_pool, context)
 
         # Mock the data fetch
-        with patch.object(repo, "_get_type_for_view", return_value=NestedType):
+        with (
+            patch.object(repo, "_get_type_for_view", return_value=NestedType),
+            pytest.raises(ValueError, match="Max recursion depth exceeded"),
+        ):
             # Manually call _instantiate_recursive since we can't easily mock the DB query
-            with pytest.raises(ValueError, match="Max recursion depth exceeded"):
-                repo._instantiate_recursive(NestedType, deep_data)
+            repo._instantiate_recursive(NestedType, deep_data)
 
     def test_mode_detection_from_environment(self, db_pool):
         """Test mode detection from environment variables."""

@@ -37,6 +37,16 @@ Understanding and using GraphQL context in FraiseQL.
 - Multi-tenant patterns
 - Testing with context
 
+### [Query Complexity Analysis](./complexity-analysis.md) 🆕
+Analyze and optimize GraphQL query performance.
+
+- Complexity scoring algorithm
+- Configurable analysis parameters
+- Integration with TurboRouter
+- Cache weight calculation
+- Performance monitoring
+- Rate limiting by complexity
+
 ## Quick Links
 
 ### [Legacy Decorators Guide](./decorators.md)

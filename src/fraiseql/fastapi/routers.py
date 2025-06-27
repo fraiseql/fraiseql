@@ -20,6 +20,9 @@ from fraiseql.optimization.n_plus_one_detector import (
     n1_detection_context,
 )
 
+# Module-level dependency singletons to avoid B008
+_default_context_dependency = Depends(build_graphql_context)
+
 
 class GraphQLRequest(BaseModel):
     """GraphQL request model."""
@@ -76,7 +79,7 @@ def create_development_router(
         # When custom context_getter is provided, merge it with the default context
         async def get_merged_context(
             http_request: Request,
-            default_context: dict[str, Any] = Depends(build_graphql_context),
+            default_context: dict[str, Any] = _default_context_dependency,
         ) -> dict[str, Any]:
             # Get custom context
             custom_context = await context_getter(http_request)
@@ -235,7 +238,7 @@ def create_production_router(
         # When custom context_getter is provided, merge it with the default context
         async def get_merged_context(
             http_request: Request,
-            default_context: dict[str, Any] = Depends(build_graphql_context),
+            default_context: dict[str, Any] = _default_context_dependency,
         ) -> dict[str, Any]:
             # Get custom context
             custom_context = await context_getter(http_request)

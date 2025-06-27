@@ -1,5 +1,6 @@
 """Database utilities and repository layer for FraiseQL using psycopg and connection pooling."""
 
+import contextlib
 import logging
 import os
 from collections.abc import Awaitable, Callable, Mapping
@@ -276,7 +277,11 @@ class FraiseQLRepository:
                 if item_type and hasattr(item_type, "__fraiseql_definition__"):
                     processed_value = [
                         self._instantiate_recursive(
-                            item_type, item, cache, depth + 1, partial=partial
+                            item_type,
+                            item,
+                            cache,
+                            depth + 1,
+                            partial=partial,
                         )
                         for item in processed_value
                     ]
@@ -291,27 +296,22 @@ class FraiseQLRepository:
                 actual_field_type = self._extract_type(field_type)
                 # Check if field is UUID and value is string
                 if actual_field_type == UUID and isinstance(processed_value, str):
-                    try:
+                    with contextlib.suppress(ValueError):
                         processed_value = UUID(processed_value)
-                    except ValueError:
-                        pass  # Keep original value if not valid UUID
                 # Check if field is datetime and value is string
                 elif actual_field_type == datetime and isinstance(processed_value, str):
-                    try:
+                    with contextlib.suppress(ValueError):
                         # Try ISO format first
                         processed_value = datetime.fromisoformat(
                             processed_value.replace("Z", "+00:00"),
                         )
-                    except ValueError:
-                        pass  # Keep original value if not valid datetime
                 # Check if field is Decimal and value is numeric
                 elif actual_field_type == Decimal and isinstance(
-                    processed_value, (int, float, str)
+                    processed_value,
+                    (int, float, str),
                 ):
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         processed_value = Decimal(str(processed_value))
-                    except (ValueError, TypeError):
-                        pass  # Keep original value if not valid decimal
 
             snake_data[snake_key] = processed_value
 
@@ -370,8 +370,10 @@ class FraiseQLRepository:
             if registered_view.lower().replace("_", "") == type_name.lower().replace("_", ""):
                 return type_class
 
+        available_views = list(_type_registry.keys())
         raise NotImplementedError(
-            f"Type registry lookup for {view_name} not implemented. Available views: {list(_type_registry.keys())}"
+            f"Type registry lookup for {view_name} not implemented. "
+            f"Available views: {available_views}",
         )
 
     def _build_find_query(self, view_name: str, **kwargs) -> DatabaseQuery:
@@ -400,11 +402,10 @@ class FraiseQLRepository:
                 where_parts.append(where_composed)
 
         # Process remaining kwargs as simple equality filters
-        for key, value in kwargs.items():
+        for param_counter, (key, value) in enumerate(kwargs.items()):
             param_name = f"param_{param_counter}"
             where_parts.append(f"{key} = %({param_name})s")
             params[param_name] = value
-            param_counter += 1
 
         # Build SQL using proper composition
         query_parts = [SQL("SELECT * FROM ") + Identifier(view_name)]

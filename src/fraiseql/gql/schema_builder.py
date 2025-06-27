@@ -25,8 +25,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Re-export the main SchemaRegistry class for backward compatibility
-SchemaRegistry = SchemaRegistry
+# The SchemaRegistry is imported from builders module
 
 
 def build_fraiseql_schema(

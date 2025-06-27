@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import warnings
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, Union
 
 from graphql import GraphQLError
@@ -28,7 +29,10 @@ class PermissionCheck(Protocol):
     """Protocol for permission check functions."""
 
     def __call__(
-        self, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+        self,
+        info: GraphQLResolveInfo,
+        *args: Any,
+        **kwargs: Any,
     ) -> Union[bool, Awaitable[bool]]:
         """Check if the field access is authorized."""
         ...
@@ -106,66 +110,78 @@ def authorize_field(
                 async_auth_wrapper.__fraiseql_field__ = func.__fraiseql_field__
                 async_auth_wrapper.__fraiseql_field_resolver__ = func.__fraiseql_field_resolver__
                 async_auth_wrapper.__fraiseql_field_description__ = getattr(
-                    func, "__fraiseql_field_description__", None
+                    func,
+                    "__fraiseql_field_description__",
+                    None,
                 )
                 if hasattr(func, "__fraiseql_original_func__"):
                     async_auth_wrapper.__fraiseql_original_func__ = func.__fraiseql_original_func__
 
             return async_auth_wrapper  # type: ignore[return-value]
 
-        else:
-
-            @functools.wraps(func)
-            def sync_auth_wrapper(root, info, *args: Any, **kwargs: Any) -> Any:
-                # Check permission first
-                if asyncio.iscoroutinefunction(permission_check):
-                    # Handle async permission check in sync context
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            # We're in an async context, create a task
-                            future = asyncio.ensure_future(permission_check(info, *args, **kwargs))
-                            # This is not ideal but necessary for sync resolvers
-                            authorized = asyncio.run_coroutine_threadsafe(
-                                permission_check(info, *args, **kwargs), loop
-                            ).result()
-                        else:
-                            # No running loop, use run_until_complete
-                            authorized = loop.run_until_complete(
-                                permission_check(info, *args, **kwargs)
-                            )
-                    except RuntimeError:
-                        # No event loop, create a new one
-                        loop = asyncio.new_event_loop()
-                        try:
-                            authorized = loop.run_until_complete(
-                                permission_check(info, *args, **kwargs)
-                            )
-                        finally:
-                            loop.close()
-                else:
-                    authorized = permission_check(info, *args, **kwargs)
-
-                if not authorized:
-                    field_name = getattr(info, "field_name", "field")
-                    raise FieldAuthorizationError(
-                        error_message or f"Not authorized to access field '{field_name}'",
-                    )
-
-                # Call the original function
-                return func(root, info, *args, **kwargs)
-
-            # Preserve field metadata
-            if hasattr(func, "__fraiseql_field__"):
-                sync_auth_wrapper.__fraiseql_field__ = func.__fraiseql_field__
-                sync_auth_wrapper.__fraiseql_field_resolver__ = func.__fraiseql_field_resolver__
-                sync_auth_wrapper.__fraiseql_field_description__ = getattr(
-                    func, "__fraiseql_field_description__", None
+        @functools.wraps(func)
+        def sync_auth_wrapper(root, info, *args: Any, **kwargs: Any) -> Any:
+            # Check permission first
+            if asyncio.iscoroutinefunction(permission_check):
+                # Warn about using async permission check with sync resolver
+                warnings.warn(
+                    f"Using async permission check with sync resolver '{func.__name__}'. "
+                    "Consider making the resolver async for better performance.",
+                    RuntimeWarning,
+                    stacklevel=2,
                 )
-                if hasattr(func, "__fraiseql_original_func__"):
-                    sync_auth_wrapper.__fraiseql_original_func__ = func.__fraiseql_original_func__
 
-            return sync_auth_wrapper  # type: ignore[return-value]
+                # Handle async permission check in sync context
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # We're in an async context, create a task
+                        # Store reference to avoid RUF006
+                        _ = asyncio.ensure_future(permission_check(info, *args, **kwargs))  # noqa: RUF006
+                        # This is not ideal but necessary for sync resolvers
+                        authorized = asyncio.run_coroutine_threadsafe(
+                            permission_check(info, *args, **kwargs),
+                            loop,
+                        ).result()
+                    else:
+                        # No running loop, use run_until_complete
+                        authorized = loop.run_until_complete(
+                            permission_check(info, *args, **kwargs),
+                        )
+                except RuntimeError:
+                    # No event loop, create a new one
+                    loop = asyncio.new_event_loop()
+                    try:
+                        authorized = loop.run_until_complete(
+                            permission_check(info, *args, **kwargs),
+                        )
+                    finally:
+                        loop.close()
+            else:
+                authorized = permission_check(info, *args, **kwargs)
+
+            if not authorized:
+                field_name = getattr(info, "field_name", "field")
+                raise FieldAuthorizationError(
+                    error_message or f"Not authorized to access field '{field_name}'",
+                )
+
+            # Call the original function
+            return func(root, info, *args, **kwargs)
+
+        # Preserve field metadata
+        if hasattr(func, "__fraiseql_field__"):
+            sync_auth_wrapper.__fraiseql_field__ = func.__fraiseql_field__
+            sync_auth_wrapper.__fraiseql_field_resolver__ = func.__fraiseql_field_resolver__
+            sync_auth_wrapper.__fraiseql_field_description__ = getattr(
+                func,
+                "__fraiseql_field_description__",
+                None,
+            )
+            if hasattr(func, "__fraiseql_original_func__"):
+                sync_auth_wrapper.__fraiseql_original_func__ = func.__fraiseql_original_func__
+
+        return sync_auth_wrapper  # type: ignore[return-value]
 
     return decorator
 
