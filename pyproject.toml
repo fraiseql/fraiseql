@@ -126,6 +126,9 @@ ignore = [
   "UP035",   # typing.Type is deprecated - conflicts with pyright
   "UP006",   # Use type instead of Type - conflicts with pyright
   "PLW0603", # Using global statement - needed for singleton pattern
+  "FURB162", # Unnecessary timezone replacement - false positive for ISO format parsing
+  "FIX002",  # TODO comments are fine in development
+  "N818",    # Exception naming - would require breaking changes
 
   # Documentation - too many missing docstrings
   "D100",    # Missing docstring in public module
