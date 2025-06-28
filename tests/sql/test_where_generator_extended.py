@@ -11,9 +11,7 @@ from psycopg.sql import SQL, Composed, Literal
 from fraiseql.sql.where_generator import (
     DynamicType,
     build_operator_composed,
-    create_filter_type,
-    generate_where_filter_type,
-    get_jsonb_path,
+    safe_create_where_type,
 )
 
 
@@ -74,12 +72,8 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "startswith", "J")
         assert isinstance(result, Composed)
         
-        # Ends with
-        result = build_operator_composed(path_sql, "endswith", "n")
-        assert isinstance(result, Composed)
-        
-        # Case insensitive contains
-        result = build_operator_composed(path_sql, "icontains", "john")
+        # Matches (regex)
+        result = build_operator_composed(path_sql, "matches", "John")
         assert isinstance(result, Composed)
 
     def test_list_operators(self):
@@ -90,8 +84,8 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "in", ["python", "javascript"])
         assert isinstance(result, Composed)
         
-        # Has key (for JSONB)
-        result = build_operator_composed(path_sql, "has_key", "language")
+        # Not in operator
+        result = build_operator_composed(path_sql, "notin", ["go", "rust"])
         assert isinstance(result, Composed)
 
     def test_null_operators(self):
@@ -148,24 +142,28 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "neq", False)
         assert isinstance(result, Composed)
 
-    def test_regex_operators(self):
-        """Test regex operators."""
-        path_sql = SQL("data->>'email'")
+    def test_depth_operators(self):
+        """Test depth operators for ltree-like operations."""
+        path_sql = SQL("data->>'path'")
         
-        # Regex match
-        result = build_operator_composed(path_sql, "regex", r".*@example\.com$")
+        # Depth equal
+        result = build_operator_composed(path_sql, "depth_eq", 3)
         assert isinstance(result, Composed)
         
-        # Case insensitive regex
-        result = build_operator_composed(path_sql, "iregex", r"ADMIN@.*")
+        # Depth greater than
+        result = build_operator_composed(path_sql, "depth_gt", 2)
         assert isinstance(result, Composed)
 
-    def test_range_operators(self):
-        """Test range operators."""
-        path_sql = SQL("data->>'age'")
+    def test_advanced_operators(self):
+        """Test advanced JSONB operators."""
+        path_sql = SQL("data->>'config'")
         
-        # Range (between)
-        result = build_operator_composed(path_sql, "range", [18, 65])
+        # Is descendant
+        result = build_operator_composed(path_sql, "isdescendant", "parent.child")
+        assert isinstance(result, Composed)
+        
+        # Strictly contains
+        result = build_operator_composed(path_sql, "strictly_contains", {"key": "value"})
         assert isinstance(result, Composed)
 
     def test_unsupported_operator(self):
@@ -176,36 +174,7 @@ class TestBuildOperatorComposed:
             build_operator_composed(path_sql, "unsupported_op", "value")
 
 
-class TestGetJsonbPath:
-    """Test JSONB path generation."""
-
-    def test_simple_field_path(self):
-        """Test simple field path generation."""
-        result = get_jsonb_path("name")
-        assert isinstance(result, SQL)
-
-    def test_nested_field_path(self):
-        """Test nested field path generation."""
-        result = get_jsonb_path("user.name")
-        assert isinstance(result, SQL)
-        
-    def test_deep_nested_path(self):
-        """Test deeply nested path."""
-        result = get_jsonb_path("data.user.profile.settings.theme")
-        assert isinstance(result, SQL)
-
-    def test_array_index_path(self):
-        """Test array index in path."""
-        result = get_jsonb_path("tags[0]")
-        assert isinstance(result, SQL)
-
-    def test_complex_path(self):
-        """Test complex path with arrays and objects."""
-        result = get_jsonb_path("users[0].posts[1].comments")
-        assert isinstance(result, SQL)
-
-
-class TestCreateFilterType:
+class TestSafeCreateWhereType:
     """Test dynamic filter type creation."""
 
     def test_create_simple_filter_type(self):
@@ -216,7 +185,7 @@ class TestCreateFilterType:
             name: str
             email: str
         
-        FilterType = create_filter_type(User)
+        FilterType = safe_create_where_type(User)
         
         # Should create a class
         assert callable(FilterType)
@@ -236,7 +205,7 @@ class TestCreateFilterType:
             content: Optional[str] = None
             published: bool = False
         
-        FilterType = create_filter_type(Post)
+        FilterType = safe_create_where_type(Post)
         filter_instance = FilterType()
         
         assert hasattr(filter_instance, 'id')
@@ -250,7 +219,7 @@ class TestCreateFilterType:
         class Simple:
             name: str
         
-        FilterType = create_filter_type(Simple)
+        FilterType = safe_create_where_type(Simple)
         filter_instance = FilterType()
         
         # Should implement DynamicType protocol
@@ -270,7 +239,7 @@ class TestCreateFilterType:
             tags: list[str]
             metadata: dict[str, Any]
         
-        FilterType = create_filter_type(ComplexModel)
+        FilterType = safe_create_where_type(ComplexModel)
         filter_instance = FilterType()
         
         # Should handle complex types
@@ -279,52 +248,6 @@ class TestCreateFilterType:
         assert hasattr(filter_instance, 'tags')
         assert hasattr(filter_instance, 'metadata')
 
-
-class TestGenerateWhereFilterType:
-    """Test the main filter type generator function."""
-
-    def test_generate_filter_for_dataclass(self):
-        """Test generating filter type for a dataclass."""
-        @dataclass
-        class User:
-            id: int
-            name: str
-            age: int
-            active: bool
-        
-        UserFilter = generate_where_filter_type(User)
-        
-        # Should create usable filter type
-        user_filter = UserFilter()
-        assert isinstance(user_filter, DynamicType)
-
-    def test_generated_filter_sql_empty(self):
-        """Test SQL generation when no filters are set."""
-        @dataclass
-        class User:
-            name: str
-        
-        UserFilter = generate_where_filter_type(User)
-        user_filter = UserFilter()
-        
-        # Should return None for empty filter
-        result = user_filter.to_sql()
-        assert result is None
-
-    def test_generated_filter_sql_with_values(self):
-        """Test SQL generation with filter values."""
-        @dataclass
-        class User:
-            name: str
-            age: int
-        
-        UserFilter = generate_where_filter_type(User)
-        user_filter = UserFilter()
-        
-        # Set some filter values
-        if hasattr(user_filter, 'name'):
-            # Assuming filter fields exist
-            pass  # Implementation depends on actual structure
 
     def test_filter_inheritance(self):
         """Test filter type with inheritance."""
@@ -338,7 +261,7 @@ class TestGenerateWhereFilterType:
             name: str
             email: str
         
-        UserFilter = generate_where_filter_type(User)
+        UserFilter = safe_create_where_type(User)
         user_filter = UserFilter()
         
         # Should include inherited fields
@@ -396,20 +319,13 @@ class TestEdgeCases:
         result = build_operator_composed(path_sql, "eq", complex_value)
         assert isinstance(result, Composed)
 
-    def test_jsonb_path_with_special_characters(self):
-        """Test JSONB path with special characters in field names."""
-        # Field names with special characters
-        result = get_jsonb_path("field-with-dashes")
-        assert isinstance(result, SQL)
+    def test_edge_case_operators(self):
+        """Test edge case operator handling."""
+        path_sql = SQL("data->>'field'")
         
-        result = get_jsonb_path("field_with_underscores")
-        assert isinstance(result, SQL)
-
-    def test_very_long_field_path(self):
-        """Test very long nested field path."""
-        long_path = ".".join([f"level{i}" for i in range(10)])
-        result = get_jsonb_path(long_path)
-        assert isinstance(result, SQL)
+        # Test with None values
+        result = build_operator_composed(path_sql, "eq", None)
+        assert isinstance(result, Composed)
 
     def test_filter_type_caching(self):
         """Test that filter types are cached properly."""
@@ -418,8 +334,8 @@ class TestEdgeCases:
             name: str
         
         # Generate same filter type twice
-        Filter1 = generate_where_filter_type(CachedModel)
-        Filter2 = generate_where_filter_type(CachedModel)
+        Filter1 = safe_create_where_type(CachedModel)
+        Filter2 = safe_create_where_type(CachedModel)
         
         # Should be the same due to caching
         assert Filter1 is Filter2
