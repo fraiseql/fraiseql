@@ -91,6 +91,7 @@ class TestFieldDecorator:
 
     def test_field_decorator_simple(self):
         """Test field decorator with simple usage."""
+
         class TestType:
             @field
             def simple_field(self):
@@ -101,6 +102,7 @@ class TestFieldDecorator:
 
     def test_field_decorator_with_resolver(self):
         """Test field decorator with custom resolver."""
+
         def custom_resolver(obj, info):
             return "custom"
 
@@ -113,6 +115,7 @@ class TestFieldDecorator:
 
     def test_field_decorator_with_description(self):
         """Test field decorator with description."""
+
         class TestType:
             @field(description="A test field")
             def described_field(self):
@@ -122,6 +125,7 @@ class TestFieldDecorator:
 
     def test_field_decorator_with_all_params(self):
         """Test field decorator with all parameters."""
+
         def resolver_func(obj, info):
             return "resolved"
 
@@ -135,6 +139,7 @@ class TestFieldDecorator:
 
     def test_field_decorator_parameterized(self):
         """Test field decorator with parentheses but no parameters."""
+
         class TestType:
             @field()
             def empty_params_field(self):
@@ -144,6 +149,7 @@ class TestFieldDecorator:
 
     def test_field_decorator_preserves_function(self):
         """Test field decorator preserves original function."""
+
         class TestType:
             @field
             def preserved_field(self):
@@ -152,8 +158,6 @@ class TestFieldDecorator:
         # Should have field metadata
         assert hasattr(TestType.preserved_field, "__fraiseql_field__")
         assert TestType.preserved_field.__fraiseql_field__ is True
-
-
 
 
 class TestDecoratorEdgeCases:
@@ -224,6 +228,7 @@ class TestDecoratorEdgeCases:
         with patch.object(SchemaRegistry, "get_instance", side_effect=Exception("Registry error")):
             # Should raise since we don't handle the exception
             with pytest.raises(Exception, match="Registry error"):
+
                 @query
                 def error_query():
                     return "error"

@@ -195,6 +195,7 @@ class TestSubscriptionLifecycle:
 
     def test_lifecycle_hook_preserves_function_metadata(self):
         """Test that lifecycle hooks preserve function metadata."""
+
         def test_func():
             """Test function docstring."""
 
@@ -287,6 +288,7 @@ class TestWithLifecycle:
     @pytest.mark.asyncio
     async def test_with_lifecycle_no_hooks(self):
         """Test with_lifecycle decorator with no hooks."""
+
         @with_lifecycle()
         async def test_subscription(info):
             yield "no_hooks_event"
@@ -356,6 +358,7 @@ class TestWithLifecycle:
     @pytest.mark.asyncio
     async def test_with_lifecycle_on_event_modifies_value(self):
         """Test that on_event can modify the yielded value."""
+
         async def transform_event(info, value):
             return value.upper()
 
@@ -390,6 +393,7 @@ class TestWithLifecycle:
 
     def test_with_lifecycle_preserves_function_metadata(self):
         """Test that with_lifecycle preserves function metadata."""
+
         async def test_subscription(info):
             """Test subscription docstring."""
             yield "test"
@@ -439,6 +443,7 @@ class TestLifecycleIntegration:
     @pytest.mark.asyncio
     async def test_lifecycle_with_context_sharing(self):
         """Test lifecycle hooks sharing data through context."""
+
         async def start_hook(info, name, kwargs):
             info.context["start_data"] = "started"
 
@@ -468,6 +473,7 @@ class TestLifecycleIntegration:
     async def test_lifecycle_with_logging(self):
         """Test lifecycle hooks with actual logging."""
         with patch("fraiseql.subscriptions.lifecycle.logger") as mock_logger:
+
             @with_lifecycle()
             async def logged_subscription(info):
                 yield "log_test"
@@ -510,6 +516,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_hook_raises_exception(self):
         """Test behavior when lifecycle hook raises exception."""
+
         async def failing_start_hook(info, name, kwargs):
             raise ValueError("Start hook failed")
 

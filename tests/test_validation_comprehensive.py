@@ -16,6 +16,7 @@ from fraiseql.validation import (
 @dataclass
 class User:
     """Test user type."""
+
     id: int
     name: str
     email: str
@@ -27,6 +28,7 @@ class User:
 @dataclass
 class Post:
     """Test post type."""
+
     id: int
     title: str
     content: str
@@ -38,6 +40,7 @@ class Post:
 @dataclass
 class Comment:
     """Test comment type."""
+
     id: int
     text: str
     post: Post
@@ -113,10 +116,12 @@ class TestValidateWhereInput:
         """Test validation with nested logical operators."""
         where = {
             "_and": [
-                {"_or": [
-                    {"name": {"_eq": "John"}},
-                    {"name": {"_eq": "Jane"}},
-                ]},
+                {
+                    "_or": [
+                        {"name": {"_eq": "John"}},
+                        {"name": {"_eq": "Jane"}},
+                    ]
+                },
                 {"age": {"_gte": 18}},
             ],
         }
@@ -232,45 +237,33 @@ class TestValidateFields:
     def test_valid_simple_fields(self):
         """Test validation of simple field selection."""
         # validate_query_fields doesn't exist - remove these tests
-        pass
 
     def test_invalid_field_selection(self):
         """Test validation with invalid field."""
-        pass
 
     def test_nested_field_selection(self):
         """Test validation with nested field selection."""
-        pass
 
     def test_invalid_nested_field(self):
         """Test validation with invalid nested field."""
-        pass
 
     def test_deeply_nested_fields(self):
         """Test validation with deeply nested fields."""
-        pass
 
     def test_empty_selection(self):
         """Test validation with empty selection."""
-        pass
 
     def test_strict_mode_field_validation(self):
         """Test strict mode raises on invalid field."""
-        pass
 
     def test_mixed_valid_invalid_fields(self):
         """Test validation with mix of valid and invalid fields."""
-        pass
 
     def test_list_type_field(self):
         """Test validation with list type fields."""
-        pass
 
     def test_optional_field(self):
         """Test validation with optional fields."""
-        pass
-
-
 
 
 class TestEdgeCases:
@@ -287,6 +280,7 @@ class TestEdgeCases:
 
     def test_circular_type_references(self):
         """Test validation with circular type references."""
+
         # This would need special handling in real implementation
         @fraise_type
         @dataclass
@@ -303,10 +297,12 @@ class TestEdgeCases:
         where = {
             "_and": [
                 {"name": {"_like": "%john%"}},
-                {"_or": [
-                    {"age": {"_gte": 18, "_lte": 65}},
-                    {"is_active": {"_eq": True}},
-                ]},
+                {
+                    "_or": [
+                        {"age": {"_gte": 18, "_lte": 65}},
+                        {"is_active": {"_eq": True}},
+                    ]
+                },
                 {"_not": {"email": {"_is_null": True}}},
                 {"id": {"_in": [1, 2, 3, 4, 5]}},
             ],
@@ -316,6 +312,7 @@ class TestEdgeCases:
 
     def test_validation_with_inherited_types(self):
         """Test validation with inherited dataclass types."""
+
         @fraise_type
         @dataclass
         class BaseEntity:

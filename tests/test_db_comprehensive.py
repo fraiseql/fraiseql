@@ -23,6 +23,7 @@ from fraiseql.types import fraise_type
 @dataclass
 class SimpleType:
     """Simple type for testing."""
+
     id: UUID
     name: str
     is_active: bool = True
@@ -32,6 +33,7 @@ class SimpleType:
 @dataclass
 class NestedType:
     """Type with nested object."""
+
     id: UUID
     title: str
     author: SimpleType
@@ -41,6 +43,7 @@ class NestedType:
 @dataclass
 class TypeWithOptional:
     """Type with optional fields."""
+
     id: UUID
     name: str
     description: Optional[str] = None
@@ -51,6 +54,7 @@ class TypeWithOptional:
 @dataclass
 class TypeWithList:
     """Type with list fields."""
+
     id: UUID
     tags: list[str]
     items: list[SimpleType]
@@ -160,7 +164,9 @@ class TestFraiseQLRepository:
 
         assert repo.context == {}
 
-    async def test_run_query_with_results(self, repository, mock_pool, mock_connection, mock_cursor):
+    async def test_run_query_with_results(
+        self, repository, mock_pool, mock_connection, mock_cursor
+    ):
         """Test running a query that returns results."""
         # Setup mocks
         expected_results = [
@@ -185,7 +191,9 @@ class TestFraiseQLRepository:
         mock_cursor.execute.assert_called_once_with(query.statement, query.params)
         mock_cursor.fetchall.assert_called_once()
 
-    async def test_run_query_without_fetch(self, repository, mock_pool, mock_connection, mock_cursor):
+    async def test_run_query_without_fetch(
+        self, repository, mock_pool, mock_connection, mock_cursor
+    ):
         """Test running a query without fetching results."""
         # Setup mocks
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
@@ -206,7 +214,9 @@ class TestFraiseQLRepository:
         mock_cursor.execute.assert_called_once()
         mock_cursor.fetchall.assert_not_called()
 
-    async def test_run_query_with_exception(self, repository, mock_pool, mock_connection, mock_cursor):
+    async def test_run_query_with_exception(
+        self, repository, mock_pool, mock_connection, mock_cursor
+    ):
         """Test running a query that raises an exception."""
         # Setup mocks
         mock_cursor.execute.side_effect = Exception("Database error")
@@ -273,7 +283,9 @@ class TestFraiseQLRepository:
         call_args = mock_cursor.execute.call_args[0]
         assert "test_function" in str(call_args[0])
 
-    async def test_execute_function_no_result(self, repository, mock_pool, mock_connection, mock_cursor):
+    async def test_execute_function_no_result(
+        self, repository, mock_pool, mock_connection, mock_cursor
+    ):
         """Test executing a function that returns no result."""
         # Setup mocks
         mock_cursor.fetchone.return_value = None
@@ -333,8 +345,6 @@ class TestFraiseQLRepository:
 
         # Verify
         assert result is None
-
-
 
 
 class TestRepositoryModes:

@@ -85,6 +85,7 @@ class TestCreateGraphQLRouter:
 
     def test_create_router_with_context_getter(self):
         """Test router creation with custom context getter."""
+
         async def custom_context(request: Request):
             return {"custom": "value"}
 
@@ -136,6 +137,7 @@ class TestDevelopmentRouter:
 
     def test_development_router_with_custom_context(self):
         """Test development router with custom context getter."""
+
         async def custom_context(request: Request):
             return {"user_id": 123}
 
@@ -587,6 +589,7 @@ class TestContextHandling:
 
     def test_custom_context_merge_development(self):
         """Test custom context merging in development router."""
+
         async def custom_context(request: Request):
             return {"custom_key": "custom_value"}
 
@@ -601,6 +604,7 @@ class TestContextHandling:
 
     def test_custom_context_merge_production(self):
         """Test custom context merging in production router."""
+
         async def custom_context(request: Request):
             return {"custom_key": "custom_value"}
 

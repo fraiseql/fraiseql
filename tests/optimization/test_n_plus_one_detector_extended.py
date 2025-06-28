@@ -160,8 +160,10 @@ class TestN1QueryDetector:
 
         # Add some data
         detector._patterns["test"] = QueryPattern(
-            field_path="test", parent_type="Test",
-            field_name="field", resolver_name="Test.field",
+            field_path="test",
+            parent_type="Test",
+            field_name="field",
+            resolver_name="Test.field",
         )
         detector._pattern_timestamps["test"] = [time.time()]
 
@@ -482,6 +484,7 @@ class TestGlobalDetectorFunctions:
         """Test that get_detector creates a global instance."""
         # Clear any existing detector
         import fraiseql.optimization.n_plus_one_detector as detector_module
+
         detector_module._detector = None
 
         detector = get_detector()
@@ -541,10 +544,15 @@ class TestN1DetectionContext:
 
         # Mock end_request to verify it's called
         original_end_request = detector.end_request
-        detector.end_request = Mock(return_value=N1DetectionResult(
-            detected=False, patterns=[], suggestions=[],
-            total_queries=0, threshold_exceeded=False,
-        ))
+        detector.end_request = Mock(
+            return_value=N1DetectionResult(
+                detected=False,
+                patterns=[],
+                suggestions=[],
+                total_queries=0,
+                threshold_exceeded=False,
+            )
+        )
 
         try:
             async with n1_detection_context(request_id) as context_detector:
@@ -567,10 +575,15 @@ class TestN1DetectionContext:
 
         # Mock end_request
         original_end_request = detector.end_request
-        detector.end_request = Mock(return_value=N1DetectionResult(
-            detected=False, patterns=[], suggestions=[],
-            total_queries=0, threshold_exceeded=False,
-        ))
+        detector.end_request = Mock(
+            return_value=N1DetectionResult(
+                detected=False,
+                patterns=[],
+                suggestions=[],
+                total_queries=0,
+                threshold_exceeded=False,
+            )
+        )
 
         async with n1_detection_context(request_id):
             pass
@@ -592,6 +605,7 @@ class TestTrackResolverExecution:
         detector.enabled = False
 
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
+
             @track_resolver_execution
             async def test_resolver(self, info):
                 return "result"
@@ -601,7 +615,10 @@ class TestTrackResolverExecution:
 
             assert result == "result"
             # Should not call track_field_resolution when disabled
-            assert not hasattr(detector, "track_field_resolution") or not detector.track_field_resolution.called
+            assert (
+                not hasattr(detector, "track_field_resolution")
+                or not detector.track_field_resolution.called
+            )
 
     @pytest.mark.asyncio
     async def test_async_resolver_tracking_enabled(self):
@@ -614,6 +631,7 @@ class TestTrackResolverExecution:
         mock_info.field_name = "test_field"
 
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
+
             @track_resolver_execution
             async def test_resolver(self, info):
                 await asyncio.sleep(0.01)  # Small delay for timing
@@ -641,6 +659,7 @@ class TestTrackResolverExecution:
         mock_info.field_name = "test_field"
 
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
+
             @track_resolver_execution
             async def failing_resolver(self, info):
                 raise ValueError("Test error")
@@ -657,6 +676,7 @@ class TestTrackResolverExecution:
         detector.enabled = False
 
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
+
             @track_resolver_execution
             def test_resolver(self, info):
                 return "result"
@@ -677,6 +697,7 @@ class TestTrackResolverExecution:
         mock_info.field_name = "test_field"
 
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
+
             @track_resolver_execution
             def test_resolver(self, info):
                 time.sleep(0.001)  # Small delay for timing
@@ -699,6 +720,7 @@ class TestTrackResolverExecution:
         mock_info.field_name = "test_field"
 
         with patch("fraiseql.optimization.n_plus_one_detector.get_detector", return_value=detector):
+
             @track_resolver_execution
             def failing_resolver(self, info):
                 raise ValueError("Test error")
@@ -711,6 +733,7 @@ class TestTrackResolverExecution:
 
     def test_decorator_wraps_function(self):
         """Test that decorator wraps the function correctly."""
+
         @track_resolver_execution
         async def documented_resolver(self, info):
             """This is a documented resolver."""
@@ -723,6 +746,7 @@ class TestTrackResolverExecution:
 
     def test_sync_function_detection(self):
         """Test that decorator correctly detects sync vs async functions."""
+
         @track_resolver_execution
         def sync_func(self, info):
             return "sync"

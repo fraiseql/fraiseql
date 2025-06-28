@@ -274,4 +274,3 @@ class FraiseQLMetrics:
     def generate_metrics(self) -> bytes:
         """Generate Prometheus metrics output."""
         return generate_latest(self.registry)
-

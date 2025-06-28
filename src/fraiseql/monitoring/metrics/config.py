@@ -23,42 +23,48 @@ except ImportError:
 
     # Define placeholder classes when prometheus is not available
     class CollectorRegistry:  # type: ignore[misc]
-        pass
+        """Placeholder registry when prometheus_client is not available."""
 
     class Counter:  # type: ignore[misc]
+        """Placeholder counter when prometheus_client is not available."""
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            """Initialize placeholder counter."""
 
         def inc(self, *args, **kwargs) -> None:
-            pass
+            """Increment placeholder counter."""
 
         def labels(self, *args, **kwargs):
+            """Return labeled placeholder counter."""
             return self
 
     class Gauge:  # type: ignore[misc]
+        """Placeholder gauge when prometheus_client is not available."""
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            """Initialize placeholder gauge."""
 
         def set(self, *args, **kwargs) -> None:
-            pass
+            """Set placeholder gauge value."""
 
         def inc(self, *args, **kwargs) -> None:
-            pass
+            """Increment placeholder gauge."""
 
         def dec(self, *args, **kwargs) -> None:
-            pass
+            """Decrement placeholder gauge."""
 
         def labels(self, *args, **kwargs):
+            """Return labeled placeholder gauge."""
             return self
 
     class Histogram:  # type: ignore[misc]
+        """Placeholder histogram when prometheus_client is not available."""
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            """Initialize placeholder histogram."""
 
         def observe(self, *args, **kwargs) -> None:
-            pass
+            """Observe value in placeholder histogram."""
 
         def labels(self, *args, **kwargs):
+            """Return labeled placeholder histogram."""
             return self
 
     CONTENT_TYPE_LATEST = "text/plain"

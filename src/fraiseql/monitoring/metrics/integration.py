@@ -229,4 +229,3 @@ def with_metrics(operation_type: str = "operation"):
         return sync_wrapper
 
     return decorator
-

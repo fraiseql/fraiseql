@@ -28,9 +28,9 @@ class UserContext:
             user_context = info.context["user"]
             if not user_context:
                 raise AuthenticationError("Not authenticated")
-            
+
             return await get_user_by_id(user_context.user_id)
-        
+
         @requires_permission("posts:write")
         async def create_post(info: Info, title: str, content: str) -> Post:
             # Permission check is handled by decorator
@@ -94,7 +94,7 @@ class AuthProvider(ABC):
                 # Validate token and return payload
                 payload = jwt.decode(token, self.secret, algorithms=["HS256"])
                 return payload
-            
+
             async def get_user_context(self, payload: dict[str, Any]) -> UserContext:
                 return UserContext(
                     user_id=payload["sub"],

@@ -121,3 +121,23 @@ FROM users;
 - Always include tenant_id in views for row-level security
 - Use PostgreSQL RLS (Row Level Security) when possible
 - Filter by tenant_id in all queries
+
+## Useful Utility Modules
+
+### Common Input/Output Types
+- `types/common_inputs.py` - Contains `DeletionInput` for standardized delete operations
+- `types/common_outputs.py` - Contains `MutationResultRow` and `MUTATION_STATUS_MAP` for mutation results
+- `types/protocols.py` - Type protocols for `FraiseQLInputType` and `FraiseQLOutputType`
+
+### Introspection & Analysis
+- `utils/introspection.py` - `describe_type()` function for analyzing FraiseQL types
+- Use `describe_type(MyType)` to get field metadata, SQL bindings, and type information
+
+### Network Utilities
+- `utils/ip_utils.py` - IPv4 validation and subnet mask utilities
+- `is_ipv4_address(ip)` - Validate IPv4 addresses
+- `ipv4_mask_len(netmask)` - Calculate CIDR prefix length from netmask
+
+### GraphQL Processing
+- `mutations/selection_filter.py` - Filter mutation results based on GraphQL selection sets
+- `gql/graphql_entrypoint.py` - Alternative GraphQL HTTP router (GraphNoteRouter)

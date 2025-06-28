@@ -18,7 +18,9 @@ from fraiseql.auth.decorators import (
 class MockUserContext(UserContext):
     """Mock UserContext for testing."""
 
-    def __init__(self, user_id: str = "test_user", permissions: list[str] = None, roles: list[str] = None):
+    def __init__(
+        self, user_id: str = "test_user", permissions: list[str] = None, roles: list[str] = None
+    ):
         super().__init__(user_id=user_id)
         self._permissions = permissions or []
         self._roles = roles or []
@@ -89,6 +91,7 @@ class TestRequiresAuth:
     @pytest.mark.asyncio
     async def test_requires_auth_no_info(self):
         """Test authentication with no info argument."""
+
         @requires_auth
         async def test_resolver():
             return {"success": True}
@@ -99,6 +102,7 @@ class TestRequiresAuth:
     @pytest.mark.asyncio
     async def test_requires_auth_invalid_info_type(self):
         """Test authentication with invalid info type."""
+
         @requires_auth
         async def test_resolver(info):
             return {"success": True}
@@ -122,6 +126,7 @@ class TestRequiresAuth:
     @pytest.mark.asyncio
     async def test_requires_auth_preserves_function_signature(self):
         """Test that decorator preserves function metadata."""
+
         @requires_auth
         async def documented_resolver(info, param: str):
             """This is a documented resolver."""
@@ -184,6 +189,7 @@ class TestRequiresPermission:
     @pytest.mark.asyncio
     async def test_requires_permission_no_info(self):
         """Test permission decorator with no info argument."""
+
         @requires_permission("users:read")
         async def test_resolver():
             return {"success": True}
@@ -194,6 +200,7 @@ class TestRequiresPermission:
     @pytest.mark.asyncio
     async def test_requires_permission_invalid_info_type(self):
         """Test permission decorator with invalid info type."""
+
         @requires_permission("users:read")
         async def test_resolver(info):
             return {"success": True}
@@ -255,6 +262,7 @@ class TestRequiresRole:
     @pytest.mark.asyncio
     async def test_requires_role_no_info(self):
         """Test role decorator with no info argument."""
+
         @requires_role("admin")
         async def test_resolver():
             return {"success": True}
@@ -265,6 +273,7 @@ class TestRequiresRole:
     @pytest.mark.asyncio
     async def test_requires_role_invalid_info_type(self):
         """Test role decorator with invalid info type."""
+
         @requires_role("admin")
         async def test_resolver(info):
             return {"success": True}
@@ -352,6 +361,7 @@ class TestRequiresAnyPermission:
     @pytest.mark.asyncio
     async def test_requires_any_permission_no_info(self):
         """Test with no info argument."""
+
         @requires_any_permission("users:read", "admin:all")
         async def test_resolver():
             return {"success": True}
@@ -439,6 +449,7 @@ class TestRequiresAnyRole:
     @pytest.mark.asyncio
     async def test_requires_any_role_no_info(self):
         """Test with no info argument."""
+
         @requires_any_role("admin", "moderator")
         async def test_resolver():
             return {"success": True}
@@ -501,7 +512,9 @@ class TestDecoratorCombinations:
     @pytest.mark.asyncio
     async def test_multiple_decorators_role_failure(self):
         """Test multiple decorators with role failure."""
-        user = MockUserContext("test_user", permissions=["users:write"], roles=["user"])  # Missing admin
+        user = MockUserContext(
+            "test_user", permissions=["users:write"], roles=["user"]
+        )  # Missing admin
         mock_info = self.create_mock_info(user)
 
         @requires_auth

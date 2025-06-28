@@ -14,6 +14,7 @@ from fraiseql.validation import validate_where_input
 @dataclass
 class User:
     """Test user type."""
+
     id: int
     name: str
     email: str
@@ -25,6 +26,7 @@ class User:
 @dataclass
 class Post:
     """Test post type."""
+
     id: int
     title: str
     content: str

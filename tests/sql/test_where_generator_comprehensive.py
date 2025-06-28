@@ -19,6 +19,7 @@ from fraiseql.sql.where_generator import (
 @dataclass
 class SampleModel:
     """Test model with various field types."""
+
     id: uuid.UUID
     name: str
     age: int
@@ -53,12 +54,10 @@ class TestBuildOperatorComposed:
         """Test LIKE operator."""
         # Like operator doesn't exist in FraiseQL - skip this test
         # The startswith operator is used instead
-        pass
 
     def test_ilike_operator(self):
         """Test ILIKE operator."""
         # ILike operator doesn't exist in FraiseQL - skip this test
-        pass
 
     def test_numeric_operators(self):
         """Test numeric comparison operators."""
@@ -403,6 +402,7 @@ class TestSafeCreateWhereType:
 
     def test_nested_dynamic_type(self):
         """Test WHERE type with nested dynamic type filters."""
+
         @dataclass
         class Parent:
             id: int

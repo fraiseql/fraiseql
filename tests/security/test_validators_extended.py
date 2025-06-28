@@ -1,6 +1,5 @@
 """Extended tests for security validators to improve coverage."""
 
-
 from fraiseql.security.validators import (
     InputValidator,
     ValidationResult,
@@ -183,7 +182,9 @@ class TestInputValidatorExtended:
         results = {}
         for field_name, value in fields.items():
             results[field_name] = InputValidator.validate_field_value(
-                field_name, value, allow_html=False,
+                field_name,
+                value,
+                allow_html=False,
             )
 
         assert "name" in results

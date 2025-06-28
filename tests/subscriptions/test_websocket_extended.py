@@ -103,7 +103,9 @@ class TestWebSocketConnection:
     def setup_method(self):
         """Set up test fixtures."""
         self.mock_websocket = AsyncMock()
-        self.schema = build_schema("type Query { hello: String } type Subscription { test: String }")
+        self.schema = build_schema(
+            "type Query { hello: String } type Subscription { test: String }"
+        )
 
     def test_connection_initialization(self):
         """Test WebSocket connection initialization."""
@@ -172,10 +174,12 @@ class TestWebSocketConnection:
         connection = WebSocketConnection(websocket=self.mock_websocket)
 
         raw_message = {
-            "text": json.dumps({
-                "type": MessageType.CONNECTION_INIT,
-                "payload": {"auth": "token"},
-            }),
+            "text": json.dumps(
+                {
+                    "type": MessageType.CONNECTION_INIT,
+                    "payload": {"auth": "token"},
+                }
+            ),
         }
         self.mock_websocket.receive.return_value = raw_message
 
@@ -616,7 +620,9 @@ class TestSubscriptionManager:
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = SubscriptionManager()
-        self.schema = build_schema("type Query { hello: String } type Subscription { test: String }")
+        self.schema = build_schema(
+            "type Query { hello: String } type Subscription { test: String }"
+        )
         self.manager.schema = self.schema
 
     @pytest.mark.asyncio
@@ -700,9 +706,10 @@ class TestSubscriptionManager:
 
         message = GraphQLWSMessage(type=MessageType.PING)
 
-        with patch.object(conn1, "send_message") as mock_send1, \
-             patch.object(conn2, "send_message") as mock_send2:
-
+        with (
+            patch.object(conn1, "send_message") as mock_send1,
+            patch.object(conn2, "send_message") as mock_send2,
+        ):
             await self.manager.broadcast(message)
 
             # Both should receive the message
@@ -727,9 +734,10 @@ class TestSubscriptionManager:
 
         message = GraphQLWSMessage(type=MessageType.PING)
 
-        with patch.object(conn1, "send_message") as mock_send1, \
-             patch.object(conn2, "send_message") as mock_send2:
-
+        with (
+            patch.object(conn1, "send_message") as mock_send1,
+            patch.object(conn2, "send_message") as mock_send2,
+        ):
             await self.manager.broadcast(message, filter_fn=admin_filter)
 
             # Only admin connection should receive
@@ -753,9 +761,10 @@ class TestSubscriptionManager:
 
         message = GraphQLWSMessage(type=MessageType.NEXT, id="sub1")
 
-        with patch.object(conn1, "send_message") as mock_send1, \
-             patch.object(conn2, "send_message") as mock_send2:
-
+        with (
+            patch.object(conn1, "send_message") as mock_send1,
+            patch.object(conn2, "send_message") as mock_send2,
+        ):
             await self.manager.broadcast(message, subscription_id="sub1")
 
             # Only connection with subscription should receive
@@ -796,9 +805,10 @@ class TestSubscriptionManager:
         conn1 = await self.manager.add_connection(websocket=mock_ws1)
         conn2 = await self.manager.add_connection(websocket=mock_ws2)
 
-        with patch.object(conn1, "_close") as mock_close1, \
-             patch.object(conn2, "_close") as mock_close2:
-
+        with (
+            patch.object(conn1, "_close") as mock_close1,
+            patch.object(conn2, "_close") as mock_close2,
+        ):
             await self.manager.close_all()
 
             # Both connections should be closed

@@ -55,6 +55,7 @@ class TestFraiseQLMetrics:
         """Create metrics instance."""
         if PROMETHEUS_AVAILABLE:
             from prometheus_client import CollectorRegistry
+
             registry = CollectorRegistry()
         else:
             registry = MagicMock()
@@ -121,7 +122,9 @@ class TestFraiseQLMetrics:
             assert metrics.mutation_success._value._value > 0
         else:
             metrics.mutation_total.inc.assert_called()
-            metrics.mutation_success.inc.assert_called_with(1, {"mutation_name": "CreateUser", "result_type": "User"})
+            metrics.mutation_success.inc.assert_called_with(
+                1, {"mutation_name": "CreateUser", "result_type": "User"}
+            )
 
     def test_record_mutation_error(self, metrics):
         """Test recording failed mutation."""
@@ -135,7 +138,9 @@ class TestFraiseQLMetrics:
         if PROMETHEUS_AVAILABLE:
             assert metrics.mutation_errors._value._value > 0
         else:
-            metrics.mutation_errors.inc.assert_called_with(1, {"mutation_name": "CreateUser", "error_type": "ValidationError"})
+            metrics.mutation_errors.inc.assert_called_with(
+                1, {"mutation_name": "CreateUser", "error_type": "ValidationError"}
+            )
 
     def test_update_db_pool_stats(self, metrics):
         """Test updating database pool statistics."""
@@ -161,7 +166,9 @@ class TestFraiseQLMetrics:
         if PROMETHEUS_AVAILABLE:
             assert metrics.db_queries_total._value._value > 0
         else:
-            metrics.db_queries_total.inc.assert_called_with(1, {"query_type": "SELECT", "table_name": "users"})
+            metrics.db_queries_total.inc.assert_called_with(
+                1, {"query_type": "SELECT", "table_name": "users"}
+            )
             metrics.db_query_duration.observe.assert_called_with(0.045, {"query_type": "SELECT"})
 
     def test_record_cache_hit(self, metrics):
@@ -192,7 +199,9 @@ class TestFraiseQLMetrics:
         if PROMETHEUS_AVAILABLE:
             assert metrics.errors_total._value._value > 0
         else:
-            metrics.errors_total.inc.assert_called_with(1, {"error_type": "ValidationError", "category": "graphql"})
+            metrics.errors_total.inc.assert_called_with(
+                1, {"error_type": "ValidationError", "category": "graphql"}
+            )
 
     def test_record_subscription(self, metrics):
         """Test recording subscription metrics."""
@@ -202,7 +211,9 @@ class TestFraiseQLMetrics:
         if PROMETHEUS_AVAILABLE:
             assert metrics.subscriptions_active._value._value > 0
         else:
-            metrics.subscriptions_active.inc.assert_called_with(1, {"subscription_name": "MessageAdded"})
+            metrics.subscriptions_active.inc.assert_called_with(
+                1, {"subscription_name": "MessageAdded"}
+            )
 
         # Complete subscription
         metrics.record_subscription_complete("MessageAdded", duration=120.5)
@@ -210,8 +221,12 @@ class TestFraiseQLMetrics:
         if PROMETHEUS_AVAILABLE:
             assert metrics.subscriptions_active._value._value == 0
         else:
-            metrics.subscriptions_active.dec.assert_called_with(1, {"subscription_name": "MessageAdded"})
-            metrics.subscription_duration.observe.assert_called_with(120.5, {"subscription_name": "MessageAdded"})
+            metrics.subscriptions_active.dec.assert_called_with(
+                1, {"subscription_name": "MessageAdded"}
+            )
+            metrics.subscription_duration.observe.assert_called_with(
+                120.5, {"subscription_name": "MessageAdded"}
+            )
 
     def test_update_turbo_router_stats(self, metrics):
         """Test updating TurboRouter statistics."""
@@ -260,6 +275,7 @@ class TestMetricsIntegration:
         """Test getting metrics without setup returns None."""
         # Reset global metrics
         import fraiseql.monitoring.metrics.integration
+
         fraiseql.monitoring.metrics.integration._metrics = None
 
         assert get_metrics() is None

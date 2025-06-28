@@ -32,13 +32,13 @@ class CQRSRepository:
         ```python
         async with get_db_connection() as conn:
             repo = CQRSRepository(conn)
-            
+
             # Create a new user
             user = await repo.create("user", {
                 "name": "John Doe",
                 "email": "john@example.com"
             })
-            
+
             # Query users with filtering
             users = await repo.list(
                 User,
@@ -46,7 +46,7 @@ class CQRSRepository:
                 order_by=[("created_at", "DESC")],
                 limit=10
             )
-            
+
             # Load relationships
             user_with_posts = await repo.load_one_to_many(
                 user, "posts", Post, "user_id"

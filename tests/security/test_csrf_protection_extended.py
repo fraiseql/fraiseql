@@ -216,7 +216,9 @@ class TestGraphQLCSRFValidator:
         request.headers = {"x-csrf-token": "header-token"}
         request.cookies = {}
 
-        with patch.object(validator.token_generator, "validate_token", return_value=True) as mock_validate:
+        with patch.object(
+            validator.token_generator, "validate_token", return_value=True
+        ) as mock_validate:
             result = await validator.validate_request(
                 request,
                 {"query": "mutation Test { ... }"},
@@ -233,7 +235,9 @@ class TestGraphQLCSRFValidator:
         request.headers = {}
         request.cookies = {"csrf_token": "cookie-token"}
 
-        with patch.object(validator.token_generator, "validate_token", return_value=True) as mock_validate:
+        with patch.object(
+            validator.token_generator, "validate_token", return_value=True
+        ) as mock_validate:
             result = await validator.validate_request(
                 request,
                 {"query": "mutation Test { ... }"},

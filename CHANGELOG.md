@@ -5,6 +5,43 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0a20] - 2025-06-28
+
+### Added
+- **Context Parameters for Mutations** - Native support for passing authentication context to PostgreSQL functions
+  - Added `context_params` parameter to `@mutation` decorator
+  - Automatic extraction of values from GraphQL context (tenant_id, user_id, etc.)
+  - Support for multi-parameter PostgreSQL functions: `function(tenant_id, user_id, input_data)`
+  - Enhanced database layer with `execute_function_with_context()` method
+  - Works with both psycopg and asyncpg connection pools
+  - Automatic handling of `UserContext` objects (extracts `user_id` when context key is "user")
+  - Runtime validation of required context parameters
+  - Backward compatible - existing single-parameter mutations continue to work
+
+### Technical Details
+- Enhanced `MutationDefinition` class to store and process context parameter mappings
+- Added multi-parameter SQL generation with proper parameter placeholders
+- Context parameters are validated at runtime with clear error messages
+- Maintains type safety throughout the mutation execution process
+
+### Example Usage
+```python
+@mutation(
+    function="create_location",
+    schema="app",
+    context_params={
+        "tenant_id": "input_pk_organization",
+        "user": "input_created_by"
+    }
+)
+class CreateLocation:
+    input: CreateLocationInput
+    success: CreateLocationSuccess
+    failure: CreateLocationError
+```
+
+This addresses enterprise multi-tenant requirements where PostgreSQL functions need separate context parameters for security and audit purposes.
+
 ## [0.1.0a19] - 2025-06-28
 
 ### Fixed

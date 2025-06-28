@@ -160,6 +160,71 @@ class FraiseQLRepository:
                 )
                 return dict(result) if result else {}
 
+    async def execute_function_with_context(
+        self,
+        function_name: str,
+        context_args: list[object],
+        input_data: dict[str, object],
+    ) -> dict[str, object]:
+        """Execute a PostgreSQL function with context parameters.
+
+        Args:
+            function_name: Fully qualified function name (e.g., 'app.create_location')
+            context_args: List of context arguments (e.g., [tenant_id, user_id])
+            input_data: Dictionary to pass as JSONB to the function
+
+        Returns:
+            Dictionary result from the function (mutation_result type)
+        """
+        import json
+
+        # Validate function name to prevent SQL injection
+        if not function_name.replace("_", "").replace(".", "").isalnum():
+            msg = f"Invalid function name: {function_name}"
+            raise ValueError(msg)
+
+        # Build parameter placeholders
+        param_count = len(context_args) + 1  # +1 for the JSONB parameter
+
+        # Check if this is psycopg pool or asyncpg pool
+        if hasattr(self._pool, "connection"):
+            # psycopg pool
+            placeholders = ", ".join(["%s"] * len(context_args)) + ", %s::jsonb"
+            params = [*list(context_args), json.dumps(input_data)]
+
+            async with (
+                self._pool.connection() as conn,
+                conn.cursor(row_factory=dict_row) as cursor,
+            ):
+                await cursor.execute(
+                    f"SELECT * FROM {function_name}({placeholders})",
+                    params,
+                )
+                result = await cursor.fetchone()
+                return result if result else {}
+        else:
+            # asyncpg pool
+            placeholders = (
+                ", ".join([f"${i + 1}" for i in range(len(context_args))])
+                + f", ${param_count}::jsonb"
+            )
+            params = [*list(context_args), input_data]
+
+            async with self._pool.acquire() as conn:
+                # Set up JSON codec for asyncpg
+                await conn.set_type_codec(
+                    "jsonb",
+                    encoder=json.dumps,
+                    decoder=json.loads,
+                    schema="pg_catalog",
+                )
+
+                result = await conn.fetchrow(
+                    f"SELECT * FROM {function_name}({placeholders})",
+                    *params,
+                )
+                return dict(result) if result else {}
+
     def _determine_mode(self) -> str:
         """Determine if we're in dev or production mode."""
         # Check context first (allows per-request override)

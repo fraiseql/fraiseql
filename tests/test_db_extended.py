@@ -60,6 +60,7 @@ class TestTypeRegistry:
 
     def test_register_type_for_view(self):
         """Test registering a type for a view."""
+
         class User:
             pass
 
@@ -68,6 +69,7 @@ class TestTypeRegistry:
 
     def test_register_multiple_types(self):
         """Test registering multiple types."""
+
         class User:
             pass
 
@@ -82,6 +84,7 @@ class TestTypeRegistry:
 
     def test_register_type_overwrite(self):
         """Test overwriting a registered type."""
+
         class OldUser:
             pass
 
@@ -312,6 +315,7 @@ class TestFraiseQLRepository:
 
     def test_get_type_for_data(self, repository):
         """Test getting type for data."""
+
         class User:
             pass
 
@@ -410,11 +414,13 @@ class TestRepositoryEdgeCases:
         mock_pool.connection.return_value.__aexit__.return_value = None
 
         # Complex composed SQL
-        complex_sql = Composed([
-            SQL("SELECT * FROM users WHERE "),
-            SQL("id = %s AND "),
-            SQL("status = %s"),
-        ])
+        complex_sql = Composed(
+            [
+                SQL("SELECT * FROM users WHERE "),
+                SQL("id = %s AND "),
+                SQL("status = %s"),
+            ]
+        )
 
         query = DatabaseQuery(complex_sql, {"id": 1, "status": "active"})
         result = await repository.run(query)

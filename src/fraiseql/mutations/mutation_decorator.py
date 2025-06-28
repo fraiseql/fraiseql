@@ -18,10 +18,12 @@ class MutationDefinition:
         mutation_class: type,
         function_name: str | None = None,
         schema: str = "graphql",
+        context_params: dict[str, str] | None = None,
     ) -> None:
         self.mutation_class = mutation_class
         self.name = mutation_class.__name__
         self.schema = schema
+        self.context_params = context_params or {}
 
         # Get type hints
         hints = get_type_hints(mutation_class)
@@ -70,7 +72,33 @@ class MutationDefinition:
 
             # Call PostgreSQL function
             full_function_name = f"{self.schema}.{self.function_name}"
-            result = await db.execute_function(full_function_name, input_data)
+
+            if self.context_params:
+                # Extract context arguments
+                context_args = []
+                for context_key in self.context_params:
+                    context_value = info.context.get(context_key)
+                    if context_value is None:
+                        msg = (
+                            f"Required context parameter '{context_key}' "
+                            f"not found in GraphQL context"
+                        )
+                        raise RuntimeError(msg)
+
+                    # Extract specific field if it's a UserContext object
+                    if hasattr(context_value, "user_id") and context_key == "user":
+                        context_args.append(context_value.user_id)
+                    else:
+                        context_args.append(context_value)
+
+                result = await db.execute_function_with_context(
+                    full_function_name,
+                    context_args,
+                    input_data,
+                )
+            else:
+                # Use original single-parameter function
+                result = await db.execute_function(full_function_name, input_data)
 
             # Parse result into Success or Error type
             return parse_mutation_result(
@@ -105,6 +133,7 @@ def mutation(
     *,
     function: str | None = None,
     schema: str = "graphql",
+    context_params: dict[str, str] | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]] | Callable[..., Any]:
     """Decorator to define a mutation.
 
@@ -123,9 +152,24 @@ def mutation(
             success: CreateUserSuccess
             error: CreateUserError
 
+    3. Class-based mutations with context parameters:
+        @mutation(
+            function="create_location",
+            schema="app",
+            context_params={
+                "tenant_id": "input_pk_organization",
+                "user": "input_created_by"
+            }
+        )
+        class CreateLocation:
+            input: CreateLocationInput
+            success: CreateLocationSuccess
+            error: CreateLocationError
+
     Args:
         function: Optional PostgreSQL function name (defaults to snake_case of name)
         schema: PostgreSQL schema containing the function (defaults to "graphql")
+        context_params: Dict mapping GraphQL context keys to PostgreSQL parameter names
     """
 
     def decorator(
@@ -153,7 +197,7 @@ def mutation(
         # Otherwise, it's a class-based mutation
         cls = cls_or_fn
         # Create mutation definition
-        definition = MutationDefinition(cls, function, schema)
+        definition = MutationDefinition(cls, function, schema, context_params)
 
         # Store definition on the class
         cls.__fraiseql_mutation__ = definition

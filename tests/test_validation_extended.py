@@ -23,6 +23,7 @@ from fraiseql.validation import (
 @dataclass
 class SampleUser:
     """Sample user type for testing."""
+
     id: int
     name: str
     email: str
@@ -295,6 +296,7 @@ class TestHelperFunctions:
 
     def test_get_type_fields_regular_class(self):
         """Test _get_type_fields with regular class."""
+
         class RegularClass:
             def __init__(self):
                 self.name: str = ""
@@ -307,6 +309,7 @@ class TestHelperFunctions:
 
     def test_get_type_fields_exception_handling(self):
         """Test _get_type_fields with exception handling."""
+
         class ProblematicClass:
             pass
 
@@ -330,6 +333,7 @@ class TestHelperFunctions:
 
     def test_get_field_type_annotations(self):
         """Test _get_field_type with __annotations__."""
+
         class AnnotatedClass:
             __annotations__ = {"name": str, "age": int}
 
@@ -476,8 +480,7 @@ class TestValidateQueryComplexity:
         field_node = Mock()
         field_node.selection_set = Mock()
         field_node.selection_set.selections = [
-            create_selection(name, children)
-            for name, children in field_structure.items()
+            create_selection(name, children) for name, children in field_structure.items()
         ]
 
         mock_info.field_nodes = [field_node]
@@ -567,6 +570,7 @@ class TestEdgeCases:
 
     def test_nested_optional_types(self):
         """Test handling of deeply nested Optional types."""
+
         @dataclass
         class ComplexType:
             nested_optional: Optional[Optional[str]] = None
@@ -605,6 +609,7 @@ class TestEdgeCases:
 
     def test_class_without_annotations(self):
         """Test field extraction from class without annotations."""
+
         class NoAnnotations:
             def __init__(self):
                 self.some_attr = "value"
@@ -615,6 +620,7 @@ class TestEdgeCases:
 
     def test_string_annotation_handling(self):
         """Test handling of string annotations in dataclass fields."""
+
         @dataclass
         class StringAnnotated:
             forward_ref: "str"  # String annotation

@@ -369,6 +369,7 @@ class TestSubscriptionCache:
             except ValueError:
                 # Import and use the actual logger
                 from fraiseql.subscriptions.caching import logger
+
                 logger.exception("Cache cleanup error")
                 # Then simulate cancellation
                 raise asyncio.CancelledError() from None
@@ -431,6 +432,7 @@ class TestCacheDecorator:
 
     def test_decorator_adds_ttl_attribute(self):
         """Test that decorator adds TTL attribute to function."""
+
         @cache(ttl=15.0)
         async def test_function():
             yield "test"
@@ -440,6 +442,7 @@ class TestCacheDecorator:
 
     def test_decorator_default_ttl(self):
         """Test decorator with default TTL."""
+
         @cache()
         async def test_function():
             yield "test"
@@ -448,6 +451,7 @@ class TestCacheDecorator:
 
     def test_decorator_preserves_function_metadata(self):
         """Test that decorator preserves function metadata."""
+
         @cache(ttl=10.0)
         async def documented_function():
             """This is a documented function."""
@@ -481,6 +485,7 @@ class TestCacheDecorator:
     @pytest.mark.asyncio
     async def test_cached_function_no_context(self):
         """Test cached function when info has no context attribute."""
+
         @cache(ttl=5.0)
         async def test_subscription(info):
             yield "no_context_result"
@@ -497,6 +502,7 @@ class TestCacheDecorator:
     @pytest.mark.asyncio
     async def test_cached_function_empty_context(self):
         """Test cached function with empty context."""
+
         @cache(ttl=5.0)
         async def test_subscription(info):
             yield "empty_context_result"
@@ -559,7 +565,9 @@ class TestCacheDecorator:
         # Call with different parameters
         results1 = await self._collect_async_gen(test_subscription(mock_info, param1="a", param2=1))
         results2 = await self._collect_async_gen(test_subscription(mock_info, param1="b", param2=2))
-        results3 = await self._collect_async_gen(test_subscription(mock_info, param1="a", param2=1))  # Same as first
+        results3 = await self._collect_async_gen(
+            test_subscription(mock_info, param1="a", param2=1)
+        )  # Same as first
 
         assert results1 == ["result_1_a_1"]
         assert results2 == ["result_2_b_2"]
@@ -774,6 +782,7 @@ class TestEdgeCases:
 
     def test_cache_decorator_with_non_async_function(self):
         """Test cache decorator applied to non-async function."""
+
         # This should still work, but the function won't be a generator
         @cache(ttl=5.0)
         def sync_function():

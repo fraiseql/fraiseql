@@ -56,6 +56,7 @@ except ImportError:
     TraceIdRatioBased = None  # type: ignore[assignment]
 
     class SpanAttributes:  # type: ignore[misc]
+        """Placeholder span attributes when OpenTelemetry is not available."""
         HTTP_METHOD = "http.method"
         HTTP_URL = "http.url"
         HTTP_STATUS_CODE = "http.status_code"
@@ -68,11 +69,14 @@ except ImportError:
         DB_STATEMENT = "db.statement"
 
     class StatusCode:  # type: ignore[misc]
+        """Placeholder status code when OpenTelemetry is not available."""
         OK = "OK"
         ERROR = "ERROR"
 
     class Status:  # type: ignore[misc]
+        """Placeholder status when OpenTelemetry is not available."""
         def __init__(self, code, description="") -> None:
+            """Initialize placeholder status."""
             self.code = code
             self.description = description
 

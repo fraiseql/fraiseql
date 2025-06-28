@@ -179,6 +179,7 @@ class TestSafeCreateWhereType:
 
     def test_create_simple_filter_type(self):
         """Test creating a filter type for simple dataclass."""
+
         @dataclass
         class User:
             id: int
@@ -198,6 +199,7 @@ class TestSafeCreateWhereType:
 
     def test_create_filter_with_optional_fields(self):
         """Test creating filter type with optional fields."""
+
         @dataclass
         class Post:
             id: int
@@ -215,6 +217,7 @@ class TestSafeCreateWhereType:
 
     def test_filter_type_to_sql(self):
         """Test that created filter types implement to_sql method."""
+
         @dataclass
         class Simple:
             name: str
@@ -231,6 +234,7 @@ class TestSafeCreateWhereType:
 
     def test_filter_type_with_complex_types(self):
         """Test filter type creation with complex field types."""
+
         @dataclass
         class ComplexModel:
             id: int
@@ -248,9 +252,9 @@ class TestSafeCreateWhereType:
         assert hasattr(filter_instance, "tags")
         assert hasattr(filter_instance, "metadata")
 
-
     def test_filter_inheritance(self):
         """Test filter type with inheritance."""
+
         @dataclass
         class BaseModel:
             id: int
@@ -276,6 +280,7 @@ class TestDynamicTypeProtocol:
 
     def test_protocol_compliance(self):
         """Test that objects can implement the protocol."""
+
         class CustomFilter:
             def to_sql(self) -> Composed | None:
                 return Composed([SQL("1 = 1")])
@@ -285,6 +290,7 @@ class TestDynamicTypeProtocol:
 
     def test_protocol_method_signature(self):
         """Test protocol method signature requirements."""
+
         class InvalidFilter:
             def to_sql(self, extra_param):  # Wrong signature
                 return None
@@ -329,6 +335,7 @@ class TestEdgeCases:
 
     def test_filter_type_caching(self):
         """Test that filter types are cached properly."""
+
         @dataclass
         class CachedModel:
             name: str

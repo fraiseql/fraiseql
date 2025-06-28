@@ -25,6 +25,7 @@ from fraiseql.types.fraise_type import fraise_type
 @fraise_type
 class Product:
     """Test product type."""
+
     id: str
     name: str
     price: float
@@ -33,6 +34,7 @@ class Product:
 @fraise_type
 class Category:
     """Test category type."""
+
     id: str
     name: str
     products: list[Product]
@@ -41,6 +43,7 @@ class Category:
 @fraise_type
 class NestedObject:
     """Test nested object type."""
+
     value: str
     nested: dict[str, Any]
 
@@ -48,12 +51,14 @@ class NestedObject:
 @success
 class SimpleSuccess:
     """Simple success type."""
+
     message: str
 
 
 @success
 class ProductSuccess:
     """Product success type."""
+
     message: str
     product: Product
 
@@ -61,6 +66,7 @@ class ProductSuccess:
 @success
 class ComplexSuccess:
     """Complex success type with multiple fields."""
+
     message: str
     products: list[Product]
     category: Category
@@ -71,6 +77,7 @@ class ComplexSuccess:
 @success
 class OptionalFieldsSuccess:
     """Success type with optional fields."""
+
     message: str
     product: Optional[Product] = None
     count: Optional[int] = None
@@ -79,12 +86,14 @@ class OptionalFieldsSuccess:
 @failure
 class SimpleError:
     """Simple error type."""
+
     message: str
 
 
 @failure
 class DetailedError:
     """Detailed error type."""
+
     message: str
     code: str
     details: dict[str, Any]
@@ -94,6 +103,7 @@ class DetailedError:
 @failure
 class ValidationError:
     """Validation error type."""
+
     message: str
     code: str
     field_errors: Optional[dict[str, str]] = None
@@ -111,10 +121,18 @@ class TestIsErrorStatus:
     def test_success_statuses(self):
         """Test all success status variations."""
         success_statuses = [
-            "success", "SUCCESS", "Success",
-            "completed", "COMPLETED", "Completed",
-            "ok", "OK", "Ok",
-            "done", "DONE", "Done",
+            "success",
+            "SUCCESS",
+            "Success",
+            "completed",
+            "COMPLETED",
+            "Completed",
+            "ok",
+            "OK",
+            "Ok",
+            "done",
+            "DONE",
+            "Done",
         ]
         for status in success_statuses:
             assert not _is_error_status(status)
@@ -122,19 +140,45 @@ class TestIsErrorStatus:
     def test_error_statuses(self):
         """Test all error status variations."""
         error_statuses = [
-            "error", "ERROR", "Error",
-            "failed", "FAILED", "Failed",
-            "fail", "FAIL", "Fail",
-            "not_found", "NOT_FOUND", "Not_Found",
-            "forbidden", "FORBIDDEN", "Forbidden",
-            "unauthorized", "UNAUTHORIZED", "Unauthorized",
-            "conflict", "CONFLICT", "Conflict",
-            "validation_error", "VALIDATION_ERROR", "Validation_Error",
-            "invalid", "INVALID", "Invalid",
-            "email_exists", "EMAIL_EXISTS", "Email_Exists",
-            "exists", "EXISTS", "Exists",
-            "duplicate", "DUPLICATE", "Duplicate",
-            "timeout", "TIMEOUT", "Timeout",
+            "error",
+            "ERROR",
+            "Error",
+            "failed",
+            "FAILED",
+            "Failed",
+            "fail",
+            "FAIL",
+            "Fail",
+            "not_found",
+            "NOT_FOUND",
+            "Not_Found",
+            "forbidden",
+            "FORBIDDEN",
+            "Forbidden",
+            "unauthorized",
+            "UNAUTHORIZED",
+            "Unauthorized",
+            "conflict",
+            "CONFLICT",
+            "Conflict",
+            "validation_error",
+            "VALIDATION_ERROR",
+            "Validation_Error",
+            "invalid",
+            "INVALID",
+            "Invalid",
+            "email_exists",
+            "EMAIL_EXISTS",
+            "Email_Exists",
+            "exists",
+            "EXISTS",
+            "Exists",
+            "duplicate",
+            "DUPLICATE",
+            "Duplicate",
+            "timeout",
+            "TIMEOUT",
+            "Timeout",
         ]
         for status in error_statuses:
             assert _is_error_status(status)
@@ -206,8 +250,10 @@ class TestInstantiateType:
 
     def test_list_types(self):
         """Test list type instantiation."""
-        data = [{"id": "1", "name": "Product1", "price": 10.0},
-                {"id": "2", "name": "Product2", "price": 20.0}]
+        data = [
+            {"id": "1", "name": "Product1", "price": 10.0},
+            {"id": "2", "name": "Product2", "price": 20.0},
+        ]
         result = _instantiate_type(list[Product], data)
 
         assert isinstance(result, list)
@@ -254,6 +300,7 @@ class TestInstantiateType:
 
     def test_success_decorated_types(self):
         """Test success decorated types."""
+
         @success
         class TestSuccess:
             message: str
@@ -268,6 +315,7 @@ class TestInstantiateType:
 
     def test_failure_decorated_types(self):
         """Test failure decorated types."""
+
         @failure
         class TestFailure:
             message: str
@@ -374,6 +422,7 @@ class TestIsMatchingType:
 
     def test_type_without_annotations(self):
         """Test matching with type without annotations."""
+
         class SimpleType:
             pass
 

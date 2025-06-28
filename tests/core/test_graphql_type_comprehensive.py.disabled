@@ -21,11 +21,8 @@ from graphql import (
 )
 
 from fraiseql.core.graphql_type import (
-    build_resolver_function,
     convert_type_to_graphql_input,
     convert_type_to_graphql_output,
-    get_graphql_type,
-    pythontype_to_graphql,
 )
 from fraiseql.mutations.decorators import FraiseUnion
 from fraiseql.types import fraise_enum, fraise_input, fraise_type
