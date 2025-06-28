@@ -2,16 +2,35 @@
 
 Guides for migrating existing GraphQL APIs to FraiseQL.
 
-## [From Strawberry](./from-strawberry.md)
+## [From Graphene](./from-graphene.md)
 
-Complete guide for migrating from Strawberry GraphQL to FraiseQL, including:
+Complete guide for migrating from Graphene (Python) to FraiseQL, including:
 
-- Type definition conversion
-- Resolver migration strategies
-- Database integration changes
-- Authentication migration
-- Testing updates
-- Deployment considerations
+- Database schema migration from ORM to JSONB
+- Type definition conversion from class-based to dataclass decorators
+- Resolver elimination through view-based architecture
+- Authentication migration to built-in decorators
+- Performance improvements and N+1 query elimination
+
+## [From Apollo Server](./from-apollo-server.md)
+
+Comprehensive guide for migrating from Apollo Server (Node.js/TypeScript) to FraiseQL, covering:
+
+- Technology stack transition from Node.js to Python
+- Schema definition migration from SDL to Python decorators
+- DataLoader replacement with automatic optimization
+- Database integration changes to PostgreSQL JSONB
+- Authentication and error handling migration
+
+## [From Ariadne](./from-ariadne.md)
+
+Step-by-step guide for migrating from Ariadne (Python) to FraiseQL, including:
+
+- Schema-first to code-first migration
+- Manual resolver replacement with automatic views
+- Error handling improvement with result patterns
+- Performance optimization through JSONB architecture
+- Testing framework updates
 
 ## Benefits of Migration
 
@@ -60,4 +79,7 @@ Complete guide for migrating from Strawberry GraphQL to FraiseQL, including:
    - Performance testing and optimization
    - Production deployment
 
-Ready to migrate? Start with the [Strawberry migration guide](./from-strawberry.md).
+Ready to migrate? Choose the guide that matches your current GraphQL implementation:
+
+- **Python developers**: Start with [Graphene](./from-graphene.md) or [Ariadne](./from-ariadne.md) 
+- **Node.js developers**: Follow the [Apollo Server](./from-apollo-server.md) guide

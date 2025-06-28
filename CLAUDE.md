@@ -75,3 +75,49 @@ ruff format src/ tests/
 - `src/fraiseql/gql/schema_builder.py` - GraphQL schema generation
 - `src/fraiseql/sql/where_generator.py` - SQL WHERE clause generation
 - `tests/database_conftest.py` - Unified container testing setup
+
+## Stack-Specific Development Patterns
+
+### FraiseQL Type Definitions
+```python
+# Always use @fraise_type decorator
+@fraise_type
+class User:
+    id: UUID
+    name: str
+    email: str
+```
+
+### Query Functions (NOT resolvers)
+```python
+# Correct: Function-based queries
+@fraiseql.query
+async def users(info, limit: int = 10) -> list[User]:
+    db = info.context["db"]
+    return await db.find("user_view", limit=limit)
+```
+
+### Database Views with JSONB Pattern
+```sql
+-- All views must have 'data' column with JSONB
+CREATE VIEW user_view AS
+SELECT 
+    id,              -- For filtering
+    tenant_id,       -- For access control
+    jsonb_build_object(
+        'id', id,
+        'name', name,
+        'email', email
+    ) as data        -- REQUIRED: All object data here
+FROM users;
+```
+
+### Frontend Integration (Vue/Nuxt)
+- Use GraphQL clients like Apollo or urql
+- Leverage FraiseQL's type safety with generated TypeScript types
+- Implement optimistic updates for mutations
+
+### Multi-tenant SaaS Patterns
+- Always include tenant_id in views for row-level security
+- Use PostgreSQL RLS (Row Level Security) when possible
+- Filter by tenant_id in all queries
