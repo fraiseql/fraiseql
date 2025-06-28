@@ -13,12 +13,12 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
+        <version>3.4.1</version>
     </parent>
 
     <properties>
         <java.version>17</java.version>
-        <graphql.version>20.0</graphql.version>
+        <graphql.version>22.3</graphql.version>
     </properties>
 
     <dependencies>
