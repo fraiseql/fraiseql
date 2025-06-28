@@ -16,7 +16,44 @@ from fraiseql.auth.base import (
 
 
 class Auth0Provider(AuthProvider):
-    """Auth0 authentication provider."""
+    """Auth0 authentication provider implementation.
+
+    This provider integrates FraiseQL with Auth0 for authentication and authorization.
+    It validates JWT tokens issued by Auth0, extracts user information, and manages
+    roles and permissions from Auth0's authorization extension or custom claims.
+
+    Features:
+    - Automatic JWKS (JSON Web Key Set) fetching and caching
+    - Token validation with RS256 algorithm by default
+    - Role and permission extraction from Auth0 claims
+    - Configurable token expiration and audience validation
+    - Thread-safe token validation
+
+    Example:
+        ```python
+        from fraiseql.auth import Auth0Provider
+        from fraiseql.fastapi import create_fraiseql_app
+
+        # Configure Auth0 provider
+        auth_provider = Auth0Provider(
+            domain="myapp.auth0.com",
+            api_identifier="https://api.myapp.com",
+            cache_jwks=True
+        )
+
+        # Create app with authentication
+        app = create_fraiseql_app(
+            types=[User, Post],
+            auth_provider=auth_provider
+        )
+        ```
+
+    Note:
+        Requires Auth0 application configuration with:
+        - API created in Auth0 dashboard
+        - Proper audience (api_identifier) configured
+        - Authorization extension or custom rules for roles/permissions
+    """
 
     def __init__(
         self,
@@ -231,7 +268,44 @@ class Auth0Provider(AuthProvider):
 
 
 class Auth0Config:
-    """Configuration for Auth0 integration."""
+    """Configuration for Auth0 integration.
+
+    This class holds all configuration parameters needed to integrate with Auth0.
+    It can be used to configure the Auth0Provider or passed to FraiseQLConfig
+    for automatic setup.
+
+    Attributes:
+        domain: Your Auth0 tenant domain (e.g., "myapp.auth0.com").
+        api_identifier: The API identifier/audience from Auth0 dashboard.
+        client_id: Auth0 application client ID (optional, for Management API).
+        client_secret: Auth0 application client secret (optional, for Management API).
+        algorithms: List of allowed JWT algorithms (defaults to ["RS256"]).
+
+    Example:
+        ```python
+        # Basic configuration
+        auth_config = Auth0Config(
+            domain="myapp.auth0.com",
+            api_identifier="https://api.myapp.com"
+        )
+
+        # With Management API access
+        auth_config = Auth0Config(
+            domain="myapp.auth0.com",
+            api_identifier="https://api.myapp.com",
+            client_id="your_client_id",
+            client_secret="your_client_secret"
+        )
+
+        # Use with FraiseQL
+        config = FraiseQLConfig(
+            database_url="postgresql://...",
+            auth_provider="auth0",
+            auth0_domain=auth_config.domain,
+            auth0_api_identifier=auth_config.api_identifier
+        )
+        ```
+    """
 
     def __init__(
         self,

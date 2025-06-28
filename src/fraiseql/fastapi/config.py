@@ -7,7 +7,68 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class FraiseQLConfig(BaseSettings):
-    """Configuration for FraiseQL application."""
+    """Configuration for FraiseQL application.
+
+    This class defines all configuration options for a FraiseQL-powered FastAPI
+    application. Configuration values can be set through environment variables,
+    .env files, or directly in code.
+
+    Environment variables should be prefixed with the app name and use uppercase
+    (e.g., FRAISEQL_DATABASE_URL).
+
+    Attributes:
+        database_url: PostgreSQL connection URL with JSONB support required.
+        database_pool_size: Maximum number of database connections in the pool.
+        database_max_overflow: Maximum overflow connections allowed beyond pool_size.
+        database_pool_timeout: Seconds to wait before timing out when acquiring connection.
+        database_echo: Enable SQL query logging (use only in development).
+        app_name: Application name displayed in API documentation.
+        app_version: Application version string.
+        environment: Current environment (development/production/testing).
+        enable_introspection: Allow GraphQL schema introspection queries.
+        enable_playground: Enable GraphQL playground IDE.
+        playground_tool: Which GraphQL IDE to use (graphiql or apollo-sandbox).
+        max_query_depth: Maximum allowed query depth to prevent abuse.
+        query_timeout: Maximum query execution time in seconds.
+        auto_camel_case: Automatically convert snake_case fields to camelCase.
+        enable_auth: Enable authentication and authorization.
+        auth_provider: Authentication provider to use.
+        auth0_domain: Auth0 tenant domain (required if using Auth0).
+        auth0_api_identifier: Auth0 API identifier (required if using Auth0).
+        auth0_cache_ttl: Cache TTL for Auth0 JWKS in seconds.
+        cors_allow_origins: List of allowed CORS origins.
+        cors_allow_credentials: Allow credentials in CORS requests.
+        cors_allow_methods: Allowed HTTP methods for CORS.
+        cors_allow_headers: Allowed headers for CORS requests.
+        enable_metrics: Enable Prometheus metrics endpoint.
+        metrics_path: URL path for metrics endpoint.
+        enable_health_check: Enable health check endpoints.
+        health_check_path: URL path for health check.
+        enable_rate_limiting: Enable rate limiting.
+        rate_limit_requests: Maximum requests per period.
+        rate_limit_period: Rate limit period in seconds.
+        log_level: Application log level.
+        log_format: Log format (json or text).
+        enable_request_logging: Log all incoming requests.
+        enable_response_logging: Log all outgoing responses.
+        request_id_header: Header name for request correlation ID.
+
+    Example:
+        ```python
+        from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
+
+        config = FraiseQLConfig(
+            database_url="postgresql://user:pass@localhost/mydb",
+            environment="production",
+            enable_auth=True,
+            auth_provider="auth0",
+            auth0_domain="myapp.auth0.com",
+            auth0_api_identifier="https://api.myapp.com"
+        )
+
+        app = create_fraiseql_app(types=[User, Post], config=config)
+        ```
+    """
 
     # Database settings
     database_url: PostgresDsn

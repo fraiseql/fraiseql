@@ -13,7 +13,50 @@ T = TypeVar("T")
 
 
 class CQRSRepository:
-    """Base repository implementing CQRS pattern with views and SQL functions."""
+    """Base repository implementing CQRS pattern with views and SQL functions.
+
+    This repository provides a clean separation between read and write operations
+    following the Command Query Responsibility Segregation (CQRS) pattern. Write
+    operations are performed through PostgreSQL functions while read operations
+    query materialized views or tables directly.
+
+    The repository handles:
+    - Command operations (create, update, delete) via SQL functions
+    - Query operations (read, list, search) via direct SQL with JSONB
+    - Pagination, filtering, and sorting
+    - Relationship loading (one-to-many, many-to-many)
+    - Batch operations for performance
+    - Transaction management
+
+    Example:
+        ```python
+        async with get_db_connection() as conn:
+            repo = CQRSRepository(conn)
+            
+            # Create a new user
+            user = await repo.create("user", {
+                "name": "John Doe",
+                "email": "john@example.com"
+            })
+            
+            # Query users with filtering
+            users = await repo.list(
+                User,
+                where={"status": {"eq": "active"}},
+                order_by=[("created_at", "DESC")],
+                limit=10
+            )
+            
+            # Load relationships
+            user_with_posts = await repo.load_one_to_many(
+                user, "posts", Post, "user_id"
+            )
+        ```
+
+    Note:
+        This repository assumes PostgreSQL with JSONB support and requires
+        appropriate SQL functions and views to be created in the database.
+    """
 
     def __init__(self, connection: AsyncConnection) -> None:
         """Initialize repository with database connection."""

@@ -131,14 +131,8 @@ ignore = [
   "FIX002",  # TODO comments are fine in development
   "N818",    # Exception naming - would require breaking changes
 
-  # Documentation - too many missing docstrings
-  "D100",    # Missing docstring in public module
-  "D101",    # Missing docstring in public class
-  "D102",    # Missing docstring in public method
-  "D103",    # Missing docstring in public function
-  "D104",    # Missing docstring in public package
+  # Documentation - enable for public APIs only
   "D105",    # Missing docstring in magic method
-  "D106",    # Missing docstring in public nested class
   "D107",    # Missing docstring in __init__
   "D415",    # First line should end with a period
 
@@ -216,6 +210,10 @@ ignore = [
   "S106",    # Hardcoded passwords OK in tests
   "ARG001",  # Unused arguments OK in test fixtures
   "ARG002",  # Unused arguments OK in test fixtures
+  "D100",    # Missing module docstrings in tests
+  "D101",    # Missing class docstrings in tests
+  "D102",    # Missing method docstrings in tests
+  "D103",    # Missing function docstrings in tests
 ]
 "tests/types/test_json_type_support.py" = [
   "E501",    # Long JSON string in test

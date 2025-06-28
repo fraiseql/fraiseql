@@ -42,6 +42,7 @@ $$ LANGUAGE plpgsql;
 ## Documentation
 
 - [PostgreSQL Function-Based Mutations](./postgresql-function-based.md) - Complete guide to the mutation system
+- [Returning Full Objects](./returning-full-objects.md) - Best practices for returning complete entities from mutations
 - [Migration Guide](./migration-guide.md) - How to migrate from manual resolvers
 
 ## Design Philosophy

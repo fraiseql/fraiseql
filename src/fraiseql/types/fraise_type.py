@@ -34,7 +34,52 @@ def fraise_type(
     sql_source: str | None = None,
     implements: list[type] | None = None,
 ) -> T | Callable[[T], T]:
-    """Decorator to define a FraiseQL output type, with optional SQL source binding."""
+    """Decorator to define a FraiseQL GraphQL output type.
+
+    This decorator transforms a Python dataclass into a GraphQL type that can be
+    used in your schema. It supports automatic SQL query generation when a sql_source
+    is provided.
+
+    Args:
+        sql_source: Optional table or view name to bind this type to for automatic
+            SQL query generation. When provided, the type becomes queryable and
+            filterable through GraphQL.
+        implements: Optional list of GraphQL interface types that this type implements.
+
+    Returns:
+        The decorated class enhanced with FraiseQL capabilities.
+
+    Examples:
+        Basic type without SQL binding:
+        ```python
+        @fraise_type
+        @dataclass
+        class User:
+            id: int
+            name: str
+            email: str
+        ```
+
+        Type with SQL source for automatic queries:
+        ```python
+        @fraise_type(sql_source="users")
+        @dataclass
+        class User:
+            id: int
+            name: str
+            email: str
+        ```
+
+        Type implementing interfaces:
+        ```python
+        @fraise_type(sql_source="users", implements=[Node, Timestamped])
+        @dataclass
+        class User:
+            id: int
+            name: str
+            created_at: datetime
+        ```
+    """
 
     def wrapper(cls: T) -> T:
         from fraiseql.utils.fields import patch_missing_field_types

@@ -202,6 +202,39 @@ class UpdatePostError:
    - `extra_metadata` contains additional fields
    - The parser maps these to your Success/Error type fields
 
+## Returning Full Objects
+
+FraiseQL fully supports returning complete objects from mutations. When your SQL function populates the `object_data` field with entity data, FraiseQL automatically instantiates the corresponding typed objects.
+
+### Why Return Full Objects?
+
+- **Better DX**: Clients get all data in one request
+- **Cache Updates**: Apollo/Relay can update caches immediately  
+- **GraphQL Best Practices**: Follows patterns used by GitHub, Shopify APIs
+- **No Extra Queries**: Data is already fetched by your SQL function
+
+### Quick Example
+
+```python
+# Instead of returning just an ID
+@fraiseql.success
+class CreateUserSuccess:
+    user_id: str  # ❌ Requires another query
+
+# Return the full object
+@fraiseql.success  
+class CreateUserSuccess:
+    user: User  # ✅ Complete object with all fields
+```
+
+Your SQL function already returns the data:
+```sql
+-- The object_data field contains the complete entity
+SELECT data INTO result.object_data FROM v_users WHERE id = new_user_id;
+```
+
+For more details, see the [Returning Full Objects](./returning-full-objects.md) guide.
+
 ## Best Practices
 
 ### 1. Status Conventions

@@ -7,7 +7,41 @@ from typing import Any
 
 @dataclass
 class UserContext:
-    """User context passed to GraphQL resolvers."""
+    """User context passed to GraphQL resolvers.
+
+    This class represents the authenticated user's context that is available
+    in all GraphQL resolver functions. It contains user identification,
+    authorization data, and custom metadata.
+
+    Attributes:
+        user_id: Unique identifier for the user.
+        email: User's email address (optional).
+        name: User's display name (optional).
+        roles: List of roles assigned to the user.
+        permissions: List of permissions granted to the user.
+        metadata: Additional custom data about the user.
+
+    Example:
+        ```python
+        @query
+        async def get_my_profile(info: Info) -> User:
+            user_context = info.context["user"]
+            if not user_context:
+                raise AuthenticationError("Not authenticated")
+            
+            return await get_user_by_id(user_context.user_id)
+        
+        @requires_permission("posts:write")
+        async def create_post(info: Info, title: str, content: str) -> Post:
+            # Permission check is handled by decorator
+            user_context = info.context["user"]
+            return await create_post_for_user(
+                user_id=user_context.user_id,
+                title=title,
+                content=content
+            )
+        ```
+    """
 
     user_id: str
     email: str | None = None
@@ -42,7 +76,34 @@ class UserContext:
 
 
 class AuthProvider(ABC):
-    """Abstract base class for authentication providers."""
+    """Abstract base class for authentication providers.
+
+    This abstract class defines the interface that all authentication providers
+    must implement. FraiseQL supports multiple authentication providers (Auth0,
+    JWT, custom) by implementing this interface.
+
+    Subclasses must implement:
+    - validate_token: Validate and decode authentication tokens
+    - get_user_context: Extract user context from token payload
+    - get_jwks_url: Provide JWKS URL for JWT validation (optional)
+
+    Example implementation:
+        ```python
+        class CustomAuthProvider(AuthProvider):
+            async def validate_token(self, token: str) -> dict[str, Any]:
+                # Validate token and return payload
+                payload = jwt.decode(token, self.secret, algorithms=["HS256"])
+                return payload
+            
+            async def get_user_context(self, payload: dict[str, Any]) -> UserContext:
+                return UserContext(
+                    user_id=payload["sub"],
+                    email=payload.get("email"),
+                    roles=payload.get("roles", []),
+                    permissions=payload.get("permissions", [])
+                )
+        ```
+    """
 
     @abstractmethod
     async def validate_token(self, token: str) -> dict[str, Any]:
