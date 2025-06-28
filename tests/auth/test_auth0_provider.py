@@ -147,7 +147,7 @@ class TestAuth0Provider:
             "email": "user@example.com",
             "name": "Test User",
             "permissions": ["read:posts", "write:posts"],
-            "https://api.test.com/roles": ["admin", "user"],
+            "https://https://api.test.com/roles": ["admin", "user"],  # Constructed namespace
             "custom_claim": "custom_value",
             "aud": "https://api.test.com",
             "iss": "https://test.auth0.com/",

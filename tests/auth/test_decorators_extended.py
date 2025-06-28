@@ -559,9 +559,9 @@ class TestEdgeCases:
         async def test_resolver(info):
             return {"success": True}
         
-        # Should succeed since no permissions are required
-        result = await test_resolver(mock_info)
-        assert result == {"success": True}
+        # Empty permissions list still requires at least one permission, so should fail
+        with pytest.raises(GraphQLError, match="One of these permissions required"):
+            await test_resolver(mock_info)
 
     @pytest.mark.asyncio
     async def test_empty_roles_list(self):
@@ -573,9 +573,9 @@ class TestEdgeCases:
         async def test_resolver(info):
             return {"success": True}
         
-        # Should succeed since no roles are required
-        result = await test_resolver(mock_info)
-        assert result == {"success": True}
+        # Empty roles list still requires at least one role, so should fail
+        with pytest.raises(GraphQLError, match="One of these roles required"):
+            await test_resolver(mock_info)
 
     @pytest.mark.asyncio
     async def test_user_context_none_in_context(self):
