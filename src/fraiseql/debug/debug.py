@@ -14,8 +14,8 @@ from typing import Any, Callable, Optional, TypeVar, cast
 import structlog
 from graphql import GraphQLResolveInfo
 
-from fraiseql.cqrs.repository import DatabaseQuery
-from fraiseql.db import get_db_pool
+from fraiseql.db import DatabaseQuery
+from fraiseql.fastapi.dependencies import get_db_pool
 from fraiseql.partial_instantiation import get_available_fields, is_partial_instance
 
 logger = structlog.get_logger()
