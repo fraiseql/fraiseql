@@ -1,15 +1,16 @@
 # Optimized Strawberry GraphQL Dockerfile
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     postgresql-client \
     gcc \
+    musl-dev \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    libpq-dev \
+    python3-dev
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .

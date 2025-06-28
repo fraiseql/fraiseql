@@ -1,13 +1,15 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 # Install PostgreSQL and required packages
-RUN apt-get update && apt-get install -y \
-    postgresql-15 \
-    postgresql-client-15 \
+RUN apk add --no-cache \
+    postgresql15 \
+    postgresql15-client \
     gcc \
+    musl-dev \
     curl \
     supervisor \
-    && rm -rf /var/lib/apt/lists/*
+    libpq-dev \
+    python3-dev
 
 # Set up PostgreSQL environment
 ENV PGDATA=/var/lib/postgresql/data

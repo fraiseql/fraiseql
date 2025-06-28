@@ -1,21 +1,20 @@
 # Ultra-optimized Dockerfile with read replica support
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 WORKDIR /app
 
 # Performance-optimized packages
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     postgresql-client \
     gcc \
+    musl-dev \
     curl \
     supervisor \
     nginx \
-    libjemalloc2 \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    libpq-dev \
+    python3-dev
 
-# Use jemalloc for better memory allocation
-ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+# Note: Alpine uses musl libc which has efficient memory allocation
 
 # Container-optimized environment variables
 ENV MALLOC_ARENA_MAX=2
