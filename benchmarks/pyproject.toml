@@ -26,29 +26,29 @@ classifiers = [
 
 dependencies = [
     # Core dependencies
-    "tiktoken>=0.5.2",
-    "httpx>=0.25.0",
-    "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
-    "python-dotenv>=1.0.0",
-    "rich>=13.7.0",
+    "tiktoken>=0.8.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "python-dotenv>=1.1.0",
+    "rich>=13.9.0",
     "click>=8.1.0",
 
     # Testing
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-benchmark>=4.0.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-benchmark>=5.1.0",
 
     # Data processing
-    "pandas>=2.1.0",
-    "numpy>=1.24.0",
+    "pandas>=2.2.0",
+    "numpy>=2.2.0",
 ]
 
 [project.optional-dependencies]
 # LLM providers
-openai = ["openai>=1.10.0"]
-anthropic = ["anthropic>=0.18.0"]
-local = ["transformers>=4.36.0", "torch>=2.1.0"]
+openai = ["openai>=1.58.0"]
+anthropic = ["anthropic>=0.40.0"]
+local = ["transformers>=4.47.0", "torch>=2.5.0"]
 all-llms = ["fraiseql-benchmarks[openai,anthropic,local]"]
 
 # Visualization
