@@ -17,24 +17,24 @@ from fraiseql.auth.decorators import (
 
 class MockUserContext(UserContext):
     """Mock UserContext for testing."""
-    
+
     def __init__(self, user_id: str = "test_user", permissions: list[str] = None, roles: list[str] = None):
         super().__init__(user_id=user_id)
         self._permissions = permissions or []
         self._roles = roles or []
-    
+
     def has_permission(self, permission: str) -> bool:
         """Check if user has specific permission."""
         return permission in self._permissions
-    
+
     def has_role(self, role: str) -> bool:
         """Check if user has specific role."""
         return role in self._roles
-    
+
     def has_any_permission(self, permissions: list[str]) -> bool:
         """Check if user has any of the specified permissions."""
         return any(perm in self._permissions for perm in permissions)
-    
+
     def has_any_role(self, roles: list[str]) -> bool:
         """Check if user has any of the specified roles."""
         return any(role in self._roles for role in roles)
@@ -54,11 +54,11 @@ class TestRequiresAuth:
         """Test successful authentication."""
         user = MockUserContext("test_user")
         mock_info = self.create_mock_info(user)
-        
+
         @requires_auth
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -66,11 +66,11 @@ class TestRequiresAuth:
     async def test_requires_auth_no_user(self):
         """Test authentication failure with no user."""
         mock_info = self.create_mock_info()
-        
+
         @requires_auth
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Authentication required"):
             await test_resolver(mock_info)
 
@@ -78,11 +78,11 @@ class TestRequiresAuth:
     async def test_requires_auth_invalid_user_type(self):
         """Test authentication failure with invalid user type."""
         mock_info = self.create_mock_info({"not": "a_user_context"})
-        
+
         @requires_auth
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Authentication required"):
             await test_resolver(mock_info)
 
@@ -92,7 +92,7 @@ class TestRequiresAuth:
         @requires_auth
         async def test_resolver():
             return {"success": True}
-        
+
         with pytest.raises(ValueError, match="GraphQL resolver must have info"):
             await test_resolver()
 
@@ -102,7 +102,7 @@ class TestRequiresAuth:
         @requires_auth
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(TypeError, match="First argument must be GraphQLResolveInfo"):
             await test_resolver("not_info")
 
@@ -111,11 +111,11 @@ class TestRequiresAuth:
         """Test authentication with info passed as kwarg."""
         user = MockUserContext("test_user")
         mock_info = self.create_mock_info(user)
-        
+
         @requires_auth
         async def test_resolver(info=None, other_arg="test"):
             return {"success": True, "arg": other_arg}
-        
+
         result = await test_resolver(info=mock_info, other_arg="passed")
         assert result == {"success": True, "arg": "passed"}
 
@@ -126,7 +126,7 @@ class TestRequiresAuth:
         async def documented_resolver(info, param: str):
             """This is a documented resolver."""
             return {"param": param}
-        
+
         assert documented_resolver.__name__ == "documented_resolver"
         assert documented_resolver.__doc__ == "This is a documented resolver."
 
@@ -145,11 +145,11 @@ class TestRequiresPermission:
         """Test successful permission check."""
         user = MockUserContext("test_user", permissions=["users:read", "users:write"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_permission("users:read")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -157,11 +157,11 @@ class TestRequiresPermission:
     async def test_requires_permission_no_user(self):
         """Test permission failure with no user."""
         mock_info = self.create_mock_info()
-        
+
         @requires_permission("users:read")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Authentication required"):
             await test_resolver(mock_info)
 
@@ -170,14 +170,14 @@ class TestRequiresPermission:
         """Test permission failure with insufficient permissions."""
         user = MockUserContext("test_user", permissions=["users:read"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_permission("users:write")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Permission 'users:write' required") as exc_info:
             await test_resolver(mock_info)
-        
+
         assert exc_info.value.extensions["code"] == "FORBIDDEN"
         assert exc_info.value.extensions["required_permission"] == "users:write"
 
@@ -187,7 +187,7 @@ class TestRequiresPermission:
         @requires_permission("users:read")
         async def test_resolver():
             return {"success": True}
-        
+
         with pytest.raises(ValueError, match="GraphQL resolver must have info"):
             await test_resolver()
 
@@ -197,7 +197,7 @@ class TestRequiresPermission:
         @requires_permission("users:read")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(TypeError, match="First argument must be GraphQLResolveInfo"):
             await test_resolver("not_info")
 
@@ -216,11 +216,11 @@ class TestRequiresRole:
         """Test successful role check."""
         user = MockUserContext("test_user", roles=["admin", "user"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_role("admin")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -228,11 +228,11 @@ class TestRequiresRole:
     async def test_requires_role_no_user(self):
         """Test role failure with no user."""
         mock_info = self.create_mock_info()
-        
+
         @requires_role("admin")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Authentication required"):
             await test_resolver(mock_info)
 
@@ -241,14 +241,14 @@ class TestRequiresRole:
         """Test role failure with insufficient role."""
         user = MockUserContext("test_user", roles=["user"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_role("admin")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Role 'admin' required") as exc_info:
             await test_resolver(mock_info)
-        
+
         assert exc_info.value.extensions["code"] == "FORBIDDEN"
         assert exc_info.value.extensions["required_role"] == "admin"
 
@@ -258,7 +258,7 @@ class TestRequiresRole:
         @requires_role("admin")
         async def test_resolver():
             return {"success": True}
-        
+
         with pytest.raises(ValueError, match="GraphQL resolver must have info"):
             await test_resolver()
 
@@ -268,7 +268,7 @@ class TestRequiresRole:
         @requires_role("admin")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(TypeError, match="First argument must be GraphQLResolveInfo"):
             await test_resolver("not_info")
 
@@ -287,11 +287,11 @@ class TestRequiresAnyPermission:
         """Test successful check with first permission."""
         user = MockUserContext("test_user", permissions=["users:read", "posts:write"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_permission("users:read", "admin:all")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -300,11 +300,11 @@ class TestRequiresAnyPermission:
         """Test successful check with second permission."""
         user = MockUserContext("test_user", permissions=["posts:write", "admin:all"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_permission("users:read", "admin:all")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -312,11 +312,11 @@ class TestRequiresAnyPermission:
     async def test_requires_any_permission_no_user(self):
         """Test failure with no user."""
         mock_info = self.create_mock_info()
-        
+
         @requires_any_permission("users:read", "admin:all")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Authentication required"):
             await test_resolver(mock_info)
 
@@ -325,14 +325,14 @@ class TestRequiresAnyPermission:
         """Test failure with no matching permissions."""
         user = MockUserContext("test_user", permissions=["posts:write"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_permission("users:read", "admin:all")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="One of these permissions required") as exc_info:
             await test_resolver(mock_info)
-        
+
         assert exc_info.value.extensions["code"] == "FORBIDDEN"
         assert exc_info.value.extensions["required_permissions"] == ["users:read", "admin:all"]
 
@@ -341,11 +341,11 @@ class TestRequiresAnyPermission:
         """Test with single permission argument."""
         user = MockUserContext("test_user", permissions=["users:read"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_permission("users:read")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -355,7 +355,7 @@ class TestRequiresAnyPermission:
         @requires_any_permission("users:read", "admin:all")
         async def test_resolver():
             return {"success": True}
-        
+
         with pytest.raises(ValueError, match="GraphQL resolver must have info"):
             await test_resolver()
 
@@ -374,11 +374,11 @@ class TestRequiresAnyRole:
         """Test successful check with first role."""
         user = MockUserContext("test_user", roles=["admin", "user"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_role("admin", "moderator")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -387,11 +387,11 @@ class TestRequiresAnyRole:
         """Test successful check with second role."""
         user = MockUserContext("test_user", roles=["user", "moderator"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_role("admin", "moderator")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -399,11 +399,11 @@ class TestRequiresAnyRole:
     async def test_requires_any_role_no_user(self):
         """Test failure with no user."""
         mock_info = self.create_mock_info()
-        
+
         @requires_any_role("admin", "moderator")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Authentication required"):
             await test_resolver(mock_info)
 
@@ -412,14 +412,14 @@ class TestRequiresAnyRole:
         """Test failure with no matching roles."""
         user = MockUserContext("test_user", roles=["user"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_role("admin", "moderator")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="One of these roles required") as exc_info:
             await test_resolver(mock_info)
-        
+
         assert exc_info.value.extensions["code"] == "FORBIDDEN"
         assert exc_info.value.extensions["required_roles"] == ["admin", "moderator"]
 
@@ -428,11 +428,11 @@ class TestRequiresAnyRole:
         """Test with single role argument."""
         user = MockUserContext("test_user", roles=["admin"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_role("admin")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -442,7 +442,7 @@ class TestRequiresAnyRole:
         @requires_any_role("admin", "moderator")
         async def test_resolver():
             return {"success": True}
-        
+
         with pytest.raises(ValueError, match="GraphQL resolver must have info"):
             await test_resolver()
 
@@ -461,13 +461,13 @@ class TestDecoratorCombinations:
         """Test combining multiple auth decorators."""
         user = MockUserContext("test_user", permissions=["users:write"], roles=["admin"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_auth
         @requires_permission("users:write")
         @requires_role("admin")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -475,12 +475,12 @@ class TestDecoratorCombinations:
     async def test_multiple_decorators_auth_failure(self):
         """Test multiple decorators with auth failure."""
         mock_info = self.create_mock_info()
-        
+
         @requires_auth
         @requires_permission("users:write")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Authentication required"):
             await test_resolver(mock_info)
 
@@ -489,12 +489,12 @@ class TestDecoratorCombinations:
         """Test multiple decorators with permission failure."""
         user = MockUserContext("test_user", permissions=["users:read"])  # Missing write
         mock_info = self.create_mock_info(user)
-        
+
         @requires_auth
         @requires_permission("users:write")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Permission 'users:write' required"):
             await test_resolver(mock_info)
 
@@ -503,13 +503,13 @@ class TestDecoratorCombinations:
         """Test multiple decorators with role failure."""
         user = MockUserContext("test_user", permissions=["users:write"], roles=["user"])  # Missing admin
         mock_info = self.create_mock_info(user)
-        
+
         @requires_auth
         @requires_permission("users:write")
         @requires_role("admin")
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Role 'admin' required"):
             await test_resolver(mock_info)
 
@@ -528,11 +528,11 @@ class TestEdgeCases:
         """Test decorators work with resolver arguments."""
         user = MockUserContext("test_user", permissions=["users:read"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_permission("users:read")
         async def test_resolver(info, user_id: str, filters: dict = None):
             return {"user_id": user_id, "filters": filters}
-        
+
         result = await test_resolver(mock_info, "123", {"active": True})
         assert result == {"user_id": "123", "filters": {"active": True}}
 
@@ -541,11 +541,11 @@ class TestEdgeCases:
         """Test that decorators don't swallow resolver exceptions."""
         user = MockUserContext("test_user")
         mock_info = self.create_mock_info(user)
-        
+
         @requires_auth
         async def failing_resolver(info):
             raise ValueError("Resolver failed")
-        
+
         with pytest.raises(ValueError, match="Resolver failed"):
             await failing_resolver(mock_info)
 
@@ -554,11 +554,11 @@ class TestEdgeCases:
         """Test requires_any_permission with empty permissions."""
         user = MockUserContext("test_user", permissions=[])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_permission()
         async def test_resolver(info):
             return {"success": True}
-        
+
         # Empty permissions list still requires at least one permission, so should fail
         with pytest.raises(GraphQLError, match="One of these permissions required"):
             await test_resolver(mock_info)
@@ -568,11 +568,11 @@ class TestEdgeCases:
         """Test requires_any_role with empty roles."""
         user = MockUserContext("test_user", roles=[])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_any_role()
         async def test_resolver(info):
             return {"success": True}
-        
+
         # Empty roles list still requires at least one role, so should fail
         with pytest.raises(GraphQLError, match="One of these roles required"):
             await test_resolver(mock_info)
@@ -582,11 +582,11 @@ class TestEdgeCases:
         """Test when user is explicitly None in context."""
         mock_info = Mock(spec=GraphQLResolveInfo)
         mock_info.context = {"user": None}
-        
+
         @requires_auth
         async def test_resolver(info):
             return {"success": True}
-        
+
         with pytest.raises(GraphQLError, match="Authentication required"):
             await test_resolver(mock_info)
 
@@ -595,11 +595,11 @@ class TestEdgeCases:
         """Test with complex permission names."""
         user = MockUserContext("test_user", permissions=["org:123:users:write", "global:admin"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_permission("org:123:users:write")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}
 
@@ -608,10 +608,10 @@ class TestEdgeCases:
         """Test with complex role names."""
         user = MockUserContext("test_user", roles=["org-admin", "super_user"])
         mock_info = self.create_mock_info(user)
-        
+
         @requires_role("org-admin")
         async def test_resolver(info):
             return {"success": True}
-        
+
         result = await test_resolver(mock_info)
         assert result == {"success": True}

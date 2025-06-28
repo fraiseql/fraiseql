@@ -1,8 +1,7 @@
 """Extended tests for metrics collectors and integration."""
 
 import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -23,7 +22,7 @@ class TestMetricsConfig:
     def test_default_config(self):
         """Test default metrics configuration."""
         config = MetricsConfig()
-        
+
         assert config.enabled is True
         assert config.namespace == "fraiseql"
         assert config.buckets == (0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
@@ -40,7 +39,7 @@ class TestMetricsConfig:
             collect_db_metrics=False,
             collect_cache_metrics=False,
         )
-        
+
         assert config.enabled is False
         assert config.namespace == "myapp"
         assert config.buckets == custom_buckets
@@ -59,21 +58,21 @@ class TestFraiseQLMetrics:
             registry = CollectorRegistry()
         else:
             registry = MagicMock()
-        
+
         return FraiseQLMetrics(registry=registry)
 
     def test_metrics_initialization(self):
         """Test metrics initialization with custom config."""
         config = MetricsConfig(namespace="test_app")
         metrics = FraiseQLMetrics(config=config)
-        
+
         assert metrics.config.namespace == "test_app"
-        assert hasattr(metrics, 'query_total')
-        assert hasattr(metrics, 'query_duration')
-        assert hasattr(metrics, 'mutation_total')
-        assert hasattr(metrics, 'db_connections_active')
-        assert hasattr(metrics, 'cache_hits')
-        assert hasattr(metrics, 'errors_total')
+        assert hasattr(metrics, "query_total")
+        assert hasattr(metrics, "query_duration")
+        assert hasattr(metrics, "mutation_total")
+        assert hasattr(metrics, "db_connections_active")
+        assert hasattr(metrics, "cache_hits")
+        assert hasattr(metrics, "errors_total")
 
     def test_record_query(self, metrics):
         """Test recording GraphQL query metrics."""
@@ -84,7 +83,7 @@ class TestFraiseQLMetrics:
             duration=0.123,
             success=True,
         )
-        
+
         # Verify counters were incremented
         if PROMETHEUS_AVAILABLE:
             assert metrics.query_total._value._value > 0
@@ -102,7 +101,7 @@ class TestFraiseQLMetrics:
             duration=0.5,
             success=False,
         )
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.query_errors._value._value > 0
         else:
@@ -116,7 +115,7 @@ class TestFraiseQLMetrics:
             success=True,
             result_type="User",
         )
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.mutation_total._value._value > 0
             assert metrics.mutation_success._value._value > 0
@@ -132,7 +131,7 @@ class TestFraiseQLMetrics:
             success=False,
             error_type="ValidationError",
         )
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.mutation_errors._value._value > 0
         else:
@@ -141,7 +140,7 @@ class TestFraiseQLMetrics:
     def test_update_db_pool_stats(self, metrics):
         """Test updating database pool statistics."""
         metrics.update_db_pool_stats(active=3, idle=7, total=10)
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.db_connections_active._value._value == 3
             assert metrics.db_connections_idle._value._value == 7
@@ -158,7 +157,7 @@ class TestFraiseQLMetrics:
             table_name="users",
             duration=0.045,
         )
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.db_queries_total._value._value > 0
         else:
@@ -168,7 +167,7 @@ class TestFraiseQLMetrics:
     def test_record_cache_hit(self, metrics):
         """Test recording cache hit."""
         metrics.record_cache_hit("turbo_router")
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.cache_hits._value._value > 0
         else:
@@ -177,7 +176,7 @@ class TestFraiseQLMetrics:
     def test_record_cache_miss(self, metrics):
         """Test recording cache miss."""
         metrics.record_cache_miss("dataloader")
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.cache_misses._value._value > 0
         else:
@@ -189,7 +188,7 @@ class TestFraiseQLMetrics:
             error_type="ValidationError",
             error_category="graphql",
         )
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.errors_total._value._value > 0
         else:
@@ -199,15 +198,15 @@ class TestFraiseQLMetrics:
         """Test recording subscription metrics."""
         # Active subscription
         metrics.record_subscription_active("MessageAdded")
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.subscriptions_active._value._value > 0
         else:
             metrics.subscriptions_active.inc.assert_called_with(1, {"subscription_name": "MessageAdded"})
-        
+
         # Complete subscription
         metrics.record_subscription_complete("MessageAdded", duration=120.5)
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.subscriptions_active._value._value == 0
         else:
@@ -220,7 +219,7 @@ class TestFraiseQLMetrics:
             cache_size=850,
             hit_rate=0.92,
         )
-        
+
         if PROMETHEUS_AVAILABLE:
             assert metrics.turbo_router_cache_size._value._value == 850
             assert metrics.turbo_router_hit_rate._value._value == 0.92
@@ -233,10 +232,10 @@ class TestFraiseQLMetrics:
         # Record some metrics
         metrics.record_query("query", "Test", 0.1, True)
         metrics.record_cache_hit("turbo_router")
-        
+
         output = metrics.generate_output()
         assert isinstance(output, bytes)
-        
+
         if PROMETHEUS_AVAILABLE:
             # Should contain metric names
             assert b"fraiseql_graphql_queries_total" in output
@@ -250,10 +249,10 @@ class TestMetricsIntegration:
         """Test setting up global metrics."""
         config = MetricsConfig(namespace="test")
         metrics = setup_metrics(config)
-        
+
         assert isinstance(metrics, FraiseQLMetrics)
         assert metrics.config.namespace == "test"
-        
+
         # Should be retrievable
         assert get_metrics() is metrics
 
@@ -262,22 +261,22 @@ class TestMetricsIntegration:
         # Reset global metrics
         import fraiseql.monitoring.metrics.integration
         fraiseql.monitoring.metrics.integration._metrics = None
-        
+
         assert get_metrics() is None
 
     @pytest.mark.asyncio
     async def test_with_metrics_decorator(self):
         """Test metrics decorator for async functions."""
         metrics = setup_metrics()
-        
+
         @with_metrics("test_operation")
         async def test_function():
             await asyncio.sleep(0.01)
             return "result"
-        
+
         result = await test_function()
         assert result == "result"
-        
+
         # Should have recorded metrics
         if PROMETHEUS_AVAILABLE:
             assert metrics.query_total._value._value > 0
@@ -286,14 +285,14 @@ class TestMetricsIntegration:
     async def test_with_metrics_decorator_error(self):
         """Test metrics decorator with function that raises error."""
         metrics = setup_metrics()
-        
+
         @with_metrics("failing_operation")
         async def failing_function():
             raise ValueError("Test error")
-        
+
         with pytest.raises(ValueError):
             await failing_function()
-        
+
         # Should have recorded error
         if PROMETHEUS_AVAILABLE:
             assert metrics.query_errors._value._value > 0
@@ -301,11 +300,11 @@ class TestMetricsIntegration:
     def test_with_metrics_sync_function(self):
         """Test metrics decorator with sync function."""
         metrics = setup_metrics()
-        
+
         @with_metrics("sync_operation")
         def sync_function():
             return "sync_result"
-        
+
         result = sync_function()
         assert result == "sync_result"
 
@@ -327,19 +326,19 @@ class TestMetricsMiddleware:
         request = MagicMock()
         request.method = "POST"
         request.url.path = "/graphql"
-        
+
         response = MagicMock()
         response.status_code = 200
-        
+
         # Mock call_next
         async def call_next(req):
             return response
-        
+
         # Process request
         result = await middleware.dispatch(request, call_next)
-        
+
         assert result is response
-        
+
         # Should have recorded metrics
         metrics = middleware.metrics
         if PROMETHEUS_AVAILABLE:
@@ -351,11 +350,11 @@ class TestMetricsMiddleware:
         request = MagicMock()
         request.method = "GET"
         request.url.path = "/error"
-        
+
         # Mock call_next to raise error
         async def call_next(req):
             raise Exception("Test error")
-        
+
         # Should propagate error
         with pytest.raises(Exception, match="Test error"):
             await middleware.dispatch(request, call_next)
@@ -365,6 +364,6 @@ class TestMetricsMiddleware:
         app = MagicMock()
         config = MetricsConfig(enabled=False)
         middleware = MetricsMiddleware(app, config)
-        
+
         # Should not create metrics
         assert middleware.metrics is None

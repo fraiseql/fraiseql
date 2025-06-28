@@ -1,13 +1,13 @@
 """Comprehensive tests for db module to improve coverage."""
 
+import os
 from dataclasses import dataclass
-from typing import Any, Optional
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import UUID, uuid4
+from typing import Optional
+from unittest.mock import AsyncMock, patch
+from uuid import UUID
 
 import pytest
-from psycopg.rows import dict_row
-from psycopg.sql import SQL, Composed, Identifier, Literal
+from psycopg.sql import SQL
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.db import (
@@ -92,9 +92,9 @@ class TestDatabaseQuery:
         """Test creating a DatabaseQuery instance."""
         statement = SQL("SELECT * FROM users")
         params = {"id": 123}
-        
+
         query = DatabaseQuery(statement=statement, params=params)
-        
+
         assert query.statement == statement
         assert query.params == params
         assert query.fetch_result is True
@@ -103,9 +103,9 @@ class TestDatabaseQuery:
         """Test creating a DatabaseQuery with fetch_result=False."""
         statement = SQL("INSERT INTO users (name) VALUES (%s)")
         params = {"name": "Test"}
-        
+
         query = DatabaseQuery(statement=statement, params=params, fetch_result=False)
-        
+
         assert query.fetch_result is False
 
 
@@ -116,19 +116,19 @@ class TestTypeRegistry:
         """Test registering a type for a view."""
         # Clear registry first
         _type_registry.clear()
-        
+
         register_type_for_view("user_view", SimpleType)
-        
+
         assert "user_view" in _type_registry
         assert _type_registry["user_view"] == SimpleType
 
     def test_register_multiple_types(self):
         """Test registering multiple types."""
         _type_registry.clear()
-        
+
         register_type_for_view("user_view", SimpleType)
         register_type_for_view("post_view", NestedType)
-        
+
         assert len(_type_registry) == 2
         assert _type_registry["user_view"] == SimpleType
         assert _type_registry["post_view"] == NestedType
@@ -136,10 +136,10 @@ class TestTypeRegistry:
     def test_override_existing_registration(self):
         """Test overriding an existing type registration."""
         _type_registry.clear()
-        
+
         register_type_for_view("user_view", SimpleType)
         register_type_for_view("user_view", NestedType)
-        
+
         assert _type_registry["user_view"] == NestedType
 
 
@@ -150,14 +150,14 @@ class TestFraiseQLRepository:
         """Test repository initialization."""
         context = {"user": "test", "tenant_id": 123}
         repo = FraiseQLRepository(mock_pool, context)
-        
+
         assert repo._pool == mock_pool
         assert repo.context == context
 
     async def test_repository_initialization_no_context(self, mock_pool):
         """Test repository initialization without context."""
         repo = FraiseQLRepository(mock_pool)
-        
+
         assert repo.context == {}
 
     async def test_run_query_with_results(self, repository, mock_pool, mock_connection, mock_cursor):
@@ -165,21 +165,21 @@ class TestFraiseQLRepository:
         # Setup mocks
         expected_results = [
             {"id": "1", "name": "User 1"},
-            {"id": "2", "name": "User 2"}
+            {"id": "2", "name": "User 2"},
         ]
         mock_cursor.fetchall.return_value = expected_results
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Create query
         query = DatabaseQuery(
             statement=SQL("SELECT * FROM users"),
-            params={}
+            params={},
         )
-        
+
         # Execute
         results = await repository.run(query)
-        
+
         # Verify
         assert results == expected_results
         mock_cursor.execute.assert_called_once_with(query.statement, query.params)
@@ -190,17 +190,17 @@ class TestFraiseQLRepository:
         # Setup mocks
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Create query
         query = DatabaseQuery(
             statement=SQL("INSERT INTO users (name) VALUES (%s)"),
             params={"name": "Test"},
-            fetch_result=False
+            fetch_result=False,
         )
-        
+
         # Execute
         results = await repository.run(query)
-        
+
         # Verify
         assert results == []
         mock_cursor.execute.assert_called_once()
@@ -212,13 +212,13 @@ class TestFraiseQLRepository:
         mock_cursor.execute.side_effect = Exception("Database error")
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Create query
         query = DatabaseQuery(
             statement=SQL("SELECT * FROM invalid_table"),
-            params={}
+            params={},
         )
-        
+
         # Execute and expect exception
         with pytest.raises(Exception, match="Database error"):
             await repository.run(query)
@@ -227,15 +227,15 @@ class TestFraiseQLRepository:
         """Test running a function in a transaction successfully."""
         # Setup mocks
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Define test function
         async def test_func(conn):
             await conn.execute("SELECT 1")
             return "success"
-        
+
         # Execute
         result = await repository.run_in_transaction(test_func)
-        
+
         # Verify
         assert result == "success"
         mock_connection.commit.assert_called_once()
@@ -244,15 +244,15 @@ class TestFraiseQLRepository:
         """Test transaction rollback on error."""
         # Setup mocks
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Define test function that raises error
         async def test_func(conn):
             raise ValueError("Test error")
-        
+
         # Execute and expect exception
         with pytest.raises(ValueError, match="Test error"):
             await repository.run_in_transaction(test_func)
-        
+
         # Verify rollback was called
         mock_connection.rollback.assert_called_once()
 
@@ -263,10 +263,10 @@ class TestFraiseQLRepository:
         mock_cursor.fetchone.return_value = {"result": expected_result}
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Execute
         result = await repository.execute_function("test_function", {"param": "value"})
-        
+
         # Verify
         assert result == expected_result
         # Should call the function with proper SQL
@@ -279,10 +279,10 @@ class TestFraiseQLRepository:
         mock_cursor.fetchone.return_value = None
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Execute
         result = await repository.execute_function("void_function", {})
-        
+
         # Verify
         assert result == {}
 
@@ -291,15 +291,15 @@ class TestFraiseQLRepository:
         # Setup mocks
         expected_data = [
             {"data": {"id": "1", "name": "User 1"}},
-            {"data": {"id": "2", "name": "User 2"}}
+            {"data": {"id": "2", "name": "User 2"}},
         ]
         mock_cursor.fetchall.return_value = expected_data
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Execute
         results = await repository.find("users", name="User%")
-        
+
         # Verify
         assert len(results) == 2
         assert results[0]["id"] == "1"
@@ -312,10 +312,10 @@ class TestFraiseQLRepository:
         mock_cursor.fetchall.return_value = expected_data
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Execute
         result = await repository.find_one("users", id="1")
-        
+
         # Verify
         assert result is not None
         assert result["id"] == "1"
@@ -327,10 +327,10 @@ class TestFraiseQLRepository:
         mock_cursor.fetchall.return_value = []
         mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
         mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-        
+
         # Execute
         result = await repository.find_one("users", id="999")
-        
+
         # Verify
         assert result is None
 
@@ -366,7 +366,7 @@ class TestRepositoryHelpers:
         """Test table name conversion to snake case."""
         # This would be used internally when auto_camel_case is enabled
         from fraiseql.utils.casing import to_snake_case
-        
+
         assert to_snake_case("UserProfile") == "user_profile"
         assert to_snake_case("APIKey") == "api_key"
         assert to_snake_case("HTTPSConnection") == "https_connection"

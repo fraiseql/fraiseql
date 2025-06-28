@@ -1,1 +1,1 @@
-# Security tests module
+"""Security test modules."""

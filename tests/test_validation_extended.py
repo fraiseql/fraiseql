@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Optional, Union
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
 import pytest
 from graphql import GraphQLResolveInfo
@@ -37,7 +37,7 @@ class TestValidateWhereInput:
         """Test validation with empty where input."""
         errors = validate_where_input(None, SampleUser)
         assert errors == []
-        
+
         errors = validate_where_input({}, SampleUser)
         assert errors == []
 
@@ -97,8 +97,8 @@ class TestValidateWhereInput:
         where = {
             "_and": [
                 {"name": {"_eq": "John"}},
-                {"age": {"_gt": 18}}
-            ]
+                {"age": {"_gt": 18}},
+            ],
         }
         errors = validate_where_input(where, SampleUser)
         assert errors == []
@@ -108,8 +108,8 @@ class TestValidateWhereInput:
         where = {
             "_or": [
                 {"name": {"_eq": "John"}},
-                {"name": {"_eq": "Jane"}}
-            ]
+                {"name": {"_eq": "Jane"}},
+            ],
         }
         errors = validate_where_input(where, SampleUser)
         assert errors == []
@@ -117,7 +117,7 @@ class TestValidateWhereInput:
     def test_logical_not_operator(self):
         """Test validation with _not operator."""
         where = {
-            "_not": {"name": {"_eq": "John"}}
+            "_not": {"name": {"_eq": "John"}},
         }
         errors = validate_where_input(where, SampleUser)
         assert errors == []
@@ -140,8 +140,8 @@ class TestValidateWhereInput:
         where = {
             "_and": [
                 {"invalid_field": {"_eq": "value"}},
-                {"name": {"_invalid_op": "John"}}
-            ]
+                {"name": {"_invalid_op": "John"}},
+            ],
         }
         errors = validate_where_input(where, SampleUser)
         assert len(errors) == 2
@@ -169,7 +169,7 @@ class TestValidateWhereInput:
         where = {"name": {"_in": ["John", "Jane"]}}
         errors = validate_where_input(where, SampleUser)
         assert errors == []
-        
+
         where = {"name": {"_nin": ["Bob", "Alice"]}}
         errors = validate_where_input(where, SampleUser)
         assert errors == []
@@ -196,10 +196,10 @@ class TestValidateSelectionSet:
         """Create a mock GraphQLResolveInfo."""
         if selected_fields is None:
             selected_fields = []
-        
+
         mock_info = Mock(spec=GraphQLResolveInfo)
         mock_info.field_nodes = []
-        
+
         # Mock field nodes
         for field in selected_fields:
             field_node = Mock()
@@ -207,16 +207,16 @@ class TestValidateSelectionSet:
             field_node.name.value = field
             field_node.selection_set = Mock()
             field_node.selection_set.selections = []
-            
+
             # Create a selection for the field
             selection = Mock()
             selection.name = Mock()
             selection.name.value = field
             selection.selection_set = None
-            
+
             field_node.selection_set.selections.append(selection)
             mock_info.field_nodes.append(field_node)
-        
+
         return mock_info
 
     def test_no_type_class_provided(self):
@@ -254,19 +254,19 @@ class TestValidateSelectionSet:
         """Test query depth validation."""
         # Test the depth calculation function directly
         from fraiseql.validation import _calculate_query_depth
-        
+
         mock_info = Mock(spec=GraphQLResolveInfo)
         field_node = Mock()
         field_node.selection_set = Mock()
-        
+
         # Create nested structure
         nested_selection = Mock()
         nested_selection.selection_set = Mock()
         nested_selection.selection_set.selections = []
-        
+
         field_node.selection_set.selections = [nested_selection]
         mock_info.field_nodes = [field_node]
-        
+
         depth = _calculate_query_depth(mock_info)
         assert depth >= 1
 
@@ -274,10 +274,10 @@ class TestValidateSelectionSet:
         """Test query depth validation in strict mode."""
         # Test with the complexity function that we know works
         from fraiseql.validation import validate_query_complexity
-        
+
         mock_info = Mock(spec=GraphQLResolveInfo)
         mock_info.field_nodes = []
-        
+
         # Test that we can call the function without errors
         complexity, errors = validate_query_complexity(mock_info, max_complexity=1)
         assert isinstance(complexity, int)
@@ -299,7 +299,7 @@ class TestHelperFunctions:
             def __init__(self):
                 self.name: str = ""
                 self.age: int = 0
-        
+
         RegularClass.__annotations__ = {"name": str, "age": int}
         fields = _get_type_fields(RegularClass)
         assert "name" in fields
@@ -309,7 +309,7 @@ class TestHelperFunctions:
         """Test _get_type_fields with exception handling."""
         class ProblematicClass:
             pass
-        
+
         # Should not raise exception
         fields = _get_type_fields(ProblematicClass)
         assert isinstance(fields, set)
@@ -318,7 +318,7 @@ class TestHelperFunctions:
         """Test _get_field_type with dataclass."""
         field_type = _get_field_type(SampleUser, "name")
         assert field_type is str
-        
+
         field_type = _get_field_type(SampleUser, "age")
         # Should handle Optional[int]
         assert field_type is not None
@@ -332,7 +332,7 @@ class TestHelperFunctions:
         """Test _get_field_type with __annotations__."""
         class AnnotatedClass:
             __annotations__ = {"name": str, "age": int}
-        
+
         field_type = _get_field_type(AnnotatedClass, "name")
         assert field_type is str
 
@@ -341,7 +341,7 @@ class TestHelperFunctions:
         # Valid string operator on string field
         errors = _validate_operator_for_type("_like", "pattern", str, "path")
         assert errors == []
-        
+
         # Invalid string operator on non-string field
         errors = _validate_operator_for_type("_like", "pattern", int, "path")
         assert len(errors) == 1
@@ -352,7 +352,7 @@ class TestHelperFunctions:
         # Valid array operator with array value
         errors = _validate_operator_for_type("_in", ["a", "b"], str, "path")
         assert errors == []
-        
+
         # Invalid array operator with non-array value
         errors = _validate_operator_for_type("_in", "not_array", str, "path")
         assert len(errors) == 1
@@ -363,7 +363,7 @@ class TestHelperFunctions:
         # Valid null operator with boolean value
         errors = _validate_operator_for_type("_is_null", True, str, "path")
         assert errors == []
-        
+
         # Invalid null operator with non-boolean value
         errors = _validate_operator_for_type("_is_null", "not_bool", str, "path")
         assert len(errors) == 1
@@ -380,19 +380,19 @@ class TestHelperFunctions:
         """Test _extract_selected_fields function."""
         # Create mock info with field nodes
         mock_info = Mock(spec=GraphQLResolveInfo)
-        
+
         # Mock field node
         field_node = Mock()
         field_node.selection_set = Mock()
-        
+
         # Mock selection
         selection = Mock()
         selection.name = Mock()
         selection.name.value = "testField"
-        
+
         field_node.selection_set.selections = [selection]
         mock_info.field_nodes = [field_node]
-        
+
         fields = _extract_selected_fields(mock_info)
         assert "testField" in fields
 
@@ -400,7 +400,7 @@ class TestHelperFunctions:
         """Test _extract_selected_fields with empty field nodes."""
         mock_info = Mock(spec=GraphQLResolveInfo)
         mock_info.field_nodes = []
-        
+
         fields = _extract_selected_fields(mock_info)
         assert fields == set()
 
@@ -410,30 +410,30 @@ class TestHelperFunctions:
         field_node = Mock()
         field_node.selection_set = None
         mock_info.field_nodes = [field_node]
-        
+
         fields = _extract_selected_fields(mock_info)
         assert fields == set()
 
     def test_calculate_query_depth(self):
         """Test _calculate_query_depth function."""
         mock_info = Mock(spec=GraphQLResolveInfo)
-        
+
         # Create nested structure
         field_node = Mock()
         field_node.selection_set = Mock()
-        
+
         # First level selection
         level1_selection = Mock()
         level1_selection.selection_set = Mock()
-        
+
         # Second level selection (leaf)
         level2_selection = Mock()
         level2_selection.selection_set = None
-        
+
         level1_selection.selection_set.selections = [level2_selection]
         field_node.selection_set.selections = [level1_selection]
         mock_info.field_nodes = [field_node]
-        
+
         depth = _calculate_query_depth(mock_info)
         assert depth == 2
 
@@ -443,7 +443,7 @@ class TestHelperFunctions:
         field_node = Mock()
         field_node.selection_set = None
         mock_info.field_nodes = [field_node]
-        
+
         depth = _calculate_query_depth(mock_info)
         assert depth == 0
 
@@ -455,12 +455,12 @@ class TestValidateQueryComplexity:
         """Create a mock GraphQLResolveInfo with complex field structure."""
         mock_info = Mock(spec=GraphQLResolveInfo)
         mock_info.field_nodes = []
-        
+
         def create_selection(name, children=None):
             selection = Mock()
             selection.name = Mock()
             selection.name.value = name
-            
+
             if children:
                 selection.selection_set = Mock()
                 selection.selection_set.selections = [
@@ -469,9 +469,9 @@ class TestValidateQueryComplexity:
                 ]
             else:
                 selection.selection_set = None
-            
+
             return selection
-        
+
         # Create field node
         field_node = Mock()
         field_node.selection_set = Mock()
@@ -479,7 +479,7 @@ class TestValidateQueryComplexity:
             create_selection(name, children)
             for name, children in field_structure.items()
         ]
-        
+
         mock_info.field_nodes = [field_node]
         return mock_info
 
@@ -487,7 +487,7 @@ class TestValidateQueryComplexity:
         """Test complexity calculation for simple query."""
         field_structure = {"name": None, "email": None}
         mock_info = self.create_complex_mock_info(field_structure)
-        
+
         complexity, errors = validate_query_complexity(mock_info, max_complexity=100)
         assert complexity == 2  # 2 fields, 1 point each
         assert errors == []
@@ -496,10 +496,10 @@ class TestValidateQueryComplexity:
         """Test complexity calculation for nested query."""
         field_structure = {
             "name": None,
-            "posts": {"title": None, "content": None}
+            "posts": {"title": None, "content": None},
         }
         mock_info = self.create_complex_mock_info(field_structure)
-        
+
         complexity, errors = validate_query_complexity(mock_info, max_complexity=100)
         # name (1) + posts field (10 * 1) + nested fields (10 * 2) = 31
         assert complexity > 20  # Should be higher due to list multiplier
@@ -508,10 +508,10 @@ class TestValidateQueryComplexity:
     def test_query_complexity_exceeds_limit(self):
         """Test complexity calculation when limit is exceeded."""
         field_structure = {
-            "users": {"posts": {"comments": None}}
+            "users": {"posts": {"comments": None}},
         }
         mock_info = self.create_complex_mock_info(field_structure)
-        
+
         complexity, errors = validate_query_complexity(mock_info, max_complexity=50)
         assert complexity > 50
         assert len(errors) == 1
@@ -521,12 +521,12 @@ class TestValidateQueryComplexity:
         """Test complexity calculation with custom field costs."""
         field_structure = {"expensive_field": None, "cheap_field": None}
         mock_info = self.create_complex_mock_info(field_structure)
-        
+
         field_costs = {"expensive_field": 50, "cheap_field": 1}
         complexity, errors = validate_query_complexity(
-            mock_info, 
-            max_complexity=100, 
-            field_costs=field_costs
+            mock_info,
+            max_complexity=100,
+            field_costs=field_costs,
         )
         assert complexity == 51  # 50 + 1
         assert errors == []
@@ -535,7 +535,7 @@ class TestValidateQueryComplexity:
         """Test complexity calculation with None field_costs."""
         field_structure = {"name": None}
         mock_info = self.create_complex_mock_info(field_structure)
-        
+
         complexity, errors = validate_query_complexity(mock_info, field_costs=None)
         assert complexity == 1
         assert errors == []
@@ -546,7 +546,7 @@ class TestValidateQueryComplexity:
         field_node = Mock()
         field_node.selection_set = None
         mock_info.field_nodes = [field_node]
-        
+
         complexity, errors = validate_query_complexity(mock_info)
         assert complexity == 0
         assert errors == []
@@ -558,8 +558,8 @@ class TestEdgeCases:
     def test_union_type_field_extraction(self):
         """Test field type extraction with Union types."""
         union_type = Union[str, int]
-        field_type = _get_field_type(SampleUser, "name")
-        
+        _ = _get_field_type(SampleUser, "name")
+
         # Test with Union in operator validation
         errors = _validate_operator_for_type("_like", "pattern", union_type, "path")
         # Should handle Union types gracefully
@@ -570,7 +570,7 @@ class TestEdgeCases:
         @dataclass
         class ComplexType:
             nested_optional: Optional[Optional[str]] = None
-        
+
         field_type = _get_field_type(ComplexType, "nested_optional")
         assert field_type is not None
 
@@ -581,13 +581,13 @@ class TestEdgeCases:
                 {
                     "_or": [
                         {"name": {"_eq": "John"}},
-                        {"name": {"_eq": "Jane"}}
-                    ]
+                        {"name": {"_eq": "Jane"}},
+                    ],
                 },
                 {
-                    "_not": {"age": {"_lt": 18}}
-                }
-            ]
+                    "_not": {"age": {"_lt": 18}},
+                },
+            ],
         }
         errors = validate_where_input(where, SampleUser)
         assert errors == []
@@ -596,8 +596,8 @@ class TestEdgeCases:
         """Test that error paths are correctly tracked in nested structures."""
         where = {
             "_and": [
-                {"invalid_field": {"_eq": "value"}}
-            ]
+                {"invalid_field": {"_eq": "value"}},
+            ],
         }
         errors = validate_where_input(where, SampleUser)
         assert len(errors) == 1
@@ -608,7 +608,7 @@ class TestEdgeCases:
         class NoAnnotations:
             def __init__(self):
                 self.some_attr = "value"
-        
+
         fields = _get_type_fields(NoAnnotations)
         # Should not crash, might be empty
         assert isinstance(fields, set)
@@ -618,7 +618,7 @@ class TestEdgeCases:
         @dataclass
         class StringAnnotated:
             forward_ref: "str"  # String annotation
-        
+
         field_type = _get_field_type(StringAnnotated, "forward_ref")
         # Should handle string annotations gracefully
         assert field_type is None or isinstance(field_type, (type, str))

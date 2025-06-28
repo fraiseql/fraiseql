@@ -1,10 +1,9 @@
 """Extended tests for mutations parser to improve coverage."""
 
 import types
-from dataclasses import dataclass
 from typing import Any, Optional, Union
-from unittest.mock import MagicMock, Mock
-from uuid import UUID, uuid4
+from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -115,7 +114,7 @@ class TestIsErrorStatus:
             "success", "SUCCESS", "Success",
             "completed", "COMPLETED", "Completed",
             "ok", "OK", "Ok",
-            "done", "DONE", "Done"
+            "done", "DONE", "Done",
         ]
         for status in success_statuses:
             assert not _is_error_status(status)
@@ -135,7 +134,7 @@ class TestIsErrorStatus:
             "email_exists", "EMAIL_EXISTS", "Email_Exists",
             "exists", "EXISTS", "Exists",
             "duplicate", "DUPLICATE", "Duplicate",
-            "timeout", "TIMEOUT", "Timeout"
+            "timeout", "TIMEOUT", "Timeout",
         ]
         for status in error_statuses:
             assert _is_error_status(status)
@@ -191,7 +190,7 @@ class TestInstantiateType:
         """Test Optional types with actual values."""
         optional_str = Union[str, type(None)]
         assert _instantiate_type(optional_str, "test") == "test"
-        
+
         optional_product = Union[Product, type(None)]
         data = {"id": "1", "name": "Test", "price": 10.0}
         result = _instantiate_type(optional_product, data)
@@ -201,7 +200,7 @@ class TestInstantiateType:
     def test_new_union_type_syntax(self):
         """Test new Python 3.10+ union type syntax."""
         # Test with types.UnionType if available
-        if hasattr(types, 'UnionType'):
+        if hasattr(types, "UnionType"):
             union_type = str | int
             assert _instantiate_type(union_type, "test") == "test"
 
@@ -210,7 +209,7 @@ class TestInstantiateType:
         data = [{"id": "1", "name": "Product1", "price": 10.0},
                 {"id": "2", "name": "Product2", "price": 20.0}]
         result = _instantiate_type(list[Product], data)
-        
+
         assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(p, Product) for p in result)
@@ -227,7 +226,7 @@ class TestInstantiateType:
         data = {"key1": "value1", "key2": "value2"}
         result = _instantiate_type(dict, data)
         assert result == data
-        
+
         result = _instantiate_type(dict[str, str], data)
         assert result == data
 
@@ -235,7 +234,7 @@ class TestInstantiateType:
         """Test FraiseQL types with direct construction."""
         data = {"id": "1", "name": "Test Product", "price": 99.99}
         result = _instantiate_type(Product, data)
-        
+
         assert isinstance(result, Product)
         assert result.id == "1"
         assert result.name == "Test Product"
@@ -248,7 +247,7 @@ class TestInstantiateType:
         mock_type.__fraiseql_definition__ = True
         mock_type.side_effect = TypeError("Constructor failed")
         mock_type.from_dict.return_value = "from_dict_result"
-        
+
         result = _instantiate_type(mock_type, {"data": "test"})
         assert result == "from_dict_result"
         mock_type.from_dict.assert_called_once_with({"data": "test"})
@@ -259,10 +258,10 @@ class TestInstantiateType:
         class TestSuccess:
             message: str
             value: int
-        
+
         data = {"message": "Success", "value": 42}
         result = _instantiate_type(TestSuccess, data)
-        
+
         assert isinstance(result, TestSuccess)
         assert result.message == "Success"
         assert result.value == 42
@@ -273,10 +272,10 @@ class TestInstantiateType:
         class TestFailure:
             message: str
             code: str
-        
+
         data = {"message": "Error", "code": "E001"}
         result = _instantiate_type(TestFailure, data)
-        
+
         assert isinstance(result, TestFailure)
         assert result.message == "Error"
         assert result.code == "E001"
@@ -285,7 +284,7 @@ class TestInstantiateType:
         """Test types that only have from_dict method."""
         mock_type = MagicMock()
         mock_type.from_dict.return_value = "from_dict_only"
-        
+
         result = _instantiate_type(mock_type, {"data": "test"})
         assert result == "from_dict_only"
 
@@ -304,7 +303,7 @@ class TestExtractFieldValue:
         """Test extracting field from metadata."""
         metadata = {"product": {"id": "1", "name": "Test", "price": 10.0}}
         object_data = {"other": "data"}
-        
+
         result = _extract_field_value("product", Product, object_data, metadata)
         assert isinstance(result, Product)
         assert result.name == "Test"
@@ -313,7 +312,7 @@ class TestExtractFieldValue:
         """Test extracting field from object_data."""
         metadata = {"other": "data"}
         object_data = {"product": {"id": "1", "name": "Test", "price": 10.0}}
-        
+
         result = _extract_field_value("product", Product, object_data, metadata)
         assert isinstance(result, Product)
         assert result.name == "Test"
@@ -322,14 +321,14 @@ class TestExtractFieldValue:
         """Test that metadata takes precedence over object_data."""
         metadata = {"field": "metadata_value"}
         object_data = {"field": "object_data_value"}
-        
+
         result = _extract_field_value("field", str, object_data, metadata)
         assert result == "metadata_value"
 
     def test_extract_when_object_data_matches_type(self):
         """Test extracting when object_data itself matches the type."""
         object_data = {"id": "1", "name": "Test", "price": 10.0}
-        
+
         result = _extract_field_value("product", Product, object_data, None)
         assert isinstance(result, Product)
         assert result.name == "Test"
@@ -338,7 +337,7 @@ class TestExtractFieldValue:
         """Test extracting non-existent field."""
         metadata = {"other": "data"}
         object_data = {"other": "data"}
-        
+
         result = _extract_field_value("missing_field", str, object_data, metadata)
         assert result is None
 
@@ -362,7 +361,7 @@ class TestIsMatchingType:
         # Test with matching fields
         data = {"id": "1", "name": "Test"}
         assert _is_matching_type(Product, data)
-        
+
         # Test with no matching fields
         data = {"other_field": "value"}
         assert not _is_matching_type(Product, data)
@@ -377,7 +376,7 @@ class TestIsMatchingType:
         """Test matching with type without annotations."""
         class SimpleType:
             pass
-        
+
         assert not _is_matching_type(SimpleType, {"any": "data"})
 
 
@@ -388,24 +387,24 @@ class TestFindMainField:
         """Test finding field with exact entity hint match."""
         annotations = {"message": str, "product": Product, "count": int}
         metadata = {"entity": "product"}
-        
+
         result = _find_main_field(annotations, metadata)
         assert result == "product"
 
     def test_find_with_entity_hint_suffix_matching(self):
         """Test finding field with entity hint suffix matching."""
         annotations = {"message": str, "products": list[Product], "count": int}
-        
+
         # Test with 's' suffix
         metadata = {"entity": "product"}
         result = _find_main_field(annotations, metadata)
         assert result == "products"
-        
+
         # Test with '_list' suffix
         annotations = {"message": str, "product_list": list[Product]}
         result = _find_main_field(annotations, metadata)
         assert result == "product_list"
-        
+
         # Test with '_data' suffix
         annotations = {"message": str, "product_data": Product}
         result = _find_main_field(annotations, metadata)
@@ -414,14 +413,14 @@ class TestFindMainField:
     def test_find_first_non_message_field(self):
         """Test finding first non-message field."""
         annotations = {"message": str, "product": Product, "category": Category}
-        
+
         result = _find_main_field(annotations, None)
         assert result == "product"
 
     def test_find_with_only_message(self):
         """Test finding when only message field exists."""
         annotations = {"message": str}
-        
+
         result = _find_main_field(annotations, None)
         assert result is None
 
@@ -434,7 +433,7 @@ class TestFindMainField:
         """Test finding with entity hint that doesn't match any field."""
         annotations = {"message": str, "product": Product}
         metadata = {"entity": "category"}
-        
+
         # Should fall back to first non-message field
         result = _find_main_field(annotations, metadata)
         assert result == "product"
@@ -449,9 +448,9 @@ class TestParseSuccess:
             status="success",
             message="Operation completed",
             object_data=None,
-            extra_metadata=None
+            extra_metadata=None,
         )
-        
+
         result = _parse_success(mutation_result, SimpleSuccess)
         assert isinstance(result, SimpleSuccess)
         assert result.message == "Operation completed"
@@ -462,9 +461,9 @@ class TestParseSuccess:
             status="success",
             message="Product created",
             object_data={"id": "1", "name": "Test", "price": 10.0},
-            extra_metadata={"product": {"id": "1", "name": "Test", "price": 10.0}}
+            extra_metadata={"product": {"id": "1", "name": "Test", "price": 10.0}},
         )
-        
+
         result = _parse_success(mutation_result, ProductSuccess)
         assert isinstance(result, ProductSuccess)
         assert result.message == "Product created"
@@ -477,9 +476,9 @@ class TestParseSuccess:
             status="success",
             message="Product created",
             object_data={"id": "1", "name": "Test", "price": 10.0},
-            extra_metadata={"entity": "product"}
+            extra_metadata={"entity": "product"},
         )
-        
+
         result = _parse_success(mutation_result, ProductSuccess)
         assert isinstance(result, ProductSuccess)
         assert result.message == "Product created"
@@ -496,10 +495,10 @@ class TestParseSuccess:
                 "entity": "products",
                 "category": {"id": "cat1", "name": "Category", "products": []},
                 "total_count": 5,
-                "metadata": {"operation": "bulk_create"}
-            }
+                "metadata": {"operation": "bulk_create"},
+            },
         )
-        
+
         result = _parse_success(mutation_result, ComplexSuccess)
         assert isinstance(result, ComplexSuccess)
         assert result.message == "Bulk operation completed"
@@ -514,9 +513,9 @@ class TestParseSuccess:
             status="success",
             message="Partial success",
             object_data=None,
-            extra_metadata={"count": 3}
+            extra_metadata={"count": 3},
         )
-        
+
         result = _parse_success(mutation_result, OptionalFieldsSuccess)
         assert isinstance(result, OptionalFieldsSuccess)
         assert result.message == "Partial success"
@@ -533,9 +532,9 @@ class TestParseError:
             status="error",
             message="Something went wrong",
             object_data=None,
-            extra_metadata=None
+            extra_metadata=None,
         )
-        
+
         result = _parse_error(mutation_result, SimpleError)
         assert isinstance(result, SimpleError)
         assert result.message == "Something went wrong"
@@ -546,9 +545,9 @@ class TestParseError:
             status="validation_error",
             message="Invalid input",
             object_data=None,
-            extra_metadata={"details": {"error": "validation"}}
+            extra_metadata={"details": {"error": "validation"}},
         )
-        
+
         result = _parse_error(mutation_result, DetailedError)
         assert isinstance(result, DetailedError)
         assert result.message == "Invalid input"
@@ -563,10 +562,10 @@ class TestParseError:
             object_data=None,
             extra_metadata={
                 "details": {"field": "name", "reason": "required"},
-                "related_products": [{"id": "1", "name": "Product", "price": 10.0}]
-            }
+                "related_products": [{"id": "1", "name": "Product", "price": 10.0}],
+            },
         )
-        
+
         result = _parse_error(mutation_result, DetailedError)
         assert isinstance(result, DetailedError)
         assert result.message == "Validation failed"
@@ -583,10 +582,10 @@ class TestParseError:
             object_data=None,
             extra_metadata={
                 "field_errors": {"name": "Required", "email": "Invalid format"},
-                "invalid_values": ["", "invalid-email"]
-            }
+                "invalid_values": ["", "invalid-email"],
+            },
         )
-        
+
         result = _parse_error(mutation_result, ValidationError)
         assert isinstance(result, ValidationError)
         assert result.message == "Field validation failed"
@@ -600,9 +599,9 @@ class TestParseError:
             status="error",
             message="Basic error",
             object_data=None,
-            extra_metadata={}
+            extra_metadata={},
         )
-        
+
         # Use SimpleError since DetailedError requires details field
         result = _parse_error(mutation_result, SimpleError)
         assert isinstance(result, SimpleError)
@@ -620,9 +619,9 @@ class TestParseMutationResult:
             "status": "success",
             "message": "Product updated successfully",
             "object_data": {"id": "1", "name": "Updated Product", "price": 99.99},
-            "extra_metadata": {"entity": "product", "version": 2}
+            "extra_metadata": {"entity": "product", "version": 2},
         }
-        
+
         parsed = parse_mutation_result(result, ProductSuccess, DetailedError)
         assert isinstance(parsed, ProductSuccess)
         assert parsed.message == "Product updated successfully"
@@ -636,10 +635,10 @@ class TestParseMutationResult:
             "object_data": None,
             "extra_metadata": {
                 "details": {"price": "Must be positive"},
-                "related_products": []
-            }
+                "related_products": [],
+            },
         }
-        
+
         parsed = parse_mutation_result(result, ProductSuccess, DetailedError)
         assert isinstance(parsed, DetailedError)
         assert parsed.message == "Product validation failed"
@@ -651,9 +650,9 @@ class TestParseMutationResult:
         result = {
             "status": "processing",
             "message": "Operation in progress",
-            "object_data": {"id": "1", "name": "Product", "price": 10.0}
+            "object_data": {"id": "1", "name": "Product", "price": 10.0},
         }
-        
+
         # Should be treated as success since no error keywords
         parsed = parse_mutation_result(result, ProductSuccess, DetailedError)
         assert isinstance(parsed, ProductSuccess)
@@ -664,9 +663,9 @@ class TestParseMutationResult:
             "id": str(uuid4()),
             "status": "success",
             "message": "Success",
-            "object_data": {"id": "1", "name": "Test", "price": 10.0}
+            "object_data": {"id": "1", "name": "Test", "price": 10.0},
         }
-        
+
         # This tests the MutationResult.from_db_row path
         parsed = parse_mutation_result(result, ProductSuccess, DetailedError)
         assert isinstance(parsed, ProductSuccess)
@@ -679,11 +678,11 @@ class TestEdgeCases:
     def test_instantiate_type_with_complex_union(self):
         """Test instantiate type with complex union types."""
         complex_union = Union[str, int, Product]
-        
+
         # Should handle string - first non-None type is str
         result = _instantiate_type(complex_union, "test")
         assert result == "test"
-        
+
         # For dict data with complex union, it tries str first
         data = {"id": "1", "name": "Test", "price": 10.0}
         result = _instantiate_type(complex_union, data)
@@ -694,7 +693,7 @@ class TestEdgeCases:
         """Test instantiate type with nested generic types."""
         nested_type = list[dict[str, Product]]
         data = [{"product1": {"id": "1", "name": "Test", "price": 10.0}}]
-        
+
         # Should return as-is for unsupported nested generics
         result = _instantiate_type(nested_type, data)
         assert result == data
@@ -702,7 +701,7 @@ class TestEdgeCases:
     def test_extract_field_value_with_type_mismatch(self):
         """Test extract field value when type doesn't match data."""
         object_data = {"field": 42}  # Use valid int instead of string
-        
+
         # Should successfully convert
         result = _extract_field_value("field", int, object_data, None)
         assert result == 42
@@ -713,12 +712,12 @@ class TestEdgeCases:
         mock_success_cls = MagicMock()
         mock_success_cls.__annotations__ = {"message": str}
         mock_success_cls.side_effect = TypeError("Constructor failed")
-        
+
         mutation_result = MutationResult(
             status="success",
-            message="Test message"
+            message="Test message",
         )
-        
+
         # Should raise the TypeError
         with pytest.raises(TypeError):
             _parse_success(mutation_result, mock_success_cls)
@@ -728,12 +727,12 @@ class TestEdgeCases:
         mock_error_cls = MagicMock()
         mock_error_cls.__annotations__ = {"message": str}
         mock_error_cls.side_effect = TypeError("Constructor failed")
-        
+
         mutation_result = MutationResult(
             status="error",
-            message="Test error"
+            message="Test error",
         )
-        
+
         # Should raise the TypeError
         with pytest.raises(TypeError):
             _parse_error(mutation_result, mock_error_cls)
@@ -747,7 +746,7 @@ class TestEdgeCases:
         """Test instantiate type with malformed data for complex types."""
         # Missing required fields
         incomplete_data = {"id": "1"}  # Missing name and price
-        
+
         # Should raise TypeError during construction
         with pytest.raises(TypeError):
             _instantiate_type(Product, incomplete_data)
@@ -756,7 +755,7 @@ class TestEdgeCases:
         """Test find main field with empty entity in metadata."""
         annotations = {"message": str, "product": Product}
         metadata = {"entity": ""}
-        
+
         # Should fall back to first non-message field
         result = _find_main_field(annotations, metadata)
         assert result == "product"
@@ -765,7 +764,7 @@ class TestEdgeCases:
         """Test is matching type with partial field matches."""
         # Data has some but not all expected fields
         data = {"id": "1", "unknown_field": "value"}
-        
+
         # Should still match since 'id' is in Product annotations
         assert _is_matching_type(Product, data)
 
@@ -774,10 +773,10 @@ class TestEdgeCases:
         object_data = {
             "nested": {
                 "value": "test_value",
-                "nested": {"deep": "data"}
-            }
+                "nested": {"deep": "data"},
+            },
         }
-        
+
         result = _extract_field_value("nested", NestedObject, object_data, None)
         assert isinstance(result, NestedObject)
         assert result.value == "test_value"

@@ -46,7 +46,7 @@ class TestValidateWhereInput:
         where = {
             "name": {"_eq": "John"},
             "age": {"_gt": 18},
-            "email": {"_like": "%@example.com"}
+            "email": {"_like": "%@example.com"},
         }
         errors = validate_where_input(where, User)
         assert errors == []
@@ -72,8 +72,8 @@ class TestValidateWhereInput:
         where = {
             "_and": [
                 {"name": {"_eq": "John"}},
-                {"age": {"_gt": 18}}
-            ]
+                {"age": {"_gt": 18}},
+            ],
         }
         errors = validate_where_input(where, User)
         assert errors == []
@@ -83,8 +83,8 @@ class TestValidateWhereInput:
         where = {
             "_or": [
                 {"name": {"_eq": "John"}},
-                {"email": {"_like": "%gmail.com"}}
-            ]
+                {"email": {"_like": "%gmail.com"}},
+            ],
         }
         errors = validate_where_input(where, User)
         assert errors == []
@@ -92,7 +92,7 @@ class TestValidateWhereInput:
     def test_logical_operators_not(self):
         """Test validation with NOT operator."""
         where = {
-            "_not": {"name": {"_eq": "John"}}
+            "_not": {"name": {"_eq": "John"}},
         }
         errors = validate_where_input(where, User)
         assert errors == []
@@ -101,7 +101,7 @@ class TestValidateWhereInput:
         """Test validation with empty where clause."""
         errors = validate_where_input({}, User)
         assert errors == []
-        
+
         errors = validate_where_input(None, User)
         assert errors == []
 
@@ -114,19 +114,19 @@ class TestValidateWhereInput:
     def test_strict_mode_raises_on_error(self):
         """Test that strict mode raises exception on first error."""
         where = {"invalid_field": {"_eq": "value"}}
-        
+
         with pytest.raises(WhereClauseError) as exc_info:
             validate_where_input(where, User, strict=True)
-        
+
         assert "invalid_field" in str(exc_info.value)
 
     def test_strict_mode_with_invalid_operator(self):
         """Test strict mode with invalid operator."""
         where = {"name": {"_invalid": "value"}}
-        
+
         with pytest.raises(WhereClauseError) as exc_info:
             validate_where_input(where, User, strict=True)
-        
+
         assert "_invalid" in str(exc_info.value)
 
     def test_multiple_errors_collected(self):
@@ -134,7 +134,7 @@ class TestValidateWhereInput:
         where = {
             "invalid1": {"_eq": "value"},
             "invalid2": {"_eq": "value"},
-            "name": {"_invalid_op": "value"}
+            "name": {"_invalid_op": "value"},
         }
         errors = validate_where_input(where, User)
         assert len(errors) >= 3

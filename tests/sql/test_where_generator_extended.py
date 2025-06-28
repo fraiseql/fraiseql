@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 import pytest
-from psycopg.sql import SQL, Composed, Literal
+from psycopg.sql import SQL, Composed
 
 from fraiseql.sql.where_generator import (
     DynamicType,
@@ -21,15 +21,15 @@ class TestBuildOperatorComposed:
     def test_equality_operator(self):
         """Test equality operator with various types."""
         path_sql = SQL("data->>'name'")
-        
+
         # String equality
         result = build_operator_composed(path_sql, "eq", "John")
         assert isinstance(result, Composed)
-        
+
         # Numeric equality
         result = build_operator_composed(path_sql, "eq", 42)
         assert isinstance(result, Composed)
-        
+
         # Boolean equality
         result = build_operator_composed(path_sql, "eq", True)
         assert isinstance(result, Composed)
@@ -43,19 +43,19 @@ class TestBuildOperatorComposed:
     def test_comparison_operators(self):
         """Test greater than, less than operators."""
         path_sql = SQL("data->>'score'")
-        
+
         # Greater than
         result = build_operator_composed(path_sql, "gt", 100)
         assert isinstance(result, Composed)
-        
+
         # Greater than or equal
         result = build_operator_composed(path_sql, "gte", 90)
         assert isinstance(result, Composed)
-        
+
         # Less than
         result = build_operator_composed(path_sql, "lt", 50)
         assert isinstance(result, Composed)
-        
+
         # Less than or equal
         result = build_operator_composed(path_sql, "lte", 75)
         assert isinstance(result, Composed)
@@ -63,15 +63,15 @@ class TestBuildOperatorComposed:
     def test_string_operators(self):
         """Test string-specific operators."""
         path_sql = SQL("data->>'name'")
-        
+
         # Contains
         result = build_operator_composed(path_sql, "contains", "John")
         assert isinstance(result, Composed)
-        
+
         # Starts with
         result = build_operator_composed(path_sql, "startswith", "J")
         assert isinstance(result, Composed)
-        
+
         # Matches (regex)
         result = build_operator_composed(path_sql, "matches", "John")
         assert isinstance(result, Composed)
@@ -79,11 +79,11 @@ class TestBuildOperatorComposed:
     def test_list_operators(self):
         """Test list/array operators."""
         path_sql = SQL("data->>'tags'")
-        
+
         # In operator
         result = build_operator_composed(path_sql, "in", ["python", "javascript"])
         assert isinstance(result, Composed)
-        
+
         # Not in operator
         result = build_operator_composed(path_sql, "notin", ["go", "rust"])
         assert isinstance(result, Composed)
@@ -91,11 +91,11 @@ class TestBuildOperatorComposed:
     def test_null_operators(self):
         """Test null checking operators."""
         path_sql = SQL("data->>'optional_field'")
-        
+
         # Is null
         result = build_operator_composed(path_sql, "isnull", True)
         assert isinstance(result, Composed)
-        
+
         # Is not null
         result = build_operator_composed(path_sql, "isnull", False)
         assert isinstance(result, Composed)
@@ -103,15 +103,15 @@ class TestBuildOperatorComposed:
     def test_type_casting_numeric(self):
         """Test type casting for numeric comparisons."""
         path_sql = SQL("data->>'price'")
-        
+
         # Integer comparison
         result = build_operator_composed(path_sql, "gt", 100)
         assert isinstance(result, Composed)
-        
+
         # Float comparison
         result = build_operator_composed(path_sql, "gte", 99.99)
         assert isinstance(result, Composed)
-        
+
         # Decimal comparison
         result = build_operator_composed(path_sql, "lt", Decimal("199.99"))
         assert isinstance(result, Composed)
@@ -119,12 +119,12 @@ class TestBuildOperatorComposed:
     def test_type_casting_datetime(self):
         """Test type casting for datetime comparisons."""
         path_sql = SQL("data->>'created_at'")
-        
+
         # Datetime comparison
         dt = datetime(2023, 1, 1, 12, 0, 0)
         result = build_operator_composed(path_sql, "gte", dt)
         assert isinstance(result, Composed)
-        
+
         # Date comparison
         d = date(2023, 1, 1)
         result = build_operator_composed(path_sql, "eq", d)
@@ -133,11 +133,11 @@ class TestBuildOperatorComposed:
     def test_type_casting_boolean(self):
         """Test type casting for boolean comparisons."""
         path_sql = SQL("data->>'is_active'")
-        
+
         # Boolean true
         result = build_operator_composed(path_sql, "eq", True)
         assert isinstance(result, Composed)
-        
+
         # Boolean false
         result = build_operator_composed(path_sql, "neq", False)
         assert isinstance(result, Composed)
@@ -145,11 +145,11 @@ class TestBuildOperatorComposed:
     def test_depth_operators(self):
         """Test depth operators for ltree-like operations."""
         path_sql = SQL("data->>'path'")
-        
+
         # Depth equal
         result = build_operator_composed(path_sql, "depth_eq", 3)
         assert isinstance(result, Composed)
-        
+
         # Depth greater than
         result = build_operator_composed(path_sql, "depth_gt", 2)
         assert isinstance(result, Composed)
@@ -157,11 +157,11 @@ class TestBuildOperatorComposed:
     def test_advanced_operators(self):
         """Test advanced JSONB operators."""
         path_sql = SQL("data->>'config'")
-        
+
         # Is descendant
         result = build_operator_composed(path_sql, "isdescendant", "parent.child")
         assert isinstance(result, Composed)
-        
+
         # Strictly contains
         result = build_operator_composed(path_sql, "strictly_contains", {"key": "value"})
         assert isinstance(result, Composed)
@@ -169,7 +169,7 @@ class TestBuildOperatorComposed:
     def test_unsupported_operator(self):
         """Test behavior with unsupported operator."""
         path_sql = SQL("data->>'field'")
-        
+
         with pytest.raises(ValueError, match="Unsupported operator"):
             build_operator_composed(path_sql, "unsupported_op", "value")
 
@@ -184,17 +184,17 @@ class TestSafeCreateWhereType:
             id: int
             name: str
             email: str
-        
+
         FilterType = safe_create_where_type(User)
-        
+
         # Should create a class
         assert callable(FilterType)
-        
+
         # Should have filter fields
         filter_instance = FilterType()
-        assert hasattr(filter_instance, 'id')
-        assert hasattr(filter_instance, 'name')
-        assert hasattr(filter_instance, 'email')
+        assert hasattr(filter_instance, "id")
+        assert hasattr(filter_instance, "name")
+        assert hasattr(filter_instance, "email")
 
     def test_create_filter_with_optional_fields(self):
         """Test creating filter type with optional fields."""
@@ -204,29 +204,29 @@ class TestSafeCreateWhereType:
             title: str
             content: Optional[str] = None
             published: bool = False
-        
+
         FilterType = safe_create_where_type(Post)
         filter_instance = FilterType()
-        
-        assert hasattr(filter_instance, 'id')
-        assert hasattr(filter_instance, 'title')
-        assert hasattr(filter_instance, 'content')
-        assert hasattr(filter_instance, 'published')
+
+        assert hasattr(filter_instance, "id")
+        assert hasattr(filter_instance, "title")
+        assert hasattr(filter_instance, "content")
+        assert hasattr(filter_instance, "published")
 
     def test_filter_type_to_sql(self):
         """Test that created filter types implement to_sql method."""
         @dataclass
         class Simple:
             name: str
-        
+
         FilterType = safe_create_where_type(Simple)
         filter_instance = FilterType()
-        
+
         # Should implement DynamicType protocol
         assert isinstance(filter_instance, DynamicType)
-        
+
         # Should have to_sql method
-        assert hasattr(filter_instance, 'to_sql')
+        assert hasattr(filter_instance, "to_sql")
         assert callable(filter_instance.to_sql)
 
     def test_filter_type_with_complex_types(self):
@@ -238,15 +238,15 @@ class TestSafeCreateWhereType:
             score: Decimal
             tags: list[str]
             metadata: dict[str, Any]
-        
+
         FilterType = safe_create_where_type(ComplexModel)
         filter_instance = FilterType()
-        
+
         # Should handle complex types
-        assert hasattr(filter_instance, 'created_at')
-        assert hasattr(filter_instance, 'score')
-        assert hasattr(filter_instance, 'tags')
-        assert hasattr(filter_instance, 'metadata')
+        assert hasattr(filter_instance, "created_at")
+        assert hasattr(filter_instance, "score")
+        assert hasattr(filter_instance, "tags")
+        assert hasattr(filter_instance, "metadata")
 
 
     def test_filter_inheritance(self):
@@ -255,20 +255,20 @@ class TestSafeCreateWhereType:
         class BaseModel:
             id: int
             created_at: datetime
-        
+
         @dataclass
         class User(BaseModel):
             name: str
             email: str
-        
+
         UserFilter = safe_create_where_type(User)
         user_filter = UserFilter()
-        
+
         # Should include inherited fields
-        assert hasattr(user_filter, 'id')
-        assert hasattr(user_filter, 'created_at')
-        assert hasattr(user_filter, 'name')
-        assert hasattr(user_filter, 'email')
+        assert hasattr(user_filter, "id")
+        assert hasattr(user_filter, "created_at")
+        assert hasattr(user_filter, "name")
+        assert hasattr(user_filter, "email")
 
 
 class TestDynamicTypeProtocol:
@@ -279,7 +279,7 @@ class TestDynamicTypeProtocol:
         class CustomFilter:
             def to_sql(self) -> Composed | None:
                 return Composed([SQL("1 = 1")])
-        
+
         filter_instance = CustomFilter()
         assert isinstance(filter_instance, DynamicType)
 
@@ -288,7 +288,7 @@ class TestDynamicTypeProtocol:
         class InvalidFilter:
             def to_sql(self, extra_param):  # Wrong signature
                 return None
-        
+
         filter_instance = InvalidFilter()
         # Should not satisfy protocol due to signature mismatch
         # Note: runtime_checkable only checks method existence, not signature
@@ -300,7 +300,7 @@ class TestEdgeCases:
     def test_build_operator_with_none_value(self):
         """Test operator building with None values."""
         path_sql = SQL("data->>'field'")
-        
+
         # None value with equality
         result = build_operator_composed(path_sql, "eq", None)
         assert isinstance(result, Composed)
@@ -315,14 +315,14 @@ class TestEdgeCases:
         """Test operator with complex nested values."""
         path_sql = SQL("data->>'config'")
         complex_value = {"nested": {"key": "value"}}
-        
+
         result = build_operator_composed(path_sql, "eq", complex_value)
         assert isinstance(result, Composed)
 
     def test_edge_case_operators(self):
         """Test edge case operator handling."""
         path_sql = SQL("data->>'field'")
-        
+
         # Test with None values
         result = build_operator_composed(path_sql, "eq", None)
         assert isinstance(result, Composed)
@@ -332,10 +332,10 @@ class TestEdgeCases:
         @dataclass
         class CachedModel:
             name: str
-        
+
         # Generate same filter type twice
         Filter1 = safe_create_where_type(CachedModel)
         Filter2 = safe_create_where_type(CachedModel)
-        
+
         # Should be the same due to caching
         assert Filter1 is Filter2

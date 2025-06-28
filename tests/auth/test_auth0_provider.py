@@ -36,7 +36,7 @@ class TestAuth0Provider:
             domain="example.auth0.com",
             api_identifier="https://api.example.com",
         )
-        
+
         assert provider.domain == "example.auth0.com"
         assert provider.api_identifier == "https://api.example.com"
         assert provider.algorithms == ["RS256"]
@@ -52,18 +52,18 @@ class TestAuth0Provider:
             algorithms=["RS256", "HS256"],
             cache_jwks=False,
         )
-        
+
         assert provider.algorithms == ["RS256", "HS256"]
 
     @pytest.mark.asyncio
     async def test_http_client_lazy_initialization(self, auth0_provider):
         """Test HTTP client is lazily initialized."""
         assert auth0_provider._http_client is None
-        
+
         client = await auth0_provider.http_client
         assert isinstance(client, httpx.AsyncClient)
         assert auth0_provider._http_client is client
-        
+
         # Second call returns same client
         client2 = await auth0_provider.http_client
         assert client2 is client
@@ -72,13 +72,13 @@ class TestAuth0Provider:
     async def test_close_http_client(self, auth0_provider):
         """Test closing HTTP client."""
         # Create client
-        client = await auth0_provider.http_client
+        _ = await auth0_provider.http_client
         assert auth0_provider._http_client is not None
-        
+
         # Close it
         await auth0_provider.close()
         assert auth0_provider._http_client is None
-        
+
         # Close again should not error
         await auth0_provider.close()
 
@@ -92,16 +92,16 @@ class TestAuth0Provider:
             "exp": int(time.time()) + 3600,
             "iat": int(time.time()),
         }
-        
+
         # Mock JWKS client and JWT decode
-        with patch.object(auth0_provider.jwks_client, 'get_signing_key_from_jwt') as mock_jwks:
+        with patch.object(auth0_provider.jwks_client, "get_signing_key_from_jwt") as mock_jwks:
             mock_key = MagicMock()
             mock_key.key = "test-key"
             mock_jwks.return_value = mock_key
-            
-            with patch('jwt.decode', return_value=mock_payload) as mock_decode:
+
+            with patch("jwt.decode", return_value=mock_payload) as mock_decode:
                 result = await auth0_provider.validate_token("test-token")
-                
+
                 assert result == mock_payload
                 mock_jwks.assert_called_once_with("test-token")
                 mock_decode.assert_called_once_with(
@@ -115,16 +115,16 @@ class TestAuth0Provider:
     @pytest.mark.asyncio
     async def test_validate_token_expired(self, auth0_provider):
         """Test token validation with expired token."""
-        with patch.object(auth0_provider.jwks_client, 'get_signing_key_from_jwt'):
-            with patch('jwt.decode', side_effect=jwt.ExpiredSignatureError("Token expired")):
+        with patch.object(auth0_provider.jwks_client, "get_signing_key_from_jwt"):
+            with patch("jwt.decode", side_effect=jwt.ExpiredSignatureError("Token expired")):
                 with pytest.raises(TokenExpiredError, match="Token has expired"):
                     await auth0_provider.validate_token("expired-token")
 
     @pytest.mark.asyncio
     async def test_validate_token_invalid(self, auth0_provider):
         """Test token validation with invalid token."""
-        with patch.object(auth0_provider.jwks_client, 'get_signing_key_from_jwt'):
-            with patch('jwt.decode', side_effect=jwt.InvalidTokenError("Invalid signature")):
+        with patch.object(auth0_provider.jwks_client, "get_signing_key_from_jwt"):
+            with patch("jwt.decode", side_effect=jwt.InvalidTokenError("Invalid signature")):
                 with pytest.raises(InvalidTokenError, match="Invalid token: Invalid signature"):
                     await auth0_provider.validate_token("invalid-token")
 
@@ -132,9 +132,9 @@ class TestAuth0Provider:
     async def test_validate_token_generic_error(self, auth0_provider):
         """Test token validation with generic error."""
         with patch.object(
-            auth0_provider.jwks_client, 
-            'get_signing_key_from_jwt',
-            side_effect=Exception("Network error")
+            auth0_provider.jwks_client,
+            "get_signing_key_from_jwt",
+            side_effect=Exception("Network error"),
         ):
             with pytest.raises(AuthenticationError, match="Token validation failed: Network error"):
                 await auth0_provider.validate_token("test-token")
@@ -154,10 +154,10 @@ class TestAuth0Provider:
             "exp": int(time.time()) + 3600,
             "iat": int(time.time()),
         }
-        
-        with patch.object(auth0_provider, 'validate_token', return_value=mock_payload):
+
+        with patch.object(auth0_provider, "validate_token", return_value=mock_payload):
             user = await auth0_provider.get_user_from_token("test-token")
-            
+
             assert isinstance(user, UserContext)
             assert user.user_id == "auth0|123456"
             assert user.email == "user@example.com"
@@ -177,10 +177,10 @@ class TestAuth0Provider:
             "exp": int(time.time()) + 3600,
             "iat": int(time.time()),
         }
-        
-        with patch.object(auth0_provider, 'validate_token', return_value=mock_payload):
+
+        with patch.object(auth0_provider, "validate_token", return_value=mock_payload):
             user = await auth0_provider.get_user_from_token("test-token")
-            
+
             assert user.user_id == "auth0|789"
             assert user.email is None
             assert user.name is None
@@ -197,10 +197,10 @@ class TestAuth0Provider:
             "aud": "https://api.test.com",
             "iss": "https://test.auth0.com/",
         }
-        
-        with patch.object(auth0_provider, 'validate_token', return_value=mock_payload):
+
+        with patch.object(auth0_provider, "validate_token", return_value=mock_payload):
             user = await auth0_provider.get_user_from_token("test-token")
-            
+
             assert user.permissions == ["read:posts", "write:posts", "delete:posts"]
 
     @pytest.mark.asyncio
@@ -214,19 +214,19 @@ class TestAuth0Provider:
             "app_metadata": {"plan": "premium"},
             "user_metadata": {"preferences": {"theme": "dark"}},
         }
-        
+
         # Mock HTTP client
         mock_client = AsyncMock()
         mock_client.get.return_value = AsyncMock(
             json=AsyncMock(return_value=mock_response),
             raise_for_status=AsyncMock(),
         )
-        
-        with patch.object(auth0_provider, 'http_client', new_callable=AsyncMock) as mock_http:
+
+        with patch.object(auth0_provider, "http_client", new_callable=AsyncMock) as mock_http:
             mock_http.return_value = mock_client
-            
+
             profile = await auth0_provider.get_user_profile("auth0|123", "access-token")
-            
+
             assert profile == mock_response
             mock_client.get.assert_called_once_with(
                 "https://test.auth0.com/api/v2/users/auth0|123",
@@ -239,10 +239,10 @@ class TestAuth0Provider:
         # Mock HTTP client to raise an error
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.HTTPError("Network error")
-        
-        with patch.object(auth0_provider, 'http_client', new_callable=AsyncMock) as mock_http:
+
+        with patch.object(auth0_provider, "http_client", new_callable=AsyncMock) as mock_http:
             mock_http.return_value = mock_client
-            
+
             with pytest.raises(AuthenticationError, match="Failed to fetch user profile"):
                 await auth0_provider.get_user_profile("auth0|123", "access-token")
 
@@ -255,19 +255,19 @@ class TestAuth0Provider:
             "token_type": "Bearer",
             "expires_in": 86400,
         }
-        
+
         # Mock HTTP client
         mock_client = AsyncMock()
         mock_client.post.return_value = AsyncMock(
             json=AsyncMock(return_value=mock_response),
             raise_for_status=AsyncMock(),
         )
-        
-        with patch.object(auth0_provider, 'http_client', new_callable=AsyncMock) as mock_http:
+
+        with patch.object(auth0_provider, "http_client", new_callable=AsyncMock) as mock_http:
             mock_http.return_value = mock_client
-            
+
             result = await auth0_provider.refresh_token("refresh-token-value")
-            
+
             assert result == mock_response
             mock_client.post.assert_called_once()
             call_args = mock_client.post.call_args
@@ -282,14 +282,14 @@ class TestAuth0Provider:
         mock_client = AsyncMock()
         mock_response = AsyncMock()
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "400 Bad Request", 
-            request=MagicMock(), 
-            response=MagicMock(status_code=400)
+            "400 Bad Request",
+            request=MagicMock(),
+            response=MagicMock(status_code=400),
         )
         mock_client.post.return_value = mock_response
-        
-        with patch.object(auth0_provider, 'http_client', new_callable=AsyncMock) as mock_http:
+
+        with patch.object(auth0_provider, "http_client", new_callable=AsyncMock) as mock_http:
             mock_http.return_value = mock_client
-            
+
             with pytest.raises(AuthenticationError, match="Token refresh failed"):
                 await auth0_provider.refresh_token("invalid-refresh-token")

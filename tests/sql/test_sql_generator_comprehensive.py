@@ -1,7 +1,6 @@
 """Comprehensive tests for sql_generator module to improve coverage."""
 
-import pytest
-from psycopg.sql import SQL, Composed, Identifier, Literal
+from psycopg.sql import SQL
 
 from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.sql_generator import build_sql_query
@@ -16,10 +15,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["name"], alias="name"),
             FieldPath(path=["age"], alias="age"),
         ]
-        
+
         query = build_sql_query("users", field_paths)
         sql_str = query.as_string(None)
-        
+
         assert "SELECT" in sql_str
         assert "data->>'name' AS name" in sql_str
         assert "data->>'age' AS age" in sql_str
@@ -31,10 +30,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["name"], alias="name"),
             FieldPath(path=["email"], alias="email"),
         ]
-        
+
         query = build_sql_query("users", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         assert "jsonb_build_object(" in sql_str
         assert "'name', data->>'name'" in sql_str
         assert "'email', data->>'email'" in sql_str
@@ -47,10 +46,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["profile", "avatar"], alias="avatar"),
             FieldPath(path=["settings", "theme", "color"], alias="themeColor"),
         ]
-        
+
         query = build_sql_query("users", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         assert "data->>'id'" in sql_str
         assert "data->'profile'->>'avatar'" in sql_str
         assert "data->'settings'->'theme'->>'color'" in sql_str
@@ -61,10 +60,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["id"], alias="id"),
             FieldPath(path=["name"], alias="name"),
         ]
-        
+
         query = build_sql_query("users", field_paths, json_output=True, typename="User")
         sql_str = query.as_string(None)
-        
+
         assert "'__typename', 'User'" in sql_str
 
     def test_with_where_clause(self):
@@ -73,10 +72,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["name"], alias="name"),
         ]
         where_clause = SQL("data->>'is_active' = 'true'")
-        
+
         query = build_sql_query("users", field_paths, where_clause=where_clause)
         sql_str = query.as_string(None)
-        
+
         assert "WHERE data->>'is_active' = 'true'" in sql_str
 
     def test_with_order_by_single_field(self):
@@ -85,10 +84,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["name"], alias="name"),
         ]
         order_by = [("name", "ASC")]
-        
+
         query = build_sql_query("users", field_paths, order_by=order_by)
         sql_str = query.as_string(None)
-        
+
         assert "ORDER BY data->>'name' ASC" in sql_str
 
     def test_with_order_by_multiple_fields(self):
@@ -98,10 +97,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["age"], alias="age"),
         ]
         order_by = [("age", "DESC"), ("name", "ASC")]
-        
+
         query = build_sql_query("users", field_paths, order_by=order_by)
         sql_str = query.as_string(None)
-        
+
         assert "ORDER BY data->>'age' DESC, data->>'name' ASC" in sql_str
 
     def test_with_order_by_nested_field(self):
@@ -110,10 +109,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["name"], alias="name"),
         ]
         order_by = [("profile.created_at", "DESC")]
-        
+
         query = build_sql_query("users", field_paths, order_by=order_by)
         sql_str = query.as_string(None)
-        
+
         assert "ORDER BY data->'profile'->>'created_at' DESC" in sql_str
 
     def test_with_group_by_single_field(self):
@@ -122,10 +121,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["department"], alias="department"),
         ]
         group_by = ["department"]
-        
+
         query = build_sql_query("users", field_paths, group_by=group_by)
         sql_str = query.as_string(None)
-        
+
         assert "GROUP BY data->>'department'" in sql_str
 
     def test_with_group_by_multiple_fields(self):
@@ -135,10 +134,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["role"], alias="role"),
         ]
         group_by = ["department", "role"]
-        
+
         query = build_sql_query("users", field_paths, group_by=group_by)
         sql_str = query.as_string(None)
-        
+
         assert "GROUP BY data->>'department', data->>'role'" in sql_str
 
     def test_with_group_by_nested_field(self):
@@ -147,10 +146,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["name"], alias="name"),
         ]
         group_by = ["profile.country", "profile.city"]
-        
+
         query = build_sql_query("users", field_paths, group_by=group_by)
         sql_str = query.as_string(None)
-        
+
         assert "GROUP BY data->'profile'->>'country', data->'profile'->>'city'" in sql_str
 
     def test_with_all_clauses(self):
@@ -162,22 +161,22 @@ class TestBuildSqlQuery:
         where_clause = SQL("data->>'is_active' = 'true'")
         group_by = ["department"]
         order_by = [("count", "DESC")]
-        
+
         query = build_sql_query(
-            "users", 
+            "users",
             field_paths,
             where_clause=where_clause,
             group_by=group_by,
             order_by=order_by,
-            json_output=True
+            json_output=True,
         )
         sql_str = query.as_string(None)
-        
+
         # Check clause order
         where_pos = sql_str.find("WHERE")
         group_pos = sql_str.find("GROUP BY")
         order_pos = sql_str.find("ORDER BY")
-        
+
         assert where_pos > 0
         assert group_pos > where_pos
         assert order_pos > group_pos
@@ -187,10 +186,10 @@ class TestBuildSqlQuery:
         field_paths = [
             FieldPath(path=["user_name"], alias="userName"),
         ]
-        
+
         query = build_sql_query("users", field_paths, auto_camel_case=False)
         sql_str = query.as_string(None)
-        
+
         # Should use the path as-is
         assert "data->>'user_name'" in sql_str
 
@@ -201,16 +200,16 @@ class TestBuildSqlQuery:
         ]
         order_by = [("firstName", "ASC")]
         group_by = ["departmentId"]
-        
+
         query = build_sql_query(
-            "users", 
+            "users",
             field_paths,
             auto_camel_case=True,
             order_by=order_by,
-            group_by=group_by
+            group_by=group_by,
         )
         sql_str = query.as_string(None)
-        
+
         # Should convert camelCase to snake_case
         assert "data->>'user_name'" in sql_str
         assert "data->>'first_name'" in sql_str
@@ -223,16 +222,16 @@ class TestBuildSqlQuery:
         ]
         order_by = [("userProfile.lastName", "ASC")]
         group_by = ["userProfile.departmentId"]
-        
+
         query = build_sql_query(
             "users",
             field_paths,
             auto_camel_case=True,
             order_by=order_by,
-            group_by=group_by
+            group_by=group_by,
         )
         sql_str = query.as_string(None)
-        
+
         # Should convert nested paths
         assert "data->'user_profile'->>'first_name'" in sql_str
         assert "data->'user_profile'->>'last_name'" in sql_str
@@ -241,10 +240,10 @@ class TestBuildSqlQuery:
     def test_empty_field_paths(self):
         """Test query with empty field paths."""
         field_paths = []
-        
+
         query = build_sql_query("users", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         # Should still generate valid SQL
         assert "SELECT jsonb_build_object() AS result FROM users" in sql_str
 
@@ -255,10 +254,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["field.with.dots"], alias="fieldWithDots"),
             FieldPath(path=["field with spaces"], alias="fieldWithSpaces"),
         ]
-        
+
         query = build_sql_query("users", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         # Should properly quote field names
         assert "'field-with-dash'" in sql_str
         assert "'field.with.dots'" in sql_str
@@ -270,10 +269,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["data", "items", "0", "value"], alias="firstItemValue"),
             FieldPath(path=["meta", "tags", "primary"], alias="primaryTag"),
         ]
-        
+
         query = build_sql_query("documents", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         # Should handle numeric indices and deep nesting
         assert "data->'data'->'items'->'0'->>'value'" in sql_str
         assert "data->'meta'->'tags'->>'primary'" in sql_str
@@ -283,11 +282,11 @@ class TestBuildSqlQuery:
         field_paths = [
             FieldPath(path=["id"], alias="id"),
         ]
-        
+
         # Table name with special characters
         query = build_sql_query("user-accounts", field_paths)
         sql_str = query.as_string(None)
-        
+
         # Should properly escape table name
         assert 'FROM "user-accounts"' in sql_str
 
@@ -298,10 +297,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["display_name"], alias="name"),
             FieldPath(path=["contact", "email"], alias="emailAddress"),
         ]
-        
+
         query = build_sql_query("users", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         # Check that aliases are used in output
         assert "'id', data->>'internal_id'" in sql_str
         assert "'name', data->>'display_name'" in sql_str
@@ -313,10 +312,10 @@ class TestBuildSqlQuery:
             FieldPath(path=["id"], alias="id"),
             FieldPath(path=["profile", "name"], alias="profileName"),
         ]
-        
+
         query = build_sql_query("users", field_paths, json_output=False)
         sql_str = query.as_string(None)
-        
+
         # Should format as regular SELECT with aliases
         assert "data->>'id' AS \"id\"" in sql_str
         assert "data->'profile'->>'name' AS \"profileName\"" in sql_str
@@ -331,10 +330,10 @@ class TestEdgeCasesAndErrors:
         field_paths = [
             FieldPath(path=["id"], alias="id"),
         ]
-        
+
         query = build_sql_query("users", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         assert "jsonb_build_object('id', data->>'id') AS result" in sql_str
 
     def test_very_deep_nesting(self):
@@ -343,13 +342,13 @@ class TestEdgeCasesAndErrors:
             FieldPath(
                 path=["level1", "level2", "level3", "level4", "level5", "value"],
                 alias="deepValue",
-                field_type=str
+                field_type=str,
             ),
         ]
-        
+
         query = build_sql_query("deep_data", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         expected = "data->'level1'->'level2'->'level3'->'level4'->'level5'->>'value'"
         assert expected in sql_str
 
@@ -359,9 +358,9 @@ class TestEdgeCasesAndErrors:
             FieldPath(path=["items", "0"], alias="firstItem"),
             FieldPath(path=["items", "1", "name"], alias="secondItemName"),
         ]
-        
+
         query = build_sql_query("arrays", field_paths, json_output=True)
         sql_str = query.as_string(None)
-        
+
         assert "data->'items'->>'0'" in sql_str
         assert "data->'items'->'1'->>'name'" in sql_str

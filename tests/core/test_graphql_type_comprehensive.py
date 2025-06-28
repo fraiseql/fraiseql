@@ -32,7 +32,6 @@ from fraiseql.types import fraise_enum, fraise_input, fraise_type
 from fraiseql.types.scalars.date import DateField
 from fraiseql.types.scalars.datetime import DateTimeField
 from fraiseql.types.scalars.json import JSONScalar
-from fraiseql.types.scalars.uuid import UUIDScalar
 
 
 @fraise_type
@@ -131,7 +130,7 @@ class TestPythonTypeToGraphQL:
         """Test conversion of special types."""
         # UUID -> GraphQL ID
         assert pythontype_to_graphql(UUID) == GraphQLID
-        
+
         # Any -> GraphQL String (fallback)
         assert pythontype_to_graphql(Any) == GraphQLString
 
@@ -140,7 +139,7 @@ class TestPythonTypeToGraphQL:
         # dict -> JSONScalar
         gql_type = pythontype_to_graphql(dict)
         assert gql_type.name == "JSON"
-        
+
         # dict[str, Any] -> JSONScalar
         gql_type = pythontype_to_graphql(dict[str, Any])
         assert gql_type.name == "JSON"
@@ -149,7 +148,7 @@ class TestPythonTypeToGraphQL:
         """Test that unsupported types raise error."""
         class CustomClass:
             pass
-        
+
         with pytest.raises(TypeError, match="Cannot convert"):
             pythontype_to_graphql(CustomClass)
 
@@ -165,17 +164,17 @@ class TestConvertTypeToGraphQLOutput:
     def test_simple_type_conversion(self):
         """Test conversion of simple fraise_type."""
         gql_type = convert_type_to_graphql_output(SimpleType)
-        
+
         assert isinstance(gql_type, GraphQLObjectType)
         assert gql_type.name == "SimpleType"
-        
+
         # Check fields
         fields = gql_type.fields
         assert "id" in fields
         assert "name" in fields
         assert "is_active" in fields
         assert "score" in fields
-        
+
         # Check field types
         assert fields["id"].type == GraphQLInt
         assert fields["name"].type == GraphQLString
@@ -185,14 +184,14 @@ class TestConvertTypeToGraphQLOutput:
     def test_type_with_optionals(self):
         """Test conversion of type with optional fields."""
         gql_type = convert_type_to_graphql_output(TypeWithOptionals)
-        
+
         assert isinstance(gql_type, GraphQLObjectType)
         fields = gql_type.fields
-        
+
         # Required field should be non-null
         assert isinstance(fields["id"].type, GraphQLNonNull)
         assert fields["id"].type.of_type == GraphQLInt
-        
+
         # Optional fields should not be non-null
         assert fields["name"].type == GraphQLString
         assert fields["age"].type == GraphQLInt
@@ -200,32 +199,32 @@ class TestConvertTypeToGraphQLOutput:
     def test_type_with_lists(self):
         """Test conversion of type with list fields."""
         gql_type = convert_type_to_graphql_output(TypeWithLists)
-        
+
         fields = gql_type.fields
-        
+
         # Check list types
         assert isinstance(fields["tags"].type, GraphQLList)
         assert fields["tags"].type.of_type == GraphQLString
-        
+
         assert isinstance(fields["numbers"].type, GraphQLList)
         assert fields["numbers"].type.of_type == GraphQLInt
-        
+
         # Optional list
         assert isinstance(fields["optional_list"].type, GraphQLList)
 
     def test_nested_type_conversion(self):
         """Test conversion of nested types."""
         gql_type = convert_type_to_graphql_output(NestedType)
-        
+
         fields = gql_type.fields
-        
+
         # Check nested object type
         assert isinstance(fields["simple"].type, GraphQLObjectType)
         assert fields["simple"].type.name == "SimpleType"
-        
+
         # Check optional nested
         assert isinstance(fields["optional_nested"].type, GraphQLObjectType)
-        
+
         # Check nested list
         assert isinstance(fields["nested_list"].type, GraphQLList)
         assert isinstance(fields["nested_list"].type.of_type, GraphQLObjectType)
@@ -233,11 +232,11 @@ class TestConvertTypeToGraphQLOutput:
     def test_enum_type_conversion(self):
         """Test conversion of enum types."""
         gql_type = convert_type_to_graphql_output(TypeWithEnum)
-        
+
         fields = gql_type.fields
         assert isinstance(fields["status"].type, GraphQLEnumType)
         assert fields["status"].type.name == "Status"
-        
+
         # Check enum values
         enum_values = fields["status"].type.values
         assert "ACTIVE" in enum_values
@@ -247,12 +246,12 @@ class TestConvertTypeToGraphQLOutput:
     def test_custom_scalar_types(self):
         """Test conversion of custom scalar types."""
         gql_type = convert_type_to_graphql_output(TypeWithScalars)
-        
+
         fields = gql_type.fields
-        
+
         # UUID -> ID
         assert fields["id"].type == GraphQLID
-        
+
         # Custom scalars
         assert fields["created_at"].type.name == "DateTime"
         assert fields["birth_date"].type.name == "Date"
@@ -278,15 +277,15 @@ class TestConvertTypeToGraphQLOutput:
         @dataclass
         class TypeA:
             a: str
-        
+
         @fraise_type
         @dataclass
         class TypeB:
             b: int
-        
+
         # Annotated union
         TestUnion = Annotated[Union[TypeA, TypeB], FraiseUnion(name="TestUnion")]
-        
+
         gql_type = convert_type_to_graphql_output(TestUnion)
         assert isinstance(gql_type, GraphQLUnionType)
         assert gql_type.name == "TestUnion"
@@ -296,10 +295,10 @@ class TestConvertTypeToGraphQLOutput:
         """Test that types are cached."""
         # First conversion
         gql_type1 = convert_type_to_graphql_output(SimpleType)
-        
+
         # Second conversion should return cached type
         gql_type2 = convert_type_to_graphql_output(SimpleType)
-        
+
         assert gql_type1 is gql_type2
 
     def test_non_fraise_type(self):
@@ -321,10 +320,10 @@ class TestConvertTypeToGraphQLInput:
     def test_simple_input_conversion(self):
         """Test conversion of simple input type."""
         gql_type = convert_type_to_graphql_input(SimpleInput)
-        
+
         assert isinstance(gql_type, GraphQLInputObjectType)
         assert gql_type.name == "SimpleInput"
-        
+
         # Check fields
         fields = gql_type.fields
         assert "name" in fields
@@ -333,12 +332,12 @@ class TestConvertTypeToGraphQLInput:
     def test_input_with_optionals(self):
         """Test conversion of input with optional fields."""
         gql_type = convert_type_to_graphql_input(InputWithOptionals)
-        
+
         fields = gql_type.fields
-        
+
         # Required field
         assert isinstance(fields["required"].type, GraphQLNonNull)
-        
+
         # Optional field
         assert fields["optional"].type == GraphQLString
 
@@ -346,10 +345,10 @@ class TestConvertTypeToGraphQLInput:
         """Test conversion of scalar input types."""
         # String input
         assert convert_type_to_graphql_input(str) == GraphQLString
-        
+
         # Int input
         assert convert_type_to_graphql_input(int) == GraphQLInt
-        
+
         # List input
         gql_type = convert_type_to_graphql_input(list[str])
         assert isinstance(gql_type, GraphQLList)
@@ -362,9 +361,9 @@ class TestConvertTypeToGraphQLInput:
         class NestedInput:
             simple: SimpleInput
             optional: Optional[SimpleInput] = None
-        
+
         gql_type = convert_type_to_graphql_input(NestedInput)
-        
+
         fields = gql_type.fields
         assert isinstance(fields["simple"].type, GraphQLInputObjectType)
         assert fields["optional"].type.name == "SimpleInput"
@@ -372,7 +371,7 @@ class TestConvertTypeToGraphQLInput:
     def test_enum_input_type(self):
         """Test conversion of enum input types."""
         gql_type = convert_type_to_graphql_input(Status)
-        
+
         assert isinstance(gql_type, GraphQLEnumType)
         assert gql_type.name == "Status"
 
@@ -380,7 +379,7 @@ class TestConvertTypeToGraphQLInput:
         """Test that input types are cached."""
         gql_type1 = convert_type_to_graphql_input(SimpleInput)
         gql_type2 = convert_type_to_graphql_input(SimpleInput)
-        
+
         assert gql_type1 is gql_type2
 
 
@@ -391,15 +390,14 @@ class TestBuildResolverFunction:
         """Test building a simple resolver function."""
         # Mock table and field paths
         table = "users"
-        field_paths = [("id", "id"), ("name", "name")]
-        
+
         resolver = build_resolver_function(
             table=table,
             sql_source="user_view",
             typename="User",
-            query_name="getUser"
+            query_name="getUser",
         )
-        
+
         assert callable(resolver)
         # Would need mock GraphQL info to test execution
 
@@ -407,15 +405,15 @@ class TestBuildResolverFunction:
         """Test resolver with where function."""
         def where_func(args):
             return {"id": args.get("id")}
-        
+
         resolver = build_resolver_function(
             table="users",
             sql_source="user_view",
             typename="User",
             query_name="getUser",
-            where_function=where_func
+            where_function=where_func,
         )
-        
+
         assert callable(resolver)
 
     def test_resolver_with_single_result(self):
@@ -425,9 +423,9 @@ class TestBuildResolverFunction:
             sql_source="user_view",
             typename="User",
             query_name="getUserById",
-            single_result=True
+            single_result=True,
         )
-        
+
         assert callable(resolver)
 
 
@@ -458,7 +456,6 @@ class TestGetGraphQLType:
     def test_schema_config_usage(self):
         """Test that schema config is used when available."""
         # Would need to test with actual schema config
-        pass
 
 
 class TestEdgeCases:
@@ -470,8 +467,8 @@ class TestEdgeCases:
         @dataclass
         class Node:
             id: int
-            children: Optional[list['Node']] = None
-        
+            children: Optional[list["Node"]] = None
+
         # Should handle forward references
         gql_type = convert_type_to_graphql_output(Node)
         assert isinstance(gql_type, GraphQLObjectType)
@@ -494,10 +491,10 @@ class TestEdgeCases:
         @dataclass
         class ComplexType:
             data: Optional[list[Optional[list[SimpleType]]]]
-        
+
         gql_type = convert_type_to_graphql_output(ComplexType)
         fields = gql_type.fields
-        
+
         # Should handle deep nesting
         assert isinstance(fields["data"].type, GraphQLList)
 
@@ -508,14 +505,14 @@ class TestEdgeCases:
         class TypeWithMethod:
             id: int
             name: str
-            
+
             def get_display_name(self) -> str:
                 return f"#{self.id}: {self.name}"
-        
+
         # Methods should be ignored
         gql_type = convert_type_to_graphql_output(TypeWithMethod)
         fields = gql_type.fields
-        
+
         assert "id" in fields
         assert "name" in fields
         assert "get_display_name" not in fields

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
-from graphql import GraphQLError, GraphQLSchema, build_schema
+from graphql import build_schema
 
 from fraiseql.auth.base import AuthProvider
 from fraiseql.fastapi.config import FraiseQLConfig
@@ -38,7 +38,7 @@ class TestGraphQLRequest:
         request = GraphQLRequest(
             query="query($id: Int!) { user(id: $id) { name } }",
             variables=variables,
-            operationName="GetUser"
+            operationName="GetUser",
         )
         assert request.query == "query($id: Int!) { user(id: $id) { name } }"
         assert request.variables == variables
@@ -63,7 +63,7 @@ class TestCreateGraphQLRouter:
         """Test router creation for development environment."""
         self.config.environment = "development"
         router = create_graphql_router(self.schema, self.config)
-        
+
         # Should return development router
         assert router is not None
         assert len(router.routes) > 0
@@ -72,7 +72,7 @@ class TestCreateGraphQLRouter:
         """Test router creation for production environment."""
         self.config.environment = "production"
         router = create_graphql_router(self.schema, self.config)
-        
+
         # Should return production router
         assert router is not None
         assert len(router.routes) > 0
@@ -87,11 +87,11 @@ class TestCreateGraphQLRouter:
         """Test router creation with custom context getter."""
         async def custom_context(request: Request):
             return {"custom": "value"}
-        
+
         router = create_graphql_router(
-            self.schema, 
-            self.config, 
-            context_getter=custom_context
+            self.schema,
+            self.config,
+            context_getter=custom_context,
         )
         assert router is not None
 
@@ -99,11 +99,11 @@ class TestCreateGraphQLRouter:
         """Test router creation with turbo registry."""
         turbo_registry = Mock(spec=TurboRegistry)
         self.config.environment = "production"
-        
+
         router = create_graphql_router(
-            self.schema, 
-            self.config, 
-            turbo_registry=turbo_registry
+            self.schema,
+            self.config,
+            turbo_registry=turbo_registry,
         )
         assert router is not None
 
@@ -118,7 +118,6 @@ class TestDevelopmentRouter:
                 hello: String
                 user(id: Int!): User
             }
-            
             type User {
                 id: Int!
                 name: String!
@@ -131,7 +130,7 @@ class TestDevelopmentRouter:
     def test_development_router_creation(self):
         """Test development router creation."""
         router = create_development_router(self.schema, self.config)
-        
+
         assert router is not None
         assert len(router.routes) >= 2  # POST and GET endpoints
 
@@ -139,15 +138,15 @@ class TestDevelopmentRouter:
         """Test development router with custom context getter."""
         async def custom_context(request: Request):
             return {"user_id": 123}
-        
+
         router = create_development_router(
-            self.schema, 
-            self.config, 
-            context_getter=custom_context
+            self.schema,
+            self.config,
+            context_getter=custom_context,
         )
         assert router is not None
 
-    @patch('fraiseql.fastapi.routers.graphql')
+    @patch("fraiseql.fastapi.routers.graphql")
     def test_development_post_endpoint_success(self, mock_graphql):
         """Test successful POST request to development endpoint."""
         # Mock GraphQL execution result
@@ -158,17 +157,17 @@ class TestDevelopmentRouter:
 
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "{ hello }"}
+            json={"query": "{ hello }"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"] == {"hello": "world"}
 
-    @patch('fraiseql.fastapi.routers.graphql')
+    @patch("fraiseql.fastapi.routers.graphql")
     def test_development_post_endpoint_with_errors(self, mock_graphql):
         """Test POST request with GraphQL errors."""
         # Mock GraphQL execution result with errors
@@ -177,7 +176,7 @@ class TestDevelopmentRouter:
         mock_error.locations = [Mock(line=1, column=1)]
         mock_error.path = ["hello"]
         mock_error.extensions = {"code": "TEST_ERROR"}
-        
+
         mock_result = Mock()
         mock_result.data = None
         mock_result.errors = [mock_error]
@@ -185,38 +184,38 @@ class TestDevelopmentRouter:
 
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "{ hello }"}
+            json={"query": "{ hello }"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "errors" in data
         assert data["errors"][0]["message"] == "Test error"
 
-    @patch('fraiseql.fastapi.routers.n1_detection_context')
+    @patch("fraiseql.fastapi.routers.n1_detection_context")
     def test_development_n1_detection(self, mock_n1_context):
         """Test N+1 query detection in development."""
         # Mock N+1 detection to raise error
         patterns = [QueryPattern(field_name="user", parent_type="Query", count=5)]
         error = N1QueryDetectedError("N+1 detected", patterns)
-        
+
         mock_detector = AsyncMock()
         mock_n1_context.return_value.__aenter__.return_value = mock_detector
         mock_n1_context.return_value.__aexit__.return_value = None
-        
+
         # Make graphql execution raise N1 error
-        with patch('fraiseql.fastapi.routers.graphql', side_effect=error):
+        with patch("fraiseql.fastapi.routers.graphql", side_effect=error):
             router = create_development_router(self.schema, self.config)
             client = TestClient(router)
-            
+
             response = client.post(
                 "/graphql",
-                json={"query": "{ hello }"}
+                json={"query": "{ hello }"},
             )
-            
+
             assert response.status_code == 200
             data = response.json()
             assert "errors" in data
@@ -224,15 +223,15 @@ class TestDevelopmentRouter:
 
     def test_development_general_exception(self):
         """Test general exception handling in development."""
-        with patch('fraiseql.fastapi.routers.graphql', side_effect=ValueError("Test error")):
+        with patch("fraiseql.fastapi.routers.graphql", side_effect=ValueError("Test error")):
             router = create_development_router(self.schema, self.config)
             client = TestClient(router)
-            
+
             response = client.post(
                 "/graphql",
-                json={"query": "{ hello }"}
+                json={"query": "{ hello }"},
             )
-            
+
             assert response.status_code == 200
             data = response.json()
             assert "errors" in data
@@ -244,9 +243,9 @@ class TestDevelopmentRouter:
         self.config.playground_tool = "graphiql"
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.get("/graphql")
-        
+
         assert response.status_code == 200
         assert "graphiql" in response.text.lower()
         assert GRAPHIQL_HTML in response.text
@@ -256,9 +255,9 @@ class TestDevelopmentRouter:
         self.config.playground_tool = "apollo-sandbox"
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.get("/graphql")
-        
+
         assert response.status_code == 200
         assert "apollo" in response.text.lower()
         assert APOLLO_SANDBOX_HTML in response.text
@@ -268,13 +267,13 @@ class TestDevelopmentRouter:
         self.config.enable_playground = False
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.get("/graphql")
-        
+
         assert response.status_code == 400
         assert "Query parameter is required" in response.json()["detail"]
 
-    @patch('fraiseql.fastapi.routers.graphql')
+    @patch("fraiseql.fastapi.routers.graphql")
     def test_development_get_with_query(self, mock_graphql):
         """Test GET endpoint with query parameter."""
         mock_result = Mock()
@@ -284,9 +283,9 @@ class TestDevelopmentRouter:
 
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.get("/graphql?query={ hello }")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"] == {"hello": "world"}
@@ -295,45 +294,45 @@ class TestDevelopmentRouter:
         """Test GET endpoint with variables parameter."""
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         variables = json.dumps({"id": 123})
-        
-        with patch('fraiseql.fastapi.routers.graphql') as mock_graphql:
+
+        with patch("fraiseql.fastapi.routers.graphql") as mock_graphql:
             mock_result = Mock()
             mock_result.data = {"user": {"id": 123}}
             mock_result.errors = None
             mock_graphql.return_value = mock_result
-            
+
             response = client.get(
-                f"/graphql?query=query($id: Int!) {{ user(id: $id) {{ id }} }}&variables={variables}"
+                f"/graphql?query=query($id: Int!) {{ user(id: $id) {{ id }} }}&variables={variables}",
             )
-            
+
             assert response.status_code == 200
 
     def test_development_get_invalid_variables(self):
         """Test GET endpoint with invalid JSON variables."""
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.get("/graphql?query={ hello }&variables=invalid_json")
-        
+
         assert response.status_code == 400
         assert "Invalid JSON in variables parameter" in response.json()["detail"]
 
     def test_development_n1_detector_configuration(self):
         """Test N+1 detector configuration in development router."""
-        with patch('fraiseql.fastapi.routers.configure_detector') as mock_configure:
-            with patch('fraiseql.fastapi.routers.get_detector') as mock_get:
+        with patch("fraiseql.fastapi.routers.configure_detector") as mock_configure:
+            with patch("fraiseql.fastapi.routers.get_detector") as mock_get:
                 mock_detector = Mock()
                 mock_get.return_value = mock_detector
-                
+
                 # First call - detector not configured
-                router = create_development_router(self.schema, self.config)
+                _ = create_development_router(self.schema, self.config)
                 mock_configure.assert_called_once()
-                
+
                 # Second call - detector already configured
                 mock_detector._configured = True
-                router2 = create_development_router(self.schema, self.config)
+                _ = create_development_router(self.schema, self.config)
                 # configure_detector should not be called again
                 assert mock_configure.call_count == 1
 
@@ -348,7 +347,6 @@ class TestProductionRouter:
                 hello: String
                 user(id: Int!): User
             }
-            
             type User {
                 id: Int!
                 name: String!
@@ -360,7 +358,7 @@ class TestProductionRouter:
     def test_production_router_creation(self):
         """Test production router creation."""
         router = create_production_router(self.schema, self.config)
-        
+
         assert router is not None
         # Production router only has POST endpoint
         assert len(router.routes) == 1
@@ -369,13 +367,13 @@ class TestProductionRouter:
         """Test production router with turbo registry."""
         turbo_registry = Mock(spec=TurboRegistry)
         router = create_production_router(
-            self.schema, 
-            self.config, 
-            turbo_registry=turbo_registry
+            self.schema,
+            self.config,
+            turbo_registry=turbo_registry,
         )
         assert router is not None
 
-    @patch('fraiseql.fastapi.routers.graphql')
+    @patch("fraiseql.fastapi.routers.graphql")
     def test_production_post_endpoint_success(self, mock_graphql):
         """Test successful POST request to production endpoint."""
         mock_result = Mock()
@@ -385,17 +383,17 @@ class TestProductionRouter:
 
         router = create_production_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "{ hello }"}
+            json={"query": "{ hello }"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"] == {"hello": "world"}
 
-    @patch('fraiseql.fastapi.routers.TurboRouter')
+    @patch("fraiseql.fastapi.routers.TurboRouter")
     def test_production_turbo_router_execution(self, mock_turbo_class):
         """Test turbo router execution in production."""
         # Mock turbo registry and router
@@ -405,23 +403,23 @@ class TestProductionRouter:
         mock_turbo_class.return_value = mock_turbo_router
 
         router = create_production_router(
-            self.schema, 
-            self.config, 
-            turbo_registry=turbo_registry
+            self.schema,
+            self.config,
+            turbo_registry=turbo_registry,
         )
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "{ hello }"}
+            json={"query": "{ hello }"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"] == {"fast": "result"}
 
-    @patch('fraiseql.fastapi.routers.TurboRouter')
-    @patch('fraiseql.fastapi.routers.graphql')
+    @patch("fraiseql.fastapi.routers.TurboRouter")
+    @patch("fraiseql.fastapi.routers.graphql")
     def test_production_fallback_to_standard_graphql(self, mock_graphql, mock_turbo_class):
         """Test fallback to standard GraphQL when turbo router returns None."""
         # Mock turbo router to return None (no match)
@@ -437,42 +435,42 @@ class TestProductionRouter:
         mock_graphql.return_value = mock_result
 
         router = create_production_router(
-            self.schema, 
-            self.config, 
-            turbo_registry=turbo_registry
+            self.schema,
+            self.config,
+            turbo_registry=turbo_registry,
         )
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "{ hello }"}
+            json={"query": "{ hello }"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"] == {"hello": "standard"}
 
-    @patch('fraiseql.fastapi.routers.parse')
+    @patch("fraiseql.fastapi.routers.parse")
     def test_production_parse_error(self, mock_parse):
         """Test parse error handling in production."""
         mock_parse.side_effect = Exception("Parse failed")
 
         router = create_production_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "invalid query"}
+            json={"query": "invalid query"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "errors" in data
         assert data["errors"][0]["message"] == "Invalid query"
         assert data["errors"][0]["extensions"]["code"] == "GRAPHQL_PARSE_FAILED"
 
-    @patch('fraiseql.fastapi.routers.validate')
-    @patch('fraiseql.fastapi.routers.parse')
+    @patch("fraiseql.fastapi.routers.validate")
+    @patch("fraiseql.fastapi.routers.parse")
     def test_production_validation_error(self, mock_parse, mock_validate):
         """Test validation error handling in production."""
         mock_parse.return_value = Mock()  # Successful parse
@@ -482,24 +480,24 @@ class TestProductionRouter:
 
         router = create_production_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "{ invalidField }"}
+            json={"query": "{ invalidField }"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "errors" in data
         assert data["errors"][0]["message"] == "Validation failed"
         assert data["errors"][0]["extensions"]["code"] == "GRAPHQL_VALIDATION_FAILED"
 
-    @patch('fraiseql.fastapi.routers.graphql')
+    @patch("fraiseql.fastapi.routers.graphql")
     def test_production_execution_error_hidden(self, mock_graphql):
         """Test that execution errors are hidden in production."""
         mock_error = Mock()
         mock_error.message = "Sensitive error information"
-        
+
         mock_result = Mock()
         mock_result.data = None
         mock_result.errors = [mock_error]
@@ -508,27 +506,27 @@ class TestProductionRouter:
         # Config with hidden error details (default)
         config = FraiseQLConfig(database_url="postgresql://test:test@localhost/test")
         config.config = {"hide_error_details": True}
-        
+
         router = create_production_router(self.schema, config)
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "{ hello }"}
+            json={"query": "{ hello }"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "errors" in data
         assert data["errors"][0]["message"] == "Internal server error"
         assert "Sensitive error information" not in str(data)
 
-    @patch('fraiseql.fastapi.routers.graphql')
+    @patch("fraiseql.fastapi.routers.graphql")
     def test_production_execution_error_exposed(self, mock_graphql):
         """Test that execution errors can be exposed in production."""
         mock_error = Mock()
         mock_error.message = "Detailed error information"
-        
+
         mock_result = Mock()
         mock_result.data = None
         mock_result.errors = [mock_error]
@@ -537,15 +535,15 @@ class TestProductionRouter:
         # Config with exposed error details
         config = FraiseQLConfig(database_url="postgresql://test:test@localhost/test")
         config.config = {"hide_error_details": False}
-        
+
         router = create_production_router(self.schema, config)
         client = TestClient(router)
-        
+
         response = client.post(
             "/graphql",
-            json={"query": "{ hello }"}
+            json={"query": "{ hello }"},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "errors" in data
@@ -553,15 +551,15 @@ class TestProductionRouter:
 
     def test_production_general_exception(self):
         """Test general exception handling in production."""
-        with patch('fraiseql.fastapi.routers.graphql', side_effect=RuntimeError("Server error")):
+        with patch("fraiseql.fastapi.routers.graphql", side_effect=RuntimeError("Server error")):
             router = create_production_router(self.schema, self.config)
             client = TestClient(router)
-            
+
             response = client.post(
                 "/graphql",
-                json={"query": "{ hello }"}
+                json={"query": "{ hello }"},
             )
-            
+
             assert response.status_code == 200
             data = response.json()
             assert "errors" in data
@@ -572,9 +570,9 @@ class TestProductionRouter:
         """Test that production router has no GET endpoint."""
         router = create_production_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         response = client.get("/graphql")
-        
+
         # Should return 405 Method Not Allowed
         assert response.status_code == 405
 
@@ -593,11 +591,11 @@ class TestContextHandling:
             return {"custom_key": "custom_value"}
 
         router = create_development_router(
-            self.schema, 
-            self.config, 
-            context_getter=custom_context
+            self.schema,
+            self.config,
+            context_getter=custom_context,
         )
-        
+
         # Router should be created successfully with custom context
         assert router is not None
 
@@ -607,11 +605,11 @@ class TestContextHandling:
             return {"custom_key": "custom_value"}
 
         router = create_production_router(
-            self.schema, 
-            self.config, 
-            context_getter=custom_context
+            self.schema,
+            self.config,
+            context_getter=custom_context,
         )
-        
+
         # Router should be created successfully with custom context
         assert router is not None
 
@@ -657,14 +655,14 @@ class TestEdgeCases:
         """Test handling of malformed JSON requests."""
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         # Send malformed JSON
         response = client.post(
             "/graphql",
             data="invalid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
-        
+
         # FastAPI should handle this and return 422
         assert response.status_code == 422
 
@@ -672,13 +670,13 @@ class TestEdgeCases:
         """Test handling of request without query field."""
         router = create_development_router(self.schema, self.config)
         client = TestClient(router)
-        
+
         # Send JSON without query field
         response = client.post(
             "/graphql",
-            json={"variables": {}}
+            json={"variables": {}},
         )
-        
+
         # Should return validation error
         assert response.status_code == 422
 
@@ -686,13 +684,13 @@ class TestEdgeCases:
         """Test router creation with introspection enabled."""
         self.config.enable_introspection = True
         router = create_development_router(self.schema, self.config)
-        
+
         # Should create router successfully
         assert router is not None
 
     def test_empty_operation_name(self):
         """Test handling of empty operation name."""
-        with patch('fraiseql.fastapi.routers.graphql') as mock_graphql:
+        with patch("fraiseql.fastapi.routers.graphql") as mock_graphql:
             mock_result = Mock()
             mock_result.data = {"hello": "world"}
             mock_result.errors = None
@@ -700,13 +698,13 @@ class TestEdgeCases:
 
             router = create_development_router(self.schema, self.config)
             client = TestClient(router)
-            
+
             response = client.post(
                 "/graphql",
                 json={
                     "query": "{ hello }",
-                    "operationName": ""
-                }
+                    "operationName": "",
+                },
             )
-            
+
             assert response.status_code == 200

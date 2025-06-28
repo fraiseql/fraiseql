@@ -1,17 +1,12 @@
 """Extended tests for CSRF protection to improve coverage."""
 
 import base64
-import hashlib
-import hmac
 import json
 import time
-from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import FastAPI, Request, Response
-from fastapi.testclient import TestClient
-from starlette.middleware.base import RequestResponseEndpoint
+from fastapi import FastAPI, Response
 
 from fraiseql.security.csrf_protection import (
     CSRFConfig,
@@ -37,10 +32,10 @@ class TestCSRFTokenGenerator:
     def test_generate_token_without_session(self, generator):
         """Test token generation without session ID."""
         token = generator.generate_token()
-        
+
         assert isinstance(token, str)
         assert len(token) > 0
-        
+
         # Should be valid base64
         decoded = base64.urlsafe_b64decode(token.encode()).decode()
         assert ":" in decoded
@@ -49,7 +44,7 @@ class TestCSRFTokenGenerator:
         """Test token generation with session ID."""
         session_id = "test-session-123"
         token = generator.generate_token(session_id)
-        
+
         # Decode and verify session ID is included
         decoded = base64.urlsafe_b64decode(token.encode()).decode()
         assert session_id in decoded
@@ -63,10 +58,10 @@ class TestCSRFTokenGenerator:
         """Test token validation with session ID."""
         session_id = "test-session"
         token = generator.generate_token(session_id)
-        
+
         # Should validate with correct session ID
         assert generator.validate_token(token, session_id) is True
-        
+
         # Should fail with wrong session ID
         assert generator.validate_token(token, "wrong-session") is False
 
@@ -74,7 +69,7 @@ class TestCSRFTokenGenerator:
         """Test validation with invalid token format."""
         # Invalid base64
         assert generator.validate_token("invalid-token") is False
-        
+
         # Valid base64 but wrong format
         invalid_token = base64.urlsafe_b64encode(b"wrong:format").decode()
         assert generator.validate_token(invalid_token) is False
@@ -83,14 +78,14 @@ class TestCSRFTokenGenerator:
         """Test validation with tampered token."""
         # Generate valid token
         token = generator.generate_token()
-        
+
         # Decode and tamper with it
         decoded = base64.urlsafe_b64decode(token.encode()).decode()
         parts = decoded.split(":")
         parts[-1] = "wrong-signature"
         tampered = ":".join(parts)
         tampered_token = base64.urlsafe_b64encode(tampered.encode()).decode()
-        
+
         assert generator.validate_token(tampered_token) is False
 
     def test_validate_token_expired(self, generator):
@@ -98,10 +93,10 @@ class TestCSRFTokenGenerator:
         # Create generator with short timeout
         short_generator = CSRFTokenGenerator("test-secret", timeout=1)
         token = short_generator.generate_token()
-        
+
         # Wait for expiration
         time.sleep(2)
-        
+
         assert short_generator.validate_token(token) is False
 
     def test_token_with_bytes_secret(self):
@@ -131,7 +126,7 @@ class TestGraphQLCSRFValidator:
             {"query": "MUTATION UpdatePost { ... }"},
             {"query": "  mutation  DeleteItem { ... }"},
         ]
-        
+
         for body in bodies:
             assert validator._extract_operation_type(body) == "mutation"
 
@@ -143,7 +138,7 @@ class TestGraphQLCSRFValidator:
             {"query": "{ user { id } }"},  # Anonymous query
             {"query": "  { items { name } }"},
         ]
-        
+
         for body in bodies:
             assert validator._extract_operation_type(body) == "query"
 
@@ -153,7 +148,7 @@ class TestGraphQLCSRFValidator:
             {"query": "subscription OnMessage { ... }"},
             {"query": "SUBSCRIPTION Updates { ... }"},
         ]
-        
+
         for body in bodies:
             assert validator._extract_operation_type(body) == "subscription"
 
@@ -165,7 +160,7 @@ class TestGraphQLCSRFValidator:
             {},
             {"notQuery": "mutation Test { ... }"},
         ]
-        
+
         for body in bodies:
             result = validator._extract_operation_type(body)
             assert result is None or result == "query"
@@ -184,7 +179,7 @@ class TestGraphQLCSRFValidator:
             require_for_subscriptions=True,
         )
         validator = GraphQLCSRFValidator(config)
-        
+
         assert validator._requires_csrf_protection("mutation") is False
         assert validator._requires_csrf_protection("subscription") is True
 
@@ -195,9 +190,9 @@ class TestGraphQLCSRFValidator:
         request = AsyncMock()
         request.headers = {"x-csrf-token": "valid-token"}
         request.cookies = {}
-        
+
         # Mock token validation
-        with patch.object(validator.token_generator, 'validate_token', return_value=True):
+        with patch.object(validator.token_generator, "validate_token", return_value=True):
             result = await validator.validate_request(request, {"query": "{ user }"})
             assert result is True
 
@@ -207,10 +202,10 @@ class TestGraphQLCSRFValidator:
         request = AsyncMock()
         request.headers = {}
         request.cookies = {}
-        
+
         result = await validator.validate_request(
-            request, 
-            {"query": "mutation CreateUser { ... }"}
+            request,
+            {"query": "mutation CreateUser { ... }"},
         )
         assert result is False
 
@@ -220,11 +215,11 @@ class TestGraphQLCSRFValidator:
         request = AsyncMock()
         request.headers = {"x-csrf-token": "header-token"}
         request.cookies = {}
-        
-        with patch.object(validator.token_generator, 'validate_token', return_value=True) as mock_validate:
+
+        with patch.object(validator.token_generator, "validate_token", return_value=True) as mock_validate:
             result = await validator.validate_request(
                 request,
-                {"query": "mutation Test { ... }"}
+                {"query": "mutation Test { ... }"},
             )
             assert result is True
             mock_validate.assert_called_with("header-token", None)
@@ -233,15 +228,15 @@ class TestGraphQLCSRFValidator:
     async def test_validate_request_cookie_token(self, validator):
         """Test validation with token in cookie."""
         validator.config.storage = CSRFTokenStorage.COOKIE
-        
+
         request = AsyncMock()
         request.headers = {}
         request.cookies = {"csrf_token": "cookie-token"}
-        
-        with patch.object(validator.token_generator, 'validate_token', return_value=True) as mock_validate:
+
+        with patch.object(validator.token_generator, "validate_token", return_value=True) as mock_validate:
             result = await validator.validate_request(
                 request,
-                {"query": "mutation Test { ... }"}
+                {"query": "mutation Test { ... }"},
             )
             assert result is True
             mock_validate.assert_called_with("cookie-token", None)
@@ -251,16 +246,16 @@ class TestGraphQLCSRFValidator:
         """Test referrer header checking."""
         validator.config.check_referrer = True
         validator.config.trusted_origins = {"https://app.example.com", "http://localhost:3000"}
-        
+
         # Valid referrer
         request = AsyncMock()
         request.headers = {"referer": "https://app.example.com/page"}
         assert await validator._check_referrer_header(request) is True
-        
+
         # Invalid referrer
         request.headers = {"referer": "https://evil.com/attack"}
         assert await validator._check_referrer_header(request) is False
-        
+
         # No referrer (should fail when check is enabled)
         request.headers = {}
         assert await validator._check_referrer_header(request) is False
@@ -291,12 +286,12 @@ class TestCSRFProtectionMiddleware:
         request = MagicMock()
         request.method = "GET"
         request.url.path = "/api/data"
-        
+
         response = Response()
-        
+
         async def call_next(req):
             return response
-        
+
         result = await middleware.dispatch(request, call_next)
         assert result is response
 
@@ -306,12 +301,12 @@ class TestCSRFProtectionMiddleware:
         request = MagicMock()
         request.method = "POST"
         request.url.path = "/health"
-        
+
         response = Response()
-        
+
         async def call_next(req):
             return response
-        
+
         result = await middleware.dispatch(request, call_next)
         assert result is response
 
@@ -323,18 +318,18 @@ class TestCSRFProtectionMiddleware:
         request.url.path = "/graphql"
         request.headers = {}
         request.cookies = {}
-        
+
         # Mock body with mutation
         async def get_body():
             return json.dumps({"query": "mutation Test { ... }"}).encode()
-        
+
         request.body = get_body
-        
+
         response = Response()
-        
+
         async def call_next(req):
             return response
-        
+
         # Should reject without CSRF token
         result = await middleware.dispatch(request, call_next)
         assert result.status_code == 403
@@ -346,15 +341,15 @@ class TestCSRFProtectionMiddleware:
         request.method = "GET"
         request.url.path = "/page"
         request.cookies = {}
-        
+
         response = Response()
-        
+
         async def call_next(req):
             return response
-        
-        with patch.object(middleware.token_generator, 'generate_token', return_value="new-token"):
+
+        with patch.object(middleware.token_generator, "generate_token", return_value="new-token"):
             result = await middleware.dispatch(request, call_next)
-            
+
             # Should set cookie
             assert "csrf_token=new-token" in result.headers.get("set-cookie", "")
 
@@ -365,7 +360,7 @@ class TestCSRFConfigurations:
     def test_development_config(self):
         """Test development CSRF configuration."""
         config = create_development_csrf_config("dev-secret")
-        
+
         assert config.secret_key == "dev-secret"
         assert config.cookie_secure is False
         assert config.cookie_samesite == "lax"
@@ -375,9 +370,9 @@ class TestCSRFConfigurations:
         """Test production CSRF configuration."""
         config = create_production_csrf_config(
             secret_key="prod-secret",
-            trusted_origins={"https://app.com"}
+            trusted_origins={"https://app.com"},
         )
-        
+
         assert config.secret_key == "prod-secret"
         assert config.cookie_secure is True
         assert config.cookie_samesite == "strict"
@@ -392,7 +387,7 @@ class TestCSRFTokenEndpoint:
         """Test creating CSRF token endpoint."""
         config = CSRFConfig(secret_key="test")
         endpoint = CSRFTokenEndpoint(config)
-        
+
         assert endpoint.config is config
         assert endpoint.path == "/csrf-token"
 
@@ -401,16 +396,16 @@ class TestCSRFTokenEndpoint:
         """Test endpoint generates new token."""
         config = CSRFConfig(secret_key="test", cookie_secure=False)
         endpoint = CSRFTokenEndpoint(config)
-        
+
         request = MagicMock()
         response = await endpoint.get_token(request)
-        
+
         # Should return token in response
         assert "token" in response
         assert isinstance(response["token"], str)
-        
+
         # Should set cookie
-        assert hasattr(endpoint, '_response')
+        assert hasattr(endpoint, "_response")
 
 
 class TestCSRFSetup:
@@ -420,16 +415,16 @@ class TestCSRFSetup:
         """Test setting up CSRF protection on app."""
         app = FastAPI()
         config = CSRFConfig(secret_key="test")
-        
+
         setup_csrf_protection(app, config)
-        
+
         # Should add middleware
         assert any(
-            isinstance(m, CSRFProtectionMiddleware) 
+            isinstance(m, CSRFProtectionMiddleware)
             for m in app.middleware_stack
-            if hasattr(m, '__class__')
+            if hasattr(m, "__class__")
         )
-        
+
         # Should add token endpoint
         routes = [r.path for r in app.routes]
         assert "/csrf-token" in routes
