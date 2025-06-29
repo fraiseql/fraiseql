@@ -118,6 +118,13 @@ class FraiseQLConfig(BaseSettings):
     cache_ttl: int = 300  # seconds
     enable_turbo_router: bool = True  # Enable TurboRouter for registered queries
     turbo_router_cache_size: int = 1000  # Max number of queries to cache
+    
+    # Token revocation settings
+    revocation_enabled: bool = True
+    revocation_check_enabled: bool = True
+    revocation_ttl: int = 86400  # 24 hours
+    revocation_cleanup_interval: int = 3600  # 1 hour
+    revocation_store_type: str = "memory"  # "memory" or "redis"
 
     # CORS settings
     cors_enabled: bool = True

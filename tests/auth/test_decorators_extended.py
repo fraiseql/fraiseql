@@ -19,7 +19,10 @@ class MockUserContext(UserContext):
     """Mock UserContext for testing."""
 
     def __init__(
-        self, user_id: str = "test_user", permissions: list[str] = None, roles: list[str] = None
+        self,
+        user_id: str = "test_user",
+        permissions: list[str] = None,
+        roles: list[str] = None,
     ):
         super().__init__(user_id=user_id)
         self._permissions = permissions or []
@@ -513,7 +516,9 @@ class TestDecoratorCombinations:
     async def test_multiple_decorators_role_failure(self):
         """Test multiple decorators with role failure."""
         user = MockUserContext(
-            "test_user", permissions=["users:write"], roles=["user"]
+            "test_user",
+            permissions=["users:write"],
+            roles=["user"],
         )  # Missing admin
         mock_info = self.create_mock_info(user)
 
