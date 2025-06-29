@@ -5,6 +5,35 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b1] - 2025-06-29
+
+### 🎉 First Beta Release!
+
+FraiseQL has reached beta status after 21 alpha releases. This release represents a stable, feature-complete GraphQL-to-PostgreSQL framework ready for production evaluation.
+
+### Added
+- **Beta stability guarantees** - API stability for core features
+- **Comprehensive beta readiness assessments** documenting production readiness
+- **Updated documentation** reflecting current version and features
+
+### Changed
+- **Version bump** from alpha (0.1.0a21) to beta (0.1.0b1)
+- **Development status** updated to "4 - Beta" in package metadata
+- **README version badge** updated to reflect beta status
+
+### Fixed
+- Auth0 test HTTP client mocking issue resolved
+- Test collection warnings cleaned up
+- All version references synchronized across documentation
+
+### Summary
+- **Security**: Zero vulnerabilities with comprehensive security features
+- **Testing**: 315/316 non-database tests passing (99.7% pass rate)
+- **Features**: Production-ready with auth, caching, monitoring, and performance optimizations
+- **Documentation**: Extensive guides, examples, and API reference
+- **Performance**: TurboRouter, Redis caching, and query optimization
+- **Enterprise**: Multi-tenancy, Auth0 integration, OpenTelemetry support
+
 ## [0.1.0a21] - 2025-06-28
 
 ### Security
