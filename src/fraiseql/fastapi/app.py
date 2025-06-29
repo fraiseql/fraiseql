@@ -1,5 +1,6 @@
 """FastAPI application factory for FraiseQL."""
 
+import logging
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
@@ -207,6 +208,13 @@ def create_fraiseql_app(
     # Setup development authentication if enabled and not in production
     if not production and config.dev_auth_password:
         from fraiseql.fastapi.dev_auth import DevAuthMiddleware
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Development authentication enabled with username: %s. "
+            "This should NEVER be used in production!",
+            config.dev_auth_username,
+        )
 
         app.add_middleware(
             DevAuthMiddleware,

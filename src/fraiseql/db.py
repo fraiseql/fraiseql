@@ -14,6 +14,7 @@ from psycopg.rows import dict_row
 from psycopg.sql import SQL, Composed
 from psycopg_pool import AsyncConnectionPool
 
+from fraiseql.audit import get_security_logger
 from fraiseql.partial_instantiation import create_partial_instance
 from fraiseql.utils.casing import to_snake_case
 
@@ -54,6 +55,8 @@ class FraiseQLRepository:
         self._pool = pool
         self.context = context or {}
         self.mode = self._determine_mode()
+        # Get query timeout from context or use default (30 seconds)
+        self.query_timeout = self.context.get("query_timeout", 30)
 
     async def run(self, query: DatabaseQuery) -> list[dict[str, object]]:
         """Execute a SQL query using a connection from the pool.
@@ -69,12 +72,33 @@ class FraiseQLRepository:
                 self._pool.connection() as conn,
                 conn.cursor(row_factory=dict_row) as cursor,
             ):
+                # Set statement timeout for this query
+                if self.query_timeout:
+                    await cursor.execute(
+                        "SET LOCAL statement_timeout = %s",
+                        (f"{self.query_timeout * 1000}ms",),  # Convert to milliseconds
+                    )
+
                 await cursor.execute(query.statement, query.params)
                 if query.fetch_result:
                     return await cursor.fetchall()
                 return []
-        except Exception:
+        except Exception as e:
             logger.exception("❌ Database error executing query")
+
+            # Log query timeout specifically
+            error_msg = str(e)
+            if "statement timeout" in error_msg or "canceling statement" in error_msg:
+                security_logger = get_security_logger()
+                security_logger.log_query_timeout(
+                    user_id=self.context.get("user_id"),
+                    execution_time=self.query_timeout,
+                    metadata={
+                        "error": str(e),
+                        "query_type": "database_query",
+                    },
+                )
+
             raise
 
     async def run_in_transaction(
@@ -128,6 +152,13 @@ class FraiseQLRepository:
                 self._pool.connection() as conn,
                 conn.cursor(row_factory=dict_row) as cursor,
             ):
+                # Set statement timeout for this query
+                if self.query_timeout:
+                    await cursor.execute(
+                        "SET LOCAL statement_timeout = %s",
+                        (f"{self.query_timeout * 1000}ms",),
+                    )
+
                 # Validate function name to prevent SQL injection
                 if not function_name.replace("_", "").replace(".", "").isalnum():
                     msg = f"Invalid function name: {function_name}"
@@ -196,6 +227,13 @@ class FraiseQLRepository:
                 self._pool.connection() as conn,
                 conn.cursor(row_factory=dict_row) as cursor,
             ):
+                # Set statement timeout for this query
+                if self.query_timeout:
+                    await cursor.execute(
+                        "SET LOCAL statement_timeout = %s",
+                        (f"{self.query_timeout * 1000}ms",),
+                    )
+
                 await cursor.execute(
                     f"SELECT * FROM {function_name}({placeholders})",
                     params,
@@ -259,6 +297,13 @@ class FraiseQLRepository:
             self._pool.connection() as conn,
             conn.cursor(row_factory=dict_row) as cursor,
         ):
+            # Set statement timeout for this query
+            if self.query_timeout:
+                await cursor.execute(
+                    "SET LOCAL statement_timeout = %s",
+                    (f"{self.query_timeout * 1000}ms",),
+                )
+
             await cursor.execute(query.statement, query.params)
             row = await cursor.fetchone()
 

@@ -6,6 +6,7 @@ import httpx
 import jwt
 from jwt import PyJWKClient
 
+from fraiseql.audit import SecurityEventSeverity, SecurityEventType, get_security_logger
 from fraiseql.auth.base import (
     AuthenticationError,
     AuthProvider,
@@ -128,12 +129,37 @@ class Auth0Provider(AuthProvider):
 
         except jwt.ExpiredSignatureError as e:
             msg = "Token has expired"
+            security_logger = get_security_logger()
+            from fraiseql.audit import SecurityEvent
+
+            security_logger.log_event(
+                SecurityEvent(
+                    event_type=SecurityEventType.AUTH_TOKEN_EXPIRED,
+                    severity=SecurityEventSeverity.WARNING,
+                    reason=msg,
+                ),
+            )
             raise TokenExpiredError(msg) from e
         except jwt.InvalidTokenError as e:
             msg = f"Invalid token: {e!s}"
+            security_logger = get_security_logger()
+            from fraiseql.audit import SecurityEvent
+
+            security_logger.log_event(
+                SecurityEvent(
+                    event_type=SecurityEventType.AUTH_TOKEN_INVALID,
+                    severity=SecurityEventSeverity.WARNING,
+                    reason=msg,
+                ),
+            )
             raise InvalidTokenError(msg) from e
         except Exception as e:
             msg = f"Token validation failed: {e!s}"
+            security_logger = get_security_logger()
+            security_logger.log_auth_failure(
+                reason=msg,
+                metadata={"error_type": type(e).__name__},
+            )
             raise AuthenticationError(msg) from e
 
     async def get_user_from_token(self, token: str) -> UserContext:
@@ -184,6 +210,18 @@ class Auth0Provider(AuthProvider):
                 "exp",
             ]
         }
+
+        # Log successful authentication
+        security_logger = get_security_logger()
+        security_logger.log_auth_success(
+            user_id=user_id,
+            user_email=email,
+            metadata={
+                "provider": "auth0",
+                "roles": roles,
+                "permissions_count": len(permissions),
+            },
+        )
 
         return UserContext(
             user_id=user_id,

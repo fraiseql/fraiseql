@@ -12,6 +12,8 @@ from fastapi import Request, Response, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from fraiseql.audit import get_security_logger
+
 logger = logging.getLogger(__name__)
 
 
@@ -137,7 +139,23 @@ class DevAuthMiddleware(BaseHTTPMiddleware):
         username_correct = secrets.compare_digest(credentials.username, self.username)
         password_correct = secrets.compare_digest(credentials.password, self.password)
 
-        return username_correct and password_correct
+        result = username_correct and password_correct
+
+        # Log authentication attempt
+        security_logger = get_security_logger()
+        if result:
+            security_logger.log_auth_success(
+                user_id=credentials.username,
+                metadata={"auth_type": "dev_basic_auth"},
+            )
+        else:
+            security_logger.log_auth_failure(
+                reason="Invalid username or password",
+                attempted_username=credentials.username,
+                metadata={"auth_type": "dev_basic_auth"},
+            )
+
+        return result
 
     def _unauthorized_response(self) -> Response:
         """Create an HTTP 401 Unauthorized response.

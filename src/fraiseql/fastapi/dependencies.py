@@ -60,10 +60,13 @@ async def get_db() -> FraiseQLRepository:
     pool = get_db_pool()
     config = get_fraiseql_config()
 
-    # Create repository with mode from config
+    # Create repository with mode and timeout from config
     context = {}
-    if config and hasattr(config, "environment"):
-        context["mode"] = "development" if config.environment == "development" else "production"
+    if config:
+        if hasattr(config, "environment"):
+            context["mode"] = "development" if config.environment == "development" else "production"
+        if hasattr(config, "query_timeout"):
+            context["query_timeout"] = config.query_timeout
 
     return FraiseQLRepository(pool=pool, context=context)
 
@@ -154,10 +157,16 @@ async def build_graphql_context(
     config = get_fraiseql_config()
     mode = "development" if config and config.environment == "development" else "production"
 
-    return {
+    context = {
         "db": db,
         "user": user,
         "authenticated": user is not None,
         "loader_registry": loader_registry,
         "mode": mode,
     }
+
+    # Add query timeout to context if configured
+    if config and hasattr(config, "query_timeout"):
+        context["query_timeout"] = config.query_timeout
+
+    return context

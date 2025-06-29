@@ -11,6 +11,8 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+from fraiseql.audit import get_security_logger
+
 
 class RateLimitStrategy(Enum):
     """Rate limiting strategies."""
@@ -209,6 +211,21 @@ class GraphQLRateLimiter:
         op_limit = self.operation_limits[op_type]
 
         if await self._check_limit(op_key, op_limit):
+            # Log rate limit violation
+            security_logger = get_security_logger()
+            security_logger.log_rate_limit_exceeded(
+                ip_address=client_ip,
+                endpoint=f"/graphql:{op_type}",
+                limit=op_limit.requests,
+                window=f"{op_limit.window}s",
+                user_id=user_id,
+                metadata={
+                    "operation_type": op_type,
+                    "operation_name": op_name,
+                    "complexity": complexity,
+                },
+            )
+
             return self._create_error_response(
                 f"Rate limit exceeded for {op_type} operations",
                 op_limit,
@@ -219,6 +236,21 @@ class GraphQLRateLimiter:
         complexity_limit = self.complexity_limits[complexity_tier]
 
         if await self._check_limit(complexity_key, complexity_limit):
+            # Log complexity-based rate limit
+            security_logger = get_security_logger()
+            security_logger.log_rate_limit_exceeded(
+                ip_address=client_ip,
+                endpoint=f"/graphql:complexity:{complexity_tier}",
+                limit=complexity_limit.requests,
+                window=f"{complexity_limit.window}s",
+                user_id=user_id,
+                metadata={
+                    "complexity_tier": complexity_tier,
+                    "complexity_score": complexity,
+                    "operation_type": op_type,
+                },
+            )
+
             return self._create_error_response(
                 f"Rate limit exceeded for {complexity_tier} complexity queries",
                 complexity_limit,
@@ -347,6 +379,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 limit_key = f"{rule.path_pattern}:{client_key}"
 
                 if await self._check_limit(limit_key, rule.rate_limit):
+                    # Log rate limit violation
+                    security_logger = get_security_logger()
+                    user_id = getattr(request.state, "user_id", None)
+                    security_logger.log_rate_limit_exceeded(
+                        ip_address=self._get_client_ip(request),
+                        endpoint=request.url.path,
+                        limit=rule.rate_limit.requests,
+                        window=f"{rule.rate_limit.window}s",
+                        user_id=user_id,
+                        metadata={
+                            "rule_pattern": rule.path_pattern,
+                            "method": request.method,
+                        },
+                    )
+
                     return self._create_error_response(
                         rule.message or "Rate limit exceeded",
                         rule.rate_limit,
@@ -355,6 +402,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Apply default limit
         default_key = f"default:{client_key}"
         if await self._check_limit(default_key, self.default_limit):
+            # Log default rate limit violation
+            security_logger = get_security_logger()
+            user_id = getattr(request.state, "user_id", None)
+            security_logger.log_rate_limit_exceeded(
+                ip_address=self._get_client_ip(request),
+                endpoint=request.url.path,
+                limit=self.default_limit.requests,
+                window=f"{self.default_limit.window}s",
+                user_id=user_id,
+                metadata={
+                    "rule_type": "default",
+                    "method": request.method,
+                },
+            )
+
             return self._create_error_response(
                 "Rate limit exceeded",
                 self.default_limit,
