@@ -1,0 +1,70 @@
+<svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .box { fill: #2d2d2d; stroke: #FF006E; stroke-width: 2; rx: 8; }
+    .code-box { fill: #1a1a1a; stroke: #666; stroke-width: 1; rx: 4; }
+    .text { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .code { fill: #88ff88; font-family: "Fira Code", monospace; font-size: 11px; }
+    .title { font-size: 14px; font-weight: 600; }
+    .arrow { stroke: #FF006E; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    .label { fill: #cccccc; font-size: 11px; }
+  </style>
+  
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#FF006E" />
+    </marker>
+  </defs>
+  
+  <!-- GraphQL Query -->
+  <g transform="translate(20, 50)">
+    <rect class="box" x="0" y="0" width="200" height="200" />
+    <text class="text title" x="100" y="25" text-anchor="middle">GraphQL Query</text>
+    <rect class="code-box" x="10" y="40" width="180" height="145" />
+    <text class="code" x="15" y="60">{</text>
+    <text class="code" x="15" y="80">  users(limit: 10) {</text>
+    <text class="code" x="15" y="100">    id</text>
+    <text class="code" x="15" y="120">    name</text>
+    <text class="code" x="15" y="140">    posts {</text>
+    <text class="code" x="15" y="160">      title</text>
+    <text class="code" x="15" y="180">    }</text>
+  </g>
+  
+  <!-- FraiseQL Processing -->
+  <g transform="translate(320, 50)">
+    <rect class="box" x="0" y="0" width="260" height="200" />
+    <text class="text title" x="130" y="25" text-anchor="middle">FraiseQL Processing</text>
+    
+    <text class="text label" x="10" y="50">1. Parse GraphQL AST</text>
+    <text class="text label" x="10" y="75">2. Analyze field selections</text>
+    <text class="text label" x="10" y="100">3. Map to database views</text>
+    <text class="text label" x="10" y="125">4. Generate optimized SQL</text>
+    <text class="text label" x="10" y="150">5. Apply security filters</text>
+    <text class="text label" x="10" y="175">6. Execute & transform results</text>
+  </g>
+  
+  <!-- SQL Query -->
+  <g transform="translate(680, 50)">
+    <rect class="box" x="0" y="0" width="200" height="200" />
+    <text class="text title" x="100" y="25" text-anchor="middle">PostgreSQL Query</text>
+    <rect class="code-box" x="10" y="40" width="180" height="145" />
+    <text class="code" x="15" y="60">SELECT jsonb_agg(</text>
+    <text class="code" x="15" y="80">  data || jsonb_build_object(</text>
+    <text class="code" x="15" y="100">    'posts', posts</text>
+    <text class="code" x="15" y="120">  )</text>
+    <text class="code" x="15" y="140">) FROM user_view</text>
+    <text class="code" x="15" y="160">LEFT JOIN LATERAL (...)</text>
+    <text class="code" x="15" y="180">LIMIT 10</text>
+  </g>
+  
+  <!-- Arrows -->
+  <path class="arrow" d="M 220 150 L 320 150" />
+  <path class="arrow" d="M 580 150 L 680 150" />
+  
+  <!-- Performance metrics -->
+  <text class="label" x="270" y="140" text-anchor="middle">~0.5ms</text>
+  <text class="label" x="630" y="140" text-anchor="middle">~30ms</text>
+  
+  <!-- Bottom note -->
+  <text class="text title" x="450" y="280" text-anchor="middle">Single Round Trip • No N+1 • Predictable Performance</text>
+</svg>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FraiseQL for Internal Tools - Build Admin Panels Fast</title>
+    <meta name="description" content="Build internal tools and admin panels with FraiseQL. Perfect for dashboards, data management, and business operations.">
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <a href="/" class="logo">🍓 FraiseQL</a>
+                <div class="nav-links">
+                    <a href="/docs">Docs</a>
+                    <a href="/features">Features</a>
+                    <a href="/status">Status</a>
+                    <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
+                    <a href="https://pypi.org/project/fraiseql/">PyPI</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="hero-feature">
+        <div class="container">
+            <h1>Internal Tools That Just Work</h1>
+            <p class="subtitle">Build admin panels, dashboards, and data tools your team will actually use.</p>
+        </div>
+    </section>
+
+    <section class="feature-detail">
+        <div class="container">
+            <h2>Why FraiseQL for Internal Tools?</h2>
+            
+            <div class="feature-grid">
+                <div class="feature">
+                    <h3>📊 Direct Database Access</h3>
+                    <p>Query your production data safely with read-only views. No ETL pipelines or data warehouses needed.</p>
+                </div>
+                <div class="feature">
+                    <h3>🔒 Built-in Security</h3>
+                    <p>Role-based access control, audit logs, and SQL injection protection out of the box.</p>
+                </div>
+                <div class="feature">
+                    <h3>⚡ Real-Time Data</h3>
+                    <p>See live production data. No caching delays or stale information.</p>
+                </div>
+                <div class="feature">
+                    <h3>🎨 Frontend Flexible</h3>
+                    <p>Use React Admin, Retool, or build custom UIs. GraphQL works with any frontend.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="code-example-section">
+        <div class="container">
+            <h2>Admin Panel in Minutes</h2>
+            <pre><code># Customer support dashboard
+@fraise_type
+class CustomerInfo:
+    id: UUID
+    email: str
+    name: str
+    created_at: datetime
+    subscription_status: str
+    total_spent: float
+    support_tickets: list[Ticket]
+
+@fraiseql.query
+async def customer_search(
+    info, 
+    query: str,
+    status: str = None
+) -> list[CustomerInfo]:
+    """Search customers by email, name, or ID"""
+    filters = {"search": query}
+    if status:
+        filters["subscription_status"] = status
+    
+    return await info.context.repo.find(
+        "customer_admin_view",
+        where=filters,
+        limit=50
+    )
+
+@fraiseql.mutation
+async def update_customer_status(
+    info,
+    customer_id: UUID,
+    new_status: str,
+    reason: str
+) -> CustomerInfo:
+    """Admin action with audit trail"""
+    # Automatic audit logging
+    await info.context.repo.log_admin_action(
+        user_id=info.context["user_id"],
+        action="status_change",
+        target_id=customer_id,
+        details={"new_status": new_status, "reason": reason}
+    )
+    
+    return await info.context.repo.update(
+        "customers",
+        customer_id,
+        {"subscription_status": new_status}
+    )</code></pre>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2>Common Internal Tool Patterns</h2>
+            
+            <div class="assessment-grid">
+                <div class="assessment-card">
+                    <h3>Operations Dashboard</h3>
+                    <ul>
+                        <li class="done">✓ Order management</li>
+                        <li class="done">✓ Inventory tracking</li>
+                        <li class="done">✓ Fulfillment status</li>
+                        <li class="done">✓ Performance metrics</li>
+                    </ul>
+                </div>
+                
+                <div class="assessment-card">
+                    <h3>Customer Support</h3>
+                    <ul>
+                        <li class="done">✓ User lookup</li>
+                        <li class="done">✓ Account modifications</li>
+                        <li class="done">✓ Transaction history</li>
+                        <li class="done">✓ Support tickets</li>
+                    </ul>
+                </div>
+                
+                <div class="assessment-card">
+                    <h3>Data Management</h3>
+                    <ul>
+                        <li class="done">✓ Bulk imports/exports</li>
+                        <li class="done">✓ Data validation</li>
+                        <li class="done">✓ Scheduled reports</li>
+                        <li class="done">✓ Data cleanup tools</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <div class="container">
+            <h2>Build vs Buy Comparison</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Solution</th>
+                        <th>Setup Time</th>
+                        <th>Monthly Cost</th>
+                        <th>Customization</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Retool/Tooljet</td>
+                        <td>1-2 days</td>
+                        <td>$500-2000/month</td>
+                        <td>Limited</td>
+                    </tr>
+                    <tr>
+                        <td>Custom Build (Traditional)</td>
+                        <td>2-4 weeks</td>
+                        <td>Developer time</td>
+                        <td>Full control</td>
+                    </tr>
+                    <tr>
+                        <td>FraiseQL + React Admin</td>
+                        <td>2-3 days</td>
+                        <td>~$0 (self-hosted)</td>
+                        <td class="improvement">Full control</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="quickstart">
+        <div class="container">
+            <h2>Example: Sales Operations Tool</h2>
+            <div class="code-example-section">
+                <pre><code># Sales metrics and team management
+@fraise_type
+class SalesMetrics:
+    rep_id: UUID
+    rep_name: str
+    current_month_revenue: float
+    quota_attainment: float
+    deals_in_pipeline: int
+    average_deal_size: float
+
+@fraise_type
+class DealUpdate:
+    deal_id: UUID
+    stage: str
+    amount: float
+    notes: str
+
+@fraiseql.query
+async def sales_dashboard(info) -> SalesMetrics:
+    """Real-time sales metrics for the dashboard"""
+    return await info.context.repo.find_one(
+        "sales_metrics_view"
+    )
+
+@fraiseql.mutation
+async def update_deal_stage(
+    info,
+    input: DealUpdate
+) -> Deal:
+    """Sales reps update their deals"""
+    # Validation and business rules
+    if input.stage == "closed_won":
+        await send_celebration_slack(input.deal_id)
+    
+    return await info.context.repo.update(
+        "deals",
+        input.deal_id,
+        {"stage": input.stage, "amount": input.amount}
+    )</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2>Perfect For These Use Cases</h2>
+            <div class="use-cases">
+                <div class="use-case good">
+                    <h3>✅ Great Fit</h3>
+                    <ul>
+                        <li>Admin panels & dashboards</li>
+                        <li>Data exploration tools</li>
+                        <li>Customer support interfaces</li>
+                        <li>Operations management</li>
+                        <li>Reporting & analytics</li>
+                        <li>Content management systems</li>
+                    </ul>
+                </div>
+                <div class="use-case bad">
+                    <h3>❌ Not Ideal For</h3>
+                    <ul>
+                        <li>Real-time collaboration (use WebSockets)</li>
+                        <li>Heavy computation (use background jobs)</li>
+                        <li>File processing (use dedicated services)</li>
+                        <li>Complex workflows (use workflow engines)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Stop Building CRUD Interfaces</h2>
+            <p>Let FraiseQL handle the boring parts so you can focus on what makes your tools unique.</p>
+            <div class="cta-buttons">
+                <a href="/getting-started" class="btn btn-primary">Start Building</a>
+                <a href="https://github.com/fraiseql/fraiseql/tree/main/examples/admin-panel" class="btn btn-secondary">View Example</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>FraiseQL is <a href="https://github.com/fraiseql/fraiseql/blob/main/LICENSE">MIT licensed</a>. Built for developers who build tools.</p>
+        </div>
+    </footer>
+</body>
+</html>

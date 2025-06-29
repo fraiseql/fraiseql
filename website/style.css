@@ -967,6 +967,66 @@ footer a:hover {
     text-decoration: underline;
 }
 
+/* Visual Elements */
+.architecture-preview {
+    margin: 3rem 0;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.architecture-diagram {
+    width: 100%;
+    height: auto;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+.query-flow-section {
+    margin: 3rem 0;
+}
+
+.section-subtitle {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+    color: var(--gray);
+}
+
+.query-flow-diagram {
+    width: 100%;
+    max-width: 900px;
+    height: auto;
+    margin: 0 auto;
+    display: block;
+}
+
+.performance-visual {
+    margin: 2rem 0 3rem 0;
+    text-align: center;
+}
+
+.performance-chart {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    margin: 0 auto;
+    display: block;
+}
+
+/* Dark mode for SVG diagrams */
+@media (prefers-color-scheme: dark) {
+    body {
+        background: var(--dark);
+        color: var(--light);
+    }
+
+    .architecture-diagram,
+    .query-flow-diagram,
+    .performance-chart {
+        filter: invert(0.9) hue-rotate(180deg) drop-shadow(0 4px 6px rgba(255, 255, 255, 0.1));
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .hero h1 {
@@ -995,5 +1055,11 @@ footer a:hover {
 
     .benefit-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .architecture-preview,
+    .query-flow-section,
+    .performance-visual {
+        margin: 2rem 0;
     }
 }

@@ -5,6 +5,34 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0a21] - 2025-06-28
+
+### Security
+- **Resolved all security vulnerabilities** - 0 vulnerabilities (was 4)
+  - Migrated benchmark containers from Debian to Alpine Linux
+  - Resolved CVE-2025-27587 (Perl race condition) and CVE-2025-30258 (Kerberos memory leak)
+  - Updated all benchmark dependencies to latest secure versions
+  - Updated Java benchmark to Spring Boot 3.4.1 and GraphQL Java 22.3
+
+### Added
+- **Comprehensive test coverage** for critical modules
+  - Extended tests for auth, repository, monitoring, security modules
+  - New test utilities for introspection, IP utilities, common types
+- **Project assessment framework** with date-based organization
+  - 6 comprehensive assessments including quality (9.2/10) and security
+  - Structured assessments/ directory for historical tracking
+- **Enhanced documentation organization**
+  - Centralized assessment tracking and methodology
+
+### Fixed
+- All linting issues in test files
+- Re-enabled previously disabled comprehensive tests
+- Test reliability and consistency improvements
+
+### Changed
+- Reorganized project assessments into structured directory
+- Improved test file organization and naming
+
 ## [0.1.0a20] - 2025-06-28
 
 ### Added

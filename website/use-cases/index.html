@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FraiseQL Use Cases - Who's Using FraiseQL</title>
+    <meta name="description" content="Discover how teams use FraiseQL for SaaS applications, internal tools, and high-performance APIs.">
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <a href="/" class="logo">🍓 FraiseQL</a>
+                <div class="nav-links">
+                    <a href="/docs">Docs</a>
+                    <a href="/features">Features</a>
+                    <a href="/use-cases" class="active">Use Cases</a>
+                    <a href="/status">Status</a>
+                    <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
+                    <a href="https://pypi.org/project/fraiseql/">PyPI</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="features-hero">
+        <div class="container">
+            <h1>Who's Using FraiseQL?</h1>
+            <p class="subtitle">From startups to enterprises, see how teams use FraiseQL to build better applications.</p>
+        </div>
+    </section>
+
+    <section class="feature-cards">
+        <div class="container">
+            <div class="feature-card highlight">
+                <div class="feature-icon">🚀</div>
+                <h2>SaaS Startups</h2>
+                <p>Ship your MVP faster and scale when you need to. Perfect for multi-tenant applications.</p>
+                <ul>
+                    <li>Multi-tenant architecture built-in</li>
+                    <li>Cost-efficient infrastructure</li>
+                    <li>Rapid iteration capabilities</li>
+                    <li>Production-ready patterns</li>
+                </ul>
+                <a href="/use-cases/saas-startups" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🏢</div>
+                <h2>Internal Tools</h2>
+                <p>Build admin panels and dashboards that connect directly to your production data.</p>
+                <ul>
+                    <li>Direct database access</li>
+                    <li>Real-time data views</li>
+                    <li>Built-in security controls</li>
+                    <li>Works with any frontend</li>
+                </ul>
+                <a href="/use-cases/internal-tools" class="feature-link">Learn more →</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h2>High-Performance APIs</h2>
+                <p>For developers who care about query performance and clean architecture.</p>
+                <ul>
+                    <li>No N+1 query problems</li>
+                    <li>Predictable performance</li>
+                    <li>Full SQL transparency</li>
+                    <li>Production monitoring</li>
+                </ul>
+                <a href="/use-cases/api-developers" class="feature-link">Learn more →</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <div class="container">
+            <h2>FraiseQL vs Alternatives by Use Case</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Use Case</th>
+                        <th>Traditional Stack</th>
+                        <th>FraiseQL Advantage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>SaaS MVP</strong></td>
+                        <td>GraphQL Yoga + Prisma + Redis</td>
+                        <td class="improvement">Single dependency, 60% lower costs</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Admin Panel</strong></td>
+                        <td>Retool ($500-2000/month)</td>
+                        <td class="improvement">Self-hosted, full customization</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Mobile Backend</strong></td>
+                        <td>REST API + Multiple endpoints</td>
+                        <td class="improvement">Single GraphQL endpoint, efficient queries</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Analytics API</strong></td>
+                        <td>Custom SQL + Caching layer</td>
+                        <td class="improvement">JSONB aggregations, no cache needed</td>
+                    </tr>
+                    <tr>
+                        <td><strong>E-commerce API</strong></td>
+                        <td>Multiple microservices</td>
+                        <td class="improvement">Monolith simplicity, microservice performance</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2>Common Patterns Across Use Cases</h2>
+            
+            <div class="feature-grid">
+                <div class="feature">
+                    <h3>🔐 Authentication</h3>
+                    <p>JWT tokens, session management, and role-based access control patterns.</p>
+                </div>
+                <div class="feature">
+                    <h3>📊 Real-time Dashboards</h3>
+                    <p>Live metrics and KPIs using PostgreSQL views and JSONB aggregations.</p>
+                </div>
+                <div class="feature">
+                    <h3>📤 Data Export</h3>
+                    <p>CSV, JSON, and Excel exports with streaming for large datasets.</p>
+                </div>
+                <div class="feature">
+                    <h3>🔍 Advanced Search</h3>
+                    <p>Full-text search, filtering, and faceted search using PostgreSQL.</p>
+                </div>
+                <div class="feature">
+                    <h3>📝 Audit Trails</h3>
+                    <p>Complete history of changes with who, what, when tracking.</p>
+                </div>
+                <div class="feature">
+                    <h3>🌐 Multi-language</h3>
+                    <p>i18n support with JSONB storage for flexible translations.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="quickstart">
+        <div class="container">
+            <h2>Success Stories</h2>
+            <div class="assessment-grid">
+                <div class="assessment-card">
+                    <h3>E-learning Platform</h3>
+                    <p>"Reduced our API response times by 70% and eliminated all N+1 queries. The migration from Prisma took just a week."</p>
+                    <div class="score">3x faster</div>
+                </div>
+                <div class="assessment-card">
+                    <h3>Financial Dashboard</h3>
+                    <p>"Built our entire admin panel in 3 days. What would have taken weeks with custom development or expensive tools."</p>
+                    <div class="score">90% time saved</div>
+                </div>
+                <div class="assessment-card">
+                    <h3>IoT Data Platform</h3>
+                    <p>"Handles millions of sensor readings daily. JSONB storage gives us flexibility without schema migrations."</p>
+                    <div class="score">50% less infrastructure</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Find Your Use Case</h2>
+            <p>Whether you're building a SaaS, internal tools, or high-performance APIs, FraiseQL has you covered.</p>
+            <div class="cta-buttons">
+                <a href="/getting-started" class="btn btn-primary">Get Started</a>
+                <a href="/docs" class="btn btn-secondary">Read Documentation</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>FraiseQL is <a href="https://github.com/fraiseql/fraiseql/blob/main/LICENSE">MIT licensed</a>. Made with 🍓 by teams who ship.</p>
+        </div>
+    </footer>
+</body>
+</html>

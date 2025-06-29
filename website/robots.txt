@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Sitemap: https://fraiseql.dev/sitemap.xml
+
+# Disallow crawling of assets that don't need indexing
+Disallow: /assets/*.svg
+Disallow: /assets/*.png
+
+# Allow search engines to crawl everything else
+Allow: /docs/
+Allow: /features/
+Allow: /use-cases/
+Allow: /getting-started
+Allow: /status

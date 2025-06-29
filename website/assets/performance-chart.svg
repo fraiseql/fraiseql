@@ -1,0 +1,90 @@
+<svg viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .axis { stroke: #666; stroke-width: 2; }
+    .grid { stroke: #333; stroke-width: 1; stroke-dasharray: 2,2; }
+    .bar-orm { fill: #666; }
+    .bar-fraiseql { fill: #FF006E; }
+    .bar-turbo { fill: #FF4500; }
+    .text { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .label { font-size: 12px; }
+    .value { font-size: 11px; font-weight: 600; }
+    .title { font-size: 16px; font-weight: 600; }
+    .legend { font-size: 12px; }
+  </style>
+  
+  <!-- Title -->
+  <text class="text title" x="300" y="30" text-anchor="middle">Response Time Comparison (ms)</text>
+  
+  <!-- Y-axis -->
+  <line class="axis" x1="80" y1="350" x2="80" y2="60" />
+  
+  <!-- X-axis -->
+  <line class="axis" x1="80" y1="350" x2="520" y2="350" />
+  
+  <!-- Grid lines -->
+  <line class="grid" x1="80" y1="290" x2="520" y2="290" />
+  <line class="grid" x1="80" y1="230" x2="520" y2="230" />
+  <line class="grid" x1="80" y1="170" x2="520" y2="170" />
+  <line class="grid" x1="80" y1="110" x2="520" y2="110" />
+  
+  <!-- Y-axis labels -->
+  <text class="text label" x="70" y="355" text-anchor="end">0</text>
+  <text class="text label" x="70" y="295" text-anchor="end">50</text>
+  <text class="text label" x="70" y="235" text-anchor="end">100</text>
+  <text class="text label" x="70" y="175" text-anchor="end">150</text>
+  <text class="text label" x="70" y="115" text-anchor="end">200</text>
+  
+  <!-- Simple query bars -->
+  <g transform="translate(120, 0)">
+    <rect class="bar-orm" x="0" y="250" width="30" height="100" />
+    <text class="text value" x="15" y="240" text-anchor="middle">100</text>
+    
+    <rect class="bar-fraiseql" x="40" y="290" width="30" height="60" />
+    <text class="text value" x="55" y="280" text-anchor="middle">60</text>
+    
+    <rect class="bar-turbo" x="80" y="310" width="30" height="40" />
+    <text class="text value" x="95" y="300" text-anchor="middle">40</text>
+    
+    <text class="text label" x="55" y="375" text-anchor="middle">Simple Query</text>
+  </g>
+  
+  <!-- Nested query bars -->
+  <g transform="translate(260, 0)">
+    <rect class="bar-orm" x="0" y="150" width="30" height="200" />
+    <text class="text value" x="15" y="140" text-anchor="middle">200</text>
+    
+    <rect class="bar-fraiseql" x="40" y="270" width="30" height="80" />
+    <text class="text value" x="55" y="260" text-anchor="middle">80</text>
+    
+    <rect class="bar-turbo" x="80" y="295" width="30" height="55" />
+    <text class="text value" x="95" y="285" text-anchor="middle">55</text>
+    
+    <text class="text label" x="55" y="375" text-anchor="middle">Nested Data</text>
+  </g>
+  
+  <!-- Complex query bars -->
+  <g transform="translate(400, 0)">
+    <rect class="bar-orm" x="0" y="70" width="30" height="280" />
+    <text class="text value" x="15" y="60" text-anchor="middle">280</text>
+    
+    <rect class="bar-fraiseql" x="40" y="230" width="30" height="120" />
+    <text class="text value" x="55" y="220" text-anchor="middle">120</text>
+    
+    <rect class="bar-turbo" x="80" y="270" width="30" height="80" />
+    <text class="text value" x="95" y="260" text-anchor="middle">80</text>
+    
+    <text class="text label" x="55" y="375" text-anchor="middle">Complex Query</text>
+  </g>
+  
+  <!-- Legend -->
+  <g transform="translate(150, 50)">
+    <rect class="bar-orm" x="0" y="0" width="20" height="15" />
+    <text class="text legend" x="25" y="12">Traditional ORM</text>
+    
+    <rect class="bar-fraiseql" x="120" y="0" width="20" height="15" />
+    <text class="text legend" x="145" y="12">FraiseQL</text>
+    
+    <rect class="bar-turbo" x="220" y="0" width="20" height="15" />
+    <text class="text legend" x="245" y="12">With TurboRouter</text>
+  </g>
+</svg>

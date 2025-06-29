@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FraiseQL for SaaS Startups - Build APIs Faster</title>
+    <meta name="description" content="FraiseQL helps SaaS startups build GraphQL APIs quickly with PostgreSQL. Perfect for MVPs and rapid iteration.">
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="container">
+                <a href="/" class="logo">🍓 FraiseQL</a>
+                <div class="nav-links">
+                    <a href="/docs">Docs</a>
+                    <a href="/features">Features</a>
+                    <a href="/status">Status</a>
+                    <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
+                    <a href="https://pypi.org/project/fraiseql/">PyPI</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="hero-feature">
+        <div class="container">
+            <h1>Built for SaaS Startups</h1>
+            <p class="subtitle">Ship your MVP faster. Iterate quickly. Scale when you need to.</p>
+        </div>
+    </section>
+
+    <section class="feature-detail">
+        <div class="container">
+            <h2>Why FraiseQL for Your SaaS?</h2>
+            
+            <div class="feature-grid">
+                <div class="feature">
+                    <h3>🚀 MVP to Production in Days</h3>
+                    <p>Define your types, add decorators, and you have a GraphQL API. No complex setup or configuration.</p>
+                </div>
+                <div class="feature">
+                    <h3>💰 Cost-Efficient</h3>
+                    <p>Single PostgreSQL database handles everything. No need for Redis, ElasticSearch, or complex infrastructure.</p>
+                </div>
+                <div class="feature">
+                    <h3>🏢 Multi-Tenant Ready</h3>
+                    <p>Built-in patterns for tenant isolation. Row-level security with PostgreSQL RLS.</p>
+                </div>
+                <div class="feature">
+                    <h3>📊 Real-Time Analytics</h3>
+                    <p>JSONB queries are perfect for dynamic dashboards and reporting features your customers need.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="code-example-section">
+        <div class="container">
+            <h2>Multi-Tenant SaaS Pattern</h2>
+            <pre><code># Define your tenant-aware models
+@fraise_type
+class Organization:
+    id: UUID
+    name: str
+    plan: str
+    
+@fraise_type
+class User:
+    id: UUID
+    organization_id: UUID
+    email: str
+    role: str
+
+# Queries automatically filter by tenant
+@fraiseql.query
+async def users(info, limit: int = 50) -> list[User]:
+    tenant_id = info.context["tenant_id"]
+    return await info.context.repo.find(
+        "user_view",
+        where={"organization_id": tenant_id},
+        limit=limit
+    )
+
+# Mutations respect tenant boundaries
+@fraiseql.mutation
+async def create_user(info, input: UserInput) -> User:
+    tenant_id = info.context["tenant_id"]
+    return await info.context.repo.create(
+        "users",
+        {...input, "organization_id": tenant_id}
+    )</code></pre>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2>Perfect For Common SaaS Features</h2>
+            
+            <div class="assessment-grid">
+                <div class="assessment-card">
+                    <h3>User Management</h3>
+                    <ul>
+                        <li class="done">✓ Authentication with JWT/Sessions</li>
+                        <li class="done">✓ Role-based permissions</li>
+                        <li class="done">✓ Team invitations</li>
+                        <li class="done">✓ User profiles & settings</li>
+                    </ul>
+                </div>
+                
+                <div class="assessment-card">
+                    <h3>Billing & Subscriptions</h3>
+                    <ul>
+                        <li class="done">✓ Plan management</li>
+                        <li class="done">✓ Usage tracking</li>
+                        <li class="done">✓ Webhook handlers</li>
+                        <li class="done">✓ Invoice generation</li>
+                    </ul>
+                </div>
+                
+                <div class="assessment-card">
+                    <h3>Analytics & Reporting</h3>
+                    <ul>
+                        <li class="done">✓ Custom dashboards</li>
+                        <li class="done">✓ Export to CSV/JSON</li>
+                        <li class="done">✓ Real-time metrics</li>
+                        <li class="done">✓ Activity logs</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <div class="container">
+            <h2>Startup Stack Comparison</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Stack Component</th>
+                        <th>Traditional</th>
+                        <th>With FraiseQL</th>
+                        <th>You Save</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>API Framework</td>
+                        <td>Express + GraphQL Yoga</td>
+                        <td>FraiseQL</td>
+                        <td class="improvement">Unified solution</td>
+                    </tr>
+                    <tr>
+                        <td>ORM/Database</td>
+                        <td>Prisma + PostgreSQL</td>
+                        <td>FraiseQL + PostgreSQL</td>
+                        <td class="improvement">No ORM overhead</td>
+                    </tr>
+                    <tr>
+                        <td>Caching</td>
+                        <td>Redis</td>
+                        <td>PostgreSQL views</td>
+                        <td class="improvement">One less service</td>
+                    </tr>
+                    <tr>
+                        <td>Setup Time</td>
+                        <td>2-3 days</td>
+                        <td>2-3 hours</td>
+                        <td class="improvement">90% faster</td>
+                    </tr>
+                    <tr>
+                        <td>Monthly Cost (AWS)</td>
+                        <td>~$200-300</td>
+                        <td>~$50-100</td>
+                        <td class="improvement">60% cheaper</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="quickstart">
+        <div class="container">
+            <h2>Start Your SaaS Today</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Install FraiseQL</h3>
+                    <pre><code>pip install fraiseql
+pip install fraiseql[auth]  # JWT support</code></pre>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Define Your Schema</h3>
+                    <pre><code># Your core business objects
+@fraise_type
+class Project:
+    id: UUID
+    organization_id: UUID
+    name: str
+    settings: dict  # JSONB flexibility</code></pre>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Ship to Production</h3>
+                    <pre><code># Deploy anywhere
+docker build -t my-saas .
+docker run -p 8000:8000 my-saas
+
+# Or use your favorite PaaS
+git push heroku main</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Ready to Build Your SaaS?</h2>
+            <p>Join other startups using FraiseQL to ship faster and iterate quickly.</p>
+            <div class="cta-buttons">
+                <a href="/getting-started" class="btn btn-primary">Get Started</a>
+                <a href="https://github.com/fraiseql/fraiseql/tree/main/examples/saas-starter" class="btn btn-secondary">View Starter Template</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>FraiseQL is <a href="https://github.com/fraiseql/fraiseql/blob/main/LICENSE">MIT licensed</a>. Made with 🍓 for startups.</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -4,7 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FraiseQL - GraphQL to PostgreSQL. No middleman.</title>
-    <meta name="description" content="Transform GraphQL queries into optimized PostgreSQL. One query. No N+1. Pure speed.">
+    <meta name="description" content="Transform GraphQL queries into optimized PostgreSQL. Build high-performance APIs with no N+1 queries. Open source, MIT licensed.">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://fraiseql.dev/">
+    <meta property="og:title" content="FraiseQL - GraphQL to PostgreSQL Query Builder">
+    <meta property="og:description" content="Build high-performance GraphQL APIs with PostgreSQL. No N+1 queries, no ORM overhead. Just clean, fast SQL.">
+    <meta property="og:image" content="https://fraiseql.dev/assets/og-image.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://fraiseql.dev/">
+    <meta property="twitter:title" content="FraiseQL - GraphQL to PostgreSQL Query Builder">
+    <meta property="twitter:description" content="Build high-performance GraphQL APIs with PostgreSQL. No N+1 queries, no ORM overhead.">
+    <meta property="twitter:image" content="https://fraiseql.dev/assets/og-image.png">
+    
+    <!-- Additional SEO -->
+    <link rel="canonical" href="https://fraiseql.dev/">
+    <meta name="author" content="Lionel Hamayon">
+    <meta name="robots" content="index, follow">
+    <meta name="keywords" content="GraphQL, PostgreSQL, API, JSONB, Python, FastAPI, query builder, ORM alternative">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "FraiseQL",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Cross-platform",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "GraphQL to PostgreSQL query builder using JSONB for high-performance APIs",
+      "url": "https://fraiseql.dev",
+      "author": {
+        "@type": "Person",
+        "name": "Lionel Hamayon",
+        "url": "https://github.com/lionel-rowe"
+      },
+      "license": "https://opensource.org/licenses/MIT",
+      "softwareVersion": "0.1.0a19",
+      "releaseNotes": "Alpha release - not recommended for production use",
+      "downloadUrl": "https://pypi.org/project/fraiseql/",
+      "softwareRequirements": "Python 3.11+, PostgreSQL 13+"
+    }
+    </script>
+    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,6 +64,7 @@
                 <div class="nav-links">
                     <a href="/docs">Docs</a>
                     <a href="/features">Features</a>
+                    <a href="/use-cases">Use Cases</a>
                     <a href="/status">Status</a>
                     <a href="https://github.com/fraiseql/fraiseql">GitHub</a>
                     <a href="https://pypi.org/project/fraiseql/">PyPI</a>
@@ -27,38 +77,18 @@
         <div class="container">
             <h1>GraphQL to PostgreSQL.<br>No middleman.</h1>
             <div class="version-banner">
-                <span class="version-badge alpha">Alpha v0.1.0a10</span>
+                <span class="version-badge alpha">Alpha v0.1.0a19</span>
                 <span class="status-link"><a href="/status">View production readiness →</a></span>
             </div>
             <p class="subtitle">Transform GraphQL queries into optimized PostgreSQL. One query. No N+1. Better performance.</p>
 
-            <div class="code-example">
-                <div class="code-block">
-                    <div class="code-header">GraphQL Query</div>
-                    <pre><code>{
-  users {
-    id
-    name
-    posts {
-      title
-      comments {
-        text
-      }
-    }
-  }
-}</code></pre>
-                </div>
-                <div class="arrow">→</div>
-                <div class="code-block">
-                    <div class="code-header">PostgreSQL Query</div>
-                    <pre><code>SELECT jsonb_agg(
-  jsonb_build_object(
-    'id', u.id,
-    'name', u.name,
-    'posts', u.posts
-  )
-) FROM users u</code></pre>
-                </div>
+            <div class="architecture-preview">
+                <img src="/assets/architecture-diagram.svg" alt="FraiseQL Architecture" class="architecture-diagram">
+            </div>
+
+            <div class="query-flow-section">
+                <h3 class="section-subtitle">See the Magic in Action</h3>
+                <img src="/assets/query-flow.svg" alt="Query Translation Flow" class="query-flow-diagram">
             </div>
 
             <div class="cta-buttons">
@@ -143,6 +173,9 @@ app = create_fraiseql_app(
     <section class="comparison">
         <div class="container">
             <h2>Performance That Matters</h2>
+            <div class="performance-visual">
+                <img src="/assets/performance-chart.svg" alt="Performance Comparison" class="performance-chart">
+            </div>
             <table>
                 <thead>
                     <tr>
