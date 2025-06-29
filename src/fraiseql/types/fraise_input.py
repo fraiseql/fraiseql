@@ -25,7 +25,65 @@ def fraise_input(_cls: T) -> T: ...
 
 
 def fraise_input(_cls: T | None = None) -> T | Callable[[T], T]:
-    """Decorator for FraiseQL input types using keyword-only init and safe field ordering."""
+    """Decorator for FraiseQL input types using keyword-only init and safe field ordering.
+
+    This decorator creates GraphQL input types that can be used as arguments in queries
+    and mutations. It provides flexible field ordering and automatic type generation.
+
+    Args:
+        _cls: The class to decorate (when used without parentheses)
+
+    Returns:
+        The decorated class with FraiseQL input type capabilities
+
+    Examples:
+        Basic usage::
+
+            @fraise_input
+            class CreateUserInput:
+                name: str
+                email: str
+                age: int = fraise_field(default=0)
+
+        With optional fields::
+
+            @fraise_input
+            class UpdateUserInput:
+                id: UUID
+                name: str | None = None
+                email: str | None = None
+                status: UserStatus | None = None
+
+        With field metadata::
+
+            @fraise_input
+            class SearchInput:
+                query: str = fraise_field(description="Search query text")
+                limit: int = fraise_field(default=10, description="Maximum results")
+                offset: int = fraise_field(default=0, description="Skip results")
+                filters: dict[str, Any] | None = None
+
+        Nested input types::
+
+            @fraise_input
+            class AddressInput:
+                street: str
+                city: str
+                country: str
+
+            @fraise_input
+            class UserProfileInput:
+                bio: str | None = None
+                avatar_url: str | None = None
+                address: AddressInput | None = None
+
+    Notes:
+        - All fields become keyword-only in the generated __init__
+        - Default values can appear before required fields
+        - Supports GraphQL schema generation and introspection
+        - Compatible with type hints and runtime validation
+        - Can be used with fraise_field() for additional metadata
+    """
 
     def wrap(cls: T) -> T:
         from fraiseql.gql.schema_builder import SchemaRegistry
