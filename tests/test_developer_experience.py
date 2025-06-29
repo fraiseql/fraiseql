@@ -23,7 +23,7 @@ from fraiseql.validation import (
 
 @fraise_type
 @dataclass
-class TestUser:
+class User:
     """Test user type."""
 
     id: int
@@ -102,7 +102,7 @@ class TestPartialInstantiationWithErrors:
     def test_create_partial_instance_success(self):
         """Test successful partial instantiation."""
         data = {"id": 1, "name": "John"}
-        user = create_partial_instance(TestUser, data)
+        user = create_partial_instance(User, data)
 
         assert user.id == 1
         assert user.name == "John"
@@ -116,17 +116,17 @@ class TestPartialInstantiationWithErrors:
         # This depends on how strict the type checking is
         # Some type mismatches might be caught, others might not
         data = {"id": 1, "name": "John", "age": 25}
-        user = create_partial_instance(TestUser, data)
+        user = create_partial_instance(User, data)
         assert user.age == 25
 
     def test_debug_partial_instance(self):
         """Test debug output for partial instances."""
         data = {"id": 1, "name": "Alice"}
-        user = create_partial_instance(TestUser, data)
+        user = create_partial_instance(User, data)
 
         debug_output = debug_partial_instance(user)
 
-        assert "TestUser (PARTIAL)" in debug_output
+        assert "User (PARTIAL)" in debug_output
         assert "Requested fields: {id, name}" in debug_output
         assert "- id: 1" in debug_output
         assert '- name: "Alice"' in debug_output
@@ -148,14 +148,14 @@ class TestValidationUtilities:
             ],
         }
 
-        errors = validate_where_input(where_input, TestUser)
+        errors = validate_where_input(where_input, User)
         assert errors == []
 
     def test_validate_where_input_unknown_field(self):
         """Test validation with unknown field."""
         where_input = {"unknown_field": {"_eq": "value"}}
 
-        errors = validate_where_input(where_input, TestUser)
+        errors = validate_where_input(where_input, User)
         assert len(errors) == 1
         assert "Unknown field 'unknown_field'" in errors[0]
         assert "Available fields:" in errors[0]
@@ -164,7 +164,7 @@ class TestValidationUtilities:
         """Test validation with invalid operator."""
         where_input = {"name": {"_invalid": "value"}}
 
-        errors = validate_where_input(where_input, TestUser)
+        errors = validate_where_input(where_input, User)
         assert len(errors) == 1
         assert "Unknown operator '_invalid'" in errors[0]
 
@@ -173,7 +173,7 @@ class TestValidationUtilities:
         # String operator on non-string field
         where_input = {"age": {"_like": "%25%"}}
 
-        errors = validate_where_input(where_input, TestUser)
+        errors = validate_where_input(where_input, User)
         assert len(errors) == 1
         assert "String operator '_like'" in errors[0]
         assert "can only be used with string fields" in errors[0]
@@ -183,7 +183,7 @@ class TestValidationUtilities:
         where_input = {"invalid_field": {"_eq": "value"}}
 
         with pytest.raises(WhereClauseError) as exc_info:
-            validate_where_input(where_input, TestUser, strict=True)
+            validate_where_input(where_input, User, strict=True)
 
         assert "Unknown field 'invalid_field'" in str(exc_info.value)
 
@@ -191,13 +191,13 @@ class TestValidationUtilities:
         """Test validation provides case sensitivity hints."""
         where_input = {"EMAIL": {"_eq": "test@example.com"}}
 
-        errors = validate_where_input(where_input, TestUser)
+        errors = validate_where_input(where_input, User)
         assert len(errors) == 1
         assert "Did you mean 'email' instead of 'EMAIL'?" in errors[0]
 
     def test_get_type_fields(self):
         """Test field extraction from types."""
-        fields = _get_type_fields(TestUser)
+        fields = _get_type_fields(User)
         assert fields == {"id", "name", "email", "age", "active"}
 
 

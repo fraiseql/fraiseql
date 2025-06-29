@@ -20,7 +20,7 @@ class NestedModel:
 
 
 @dataclasses.dataclass
-class TestModel:
+class SampleModel:
     """A test model with required and optional fields."""
 
     id: UUID
@@ -42,7 +42,7 @@ class TestPartialInstantiation:
             "optional_field": "Optional",
         }
 
-        instance = create_partial_instance(TestModel, data)
+        instance = create_partial_instance(SampleModel, data)
 
         assert instance.id == data["id"]
         assert instance.name == data["name"]
@@ -62,7 +62,7 @@ class TestPartialInstantiation:
             # required_field is missing
         }
 
-        instance = create_partial_instance(TestModel, data)
+        instance = create_partial_instance(SampleModel, data)
 
         assert instance.id == data["id"]
         assert instance.name == data["name"]
@@ -89,7 +89,7 @@ class TestPartialInstantiation:
         nested_instance = create_partial_instance(NestedModel, data["nested"])
         data["nested"] = nested_instance
 
-        instance = create_partial_instance(TestModel, data)
+        instance = create_partial_instance(SampleModel, data)
 
         assert instance.id == data["id"]
         assert instance.nested is not None
@@ -108,7 +108,7 @@ class TestPartialInstantiation:
             "name": "Test",
         }
 
-        instance = create_partial_instance(TestModel, data)
+        instance = create_partial_instance(SampleModel, data)
 
         assert instance.id == data["id"]
         assert instance.name == data["name"]
