@@ -30,7 +30,7 @@ def test_combined_filters() -> None:
     where = PersonWhere(name={"eq": "Alice"}, age={"gt": 21})
     sql_str = where.to_sql().as_string(None)
     assert "(data ->> 'name') = 'Alice'" in sql_str
-    assert "(data ->> 'age') > 21" in sql_str  # Numbers aren't quoted
+    assert "(data ->> 'age')::numeric > 21" in sql_str  # Numeric cast applied
 
 
 def test_in_and_isnull_filters() -> None:
@@ -62,16 +62,16 @@ def test_datetime_filter() -> None:
 
 
 def test_boolean_values_converted_to_strings() -> None:
-    """Test that boolean values are properly converted to strings for JSONB comparison."""
+    """Test that boolean values are properly cast to boolean type for comparison."""
     where_true = PersonWhere(is_active={"eq": True})
     where_false = PersonWhere(is_active={"eq": False})
 
     sql_true = where_true.to_sql().as_string(None)
     sql_false = where_false.to_sql().as_string(None)
 
-    # For JSONB text extraction, booleans must be compared as strings
-    assert "(data ->> 'is_active') = 'true'" in sql_true
-    assert "(data ->> 'is_active') = 'false'" in sql_false
+    # Booleans are now properly cast to boolean type instead of string comparison
+    assert "(data ->> 'is_active')::boolean = true" in sql_true
+    assert "(data ->> 'is_active')::boolean = false" in sql_false
 
 
 def test_multiple_operators_same_field() -> None:
@@ -79,9 +79,9 @@ def test_multiple_operators_same_field() -> None:
     where = PersonWhere(age={"gte": 18, "lt": 65})
     sql_str = where.to_sql().as_string(None)
 
-    # Should generate proper SQL for range queries (numbers aren't quoted)
-    assert "(data ->> 'age') >= 18" in sql_str
-    assert "(data ->> 'age') < 65" in sql_str
+    # Should generate proper SQL for range queries with numeric casting
+    assert "(data ->> 'age')::numeric >= 18" in sql_str
+    assert "(data ->> 'age')::numeric < 65" in sql_str
     assert " AND " in sql_str
 
 

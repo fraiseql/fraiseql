@@ -13,8 +13,6 @@ and similar query builders.
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from decimal import Decimal
 from functools import cache
 from typing import (
     Any,
@@ -29,6 +27,8 @@ from typing import (
 )
 
 from psycopg.sql import SQL, Composed, Literal
+
+from .operator_strategies import get_operator_registry
 
 # Define a type variable for the generic value to coerce
 TValue = TypeVar("TValue", bound=object)
@@ -54,6 +54,9 @@ def build_operator_composed(
 ) -> Composed:
     """Build parameterized SQL for a specific operator using psycopg Composed.
 
+    This function delegates to the operator registry which uses a strategy
+    pattern to handle different operators in a clean, maintainable way.
+
     Args:
         path_sql: The SQL object representing the JSONB path expression.
         op: The operator name.
@@ -63,115 +66,8 @@ def build_operator_composed(
     Returns:
         A psycopg Composed object with properly parameterized SQL.
     """
-    # Special handling for isnull operator - don't convert the boolean
-    if op == "isnull":
-        # val is a boolean indicating whether we want IS NULL or IS NOT NULL
-        if val:
-            return Composed([path_sql, SQL(" IS NULL")])
-        return Composed([path_sql, SQL(" IS NOT NULL")])
-
-    # Determine if we need type casting based on the value type and operator
-    # For comparisons, we need to cast the JSONB text to the appropriate type
-
-    # Handle booleans first (before checking for numeric cast)
-    if isinstance(val, bool):
-        # For booleans, we cast the path to boolean
-        path_sql = Composed([path_sql, SQL("::boolean")])
-    elif op in ("gt", "gte", "lt", "lte") or (op in ("eq", "neq") and not isinstance(val, str)):
-        # Need type casting for non-string comparisons
-        if isinstance(val, (int, float, Decimal)):
-            # Cast to numeric for numeric comparison
-            path_sql = Composed([path_sql, SQL("::numeric")])
-        elif isinstance(val, datetime):
-            # Cast to timestamp for datetime comparison
-            path_sql = Composed([path_sql, SQL("::timestamp")])
-        elif isinstance(val, date):
-            # Cast to date for date comparison
-            path_sql = Composed([path_sql, SQL("::date")])
-
-    # For booleans in text comparison, convert value but not for casting
-    if isinstance(val, bool) and False:  # Disabled - we cast to boolean above
-        val = str(val).lower()  # Convert True to 'true', False to 'false'
-
-    if op == "eq":
-        return Composed([path_sql, SQL(" = "), Literal(val)])
-    if op == "neq":
-        return Composed([path_sql, SQL(" != "), Literal(val)])
-    if op == "gt":
-        return Composed([path_sql, SQL(" > "), Literal(val)])
-    if op == "gte":
-        return Composed([path_sql, SQL(" >= "), Literal(val)])
-    if op == "lt":
-        return Composed([path_sql, SQL(" < "), Literal(val)])
-    if op == "lte":
-        return Composed([path_sql, SQL(" <= "), Literal(val)])
-    if op == "contains":
-        return Composed([path_sql, SQL(" @> "), Literal(val)])
-    if op == "overlaps":
-        return Composed([path_sql, SQL(" && "), Literal(val)])
-    if op == "matches":
-        return Composed([path_sql, SQL(" ~ "), Literal(val)])
-    if op == "startswith":
-        if isinstance(val, str):
-            # Use LIKE for better performance and safety
-            return Composed([path_sql, SQL(" LIKE "), Literal(val + "%")])
-        return Composed([path_sql, SQL(" ~ "), Literal(str(val)), SQL(".*")])
-    if op == "in":
-        if isinstance(val, list):
-            # Determine type from list values
-            if val and all(isinstance(v, (int, float, Decimal)) for v in val):
-                # Numeric IN clause - cast path to numeric
-                path_sql = Composed([path_sql, SQL("::numeric")])
-                literals = [Literal(v) for v in val]
-            else:
-                # String/mixed IN clause
-                converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
-                literals = [Literal(v) for v in converted_vals]
-            parts = [path_sql, SQL(" IN (")]
-            for i, lit in enumerate(literals):
-                if i > 0:
-                    parts.append(SQL(", "))
-                parts.append(lit)
-            parts.append(SQL(")"))
-            return Composed(parts)
-        msg = f"'in' operator requires a list, got {type(val)}"
-        raise ValueError(msg)
-    if op == "notin":
-        if isinstance(val, list):
-            # Convert booleans to strings for JSONB text comparison
-            converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
-            literals = [Literal(v) for v in converted_vals]
-            parts = [path_sql, SQL(" NOT IN (")]
-            for i, lit in enumerate(literals):
-                if i > 0:
-                    parts.append(SQL(", "))
-                parts.append(lit)
-            parts.append(SQL(")"))
-            return Composed(parts)
-        msg = f"'notin' operator requires a list, got {type(val)}"
-        raise ValueError(msg)
-    if op == "depth_eq":
-        return Composed([SQL("nlevel("), path_sql, SQL(") = "), Literal(val)])
-    if op == "depth_gt":
-        return Composed([SQL("nlevel("), path_sql, SQL(") > "), Literal(val)])
-    if op == "depth_lt":
-        return Composed([SQL("nlevel("), path_sql, SQL(") < "), Literal(val)])
-    if op == "isdescendant":
-        return Composed([path_sql, SQL(" <@ "), Literal(val)])
-    if op == "strictly_contains":
-        return Composed(
-            [
-                path_sql,
-                SQL(" @> "),
-                Literal(val),
-                SQL(" AND "),
-                path_sql,
-                SQL(" != "),
-                Literal(val),
-            ],
-        )
-    msg = f"Unsupported operator: {op}"
-    raise ValueError(msg)
+    registry = get_operator_registry()
+    return registry.build_sql(path_sql, op, val, field_type)
 
 
 def _make_filter_field_composed(
