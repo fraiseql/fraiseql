@@ -27,6 +27,7 @@ except ImportError:
 
     class Counter:  # type: ignore[misc]
         """Placeholder counter when prometheus_client is not available."""
+
         def __init__(self, *args, **kwargs) -> None:
             """Initialize placeholder counter."""
 
@@ -39,6 +40,7 @@ except ImportError:
 
     class Gauge:  # type: ignore[misc]
         """Placeholder gauge when prometheus_client is not available."""
+
         def __init__(self, *args, **kwargs) -> None:
             """Initialize placeholder gauge."""
 
@@ -57,6 +59,7 @@ except ImportError:
 
     class Histogram:  # type: ignore[misc]
         """Placeholder histogram when prometheus_client is not available."""
+
         def __init__(self, *args, **kwargs) -> None:
             """Initialize placeholder histogram."""
 

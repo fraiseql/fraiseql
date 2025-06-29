@@ -551,7 +551,7 @@ class TestN1DetectionContext:
                 suggestions=[],
                 total_queries=0,
                 threshold_exceeded=False,
-            )
+            ),
         )
 
         try:
@@ -582,7 +582,7 @@ class TestN1DetectionContext:
                 suggestions=[],
                 total_queries=0,
                 threshold_exceeded=False,
-            )
+            ),
         )
 
         async with n1_detection_context(request_id):

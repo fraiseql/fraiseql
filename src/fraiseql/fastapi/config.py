@@ -118,14 +118,14 @@ class FraiseQLConfig(BaseSettings):
     cache_ttl: int = 300  # seconds
     enable_turbo_router: bool = True  # Enable TurboRouter for registered queries
     turbo_router_cache_size: int = 1000  # Max number of queries to cache
-    
+
     # Token revocation settings
     revocation_enabled: bool = True
     revocation_check_enabled: bool = True
     revocation_ttl: int = 86400  # 24 hours
     revocation_cleanup_interval: int = 3600  # 1 hour
     revocation_store_type: str = "memory"  # "memory" or "redis"
-    
+
     # Query complexity settings
     complexity_enabled: bool = True
     complexity_max_score: int = 1000
@@ -133,7 +133,7 @@ class FraiseQLConfig(BaseSettings):
     complexity_default_list_size: int = 10
     complexity_include_in_response: bool = False
     complexity_field_multipliers: dict[str, int] = {}
-    
+
     # Rate limiting settings
     rate_limit_enabled: bool = True
     rate_limit_requests_per_minute: int = 60

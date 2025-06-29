@@ -48,7 +48,9 @@ class TestCQRSRepositoryCommands:
         }
 
         with patch.object(
-            repository.executor, "execute_function", return_value=expected_result
+            repository.executor,
+            "execute_function",
+            return_value=expected_result,
         ) as mock_exec:
             result = await repository.create(
                 "user",
@@ -78,7 +80,9 @@ class TestCQRSRepositoryCommands:
         }
 
         with patch.object(
-            repository.executor, "execute_function", return_value=expected_result
+            repository.executor,
+            "execute_function",
+            return_value=expected_result,
         ) as mock_exec:
             result = await repository.update("user", update_data)
 
@@ -91,7 +95,9 @@ class TestCQRSRepositoryCommands:
         expected_result = {"id": test_id, "deleted": True}
 
         with patch.object(
-            repository.executor, "execute_function", return_value=expected_result
+            repository.executor,
+            "execute_function",
+            return_value=expected_result,
         ) as mock_exec:
             result = await repository.delete("user", test_id)
 
@@ -103,7 +109,9 @@ class TestCQRSRepositoryCommands:
         function_result = {"status": "success", "count": 5}
 
         with patch.object(
-            repository.executor, "execute_function", return_value=function_result
+            repository.executor,
+            "execute_function",
+            return_value=function_result,
         ) as mock_exec:
             result = await repository.execute_function("custom_function", {"param": "value"})
 
@@ -126,7 +134,9 @@ class TestCQRSRepositoryQueries:
         }
 
         with patch.object(
-            repository.executor, "execute_query", return_value=[expected_data]
+            repository.executor,
+            "execute_query",
+            return_value=[expected_data],
         ) as mock_exec:
             from fraiseql.types import fraise_type
 
@@ -167,7 +177,9 @@ class TestCQRSRepositoryQueries:
         ]
 
         with patch.object(
-            repository.executor, "execute_query", return_value=expected_data
+            repository.executor,
+            "execute_query",
+            return_value=expected_data,
         ) as mock_exec:
             from fraiseql.types import fraise_type
 
@@ -191,7 +203,9 @@ class TestCQRSRepositoryQueries:
         expected_data = [{"data": {"id": "1", "name": "Active User"}}]
 
         with patch.object(
-            repository.executor, "execute_query", return_value=expected_data
+            repository.executor,
+            "execute_query",
+            return_value=expected_data,
         ) as mock_exec:
             from fraiseql.types import fraise_type
 
@@ -215,7 +229,9 @@ class TestCQRSRepositoryQueries:
         expected_data = []
 
         with patch.object(
-            repository.executor, "execute_query", return_value=expected_data
+            repository.executor,
+            "execute_query",
+            return_value=expected_data,
         ) as mock_exec:
             from fraiseql.types import fraise_type
 
@@ -243,7 +259,9 @@ class TestCQRSRepositoryQueries:
         ]
 
         with patch.object(
-            repository.executor, "execute_query", return_value=expected_data
+            repository.executor,
+            "execute_query",
+            return_value=expected_data,
         ) as mock_exec:
             from fraiseql.types import fraise_type
 
@@ -273,7 +291,9 @@ class TestCQRSRepositoryQueries:
         params = None
 
         with patch.object(
-            repository.executor, "execute_query", return_value=expected_data
+            repository.executor,
+            "execute_query",
+            return_value=expected_data,
         ) as mock_exec:
             results = await repository.execute_query(query, params)
 
@@ -448,7 +468,9 @@ class TestCQRSRepositoryUtilities:
         expected_count = [{"count": 42}]
 
         with patch.object(
-            repository.executor, "execute_query", return_value=expected_count
+            repository.executor,
+            "execute_query",
+            return_value=expected_count,
         ) as mock_exec:
             from fraiseql.types import fraise_type
 

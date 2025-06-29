@@ -245,4 +245,3 @@ class TestAuth0Provider:
 
         with pytest.raises(AuthenticationError, match="Failed to fetch user profile"):
             await auth0_provider.get_user_profile("auth0|123", "access-token")
-

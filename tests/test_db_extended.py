@@ -419,7 +419,7 @@ class TestRepositoryEdgeCases:
                 SQL("SELECT * FROM users WHERE "),
                 SQL("id = %s AND "),
                 SQL("status = %s"),
-            ]
+            ],
         )
 
         query = DatabaseQuery(complex_sql, {"id": 1, "status": "active"})

@@ -165,7 +165,11 @@ class TestFraiseQLRepository:
         assert repo.context == {}
 
     async def test_run_query_with_results(
-        self, repository, mock_pool, mock_connection, mock_cursor
+        self,
+        repository,
+        mock_pool,
+        mock_connection,
+        mock_cursor,
     ):
         """Test running a query that returns results."""
         # Setup mocks
@@ -192,7 +196,11 @@ class TestFraiseQLRepository:
         mock_cursor.fetchall.assert_called_once()
 
     async def test_run_query_without_fetch(
-        self, repository, mock_pool, mock_connection, mock_cursor
+        self,
+        repository,
+        mock_pool,
+        mock_connection,
+        mock_cursor,
     ):
         """Test running a query without fetching results."""
         # Setup mocks
@@ -215,7 +223,11 @@ class TestFraiseQLRepository:
         mock_cursor.fetchall.assert_not_called()
 
     async def test_run_query_with_exception(
-        self, repository, mock_pool, mock_connection, mock_cursor
+        self,
+        repository,
+        mock_pool,
+        mock_connection,
+        mock_cursor,
     ):
         """Test running a query that raises an exception."""
         # Setup mocks
@@ -284,7 +296,11 @@ class TestFraiseQLRepository:
         assert "test_function" in str(call_args[0])
 
     async def test_execute_function_no_result(
-        self, repository, mock_pool, mock_connection, mock_cursor
+        self,
+        repository,
+        mock_pool,
+        mock_connection,
+        mock_cursor,
     ):
         """Test executing a function that returns no result."""
         # Setup mocks

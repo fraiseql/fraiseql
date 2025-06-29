@@ -566,7 +566,7 @@ class TestCacheDecorator:
         results1 = await self._collect_async_gen(test_subscription(mock_info, param1="a", param2=1))
         results2 = await self._collect_async_gen(test_subscription(mock_info, param1="b", param2=2))
         results3 = await self._collect_async_gen(
-            test_subscription(mock_info, param1="a", param2=1)
+            test_subscription(mock_info, param1="a", param2=1),
         )  # Same as first
 
         assert results1 == ["result_1_a_1"]

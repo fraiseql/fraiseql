@@ -4,7 +4,7 @@ Following TDD principles, these tests are written before the implementation.
 """
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
@@ -75,9 +75,8 @@ class TestCacheKeyBuilder:
     def test_datetime_handling(self):
         """Test proper datetime serialization in cache keys."""
         builder = CacheKeyBuilder()
-        from datetime import timezone
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         key = builder.build_key(
             query_name="events",
@@ -360,7 +359,7 @@ class TestResultCache:
             side_effect=[
                 {"users": [1, 2, 3]},
                 {"products": [4, 5, 6]},
-            ]
+            ],
         )
 
         await cache.warm_cache(queries, query_func)

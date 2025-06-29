@@ -123,7 +123,8 @@ class TestFraiseQLMetrics:
         else:
             metrics.mutation_total.inc.assert_called()
             metrics.mutation_success.inc.assert_called_with(
-                1, {"mutation_name": "CreateUser", "result_type": "User"}
+                1,
+                {"mutation_name": "CreateUser", "result_type": "User"},
             )
 
     def test_record_mutation_error(self, metrics):
@@ -139,7 +140,8 @@ class TestFraiseQLMetrics:
             assert metrics.mutation_errors._value._value > 0
         else:
             metrics.mutation_errors.inc.assert_called_with(
-                1, {"mutation_name": "CreateUser", "error_type": "ValidationError"}
+                1,
+                {"mutation_name": "CreateUser", "error_type": "ValidationError"},
             )
 
     def test_update_db_pool_stats(self, metrics):
@@ -167,7 +169,8 @@ class TestFraiseQLMetrics:
             assert metrics.db_queries_total._value._value > 0
         else:
             metrics.db_queries_total.inc.assert_called_with(
-                1, {"query_type": "SELECT", "table_name": "users"}
+                1,
+                {"query_type": "SELECT", "table_name": "users"},
             )
             metrics.db_query_duration.observe.assert_called_with(0.045, {"query_type": "SELECT"})
 
@@ -200,7 +203,8 @@ class TestFraiseQLMetrics:
             assert metrics.errors_total._value._value > 0
         else:
             metrics.errors_total.inc.assert_called_with(
-                1, {"error_type": "ValidationError", "category": "graphql"}
+                1,
+                {"error_type": "ValidationError", "category": "graphql"},
             )
 
     def test_record_subscription(self, metrics):
@@ -212,7 +216,8 @@ class TestFraiseQLMetrics:
             assert metrics.subscriptions_active._value._value > 0
         else:
             metrics.subscriptions_active.inc.assert_called_with(
-                1, {"subscription_name": "MessageAdded"}
+                1,
+                {"subscription_name": "MessageAdded"},
             )
 
         # Complete subscription
@@ -222,10 +227,12 @@ class TestFraiseQLMetrics:
             assert metrics.subscriptions_active._value._value == 0
         else:
             metrics.subscriptions_active.dec.assert_called_with(
-                1, {"subscription_name": "MessageAdded"}
+                1,
+                {"subscription_name": "MessageAdded"},
             )
             metrics.subscription_duration.observe.assert_called_with(
-                120.5, {"subscription_name": "MessageAdded"}
+                120.5,
+                {"subscription_name": "MessageAdded"},
             )
 
     def test_update_turbo_router_stats(self, metrics):

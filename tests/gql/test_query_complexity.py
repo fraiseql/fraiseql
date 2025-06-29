@@ -30,7 +30,10 @@ class TestFieldComplexity:
         # With nested complexity
         assert (
             calculate_field_complexity(
-                "users", is_list=True, estimated_size=10, nested_complexity=3
+                "users",
+                is_list=True,
+                estimated_size=10,
+                nested_complexity=3,
             )
             == 31
         )
@@ -48,7 +51,9 @@ class TestFieldComplexity:
         nested_complexity = 5  # Sum of nested field complexities
         assert (
             calculate_field_complexity(
-                "author", is_object=True, nested_complexity=nested_complexity
+                "author",
+                is_object=True,
+                nested_complexity=nested_complexity,
             )
             == 6
         )
@@ -64,7 +69,11 @@ class TestFieldComplexity:
         # List with multiplier and nested: base(2) + 10 * 1 = 12
         assert (
             calculate_field_complexity(
-                "expensive_list", is_list=True, limit=10, multiplier=2, nested_complexity=1
+                "expensive_list",
+                is_list=True,
+                limit=10,
+                multiplier=2,
+                nested_complexity=1,
             )
             == 12
         )

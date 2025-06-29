@@ -120,7 +120,7 @@ class TestValidateWhereInput:
                     "_or": [
                         {"name": {"_eq": "John"}},
                         {"name": {"_eq": "Jane"}},
-                    ]
+                    ],
                 },
                 {"age": {"_gte": 18}},
             ],
@@ -301,7 +301,7 @@ class TestEdgeCases:
                     "_or": [
                         {"age": {"_gte": 18, "_lte": 65}},
                         {"is_active": {"_eq": True}},
-                    ]
+                    ],
                 },
                 {"_not": {"email": {"_is_null": True}}},
                 {"id": {"_in": [1, 2, 3, 4, 5]}},

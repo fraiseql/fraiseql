@@ -31,7 +31,7 @@ class TestDeletionInput:
         # Check that it has the expected fields through FraiseQL definition
         definition = getattr(DeletionInput, "__fraiseql_definition__", None)
         assert definition is not None
-        
+
         field_names = list(definition.fields.keys())
         assert "id" in field_names
         assert "hard_delete" in field_names

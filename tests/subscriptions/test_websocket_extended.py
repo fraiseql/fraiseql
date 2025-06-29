@@ -104,7 +104,7 @@ class TestWebSocketConnection:
         """Set up test fixtures."""
         self.mock_websocket = AsyncMock()
         self.schema = build_schema(
-            "type Query { hello: String } type Subscription { test: String }"
+            "type Query { hello: String } type Subscription { test: String }",
         )
 
     def test_connection_initialization(self):
@@ -178,7 +178,7 @@ class TestWebSocketConnection:
                 {
                     "type": MessageType.CONNECTION_INIT,
                     "payload": {"auth": "token"},
-                }
+                },
             ),
         }
         self.mock_websocket.receive.return_value = raw_message
@@ -621,7 +621,7 @@ class TestSubscriptionManager:
         """Set up test fixtures."""
         self.manager = SubscriptionManager()
         self.schema = build_schema(
-            "type Query { hello: String } type Subscription { test: String }"
+            "type Query { hello: String } type Subscription { test: String }",
         )
         self.manager.schema = self.schema
 

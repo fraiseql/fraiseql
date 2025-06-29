@@ -217,7 +217,9 @@ class TestGraphQLCSRFValidator:
         request.cookies = {}
 
         with patch.object(
-            validator.token_generator, "validate_token", return_value=True
+            validator.token_generator,
+            "validate_token",
+            return_value=True,
         ) as mock_validate:
             result = await validator.validate_request(
                 request,
@@ -236,7 +238,9 @@ class TestGraphQLCSRFValidator:
         request.cookies = {"csrf_token": "cookie-token"}
 
         with patch.object(
-            validator.token_generator, "validate_token", return_value=True
+            validator.token_generator,
+            "validate_token",
+            return_value=True,
         ) as mock_validate:
             result = await validator.validate_request(
                 request,

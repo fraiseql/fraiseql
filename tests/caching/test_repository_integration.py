@@ -122,7 +122,7 @@ class TestCachedRepository:
             return_value={
                 "id": str(uuid4()),
                 "status": "success",
-            }
+            },
         )
         mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
         mock_cursor.__aexit__ = AsyncMock(return_value=None)
