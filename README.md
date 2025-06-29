@@ -13,7 +13,7 @@
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
 [![codecov](https://codecov.io/gh/fraiseql/fraiseql/branch/main/graph/badge.svg)](https://codecov.io/gh/fraiseql/fraiseql)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![PyPI version](https://img.shields.io/badge/pypi-v0.1.0a21-blue.svg)](https://badge.fury.io/py/fraiseql)
+[![PyPI version](https://img.shields.io/badge/pypi-v0.1.0b1-blue.svg)](https://badge.fury.io/py/fraiseql)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 

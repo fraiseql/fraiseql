@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fraiseql"
-version = "0.1.0a21"
+version = "0.1.0b1"
 description = "Lightweight GraphQL-to-PostgreSQL query builder using jsonb"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
@@ -14,7 +14,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["graphql", "postgresql", "api", "database", "jsonb", "fastapi", "async", "orm"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "License :: OSI Approved :: MIT License",
