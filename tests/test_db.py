@@ -19,7 +19,8 @@ class TestFraiseQLRepository:
     @pytest.fixture
     def repository(self, mock_pool):
         """Create a repository instance with mocked pool."""
-        return FraiseQLRepository(pool=mock_pool)
+        # Disable query timeout for tests to avoid SET LOCAL calls
+        return FraiseQLRepository(pool=mock_pool, context={"query_timeout": None})
 
     def _setup_mocks(self, mock_pool, mock_cursor):
         """Helper to set up the mock connection and cursor properly."""
