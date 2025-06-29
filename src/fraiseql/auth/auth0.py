@@ -241,20 +241,27 @@ class Auth0Provider(AuthProvider):
 
         Returns:
             User profile data
+
+        Raises:
+            AuthenticationError: If the request fails or returns an error
         """
-        client = await self.http_client
+        try:
+            client = await self.http_client
 
-        response = await client.get(
-            f"https://{self.domain}/api/v2/users/{user_id}",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
+            response = await client.get(
+                f"https://{self.domain}/api/v2/users/{user_id}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
 
-        http_ok = 200
-        if response.status_code != http_ok:
-            msg = f"Failed to fetch user profile: {response.text}"
-            raise AuthenticationError(msg)
+            http_ok = 200
+            if response.status_code != http_ok:
+                msg = f"Failed to fetch user profile: {response.text}"
+                raise AuthenticationError(msg)
 
-        return response.json()
+            return response.json()
+        except httpx.HTTPError as e:
+            msg = f"Failed to fetch user profile: {e}"
+            raise AuthenticationError(msg) from e
 
     async def get_user_roles(self, user_id: str, access_token: str) -> list[dict[str, Any]]:
         """Fetch user roles from Auth0 Management API.

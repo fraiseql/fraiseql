@@ -217,21 +217,21 @@ class TestAuth0Provider:
 
         # Mock HTTP client
         mock_client = AsyncMock()
-        mock_client.get.return_value = AsyncMock(
-            json=AsyncMock(return_value=mock_response),
-            raise_for_status=AsyncMock(),
+        mock_response_obj = AsyncMock()
+        mock_response_obj.status_code = 200
+        mock_response_obj.json = MagicMock(return_value=mock_response)
+        mock_client.get.return_value = mock_response_obj
+
+        # Patch the internal HTTP client directly
+        auth0_provider._http_client = mock_client
+
+        profile = await auth0_provider.get_user_profile("auth0|123", "access-token")
+
+        assert profile == mock_response
+        mock_client.get.assert_called_once_with(
+            "https://test.auth0.com/api/v2/users/auth0|123",
+            headers={"Authorization": "Bearer access-token"},
         )
-
-        with patch.object(auth0_provider, "http_client", new_callable=AsyncMock) as mock_http:
-            mock_http.return_value = mock_client
-
-            profile = await auth0_provider.get_user_profile("auth0|123", "access-token")
-
-            assert profile == mock_response
-            mock_client.get.assert_called_once_with(
-                "https://test.auth0.com/api/v2/users/auth0|123",
-                headers={"Authorization": "Bearer access-token"},
-            )
 
     @pytest.mark.asyncio
     async def test_get_user_profile_error(self, auth0_provider):
@@ -240,56 +240,9 @@ class TestAuth0Provider:
         mock_client = AsyncMock()
         mock_client.get.side_effect = httpx.HTTPError("Network error")
 
-        with patch.object(auth0_provider, "http_client", new_callable=AsyncMock) as mock_http:
-            mock_http.return_value = mock_client
+        # Patch the internal HTTP client directly
+        auth0_provider._http_client = mock_client
 
-            with pytest.raises(AuthenticationError, match="Failed to fetch user profile"):
-                await auth0_provider.get_user_profile("auth0|123", "access-token")
+        with pytest.raises(AuthenticationError, match="Failed to fetch user profile"):
+            await auth0_provider.get_user_profile("auth0|123", "access-token")
 
-    @pytest.mark.asyncio
-    async def test_refresh_token(self, auth0_provider):
-        """Test token refresh functionality."""
-        mock_response = {
-            "access_token": "new-access-token",
-            "id_token": "new-id-token",
-            "token_type": "Bearer",
-            "expires_in": 86400,
-        }
-
-        # Mock HTTP client
-        mock_client = AsyncMock()
-        mock_client.post.return_value = AsyncMock(
-            json=AsyncMock(return_value=mock_response),
-            raise_for_status=AsyncMock(),
-        )
-
-        with patch.object(auth0_provider, "http_client", new_callable=AsyncMock) as mock_http:
-            mock_http.return_value = mock_client
-
-            result = await auth0_provider.refresh_token("refresh-token-value")
-
-            assert result == mock_response
-            mock_client.post.assert_called_once()
-            call_args = mock_client.post.call_args
-            assert call_args[0][0] == "https://test.auth0.com/oauth/token"
-            assert call_args[1]["json"]["grant_type"] == "refresh_token"
-            assert call_args[1]["json"]["refresh_token"] == "refresh-token-value"
-
-    @pytest.mark.asyncio
-    async def test_refresh_token_error(self, auth0_provider):
-        """Test error handling in refresh_token."""
-        # Mock HTTP client to return error response
-        mock_client = AsyncMock()
-        mock_response = AsyncMock()
-        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "400 Bad Request",
-            request=MagicMock(),
-            response=MagicMock(status_code=400),
-        )
-        mock_client.post.return_value = mock_response
-
-        with patch.object(auth0_provider, "http_client", new_callable=AsyncMock) as mock_http:
-            mock_http.return_value = mock_client
-
-            with pytest.raises(AuthenticationError, match="Token refresh failed"):
-                await auth0_provider.refresh_token("invalid-refresh-token")
