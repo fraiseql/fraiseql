@@ -125,6 +125,23 @@ class FraiseQLConfig(BaseSettings):
     revocation_ttl: int = 86400  # 24 hours
     revocation_cleanup_interval: int = 3600  # 1 hour
     revocation_store_type: str = "memory"  # "memory" or "redis"
+    
+    # Query complexity settings
+    complexity_enabled: bool = True
+    complexity_max_score: int = 1000
+    complexity_max_depth: int = 10
+    complexity_default_list_size: int = 10
+    complexity_include_in_response: bool = False
+    complexity_field_multipliers: dict[str, int] = {}
+    
+    # Rate limiting settings
+    rate_limit_enabled: bool = True
+    rate_limit_requests_per_minute: int = 60
+    rate_limit_requests_per_hour: int = 1000
+    rate_limit_burst_size: int = 10
+    rate_limit_window_type: str = "sliding"  # "sliding" or "fixed"
+    rate_limit_whitelist: list[str] = []
+    rate_limit_blacklist: list[str] = []
 
     # CORS settings
     cors_enabled: bool = True
