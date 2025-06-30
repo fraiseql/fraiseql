@@ -10,9 +10,9 @@ FraiseQL now expects your tables/views to follow this pattern:
 
 ```sql
 -- Example: tv_allocation
-SELECT 
+SELECT
     id,              -- For primary key
-    tenant_id,       -- For access control  
+    tenant_id,       -- For access control
     machine_id,      -- For filtering/joins
     location_id,     -- For filtering/joins
     data             -- JSONB column with complete object (REQUIRED)
@@ -36,7 +36,7 @@ class Allocation:
     valid_until: Optional[date]
     is_current: bool
     notes: Optional[str]
-    
+
     # Nested objects are automatically instantiated
     machine: Optional[Machine]
     location: Optional[Location]

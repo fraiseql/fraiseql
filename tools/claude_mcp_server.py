@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
-"""
-FraiseQL MCP Server for Claude Code
+"""FraiseQL MCP Server for Claude Code
 Provides stack-specific context and code examples
 """
 
 import json
-import os
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict
+
 
 class FraiseQLMCPServer:
     """MCP server providing FraiseQL-specific context to Claude Code"""
-    
+
     def __init__(self, project_root: str):
         self.project_root = Path(project_root)
         self.docs_path = self.project_root / "docs"
         self.examples_path = self.project_root / "examples"
-    
+
     def get_patterns(self, pattern_type: str) -> Dict[str, Any]:
         """Get common FraiseQL patterns"""
         patterns = {
@@ -27,19 +26,19 @@ class User:
     id: UUID
     name: str
     email: str
-    created_at: datetime"""
+    created_at: datetime""",
             },
             "query_function": {
                 "description": "FraiseQL query function (not resolver)",
                 "code": """@fraiseql.query
 async def users(info, limit: int = 10) -> list[User]:
     db = info.context["db"]
-    return await db.find("user_view", limit=limit)"""
+    return await db.find("user_view", limit=limit)""",
             },
             "database_view": {
                 "description": "JSONB pattern for database views",
                 "code": """CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,
     tenant_id,
     jsonb_build_object(
@@ -48,7 +47,7 @@ SELECT
         'email', email,
         'created_at', created_at
     ) as data
-FROM users;"""
+FROM users;""",
             },
             "mutation": {
                 "description": "FraiseQL mutation with union types",
@@ -63,11 +62,11 @@ async def create_user(info, input: CreateUserInput) -> CreateUserResult:
         )
         return CreateUserSuccess(user_id=user_id)
     except Exception as e:
-        return CreateUserError(message=str(e))"""
-            }
+        return CreateUserError(message=str(e))""",
+            },
         }
         return patterns.get(pattern_type, {})
-    
+
     def get_architecture_guidance(self) -> Dict[str, str]:
         """Get architecture-specific guidance"""
         return {
@@ -75,9 +74,9 @@ async def create_user(info, input: CreateUserInput) -> CreateUserResult:
             "jsonb": "All data must flow through JSONB 'data' column in views",
             "auth": "Use @requires_auth decorator and check info.context['user']",
             "testing": "Use unified container testing with database_conftest.py",
-            "frontend": "Generate TypeScript types from GraphQL schema"
+            "frontend": "Generate TypeScript types from GraphQL schema",
         }
-    
+
     def suggest_file_structure(self, feature_name: str) -> Dict[str, str]:
         """Suggest file structure for a new feature"""
         return {
@@ -86,8 +85,9 @@ async def create_user(info, input: CreateUserInput) -> CreateUserResult:
             f"src/mutations/{feature_name}.py": "Mutation functions with @fraiseql.mutation",
             f"db/views/{feature_name}_view.sql": "Database view with JSONB data column",
             f"db/functions/{feature_name}_functions.sql": "PostgreSQL functions for mutations",
-            f"tests/test_{feature_name}.py": "Unit and integration tests"
+            f"tests/test_{feature_name}.py": "Unit and integration tests",
         }
+
 
 if __name__ == "__main__":
     # MCP server initialization would go here

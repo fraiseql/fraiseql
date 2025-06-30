@@ -34,7 +34,7 @@ from psycopg.sql import SQL
 
 class FraiseQLFilterAdapter:
     """Adapts your existing Where types to work with FraiseQL."""
-    
+
     @staticmethod
     def apply_where_to_query(
         db: FraiseQLRepository,
@@ -46,51 +46,51 @@ class FraiseQLFilterAdapter:
         order_by: str | None = None
     ) -> list[Any]:
         """Apply your Where type to a FraiseQL query."""
-        
+
         # Build base WHERE clause from simple filters
         conditions = []
         params = {}
-        
+
         if base_filters:
             for key, value in base_filters.items():
                 conditions.append(f"{key} = %({key})s")
                 params[key] = value
-        
+
         # Add WHERE conditions from your generated type
         if where and hasattr(where, 'to_sql'):
             where_sql = where.to_sql(view_name)
             if where_sql:
                 conditions.append(where_sql)
-        
+
         # Build complete query
         where_clause = " AND ".join(conditions) if conditions else "TRUE"
-        
+
         query_parts = [f"SELECT * FROM {view_name}"]
         if where_clause != "TRUE":
             query_parts.append(f"WHERE {where_clause}")
         if order_by:
             query_parts.append(f"ORDER BY {order_by}")
         query_parts.append(f"LIMIT %(limit)s OFFSET %(offset)s")
-        
+
         sql = " ".join(query_parts)
         params.update({"limit": limit, "offset": offset})
-        
+
         # Execute query
         query = DatabaseQuery(
             statement=SQL(sql),
             params=params,
             fetch_result=True
         )
-        
+
         results = await db.run(query)
-        
+
         # Handle mode-specific returns
         if db.mode == "development":
             # Extract type from view name convention
             type_name = view_name.replace("tv_", "").replace("tb_", "")
             # You'll need to map this to actual types
             return [result["data"] for result in results]
-        
+
         return results
 ```
 
@@ -109,10 +109,10 @@ async def machines(
     where: _MachineWhere | None = None,  # Use your generated type!
 ) -> list[Machine]:
     """Retrieve machines using existing Where types."""
-    
+
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # Use the adapter to handle your Where type
     return await FraiseQLFilterAdapter.apply_where_to_query(
         db=db,
@@ -124,7 +124,7 @@ async def machines(
         order_by="removed_at DESC NULLS LAST"
     )
 
-@fraiseql.query  
+@fraiseql.query
 async def allocations(
     info,
     limit: int = 20,
@@ -132,13 +132,13 @@ async def allocations(
     where: _AllocationWhere | None = None,  # Your generated type
 ) -> list[Allocation]:
     """Retrieve allocations using existing Where types."""
-    
+
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     return await FraiseQLFilterAdapter.apply_where_to_query(
         db=db,
-        view_name="tb_allocation", 
+        view_name="tb_allocation",
         where=where,
         base_filters={"tenant_id": tenant_id} if tenant_id else None,
         limit=limit,
@@ -158,7 +158,7 @@ from typing import Type
 
 def fraiseql_query_with_where(view_name: str, where_type: Type, order_by: str = "id"):
     """Decorator that automatically handles Where types."""
-    
+
     def decorator(func):
         @wraps(func)
         async def wrapper(
@@ -170,12 +170,12 @@ def fraiseql_query_with_where(view_name: str, where_type: Type, order_by: str = 
         ):
             db = info.context["db"]
             tenant_id = info.context.get("tenant_id")
-            
+
             # Let the decorated function add custom filters
             base_filters = {"tenant_id": tenant_id} if tenant_id else {}
             if hasattr(func, '_get_base_filters'):
                 base_filters.update(func._get_base_filters(info, **kwargs))
-            
+
             return await FraiseQLFilterAdapter.apply_where_to_query(
                 db=db,
                 view_name=view_name,
@@ -185,11 +185,11 @@ def fraiseql_query_with_where(view_name: str, where_type: Type, order_by: str = 
                 offset=offset,
                 order_by=order_by
             )
-        
+
         # Copy over the original function's metadata
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__
-        
+
         return wrapper
     return decorator
 
@@ -215,7 +215,7 @@ Your `to_sql()` generates queries expecting `json_data` column, but FraiseQL use
 ```sql
 -- Rename data column to match your filter expectation
 CREATE VIEW tb_machine AS
-SELECT 
+SELECT
     id, tenant_id, status,
     data as json_data  -- Alias to match your to_sql() output
 FROM original_machine_view;
@@ -225,7 +225,7 @@ FROM original_machine_view;
 ```python
 class SQLRewriter:
     """Rewrite SQL to match FraiseQL's data column name."""
-    
+
     @staticmethod
     def rewrite_for_fraiseql(sql: str) -> str:
         """Replace json_data with data in SQL."""
@@ -260,7 +260,7 @@ async def machines(info, limit=20, offset=0, where=None) -> list[Machine]:
     pass
 
 @fraiseql.query
-@fraiseql_query_with_where("tb_allocation", _AllocationWhere, "valid_from DESC")  
+@fraiseql_query_with_where("tb_allocation", _AllocationWhere, "valid_from DESC")
 async def allocations(info, limit=20, offset=0, where=None) -> list[Allocation]:
     """Get allocations with your existing filter system."""
     pass
@@ -275,11 +275,11 @@ async def complex_machine_query(
     """Complex query with custom logic."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     base_filters = {"tenant_id": tenant_id}
     if not include_archived:
         base_filters["removed_at"] = None
-    
+
     return await FraiseQLFilterAdapter.apply_where_to_query(
         db, "tb_machine", where, base_filters
     )

@@ -11,7 +11,7 @@ The FraiseQL library is using a deprecated pattern for initializing async connec
 
 ## Warning Details
 ```
-DeprecationWarning: AsyncConnectionPool opened in the constructor is deprecated. 
+DeprecationWarning: AsyncConnectionPool opened in the constructor is deprecated.
 Please use AsyncConnectionPool.open() or 'async with' instead.
 ```
 

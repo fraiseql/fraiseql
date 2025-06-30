@@ -1,6 +1,6 @@
 # Release Notes - v0.1.0a21
 
-**Release Date:** 2025-06-28  
+**Release Date:** 2025-06-28
 **Type:** Security & Quality Release
 
 ## 🎯 Release Highlights
@@ -82,7 +82,7 @@ No changes to production dependencies - this release focuses on development/test
 
 This is a **development-focused release** with no breaking changes to the production API. All improvements are in:
 - Development tooling
-- Test infrastructure  
+- Test infrastructure
 - Documentation
 - Security hardening
 

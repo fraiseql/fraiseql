@@ -13,7 +13,7 @@ Use the `@fraiseql.query` decorator on standalone functions instead of methods i
 @fraiseql.type
 class Query:
     """This doesn't work in FraiseQL!"""
-    
+
     async def machines(self, info, ...):
         pass
 ```
@@ -34,7 +34,7 @@ async def machines(
     """Retrieve a list of machines."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     return await db.find("tv_machine",
         tenant_id=tenant_id,
         limit=limit,
@@ -47,8 +47,8 @@ async def machine(info, id: UUID) -> Machine | None:
     """Get a single machine by ID."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
-    return await db.find_one("tv_machine", 
+
+    return await db.find_one("tv_machine",
         id=id,
         tenant_id=tenant_id
     )
@@ -123,15 +123,15 @@ async def machines(
     """Retrieve a list of machines."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     filters = {"tenant_id": tenant_id} if tenant_id else {}
-    
+
     # Add where conditions if provided
     if where:
         if where.status:
             filters["status"] = where.status
         # Add other filters as needed
-    
+
     return await db.find("tv_machine",
         **filters,
         limit=limit,
@@ -144,11 +144,11 @@ async def machine(info, id: UUID) -> Machine | None:
     """Get a single machine by ID."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     filters = {"id": id}
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     return await db.find_one("tv_machine", **filters)
 
 @fraiseql.query
@@ -156,7 +156,7 @@ async def machine_count(info) -> int:
     """Get total count of machines."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # You'd need to implement a count method or use raw SQL
     result = await db.find("tv_machine", tenant_id=tenant_id)
     return len(result)
@@ -202,13 +202,13 @@ query {
     createdAt
     removedAt
   }
-  
+
   machine(id: "123e4567-e89b-12d3-a456-426614174000") {
     id
     name
     status
   }
-  
+
   machineCount
 }
 ```

@@ -25,9 +25,9 @@ async def machines(
     """Retrieve a list of machines."""
     db = info.context["db"]  # Access FraiseQLRepository
     tenant_id = info.context.get("tenant_id")
-    
+
     # Use FraiseQL's find method
-    return await db.find("tv_machine", 
+    return await db.find("tv_machine",
         tenant_id=tenant_id,
         limit=limit,
         offset=offset
@@ -38,8 +38,8 @@ async def machine(info, id: UUID) -> Optional[Machine]:
     """Get a single machine by ID."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
-    return await db.find_one("tv_machine", 
+
+    return await db.find_one("tv_machine",
         id=id,
         tenant_id=tenant_id
     )
@@ -53,10 +53,10 @@ Use this if you prefer organizing queries in a class:
 @fraiseql.type
 class QueryRoot:
     """Root query type."""
-    
+
     @fraiseql.field
     async def machines(
-        self, 
+        self,
         root,  # Always None for root queries
         info,  # GraphQL resolve info
         limit: int = 20,
@@ -66,13 +66,13 @@ class QueryRoot:
         """Retrieve a list of machines."""
         db = info.context["db"]
         tenant_id = info.context.get("tenant_id")
-        
+
         return await db.find("tv_machine",
             tenant_id=tenant_id,
             limit=limit,
             offset=offset
         )
-    
+
     @fraiseql.field
     async def machine(self, root, info, id: UUID) -> Optional[Machine]:
         """Get a single machine by ID."""
@@ -85,7 +85,7 @@ class QueryRoot:
 1. **No resolve_ prefix**: Use the actual field name
 2. **No two-tier structure**: Put logic directly in the query function
 3. **Use @fraiseql.field**: Not resolver methods
-4. **Parameter order matters**: 
+4. **Parameter order matters**:
    - For @query: `(info, ...args)`
    - For @field: `(self, root, info, ...args)`
 
@@ -151,12 +151,12 @@ async def machines(
     """Retrieve machines with filtering."""
     db: FraiseQLRepository = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # Build filters
     filters = {"tenant_id": tenant_id}
     if where:
         filters.update(vars(where))
-    
+
     return await db.find("tv_machine", **filters, limit=limit, offset=offset)
 
 @fraiseql.query
@@ -164,9 +164,9 @@ async def machine(info, id: UUID) -> Optional[Machine]:
     """Get single machine."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
-    return await db.find_one("tv_machine", 
-        id=id, 
+
+    return await db.find_one("tv_machine",
+        id=id,
         tenant_id=tenant_id
     )
 

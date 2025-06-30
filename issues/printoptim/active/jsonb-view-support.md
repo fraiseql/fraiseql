@@ -10,16 +10,16 @@ PrintOptim has views like `public.v_item_category`:
 ```sql
 \d public.v_item_category
            View "public.v_item_category"
-  Column   | Type  | Collation | Nullable | Default 
+  Column   | Type  | Collation | Nullable | Default
 -----------+-------+-----------+----------+---------
- id        | uuid  |           |          | 
+ id        | uuid  |           |          |
  json_data | jsonb |           |          |
 ```
 
 Sample data:
 ```sql
 SELECT * FROM public.v_item_category LIMIT 1;
-                  id                  |                                     json_data                                     
+                  id                  |                                     json_data
 --------------------------------------+-----------------------------------------------------------------------------------
  a091f7e9-50d1-4fc6-aee5-f8745740abdb | {"id": "a091f7e9-50d1-4fc6-aee5-f8745740abdb", "name": "équipement", "parent_id": null, "identifier": "equipment"}
 ```
@@ -46,11 +46,11 @@ async def item_categories(
     parent_id: uuid.UUID | None = None,
 ) -> list[ItemCategory]:
     db = info.context["db"]  # FraiseQLRepository
-    
+
     where_clause = None
     if parent_id is not None:
         where_clause = {"parent_id": {"eq": parent_id}}
-    
+
     return await db.find(
         "v_item_category",
         where=where_clause,

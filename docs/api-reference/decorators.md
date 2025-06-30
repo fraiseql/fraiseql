@@ -348,13 +348,13 @@ from fraiseql.security.field_auth import authorize_field
 class User:
     id: UUID
     name: str  # Public field
-    
+
     @field
     @authorize_field(lambda info: info.context.get("is_admin", False))
     def email(self) -> str:
         """Email visible only to admins."""
         return self._email
-    
+
     @field
     @authorize_field(
         lambda info: info.context.get("user_id") == self.id,
@@ -380,7 +380,7 @@ async def check_premium_subscription(info) -> bool:
     user = info.context.get("user")
     if not user:
         return False
-    
+
     # Async database check
     subscription = await db.get_subscription(user["id"])
     return subscription and subscription.tier == "premium"
@@ -388,7 +388,7 @@ async def check_premium_subscription(info) -> bool:
 @fraiseql.type
 class PremiumContent:
     title: str
-    
+
     @field
     @authorize_field(check_premium_subscription)
     async def exclusive_data(self) -> str:
@@ -431,11 +431,11 @@ def can_access_user_data(info, user_id: int) -> bool:
     current_user = info.context.get("user")
     if not current_user:
         return False
-    
+
     # Admins can access anyone
     if current_user.get("role") == "admin":
         return True
-    
+
     # Users can only access their own data
     return current_user.get("id") == user_id
 
@@ -452,7 +452,7 @@ class Query:
 When using async permission checks with sync resolvers, a warning will be issued:
 
 ```
-Using async permission check with sync resolver 'field_name'. 
+Using async permission check with sync resolver 'field_name'.
 Consider making the resolver async for better performance.
 ```
 

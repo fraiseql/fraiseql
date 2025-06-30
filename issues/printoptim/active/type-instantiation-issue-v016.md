@@ -42,7 +42,7 @@ register_views()
 ### Database Views
 ```sql
 CREATE VIEW tv_allocation AS
-SELECT 
+SELECT
     id,
     tenant_id,
     identifier,

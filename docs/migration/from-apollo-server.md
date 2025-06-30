@@ -131,7 +131,7 @@ class User:
     name: str = fraise_field(description="User's display name")
     email: str = fraise_field(description="User's email address")
     created_at: datetime = fraise_field(description="User creation timestamp")
-    
+
     # Automatic relationship resolution
     posts: list["Post"] = fraise_field(description="User's posts")
 
@@ -144,7 +144,7 @@ class Post:
     published: bool = fraise_field(default=False, description="Publication status")
     created_at: datetime = fraise_field(description="Post creation timestamp")
     user_id: UUID = fraise_field(description="Author's user ID")
-    
+
     # Automatic relationship resolution
     author: User = fraise_field(description="Post author")
 
@@ -190,25 +190,25 @@ async def posts(info, published: bool | None = None) -> list[Post]:
 async def create_user(info, input: CreateUserInput) -> UserSuccess | UserError:
     """Create a new user with proper error handling."""
     repository = FraiseQLRepository(info.context["db"])
-    
+
     # Check for existing email
     existing = await repository.get_one(
-        User, 
+        User,
         where={"email": {"_eq": input.email}}
     )
-    
+
     if existing:
         return UserError(
             message="Email already registered",
             field="email"
         )
-    
+
     # Create user
     user = await repository.create(User, {
         "name": input.name,
         "email": input.email
     })
-    
+
     return UserSuccess(
         user=user,
         message="User created successfully"
@@ -228,30 +228,30 @@ const resolvers = {
       // Potential N+1 query issue
       return context.dataSources.userAPI.getUsers();
     },
-    
+
     user: async (parent, { id }, context) => {
       return context.dataSources.userAPI.getUserById(id);
     },
-    
+
     posts: async (parent, { published }, context) => {
       return context.dataSources.postAPI.getPosts({ published });
     }
   },
-  
+
   User: {
     posts: async (user, args, context) => {
       // Manual DataLoader to prevent N+1
       return context.dataSources.postAPI.getPostsByUserId(user.id);
     }
   },
-  
+
   Post: {
     author: async (post, args, context) => {
       // Another potential N+1 without DataLoader
       return context.dataSources.userAPI.getUserById(post.userId);
     }
   },
-  
+
   Mutation: {
     createUser: async (parent, { input }, context) => {
       try {
@@ -263,7 +263,7 @@ const resolvers = {
             field: 'email'
           };
         }
-        
+
         const user = await context.dataSources.userAPI.createUser(input);
         return {
           __typename: 'UserSuccess',
@@ -291,7 +291,7 @@ const resolvers = {
 # SQL View for posts with author data (automatically created)
 """
 CREATE VIEW posts_with_author AS
-SELECT 
+SELECT
     p.id,
     p.data || jsonb_build_object(
         'author', u.data
@@ -302,14 +302,14 @@ FROM posts p
 LEFT JOIN users u ON (p.data->>'user_id')::uuid = u.id;
 """
 
-# SQL View for users with posts (automatically created) 
+# SQL View for users with posts (automatically created)
 """
 CREATE VIEW users_with_posts AS
-SELECT 
+SELECT
     u.id,
     u.data || jsonb_build_object(
         'posts', COALESCE(
-            json_agg(p.data) FILTER (WHERE p.id IS NOT NULL), 
+            json_agg(p.data) FILTER (WHERE p.id IS NOT NULL),
             '[]'::json
         )
     ) as data,
@@ -398,11 +398,11 @@ import jwt from 'jsonwebtoken';
 
 const context = ({ req }) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
-  
+
   if (!token) {
     throw new AuthenticationError('Token required');
   }
-  
+
   try {
     const user = jwt.verify(token, process.env.JWT_SECRET);
     return { user };
@@ -456,7 +456,7 @@ const createUserLoader = () => new DataLoader(async (userIds) => {
   const users = await db.user.findMany({
     where: { id: { in: userIds } }
   });
-  
+
   // Ensure order matches input
   return userIds.map(id => users.find(user => user.id === id));
 });
@@ -465,9 +465,9 @@ const createPostsByUserLoader = () => new DataLoader(async (userIds) => {
   const posts = await db.post.findMany({
     where: { authorId: { in: userIds } }
   });
-  
+
   // Group by user ID
-  return userIds.map(userId => 
+  return userIds.map(userId =>
     posts.filter(post => post.authorId === userId)
   );
 });
@@ -492,14 +492,14 @@ from fraiseql.repository import FraiseQLRepository
 async def users_with_posts(info) -> list[User]:
     """Get all users with their posts in a single query."""
     repository = FraiseQLRepository(info.context["db"])
-    
+
     # This automatically uses the optimized view with JOINs
     # No N+1 queries, no manual DataLoader configuration
     return await repository.get_many(User)
 
 # The repository automatically handles:
 # 1. Field selection optimization
-# 2. Relationship loading through views  
+# 2. Relationship loading through views
 # 3. Query batching and caching
 # 4. Connection pooling
 ```
@@ -521,11 +521,11 @@ const resolvers = {
             field: 'email'
           });
         }
-        
+
         // Business logic
         const user = await db.user.create({ data: input });
         return { success: true, user };
-        
+
       } catch (error) {
         if (error.code === 'P2002') { // Prisma unique constraint
           throw new UserInputError('Email already exists', {
@@ -556,32 +556,32 @@ class CreateUserError:
 async def create_user(info, input: CreateUserInput) -> UserSuccess | CreateUserError:
     """Create user with comprehensive error handling."""
     repository = FraiseQLRepository(info.context["db"])
-    
+
     # Validation is automatic through input types
     # Business logic with proper error handling
     try:
         existing = await repository.get_one(
-            User, 
+            User,
             where={"email": {"_eq": input.email}}
         )
-        
+
         if existing:
             return CreateUserError(
                 message="Email already registered",
                 field="email",
                 code="EMAIL_EXISTS"
             )
-        
+
         user = await repository.create(User, {
             "name": input.name,
             "email": input.email
         })
-        
+
         return UserSuccess(
             user=user,
             message="User created successfully"
         )
-        
+
     except ValidationError as e:
         return CreateUserError(
             message=str(e),
@@ -611,7 +611,7 @@ describe('User Queries', () => {
         }
       }
     `;
-    
+
     const response = await query({ query: GET_USERS });
     expect(response.errors).toBeUndefined();
     expect(response.data.users).toHaveLength(2);
@@ -628,7 +628,7 @@ from fraiseql.testing import GraphQLTestClient
 async def test_get_users(db_session, clear_registry):
     """Test getting all users."""
     client = GraphQLTestClient(schema, context={"db": db_session})
-    
+
     query = """
         query GetUsers {
             users {
@@ -638,16 +638,16 @@ async def test_get_users(db_session, clear_registry):
             }
         }
     """
-    
+
     result = await client.execute(query)
     assert not result.errors
     assert len(result.data["users"]) == 2
 
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 async def test_create_user_success(db_session, clear_registry):
     """Test successful user creation."""
     client = GraphQLTestClient(schema, context={"db": db_session})
-    
+
     mutation = """
         mutation CreateUser($input: CreateUserInput!) {
             createUser(input: $input) {
@@ -666,14 +666,14 @@ async def test_create_user_success(db_session, clear_registry):
             }
         }
     """
-    
+
     variables = {
         "input": {
             "name": "John Doe",
             "email": "john@example.com"
         }
     }
-    
+
     result = await client.execute(mutation, variables)
     assert not result.errors
     assert result.data["createUser"]["message"] == "User created successfully"

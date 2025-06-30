@@ -17,22 +17,22 @@ async def machines(
     where: MachineWhereInput | None = None,
 ) -> list[Machine]:
     """Retrieve a list of machines with filtering."""
-    
+
     # Validate limit to prevent performance issues
     if limit > 100:
         raise GraphQLError("Limit cannot exceed 100")
-    
+
     db = info.context["db"]  # This is a FraiseQLRepository
-    
+
     # Get tenant_id from request headers (since we don't have custom context)
     request = info.context.get("request")
     tenant_id = "550e8400-e29b-41d4-a716-446655440000"  # Default tenant for now
     if request and hasattr(request, 'headers'):
         tenant_id = request.headers.get("tenant-id", tenant_id)
-    
+
     # Build filters from where input
     filters = _build_machine_filters(where, tenant_id)
-    
+
     # Use FraiseQL's find method with filters
     return await db.find("tb_machine",
         **filters,
@@ -48,14 +48,14 @@ async def machines(
 def _build_machine_filters(where: MachineWhereInput | None, tenant_id: str | None) -> dict[str, Any]:
     """Convert machine where input to database filters."""
     filters = {}
-    
+
     # Always include tenant for security
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     if not where:
         return filters
-    
+
     # Implement filtering based on actual MachineWhereInput fields
     if where.id is not None:
         filters["id"] = where.id
@@ -71,11 +71,11 @@ def _build_machine_filters(where: MachineWhereInput | None, tenant_id: str | Non
         filters["customer_organization_id"] = where.customer_organization_id
     if where.provider_organization_id is not None:
         filters["provider_organization_id"] = where.provider_organization_id
-    
+
     # Boolean filters - these might need special handling
     # is_current, is_reserved, is_stock, is_unallocated
     # These would typically be computed fields or require specific SQL
-    
+
     return filters
 ```
 
