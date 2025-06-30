@@ -101,7 +101,7 @@ async def users(info, limit: int = 10) -> list[User]:
 ```sql
 -- All views must have 'data' column with JSONB
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     tenant_id,       -- For access control
     jsonb_build_object(

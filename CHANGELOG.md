@@ -252,7 +252,7 @@ from fraiseql.cqrs import CQRSRepository
 # Commands use SQL functions
 result = await repo.create("user", {"name": "John", "email": "john@example.com"})
 
-# Queries use SQL views  
+# Queries use SQL views
 users = await repo.find_by_view("vw_active_users", limit=10)
 ```
 
@@ -350,7 +350,7 @@ async def create_user(input: dict) -> dict:
 ### Added
 - GraphQL subscription support
   - Real-time updates via WebSocket
-  - PostgreSQL LISTEN/NOTIFY integration  
+  - PostgreSQL LISTEN/NOTIFY integration
   - Automatic reconnection handling
   - Subscription filtering and transformation
 - WebSocket endpoint for GraphQL subscriptions
@@ -435,7 +435,7 @@ class User:
     name: str
     email: str
 
-# Generates SQL: SELECT jsonb_build_object('id', data->>'id', 'name', data->>'name') 
+# Generates SQL: SELECT jsonb_build_object('id', data->>'id', 'name', data->>'name')
 # FROM users WHERE data->>'email' = 'user@example.com'
 ```
 

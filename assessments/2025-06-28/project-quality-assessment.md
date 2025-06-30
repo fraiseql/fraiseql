@@ -1,6 +1,6 @@
 # FraiseQL Project Quality Assessment
 
-**Assessment Date:** 2025-06-28  
+**Assessment Date:** 2025-06-28
 **Overall Score:** **9.2/10** (Excellent)
 
 FraiseQL demonstrates exceptional quality across all major dimensions of a modern Python project.
@@ -29,7 +29,7 @@ FraiseQL is a high-quality, production-ready GraphQL-to-PostgreSQL framework tha
 
 **Strengths:**
 - **Zero Ruff Issues**: Comprehensive linting with detailed configuration
-- **Type Safety**: Full Python 3.11+ type hints with Pyright validation  
+- **Type Safety**: Full Python 3.11+ type hints with Pyright validation
 - **Security-First**: SQL injection prevention, parameterized queries throughout
 - **Smart Defaults**: Extensive per-file ignore rules for different contexts (tests, examples, benchmarks)
 - **Consistent Formatting**: Automated with Ruff formatter

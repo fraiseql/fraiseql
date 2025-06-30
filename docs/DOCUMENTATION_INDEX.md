@@ -16,7 +16,7 @@
 
 ### API Reference 🆕
 - **[Complete Decorator Reference](./api-reference/decorators-complete.md)** - All decorators with examples
-- **[Repository API](./api-reference/repository.md)** - Database operations guide  
+- **[Repository API](./api-reference/repository.md)** - Database operations guide
 - **[Context Reference](./api-reference/context.md)** - Understanding GraphQL context
 - **[Quick API Reference](./API_REFERENCE_QUICK.md)** - Cheat sheet format
 

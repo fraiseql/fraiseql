@@ -35,7 +35,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
 
     Examples:
         Basic enum for user roles::\
-        
+
             @fraise_enum
             class UserRole(Enum):
                 ADMIN = "admin"
@@ -46,7 +46,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
             class User:
                 name: str
                 role: UserRole
-                
+
             # GraphQL schema will include:
             # enum UserRole {
             #   ADMIN
@@ -55,7 +55,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
             # }
 
         Enum with descriptive values::\
-        
+
             @fraise_enum
             class OrderStatus(Enum):
                 PENDING = "pending"
@@ -69,23 +69,23 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
                 id: UUID
                 status: OrderStatus
                 created_at: datetime
-                
+
             # Can be used in mutations:
             @mutation
             async def update_order_status(
-                info, 
-                order_id: UUID, 
+                info,
+                order_id: UUID,
                 status: OrderStatus
             ) -> Order:
                 db = info.context["db"]
                 return await db.update_one(
-                    "order_view", 
-                    {"id": order_id}, 
+                    "order_view",
+                    {"id": order_id},
                     {"status": status.value}
                 )
 
         Enum for content types::\
-        
+
             @fraise_enum
             class ContentType(Enum):
                 ARTICLE = "article"
@@ -109,7 +109,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
                 created_at: datetime
 
         Enum with integer values::\
-        
+
             @fraise_enum
             class Priority(Enum):
                 LOW = 1
@@ -122,13 +122,13 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
                 id: UUID
                 title: str
                 priority: Priority
-                
+
                 @field(description="Priority as human-readable text")
                 def priority_text(self) -> str:
                     return self.priority.name.lower()
 
         Enum for filtering and sorting::\
-        
+
             @fraise_enum
             class SortDirection(Enum):
                 ASC = "asc"
@@ -150,18 +150,18 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
 
             @query
             async def users(
-                info, 
+                info,
                 filters: UserFilterInput | None = None
             ) -> list[User]:
                 db = info.context["db"]
                 where_clause = {}
-                
+
                 if filters:
                     if filters.role:
                         where_clause["role"] = filters.role.value
                     if filters.status:
                         where_clause["status"] = filters.status.value
-                
+
                 return await db.find(
                     "user_view",
                     where_clause,
@@ -169,7 +169,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
                 )
 
         Enum for API versioning::\
-        
+
             @fraise_enum
             class APIVersion(Enum):
                 V1 = "v1"
@@ -183,7 +183,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
 
             @mutation
             async def process_request(
-                info, 
+                info,
                 input: APIRequestInput
             ) -> APIResponse:
                 # Handle different API versions
@@ -195,7 +195,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
                     return await handle_v3_request(input.data)
 
         Enum with custom descriptions (using docstrings)::\
-        
+
             @fraise_enum
             class NotificationPreference(Enum):
                 \"\"\"User notification preferences.\"\"\"
@@ -208,13 +208,13 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
             class UserSettings:
                 user_id: UUID
                 notifications: NotificationPreference
-                
+
                 @field(description="Check if user allows notifications")
                 def notifications_enabled(self) -> bool:
                     return self.notifications != NotificationPreference.NONE
 
         Enum for database constraints::\
-        
+
             @fraise_enum
             class Gender(Enum):
                 MALE = "M"
@@ -227,14 +227,14 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
                 user_id: UUID
                 gender: Gender | None = None
                 birth_date: date | None = None
-                
+
                 @field(description="User's age in years")
                 def age(self) -> int | None:
                     if not self.birth_date:
                         return None
                     today = date.today()
                     return today.year - self.birth_date.year - (
-                        (today.month, today.day) < 
+                        (today.month, today.day) <
                         (self.birth_date.month, self.birth_date.day)
                     )
 

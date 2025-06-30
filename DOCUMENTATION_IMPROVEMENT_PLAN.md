@@ -118,14 +118,14 @@ users = await db.find("user_view", where=UserWhere(age={"gte": 18}))
 async def users(info) -> list[User]:
     db = info.context["db"]
     user = info.context.get("user")  # May be None
-    
+
     if info.context["authenticated"]:
         return await db.find("user_view")
     else:
         return []
 
 # ❌ Unsafe - custom context may not be available
-@fraiseql.query  
+@fraiseql.query
 async def users(info) -> list[User]:
     tenant_id = info.context["tenant_id"]  # May not exist!
 ```
@@ -139,7 +139,7 @@ async def users(info) -> list[User]:
 
 ### Current Problem
 - Users try resolver class patterns that don't work
-- Mixed examples showing both old and new patterns  
+- Mixed examples showing both old and new patterns
 - Query class confusion causes "no fields" errors
 - Users attempt GraphQL patterns from other frameworks
 
@@ -219,7 +219,7 @@ class User:
     # No methods, no resolvers - just data structure
 ```
 
-## Pattern 2: Queries are Functions  
+## Pattern 2: Queries are Functions
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -227,7 +227,7 @@ async def users(info) -> list[User]:
     db = info.context["db"]
     return await db.find("user_view")
 
-@fraiseql.query  
+@fraiseql.query
 async def user(info, id: UUID) -> User | None:
     # Parameters after 'info'
     db = info.context["db"]
@@ -238,7 +238,7 @@ async def user(info, id: UUID) -> User | None:
 ```sql
 -- All data goes in JSONB 'data' column
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     tenant_id,       -- For access control
     jsonb_build_object(
@@ -254,7 +254,7 @@ FROM users;
 @fraiseql.query
 async def users(info, status: str | None = None) -> list[User]:
     db = info.context["db"]
-    
+
     if status:
         return await db.find("user_view", status=status)
     return await db.find("user_view")
@@ -312,7 +312,7 @@ async def books(info) -> list[Book]:
     return [
         Book(
             id=uuid4(),
-            title="The Great Gatsby", 
+            title="The Great Gatsby",
             author="F. Scott Fitzgerald",
             published=datetime(1925, 4, 10)
         )
@@ -358,7 +358,7 @@ query {
 ```sql
 -- Required JSONB pattern
 CREATE VIEW book_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     jsonb_build_object(
         'id', id,
@@ -400,7 +400,7 @@ app = fraiseql.create_fraiseql_app(
 @fraiseql.query
 async def books(info, author: str | None = None) -> list[Book]:
     db = info.context["db"]
-    
+
     if author:
         return await db.find("book_view", author=author)
     return await db.find("book_view")
@@ -420,7 +420,7 @@ query {
 ```python
 @fraiseql.query
 async def books(
-    info, 
+    info,
     author: str | None = None,
     limit: int = 10
 ) -> list[Book]:
@@ -471,10 +471,10 @@ async def users(info) -> list[User]:
 async def profile(info) -> User | None:
     user = info.context.get("user")  # UserContext | None
     authenticated = info.context["authenticated"]  # bool
-    
+
     if not authenticated:
         return None
-    
+
     db = info.context["db"]
     return await db.find_one("user_view", id=user.user_id)
 ```
@@ -503,10 +503,10 @@ async def get_context(request: Request) -> dict[str, Any]:
 async def users(info) -> list[User]:
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")  # Safe access
-    
+
     if not tenant_id:
         raise ValueError("Tenant ID required")
-    
+
     return await db.find("user_view", tenant_id=tenant_id)
 ```
 
@@ -520,7 +520,7 @@ tenant_id = info.context.get("tenant_id", "default")  # With default
 if "custom_property" in info.context:
     value = info.context["custom_property"]
 
-# ❌ Unsafe patterns  
+# ❌ Unsafe patterns
 user = info.context["user"]  # May raise KeyError
 tenant_id = info.context["tenant_id"]  # May not exist
 ```
@@ -598,7 +598,7 @@ SELECT id, name, email FROM users;
 ### After (v0.1.0a14+)
 ```sql
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     tenant_id,       -- For access control
     jsonb_build_object(
@@ -619,7 +619,7 @@ FROM users;
 -- Example migration for user_view
 DROP VIEW IF EXISTS user_view;
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,
     tenant_id,
     jsonb_build_object(
@@ -709,7 +709,7 @@ query { hello(name: "FraiseQL") { message } }
 ## 🗄️ 15 Minutes: With Database
 Add PostgreSQL for real data persistence.
 
-**Prerequisites**: 
+**Prerequisites**:
 - Python 3.11+
 - PostgreSQL running locally
 - Basic SQL knowledge
@@ -726,13 +726,13 @@ CREATE TABLE books (
     author TEXT NOT NULL
 );
 
-INSERT INTO books (title, author) VALUES 
+INSERT INTO books (title, author) VALUES
 ('1984', 'George Orwell'),
 ('Brave New World', 'Aldous Huxley');
 
 -- Create FraiseQL view (REQUIRED pattern)
 CREATE VIEW book_view AS
-SELECT 
+SELECT
     id,
     jsonb_build_object(
         'id', id,
@@ -757,7 +757,7 @@ class Book:
 @fraiseql.query
 async def books(info, author: str | None = None) -> list[Book]:
     db = info.context["db"]
-    
+
     if author:
         return await db.find("book_view", author=author)
     return await db.find("book_view")
@@ -779,7 +779,7 @@ Try these queries at http://localhost:8000/graphql:
 # Get all books
 query { books { id title author } }
 
-# Filter by author  
+# Filter by author
 query { books(author: "George Orwell") { title } }
 ```
 
@@ -803,7 +803,7 @@ Add authentication, error handling, and production features.
 - **Day 1-2**: API Reference documentation
 - **Day 3-5**: Pattern confusion fixes and anti-patterns guide
 
-### Week 2: High Priority (P1)  
+### Week 2: High Priority (P1)
 - **Day 6-9**: Progressive learning tutorial series
 - **Day 10-11**: Complete context documentation
 
@@ -819,7 +819,7 @@ Add authentication, error handling, and production features.
 
 ### User Experience Improvements
 - **50% reduction** in support queries about basic patterns
-- **75% fewer** "info is None" or context-related errors  
+- **75% fewer** "info is None" or context-related errors
 - **90% successful** version upgrades with migration guides
 - **Average time to first working query**: < 10 minutes
 

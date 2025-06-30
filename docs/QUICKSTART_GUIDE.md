@@ -175,7 +175,7 @@ from fraiseql.db import FraiseQLRepository
 
 # Your database view must follow the JSONB pattern:
 # CREATE VIEW user_view AS
-# SELECT 
+# SELECT
 #     id,              -- For filtering
 #     tenant_id,       -- For access control
 #     jsonb_build_object(

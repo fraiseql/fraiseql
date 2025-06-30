@@ -59,7 +59,7 @@ CREATE TABLE tb_posts (
 ```sql
 -- View with JSONB for GraphQL queries
 CREATE VIEW v_users AS
-SELECT 
+SELECT
     id,
     jsonb_build_object(
         'id', id,
@@ -71,7 +71,7 @@ FROM tb_users;
 
 -- Materialized view for performance
 CREATE MATERIALIZED VIEW mv_user_stats AS
-SELECT 
+SELECT
     u.id,
     jsonb_build_object(
         'userId', u.id,
@@ -102,11 +102,11 @@ BEGIN
     INSERT INTO tb_users (email, name)
     VALUES (input->>'email', input->>'name')
     RETURNING id INTO user_id;
-    
+
     -- Refresh projections
     PERFORM fn_refresh_user_activity(user_id);
     REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_stats;
-    
+
     -- Return result
     SELECT data INTO result FROM v_users WHERE id = user_id;
     RETURN result;
@@ -117,7 +117,7 @@ $$ LANGUAGE plpgsql;
 CREATE FUNCTION fn_refresh_user_activity(p_user_id UUID) RETURNS void AS $$
 BEGIN
     INSERT INTO tv_user_activity (user_id, data, last_updated)
-    SELECT 
+    SELECT
         u.id,
         jsonb_build_object(
             'totalPosts', COUNT(p.id),

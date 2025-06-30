@@ -14,7 +14,7 @@ class Allocation:
     id: UUID
     machine_id: Optional[UUID]
     # ... other direct fields ...
-    
+
     # The JSONB column containing nested data
     data: Optional["AllocationData"]
 
@@ -31,11 +31,11 @@ class AllocationData:
 
 ## The Question
 
-Why do we need two types (`Allocation` and `AllocationData`)? 
+Why do we need two types (`Allocation` and `AllocationData`)?
 
 The `data` JSONB column contains the "real" allocation information (identifier, dates, machine, location, etc.), while the outer type mostly has IDs and flags. It seems like we're representing one conceptual entity (an allocation) with two types.
 
-Is there a way to have just one `Allocation` type that combines both the direct columns and the nested JSONB data? 
+Is there a way to have just one `Allocation` type that combines both the direct columns and the nested JSONB data?
 
 Or is the two-type pattern required because of how FraiseQL handles JSONB columns?
 
@@ -51,7 +51,7 @@ class Allocation:
     machine_id: Optional[UUID]
     is_current: bool
     # ... etc
-    
+
     # From data JSONB column
     identifier: Optional[str]
     machine: Optional[Machine]

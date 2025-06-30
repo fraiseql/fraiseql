@@ -15,7 +15,7 @@ CREATE TABLE public.tv_allocation (
     machine_id uuid,          -- For filtering/joins
     location_id uuid,         -- For filtering/joins
     -- Other columns for access control and filtering...
-    
+
     data jsonb,               -- Complete object representation
     last_updated timestamptz,
     updated_by uuid
@@ -47,7 +47,7 @@ class Allocation:
     notes: Optional[str]
     notes_contact: Optional[str]
     is_provisionnal: bool = fraise_field(default=False)
-    
+
     # Nested objects - automatically instantiated
     machine: Optional[Machine]
     location: Optional[Location]
@@ -100,16 +100,16 @@ Your existing queries continue to work:
 ```python
 # The query uses columns for filtering
 query = """
-    SELECT * FROM tv_allocation 
-    WHERE tenant_id = $1 
+    SELECT * FROM tv_allocation
+    WHERE tenant_id = $1
     AND is_current = true
     AND machine_id = $2
 """
 # Returns rows with 'data' column containing full objects
 
 # FraiseQL automatically instantiates from the 'data' column
-allocations = await repo.find("tv_allocation", 
-    tenant_id=tenant_id, 
+allocations = await repo.find("tv_allocation",
+    tenant_id=tenant_id,
     is_current=True,
     machine_id=machine_id
 )
