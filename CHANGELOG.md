@@ -5,6 +5,24 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b3] - 2025-07-02
+
+### Added
+- **Unix Domain Socket Support**: PostgreSQL connections now support Unix domain sockets
+  - Enables socket-based connections with URLs like `postgresql://user@/var/run/postgresql:5432/database`
+  - Useful for containerized environments, high-security deployments, and improved performance
+  - Maintains full backward compatibility with TCP connections
+  - Comprehensive test coverage for both socket and regular URL formats
+
+### Changed
+- Updated `FraiseQLConfig` database URL validation to accept both regular and Unix socket PostgreSQL URLs
+- Improved error messages for invalid database URLs with proper type checking
+
+### Technical Details
+- Custom URL validator that recognizes Unix socket paths (URLs with `@/` pattern)
+- Added `PostgresUrl` type annotation for better type hints
+- Socket URLs follow PostgreSQL's standard format: `postgresql://[user[:password]]@/socket/path[:port]/database`
+
 ## [0.1.0b2] - 2025-06-29
 
 ### Fixed

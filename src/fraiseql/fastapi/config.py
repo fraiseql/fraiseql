@@ -1,10 +1,53 @@
 """Configuration for FraiseQL FastAPI integration."""
 
 import secrets
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import PostgresDsn, field_validator
+from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def validate_postgres_url(v: Any) -> str:
+    """Validate PostgreSQL URL, supporting both regular and Unix socket connections.
+
+    Unix socket URLs have the format:
+    - postgresql://user@/path/to/socket:port/database
+    - postgresql://user:password@/path/to/socket:port/database
+
+    Regular URLs have the format:
+    - postgresql://user:password@host:port/database
+    """
+    if not isinstance(v, str):
+        raise TypeError("Database URL must be a string")
+
+    # Basic validation - must start with postgresql:// or postgres://
+    if not v.startswith(("postgresql://", "postgres://")):
+        raise ValueError("Database URL must start with postgresql:// or postgres://")
+
+    # Check if this looks like a Unix socket URL (has @ followed by /)
+    if "@/" in v:
+        # This is a Unix socket URL, which is valid
+        # Just ensure it has the basic structure
+        parts = v.split("@/", 1)
+        if len(parts) != 2:
+            raise ValueError("Invalid Unix socket URL format")
+        # Ensure there's at least a database name after the socket path
+        socket_and_db = parts[1]
+        if "/" not in socket_and_db:
+            raise ValueError("Unix socket URL must include database name")
+        return v
+
+    # For regular URLs, try to parse with PostgresDsn
+    try:
+        PostgresDsn(v)
+    except Exception as e:
+        raise ValueError(f"Invalid PostgreSQL URL: {e}") from e
+    else:
+        return v
+
+
+# Type alias for the validated database URL
+PostgresUrl = Annotated[str, Field(description="PostgreSQL connection URL (supports Unix sockets)")]
 
 
 class FraiseQLConfig(BaseSettings):
@@ -19,6 +62,7 @@ class FraiseQLConfig(BaseSettings):
 
     Attributes:
         database_url: PostgreSQL connection URL with JSONB support required.
+            Supports Unix domain sockets (e.g., postgresql://user@/var/run/postgresql:5432/db).
         database_pool_size: Maximum number of database connections in the pool.
         database_max_overflow: Maximum overflow connections allowed beyond pool_size.
         database_pool_timeout: Seconds to wait before timing out when acquiring connection.
@@ -72,7 +116,7 @@ class FraiseQLConfig(BaseSettings):
     """
 
     # Database settings
-    database_url: PostgresDsn
+    database_url: PostgresUrl
     database_pool_size: int = 20
     database_max_overflow: int = 10
     database_pool_timeout: int = 30
@@ -112,6 +156,12 @@ class FraiseQLConfig(BaseSettings):
         if v is None:
             return f"dev_{secrets.token_hex(4)}"
         return v
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def validate_database_url(cls, v: Any) -> str:
+        """Validate database URL, supporting Unix domain sockets."""
+        return validate_postgres_url(v)
 
     # Performance settings
     enable_query_caching: bool = True
