@@ -9,6 +9,12 @@ from .decorators import field, query
 from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
 from .mutations.decorators import failure, result, success
+from .mutations.error_config import (
+    ALWAYS_DATA_CONFIG,
+    DEFAULT_ERROR_CONFIG,
+    PRINTOPTIM_ERROR_CONFIG,
+    MutationErrorConfig,
+)
 from .mutations.mutation_decorator import mutation
 from .optimization.decorators import dataloader_field
 from .subscriptions import subscription
@@ -64,20 +70,24 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "0.1.0a21"
+__version__ = "0.1.0b4"
 
 __all__ = [
-    "JSON",
+    "ALWAYS_DATA_CONFIG",
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
     "CQRSExecutor",
     "CQRSRepository",
     "Connection",
+    "DEFAULT_ERROR_CONFIG",
     "Date",
     "Edge",
     "EmailAddress",
     "FraiseQLConfig",
+    "JSON",
+    "MutationErrorConfig",
+    "PRINTOPTIM_ERROR_CONFIG",
     "PageInfo",
     "PaginatedResponse",
     "UserContext",

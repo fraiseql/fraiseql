@@ -4,6 +4,7 @@ import logging
 import types
 from typing import Any, TypeVar, Union, get_args, get_origin
 
+from fraiseql.mutations.error_config import MutationErrorConfig
 from fraiseql.mutations.types import MutationResult
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ def parse_mutation_result(
     result: dict[str, Any],
     success_cls: type[S],
     error_cls: type[E],
+    error_config: MutationErrorConfig | None = None,
 ) -> S | E:
     """Parse mutation result from PostgreSQL into typed Success or Error.
 
@@ -24,6 +26,7 @@ def parse_mutation_result(
         result: Raw result from PostgreSQL function
         success_cls: Success type class
         error_cls: Error type class
+        error_config: Optional error detection configuration
 
     Returns:
         Instance of either success_cls or error_cls
@@ -31,12 +34,24 @@ def parse_mutation_result(
     # Convert to MutationResult for easier access
     mutation_result = MutationResult.from_db_row(result)
 
-    # Determine if this is an error based on status
-    is_error = _is_error_status(mutation_result.status)
+    # For parsing, we need to determine which type to use based on the data structure
+    # and status. This is separate from whether it's a GraphQL error.
 
-    if is_error:
-        return _parse_error(mutation_result, error_cls)
-    return _parse_success(mutation_result, success_cls)
+    # If no config provided, use the original behavior for backward compatibility
+    if error_config is None:
+        is_error = _is_error_status(mutation_result.status)
+        if is_error:
+            return _parse_error(mutation_result, error_cls)
+        return _parse_success(mutation_result, success_cls)
+
+    # With config, use more sophisticated logic
+    status_lower = mutation_result.status.lower() if mutation_result.status else ""
+
+    # Use success type only for explicit success statuses
+    if status_lower in error_config.success_keywords:
+        return _parse_success(mutation_result, success_cls)
+    # Everything else uses error type (including noop:, blocked:, etc.)
+    return _parse_error(mutation_result, error_cls)
 
 
 def _is_error_status(status: str) -> bool:
@@ -85,9 +100,13 @@ def _parse_success(
     if "message" in annotations:
         fields["message"] = result.message
 
+    # Include status if present
+    if "status" in annotations:
+        fields["status"] = result.status
+
     # Process each field in the success type
     for field_name, field_type in annotations.items():
-        if field_name == "message":
+        if field_name in ("message", "status"):
             continue
 
         # Try to get value from different sources
@@ -129,6 +148,10 @@ def _parse_error(
     # Include status as code if field exists
     if "code" in annotations:
         fields["code"] = result.status
+
+    # Also include raw status if field exists
+    if "status" in annotations:
+        fields["status"] = result.status
 
     # Process other fields from metadata
     if result.extra_metadata:

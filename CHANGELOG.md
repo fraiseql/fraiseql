@@ -5,6 +5,30 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b4] - 2025-07-04
+
+### Added
+- **Configurable Mutation Error Detection**: Control which statuses trigger GraphQL errors vs return as data
+  - New `MutationErrorConfig` class for customizing error detection behavior
+  - Pre-configured `PRINTOPTIM_ERROR_CONFIG` for PrintOptim's PostgreSQL conventions
+  - `ALWAYS_DATA_CONFIG` option to never raise GraphQL errors
+  - Support for status prefixes like `noop:*`, `blocked:*`, `failed:*`
+  - Custom regex patterns for advanced error detection
+  - Per-mutation or global configuration options
+  - Maintains backward compatibility with existing behavior
+
+### Changed
+- Mutation parser now accepts optional `error_config` parameter
+- `@mutation` decorator supports `error_config` parameter
+- Parser logic enhanced to handle success/error type selection based on configuration
+- Status field now properly populated in both success and error types
+
+### Technical Details
+- Allows projects using PostgreSQL status conventions (like PrintOptim's `tb_entity_change_log`) to control error handling
+- `noop:*` and `blocked:*` statuses can be returned in GraphQL `data` field instead of `errors`
+- Enables consistent test patterns without special error handling logic
+- Full type safety maintained for both success and error responses
+
 ## [0.1.0b3] - 2025-07-02
 
 ### Added
@@ -457,6 +481,12 @@ class User:
 # FROM users WHERE data->>'email' = 'user@example.com'
 ```
 
+[0.1.0b4]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0b4
+[0.1.0b3]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0b3
+[0.1.0b2]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0b2
+[0.1.0b1]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0b1
+[0.1.0a21]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0a21
+[0.1.0a20]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0a20
 [0.1.0a19]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0a19
 [0.1.0a18]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0a18
 [0.1.0a17]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0a17

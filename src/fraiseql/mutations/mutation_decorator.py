@@ -4,6 +4,7 @@ import re
 from collections.abc import Callable
 from typing import Any, TypeVar, get_type_hints
 
+from fraiseql.mutations.error_config import MutationErrorConfig
 from fraiseql.mutations.parser import parse_mutation_result
 from fraiseql.utils.casing import to_snake_case
 
@@ -19,11 +20,13 @@ class MutationDefinition:
         function_name: str | None = None,
         schema: str = "graphql",
         context_params: dict[str, str] | None = None,
+        error_config: MutationErrorConfig | None = None,
     ) -> None:
         self.mutation_class = mutation_class
         self.name = mutation_class.__name__
         self.schema = schema
         self.context_params = context_params or {}
+        self.error_config = error_config
 
         # Get type hints
         hints = get_type_hints(mutation_class)
@@ -105,6 +108,7 @@ class MutationDefinition:
                 result,
                 self.success_type,
                 self.error_type,
+                self.error_config,
             )
 
         # Set metadata for GraphQL introspection
@@ -134,6 +138,7 @@ def mutation(
     function: str | None = None,
     schema: str = "graphql",
     context_params: dict[str, str] | None = None,
+    error_config: MutationErrorConfig | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]] | Callable[..., Any]:
     """Decorator to define GraphQL mutations with PostgreSQL function backing.
 
@@ -146,6 +151,7 @@ def mutation(
         function: PostgreSQL function name (defaults to snake_case of class name)
         schema: PostgreSQL schema containing the function (defaults to "graphql")
         context_params: Maps GraphQL context keys to PostgreSQL function parameter names
+        error_config: Optional configuration for error detection behavior
 
     Returns:
         Decorated mutation with automatic PostgreSQL function integration
@@ -425,7 +431,7 @@ def mutation(
         # Otherwise, it's a class-based mutation
         cls = cls_or_fn
         # Create mutation definition
-        definition = MutationDefinition(cls, function, schema, context_params)
+        definition = MutationDefinition(cls, function, schema, context_params, error_config)
 
         # Store definition on the class
         cls.__fraiseql_mutation__ = definition
