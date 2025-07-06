@@ -5,6 +5,27 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b5] - 2025-07-06
+
+### Fixed
+- **PostgreSQL Date Serialization**: Fixed JSON serialization error for date fields in mutations
+  - Added proper date handling in `_to_dict` function for mutation inputs (converts to ISO format)
+  - Configured psycopg3 to return date/time columns as strings instead of Python objects
+  - Prevents "Object of type date is not JSON serializable" errors
+  - Maintains PostgreSQL's ISO 8601 date format throughout the pipeline
+  - Compatible with JavaScript date expectations on frontend
+
+### Changed
+- **Database Connection Pool**: Enhanced with custom type loaders for date/time types
+  - Registered text loaders for `date`, `timestamp`, `timestamptz`, `time`, `timetz` types
+  - Ensures dates from PostgreSQL functions remain as strings for direct JSON serialization
+  - Preserves FraiseQL's direct PostgreSQL-to-frontend data flow philosophy
+
+### Technical Details
+- The fix handles both input serialization (Python date → ISO string) and output handling (PostgreSQL date → string)
+- No changes required to PostgreSQL functions or GraphQL schema definitions
+- Fully backward compatible with existing code
+
 ## [0.1.0b4] - 2025-07-04
 
 ### Added

@@ -142,7 +142,7 @@ def mutation(
 ) -> type[T] | Callable[[type[T]], type[T]] | Callable[..., Any]:
     """Decorator to define GraphQL mutations with PostgreSQL function backing.
 
-    This decorator supports both simple function-based mutations and sophisticated 
+    This decorator supports both simple function-based mutations and sophisticated
     class-based mutations with structured success/error handling. Class-based mutations
     automatically call PostgreSQL functions and parse results into typed responses.
 
@@ -158,7 +158,7 @@ def mutation(
 
     Examples:
         Simple function-based mutation::\
-        
+
             @mutation
             async def create_user(info, input: CreateUserInput) -> User:
                 db = info.context["db"]
@@ -175,18 +175,18 @@ def mutation(
                 return User(**result[0]["data"])
 
         Basic class-based mutation::\
-        
+
             @mutation
             class CreateUser:
                 input: CreateUserInput
-                success: CreateUserSuccess  
+                success: CreateUserSuccess
                 error: CreateUserError
 
             # This automatically calls PostgreSQL function: graphql.create_user(input)
             # and parses the result into either CreateUserSuccess or CreateUserError
 
         Mutation with custom PostgreSQL function::\
-        
+
             @mutation(function="register_new_user", schema="auth")
             class RegisterUser:
                 input: RegistrationInput
@@ -196,10 +196,10 @@ def mutation(
             # Calls: auth.register_new_user(input) instead of default name
 
         Mutation with context parameters::\
-        
+
             @mutation(
                 function="create_location",
-                schema="app", 
+                schema="app",
                 context_params={
                     "tenant_id": "input_pk_organization",
                     "user": "input_created_by"
@@ -215,8 +215,8 @@ def mutation(
             # And user_id comes from info.context["user"].user_id
 
         Mutation with validation and error handling::\
-        
-            @fraise_input  
+
+            @fraise_input
             class UpdateUserInput:
                 id: UUID
                 name: str | None = None
@@ -227,7 +227,7 @@ def mutation(
                 user: User
                 message: str
 
-            @fraise_type  
+            @fraise_type
             class UpdateUserError:
                 code: str
                 message: str
@@ -237,53 +237,53 @@ def mutation(
             async def update_user(info, input: UpdateUserInput) -> User:
                 db = info.context["db"]
                 user_context = info.context.get("user")
-                
+
                 # Authorization check
                 if not user_context:
                     raise GraphQLError("Authentication required")
-                
+
                 # Validation
                 if input.email and not is_valid_email(input.email):
                     raise GraphQLError("Invalid email format")
-                
+
                 # Update logic
                 updates = {}
                 if input.name:
                     updates["name"] = input.name
                 if input.email:
                     updates["email"] = input.email
-                
+
                 if not updates:
                     raise GraphQLError("No fields to update")
-                
+
                 return await db.update_one("user_view", {"id": input.id}, updates)
 
         Multi-step mutation with transaction::\
-        
+
             @mutation
             async def transfer_funds(
-                info, 
+                info,
                 input: TransferInput
             ) -> TransferResult:
                 db = info.context["db"]
-                
+
                 async with db.transaction():
                     # Validate source account
                     source = await db.find_one(
-                        "account_view", 
+                        "account_view",
                         {"id": input.source_account_id}
                     )
                     if not source or source.balance < input.amount:
                         raise GraphQLError("Insufficient funds")
-                    
-                    # Validate destination account  
+
+                    # Validate destination account
                     dest = await db.find_one(
                         "account_view",
                         {"id": input.destination_account_id}
                     )
                     if not dest:
                         raise GraphQLError("Destination account not found")
-                    
+
                     # Perform transfer
                     await db.update_one(
                         "account_view",
@@ -291,11 +291,11 @@ def mutation(
                         {"balance": source.balance - input.amount}
                     )
                     await db.update_one(
-                        "account_view", 
+                        "account_view",
                         {"id": dest.id},
                         {"balance": dest.balance + input.amount}
                     )
-                    
+
                     # Log transaction
                     transfer = await db.create_one("transfer_view", {
                         "source_account_id": input.source_account_id,
@@ -303,7 +303,7 @@ def mutation(
                         "amount": input.amount,
                         "created_at": datetime.utcnow()
                     })
-                    
+
                     return TransferResult(
                         transfer=transfer,
                         new_source_balance=source.balance - input.amount,
@@ -311,7 +311,7 @@ def mutation(
                     )
 
         Mutation with file upload handling::\
-        
+
             @mutation
             async def upload_avatar(
                 info,
@@ -320,22 +320,22 @@ def mutation(
                 db = info.context["db"]
                 storage = info.context["storage"]
                 user_context = info.context["user"]
-                
+
                 if not user_context:
                     raise GraphQLError("Authentication required")
-                
+
                 # Process file upload
                 file_content = await input.file.read()
                 if len(file_content) > 5 * 1024 * 1024:  # 5MB limit
                     raise GraphQLError("File too large")
-                
+
                 # Store file
                 file_url = await storage.store_user_avatar(
                     user_context.user_id,
                     file_content,
                     input.file.content_type
                 )
-                
+
                 # Update user record
                 return await db.update_one(
                     "user_view",
@@ -345,13 +345,13 @@ def mutation(
 
     PostgreSQL Function Requirements:
         For class-based mutations, the PostgreSQL function should:
-        
+
         1. Accept input as JSONB parameter
         2. Return a result with 'success' boolean field
         3. Include either 'data' field (success) or 'error' field (failure)
-        
+
         Example PostgreSQL function::\
-        
+
             CREATE OR REPLACE FUNCTION graphql.create_user(input jsonb)
             RETURNS jsonb
             LANGUAGE plpgsql
@@ -364,11 +364,11 @@ def mutation(
                 INSERT INTO users (name, email, created_at)
                 VALUES (
                     input->>'name',
-                    input->>'email', 
+                    input->>'email',
                     now()
                 )
                 RETURNING id INTO user_id;
-                
+
                 -- Return success response
                 result := jsonb_build_object(
                     'success', true,
@@ -379,7 +379,7 @@ def mutation(
                         'message', 'User created successfully'
                     )
                 );
-                
+
                 RETURN result;
             EXCEPTION
                 WHEN unique_violation THEN
@@ -468,6 +468,8 @@ def _to_dict(obj: Any) -> dict[str, Any]:
             if not k.startswith("_"):
                 if hasattr(v, "hex"):  # UUID
                     result[k] = str(v)
+                elif hasattr(v, "isoformat"):  # date, datetime, time
+                    result[k] = v.isoformat()
                 else:
                     result[k] = v
         return result
