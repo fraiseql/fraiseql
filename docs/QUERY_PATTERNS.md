@@ -26,7 +26,7 @@ class Query:
     async def resolve_users(self, info):
         # Complex resolver logic
         pass
-    
+
     async def resolve_user(self, info, id: str):
         # More resolver logic
         pass
@@ -99,7 +99,7 @@ async def search_books(
 ) -> list[Book]:
     """Search books with optional filters."""
     db = info.context["db"]
-    
+
     filters = {}
     if title:
         filters["title"] = title
@@ -107,7 +107,7 @@ async def search_books(
         filters["author"] = author
     if published_after:
         filters["published_after"] = published_after
-    
+
     return await db.find("book_view", **filters)
 ```
 
@@ -189,18 +189,18 @@ async def machines(info, where: MachineWhereInput | None = None) -> list[Machine
 
 def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: str) -> dict[str, Any]:
     filters = {"tenant_id": tenant_id}
-    
+
     if not where:
         return filters
-    
+
     # Handle both dict and object input
     get_field = (lambda f: where.get(f)) if isinstance(where, dict) else (lambda f: getattr(where, f, None))
-    
+
     if get_field('status'):
         filters['status'] = get_field('status')
     if get_field('is_active') is not None:
         filters['is_active'] = get_field('is_active')
-    
+
     return filters
 ```
 
@@ -253,16 +253,16 @@ The `info` parameter is your gateway to everything you need:
 async def my_query(info) -> Any:
     # Access database
     db = info.context["db"]  # FraiseQLRepository
-    
+
     # Access authenticated user (if auth enabled)
     user = info.context.get("user")  # UserContext or None
-    
+
     # Check if authenticated
     is_authenticated = info.context["authenticated"]  # bool
-    
+
     # Access request
     request = info.context["request"]  # FastAPI Request
-    
+
     # Access custom context values
     tenant_id = info.context.get("tenant_id")  # Your custom values
 ```
@@ -288,16 +288,16 @@ FraiseQL provides a `FraiseQLRepository` that handles all database operations:
 @fraiseql.query
 async def users(info) -> list[User]:
     db = info.context["db"]  # This is a FraiseQLRepository
-    
+
     # Find multiple records
     all_users = await db.find("user_view")
-    
+
     # Find with filters
     active_users = await db.find("user_view", status="active")
-    
+
     # Find with pagination
     page_1 = await db.find("user_view", limit=10, offset=0)
-    
+
     # Find single record
     user = await db.find_one("user_view", id=user_id)
 ```
@@ -308,13 +308,13 @@ Your views MUST follow the JSONB pattern:
 
 ```sql
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     -- Filtering columns (used in WHERE clauses)
     id,
     email,
     status,
     tenant_id,
-    
+
     -- Data column (used for object instantiation)
     jsonb_build_object(
         'id', id,
@@ -395,8 +395,8 @@ async def users(
 ) -> list[User]:
     """Get paginated users."""
     db = info.context["db"]
-    return await db.find("user_view", 
-        limit=limit, 
+    return await db.find("user_view",
+        limit=limit,
         offset=offset,
         order_by=sort_by
     )
@@ -416,7 +416,7 @@ class UserFilter:
 async def filtered_users(info, filter: UserFilter | None = None) -> list[User]:
     """Get users with complex filtering."""
     db = info.context["db"]
-    
+
     kwargs = {}
     if filter:
         if filter.role:
@@ -424,7 +424,7 @@ async def filtered_users(info, filter: UserFilter | None = None) -> list[User]:
         if filter.status:
             kwargs["status"] = filter.status
         # Add date filtering logic
-    
+
     return await db.find("user_view", **kwargs)
 ```
 
@@ -440,10 +440,10 @@ async def user(info, id: UUID) -> User:
     """Get user by ID (required to exist)."""
     db = info.context["db"]
     user = await db.find_one("user_view", id=id)
-    
+
     if not user:
         raise GraphQLError(f"User {id} not found")
-    
+
     return user
 ```
 
@@ -473,7 +473,7 @@ class UserResult:
 async def safe_user(info, id: UUID) -> UserResult:
     """Get user with safe error handling."""
     db = info.context["db"]
-    
+
     try:
         user = await db.find_one("user_view", id=id)
         if not user:
@@ -493,10 +493,10 @@ async def tenant_users(info) -> list[User]:
     """Get users for current tenant."""
     db = info.context["db"]
     tenant_id = info.context["tenant_id"]  # From custom context
-    
+
     if not tenant_id:
         raise GraphQLError("Tenant ID required")
-    
+
     return await db.find("user_view", tenant_id=tenant_id)
 ```
 
@@ -511,11 +511,11 @@ async def my_profile(info) -> User:
     """Get current user's profile."""
     db = info.context["db"]
     user = info.context["user"]  # Guaranteed to exist with @requires_auth
-    
+
     profile = await db.find_one("user_view", id=user.user_id)
     if not profile:
         raise GraphQLError("Profile not found")
-    
+
     return profile
 ```
 
@@ -533,7 +533,7 @@ class UserWithPosts:
 async def user_with_posts(info, id: UUID) -> UserWithPosts | None:
     """Get user with all their posts."""
     db = info.context["db"]
-    
+
     # View handles the join and nesting
     return await db.find_one("user_with_posts_view", id=id)
 ```
@@ -541,7 +541,7 @@ async def user_with_posts(info, id: UUID) -> UserWithPosts | None:
 The view would look like:
 ```sql
 CREATE VIEW user_with_posts_view AS
-SELECT 
+SELECT
     u.id,
     jsonb_build_object(
         'id', u.id,
@@ -574,7 +574,7 @@ If you're coming from traditional GraphQL, here's how to migrate:
 class Query:
     async def resolve_users(self, info):
         return await fetch_users()
-    
+
     async def resolve_user(self, info, id: str):
         return await fetch_user(id)
 
@@ -600,7 +600,7 @@ class UserType:
 
 # NEW: Use database views with JSONB
 CREATE VIEW user_with_posts AS
-SELECT 
+SELECT
     id,
     jsonb_build_object(
         'id', id,

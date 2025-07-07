@@ -36,7 +36,7 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
 
     Examples:
         Basic Node interface for Global Object Identification::\
-        
+
             @fraise_interface
             class Node:
                 id: UUID
@@ -52,7 +52,7 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
                 id: UUID
                 title: str
                 content: str
-                
+
             # GraphQL query can now use fragments:
             # query {
             #   node(id: "123") {
@@ -69,12 +69,12 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
             # }
 
         Interface with computed fields::\
-        
+
             @fraise_interface
             class Timestamped:
                 created_at: datetime
                 updated_at: datetime
-                
+
                 @field(description="Time since creation")
                 def age(self) -> timedelta:
                     return datetime.utcnow() - self.created_at
@@ -85,14 +85,14 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
                 title: str
                 created_at: datetime
                 updated_at: datetime
-                
+
                 # Must implement the computed field from interface
                 @field(description="Time since creation")
                 def age(self) -> timedelta:
                     return datetime.utcnow() - self.created_at
 
         Interface for content types with metadata::\
-        
+
             @fraise_interface
             class Content:
                 id: UUID
@@ -100,7 +100,7 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
                 slug: str
                 status: ContentStatus
                 author_id: UUID
-                
+
                 @field(description="Content author")
                 async def author(self, info) -> User:
                     db = info.context["db"]
@@ -115,7 +115,7 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
                 author_id: UUID
                 content: str
                 tags: list[str]
-                
+
                 @field(description="Content author")
                 async def author(self, info) -> User:
                     # Implementation must match interface signature
@@ -131,27 +131,27 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
                 author_id: UUID
                 video_url: str
                 duration: int
-                
+
                 @field(description="Content author")
                 async def author(self, info) -> User:
                     db = info.context["db"]
                     return await db.find_one("user_view", {"id": self.author_id})
 
         Multiple interface implementation::\
-        
+
             @fraise_interface
             class Searchable:
                 search_text: str
-                
+
                 @field(description="Search ranking score")
                 def search_score(self, query: str) -> float:
                     # Simple text matching score
                     return query.lower() in self.search_text.lower()
 
-            @fraise_interface  
+            @fraise_interface
             class Taggable:
                 tags: list[str]
-                
+
                 @field(description="Check if content has tag")
                 def has_tag(self, tag: str) -> bool:
                     return tag in self.tags
@@ -162,32 +162,32 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
                 title: str
                 content: str
                 tags: list[str]
-                
+
                 # Computed field for Searchable interface
                 @field
                 def search_text(self) -> str:
                     return f"{self.title} {self.content}"
-                
+
                 @field(description="Search ranking score")
                 def search_score(self, query: str) -> float:
                     title_match = query.lower() in self.title.lower()
                     content_match = query.lower() in self.content.lower()
                     return (2.0 if title_match else 0.0) + (1.0 if content_match else 0.0)
-                
+
                 @field(description="Check if content has tag")
                 def has_tag(self, tag: str) -> bool:
                     return tag in self.tags
 
         Interface for permission-based access::\
-        
+
             @fraise_interface
             class Ownable:
                 owner_id: UUID
-                
+
                 @field(description="Check if user owns this resource")
                 def is_owned_by(self, user_id: UUID) -> bool:
                     return self.owner_id == user_id
-                
+
                 @field(description="Check if user can edit this resource")
                 async def can_edit(self, info, user_id: UUID) -> bool:
                     # Default implementation - can be overridden
@@ -199,15 +199,15 @@ def fraise_interface(_cls: T | None = None) -> T | Callable[[T], T]:
                 name: str
                 owner_id: UUID
                 collaborator_ids: list[UUID]
-                
+
                 @field(description="Check if user owns this resource")
                 def is_owned_by(self, user_id: UUID) -> bool:
                     return self.owner_id == user_id
-                
+
                 @field(description="Check if user can edit this resource")
                 async def can_edit(self, info, user_id: UUID) -> bool:
                     # Override: owners and collaborators can edit
-                    return (self.owner_id == user_id or 
+                    return (self.owner_id == user_id or
                             user_id in self.collaborator_ids)
 
     Notes:

@@ -55,7 +55,7 @@ complexity_analyzer: QueryComplexityAnalyzer | None = None
 async def lifespan(app):
     """Application lifespan manager."""
     global complexity_analyzer
-    
+
     # Initialize complexity analyzer
     complexity_config = ComplexityConfig(
         max_complexity=1000,  # Maximum complexity score
@@ -71,7 +71,7 @@ async def lifespan(app):
         allow_introspection=False,  # Block introspection in production
     )
     complexity_analyzer = QueryComplexityAnalyzer(complexity_config)
-    
+
     # Initialize rate limiter
     if app.state.config.redis_url:
         # Use Redis for distributed rate limiting
@@ -93,14 +93,14 @@ async def lifespan(app):
                 requests_per_hour=1000,
                 burst_size=5,
                 key_func=get_rate_limit_key,
-            )
+            ),
         )
-    
+
     # Add middleware
     app.add_middleware(RateLimiterMiddleware, rate_limiter=rate_limiter)
-    
+
     yield
-    
+
     # Cleanup
     if isinstance(rate_limiter, RedisRateLimiter):
         await redis.close()
@@ -108,17 +108,17 @@ async def lifespan(app):
 
 def get_rate_limit_key(request: Request) -> str:
     """Get rate limit key from request.
-    
+
     Uses authenticated user ID if available, otherwise IP address.
     """
     # Check if user is authenticated
     if hasattr(request.state, "user") and request.state.user:
         return f"user:{request.state.user.user_id}"
-    
+
     # Fall back to IP address
     if request.client:
         return f"ip:{request.client.host}"
-    
+
     return "anonymous"
 
 
@@ -127,7 +127,7 @@ async def users(info, limit: int = 10) -> list[User]:
     """Get users with default limit to control complexity."""
     # Limit is capped to prevent excessive complexity
     limit = min(limit, 100)
-    
+
     db = info.context["db"]
     return await db.find("users", limit=limit)
 
@@ -141,7 +141,7 @@ async def user(info, id: str) -> User | None:
 async def user_posts(info, user_id: str, limit: int = 20) -> list[Post]:
     """Get posts by user with limit."""
     limit = min(limit, 50)  # Cap limit
-    
+
     db = info.context["db"]
     return await db.find("posts", author_id=user_id, limit=limit)
 
@@ -149,43 +149,47 @@ async def user_posts(info, user_id: str, limit: int = 20) -> list[Post]:
 async def search_posts(info, query: str, limit: int = 10) -> list[Post]:
     """Search posts (expensive operation with higher complexity)."""
     limit = min(limit, 20)  # Lower cap for expensive operations
-    
+
     db = info.context["db"]
     # In real implementation, would use full-text search
     return await db.find("posts", limit=limit)
 
 
 # Custom GraphQL executor that checks complexity
-async def custom_graphql_executor(request: Request, query: str, variables: dict | None = None) -> dict:
+async def custom_graphql_executor(
+    request: Request, query: str, variables: dict | None = None
+) -> dict:
     """Custom GraphQL executor with complexity checking."""
     global complexity_analyzer
-    
+
     if complexity_analyzer:
         try:
             # Analyze query complexity before execution
             complexity_info = complexity_analyzer.analyze(query, variables)
-            
+
             # Log high complexity queries
             if complexity_info.total_score > 500:
                 print(f"High complexity query: {complexity_info.total_score}")
                 print(f"Field scores: {complexity_info.field_scores}")
-            
+
             # Add complexity info to request context for response
             request.state.complexity_info = complexity_info
-            
+
         except Exception as e:
             # Return GraphQL error response
             return {
-                "errors": [{
-                    "message": str(e),
-                    "extensions": {
-                        "code": "COMPLEXITY_ERROR",
-                        "complexity": getattr(e, "complexity", None),
-                        "limit": getattr(e, "limit", None),
+                "errors": [
+                    {
+                        "message": str(e),
+                        "extensions": {
+                            "code": "COMPLEXITY_ERROR",
+                            "complexity": getattr(e, "complexity", None),
+                            "limit": getattr(e, "limit", None),
+                        },
                     }
-                }]
+                ],
             }
-    
+
     # Execute query normally
     # (In real implementation, would call the actual GraphQL executor)
     return {"data": {}}
@@ -195,20 +199,20 @@ async def custom_graphql_executor(request: Request, query: str, variables: dict 
 async def custom_context_getter(request: Request) -> dict[str, Any]:
     """Get context with complexity and rate limit info."""
     from fraiseql.fastapi.dependencies import get_db_pool
-    
+
     context = {
         "request": request,
         "db": get_db_pool(),
     }
-    
+
     # Add complexity info if available
     if hasattr(request.state, "complexity_info"):
         context["complexity_info"] = request.state.complexity_info
-    
+
     # Add rate limit info
     if hasattr(request.state, "rate_limit_info"):
         context["rate_limit_info"] = request.state.rate_limit_info
-    
+
     return context
 
 
@@ -221,7 +225,7 @@ def create_app(config: FraiseQLConfig | None = None) -> Any:
             environment="production",
             redis_url="redis://localhost:6379",
         )
-    
+
     app = create_fraiseql_app(
         types=[User, Post, Comment],
         queries=[
@@ -234,13 +238,13 @@ def create_app(config: FraiseQLConfig | None = None) -> Any:
         context_getter=custom_context_getter,
         lifespan=lifespan,
     )
-    
+
     # Add custom endpoint to check rate limit status
     @app.get("/rate-limit-status")
     async def rate_limit_status(request: Request):
         """Check current rate limit status."""
         key = get_rate_limit_key(request)
-        
+
         # Get rate limiter from app (would need to store reference)
         # For demo, return mock data
         return {
@@ -250,7 +254,7 @@ def create_app(config: FraiseQLConfig | None = None) -> Any:
             "minute_limit": 30,
             "hour_limit": 1000,
         }
-    
+
     # Custom GraphQL endpoint with complexity analysis
     @app.post("/graphql-analyzed")
     async def graphql_analyzed(request: Request):
@@ -258,23 +262,23 @@ def create_app(config: FraiseQLConfig | None = None) -> Any:
         body = await request.json()
         query = body.get("query", "")
         variables = body.get("variables")
-        
+
         result = await custom_graphql_executor(request, query, variables)
-        
+
         # Add complexity info to response extensions
         if hasattr(request.state, "complexity_info"):
             if "extensions" not in result:
                 result["extensions"] = {}
-            
+
             result["extensions"]["complexity"] = {
                 "score": request.state.complexity_info.total_score,
                 "depth": request.state.complexity_info.depth,
                 "fieldCount": request.state.complexity_info.field_count,
                 "fieldScores": request.state.complexity_info.field_scores,
             }
-        
+
         return result
-    
+
     return app
 
 
@@ -351,14 +355,14 @@ query SearchEverything {
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Create and run the app
     app = create_app()
-    
+
     print("Starting FraiseQL with security features...")
     print("- Query complexity analysis enabled (max: 1000)")
     print("- Rate limiting enabled (30 req/min, 1000 req/hour)")
     print("- Introspection disabled")
     print("\nTry the example queries to see complexity scores!")
-    
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

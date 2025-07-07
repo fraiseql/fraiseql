@@ -54,20 +54,20 @@ BEGIN
         (input_data->>'address_id')::UUID
     )
     RETURNING id INTO v_location_id;
-    
+
     -- Refresh materialized data
     CALL refresh_location();
-    
+
     -- Get complete location data from view
     SELECT data INTO v_result.object_data
     FROM tv_location  -- Table view with all relationships
     WHERE id = v_location_id;
-    
+
     -- Set other result fields
     v_result.id := v_location_id;
     v_result.status := 'success';
     v_result.message := 'Location created successfully';
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql;
@@ -163,8 +163,8 @@ class BulkCreateUsersSuccess:
 
 # SQL: Return array of users in object_data
 result.object_data := (
-    SELECT json_agg(data) 
-    FROM v_users 
+    SELECT json_agg(data)
+    FROM v_users
     WHERE id = ANY(created_user_ids)
 );
 ```
@@ -199,7 +199,7 @@ IF product_exists THEN
     result.status := 'duplicate';
     result.extra_metadata := jsonb_build_object(
         'duplicate_product', (
-            SELECT data FROM v_products 
+            SELECT data FROM v_products
             WHERE sku = input_data->>'sku'
         ),
         'suggestions', ARRAY['Add variant', 'Update existing']
@@ -282,7 +282,7 @@ Once clients are updated to use the full objects, remove the deprecated ID field
    ```sql
    -- Good: Includes all relationships
    SELECT data FROM tv_users WHERE id = user_id;
-   
+
    -- Bad: Missing relationships
    SELECT row_to_json(u) FROM users u WHERE id = user_id;
    ```
@@ -300,7 +300,7 @@ Once clients are updated to use the full objects, remove the deprecated ID field
    # Good
    user: User
    order: Order
-   
+
    # Bad
    users: User  # Confusing
    order_data: Order  # Redundant

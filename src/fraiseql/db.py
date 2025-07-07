@@ -78,7 +78,7 @@ class FraiseQLRepository:
                     # PostgreSQL doesn't support parameters in SET LOCAL
                     timeout_ms = int(self.query_timeout * 1000)
                     await cursor.execute(
-                        f"SET LOCAL statement_timeout = '{timeout_ms}ms'"
+                        f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                     )
 
                 await cursor.execute(query.statement, query.params)
@@ -160,7 +160,7 @@ class FraiseQLRepository:
                     # PostgreSQL doesn't support parameters in SET LOCAL
                     timeout_ms = int(self.query_timeout * 1000)
                     await cursor.execute(
-                        f"SET LOCAL statement_timeout = '{timeout_ms}ms'"
+                        f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                     )
 
                 # Validate function name to prevent SQL injection
@@ -237,7 +237,7 @@ class FraiseQLRepository:
                     # PostgreSQL doesn't support parameters in SET LOCAL
                     timeout_ms = int(self.query_timeout * 1000)
                     await cursor.execute(
-                        f"SET LOCAL statement_timeout = '{timeout_ms}ms'"
+                        f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                     )
 
                 await cursor.execute(

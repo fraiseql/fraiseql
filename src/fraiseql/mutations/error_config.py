@@ -25,7 +25,7 @@ class MutationErrorConfig:
             "updated",
             "deleted",
             "synced",
-        }
+        },
     )
 
     # Status prefixes that indicate errors (returned in errors field)
@@ -39,7 +39,7 @@ class MutationErrorConfig:
             "not_found:",
             "timeout:",
             "conflict:",
-        }
+        },
     )
 
     # Status prefixes that are treated as success despite looking like errors
@@ -50,7 +50,7 @@ class MutationErrorConfig:
             "blocked:",
             "skipped:",
             "ignored:",
-        }
+        },
     )
 
     # Additional keywords that indicate errors
@@ -61,7 +61,7 @@ class MutationErrorConfig:
             "fail",
             "invalid",
             "timeout",
-        }
+        },
     )
 
     # Custom regex pattern for error detection (optional)

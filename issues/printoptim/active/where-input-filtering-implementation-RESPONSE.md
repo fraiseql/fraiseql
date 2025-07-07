@@ -24,26 +24,26 @@ async def machines(
     where: MachineWhereInput | None = None,
 ) -> list[Machine]:
     """Retrieve a list of machines with filtering."""
-    
+
     # DEBUG: Check what we're receiving
     print(f"Where type: {type(where)}")
     print(f"Where value: {where}")
     if where:
         print(f"Where model_id: {getattr(where, 'model_id', 'NOT_FOUND')}")
-    
+
     db = info.context["db"]
     print(f"Repository mode: {getattr(db, 'mode', 'unknown')}")
-    
+
     # Your existing implementation...
     filters = _build_machine_filters(where, tenant_id)
     print(f"Built filters: {filters}")
-    
+
     results = await db.find("tb_machine", **filters, limit=limit, offset=offset)
     print(f"Results type: {type(results)}")
     if results:
         print(f"First result type: {type(results[0])}")
         print(f"First result: {results[0]}")
-    
+
     return results
 ```
 
@@ -57,21 +57,21 @@ Sometimes GraphQL passes where inputs as dicts. Handle both cases:
 def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: str | None) -> dict[str, Any]:
     """Convert machine where input to database filters."""
     filters = {}
-    
+
     # Always include tenant for security
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     if not where:
         return filters
-    
+
     # Handle both MachineWhereInput instances and dicts
     def get_field(field_name: str):
         if isinstance(where, dict):
             return where.get(field_name)
         else:
             return getattr(where, field_name, None)
-    
+
     # Build filters using the helper function
     if get_field('id') is not None:
         filters["id"] = get_field('id')
@@ -87,7 +87,7 @@ def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: st
         filters["customer_organization_id"] = get_field('customer_organization_id')
     if get_field('provider_organization_id') is not None:
         filters["provider_organization_id"] = get_field('provider_organization_id')
-    
+
     return filters
 ```
 
@@ -104,21 +104,21 @@ async def machines(
     where: MachineWhereInput | None = None,
 ) -> list[Machine]:
     """Retrieve a list of machines with filtering."""
-    
+
     if limit > 100:
         raise GraphQLError("Limit cannot exceed 100")
-    
+
     db = info.context["db"]
-    
+
     # Get tenant_id - your current approach is fine
     request = info.context.get("request")
     tenant_id = "550e8400-e29b-41d4-a716-446655440000"
     if request and hasattr(request, 'headers'):
         tenant_id = request.headers.get("tenant-id", tenant_id)
-    
+
     # Build filters
     filters = _build_machine_filters(where, tenant_id)
-    
+
     try:
         results = await db.find("tb_machine",
             **filters,
@@ -126,7 +126,7 @@ async def machines(
             offset=offset,
             order_by="removed_at DESC NULLS LAST"
         )
-        
+
         # Handle different repository modes
         if db.mode == "production":
             # In production mode, results are dicts
@@ -134,7 +134,7 @@ async def machines(
         else:
             # In development mode, results should already be Machine objects
             return results
-            
+
     except Exception as e:
         print(f"Query error: {e}")
         print(f"Filters used: {filters}")
@@ -147,14 +147,14 @@ Make sure your `tb_machine` view has the proper structure:
 
 ```sql
 -- Check if your view exists and has the data column
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'tb_machine' 
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'tb_machine'
 ORDER BY ordinal_position;
 
 -- Your view should look like this:
 CREATE VIEW tb_machine AS
-SELECT 
+SELECT
     -- Filtering columns
     id,
     tenant_id,
@@ -165,7 +165,7 @@ SELECT
     customer_organization_id,
     provider_organization_id,
     removed_at,
-    
+
     -- REQUIRED: JSONB data column
     jsonb_build_object(
         'id', id,
@@ -203,15 +203,15 @@ For boolean fields like `is_current`, `is_reserved`, etc., you have several opti
 #### Option A: Pre-compute in Database View (Recommended)
 ```sql
 CREATE VIEW tb_machine AS
-SELECT 
+SELECT
     id, tenant_id, identifier, model_id, /* other fields */,
-    
+
     -- Pre-compute boolean flags
     (removed_at IS NULL) as is_current,
     (EXISTS(SELECT 1 FROM reservations r WHERE r.machine_id = m.id AND r.end_date >= CURRENT_DATE)) as is_reserved,
     (stock_location_id IS NOT NULL) as is_stock,
     (NOT EXISTS(SELECT 1 FROM allocations a WHERE a.machine_id = m.id AND a.end_date >= CURRENT_DATE)) as is_unallocated,
-    
+
     jsonb_build_object(
         'id', id,
         'identifier', identifier,
@@ -228,7 +228,7 @@ Then update your filter builder:
 ```python
 def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: str | None) -> dict[str, Any]:
     # ... existing code ...
-    
+
     # Boolean filters (now work because they're columns in the view)
     if get_field('is_current') is not None:
         filters["is_current"] = get_field('is_current')
@@ -238,14 +238,14 @@ def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: st
         filters["is_stock"] = get_field('is_stock')
     if get_field('is_unallocated') is not None:
         filters["is_unallocated"] = get_field('is_unallocated')
-    
+
     return filters
 ```
 
 #### Option B: Custom SQL for Complex Filters
 ```python
 async def _filter_machines_with_complex_conditions(
-    db: FraiseQLRepository, 
+    db: FraiseQLRepository,
     where: MachineWhereInput,
     base_filters: dict,
     limit: int,
@@ -254,41 +254,41 @@ async def _filter_machines_with_complex_conditions(
     """Handle complex boolean filters with custom SQL."""
     from fraiseql.db import DatabaseQuery
     from psycopg.sql import SQL
-    
+
     conditions = []
     params = {}
-    
+
     # Add base filters
     for key, value in base_filters.items():
         conditions.append(f"{key} = %({key})s")
         params[key] = value
-    
+
     # Add complex boolean conditions
     if get_field('is_current') is not None:
         if get_field('is_current'):
             conditions.append("removed_at IS NULL")
         else:
             conditions.append("removed_at IS NOT NULL")
-    
+
     if get_field('is_reserved') is not None:
         if get_field('is_reserved'):
             conditions.append("""
-                EXISTS(SELECT 1 FROM reservations r 
-                       WHERE r.machine_id = tb_machine.id 
+                EXISTS(SELECT 1 FROM reservations r
+                       WHERE r.machine_id = tb_machine.id
                        AND r.end_date >= CURRENT_DATE)
             """)
         else:
             conditions.append("""
-                NOT EXISTS(SELECT 1 FROM reservations r 
-                           WHERE r.machine_id = tb_machine.id 
+                NOT EXISTS(SELECT 1 FROM reservations r
+                           WHERE r.machine_id = tb_machine.id
                            AND r.end_date >= CURRENT_DATE)
             """)
-    
+
     where_clause = " AND ".join(conditions) if conditions else "TRUE"
-    
+
     query = DatabaseQuery(
         statement=SQL(f"""
-            SELECT * FROM tb_machine 
+            SELECT * FROM tb_machine
             WHERE {where_clause}
             ORDER BY removed_at DESC NULLS LAST
             LIMIT %(limit)s OFFSET %(offset)s
@@ -296,9 +296,9 @@ async def _filter_machines_with_complex_conditions(
         params={**params, "limit": limit, "offset": offset},
         fetch_result=True
     )
-    
+
     results = await db.run(query)
-    
+
     # Handle mode-specific return
     if db.mode == "development":
         return [Machine(**row["data"]) for row in results]
@@ -315,29 +315,29 @@ However, you can make it more efficient:
 def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: str | None) -> dict[str, Any]:
     """More efficient filter building."""
     filters = {}
-    
+
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     if not where:
         return filters
-    
+
     # Define field mappings
     DIRECT_FIELDS = [
         'id', 'identifier', 'model_id', 'contract_id', 'order_id',
         'customer_organization_id', 'provider_organization_id',
         'is_current', 'is_reserved', 'is_stock', 'is_unallocated'
     ]
-    
+
     # Handle both dict and object input
     get_field = (lambda f: where.get(f)) if isinstance(where, dict) else (lambda f: getattr(where, f, None))
-    
+
     # Add all direct field filters
     for field in DIRECT_FIELDS:
         value = get_field(field)
         if value is not None:
             filters[field] = value
-    
+
     return filters
 ```
 
@@ -354,28 +354,28 @@ async def machines(
     where: MachineWhereInput | None = None,
 ) -> list[Machine]:
     """Retrieve a list of machines with filtering."""
-    
+
     # Validate inputs
     if limit > 100:
         raise GraphQLError("Limit cannot exceed 100")
-    
+
     db = info.context["db"]
-    
+
     # Get tenant_id
     request = info.context.get("request")
     tenant_id = "550e8400-e29b-41d4-a716-446655440000"
     if request and hasattr(request, 'headers'):
         tenant_id = request.headers.get("tenant-id", tenant_id)
-    
+
     # Build filters
     filters = _build_machine_filters(where, tenant_id)
-    
+
     # Check if we need complex filtering
     if where and _has_complex_filters(where):
         return await _filter_machines_with_complex_conditions(
             db, where, filters, limit, offset
         )
-    
+
     # Standard filtering
     try:
         results = await db.find("tb_machine",
@@ -384,18 +384,18 @@ async def machines(
             offset=offset,
             order_by="removed_at DESC NULLS LAST"
         )
-        
+
         # Ensure proper return type
         if not results:
             return []
-        
+
         # Check if results are already typed objects
         if hasattr(results[0], 'id'):
             return results
-        
+
         # If results are dicts, convert to Machine objects
         return [Machine(**row["data"]) for row in results]
-        
+
     except Exception as e:
         print(f"Machine query error: {e}")
         print(f"Filters: {filters}")
@@ -404,33 +404,33 @@ async def machines(
 def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: str | None) -> dict[str, Any]:
     """Convert machine where input to database filters."""
     filters = {}
-    
+
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     if not where:
         return filters
-    
+
     # Handle both dict and object input
     get_field = (lambda f: where.get(f)) if isinstance(where, dict) else (lambda f: getattr(where, f, None))
-    
+
     # Direct field mappings
     DIRECT_FIELDS = [
         'id', 'identifier', 'model_id', 'contract_id', 'order_id',
         'customer_organization_id', 'provider_organization_id'
     ]
-    
+
     for field in DIRECT_FIELDS:
         value = get_field(field)
         if value is not None:
             filters[field] = value
-    
+
     return filters
 
 def _has_complex_filters(where: MachineWhereInput | dict) -> bool:
     """Check if where input contains complex filters requiring custom SQL."""
     get_field = (lambda f: where.get(f)) if isinstance(where, dict) else (lambda f: getattr(where, f, None))
-    
+
     complex_fields = ['is_current', 'is_reserved', 'is_stock', 'is_unallocated']
     return any(get_field(field) is not None for field in complex_fields)
 ```
@@ -451,7 +451,7 @@ query {
 
 # Test multiple filters
 query {
-  machines(where: { 
+  machines(where: {
     modelId: "550e8400-e29b-41d4-a716-446655440001",
     contractId: "550e8400-e29b-41d4-a716-446655440002"
   }) {

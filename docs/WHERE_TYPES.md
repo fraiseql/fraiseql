@@ -72,7 +72,7 @@ query {
 
 # Range queries
 query {
-  products(where: { 
+  products(where: {
     price: { gte: 100, lte: 1000 }
     in_stock: { eq: true }
   }) {
@@ -134,8 +134,8 @@ where = ProductWhere(
     in_stock={"eq": True},
     category={"eq": "electronics"}
 )
-# SQL: (data->>'price')::numeric >= 500 
-#      AND (data->>'in_stock')::boolean = true 
+# SQL: (data->>'price')::numeric >= 500
+#      AND (data->>'in_stock')::boolean = true
 #      AND (data->>'category') = 'electronics'
 ```
 
@@ -146,7 +146,7 @@ where = ProductWhere(
 where = ProductWhere(
     price={"gte": 100, "lte": 1000}
 )
-# SQL: (data->>'price')::numeric >= 100 
+# SQL: (data->>'price')::numeric >= 100
 #      AND (data->>'price')::numeric <= 1000
 ```
 
@@ -214,7 +214,7 @@ where = OrderWhere(
 where = UserWhere(
     birth_date={"gte": date(1990, 1, 1), "lt": date(2000, 1, 1)}
 )
-# SQL: (data->>'birth_date')::date >= '1990-01-01' 
+# SQL: (data->>'birth_date')::date >= '1990-01-01'
 #      AND (data->>'birth_date')::date < '2000-01-01'
 ```
 
@@ -322,13 +322,13 @@ async def products(
     limit: int = 20
 ) -> list[Product]:
     db = info.context["db"]
-    
+
     # Convert GraphQL input to WHERE type
     if where:
         where_clause = ProductWhere(**where.__dict__)
     else:
         where_clause = None
-    
+
     return await db.find(
         "product_view",
         where=where_clause,
@@ -396,7 +396,7 @@ async def products(info, where: ProductWhereInput | None = None) -> list[Product
         if where.price.gte and where.price.lte:
             if where.price.gte > where.price.lte:
                 raise ValueError("Invalid price range")
-    
+
     # ... rest of query
 ```
 
@@ -409,15 +409,15 @@ Structure your WHERE types for clarity:
 class OrderFilters:
     # Status filters
     status: StatusFilter | None = None
-    
+
     # Date range filters
     created_after: datetime | None = None
     created_before: datetime | None = None
-    
+
     # Customer filters
     customer_id: UUID | None = None
     customer_email: str | None = None
-    
+
     # Amount filters
     total_gte: Decimal | None = None
     total_lte: Decimal | None = None
@@ -434,7 +434,7 @@ async def search_products(
     where: ProductWhereInput | None = None
 ) -> list[Product]:
     """Search products with advanced filtering.
-    
+
     Filters:
     - name.contains: Case-insensitive substring match
     - price.gte/lte: Inclusive price range
@@ -465,7 +465,7 @@ async def complex_search(
 def build_dynamic_where(filters: dict[str, Any]) -> ProductWhere:
     """Build WHERE clause from dynamic filter dict."""
     where_dict = {}
-    
+
     for field, value in filters.items():
         if field == "price_min":
             where_dict["price"] = {"gte": value}
@@ -473,7 +473,7 @@ def build_dynamic_where(filters: dict[str, Any]) -> ProductWhere:
             where_dict.setdefault("price", {})["lte"] = value
         elif field == "search":
             where_dict["name"] = {"contains": value}
-    
+
     return ProductWhere(**where_dict)
 ```
 
@@ -490,7 +490,7 @@ async def products_near_location(
     radius_km: float = 10
 ) -> list[Product]:
     db = info.context["db"]
-    
+
     # Custom PostGIS query
     sql = """
     SELECT data FROM product_view
@@ -500,7 +500,7 @@ async def products_near_location(
         %s
     )
     """
-    
+
     return await db.execute_raw(sql, [longitude, latitude, radius_km * 1000])
 ```
 
