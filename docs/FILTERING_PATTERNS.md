@@ -31,7 +31,7 @@ async def machines(
 ) -> list[Machine]:
     """Poor filtering - too many individual parameters."""
     db = info.context["db"]
-    
+
     # Manual filter building (inefficient)
     filters = {}
     if status:
@@ -39,7 +39,7 @@ async def machines(
     if name:
         filters["name"] = name
     # ... more manual checks
-    
+
     return await db.find("machine_view", **filters, limit=limit, offset=offset)
 ```
 
@@ -63,31 +63,31 @@ from uuid import UUID
 @fraise_input
 class MachineWhereInput:
     """Filtering options for machine queries."""
-    
+
     # Basic equality filters
     id: UUID | None = None
     status: str | None = None
     name: str | None = None
     tenant_id: UUID | None = None
-    
+
     # String matching
     name_contains: str | None = None
     name_starts_with: str | None = None
-    
+
     # Date range filters
     created_after: datetime | None = None
     created_before: datetime | None = None
     removed_after: datetime | None = None
     removed_before: datetime | None = None
-    
+
     # Boolean filters
     is_active: bool | None = None
     has_allocations: bool | None = None
-    
+
     # List filters
     statuses: list[str] | None = None
     ids: list[UUID] | None = None
-    
+
     # Numeric filters
     capacity_min: int | None = None
     capacity_max: int | None = None
@@ -106,11 +106,11 @@ async def machines(
     """Get machines with efficient filtering."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # Build filters efficiently
     filters = _build_machine_filters(where, tenant_id)
-    
-    return await db.find("machine_view", 
+
+    return await db.find("machine_view",
         **filters,
         limit=limit,
         offset=offset,
@@ -120,14 +120,14 @@ async def machines(
 def _build_machine_filters(where: MachineWhereInput | None, tenant_id: UUID | None) -> dict[str, Any]:
     """Build database filters from where input."""
     filters = {}
-    
+
     # Always add tenant filtering
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     if not where:
         return filters
-    
+
     # Basic equality filters
     if where.id:
         filters["id"] = where.id
@@ -137,25 +137,25 @@ def _build_machine_filters(where: MachineWhereInput | None, tenant_id: UUID | No
         filters["name"] = where.name
     if where.is_active is not None:
         filters["is_active"] = where.is_active
-    
+
     # List filters (IN clauses)
     if where.statuses:
         filters["status"] = where.statuses  # Repository handles IN clause
     if where.ids:
         filters["id"] = where.ids
-    
+
     # Date range filters
     if where.created_after:
         filters["created_at__gte"] = where.created_after
     if where.created_before:
         filters["created_at__lte"] = where.created_before
-    
+
     # Numeric range filters
     if where.capacity_min is not None:
         filters["capacity__gte"] = where.capacity_min
     if where.capacity_max is not None:
         filters["capacity__lte"] = where.capacity_max
-    
+
     return filters
 ```
 
@@ -172,7 +172,7 @@ class UserWhereInput:
 @fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]
-    
+
     filters = {}
     if where:
         if where.email:
@@ -181,7 +181,7 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
             filters["role"] = where.role
         if where.is_active is not None:
             filters["is_active"] = where.is_active
-    
+
     return await db.find("user_view", **filters)
 ```
 
@@ -197,48 +197,48 @@ class ProductWhereInput:
 @fraiseql.query
 async def products(info, where: ProductWhereInput | None = None) -> list[Product]:
     db = info.context["db"]
-    
+
     # For complex string matching, use custom SQL
     if where and (where.name_contains or where.name_starts_with or where.description_contains):
         return await _search_products_with_text(db, where)
-    
+
     # Simple equality filters
     filters = {}
     if where and where.name:
         filters["name"] = where.name
-    
+
     return await db.find("product_view", **filters)
 
 async def _search_products_with_text(db: FraiseQLRepository, where: ProductWhereInput) -> list[Product]:
     """Handle complex text search."""
     from fraiseql.db import DatabaseQuery
     from psycopg.sql import SQL, Identifier, Literal
-    
+
     conditions = []
     params = {}
-    
+
     if where.name_contains:
         conditions.append("name ILIKE %(name_pattern)s")
         params["name_pattern"] = f"%{where.name_contains}%"
-    
+
     if where.name_starts_with:
         conditions.append("name ILIKE %(name_prefix)s")
         params["name_prefix"] = f"{where.name_starts_with}%"
-    
+
     if where.description_contains:
         conditions.append("description ILIKE %(desc_pattern)s")
         params["desc_pattern"] = f"%{where.description_contains}%"
-    
+
     where_clause = " AND ".join(conditions) if conditions else "TRUE"
-    
+
     query = DatabaseQuery(
         statement=SQL(f"SELECT * FROM product_view WHERE {where_clause}"),
         params=params,
         fetch_result=True
     )
-    
+
     results = await db.run(query)
-    
+
     # In development mode, manually instantiate
     if db.mode == "development":
         return [Product(**row["data"]) for row in results]
@@ -264,12 +264,12 @@ class OrderWhereInput:
     status: str | None = None
     statuses: list[str] | None = None
     customer_id: UUID | None = None
-    
+
     # Nested range filters
     created_at: DateRangeInput | None = None
     updated_at: DateRangeInput | None = None
     total_amount: NumericRangeInput | None = None
-    
+
     # Boolean combinations
     is_paid: bool | None = None
     is_shipped: bool | None = None
@@ -277,16 +277,16 @@ class OrderWhereInput:
 @fraiseql.query
 async def orders(info, where: OrderWhereInput | None = None) -> list[Order]:
     db = info.context["db"]
-    
+
     filters = _build_order_filters(where)
     return await db.find("order_view", **filters)
 
 def _build_order_filters(where: OrderWhereInput | None) -> dict[str, Any]:
     filters = {}
-    
+
     if not where:
         return filters
-    
+
     # Basic filters
     if where.status:
         filters["status"] = where.status
@@ -298,27 +298,27 @@ def _build_order_filters(where: OrderWhereInput | None) -> dict[str, Any]:
         filters["is_paid"] = where.is_paid
     if where.is_shipped is not None:
         filters["is_shipped"] = where.is_shipped
-    
+
     # Date range filters
     if where.created_at:
         if where.created_at.after:
             filters["created_at__gte"] = where.created_at.after
         if where.created_at.before:
             filters["created_at__lte"] = where.created_at.before
-    
+
     if where.updated_at:
         if where.updated_at.after:
             filters["updated_at__gte"] = where.updated_at.after
         if where.updated_at.before:
             filters["updated_at__lte"] = where.updated_at.before
-    
+
     # Numeric range filters
     if where.total_amount:
         if where.total_amount.min is not None:
             filters["total_amount__gte"] = where.total_amount.min
         if where.total_amount.max is not None:
             filters["total_amount__lte"] = where.total_amount.max
-    
+
     return filters
 ```
 
@@ -329,12 +329,12 @@ class PostWhereInput:
     title_contains: str | None = None
     status: str | None = None
     published: bool | None = None
-    
+
     # Author filtering
     author_id: UUID | None = None
     author_email: str | None = None
     author_role: str | None = None
-    
+
     # Tag filtering
     has_tag: str | None = None
     has_any_tags: list[str] | None = None
@@ -343,12 +343,12 @@ class PostWhereInput:
 @fraiseql.query
 async def posts(info, where: PostWhereInput | None = None) -> list[Post]:
     db = info.context["db"]
-    
+
     # For relationship filtering, use views with joins
-    if where and (where.author_email or where.author_role or 
+    if where and (where.author_email or where.author_role or
                   where.has_tag or where.has_any_tags or where.has_all_tags):
         return await _filter_posts_with_relationships(db, where)
-    
+
     # Simple filters
     filters = {}
     if where:
@@ -361,7 +361,7 @@ async def posts(info, where: PostWhereInput | None = None) -> list[Post]:
             filters["published"] = where.published
         if where.author_id:
             filters["author_id"] = where.author_id
-    
+
     return await db.find("post_view", **filters)
 ```
 
@@ -371,7 +371,7 @@ async def posts(info, where: PostWhereInput | None = None) -> list[Post]:
 ```sql
 -- Create view that pre-computes common filters
 CREATE VIEW machine_search_view AS
-SELECT 
+SELECT
     m.id,
     m.status,
     m.tenant_id,
@@ -401,7 +401,7 @@ FROM machines m;
 CREATE INDEX idx_machine_search_status ON machines(status);
 CREATE INDEX idx_machine_search_tenant ON machines(tenant_id);
 CREATE INDEX idx_machine_search_active ON machines(tenant_id, (removed_at IS NULL));
-CREATE INDEX idx_machine_search_fts ON machines 
+CREATE INDEX idx_machine_search_fts ON machines
 USING gin(to_tsvector('english', name || ' ' || COALESCE(description, '')));
 ```
 
@@ -412,7 +412,7 @@ class MachineSearchInput:
     # Regular filters
     status: str | None = None
     is_active: bool | None = None
-    
+
     # Text search
     search_query: str | None = None
     name_contains: str | None = None
@@ -420,10 +420,10 @@ class MachineSearchInput:
 @fraiseql.query
 async def search_machines(info, where: MachineSearchInput | None = None) -> list[Machine]:
     db = info.context["db"]
-    
+
     if where and where.search_query:
         return await _full_text_search_machines(db, where)
-    
+
     # Regular filtering
     filters = {}
     if where:
@@ -431,14 +431,14 @@ async def search_machines(info, where: MachineSearchInput | None = None) -> list
             filters["status"] = where.status
         if where.is_active is not None:
             filters["is_active"] = where.is_active
-    
+
     return await db.find("machine_search_view", **filters)
 
 async def _full_text_search_machines(db: FraiseQLRepository, where: MachineSearchInput) -> list[Machine]:
     """Full-text search with ranking."""
     from fraiseql.db import DatabaseQuery
     from psycopg.sql import SQL
-    
+
     query = DatabaseQuery(
         statement=SQL("""
             SELECT *, ts_rank(search_vector, plainto_tsquery('english', %(query)s)) as rank
@@ -456,9 +456,9 @@ async def _full_text_search_machines(db: FraiseQLRepository, where: MachineSearc
         },
         fetch_result=True
     )
-    
+
     results = await db.run(query)
-    
+
     if db.mode == "development":
         return [Machine(**row["data"]) for row in results]
     return results
@@ -475,7 +475,7 @@ CREATE INDEX idx_machines_capacity ON machines(capacity) WHERE capacity IS NOT N
 
 -- Partial indexes for common filters
 CREATE INDEX idx_machines_active ON machines(tenant_id) WHERE removed_at IS NULL;
-CREATE INDEX idx_machines_with_allocations ON machines(id) 
+CREATE INDEX idx_machines_with_allocations ON machines(id)
 WHERE EXISTS(SELECT 1 FROM allocations WHERE machine_id = machines.id);
 ```
 
@@ -492,11 +492,11 @@ async def machines(
     # Enforce maximum limit
     if limit > 100:
         limit = 100
-    
+
     db = info.context["db"]
     filters = _build_machine_filters(where, info.context.get("tenant_id"))
-    
-    return await db.find("machine_view", 
+
+    return await db.find("machine_view",
         **filters,
         limit=limit,
         offset=offset,
@@ -521,17 +521,17 @@ async def machines_paginated(
 ) -> MachineConnection:
     db = info.context["db"]
     filters = _build_machine_filters(where, info.context.get("tenant_id"))
-    
+
     # Get data and count in parallel
     machines_task = db.find("machine_view", **filters, limit=limit + 1, offset=offset)
     count_task = _count_machines(db, filters)
-    
+
     machines, total_count = await asyncio.gather(machines_task, count_task)
-    
+
     has_next_page = len(machines) > limit
     if has_next_page:
         machines = machines[:limit]
-    
+
     return MachineConnection(
         machines=machines,
         total_count=total_count,
@@ -542,24 +542,24 @@ async def _count_machines(db: FraiseQLRepository, filters: dict[str, Any]) -> in
     """Get count of machines matching filters."""
     from fraiseql.db import DatabaseQuery
     from psycopg.sql import SQL
-    
+
     # Build WHERE clause from filters
     conditions = []
     params = {}
-    
+
     for key, value in filters.items():
         if key not in ['limit', 'offset', 'order_by']:
             conditions.append(f"{key} = %({key})s")
             params[key] = value
-    
+
     where_clause = " AND ".join(conditions) if conditions else "TRUE"
-    
+
     query = DatabaseQuery(
         statement=SQL(f"SELECT COUNT(*) as count FROM machine_view WHERE {where_clause}"),
         params=params,
         fetch_result=True
     )
-    
+
     result = await db.run(query)
     return result[0]["count"] if result else 0
 ```
@@ -626,20 +626,20 @@ Here's a complete example showing efficient filtering:
 @fraise_input
 class MachineWhereInput:
     """Filter options for machine queries."""
-    
+
     # Basic filters
     status: str | None = fraise_field(description="Filter by machine status")
     statuses: list[str] | None = fraise_field(description="Filter by multiple statuses")
     is_active: bool | None = fraise_field(description="Filter by active/inactive state")
-    
+
     # Text search
     name_contains: str | None = fraise_field(description="Search in machine name")
     search: str | None = fraise_field(description="Full-text search")
-    
+
     # Date ranges
     created_after: datetime | None = fraise_field(description="Created after date")
     created_before: datetime | None = fraise_field(description="Created before date")
-    
+
     # Numeric ranges
     capacity_min: int | None = fraise_field(description="Minimum capacity")
     capacity_max: int | None = fraise_field(description="Maximum capacity")
@@ -657,17 +657,17 @@ async def machines(
     # Validate inputs
     if limit > 100:
         raise GraphQLError("Limit cannot exceed 100")
-    
+
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # Handle full-text search separately
     if where and where.search:
         return await _search_machines(db, where, tenant_id, limit, offset)
-    
+
     # Build filters
     filters = {"tenant_id": tenant_id} if tenant_id else {}
-    
+
     if where:
         # Basic filters
         if where.status:
@@ -676,25 +676,25 @@ async def machines(
             filters["status"] = where.statuses  # IN clause
         if where.is_active is not None:
             filters["is_active"] = where.is_active
-        
+
         # Date ranges
         if where.created_after:
             filters["created_at__gte"] = where.created_after
         if where.created_before:
             filters["created_at__lte"] = where.created_before
-        
+
         # Numeric ranges
         if where.capacity_min is not None:
             filters["capacity__gte"] = where.capacity_min
         if where.capacity_max is not None:
             filters["capacity__lte"] = where.capacity_max
-        
+
         # Text search (if name_contains but no full search)
         if where.name_contains and not where.search:
-            return await _search_machines_by_name(db, where.name_contains, 
+            return await _search_machines_by_name(db, where.name_contains,
                                                 filters, limit, offset)
-    
-    return await db.find("machine_view", 
+
+    return await db.find("machine_view",
         **filters,
         limit=limit,
         offset=offset,

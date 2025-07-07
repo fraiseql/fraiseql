@@ -43,7 +43,7 @@ class MachineBasic:
     id: uuid.UUID
     identifier: str
 
-@fraiseql.type  
+@fraiseql.type
 class AllocationWithBasicMachine:
     id: uuid.UUID
     identifier: str
@@ -61,7 +61,7 @@ The GraphQL resolver needs to pass the selection set information to the reposito
 ```python
 # In the query resolver
 selected_fields = extract_selected_fields(info)
-results = await db.find("tv_allocation", 
+results = await db.find("tv_allocation",
     selected_fields=selected_fields,  # New parameter
     limit=limit
 )
@@ -75,7 +75,7 @@ def _instantiate_partial(self, type_class: type, data: dict, selected_fields: di
     """Create object with only selected fields."""
     # Filter data to only include selected fields
     filtered_data = self._filter_by_selection(data, selected_fields)
-    
+
     # Create object with partial data
     # This might require using a different instantiation method
     # that doesn't validate required fields
@@ -89,7 +89,7 @@ class LazyProxy:
     def __init__(self, data, type_class):
         self._data = data
         self._type = type_class
-    
+
     def __getattr__(self, name):
         # Materialize field on access
         if name in self._data:

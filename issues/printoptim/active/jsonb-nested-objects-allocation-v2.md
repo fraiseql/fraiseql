@@ -62,7 +62,7 @@ from printoptim_backend.entrypoints.api.gql_types.dim.network import NetworkConf
 @fraiseql.type
 class Allocation:
     """Allocation type representing machine item allocations.
-    
+
     FraiseQL will automatically instantiate nested types from the JSONB data
     in development mode when fields are properly defined.
     """
@@ -79,7 +79,7 @@ class Allocation:
     is_future: bool
     is_reserved: bool
     is_stock: bool
-    
+
     # Fields from the JSONB 'data' column
     # Question: Will FraiseQL automatically extract these from data->field_name?
     identifier: Optional[str]
@@ -88,7 +88,7 @@ class Allocation:
     notes: Optional[str]
     notes_contact: Optional[str]
     is_provisionnal: bool = False
-    
+
     # Nested objects from JSONB - FraiseQL will instantiate these types
     machine: Optional[Machine]
     location: Optional[Location]
@@ -98,7 +98,7 @@ class Allocation:
 
 ## Questions
 
-1. **Do we need to modify our database view?** 
+1. **Do we need to modify our database view?**
    - Currently, our view returns a `data` JSONB column with all nested fields
    - Should we extract fields to top level like `data->>'identifier' as identifier`?
    - Or can FraiseQL work with the current structure?
@@ -111,7 +111,7 @@ class Allocation:
    ```python
    # Our current query
    query = """
-       SELECT 
+       SELECT
            id, machine_id, organizational_unit_id, location_id,
            valid_from, valid_until, is_past, is_current, is_future,
            is_reserved, is_stock, data

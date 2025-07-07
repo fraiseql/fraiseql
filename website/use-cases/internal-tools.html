@@ -33,7 +33,7 @@
     <section class="feature-detail">
         <div class="container">
             <h2>Why FraiseQL for Internal Tools?</h2>
-            
+
             <div class="feature-grid">
                 <div class="feature">
                     <h3>📊 Direct Database Access</h3>
@@ -71,7 +71,7 @@ class CustomerInfo:
 
 @fraiseql.query
 async def customer_search(
-    info, 
+    info,
     query: str,
     status: str = None
 ) -> list[CustomerInfo]:
@@ -79,7 +79,7 @@ async def customer_search(
     filters = {"search": query}
     if status:
         filters["subscription_status"] = status
-    
+
     return await info.context.repo.find(
         "customer_admin_view",
         where=filters,
@@ -101,7 +101,7 @@ async def update_customer_status(
         target_id=customer_id,
         details={"new_status": new_status, "reason": reason}
     )
-    
+
     return await info.context.repo.update(
         "customers",
         customer_id,
@@ -113,7 +113,7 @@ async def update_customer_status(
     <section class="features">
         <div class="container">
             <h2>Common Internal Tool Patterns</h2>
-            
+
             <div class="assessment-grid">
                 <div class="assessment-card">
                     <h3>Operations Dashboard</h3>
@@ -124,7 +124,7 @@ async def update_customer_status(
                         <li class="done">✓ Performance metrics</li>
                     </ul>
                 </div>
-                
+
                 <div class="assessment-card">
                     <h3>Customer Support</h3>
                     <ul>
@@ -134,7 +134,7 @@ async def update_customer_status(
                         <li class="done">✓ Support tickets</li>
                     </ul>
                 </div>
-                
+
                 <div class="assessment-card">
                     <h3>Data Management</h3>
                     <ul>
@@ -221,7 +221,7 @@ async def update_deal_stage(
     # Validation and business rules
     if input.stage == "closed_won":
         await send_celebration_slack(input.deal_id)
-    
+
     return await info.context.repo.update(
         "deals",
         input.deal_id,

@@ -13,9 +13,9 @@ CREATE TABLE tv_allocation (
     tenant_id uuid,       -- For access control
     machine_id uuid,      -- For filtering/joins
     location_id uuid,     -- For filtering/joins
-    
+
     data jsonb,           -- The ONLY source for object instantiation
-    
+
     last_updated timestamptz,
     updated_by uuid
 );
@@ -34,7 +34,7 @@ class Allocation:
     valid_until: Optional[date]
     is_current: bool
     notes: Optional[str]
-    
+
     # Nested objects
     machine: Optional[Machine]
     location: Optional[Location]
@@ -52,8 +52,8 @@ class Allocation:
 ```python
 # Your query uses columns for filtering
 query = """
-    SELECT * FROM tv_allocation 
-    WHERE tenant_id = $1 
+    SELECT * FROM tv_allocation
+    WHERE tenant_id = $1
     AND machine_id = $2
 """
 

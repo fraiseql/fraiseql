@@ -12,7 +12,7 @@ While dynamic filter generation (like `safe_create_where_type`) seems appealing 
 ```graphql
 # Dynamic generation creates nested, operator-based APIs
 query {
-  machines(where: { 
+  machines(where: {
     status: { eq: "active" },
     capacity: { gt: 100, lte: 500 },
     name: { contains: "printer" }
@@ -23,7 +23,7 @@ query {
 
 # vs. Clean, intuitive API with explicit filters
 query {
-  machines(where: { 
+  machines(where: {
     status: "active",
     capacityMin: 100,
     capacityMax: 500,
@@ -131,15 +131,15 @@ Dynamic generation enforces rigid patterns:
 # With explicit filters, you have full control:
 def _build_machine_filters(where: MachineWhereInput) -> dict:
     filters = {}
-    
+
     # Custom business logic
     if where.is_available and where.status != "maintenance":
         filters["status"] = ["active", "idle"]
-    
+
     # Complex date handling
     if where.available_in_days:
         filters["next_maintenance__gte"] = date.today() + timedelta(days=where.available_in_days)
-    
+
     return filters
 ```
 
@@ -239,15 +239,15 @@ def build_filters(where: Any, base: dict = None) -> dict:
     filters = base or {}
     if not where:
         return filters
-    
+
     # Convert to dict if needed
     where_dict = vars(where) if hasattr(where, '__dict__') else where
-    
+
     # Direct mapping - no magic
     for key, value in where_dict.items():
         if value is not None:
             filters[key] = value
-    
+
     return filters
 
 # 3. Clean query implementation
@@ -275,7 +275,7 @@ Remember: **Explicit is better than implicit** - The Zen of Python
 
 The small amount of "boilerplate" you write for explicit filters pays huge dividends in:
 - Developer experience
-- Maintainability  
+- Maintainability
 - Performance
 - Type safety
 - Debuggability

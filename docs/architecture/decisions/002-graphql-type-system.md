@@ -52,9 +52,9 @@ class User:
     # All fields come from the view
     post_count: int
     recent_posts: list[dict]
-    
+
 @fraise_input
-@dataclass 
+@dataclass
 class CreateUserInput:
     email: str
     name: str
@@ -64,7 +64,7 @@ class CreateUserInput:
 ```sql
 -- User view with computed fields and relationships
 CREATE VIEW v_users AS
-SELECT 
+SELECT
     u.id,
     jsonb_build_object(
         'id', u.id,
@@ -96,7 +96,7 @@ LEFT JOIN LATERAL (
 
 -- Post view with author embedded
 CREATE VIEW v_posts AS
-SELECT 
+SELECT
     p.id,
     jsonb_build_object(
         'id', p.id,
@@ -187,10 +187,10 @@ BEGIN
         input->>'content'
     )
     RETURNING id, user_id INTO post_id, user_id;
-    
+
     -- Update user dashboard projection
     INSERT INTO tv_user_dashboard (user_id, data, last_updated)
-    SELECT 
+    SELECT
         user_id,
         jsonb_build_object(
             'totalPosts', COUNT(*),
@@ -206,7 +206,7 @@ BEGIN
     ON CONFLICT (user_id) DO UPDATE
     SET data = EXCLUDED.data,
         last_updated = NOW();
-    
+
     -- Return the new post
     RETURN (SELECT data FROM v_posts WHERE id = post_id);
 END;

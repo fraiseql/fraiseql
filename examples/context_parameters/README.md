@@ -5,7 +5,7 @@ This example demonstrates how to use context parameters in FraiseQL mutations to
 ## Problem Statement
 
 Many enterprise applications use PostgreSQL functions that require context parameters for:
-- Multi-tenant data isolation 
+- Multi-tenant data isolation
 - Audit trails
 - Row-level security
 - Business logic that depends on the current user/organization
@@ -19,7 +19,7 @@ But many existing enterprise systems use functions with context parameters:
 ```sql
 CREATE FUNCTION app.create_location(
     input_pk_organization UUID,  -- Tenant/Organization ID
-    input_created_by UUID,       -- User/Contact ID  
+    input_created_by UUID,       -- User/Contact ID
     input_json JSONB             -- Actual mutation input
 ) RETURNS app.mutation_result
 ```
@@ -108,7 +108,7 @@ CREATE TYPE app.mutation_result AS (
 -- Create the mutation function with context parameters
 CREATE OR REPLACE FUNCTION app.create_location(
     input_pk_organization UUID,  -- Tenant ID (from context)
-    input_created_by UUID,       -- User ID (from context) 
+    input_created_by UUID,       -- User ID (from context)
     input_json JSONB             -- Mutation input data
 ) RETURNS app.mutation_result
 LANGUAGE plpgsql
@@ -119,18 +119,18 @@ DECLARE
 BEGIN
     -- Validate tenant access
     IF NOT EXISTS (
-        SELECT 1 FROM organizations 
-        WHERE id = input_pk_organization 
+        SELECT 1 FROM organizations
+        WHERE id = input_pk_organization
         AND active = true
     ) THEN
         v_result.status := 'error';
         v_result.message := 'Invalid organization';
         RETURN v_result;
     END IF;
-    
+
     -- Create location with tenant isolation
     INSERT INTO locations (
-        id, 
+        id,
         organization_id,
         created_by,
         name,
@@ -143,19 +143,19 @@ BEGIN
         input_pk_organization,  -- Ensures tenant isolation
         input_created_by,       -- Audit trail
         input_json->>'name',
-        input_json->>'address', 
+        input_json->>'address',
         (input_json->>'latitude')::NUMERIC,
         (input_json->>'longitude')::NUMERIC,
         NOW()
     ) RETURNING id INTO v_location_id;
-    
+
     -- Return success result
     v_result.status := 'success';
     v_result.message := 'Location created successfully';
     v_result.object_data := jsonb_build_object(
         'location_id', v_location_id
     );
-    
+
     RETURN v_result;
 END;
 $$;
@@ -206,7 +206,7 @@ context_params={
 }
 ```
 
-### UserContext Objects  
+### UserContext Objects
 ```python
 context_params={
     "user": "input_created_by"  # Extracts user_id from UserContext automatically
@@ -217,11 +217,11 @@ The resolver automatically extracts `user_id` from `UserContext` objects when th
 
 ## Benefits
 
-✅ **Enterprise Ready**: Works with existing multi-tenant database architectures  
-✅ **Security**: Context parameters ensure proper tenant isolation and audit trails  
-✅ **Clean Separation**: Business data separate from context data  
-✅ **Type Safety**: Runtime validation of required context parameters  
-✅ **Backward Compatible**: Existing single-parameter mutations continue to work  
+✅ **Enterprise Ready**: Works with existing multi-tenant database architectures
+✅ **Security**: Context parameters ensure proper tenant isolation and audit trails
+✅ **Clean Separation**: Business data separate from context data
+✅ **Type Safety**: Runtime validation of required context parameters
+✅ **Backward Compatible**: Existing single-parameter mutations continue to work
 
 ## Migration from Wrapper Functions
 
@@ -230,7 +230,7 @@ If you currently use wrapper functions to work around the single-parameter limit
 **Before (Workaround):**
 ```sql
 -- Wrapper function (can be removed)
-CREATE FUNCTION app.create_location(input_data JSONB) 
+CREATE FUNCTION app.create_location(input_data JSONB)
 RETURNS app.mutation_result AS $$
 DECLARE
     v_org_id UUID := (input_data->>'organization_id')::UUID;
@@ -238,8 +238,8 @@ DECLARE
 BEGIN
     -- Remove context from input and call real function
     RETURN app.create_location_impl(
-        v_org_id, 
-        v_user_id, 
+        v_org_id,
+        v_user_id,
         input_data - 'organization_id' - 'created_by'
     );
 END;
@@ -252,7 +252,7 @@ $$;
     function="create_location_impl",  # Call the real function directly
     schema="app",
     context_params={
-        "tenant_id": "input_pk_organization", 
+        "tenant_id": "input_pk_organization",
         "user": "input_created_by"
     }
 )
