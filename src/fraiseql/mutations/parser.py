@@ -14,6 +14,56 @@ S = TypeVar("S")  # Success type
 E = TypeVar("E")  # Error type
 
 
+def _status_to_error_code(status: str) -> int:
+    """Convert a status string to an appropriate HTTP error code.
+
+    This is a basic implementation that can be overridden by projects.
+    """
+    if not status:
+        return 500
+
+    status_lower = status.lower()
+
+    # Map common statuses to HTTP codes
+    if "not_found" in status_lower:
+        return 404
+    if "unauthorized" in status_lower:
+        return 401
+    if "forbidden" in status_lower:
+        return 403
+    if "conflict" in status_lower or "duplicate" in status_lower or "exists" in status_lower:
+        return 409
+    if "validation" in status_lower or "invalid" in status_lower:
+        return 422
+    if "timeout" in status_lower:
+        return 408
+    if status_lower.startswith("noop:"):
+        return 422  # Unprocessable Entity for no-op operations
+    if status_lower.startswith("blocked:"):
+        return 422  # Unprocessable Entity for blocked operations
+    if status_lower.startswith("failed:"):
+        return 500  # Internal error for failures
+    return 500  # Default to internal server error
+
+
+def _status_to_identifier(status: str) -> str:
+    """Convert a status string to an error identifier.
+
+    Extracts the meaningful part of the status for use as an identifier.
+    """
+    if not status:
+        return "unknown_error"
+
+    # Handle prefixed statuses (e.g., "noop:already_exists" -> "already_exists")
+    if ":" in status:
+        parts = status.split(":", 1)
+        if len(parts) > 1 and parts[1]:
+            return parts[1]
+
+    # Use the full status as identifier, replacing spaces with underscores
+    return status.lower().replace(" ", "_").replace("-", "_")
+
+
 def parse_mutation_result(
     result: dict[str, Any],
     success_cls: type[S],
@@ -165,7 +215,76 @@ def _parse_error(
                 if value is not None:
                     fields[field_name] = value
 
-    return error_cls(**fields)
+    # Try to populate remaining fields from object_data
+    if result.object_data:
+        for field_name, field_type in annotations.items():
+            if field_name in fields:  # Skip already populated fields
+                continue
+            if field_name in ("message", "code", "status", "errors"):  # Skip standard fields
+                continue
+
+            # Try to extract from object_data
+            value = _extract_field_value(
+                field_name,
+                field_type,
+                result.object_data,
+                None,  # Don't re-check metadata
+            )
+            if value is not None:
+                fields[field_name] = value
+
+    # Ensure errors field exists if it's in annotations but not populated
+    if "errors" in annotations and "errors" not in fields:
+        fields["errors"] = None
+
+    # Create instance first
+    instance = error_cls(**fields)
+
+    # Post-process to auto-populate errors field if it exists and is None
+    if hasattr(instance, "errors") and getattr(instance, "errors", "NOT_SET") is None:
+        # Auto-populate the errors field with structured error information
+        error_list_type = annotations.get("errors")
+        if error_list_type:
+            # Handle Optional[list[Error]] or list[Error] | None
+            origin = get_origin(error_list_type)
+            args = get_args(error_list_type)
+
+            # If it's a Union type (Optional), extract the non-None type
+            if origin is Union or origin is types.UnionType:
+                # Find the list type among the union members
+                for arg in args:
+                    if get_origin(arg) is list:
+                        error_list_type = arg
+                        break
+
+            # Now check if we have a list type
+            origin = get_origin(error_list_type)
+            if origin is list:
+                # Get the Error type from list[Error]
+                error_item_type = get_args(error_list_type)[0]
+
+                # Try to create an error instance
+                # This is a basic implementation - projects can customize via error_config
+                error_data = {
+                    "message": result.message or f"Operation failed: {result.status}",
+                    "code": _status_to_error_code(result.status),
+                    "identifier": _status_to_identifier(result.status),
+                }
+
+                # Add details if available
+                if result.extra_metadata:
+                    error_data["details"] = result.extra_metadata
+
+                try:
+                    # Instantiate the error type
+                    error_instance = _instantiate_type(error_item_type, error_data)
+                    if error_instance is not None:
+                        instance.errors = [error_instance]
+                except Exception as e:
+                    # If we can't instantiate, leave as None
+                    logger.debug("Failed to auto-populate errors field: %s", e)
+
+    return instance
 
 
 def _extract_field_value(

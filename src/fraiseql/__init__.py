@@ -70,24 +70,24 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "0.1.0b5"
+__version__ = "0.1.0b6"
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",
+    "DEFAULT_ERROR_CONFIG",
+    "JSON",
+    "PRINTOPTIM_ERROR_CONFIG",
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
     "CQRSExecutor",
     "CQRSRepository",
     "Connection",
-    "DEFAULT_ERROR_CONFIG",
     "Date",
     "Edge",
     "EmailAddress",
     "FraiseQLConfig",
-    "JSON",
     "MutationErrorConfig",
-    "PRINTOPTIM_ERROR_CONFIG",
     "PageInfo",
     "PaginatedResponse",
     "UserContext",

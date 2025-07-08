@@ -18,7 +18,6 @@ from fraiseql.fastapi.dependencies import (
     set_db_pool,
     set_fraiseql_config,
 )
-from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.fastapi.turbo import TurboRegistry
 from fraiseql.gql.schema_builder import build_fraiseql_schema
@@ -27,20 +26,19 @@ from fraiseql.utils import normalize_database_url
 
 async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.AsyncConnectionPool:
     """Create async database connection pool with custom type handling."""
-    
+
     # Configure how psycopg3 handles PostgreSQL types for each connection
     async def configure_types(conn):
         """Configure type adapters to keep dates as strings."""
         # Import here to avoid circular imports
         from psycopg.adapt import Loader
-        from psycopg.postgres import types
-        
+
         # Create a custom loader that returns the raw text value
         class TextLoader(Loader):
             def load(self, data):
                 # Return the raw text representation from PostgreSQL
                 return data.decode("utf-8") if isinstance(data, bytes) else data
-        
+
         # Register text loaders for date/time types
         # This prevents automatic conversion to Python date/datetime objects
         conn.adapters.register_loader("date", TextLoader)
@@ -48,14 +46,14 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
         conn.adapters.register_loader("timestamptz", TextLoader)
         conn.adapters.register_loader("time", TextLoader)
         conn.adapters.register_loader("timetz", TextLoader)
-    
+
     # Create pool with the configure callback
     pool = psycopg_pool.AsyncConnectionPool(
         database_url,
         configure=configure_types,
-        **pool_kwargs
+        **pool_kwargs,
     )
-    
+
     return pool
 
 

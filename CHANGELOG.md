@@ -5,6 +5,30 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b6] - 2025-07-07
+
+### Added
+- **Automatic Error Population for Mutation Error Types**: Error types with an `errors` field now have it auto-populated
+  - When a mutation returns an error type with `errors: list[Error] | None = None`, the field is automatically populated
+  - Error information is derived from the mutation result's status and message
+  - Supports structured error types with `message`, `code`, `identifier`, and `details` fields
+  - Status codes are automatically mapped (e.g., `not_found` → 404, `conflict` → 409)
+  - Status identifiers are extracted (e.g., `noop:already_exists` → `already_exists`)
+  - Compatible with existing `MutationErrorConfig` settings
+  - Fully backward compatible - existing populated errors are not overwritten
+
+### Enhanced
+- **Mutation Error Parser**: `_parse_error` now populates fields from `object_data`
+  - Fields like `conflict_entity` can be automatically populated from the mutation result
+  - Handles complex types including nested objects and FraiseQL types
+  - Works seamlessly with the existing mutation pattern
+
+### Technical Details
+- Added `_status_to_error_code()` and `_status_to_identifier()` helper functions
+- Enhanced type handling for `Optional[list[Error]]` patterns
+- Comprehensive test coverage for all error population scenarios
+- No breaking changes - all existing functionality preserved
+
 ## [0.1.0b5] - 2025-07-06
 
 ### Fixed

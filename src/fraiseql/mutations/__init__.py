@@ -14,9 +14,9 @@ from .types import MutationResult
 __all__ = [
     "ALWAYS_DATA_CONFIG",
     "DEFAULT_ERROR_CONFIG",
+    "PRINTOPTIM_ERROR_CONFIG",
     "MutationErrorConfig",
     "MutationResult",
-    "PRINTOPTIM_ERROR_CONFIG",
     "failure",
     "mutation",
     "parse_mutation_result",
