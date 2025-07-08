@@ -171,14 +171,18 @@ def _parse_success(
             fields[field_name] = value
 
     # Handle main entity from object_data if not already mapped
-    if result.object_data and len(fields) == 1 and "message" in fields:
-        # If we only have message, try to map object_data to the main field
-        main_field = _find_main_field(annotations, result.extra_metadata)
-        if main_field:
-            field_type = annotations[main_field]
-            value = _instantiate_type(field_type, result.object_data)
-            if value is not None:
-                fields[main_field] = value
+    if result.object_data:
+        # Check if we need to map object_data to a main field
+        # We have object data but no entity fields have been populated yet
+        non_standard_fields = [f for f in fields if f not in ("message", "status")]
+        if not non_standard_fields:
+            # Try to map object_data to the main field
+            main_field = _find_main_field(annotations, result.extra_metadata)
+            if main_field and main_field not in fields:
+                field_type = annotations[main_field]
+                value = _instantiate_type(field_type, result.object_data)
+                if value is not None:
+                    fields[main_field] = value
 
     return success_cls(**fields)
 

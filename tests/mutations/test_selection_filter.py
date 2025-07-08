@@ -15,10 +15,12 @@ class TestSelectionFilter:
         mock_field_node = MagicMock()
         mock_selection1 = MagicMock()
         mock_selection1.name.value = "id"
+        mock_selection1.alias = None
         mock_selection1.selection_set = None
 
         mock_selection2 = MagicMock()
         mock_selection2.name.value = "name"
+        mock_selection2.alias = None
         mock_selection2.selection_set = None
 
         mock_field_node.selection_set.selections = [mock_selection1, mock_selection2]

@@ -256,6 +256,8 @@ result.extra_metadata := jsonb_build_object(
 );
 ```
 
+> **Note**: As of v0.1.0b7, object_data mapping works correctly even when your success type includes both `message` and `status` fields. The parser automatically identifies entity fields and maps object_data appropriately.
+
 ### 3. Consistent View Usage
 
 Always return data from views (not tables) for consistency:

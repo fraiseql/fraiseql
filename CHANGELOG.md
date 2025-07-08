@@ -5,6 +5,21 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b7] - 2025-07-08
+
+### Fixed
+- **Object Data Mapping in Mutations**: Fixed issue where `object_data` from PostgreSQL mutations wasn't mapped to entity fields
+  - Success types with both `message` and `status` fields now correctly receive entity data from `object_data`
+  - The parser now checks for non-standard fields (excluding `message` and `status`) before attempting to map `object_data`
+  - Entity hints from `extra_metadata` are properly respected for field mapping
+  - Fixes issue where mutations would return `None` for entity fields despite PostgreSQL returning valid `object_data`
+  - All existing parser functionality remains unchanged
+
+### Technical Details
+- Modified `_parse_success` in `mutations/parser.py` to handle additional standard fields
+- The fix ensures that mutations following the pattern of returning `app.mutation_result` with populated `object_data` work correctly
+- Comprehensive test coverage added for various object_data mapping scenarios
+
 ## [0.1.0b6] - 2025-07-07
 
 ### Added

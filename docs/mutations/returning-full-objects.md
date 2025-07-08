@@ -138,6 +138,8 @@ FraiseQL's parser automatically:
 - Instantiates nested objects using their type definitions
 - Handles optional fields and relationships
 
+> **Note (v0.1.0b7+)**: Object mapping works correctly regardless of which standard fields (`message`, `status`) your success type includes. The parser intelligently identifies entity fields and maps `object_data` appropriately.
+
 ## Common Patterns
 
 ### Single Object Creation

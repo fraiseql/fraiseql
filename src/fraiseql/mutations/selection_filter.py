@@ -44,6 +44,10 @@ def filter_mutation_result(data: Mapping[str, Any], info: GraphQLResolveInfo) ->
     Returns:
         A new dictionary with only selected fields from the original result.
     """
+    if not info.field_nodes:
+        # No field nodes means no selection info - return data as-is
+        return dict(data) if isinstance(data, Mapping) else {}
+    
     top_field = info.field_nodes[0]
     selection = top_field.selection_set
     if selection is None:
