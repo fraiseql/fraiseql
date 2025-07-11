@@ -75,9 +75,9 @@ def test_coerce_input_arguments_preserves_omitted_fields():
 
 def test_sql_generation_excludes_unset_fields():
     """Test that UNSET fields are excluded from SQL generation."""
-    from fraiseql.mutations.sql_generator import generate_insert_json_call
     from dataclasses import dataclass
-    import json
+
+    from fraiseql.mutations.sql_generator import generate_insert_json_call
 
     @dataclass
     class SQLTestInput:

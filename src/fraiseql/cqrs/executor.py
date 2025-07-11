@@ -1,6 +1,5 @@
 """CQRS SQL function executor for FraiseQL."""
 
-import json
 from typing import Any
 
 from psycopg import AsyncConnection
@@ -45,7 +44,10 @@ class CQRSExecutor:
                 ) t
             """,
             ).format(SQL(function_name))
-            await cursor.execute(query, (json.dumps(input_data),))
+            # Import here to avoid circular import
+            from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
+            encoder = FraiseQLJSONEncoder()
+            await cursor.execute(query, (encoder.encode(input_data),))
             result = await cursor.fetchone()
 
             if not result:

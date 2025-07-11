@@ -172,9 +172,9 @@ class TestMutationErrorAutoPopulation:
             assert isinstance(parsed, MutationTestError)
             assert parsed.errors is not None
             assert len(parsed.errors) == 1
-            assert (
-                parsed.errors[0].code == expected_code
-            ), f"Status {status} should map to code {expected_code}"
+            assert parsed.errors[0].code == expected_code, (
+                f"Status {status} should map to code {expected_code}"
+            )
 
     def test_success_result_not_affected(self):
         """Test that successful results are not affected by error auto-population."""

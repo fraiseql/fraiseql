@@ -11,6 +11,7 @@ from fraiseql.mutations.mutation_decorator import mutation
 @fraiseql.input
 class CreateOrderInput:
     """Input for creating a new order."""
+
     client_order_id: str
     order_date: date | None = None
 
@@ -18,6 +19,7 @@ class CreateOrderInput:
 @fraiseql.type
 class Order:
     """Order type."""
+
     id: str
     client_order_id: str
     order_date: date | None = None
@@ -26,6 +28,7 @@ class Order:
 @fraiseql.success
 class CreateOrderSuccess:
     """Success response."""
+
     order: Order | None = None
     status: str = "success"
     message: str = "Order created"
@@ -34,6 +37,7 @@ class CreateOrderSuccess:
 @fraiseql.failure
 class CreateOrderError:
     """Error response."""
+
     status: str = "error"
     message: str = "Failed to create order"
     errors: list = []
@@ -42,6 +46,7 @@ class CreateOrderError:
 @mutation(function="create_order", schema="test")
 class CreateOrder:
     """Create a new order."""
+
     input: CreateOrderInput
     success: CreateOrderSuccess
     failure: CreateOrderError
@@ -59,15 +64,17 @@ def test_mutation_with_date_field():
 
     # Create mock info object with database
     mock_db = AsyncMock()
-    mock_db.execute_function = AsyncMock(return_value={
-        "status": "success",
-        "message": "Order created successfully",
-        "data": {
-            "id": "test-id",
-            "client_order_id": "ORDER2025",
-            "order_date": "2025-02-15",
-        },
-    })
+    mock_db.execute_function = AsyncMock(
+        return_value={
+            "status": "success",
+            "message": "Order created successfully",
+            "data": {
+                "id": "test-id",
+                "client_order_id": "ORDER2025",
+                "order_date": "2025-02-15",
+            },
+        }
+    )
 
     mock_info = MagicMock()
     mock_info.context = {"db": mock_db}
@@ -108,6 +115,7 @@ def test_mutation_with_context_params_and_date():
     )
     class CreateOrderWithContext:
         """Create order with context parameters."""
+
         input: CreateOrderInput
         success: CreateOrderSuccess
         failure: CreateOrderError
@@ -117,15 +125,17 @@ def test_mutation_with_context_params_and_date():
 
     # Create mock database
     mock_db = AsyncMock()
-    mock_db.execute_function_with_context = AsyncMock(return_value={
-        "status": "success",
-        "message": "Order created",
-        "data": {
-            "id": "test-id",
-            "client_order_id": "ORDER2025",
-            "order_date": "2025-02-15",
-        },
-    })
+    mock_db.execute_function_with_context = AsyncMock(
+        return_value={
+            "status": "success",
+            "message": "Order created",
+            "data": {
+                "id": "test-id",
+                "client_order_id": "ORDER2025",
+                "order_date": "2025-02-15",
+            },
+        }
+    )
 
     # Create mock user context
     mock_user = MagicMock()

@@ -3,7 +3,7 @@
 import json
 
 import fraiseql
-from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder, FraiseQLJSONResponse
+from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder, FraiseQLJSONResponse, clean_unset_values
 from fraiseql.types.definitions import UNSET
 
 
@@ -195,6 +195,45 @@ def test_input_object_with_unset_serialization():
     assert result == expected
 
 
+def test_clean_unset_values_function():
+    """Test that clean_unset_values utility function works correctly."""
+    # Test simple cases
+    assert clean_unset_values(UNSET) is None
+    assert clean_unset_values("test") == "test"
+    assert clean_unset_values(None) is None
+
+    # Test dict with UNSET values
+    data = {
+        "field1": "value",
+        "field2": UNSET,
+        "field3": None,
+        "nested": {
+            "inner1": "value",
+            "inner2": UNSET,
+        },
+    }
+    
+    cleaned = clean_unset_values(data)
+    expected = {
+        "field1": "value",
+        "field2": None,
+        "field3": None,
+        "nested": {
+            "inner1": "value",
+            "inner2": None,
+        },
+    }
+    
+    assert cleaned == expected
+
+    # Test list with UNSET values
+    list_data = ["test", UNSET, None, {"field": UNSET}]
+    cleaned_list = clean_unset_values(list_data)
+    expected_list = ["test", None, None, {"field": None}]
+    
+    assert cleaned_list == expected_list
+
+
 if __name__ == "__main__":
     test_fraiseql_json_encoder_handles_unset()
     print("✓ test_fraiseql_json_encoder_handles_unset passed")
@@ -213,5 +252,8 @@ if __name__ == "__main__":
 
     test_input_object_with_unset_serialization()
     print("✓ test_input_object_with_unset_serialization passed")
+
+    test_clean_unset_values_function()
+    print("✓ test_clean_unset_values_function passed")
 
     print("\nAll tests passed!")

@@ -275,9 +275,11 @@ def _parse_error(
                     "identifier": _status_to_identifier(result.status),
                 }
 
-                # Add details if available
+                # Add details if available (clean UNSET values to prevent serialization issues)
                 if result.extra_metadata:
-                    error_data["details"] = result.extra_metadata
+                    from fraiseql.fastapi.json_encoder import clean_unset_values
+
+                    error_data["details"] = clean_unset_values(result.extra_metadata)
 
                 try:
                     # Instantiate the error type

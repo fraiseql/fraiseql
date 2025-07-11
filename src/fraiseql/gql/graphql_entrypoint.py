@@ -6,9 +6,9 @@ from typing import Any
 
 from graphql import ExecutionResult, GraphQLSchema, graphql
 from starlette.requests import Request
-from starlette.responses import JSONResponse
 from starlette.routing import Route, Router
 
+from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 
@@ -54,7 +54,7 @@ class GraphNoteRouter(Router):
                 try:
                     variables = json.loads(variables_raw)
                 except json.JSONDecodeError:
-                    return JSONResponse(
+                    return FraiseQLJSONResponse(
                         {"errors": [{"message": "Invalid JSON in variables parameter"}]},
                         status_code=400,
                     )
@@ -63,7 +63,9 @@ class GraphNoteRouter(Router):
             try:
                 data = await request.json()
             except json.JSONDecodeError:
-                return JSONResponse({"errors": [{"message": "Invalid JSON"}]}, status_code=400)
+                return FraiseQLJSONResponse(
+                    {"errors": [{"message": "Invalid JSON"}]}, status_code=400
+                )
             query = data.get("query")
             variables = data.get("variables")
             operation_name = data.get("operationName")
@@ -87,7 +89,7 @@ class GraphNoteRouter(Router):
             response_data["data"] = result.data
 
         status = 200 if not result.errors else 400
-        return JSONResponse(response_data, status_code=status)
+        return FraiseQLJSONResponse(response_data, status_code=status)
 
 
 def build_fraiseql_schema(

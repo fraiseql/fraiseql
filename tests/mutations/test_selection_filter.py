@@ -65,7 +65,8 @@ class TestSelectionFilter:
         mock_user_name = create_field_node_mock("name")
         mock_user_email = create_field_node_mock("email")
         mock_user_selection = create_field_node_mock(
-            "user", selections=[mock_user_name, mock_user_email]
+            "user",
+            selections=[mock_user_name, mock_user_email],
         )
 
         mock_field_node.selection_set.selections = [mock_id_selection, mock_user_selection]
@@ -183,7 +184,8 @@ class TestSelectionFilter:
         mock_title_selection = create_field_node_mock("title")
 
         mock_post_selection = create_field_node_mock(
-            "post", selections=[mock_author_selection, mock_title_selection]
+            "post",
+            selections=[mock_author_selection, mock_title_selection],
         )
         mock_field_node.selection_set.selections = [mock_post_selection]
         mock_info.field_nodes = [mock_field_node]
