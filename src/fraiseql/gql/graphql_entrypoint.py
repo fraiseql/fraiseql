@@ -8,7 +8,7 @@ from graphql import ExecutionResult, GraphQLSchema, graphql
 from starlette.requests import Request
 from starlette.routing import Route, Router
 
-from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse
+from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse, clean_unset_values
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 
@@ -35,7 +35,7 @@ class GraphNoteRouter(Router):
         ]
         super().__init__(routes=routes)
 
-    async def handle_graphql(self, request: Request) -> JSONResponse:
+    async def handle_graphql(self, request: Request) -> FraiseQLJSONResponse:
         """Handle incoming HTTP request with GraphQL query.
 
         Supports GET (query params) and POST (JSON body).
@@ -64,7 +64,8 @@ class GraphNoteRouter(Router):
                 data = await request.json()
             except json.JSONDecodeError:
                 return FraiseQLJSONResponse(
-                    {"errors": [{"message": "Invalid JSON"}]}, status_code=400
+                    {"errors": [{"message": "Invalid JSON"}]},
+                    status_code=400,
                 )
             query = data.get("query")
             variables = data.get("variables")
@@ -83,7 +84,13 @@ class GraphNoteRouter(Router):
         response_data: dict[str, Any] = {}
 
         if result.errors:
-            response_data["errors"] = [{"message": e.message} for e in result.errors]
+            response_data["errors"] = [
+                {
+                    "message": e.message,
+                    "extensions": clean_unset_values(e.extensions) if e.extensions else {},
+                }
+                for e in result.errors
+            ]
 
         if result.data is not None:
             response_data["data"] = result.data

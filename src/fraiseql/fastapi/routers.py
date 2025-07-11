@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from fraiseql.auth.base import AuthProvider
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.dependencies import build_graphql_context
-from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse
+from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse, clean_unset_values
 from fraiseql.fastapi.turbo import TurboRegistry, TurboRouter
 from fraiseql.optimization.n_plus_one_detector import (
     N1QueryDetectedError,
@@ -130,7 +130,9 @@ def create_development_router(
                             else None
                         ),
                         "path": error.path,
-                        "extensions": error.extensions,
+                        "extensions": (
+                            clean_unset_values(error.extensions) if error.extensions else {}
+                        ),
                     }
                     for error in result.errors
                 ]
@@ -143,17 +145,19 @@ def create_development_router(
                 "errors": [
                     {
                         "message": str(e),
-                        "extensions": {
-                            "code": "N1_QUERY_DETECTED",
-                            "patterns": [
-                                {
-                                    "field": p.field_name,
-                                    "type": p.parent_type,
-                                    "count": p.count,
-                                }
-                                for p in e.patterns
-                            ],
-                        },
+                        "extensions": clean_unset_values(
+                            {
+                                "code": "N1_QUERY_DETECTED",
+                                "patterns": [
+                                    {
+                                        "field": p.field_name,
+                                        "type": p.parent_type,
+                                        "count": p.count,
+                                    }
+                                    for p in e.patterns
+                                ],
+                            }
+                        ),
                     },
                 ],
             }
@@ -163,10 +167,12 @@ def create_development_router(
                 "errors": [
                     {
                         "message": str(e),
-                        "extensions": {
-                            "code": "INTERNAL_SERVER_ERROR",
-                            "exception": type(e).__name__,
-                        },
+                        "extensions": clean_unset_values(
+                            {
+                                "code": "INTERNAL_SERVER_ERROR",
+                                "exception": type(e).__name__,
+                            }
+                        ),
                     },
                 ],
             }
@@ -278,7 +284,11 @@ def create_production_router(
                         "errors": [
                             {
                                 "message": error.message,
-                                "extensions": {"code": "GRAPHQL_VALIDATION_FAILED"},
+                                "extensions": (
+                                    clean_unset_values(error.extensions)
+                                    if error.extensions
+                                    else {"code": "GRAPHQL_VALIDATION_FAILED"}
+                                ),
                             }
                             for error in errors
                         ],
@@ -293,33 +303,37 @@ def create_production_router(
                     ],
                 }
 
-                # Execute query
-                result = await graphql(
-                    schema,
-                    request.query,
-                    variable_values=request.variables,
-                    operation_name=request.operationName,
-                    context_value=context,
-                )
+            # Execute query
+            result = await graphql(
+                schema,
+                request.query,
+                variable_values=request.variables,
+                operation_name=request.operationName,
+                context_value=context,
+            )
 
-                # Build response with minimal error info
-                response: dict[str, Any] = {}
-                if result.data is not None:
-                    response["data"] = result.data
-                if result.errors:
-                    response["errors"] = [
-                        {
-                            "message": (
-                                "Internal server error"
-                                if config.get("hide_error_details", True)
-                                else error.message
-                            ),
-                            "extensions": {"code": "INTERNAL_SERVER_ERROR"},
-                        }
-                        for error in result.errors
-                    ]
+            # Build response with minimal error info
+            response: dict[str, Any] = {}
+            if result.data is not None:
+                response["data"] = result.data
+            if result.errors:
+                response["errors"] = [
+                    {
+                        "message": (
+                            "Internal server error"
+                            if config.get("hide_error_details", True)
+                            else error.message
+                        ),
+                        "extensions": (
+                            clean_unset_values(error.extensions)
+                            if error.extensions
+                            else {"code": "INTERNAL_SERVER_ERROR"}
+                        ),
+                    }
+                    for error in result.errors
+                ]
 
-                return response
+            return response
 
         except Exception:
             # In production, don't expose error details

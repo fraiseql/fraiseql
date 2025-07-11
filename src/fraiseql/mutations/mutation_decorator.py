@@ -6,6 +6,7 @@ from typing import Any, TypeVar, get_type_hints
 
 from fraiseql.mutations.error_config import MutationErrorConfig
 from fraiseql.mutations.parser import parse_mutation_result
+from fraiseql.types.definitions import UNSET
 from fraiseql.utils.casing import to_snake_case
 
 T = TypeVar("T")
@@ -466,7 +467,9 @@ def _to_dict(obj: Any) -> dict[str, Any]:
         result = {}
         for k, v in obj.__dict__.items():
             if not k.startswith("_"):
-                if hasattr(v, "hex"):  # UUID
+                if v is UNSET:
+                    result[k] = None
+                elif hasattr(v, "hex"):  # UUID
                     result[k] = str(v)
                 elif hasattr(v, "isoformat"):  # date, datetime, time
                     result[k] = v.isoformat()

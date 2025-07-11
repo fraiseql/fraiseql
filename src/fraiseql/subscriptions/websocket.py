@@ -14,6 +14,7 @@ from graphql import GraphQLSchema, parse, subscribe
 from graphql.execution import ExecutionResult
 
 from fraiseql.core.exceptions import WebSocketError
+from fraiseql.fastapi.json_encoder import clean_unset_values
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +332,30 @@ class WebSocketConnection:
 
     async def _send_error(self, subscription_id: str | None, error: Any) -> None:
         """Send error message."""
-        payload = {"errors": [str(error)]} if isinstance(error, str) else error
+        if isinstance(error, str):
+            payload = {"errors": [{"message": error}]}
+        elif isinstance(error, list):
+            # List of GraphQL errors
+            payload = {
+                "errors": [
+                    {
+                        "message": e.message,
+                        "extensions": (
+                            clean_unset_values(e.extensions)
+                            if hasattr(e, "extensions") and e.extensions
+                            else {}
+                        ),
+                    }
+                    for e in error
+                ],
+            }
+        else:
+            # Single error or other type
+            payload = (
+                clean_unset_values(error)
+                if isinstance(error, dict)
+                else {"errors": [{"message": str(error)}]}
+            )
 
         await self.send_message(
             GraphQLWSMessage(type=MessageType.ERROR, id=subscription_id, payload=payload),
