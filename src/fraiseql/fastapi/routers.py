@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from fraiseql.auth.base import AuthProvider
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.dependencies import build_graphql_context
+from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse
 from fraiseql.fastapi.turbo import TurboRegistry, TurboRouter
 from fraiseql.optimization.n_plus_one_detector import (
     N1QueryDetectedError,
@@ -90,7 +91,7 @@ def create_development_router(
     else:
         context_dependency = Depends(build_graphql_context)
 
-    @router.post("/graphql")
+    @router.post("/graphql", response_class=FraiseQLJSONResponse)
     async def graphql_endpoint(
         request: GraphQLRequest,
         http_request: Request,
@@ -249,7 +250,7 @@ def create_production_router(
     else:
         context_dependency = Depends(build_graphql_context)
 
-    @router.post("/graphql")
+    @router.post("/graphql", response_class=FraiseQLJSONResponse)
     async def graphql_endpoint(
         request: GraphQLRequest,
         http_request: Request,

@@ -7,12 +7,20 @@ import json
 import uuid
 from typing import Any
 
+from fastapi.responses import JSONResponse
+
+from fraiseql.types.definitions import UNSET
+
 
 class FraiseQLJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles FraiseQL and PostgreSQL types."""
 
     def default(self, obj: Any) -> Any:
         """Encode non-standard types to JSON-serializable format."""
+        # Handle UNSET (convert to None for JSON serialization)
+        if obj is UNSET:
+            return None
+
         # Handle date and datetime
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()
@@ -39,3 +47,18 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
 
         # Fall back to default
         return super().default(obj)
+
+
+class FraiseQLJSONResponse(JSONResponse):
+    """Custom JSON response that uses FraiseQLJSONEncoder."""
+
+    def render(self, content: Any) -> bytes:
+        """Render content using FraiseQLJSONEncoder."""
+        return json.dumps(
+            content,
+            cls=FraiseQLJSONEncoder,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
