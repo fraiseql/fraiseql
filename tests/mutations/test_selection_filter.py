@@ -2,7 +2,21 @@
 
 from unittest.mock import MagicMock
 
+from graphql import FieldNode
+
 from fraiseql.mutations.selection_filter import filter_mutation_result
+
+
+def create_field_node_mock(name, alias=None, selections=None):
+    """Create a properly configured FieldNode mock."""
+    mock = MagicMock(spec=FieldNode)
+    mock.name.value = name
+    mock.alias = alias
+    if selections is not None:
+        mock.selection_set.selections = selections
+    else:
+        mock.selection_set = None
+    return mock
 
 
 class TestSelectionFilter:
@@ -13,15 +27,9 @@ class TestSelectionFilter:
         # Mock GraphQL info with simple field selection
         mock_info = MagicMock()
         mock_field_node = MagicMock()
-        mock_selection1 = MagicMock()
-        mock_selection1.name.value = "id"
-        mock_selection1.alias = None
-        mock_selection1.selection_set = None
 
-        mock_selection2 = MagicMock()
-        mock_selection2.name.value = "name"
-        mock_selection2.alias = None
-        mock_selection2.selection_set = None
+        mock_selection1 = create_field_node_mock("id")
+        mock_selection2 = create_field_node_mock("name")
 
         mock_field_node.selection_set.selections = [mock_selection1, mock_selection2]
         mock_info.field_nodes = [mock_field_node]
@@ -51,24 +59,14 @@ class TestSelectionFilter:
         mock_field_node = MagicMock()
 
         # Simple field
-        mock_id_selection = MagicMock()
-        mock_id_selection.name.value = "id"
-        mock_id_selection.selection_set = None
+        mock_id_selection = create_field_node_mock("id")
 
-        # Nested field
-        mock_user_selection = MagicMock()
-        mock_user_selection.name.value = "user"
-
-        # Nested selections within user
-        mock_user_name = MagicMock()
-        mock_user_name.name.value = "name"
-        mock_user_name.selection_set = None
-
-        mock_user_email = MagicMock()
-        mock_user_email.name.value = "email"
-        mock_user_email.selection_set = None
-
-        mock_user_selection.selection_set.selections = [mock_user_name, mock_user_email]
+        # Nested field with sub-selections
+        mock_user_name = create_field_node_mock("name")
+        mock_user_email = create_field_node_mock("email")
+        mock_user_selection = create_field_node_mock(
+            "user", selections=[mock_user_name, mock_user_email]
+        )
 
         mock_field_node.selection_set.selections = [mock_id_selection, mock_user_selection]
         mock_info.field_nodes = [mock_field_node]
@@ -106,13 +104,8 @@ class TestSelectionFilter:
         mock_info = MagicMock()
         mock_field_node = MagicMock()
 
-        mock_selection1 = MagicMock()
-        mock_selection1.name.value = "id"
-        mock_selection1.selection_set = None
-
-        mock_selection2 = MagicMock()
-        mock_selection2.name.value = "missing_field"  # Not in data
-        mock_selection2.selection_set = None
+        mock_selection1 = create_field_node_mock("id")
+        mock_selection2 = create_field_node_mock("missing_field")  # Not in data
 
         mock_field_node.selection_set.selections = [mock_selection1, mock_selection2]
         mock_info.field_nodes = [mock_field_node]
@@ -157,14 +150,10 @@ class TestSelectionFilter:
         mock_info = MagicMock()
         mock_field_node = MagicMock()
 
-        mock_selection1 = MagicMock()
-        mock_selection1.name.value = "id"
-        mock_selection1.selection_set = None
+        mock_selection1 = create_field_node_mock("id")
 
         # Selection for list field
-        mock_selection2 = MagicMock()
-        mock_selection2.name.value = "tags"
-        mock_selection2.selection_set = None
+        mock_selection2 = create_field_node_mock("tags")
 
         mock_field_node.selection_set.selections = [mock_selection1, mock_selection2]
         mock_info.field_nodes = [mock_field_node]
@@ -188,26 +177,14 @@ class TestSelectionFilter:
         mock_field_node = MagicMock()
 
         # Create complex nested selection
-        mock_post_selection = MagicMock()
-        mock_post_selection.name.value = "post"
+        mock_author_name = create_field_node_mock("name")
+        mock_author_selection = create_field_node_mock("author", selections=[mock_author_name])
 
-        # Author selection within post
-        mock_author_selection = MagicMock()
-        mock_author_selection.name.value = "author"
+        mock_title_selection = create_field_node_mock("title")
 
-        # Name selection within author
-        mock_author_name = MagicMock()
-        mock_author_name.name.value = "name"
-        mock_author_name.selection_set = None
-
-        mock_author_selection.selection_set.selections = [mock_author_name]
-
-        # Title selection within post
-        mock_title_selection = MagicMock()
-        mock_title_selection.name.value = "title"
-        mock_title_selection.selection_set = None
-
-        mock_post_selection.selection_set.selections = [mock_author_selection, mock_title_selection]
+        mock_post_selection = create_field_node_mock(
+            "post", selections=[mock_author_selection, mock_title_selection]
+        )
         mock_field_node.selection_set.selections = [mock_post_selection]
         mock_info.field_nodes = [mock_field_node]
 
@@ -268,18 +245,11 @@ class TestSelectionFilter:
         mock_info = MagicMock()
         mock_field_node = MagicMock()
 
-        mock_id_selection = MagicMock()
-        mock_id_selection.name.value = "id"
-        mock_id_selection.selection_set = None
+        mock_id_selection = create_field_node_mock("id")
 
-        mock_author_selection = MagicMock()
-        mock_author_selection.name.value = "author"
+        mock_author_name = create_field_node_mock("name")
+        mock_author_selection = create_field_node_mock("author", selections=[mock_author_name])
 
-        mock_author_name = MagicMock()
-        mock_author_name.name.value = "name"
-        mock_author_name.selection_set = None
-
-        mock_author_selection.selection_set.selections = [mock_author_name]
         mock_field_node.selection_set.selections = [mock_id_selection, mock_author_selection]
         mock_info.field_nodes = [mock_field_node]
 
