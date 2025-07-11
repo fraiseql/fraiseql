@@ -141,7 +141,8 @@ def coerce_input_arguments(
                 raw_key = camel_name
 
         if raw_key is None:
-            coerced[name] = None
+            # Don't add the key at all for omitted fields
+            # This allows the coerce_input function to use the field's default value
             continue
 
         raw_value = raw_args[raw_key]
