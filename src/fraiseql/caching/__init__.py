@@ -28,7 +28,6 @@ except ImportError:
         """Placeholder exception when Redis is not available."""
 
 
-
 from .result_cache import (
     CacheBackend,
     CacheConfig,

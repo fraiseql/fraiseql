@@ -189,6 +189,7 @@ ignore = [
   "S324",    # MD5 hash usage - acceptable for cache keys, not cryptographic
   "ERA001",  # Commented out code - sometimes useful for reference
   "B904",    # Use raise from within except - not always appropriate
+  "COM812",  # Trailing comma - conflicts with formatter
   "ARG004",  # Unused static method argument
   "ARG005",  # Unused lambda argument
   "PLR0913", # Too many arguments to function call
