@@ -5,6 +5,27 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b14] - 2025-07-12
+
+### Fixed
+- **Production Mode Error Logging**: Fixed critical debugging issue where production mode suppressed all exception details
+  - Production router now logs full exception details server-side while maintaining client security
+  - Added specialized logging for UNSET serialization errors with query context
+  - Query and variables are truncated to 200 characters in logs to prevent spam
+  - Fixes "Internal server error" debugging issues reported by PrintOptim Backend
+
+- **UNSET Values in Production JSONB Extraction**: Fixed UNSET serialization errors in production mode
+  - Added automatic UNSET cleaning to JSONB data extraction in production mode
+  - Prevents "Object of type Unset is not JSON serializable" errors
+  - Applied to both `find()` and `find_one()` methods in `FraiseQLRepository`
+  - Maintains performance benefits while ensuring proper serialization
+
+### Technical Details
+- Modified production router exception handling in `src/fraiseql/fastapi/routers.py`
+- Enhanced JSONB extraction with UNSET cleaning in `src/fraiseql/db.py`
+- Added comprehensive test coverage for production mode UNSET handling
+- Server-side logging provides debugging capability while client responses remain secure
+
 ## [0.1.0b7] - 2025-07-08
 
 ### Fixed

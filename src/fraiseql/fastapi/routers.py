@@ -156,7 +156,7 @@ def create_development_router(
                                     }
                                     for p in e.patterns
                                 ],
-                            }
+                            },
                         ),
                     },
                 ],
@@ -171,7 +171,7 @@ def create_development_router(
                             {
                                 "code": "INTERNAL_SERVER_ERROR",
                                 "exception": type(e).__name__,
-                            }
+                            },
                         ),
                     },
                 ],
@@ -335,8 +335,21 @@ def create_production_router(
 
             return response
 
-        except Exception:
-            # In production, don't expose error details
+        except Exception as e:
+            # In production, log the actual error for debugging but don't expose details to client
+            error_msg = str(e)
+            logger.exception("Production GraphQL execution error: %s", error_msg)
+
+            # Special logging for UNSET serialization issues
+            if "Unset is not JSON serializable" in error_msg:
+                logger.error(
+                    "UNSET serialization error in production mode. "
+                    "This may be caused by UNSET values in JSONB data that weren't properly cleaned. "
+                    "Query: %s, Variables: %s",
+                    request.query[:200] if request.query else "None",
+                    str(request.variables)[:200] if request.variables else "None",
+                )
+
             return {
                 "errors": [
                     {
