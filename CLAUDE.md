@@ -13,29 +13,14 @@ FraiseQL is a lightweight GraphQL-to-PostgreSQL query builder using JSONB. It pr
 
 ## Testing with Containers
 
-FraiseQL uses a unified container testing system that supports both Docker and Podman.
-
-### Running Tests with Podman
-
-If you have Podman installed instead of Docker, set these environment variables before running tests:
-
-```bash
-export TESTCONTAINERS_PODMAN=true
-export TESTCONTAINERS_RYUK_DISABLED=true
-pytest
-```
-
-Or use the provided test runner script:
-```bash
-./scripts/test_with_podman.sh
-```
+FraiseQL uses Docker containers for database integration tests.
 
 ### Database Tests
 
 All database tests use the unified container system from `tests/database_conftest.py`:
 - Single PostgreSQL container for the entire test session
 - Each test runs in its own transaction that is rolled back
-- Supports both Docker and Podman
+- Uses Docker for container management
 - Socket communication for better performance
 
 ## Code Style and Linting
@@ -65,7 +50,7 @@ ruff format src/ tests/
 
 1. Make changes
 2. Run linting: `ruff check --fix && ruff format`
-3. Run tests: `pytest` (or `./scripts/test_with_podman.sh` for Podman)
+3. Run tests: `pytest`
 4. Commit with descriptive message
 5. Push to branch and create PR
 

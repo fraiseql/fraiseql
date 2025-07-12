@@ -6,7 +6,7 @@ for maximum performance.
 
 Architecture:
 - ONE container per test session (not per test)
-- Socket communication (Unix domain socket for Podman)
+- Socket communication for better performance
 - Connection pooling for efficiency
 - Transaction-based test isolation
 
@@ -29,33 +29,19 @@ except ImportError:
     HAS_DOCKER = False
     PostgresContainer = None
 
-# Try to detect if Docker/Podman is actually available
+# Try to detect if Docker is actually available
 if HAS_DOCKER:
     try:
         import docker
 
-        # Check for Podman socket first
-        if os.environ.get("TESTCONTAINERS_PODMAN", "false").lower() == "true":
-            # For Podman, skip the docker client check
-            HAS_DOCKER = True
-        else:
-            client = docker.from_env()
-            client.ping()
+        client = docker.from_env()
+        client.ping()
     except Exception:
         HAS_DOCKER = False
 
 # 🔑 UNIFIED CONTAINER CACHE: This is the key to our performance!
 # Containers are cached and reused across test runs within the same session
 _container_cache = {}
-
-# 🔌 SOCKET CONFIGURATION: Configure Unix domain socket for Podman
-# This provides significantly better performance than TCP/HTTP communication
-if os.environ.get("TESTCONTAINERS_PODMAN", "false").lower() == "true":
-    # Use Unix domain socket for fastest communication
-    podman_socket = f"/run/user/{os.getuid()}/podman/podman.sock"
-    os.environ["DOCKER_HOST"] = f"unix://{podman_socket}"
-    os.environ["TESTCONTAINERS_RYUK_DISABLED"] = "true"  # Ryuk not needed with Podman
-    os.environ["TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"] = podman_socket
 
 
 @pytest.fixture(scope="session")

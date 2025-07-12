@@ -426,7 +426,7 @@ This simplicity means:
 
 - Python 3.11+
 - PostgreSQL 13+
-- Podman or Docker (optional, for integration tests)
+- Docker (optional, for integration tests)
 
 ### Setting Up
 
@@ -442,24 +442,18 @@ source .venv/bin/activate
 # Install in development mode
 pip install -e ".[dev]"
 
-# Run tests (uses unified container for performance)
-pytest  # Automatically detects available container runtime
+# Run tests
+pytest
 
-# Or explicitly with Podman (recommended for socket performance)
-TESTCONTAINERS_PODMAN=true pytest
-
-# Skip container-based tests if no runtime available
-pytest -m "not docker"
+# Skip container-based tests if Docker is not available
+pytest -m "not database"
 ```
 
 ### Container Runtime
 
-FraiseQL uses a **unified container approach** for testing - a single PostgreSQL container runs for the entire test session with socket-based communication, providing 5-10x faster test execution.
+FraiseQL uses Docker containers for database integration tests. Tests are optimized with a unified container approach - a single PostgreSQL container runs for the entire test session, providing fast test execution.
 
-- **Podman** (recommended): Rootless, daemonless, uses Unix domain sockets
-- **Docker**: Traditional container runtime
-
-Tests requiring containers are automatically skipped if neither is available. See [docs/testing/unified-container-testing.md](docs/testing/unified-container-testing.md) for architecture details.
+Tests requiring containers are automatically skipped if Docker is not available. See [docs/testing/unified-container-testing.md](docs/testing/unified-container-testing.md) for architecture details.
 
 ### Code Quality
 
