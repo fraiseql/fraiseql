@@ -63,7 +63,7 @@ class InMemoryRevocationStore:
             self._revoked_tokens[token_id] = expiry_time
             self._user_tokens[user_id].add(token_id)
 
-            logger.info(f"Revoked token {token_id} for user {user_id}")
+            logger.info("Revoked token %s for user %s", token_id, user_id)
 
     async def is_revoked(self, token_id: str) -> bool:
         """Check if a token is revoked."""
@@ -91,7 +91,7 @@ class InMemoryRevocationStore:
             for token_id in user_tokens:
                 self._revoked_tokens[token_id] = expiry_time
 
-            logger.info(f"Revoked {len(user_tokens)} tokens for user {user_id}")
+            logger.info("Revoked %s tokens for user %s", len(user_tokens), user_id)
 
     async def cleanup_expired(self) -> int:
         """Clean up expired revocations."""
@@ -159,7 +159,7 @@ class RedisRevocationStore:
         # Add to user's token set
         await self.redis.sadd(self._user_key(user_id), token_id)
 
-        logger.info(f"Revoked token {token_id} for user {user_id}")
+        logger.info("Revoked token %s for user %s", token_id, user_id)
 
     async def is_revoked(self, token_id: str) -> bool:
         """Check if a token is revoked."""
@@ -178,7 +178,7 @@ class RedisRevocationStore:
             for token_id in token_ids:
                 await self.redis.setex(self._token_key(token_id), self.ttl, "1")
 
-            logger.info(f"Revoked {len(token_ids)} tokens for user {user_id}")
+            logger.info("Revoked %s tokens for user %s", len(token_ids), user_id)
 
         # Delete the user set
         await self.redis.delete(user_key)
@@ -336,7 +336,7 @@ class TokenRevocationService:
         """Run cleanup once."""
         cleaned = await self.store.cleanup_expired()
         if cleaned > 0:
-            logger.info(f"Cleaned {cleaned} expired token revocations")
+            logger.info("Cleaned %s expired token revocations", cleaned)
 
 
 class TokenRevocationMixin:
