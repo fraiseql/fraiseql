@@ -307,7 +307,8 @@ class QueryComplexityAnalyzer:
             )
 
             raise ComplexityError(
-                f"Query complexity {total_complexity} exceeds maximum complexity {self.config.max_complexity}",
+                f"Query complexity {total_complexity} exceeds maximum "
+                f"complexity {self.config.max_complexity}",
                 complexity=total_complexity,
                 limit=self.config.max_complexity,
             )
