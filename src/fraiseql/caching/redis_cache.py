@@ -7,9 +7,6 @@ with proper error handling and connection management.
 import json
 from typing import Any
 
-from redis.asyncio import Redis
-from redis.exceptions import ConnectionError as RedisConnectionErrorBase
-
 
 class RedisConnectionError(Exception):
     """Raised when Redis connection fails."""
@@ -18,12 +15,21 @@ class RedisConnectionError(Exception):
 class RedisCache:
     """Redis-based cache backend."""
 
-    def __init__(self, redis_client: Redis) -> None:
+    def __init__(self, redis_client) -> None:
         """Initialize Redis cache.
 
         Args:
             redis_client: Redis async client instance
         """
+        try:
+            from redis.asyncio import Redis
+            from redis.exceptions import ConnectionError as RedisConnectionErrorBase
+
+            self._redis_error = RedisConnectionErrorBase
+        except ImportError as e:
+            raise ImportError(
+                "Redis is required for RedisCache. Install it with: pip install fraiseql[redis]",
+            ) from e
         self.redis = redis_client
 
     async def get(self, key: str) -> Any | None:
@@ -43,7 +49,7 @@ class RedisCache:
             if value is None:
                 return None
             return json.loads(value)
-        except RedisConnectionErrorBase as e:
+        except self._redis_error as e:
             raise RedisConnectionError(f"Failed to connect to Redis: {e}") from e
         except json.JSONDecodeError:
             # Corrupted cache entry, return None
@@ -69,7 +75,7 @@ class RedisCache:
 
         try:
             await self.redis.setex(key, ttl, serialized)
-        except RedisConnectionErrorBase as e:
+        except self._redis_error as e:
             raise RedisConnectionError(f"Failed to connect to Redis: {e}") from e
 
     async def delete(self, key: str) -> bool:
@@ -87,7 +93,7 @@ class RedisCache:
         try:
             result = await self.redis.delete(key)
             return result > 0
-        except RedisConnectionErrorBase as e:
+        except self._redis_error as e:
             raise RedisConnectionError(f"Failed to connect to Redis: {e}") from e
 
     async def delete_pattern(self, pattern: str) -> int:
@@ -111,7 +117,7 @@ class RedisCache:
                 result = await self.redis.delete(*keys)
                 return result
             return 0
-        except RedisConnectionErrorBase as e:
+        except self._redis_error as e:
             raise RedisConnectionError(f"Failed to connect to Redis: {e}") from e
 
     async def exists(self, key: str) -> bool:
@@ -128,7 +134,7 @@ class RedisCache:
         """
         try:
             return await self.redis.exists(key) > 0
-        except RedisConnectionErrorBase as e:
+        except self._redis_error as e:
             raise RedisConnectionError(f"Failed to connect to Redis: {e}") from e
 
     async def ping(self) -> bool:
@@ -142,5 +148,5 @@ class RedisCache:
         """
         try:
             return await self.redis.ping()
-        except RedisConnectionErrorBase as e:
+        except self._redis_error as e:
             raise RedisConnectionError(f"Failed to connect to Redis: {e}") from e

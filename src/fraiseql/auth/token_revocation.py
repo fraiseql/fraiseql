@@ -11,8 +11,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol
 
-from redis.asyncio import Redis
-
 from fraiseql.audit import get_security_logger
 from fraiseql.audit.security_logger import SecurityEvent, SecurityEventSeverity, SecurityEventType
 
@@ -127,13 +125,20 @@ class InMemoryRevocationStore:
 class RedisRevocationStore:
     """Redis-backed token revocation store for production."""
 
-    def __init__(self, redis_client: Redis, ttl: int = 86400) -> None:
+    def __init__(self, redis_client, ttl: int = 86400) -> None:
         """Initialize Redis revocation store.
 
         Args:
             redis_client: Redis async client
             ttl: Time-to-live for revoked tokens in seconds
         """
+        try:
+            from redis.asyncio import Redis
+        except ImportError as e:
+            raise ImportError(
+                "Redis is required for RedisRevocationStore. "
+                "Install it with: pip install fraiseql[redis]",
+            ) from e
         self.redis = redis_client
         self.ttl = ttl
         self.key_prefix = "revoked"

@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Protocol, Set
 
 from fastapi import HTTPException, Request, Response
-from redis.asyncio import Redis
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
@@ -279,8 +278,15 @@ class InMemoryRateLimiter:
 class RedisRateLimiter:
     """Redis-backed rate limiter for distributed systems."""
 
-    def __init__(self, redis: Redis, config: RateLimitConfig):
+    def __init__(self, redis, config: RateLimitConfig):
         """Initialize Redis rate limiter."""
+        try:
+            from redis.asyncio import Redis
+        except ImportError as e:
+            raise ImportError(
+                "Redis is required for RedisRateLimiter. "
+                "Install it with: pip install fraiseql[redis]",
+            ) from e
         self.redis = redis
         self.config = config
         self.key_prefix = "rate_limit"
