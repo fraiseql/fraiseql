@@ -65,7 +65,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
             self.metrics.record_response_time(duration)
 
-            return response  # noqa: TRY300
+            return response
 
         except Exception as e:
             duration = (time.time() - start_time) * 1000
@@ -176,7 +176,7 @@ def with_metrics(operation_type: str = "operation"):
             try:
                 result = await func(*args, **kwargs)
                 success = True
-                return result  # noqa: TRY300
+                return result
             except Exception as e:
                 metrics.record_error(
                     error_type=type(e).__name__,
@@ -203,7 +203,7 @@ def with_metrics(operation_type: str = "operation"):
             try:
                 result = func(*args, **kwargs)
                 success = True
-                return result  # noqa: TRY300
+                return result
             except Exception as e:
                 metrics.record_error(
                     error_type=type(e).__name__,

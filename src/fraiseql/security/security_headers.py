@@ -530,7 +530,7 @@ def create_csp_report_handler(webhook_url: str | None = None):
                 async with httpx.AsyncClient() as client:
                     await client.post(webhook_url, json=report)
 
-            return {"status": "received"}  # noqa: TRY300
+            return {"status": "received"}
 
         except Exception:
             logger.exception("Error handling CSP report")

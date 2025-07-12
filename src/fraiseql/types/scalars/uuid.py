@@ -23,7 +23,7 @@ def serialize_uuid(value: Any) -> str:
     if isinstance(value, str):
         try:
             uuid.UUID(value)
-            return value  # noqa: TRY300
+            return value
         except ValueError:
             pass
     msg = f"UUID cannot represent non-UUID value: {value!r}"

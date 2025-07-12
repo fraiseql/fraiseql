@@ -27,7 +27,6 @@ except ImportError:
     class RedisConnectionError(Exception):
         """Placeholder exception when Redis is not available."""
 
-        pass
 
 
 from .result_cache import (

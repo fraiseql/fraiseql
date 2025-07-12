@@ -177,6 +177,18 @@ ignore = [
   "A002",    # Argument name shadowing builtin
   "ARG001",  # Unused function argument
   "ARG002",  # Unused method argument
+
+  # Style preferences - these are suggestions not requirements
+  "G004",    # Logging statement uses f-string - performance impact minimal
+  "TRY300",  # Consider moving statement to else block - style preference
+  "RET504",  # Unnecessary assignment before return - sometimes clearer
+  "TRY203",  # Use raise from to specify exception cause - not always needed
+  "SIM105",  # Use contextlib.suppress - style preference
+  "SIM103",  # Return condition directly - sometimes less readable
+  "SIM108",  # Use ternary operator - sometimes less readable
+  "S324",    # MD5 hash usage - acceptable for cache keys, not cryptographic
+  "ERA001",  # Commented out code - sometimes useful for reference
+  "B904",    # Use raise from within except - not always appropriate
   "ARG004",  # Unused static method argument
   "ARG005",  # Unused lambda argument
   "PLR0913", # Too many arguments to function call

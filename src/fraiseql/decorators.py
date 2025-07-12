@@ -426,7 +426,7 @@ def field(
                         )
                         # Add error handler to prevent unhandled exceptions
                         task.add_done_callback(lambda t: t.exception() if t.done() else None)
-                        return result  # noqa: TRY300
+                        return result
                     except Exception:
                         execution_time = time.time() - start_time
                         task = asyncio.create_task(
@@ -465,7 +465,7 @@ def field(
                         )
                         # Add error handler to prevent unhandled exceptions
                         task.add_done_callback(lambda t: t.exception() if t.done() else None)
-                        return result  # noqa: TRY300
+                        return result
                     except Exception:
                         execution_time = time.time() - start_time
                         task = asyncio.create_task(

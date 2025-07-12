@@ -310,7 +310,7 @@ def convert_type_to_graphql_output(
         if isinstance(typ, type):
             _graphql_type_cache[key] = scalar_gql
 
-        return scalar_gql  # noqa: TRY300
+        return scalar_gql
     except TypeError:
         pass  # Not a scalar — continue
 
