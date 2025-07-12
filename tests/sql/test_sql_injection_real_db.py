@@ -12,6 +12,9 @@ import json
 import pytest
 from psycopg.sql import SQL
 
+# Import database fixtures for this database test
+from ..database_conftest import *  # noqa: F403
+
 import fraiseql
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 from fraiseql.sql.where_generator import safe_create_where_type
