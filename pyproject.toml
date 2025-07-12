@@ -74,6 +74,7 @@ dev = [
   "twine>=5.0.0",
   "pyyaml>=6.0.0",
   "prometheus-client>=0.20.0",
+  "redis>=5.0.0",
 ]
 auth0 = [
   "pyjwt[crypto]>=2.8.0",
