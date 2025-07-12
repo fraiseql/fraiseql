@@ -3,7 +3,11 @@
 import json
 
 import fraiseql
-from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder, FraiseQLJSONResponse, clean_unset_values
+from fraiseql.fastapi.json_encoder import (
+    FraiseQLJSONEncoder,
+    FraiseQLJSONResponse,
+    clean_unset_values,
+)
 from fraiseql.types.definitions import UNSET
 
 
@@ -212,7 +216,7 @@ def test_clean_unset_values_function():
             "inner2": UNSET,
         },
     }
-    
+
     cleaned = clean_unset_values(data)
     expected = {
         "field1": "value",
@@ -223,14 +227,14 @@ def test_clean_unset_values_function():
             "inner2": None,
         },
     }
-    
+
     assert cleaned == expected
 
     # Test list with UNSET values
     list_data = ["test", UNSET, None, {"field": UNSET}]
     cleaned_list = clean_unset_values(list_data)
     expected_list = ["test", None, None, {"field": None}]
-    
+
     assert cleaned_list == expected_list
 
 

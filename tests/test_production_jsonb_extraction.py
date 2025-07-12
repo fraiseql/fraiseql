@@ -1,11 +1,11 @@
 """Test JSONB extraction in production mode."""
 
-import os
-import pytest
 from uuid import uuid4
 
-from fraiseql.db import FraiseQLRepository, register_type_for_view
+import pytest
+
 import fraiseql
+from fraiseql.db import FraiseQLRepository, register_type_for_view
 
 
 @fraiseql.type

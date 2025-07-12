@@ -5,6 +5,25 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b15] - 2025-07-12
+
+### Added
+- **Auto-Generated GraphQL Where Input Types**: New `create_graphql_where_input()` function eliminates manual conversion boilerplate
+  - Automatically generates GraphQL-compatible where input types from FraiseQL types
+  - Provides operator filter types (StringFilter, IntFilter, etc.) for all common data types
+  - Supports operators like `eq`, `neq`, `contains`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `isnull`
+  - GraphQL where inputs are automatically converted to SQL where types in `FraiseQLRepository`
+  - Eliminates 300+ lines of manual conversion code reported by PrintOptim Backend
+  - Full type safety and GraphQL schema integration
+  - Example: `UserWhereInput = create_graphql_where_input(User)`
+
+### Technical Details
+- Added `src/fraiseql/sql/graphql_where_generator.py` with core functionality
+- Operator filter types use `@fraise_input` decorator for GraphQL compatibility
+- `in_` field mapped to GraphQL `in` using `fraise_field(graphql_name="in")`
+- Repository automatically detects and converts GraphQL inputs via `_to_sql_where()` method
+- Comprehensive test coverage in `tests/sql/test_graphql_where_generator.py`
+
 ## [0.1.0b14] - 2025-07-12
 
 ### Fixed

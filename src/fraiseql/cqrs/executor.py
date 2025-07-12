@@ -46,6 +46,7 @@ class CQRSExecutor:
             ).format(SQL(function_name))
             # Import here to avoid circular import
             from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
+
             encoder = FraiseQLJSONEncoder()
             await cursor.execute(query, (encoder.encode(input_data),))
             result = await cursor.fetchone()

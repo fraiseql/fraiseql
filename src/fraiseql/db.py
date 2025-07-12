@@ -520,13 +520,19 @@ class FraiseQLRepository:
         offset = kwargs.pop("offset", None)
         order_by = kwargs.pop("order_by", None)
 
-        # Process where object if it has to_sql method
-        if where_obj and hasattr(where_obj, "to_sql"):
-            where_composed = where_obj.to_sql()
-            if where_composed:
-                # The where type returns a Composed object with JSONB paths
-                # We need to add it as a SQL fragment
-                where_parts.append(where_composed)
+        # Process where object - convert GraphQL input to SQL where if needed
+        if where_obj:
+            # Check if this is a GraphQL where input that needs conversion
+            if hasattr(where_obj, "_to_sql_where"):
+                where_obj = where_obj._to_sql_where()
+
+            # Process the SQL where type
+            if hasattr(where_obj, "to_sql"):
+                where_composed = where_obj.to_sql()
+                if where_composed:
+                    # The where type returns a Composed object with JSONB paths
+                    # We need to add it as a SQL fragment
+                    where_parts.append(where_composed)
 
         # Process remaining kwargs as simple equality filters
         for param_counter, (key, value) in enumerate(kwargs.items()):

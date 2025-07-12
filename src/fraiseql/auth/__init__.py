@@ -25,7 +25,7 @@ except ImportError:
         def __init__(self, *args, **kwargs):
             raise ImportError(
                 "Redis is required for RedisRevocationStore. "
-                "Install it with: pip install fraiseql[redis]"
+                "Install it with: pip install fraiseql[redis]",
             )
 
 

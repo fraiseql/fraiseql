@@ -19,7 +19,7 @@ except ImportError:
     class RedisCache:
         def __init__(self, *args, **kwargs):
             raise ImportError(
-                "Redis is required for RedisCache. Install it with: pip install fraiseql[redis]"
+                "Redis is required for RedisCache. Install it with: pip install fraiseql[redis]",
             )
 
     class RedisConnectionError(Exception):

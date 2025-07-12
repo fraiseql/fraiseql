@@ -1,7 +1,7 @@
 """Test Redis optional dependency functionality."""
 
-import sys
 from unittest.mock import patch
+
 import pytest
 
 
@@ -13,9 +13,8 @@ class TestRedisOptionalDependency:
         # Mock Redis import failure
         with patch.dict("sys.modules", {"redis": None, "redis.asyncio": None}):
             # These imports should work without Redis
-            from fraiseql.fastapi import create_fraiseql_app, FraiseQLConfig
-            from fraiseql.db import FraiseQLRepository
             import fraiseql
+            from fraiseql.fastapi import FraiseQLConfig
 
             # Basic decorators should work
             @fraiseql.type
@@ -51,7 +50,7 @@ class TestRedisOptionalDependency:
     def test_redis_rate_limiter_fails_gracefully_without_redis(self):
         """Test that RedisRateLimiter fails with helpful error."""
         with patch.dict("sys.modules", {"redis": None, "redis.asyncio": None}):
-            from fraiseql.middleware import RedisRateLimiter, RateLimitConfig
+            from fraiseql.middleware import RateLimitConfig, RedisRateLimiter
 
             config = RateLimitConfig(requests_per_minute=60)
 
@@ -75,8 +74,8 @@ class TestRedisOptionalDependency:
     def test_non_redis_classes_work_without_redis(self):
         """Test that non-Redis classes work fine without Redis installed."""
         with patch.dict("sys.modules", {"redis": None, "redis.asyncio": None}):
-            from fraiseql.caching import CacheKeyBuilder, CacheConfig
             from fraiseql.auth import InMemoryRevocationStore, RevocationConfig
+            from fraiseql.caching import CacheConfig, CacheKeyBuilder
             from fraiseql.middleware import InMemoryRateLimiter, RateLimitConfig
 
             # These should work fine
@@ -126,8 +125,8 @@ class TestRedisOptionalDependency:
         """Test that auth module imports work with and without Redis."""
         with patch.dict("sys.modules", {"redis": None, "redis.asyncio": None}):
             from fraiseql.auth import (
-                RedisRevocationStore,
                 InMemoryRevocationStore,
+                RedisRevocationStore,
                 RevocationConfig,
             )
 
@@ -145,7 +144,7 @@ class TestRedisOptionalDependency:
     def test_lazy_import_middleware_module(self):
         """Test that middleware module imports work with and without Redis."""
         with patch.dict("sys.modules", {"redis": None, "redis.asyncio": None}):
-            from fraiseql.middleware import RedisRateLimiter, InMemoryRateLimiter, RateLimitConfig
+            from fraiseql.middleware import InMemoryRateLimiter, RateLimitConfig, RedisRateLimiter
 
             # Non-Redis classes should work
             config = RateLimitConfig(requests_per_minute=60)

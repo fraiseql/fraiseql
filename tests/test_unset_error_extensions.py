@@ -1,7 +1,6 @@
 """Test UNSET handling in GraphQL error extensions."""
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from graphql import GraphQLError
 
@@ -13,6 +12,7 @@ from fraiseql.types.definitions import UNSET
 @fraiseql.input
 class TestInput:
     """Test input with optional fields."""
+
     required_field: str
     optional_field: str | None = UNSET
     another_optional: int | None = UNSET
@@ -21,6 +21,7 @@ class TestInput:
 @fraiseql.type
 class TestType:
     """Test output type."""
+
     id: str
     name: str
 
@@ -28,12 +29,14 @@ class TestType:
 @fraiseql.success
 class TestSuccess:
     """Success response."""
+
     item: TestType
 
 
 @fraiseql.failure
 class TestError:
     """Error response."""
+
     code: str
     message: str
 
@@ -41,6 +44,7 @@ class TestError:
 @fraiseql.mutation
 class CreateTestItem:
     """Test mutation that might raise errors with UNSET in extensions."""
+
     input: TestInput
     success: TestSuccess
     failure: TestError
@@ -64,8 +68,8 @@ async def test_query(info) -> TestType:
             "debug_info": {
                 "some_value": "test",
                 "unset_value": UNSET,
-            }
-        }
+            },
+        },
     )
     raise error
 
@@ -98,23 +102,23 @@ def test_graphql_error_with_unset_in_extensions(test_client):
         }
     }
     """
-    
+
     response = test_client.post(
         "/graphql",
-        json={"query": query}
+        json={"query": query},
     )
-    
+
     # Should get a response without JSON serialization error
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "errors" in data
     assert len(data["errors"]) == 1
-    
+
     error = data["errors"][0]
     assert error["message"] == "Test error with UNSET in extensions"
     assert "extensions" in error
-    
+
     # UNSET values should be converted to null
     extensions = error["extensions"]
     assert extensions["code"] == "TEST_ERROR"
@@ -129,24 +133,24 @@ def test_mutation_error_with_unset_input(test_client, mocker):
     """Test mutation error handling when input contains UNSET."""
     # Mock the database to simulate an error
     mock_db = mocker.MagicMock()
-    
+
     async def mock_execute_function(func_name, input_data):
         # Simulate error that includes the input data
         raise GraphQLError(
             "Database constraint violation",
             extensions={
-                "code": "CONSTRAINT_VIOLATION", 
+                "code": "CONSTRAINT_VIOLATION",
                 "input_received": input_data,  # This might contain UNSET
                 "field_with_issue": "optional_field",
-            }
+            },
         )
-    
+
     mock_db.execute_function = mock_execute_function
-    
+
     # Override the context getter to provide our mock
     async def get_test_context(request):
         return {"db": mock_db}
-    
+
     # Create a new app with our context getter
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
@@ -154,9 +158,9 @@ def test_mutation_error_with_unset_input(test_client, mocker):
         mutations=[CreateTestItem],
         context_getter=get_test_context,
     )
-    
+
     client = TestClient(app)
-    
+
     mutation = """
     mutation {
         createTestItem(input: {requiredField: "test"}) {
@@ -174,16 +178,16 @@ def test_mutation_error_with_unset_input(test_client, mocker):
         }
     }
     """
-    
+
     response = client.post(
         "/graphql",
-        json={"query": mutation}
+        json={"query": mutation},
     )
-    
+
     # Should not fail with JSON serialization error
     assert response.status_code == 200
     data = response.json()
-    
+
     # The response should contain properly serialized error
     assert "errors" in data
     assert len(data["errors"]) > 0
@@ -198,9 +202,9 @@ def test_production_mode_error_handling(mocker):
         queries=[test_query],
         production=True,
     )
-    
+
     client = TestClient(app)
-    
+
     query = """
     query {
         testQuery {
@@ -209,15 +213,15 @@ def test_production_mode_error_handling(mocker):
         }
     }
     """
-    
+
     response = client.post(
         "/graphql",
-        json={"query": query}
+        json={"query": query},
     )
-    
+
     # Should get a response without JSON serialization error
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "errors" in data
     # In production, error details are hidden but it should still serialize properly

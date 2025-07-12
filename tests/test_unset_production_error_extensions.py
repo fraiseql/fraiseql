@@ -4,10 +4,10 @@ import pytest
 from fastapi.testclient import TestClient
 from graphql import GraphQLError
 
+import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.types.definitions import UNSET
-import fraiseql
 
 
 @fraiseql.input

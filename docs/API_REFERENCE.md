@@ -600,9 +600,117 @@ class UserContext:
 
 ## Utilities
 
+### create_graphql_where_input()
+
+Creates a GraphQL-compatible where input type with operator-based filtering.
+
+```python
+from fraiseql.sql import create_graphql_where_input
+
+UserWhereInput = create_graphql_where_input(User)
+```
+
+**Parameters**:
+- `cls`: A dataclass or type decorated with `@fraise_type`
+- `name`: Optional custom name for the generated type (defaults to `{ClassName}WhereInput`)
+
+**Returns**:
+- A GraphQL input type decorated with `@fraise_input` that supports operator-based filtering
+
+**Features**:
+- Automatic conversion to SQL where types in repository methods
+- Rich operator support for all field types
+- Type-safe filtering with GraphQL schema integration
+- No manual conversion boilerplate required
+
+**Usage**:
+```python
+from fraiseql import fraise_type, fraiseql
+from fraiseql.sql import create_graphql_where_input
+from datetime import datetime
+from uuid import UUID
+
+@fraise_type
+class User:
+    id: UUID
+    name: str
+    email: str
+    age: int
+    is_active: bool
+    created_at: datetime
+
+# Generate GraphQL where input type
+UserWhereInput = create_graphql_where_input(User)
+
+# Use directly in resolver - no manual conversion!
+@fraiseql.query
+async def users(info, where: UserWhereInput | None = None) -> list[User]:
+    db = info.context["db"]
+    # FraiseQL automatically converts GraphQL input to SQL where
+    return await db.find("user_view", where=where)
+```
+
+**GraphQL Schema Generated**:
+```graphql
+input UserWhereInput {
+  id: UUIDFilter
+  name: StringFilter
+  email: StringFilter
+  age: IntFilter
+  isActive: BooleanFilter
+  createdAt: DateTimeFilter
+}
+
+input StringFilter {
+  eq: String
+  neq: String
+  contains: String
+  startswith: String
+  endswith: String
+  in: [String!]
+  nin: [String!]
+  isnull: Boolean
+}
+
+input IntFilter {
+  eq: Int
+  neq: Int
+  gt: Int
+  gte: Int
+  lt: Int
+  lte: Int
+  in: [Int!]
+  nin: [Int!]
+  isnull: Boolean
+}
+```
+
+**Client Usage**:
+```graphql
+query GetUsers($where: UserWhereInput) {
+  users(where: $where) {
+    id
+    name
+    email
+  }
+}
+```
+
+With variables:
+```json
+{
+  "where": {
+    "age": {"gte": 18, "lt": 65},
+    "isActive": {"eq": true},
+    "email": {"contains": "@example.com"},
+    "name": {"startswith": "John"}
+  }
+}
+```
+
 ### safe_create_where_type()
 
-Dynamically generates a where type with operator-based filtering from a data class.
+Dynamically generates a SQL where type with operator-based filtering from a data class.
 
 ```python
 from fraiseql.sql.where_generator import safe_create_where_type

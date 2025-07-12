@@ -73,7 +73,7 @@ def test_mutation_with_date_field():
                 "client_order_id": "ORDER2025",
                 "order_date": "2025-02-15",
             },
-        }
+        },
     )
 
     mock_info = MagicMock()
@@ -134,7 +134,7 @@ def test_mutation_with_context_params_and_date():
                 "client_order_id": "ORDER2025",
                 "order_date": "2025-02-15",
             },
-        }
+        },
     )
 
     # Create mock user context
