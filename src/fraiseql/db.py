@@ -286,7 +286,9 @@ class FraiseQLRepository:
         rows = await self.run(query)
 
         if self.mode == "production":
-            # Production: Return raw dicts
+            # Production: Extract JSONB data if present, otherwise return raw dicts
+            if rows and len(rows) > 0 and "data" in rows[0]:
+                return [row["data"] for row in rows]
             return rows
 
         # Development: Full instantiation
@@ -317,6 +319,9 @@ class FraiseQLRepository:
             return None
 
         if self.mode == "production":
+            # Production: Extract JSONB data if present, otherwise return raw dict
+            if "data" in row:
+                return row["data"]
             return row
 
         type_class = self._get_type_for_view(view_name)
