@@ -62,7 +62,7 @@ class TestGraphQLWhereRepositoryIntegration:
             # Create view
             await cursor.execute("""
                 CREATE TEMPORARY VIEW test_product_view AS
-                SELECT 
+                SELECT
                     id,
                     tenant_id,
                     name,
@@ -126,7 +126,9 @@ class TestGraphQLWhereRepositoryIntegration:
             for prod in products:
                 await cursor.execute(
                     """
-                    INSERT INTO test_products (id, name, price, stock, category, is_active, created_at, data)
+                    INSERT INTO test_products (
+                        id, name, price, stock, category, is_active, created_at, data
+                    )
                     VALUES (%s, %s, %s, %s, %s, %s, %s, jsonb_build_object(
                         'id', %s,
                         'name', %s,
