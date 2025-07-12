@@ -212,8 +212,8 @@ def test_schema_structure(clear_registry) -> None:
     )
 
     # Debug tip: To inspect the schema structure, use:
-    # from graphql import print_schema  # noqa: ERA001
-    # print(print_schema(schema))  # noqa: ERA001
+    # from graphql import print_schema
+    # print(print_schema(schema))
 
     assert schema.query_type.name == "Query"
     assert schema.mutation_type.name == "Mutation"

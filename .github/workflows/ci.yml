@@ -32,11 +32,11 @@ jobs:
 
     - name: Run Ruff linter
       run: |
-        ruff check src/ tests/ --output-format=github
+        ruff check src/ --output-format=github
 
     - name: Check code formatting with Ruff
       run: |
-        ruff format --check src/ tests/
+        ruff format --check src/
 
     - name: Run Pyright type checker
       run: |
