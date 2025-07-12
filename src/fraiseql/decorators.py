@@ -267,7 +267,7 @@ def field(
 
     Examples:
         Computed field with description::\
-        
+
             @fraise_type
             class User:
                 first_name: str
@@ -276,30 +276,30 @@ def field(
                 @field(description="User's full display name")
                 def display_name(self) -> str:
                     return f"{self.first_name} {self.last_name}"
-        
+
         Async field with database access::\
-        
+
             @fraise_type
             class User:
                 id: UUID
-                
+
                 @field(description="Posts authored by this user")
                 async def posts(self, info) -> list[Post]:
                     db = info.context["db"]
                     return await db.find("post_view", {"user_id": self.id})
-        
+
         Field with custom resolver function::\
-        
+
             async def fetch_user_posts_optimized(root, info):
                 # Custom resolver with optimized loading
                 db = info.context["db"]
                 # Use DataLoader or batch loading here
                 return await batch_load_posts([root.id])
-            
+
             @fraise_type
             class User:
                 id: UUID
-                
+
                 @field(
                     resolver=fetch_user_posts_optimized,
                     description="Posts with optimized loading"
@@ -308,17 +308,17 @@ def field(
                     # This method signature defines the GraphQL schema
                     # but fetch_user_posts_optimized handles the actual resolution
                     pass
-        
+
         Field with parameters::\
-        
+
             @fraise_type
             class User:
                 id: UUID
-                
+
                 @field(description="User's posts with optional filtering")
                 async def posts(
-                    self, 
-                    info, 
+                    self,
+                    info,
                     published_only: bool = False,
                     limit: int = 10
                 ) -> list[Post]:
@@ -327,28 +327,28 @@ def field(
                     if published_only:
                         filters["status"] = "published"
                     return await db.find("post_view", filters, limit=limit)
-        
+
         Field with authentication and authorization::\
-        
+
             @fraise_type
             class User:
                 id: UUID
-                
+
                 @field(description="Private user settings (owner only)")
                 async def settings(self, info) -> UserSettings | None:
                     user_context = info.context.get("user")
                     if not user_context or user_context.user_id != self.id:
                         return None  # Don't expose private data
-                    
+
                     db = info.context["db"]
                     return await db.find_one("user_settings_view", {"user_id": self.id})
-        
+
         Field with error handling::\
-        
+
             @fraise_type
             class User:
                 id: UUID
-                
+
                 @field(description="User's profile image URL")
                 async def avatar_url(self, info) -> str | None:
                     try:
@@ -357,24 +357,24 @@ def field(
                     except StorageError:
                         logger.warning(f"Failed to get avatar for user {self.id}")
                         return None
-        
+
         Field with caching::\
-        
+
             @fraise_type
             class Post:
                 id: UUID
-                
+
                 @field(description="Number of likes (cached)")
                 async def like_count(self, info) -> int:
                     cache = info.context.get("cache")
                     cache_key = f"post:{self.id}:likes"
-                    
+
                     # Try cache first
                     if cache:
                         cached_count = await cache.get(cache_key)
                         if cached_count is not None:
                             return int(cached_count)
-                    
+
                     # Fallback to database
                     db = info.context["db"]
                     result = await db.execute_raw(
@@ -382,11 +382,11 @@ def field(
                         self.id
                     )
                     count = result[0]["count"]
-                    
+
                     # Cache for 5 minutes
                     if cache:
                         await cache.set(cache_key, count, ttl=300)
-                    
+
                     return count
 
     Notes:

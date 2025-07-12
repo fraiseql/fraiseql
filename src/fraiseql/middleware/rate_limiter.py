@@ -281,7 +281,7 @@ class RedisRateLimiter:
     def __init__(self, redis, config: RateLimitConfig):
         """Initialize Redis rate limiter."""
         try:
-            from redis.asyncio import Redis
+            import redis.asyncio  # noqa: F401
         except ImportError as e:
             raise ImportError(
                 "Redis is required for RedisRateLimiter. "

@@ -347,7 +347,7 @@ def create_production_router(
             if "Unset is not JSON serializable" in error_msg:
                 logger.error(
                     "UNSET serialization error in production mode. "
-                    "This may be caused by UNSET values in JSONB data that weren't properly cleaned. "
+                    "This may be caused by UNSET values in JSONB data that weren't cleaned. "
                     "Query: %s, Variables: %s",
                     request.query[:200] if request.query else "None",
                     str(request.variables)[:200] if request.variables else "None",

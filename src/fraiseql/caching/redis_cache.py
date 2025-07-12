@@ -22,7 +22,7 @@ class RedisCache:
             redis_client: Redis async client instance
         """
         try:
-            from redis.asyncio import Redis
+            import redis.asyncio  # noqa: F401
             from redis.exceptions import ConnectionError as RedisConnectionErrorBase
 
             self._redis_error = RedisConnectionErrorBase

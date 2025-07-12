@@ -133,7 +133,7 @@ class RedisRevocationStore:
             ttl: Time-to-live for revoked tokens in seconds
         """
         try:
-            from redis.asyncio import Redis
+            import redis.asyncio  # noqa: F401
         except ImportError as e:
             raise ImportError(
                 "Redis is required for RedisRevocationStore. "
