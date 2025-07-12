@@ -3,12 +3,14 @@
 import os
 from dataclasses import dataclass
 from typing import Optional
-from unittest.mock import AsyncMock, patch
-from uuid import UUID
+from unittest.mock import patch
+from uuid import UUID, uuid4
 
 import pytest
 from psycopg.sql import SQL
-from psycopg_pool import AsyncConnectionPool
+
+# Import database fixtures for this database test
+from tests.database_conftest import *  # noqa: F403
 
 from fraiseql.db import (
     DatabaseQuery,
@@ -61,34 +63,70 @@ class TypeWithList:
 
 
 @pytest.fixture
-def mock_pool():
-    """Create a mock async connection pool."""
-    pool = AsyncMock(spec=AsyncConnectionPool)
-    return pool
+async def test_tables(db_connection):
+    """Create test tables for the entire test suite."""
+    # Create users table with JSONB data column
+    await db_connection.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name TEXT,
+            data JSONB NOT NULL DEFAULT '{}'::jsonb,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create posts table for nested type testing
+    await db_connection.execute("""
+        CREATE TABLE IF NOT EXISTS posts (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            title TEXT,
+            author_id UUID REFERENCES users(id),
+            data JSONB NOT NULL DEFAULT '{}'::jsonb
+        )
+    """)
+    
+    # Create views for find/find_one testing
+    await db_connection.execute("""
+        CREATE OR REPLACE VIEW users_view AS
+        SELECT id, name, data FROM users
+    """)
+    
+    await db_connection.execute("""
+        CREATE OR REPLACE VIEW posts_view AS
+        SELECT p.id, p.title, p.data,
+               u.data as author_data
+        FROM posts p
+        LEFT JOIN users u ON p.author_id = u.id
+    """)
+    
+    # Create test function
+    await db_connection.execute("""
+        CREATE OR REPLACE FUNCTION test_function(param jsonb)
+        RETURNS jsonb AS $$
+        BEGIN
+            RETURN jsonb_build_object('id', '123', 'status', 'success', 'param', param);
+        END;
+        $$ LANGUAGE plpgsql;
+    """)
+    
+    # Create void function
+    await db_connection.execute("""
+        CREATE OR REPLACE FUNCTION void_function(param jsonb)
+        RETURNS void AS $$
+        BEGIN
+            -- Do nothing
+        END;
+        $$ LANGUAGE plpgsql;
+    """)
 
 
 @pytest.fixture
-def mock_connection():
-    """Create a mock database connection."""
-    conn = AsyncMock()
-    return conn
+async def repository(db_pool):
+    """Create a repository instance with real pool."""
+    return FraiseQLRepository(db_pool)
 
 
-@pytest.fixture
-def mock_cursor():
-    """Create a mock database cursor."""
-    cursor = AsyncMock()
-    cursor.fetchall = AsyncMock(return_value=[])
-    cursor.fetchone = AsyncMock(return_value=None)
-    return cursor
-
-
-@pytest.fixture
-async def repository(mock_pool):
-    """Create a repository instance with mock pool."""
-    return FraiseQLRepository(mock_pool)
-
-
+@pytest.mark.database
 class TestDatabaseQuery:
     """Test DatabaseQuery dataclass."""
 
@@ -147,244 +185,224 @@ class TestTypeRegistry:
         assert _type_registry["user_view"] == NestedType
 
 
+@pytest.mark.database
 class TestFraiseQLRepository:
     """Test FraiseQLRepository class."""
 
-    async def test_repository_initialization(self, mock_pool):
+    async def test_repository_initialization(self, db_pool):
         """Test repository initialization."""
         context = {"user": "test", "tenant_id": 123}
-        repo = FraiseQLRepository(mock_pool, context)
+        repo = FraiseQLRepository(db_pool, context)
 
-        assert repo._pool == mock_pool
+        assert repo._pool == db_pool
         assert repo.context == context
 
-    async def test_repository_initialization_no_context(self, mock_pool):
+    async def test_repository_initialization_no_context(self, db_pool):
         """Test repository initialization without context."""
-        repo = FraiseQLRepository(mock_pool)
+        repo = FraiseQLRepository(db_pool)
 
         assert repo.context == {}
 
-    async def test_run_query_with_results(
-        self,
-        repository,
-        mock_pool,
-        mock_connection,
-        mock_cursor,
-    ):
+    async def test_run_query_with_results(self, repository, db_connection, test_tables):
         """Test running a query that returns results."""
-        # Setup mocks
-        expected_results = [
-            {"id": "1", "name": "User 1"},
-            {"id": "2", "name": "User 2"},
-        ]
-        mock_cursor.fetchall.return_value = expected_results
-        mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
+        # Insert test data
+        user1_id = uuid4()
+        user2_id = uuid4()
+        await db_connection.execute(
+            "INSERT INTO users (id, name, data) VALUES (%s, %s, %s), (%s, %s, %s)",
+            (
+                user1_id, "User 1", '{"age": 25}'::JSONB,
+                user2_id, "User 2", '{"age": 30}'::JSONB
+            )
+        )
+        
         # Create query
         query = DatabaseQuery(
-            statement=SQL("SELECT * FROM users"),
+            statement=SQL("SELECT id, name FROM users ORDER BY name"),
             params={},
         )
-
+        
         # Execute
         results = await repository.run(query)
-
+        
         # Verify
-        assert results == expected_results
-        mock_cursor.execute.assert_called_once_with(query.statement, query.params)
-        mock_cursor.fetchall.assert_called_once()
+        assert len(results) == 2
+        assert results[0]["name"] == "User 1"
+        assert results[1]["name"] == "User 2"
 
-    async def test_run_query_without_fetch(
-        self,
-        repository,
-        mock_pool,
-        mock_connection,
-        mock_cursor,
-    ):
+    async def test_run_query_without_fetch(self, repository, db_connection, test_tables):
         """Test running a query without fetching results."""
-        # Setup mocks
-        mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
-        # Create query
+        # Create insert query
         query = DatabaseQuery(
-            statement=SQL("INSERT INTO users (name) VALUES (%s)"),
-            params={"name": "Test"},
+            statement=SQL("INSERT INTO users (name, data) VALUES (%(name)s, %(data)s)"),
+            params={"name": "Test User", "data": '{"test": true}'::JSONB},
             fetch_result=False,
         )
-
+        
         # Execute
         results = await repository.run(query)
-
-        # Verify
+        
+        # Verify no results returned
         assert results == []
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.fetchall.assert_not_called()
+        
+        # Verify data was inserted
+        cursor = await db_connection.execute("SELECT name FROM users WHERE name = %s", ("Test User",))
+        row = await cursor.fetchone()
+        assert row is not None
+        assert row[0] == "Test User"
 
-    async def test_run_query_with_exception(
-        self,
-        repository,
-        mock_pool,
-        mock_connection,
-        mock_cursor,
-    ):
+    async def test_run_query_with_exception(self, repository):
         """Test running a query that raises an exception."""
-        # Setup mocks
-        mock_cursor.execute.side_effect = Exception("Database error")
-        mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
-        # Create query
+        # Create query with invalid table
         query = DatabaseQuery(
-            statement=SQL("SELECT * FROM invalid_table"),
+            statement=SQL("SELECT * FROM invalid_table_that_does_not_exist"),
             params={},
         )
-
+        
         # Execute and expect exception
-        with pytest.raises(Exception, match="Database error"):
+        with pytest.raises(Exception) as exc_info:
             await repository.run(query)
+        
+        # Verify it's a database error
+        assert "relation" in str(exc_info.value).lower()
+        assert "does not exist" in str(exc_info.value).lower()
 
-    async def test_run_in_transaction_success(self, repository, mock_pool, mock_connection):
+    async def test_run_in_transaction_success(self, repository, db_connection, test_tables):
         """Test running a function in a transaction successfully."""
-        # Setup mocks
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
-        # Define test function
+        # Define test function that inserts data
         async def test_func(conn):
-            await conn.execute("SELECT 1")
-            return "success"
+            await conn.execute(
+                "INSERT INTO users (name, data) VALUES (%s, %s)",
+                ("Transaction User", '{"transactional": true}'::JSONB)
+            )
+            # Verify we can query within transaction
+            cursor = await conn.execute("SELECT COUNT(*) FROM users WHERE name = %s", ("Transaction User",))
+            row = await cursor.fetchone()
+            return row[0]
 
         # Execute
         result = await repository.run_in_transaction(test_func)
 
-        # Verify
-        assert result == "success"
-        mock_connection.commit.assert_called_once()
+        # Verify function returned expected value
+        assert result == 1
+        
+        # Verify data was committed (check in new transaction)
+        cursor = await db_connection.execute("SELECT COUNT(*) FROM users WHERE name = %s", ("Transaction User",))
+        row = await cursor.fetchone()
+        assert row[0] == 1
 
-    async def test_run_in_transaction_rollback(self, repository, mock_pool, mock_connection):
+    async def test_run_in_transaction_rollback(self, repository, db_connection, test_tables):
         """Test transaction rollback on error."""
-        # Setup mocks
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
-        # Define test function that raises error
+        # Define test function that raises error after insert
         async def test_func(conn):
+            await conn.execute(
+                "INSERT INTO users (name, data) VALUES (%s, %s)",
+                ("Rollback User", '{"should_rollback": true}'::JSONB)
+            )
             raise ValueError("Test error")
 
         # Execute and expect exception
         with pytest.raises(ValueError, match="Test error"):
             await repository.run_in_transaction(test_func)
 
-        # Verify rollback was called
-        mock_connection.rollback.assert_called_once()
+        # Verify data was rolled back
+        cursor = await db_connection.execute("SELECT COUNT(*) FROM users WHERE name = %s", ("Rollback User",))
+        row = await cursor.fetchone()
+        assert row[0] == 0  # Should not exist due to rollback
 
-    async def test_execute_function(self, repository, mock_pool, mock_connection, mock_cursor):
+    async def test_execute_function(self, repository, test_tables):
         """Test executing a PostgreSQL function."""
-        # Setup mocks
-        expected_result = {"id": "123", "status": "success"}
-        mock_cursor.fetchone.return_value = {"result": expected_result}
-        mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
+        # Execute function with parameters
+        result = await repository.execute_function("test_function", {"test_key": "test_value"})
+        
+        # Verify result
+        assert result["id"] == "123"
+        assert result["status"] == "success"
+        assert result["param"]["test_key"] == "test_value"
 
-        # Execute
-        result = await repository.execute_function("test_function", {"param": "value"})
-
-        # Verify
-        assert result == expected_result
-        # Should call the function with proper SQL
-        call_args = mock_cursor.execute.call_args[0]
-        assert "test_function" in str(call_args[0])
-
-    async def test_execute_function_no_result(
-        self,
-        repository,
-        mock_pool,
-        mock_connection,
-        mock_cursor,
-    ):
+    async def test_execute_function_no_result(self, repository, test_tables):
         """Test executing a function that returns no result."""
-        # Setup mocks
-        mock_cursor.fetchone.return_value = None
-        mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
-        # Execute
-        result = await repository.execute_function("void_function", {})
-
-        # Verify
+        # Execute void function
+        result = await repository.execute_function("void_function", {"ignored": "param"})
+        
+        # Verify empty result
         assert result == {}
 
-    async def test_find_with_simple_data(self, repository, mock_pool, mock_connection, mock_cursor):
+    async def test_find_with_simple_data(self, repository, db_connection, test_tables):
         """Test find method with simple data."""
-        # Setup mocks
-        expected_data = [
-            {"data": {"id": "1", "name": "User 1"}},
-            {"data": {"id": "2", "name": "User 2"}},
-        ]
-        mock_cursor.fetchall.return_value = expected_data
-        mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
-        # Execute
-        results = await repository.find("users", name="User%")
-
-        # Verify
+        # Insert test data
+        user1_id = uuid4()
+        user2_id = uuid4()
+        await db_connection.execute(
+            """INSERT INTO users (id, name, data) VALUES 
+               (%s, %s, %s), 
+               (%s, %s, %s)""",
+            (
+                user1_id, "Alice", '{"id": "' + str(user1_id) + '", "age": 25}'::JSONB,
+                user2_id, "Bob", '{"id": "' + str(user2_id) + '", "age": 30}'::JSONB
+            )
+        )
+        
+        # Execute find
+        results = await repository.find("users_view")
+        
+        # Verify - in production mode, returns raw dicts
         assert len(results) == 2
-        assert results[0]["id"] == "1"
-        assert results[1]["name"] == "User 2"
+        # Results should contain the JSONB data
+        names = [r["name"] for r in results]
+        assert "Alice" in names
+        assert "Bob" in names
 
-    async def test_find_one(self, repository, mock_pool, mock_connection, mock_cursor):
+    async def test_find_one(self, repository, db_connection, test_tables):
         """Test find_one method."""
-        # Setup mocks
-        expected_data = [{"data": {"id": "1", "name": "User 1"}}]
-        mock_cursor.fetchall.return_value = expected_data
-        mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
-        # Execute
-        result = await repository.find_one("users", id="1")
-
+        # Insert test data
+        user_id = uuid4()
+        await db_connection.execute(
+            "INSERT INTO users (id, name, data) VALUES (%s, %s, %s)",
+            (user_id, "Single User", '{"id": "' + str(user_id) + '", "email": "single@example.com"}'::JSONB)
+        )
+        
+        # Execute find_one
+        result = await repository.find_one("users_view", id=user_id)
+        
         # Verify
         assert result is not None
-        assert result["id"] == "1"
-        assert result["name"] == "User 1"
+        assert result["name"] == "Single User"
+        assert result["data"]["email"] == "single@example.com"
 
-    async def test_find_one_no_result(self, repository, mock_pool, mock_connection, mock_cursor):
+    async def test_find_one_no_result(self, repository, test_tables):
         """Test find_one when no result found."""
-        # Setup mocks
-        mock_cursor.fetchall.return_value = []
-        mock_connection.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_pool.connection.return_value.__aenter__.return_value = mock_connection
-
-        # Execute
-        result = await repository.find_one("users", id="999")
-
+        # Execute find_one with non-existent ID
+        result = await repository.find_one("users_view", id=uuid4())
+        
         # Verify
         assert result is None
 
 
+@pytest.mark.database
 class TestRepositoryModes:
     """Test repository mode handling."""
 
-    async def test_development_mode(self, mock_pool):
+    async def test_development_mode(self, db_pool):
         """Test repository in development mode."""
-        with patch.dict(os.environ, {"FRAISEQL_MODE": "development"}):
-            repo = FraiseQLRepository(mock_pool)
+        with patch.dict(os.environ, {"FRAISEQL_ENV": "development"}):
+            repo = FraiseQLRepository(db_pool)
             assert repo.mode == "development"
 
-    async def test_production_mode(self, mock_pool):
+    async def test_production_mode(self, db_pool):
         """Test repository in production mode (default)."""
         with patch.dict(os.environ, {}, clear=True):
-            repo = FraiseQLRepository(mock_pool)
+            repo = FraiseQLRepository(db_pool)
             assert repo.mode == "production"
 
-    async def test_mode_from_context(self, mock_pool):
+    async def test_mode_from_context(self, db_pool):
         """Test mode determination from context."""
         context = {"mode": "development"}
-        repo = FraiseQLRepository(mock_pool, context)
+        repo = FraiseQLRepository(db_pool, context)
         assert repo.mode == "development"
 
 
+@pytest.mark.database  
 class TestRepositoryHelpers:
     """Test repository helper methods."""
 

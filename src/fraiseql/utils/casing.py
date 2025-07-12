@@ -11,4 +11,9 @@ def to_camel_case(s: str) -> str:
 
 def to_snake_case(s: str) -> str:
     """Convert camelCase to snake_case."""
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", s).lower()
+    # Handle consecutive capitals like APIKey -> api_key
+    # First, insert underscores between lowercase and uppercase
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', s)
+    # Then handle the sequence of capitals followed by a lowercase letter
+    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+    return s2.lower()
