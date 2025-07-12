@@ -1,6 +1,7 @@
 """GraphQL routers for development and production environments."""
 
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import uuid4
@@ -20,6 +21,8 @@ from fraiseql.optimization.n_plus_one_detector import (
     configure_detector,
     n1_detection_context,
 )
+
+logger = logging.getLogger(__name__)
 
 # Module-level dependency singletons to avoid B008
 _default_context_dependency = Depends(build_graphql_context)

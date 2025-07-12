@@ -2,7 +2,7 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -258,7 +258,7 @@ class TestCreateGraphQLWhereInput:
         where_input.bool_field = BooleanFilter(eq=True)
         where_input.uuid_field = UUIDFilter(eq=uuid.uuid4())
         where_input.date_field = DateFilter(gt=date.today())
-        where_input.datetime_field = DateTimeFilter(lt=datetime.now())
+        where_input.datetime_field = DateTimeFilter(lt=datetime.now(UTC))
 
         # Verify all fields work correctly
         assert where_input.string_field.eq == "test"

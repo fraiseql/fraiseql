@@ -87,9 +87,9 @@ class TestGraphQLWhereInputIntegration:
             async def fetchall(self):
                 return []
 
-        # Create repository
+        # Create repository (not actually used in this test, just testing conversion)
         pool = MockPool()
-        repo = FraiseQLRepository(pool)
+        _repo = FraiseQLRepository(pool)
 
         # Create GraphQL where input
         where_input = ProductWhereInput(
