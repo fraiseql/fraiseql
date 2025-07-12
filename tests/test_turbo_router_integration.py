@@ -9,7 +9,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 # Import database fixtures for this database test
-from .database_conftest import *  # noqa: F403
+from tests.database_conftest import *  # noqa: F403
 
 from fraiseql import fraise_field, fraise_type
 from fraiseql.fastapi import create_fraiseql_app

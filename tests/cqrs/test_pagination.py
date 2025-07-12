@@ -11,7 +11,7 @@ import pytest
 import pytest_asyncio
 
 # Import database fixtures for this database test
-from ..database_conftest import *  # noqa: F403
+from tests.database_conftest import *  # noqa: F403
 
 from fraiseql.cqrs.pagination import (
     CursorPaginator,
