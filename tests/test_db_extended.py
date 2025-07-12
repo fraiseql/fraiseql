@@ -1,13 +1,16 @@
 """Extended tests for database functionality to improve coverage."""
 
+import os
 from decimal import Decimal
 from typing import Optional
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
 from psycopg.sql import SQL, Composed
-from psycopg_pool import AsyncConnectionPool
+
+# Import database fixtures for this database test
+from tests.database_conftest import *  # noqa: F403
 
 from fraiseql.db import (
     DatabaseQuery,
@@ -17,6 +20,7 @@ from fraiseql.db import (
 )
 
 
+@pytest.mark.database
 class TestDatabaseQuery:
     """Test DatabaseQuery dataclass."""
 
@@ -51,6 +55,7 @@ class TestDatabaseQuery:
         assert query.fetch_result is True
 
 
+@pytest.mark.database
 class TestTypeRegistry:
     """Test type registration functionality."""
 
@@ -97,277 +102,175 @@ class TestTypeRegistry:
         assert _type_registry["users"] is NewUser
 
 
+@pytest.mark.database
 class TestFraiseQLRepository:
     """Test FraiseQLRepository functionality."""
 
     @pytest.fixture
-    def mock_pool(self):
-        """Create a mock async connection pool."""
-        pool = AsyncMock(spec=AsyncConnectionPool)
-        return pool
+    async def test_tables(self, db_connection):
+        """Create test tables for repository tests."""
+        await db_connection.execute("""
+            CREATE TABLE IF NOT EXISTS test_users (
+                id SERIAL PRIMARY KEY,
+                name TEXT,
+                email TEXT,
+                data JSONB DEFAULT '{}'
+            )
+        """)
+        
+        await db_connection.execute("""
+            CREATE TABLE IF NOT EXISTS test_posts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES test_users(id),
+                title TEXT,
+                data JSONB DEFAULT '{}'
+            )
+        """)
 
     @pytest.fixture
-    def repository(self, mock_pool):
-        """Create a repository with mock pool."""
-        return FraiseQLRepository(mock_pool)
+    def repository(self, db_pool):
+        """Create a repository with database pool."""
+        return FraiseQLRepository(db_pool)
 
-    def test_repository_initialization(self, mock_pool):
+    def test_repository_initialization(self, db_pool):
         """Test repository initialization."""
-        repo = FraiseQLRepository(mock_pool)
-        assert repo._pool is mock_pool
+        repo = FraiseQLRepository(db_pool)
+        assert repo._pool is db_pool
         assert repo.context == {}
         assert repo.mode in ["development", "production"]
 
-    def test_repository_with_context(self, mock_pool):
+    def test_repository_with_context(self, db_pool):
         """Test repository initialization with context."""
         context = {"user_id": 123, "tenant": "test"}
-        repo = FraiseQLRepository(mock_pool, context)
+        repo = FraiseQLRepository(db_pool, context)
 
-        assert repo._pool is mock_pool
+        assert repo._pool is db_pool
         assert repo.context == context
 
     @pytest.mark.asyncio
-    async def test_run_query_with_results(self, repository, mock_pool):
+    async def test_run_query_with_results(self, repository, db_connection, test_tables):
         """Test running a query that returns results."""
-        # Mock connection and cursor
-        mock_conn = AsyncMock()
-        mock_cursor = AsyncMock()
-        mock_cursor.fetchall.return_value = [
-            {"id": 1, "name": "Alice"},
-            {"id": 2, "name": "Bob"},
-        ]
-
-        # Set up context managers
-        mock_conn.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__aexit__.return_value = None
-        mock_pool.connection.return_value.__aenter__.return_value = mock_conn
-        mock_pool.connection.return_value.__aexit__.return_value = None
-
+        # Insert test data
+        await db_connection.execute(
+            "INSERT INTO test_users (name, email) VALUES (%s, %s), (%s, %s)",
+            ("Alice", "alice@example.com", "Bob", "bob@example.com")
+        )
+        
         # Create and run query
         query = DatabaseQuery(
-            SQL("SELECT * FROM users"),
+            SQL("SELECT id, name FROM test_users ORDER BY id"),
             {},
             fetch_result=True,
         )
 
         result = await repository.run(query)
 
-        assert result == [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
-        mock_cursor.execute.assert_called_once_with(query.statement, query.params)
-        mock_cursor.fetchall.assert_called_once()
+        assert len(result) == 2
+        assert result[0]["name"] == "Alice"
+        assert result[1]["name"] == "Bob"
 
     @pytest.mark.asyncio
-    async def test_run_query_no_results(self, repository, mock_pool):
+    async def test_run_query_no_results(self, repository, db_connection, test_tables):
         """Test running a query that doesn't fetch results."""
-        # Mock connection and cursor
-        mock_conn = AsyncMock()
-        mock_cursor = AsyncMock()
-
-        # Set up context managers
-        mock_conn.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__aexit__.return_value = None
-        mock_pool.connection.return_value.__aenter__.return_value = mock_conn
-        mock_pool.connection.return_value.__aexit__.return_value = None
-
-        # Create and run query
+        # Create and run insert query
         query = DatabaseQuery(
-            SQL("INSERT INTO users (name) VALUES (%s)"),
-            {"name": "Charlie"},
+            SQL("INSERT INTO test_users (name, email) VALUES (%(name)s, %(email)s)"),
+            {"name": "Charlie", "email": "charlie@example.com"},
             fetch_result=False,
         )
 
         result = await repository.run(query)
 
         assert result == []
-        mock_cursor.execute.assert_called_once_with(query.statement, query.params)
-        mock_cursor.fetchall.assert_not_called()
+        
+        # Verify data was inserted
+        cursor = await db_connection.execute("SELECT name FROM test_users WHERE name = %s", ("Charlie",))
+        row = await cursor.fetchone()
+        assert row[0] == "Charlie"
 
     @pytest.mark.asyncio
-    async def test_run_query_exception(self, repository, mock_pool):
+    async def test_run_query_exception(self, repository):
         """Test handling exceptions during query execution."""
-        # Mock connection to raise exception
-        mock_pool.connection.side_effect = Exception("Connection failed")
+        # Create query with invalid SQL
+        query = DatabaseQuery(SQL("SELECT * FROM non_existent_table"), {})
 
-        query = DatabaseQuery(SQL("SELECT 1"), {})
-
-        with pytest.raises(Exception, match="Connection failed"):
+        with pytest.raises(Exception) as exc_info:
             await repository.run(query)
+            
+        assert "relation" in str(exc_info.value).lower()
+        assert "does not exist" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_run_in_transaction_success(self, repository, mock_pool):
+    async def test_run_in_transaction_success(self, repository, db_connection, test_tables):
         """Test successful transaction execution."""
-        # Mock connection
-        mock_conn = AsyncMock()
-        mock_pool.connection.return_value.__aenter__.return_value = mock_conn
-        mock_pool.connection.return_value.__aexit__.return_value = None
-
-        # Mock function to run in transaction
+        # Function to run in transaction
         async def test_func(conn, value):
-            assert conn is mock_conn
-            return value * 2
+            await conn.execute(
+                "INSERT INTO test_users (name, email) VALUES (%s, %s)",
+                (f"User {value}", f"user{value}@example.com")
+            )
+            cursor = await conn.execute("SELECT COUNT(*) FROM test_users")
+            row = await cursor.fetchone()
+            return row[0]
 
-        result = await repository.run_in_transaction(test_func, 21)
-        assert result == 42
+        result = await repository.run_in_transaction(test_func, 42)
+        assert result >= 1  # At least one row inserted
 
     @pytest.mark.asyncio
-    async def test_run_in_transaction_with_kwargs(self, repository, mock_pool):
+    async def test_run_in_transaction_with_kwargs(self, repository, test_tables):
         """Test transaction with keyword arguments."""
-        mock_conn = AsyncMock()
-        mock_pool.connection.return_value.__aenter__.return_value = mock_conn
-        mock_pool.connection.return_value.__aexit__.return_value = None
-
         async def test_func(conn, a, b=None):
+            # Simple function that uses kwargs
+            await conn.execute("SELECT 1")  # Just to use the connection
             return f"a={a}, b={b}"
 
         result = await repository.run_in_transaction(test_func, 1, b=2)
         assert result == "a=1, b=2"
 
     @pytest.mark.asyncio
-    async def test_run_in_transaction_exception(self, repository, mock_pool):
+    async def test_run_in_transaction_exception(self, repository, db_connection, test_tables):
         """Test transaction rollback on exception."""
-        mock_conn = AsyncMock()
-        mock_pool.connection.return_value.__aenter__.return_value = mock_conn
-        mock_pool.connection.return_value.__aexit__.return_value = None
-
         async def failing_func(conn):
+            await conn.execute(
+                "INSERT INTO test_users (name) VALUES (%s)",
+                ("Should Rollback",)
+            )
             raise ValueError("Transaction failed")
 
         with pytest.raises(ValueError, match="Transaction failed"):
             await repository.run_in_transaction(failing_func)
+            
+        # Verify rollback occurred
+        cursor = await db_connection.execute(
+            "SELECT COUNT(*) FROM test_users WHERE name = %s",
+            ("Should Rollback",)
+        )
+        row = await cursor.fetchone()
+        assert row[0] == 0
 
-    def test_determine_mode_development(self, mock_pool):
+    def test_determine_mode_development(self, db_pool):
         """Test mode determination in development."""
-        with patch.dict("os.environ", {"FRAISEQL_MODE": "development"}):
-            repo = FraiseQLRepository(mock_pool)
+        with patch.dict(os.environ, {"FRAISEQL_ENV": "development"}):
+            repo = FraiseQLRepository(db_pool)
             assert repo.mode == "development"
 
-    def test_determine_mode_production(self, mock_pool):
+    def test_determine_mode_production(self, db_pool):
         """Test mode determination in production."""
-        with patch.dict("os.environ", {"FRAISEQL_MODE": "production"}):
-            repo = FraiseQLRepository(mock_pool)
+        with patch.dict(os.environ, {"FRAISEQL_ENV": "production"}):
+            repo = FraiseQLRepository(db_pool)
             assert repo.mode == "production"
 
-    def test_determine_mode_default(self, mock_pool):
+    def test_determine_mode_default(self, db_pool):
         """Test default mode determination."""
-        with patch.dict("os.environ", {}, clear=True):
-            repo = FraiseQLRepository(mock_pool)
-            # Should default to production or development based on other indicators
-            assert repo.mode in ["development", "production"]
+        with patch.dict(os.environ, {}, clear=True):
+            repo = FraiseQLRepository(db_pool)
+            # Should default to production
+            assert repo.mode == "production"
 
-    @pytest.mark.asyncio
-    async def test_instantiate_recursive_simple(self, repository):
-        """Test recursive instantiation with simple types."""
-        # Test data
-        data = {
-            "id": 1,
-            "name": "Test User",
-            "email": "test@example.com",
-        }
-
-        # Mock type class
-        class User:
-            def __init__(self, id: int, name: str, email: str):
-                self.id = id
-                self.name = name
-                self.email = email
-
-        with patch.object(repository, "_get_type_for_data", return_value=User):
-            result = repository._instantiate_recursive(User, data)
-
-            assert isinstance(result, User)
-            assert result.id == 1
-            assert result.name == "Test User"
-            assert result.email == "test@example.com"
-
-    @pytest.mark.asyncio
-    async def test_instantiate_recursive_with_nested_objects(self, repository):
-        """Test recursive instantiation with nested objects."""
-        # Complex nested data
-        data = {
-            "id": 1,
-            "user": {
-                "id": 123,
-                "name": "John",
-            },
-            "tags": ["python", "graphql"],
-        }
-
-        class User:
-            def __init__(self, id: int, name: str):
-                self.id = id
-                self.name = name
-
-        class Post:
-            def __init__(self, id: int, user: User, tags: list):
-                self.id = id
-                self.user = user
-                self.tags = tags
-
-        register_type_for_view("user", User)
-
-        with patch.object(repository, "_get_type_for_data", return_value=Post):
-            result = repository._instantiate_recursive(Post, data)
-
-            assert isinstance(result, Post)
-            assert result.id == 1
-            assert isinstance(result.user, dict)  # Nested objects become dicts in test
-            assert result.tags == ["python", "graphql"]
-
-    def test_get_type_for_data(self, repository):
-        """Test getting type for data."""
-
-        class User:
-            pass
-
-        register_type_for_view("users", User)
-
-        # Should return registered type
-        result = repository._get_type_for_data({"__view__": "users"})
-        assert result is User
-
-        # Should return None for unregistered view
-        result = repository._get_type_for_data({"__view__": "unknown"})
-        assert result is None
-
-        # Should return None for data without view
-        result = repository._get_type_for_data({"id": 1})
-        assert result is None
-
-    def test_convert_value_types(self, repository):
-        """Test value type conversions."""
-        # UUID conversion
-        uuid_str = str(uuid4())
-        assert isinstance(repository._convert_value(uuid_str, UUID), UUID)
-
-        # Decimal conversion
-        assert isinstance(repository._convert_value("123.45", Decimal), Decimal)
-        assert repository._convert_value("123.45", Decimal) == Decimal("123.45")
-
-        # String conversion
-        assert repository._convert_value(123, str) == "123"
-
-        # No conversion needed
-        assert repository._convert_value(42, int) == 42
-
-    def test_convert_value_optional_types(self, repository):
-        """Test conversion with Optional types."""
-        # Optional[int] with None
-        result = repository._convert_value(None, Optional[int])
-        assert result is None
-
-        # Optional[str] with value
-        result = repository._convert_value(123, Optional[str])
-        assert result == "123"
-
-    def test_convert_value_list_types(self, repository):
-        """Test conversion with list types."""
-        # list[int]
-        result = repository._convert_value(["1", "2", "3"], list[int])
-        assert result == [1, 2, 3]
-
-        # list[str]
-        result = repository._convert_value([1, 2, 3], list[str])
-        assert result == ["1", "2", "3"]
+    # Note: Tests for private methods like _instantiate_recursive, _get_type_for_data,
+    # and _convert_value have been removed as these methods don't exist in the
+    # current implementation. The functionality they would test is covered by
+    # the public API tests above.
 
     def test_mode_property(self, repository):
         """Test mode property access."""
@@ -389,61 +292,73 @@ class TestFraiseQLRepository:
         assert len(repository.context) == 3
 
 
+@pytest.mark.database
 class TestRepositoryEdgeCases:
     """Test edge cases and error conditions."""
 
     @pytest.fixture
-    def mock_pool(self):
-        return AsyncMock(spec=AsyncConnectionPool)
+    async def test_tables(self, db_connection):
+        """Create test tables for edge case tests."""
+        await db_connection.execute("""
+            CREATE TABLE IF NOT EXISTS edge_test (
+                id SERIAL PRIMARY KEY,
+                status TEXT,
+                data JSONB DEFAULT '{}'
+            )
+        """)
 
     @pytest.fixture
-    def repository(self, mock_pool):
-        return FraiseQLRepository(mock_pool)
+    def repository(self, db_pool):
+        return FraiseQLRepository(db_pool)
 
     @pytest.mark.asyncio
-    async def test_run_with_complex_composed_sql(self, repository, mock_pool):
+    async def test_run_with_complex_composed_sql(self, repository, db_connection, test_tables):
         """Test running queries with complex Composed SQL."""
-        # Mock setup
-        mock_conn = AsyncMock()
-        mock_cursor = AsyncMock()
-        mock_cursor.fetchall.return_value = []
-
-        mock_conn.cursor.return_value.__aenter__.return_value = mock_cursor
-        mock_conn.cursor.return_value.__aexit__.return_value = None
-        mock_pool.connection.return_value.__aenter__.return_value = mock_conn
-        mock_pool.connection.return_value.__aexit__.return_value = None
-
+        # Insert test data
+        await db_connection.execute(
+            "INSERT INTO edge_test (id, status) VALUES (1, 'active'), (2, 'inactive')"
+        )
+        
         # Complex composed SQL
         complex_sql = Composed(
             [
-                SQL("SELECT * FROM users WHERE "),
-                SQL("id = %s AND "),
-                SQL("status = %s"),
+                SQL("SELECT * FROM edge_test WHERE "),
+                SQL("id = %(id)s AND "),
+                SQL("status = %(status)s"),
             ],
         )
 
         query = DatabaseQuery(complex_sql, {"id": 1, "status": "active"})
         result = await repository.run(query)
 
-        assert result == []
-        mock_cursor.execute.assert_called_once_with(complex_sql, {"id": 1, "status": "active"})
+        assert len(result) == 1
+        assert result[0]["id"] == 1
+        assert result[0]["status"] == "active"
 
     @pytest.mark.asyncio
-    async def test_nested_transaction_calls(self, repository, mock_pool):
+    async def test_nested_transaction_calls(self, repository, test_tables):
         """Test nested transaction function calls."""
-        mock_conn = AsyncMock()
-        mock_pool.connection.return_value.__aenter__.return_value = mock_conn
-        mock_pool.connection.return_value.__aexit__.return_value = None
-
         async def outer_func(conn, value):
+            # Insert a row
+            await conn.execute(
+                "INSERT INTO edge_test (id, status) VALUES (%s, %s)",
+                (value, f"status_{value}")
+            )
+            
+            # Inner function that queries the data
             async def inner_func():
-                return value * 2
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM edge_test WHERE id = %s",
+                    (value,)
+                )
+                row = await cursor.fetchone()
+                return row[0]
 
             result = await inner_func()
-            return result + 1
+            return result
 
-        result = await repository.run_in_transaction(outer_func, 10)
-        assert result == 21
+        result = await repository.run_in_transaction(outer_func, 99)
+        assert result == 1  # One row inserted and found
 
     def test_repository_string_representation(self, repository):
         """Test repository string representation if it exists."""
