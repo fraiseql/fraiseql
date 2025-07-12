@@ -19,6 +19,8 @@ except ImportError:
     _HAS_REDIS = False
 
     class RedisRateLimiter:
+        """Placeholder class when Redis is not available."""
+
         def __init__(self, *args, **kwargs):
             raise ImportError(
                 "Redis is required for RedisRateLimiter. "

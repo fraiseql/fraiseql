@@ -17,12 +17,16 @@ except ImportError:
     _HAS_REDIS = False
 
     class RedisCache:
+        """Placeholder class when Redis is not available."""
+
         def __init__(self, *args, **kwargs):
             raise ImportError(
                 "Redis is required for RedisCache. Install it with: pip install fraiseql[redis]",
             )
 
     class RedisConnectionError(Exception):
+        """Placeholder exception when Redis is not available."""
+
         pass
 
 
