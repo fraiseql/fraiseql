@@ -55,7 +55,7 @@ class TestRedisOptionalDependency:
             config = RateLimitConfig(requests_per_minute=60)
 
             with pytest.raises(ImportError) as exc_info:
-                RedisRateLimiter("fake_client", config)
+                RedisRateLimiter(redis="fake_client", config=config)
 
             assert "Redis is required for RedisRateLimiter" in str(exc_info.value)
             assert "pip install fraiseql[redis]" in str(exc_info.value)
@@ -155,7 +155,7 @@ class TestRedisOptionalDependency:
 
             # Redis class should fail on instantiation
             with pytest.raises(ImportError):
-                RedisRateLimiter("fake_client", config)
+                RedisRateLimiter(redis="fake_client", config=config)
 
 
 if __name__ == "__main__":

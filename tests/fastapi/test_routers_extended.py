@@ -201,13 +201,15 @@ class TestDevelopmentRouter:
     def test_development_n1_detection(self, mock_n1_context):
         """Test N+1 query detection in development."""
         # Mock N+1 detection to raise error
-        patterns = [QueryPattern(
-            field_path="Query.user",
-            parent_type="Query", 
-            field_name="user",
-            resolver_name="resolve_user",
-            count=5
-        )]
+        patterns = [
+            QueryPattern(
+                field_path="Query.user",
+                parent_type="Query",
+                field_name="user",
+                resolver_name="resolve_user",
+                count=5,
+            )
+        ]
         error = N1QueryDetectedError("N+1 detected", patterns)
 
         mock_detector = AsyncMock()

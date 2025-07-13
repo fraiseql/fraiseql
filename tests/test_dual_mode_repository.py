@@ -9,11 +9,11 @@ from uuid import UUID, uuid4
 import pytest
 import pytest_asyncio
 
-# Import database fixtures for this database test
-from tests.database_conftest import *  # noqa: F403
-
 from fraiseql import fraise_field, fraise_type
 from fraiseql.db import FraiseQLRepository
+
+# Import database fixtures for this database test
+from tests.database_conftest import *  # noqa: F403
 
 
 # Test types for dual-mode instantiation

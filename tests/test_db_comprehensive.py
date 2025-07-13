@@ -9,9 +9,6 @@ from uuid import UUID, uuid4
 import pytest
 from psycopg.sql import SQL
 
-# Import database fixtures for this database test
-from tests.database_conftest import *  # noqa: F403
-
 from fraiseql.db import (
     DatabaseQuery,
     FraiseQLRepository,
@@ -19,6 +16,9 @@ from fraiseql.db import (
     register_type_for_view,
 )
 from fraiseql.types import fraise_type
+
+# Import database fixtures for this database test
+from tests.database_conftest import *  # noqa: F403
 
 
 @fraise_type
@@ -74,7 +74,7 @@ async def test_tables(db_connection):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
+
     # Create posts table for nested type testing
     await db_connection.execute("""
         CREATE TABLE IF NOT EXISTS posts (
@@ -84,13 +84,13 @@ async def test_tables(db_connection):
             data JSONB NOT NULL DEFAULT '{}'::jsonb
         )
     """)
-    
+
     # Create views for find/find_one testing
     await db_connection.execute("""
         CREATE OR REPLACE VIEW users_view AS
         SELECT id, name, data FROM users
     """)
-    
+
     await db_connection.execute("""
         CREATE OR REPLACE VIEW posts_view AS
         SELECT p.id, p.title, p.data,
@@ -98,7 +98,7 @@ async def test_tables(db_connection):
         FROM posts p
         LEFT JOIN users u ON p.author_id = u.id
     """)
-    
+
     # Create test function
     await db_connection.execute("""
         CREATE OR REPLACE FUNCTION test_function(param jsonb)
@@ -108,7 +108,7 @@ async def test_tables(db_connection):
         END;
         $$ LANGUAGE plpgsql;
     """)
-    
+
     # Create void function
     await db_connection.execute("""
         CREATE OR REPLACE FUNCTION void_function(param jsonb)
@@ -210,21 +210,18 @@ class TestFraiseQLRepository:
         user2_id = uuid4()
         await db_connection.execute(
             "INSERT INTO users (id, name, data) VALUES (%s, %s, %s::jsonb), (%s, %s, %s::jsonb)",
-            (
-                user1_id, "User 1", '{"age": 25}',
-                user2_id, "User 2", '{"age": 30}'
-            )
+            (user1_id, "User 1", '{"age": 25}', user2_id, "User 2", '{"age": 30}'),
         )
-        
+
         # Create query
         query = DatabaseQuery(
             statement=SQL("SELECT id, name FROM users ORDER BY name"),
             params={},
         )
-        
+
         # Execute
         results = await repository.run(query)
-        
+
         # Verify
         assert len(results) == 2
         assert results[0]["name"] == "User 1"
@@ -238,15 +235,17 @@ class TestFraiseQLRepository:
             params={"name": "Test User", "data": '{"test": true}'},
             fetch_result=False,
         )
-        
+
         # Execute
         results = await repository.run(query)
-        
+
         # Verify no results returned
         assert results == []
-        
+
         # Verify data was inserted
-        cursor = await db_connection.execute("SELECT name FROM users WHERE name = %s", ("Test User",))
+        cursor = await db_connection.execute(
+            "SELECT name FROM users WHERE name = %s", ("Test User",)
+        )
         row = await cursor.fetchone()
         assert row is not None
         assert row[0] == "Test User"
@@ -258,25 +257,28 @@ class TestFraiseQLRepository:
             statement=SQL("SELECT * FROM invalid_table_that_does_not_exist"),
             params={},
         )
-        
+
         # Execute and expect exception
         with pytest.raises(Exception) as exc_info:
             await repository.run(query)
-        
+
         # Verify it's a database error
         assert "relation" in str(exc_info.value).lower()
         assert "does not exist" in str(exc_info.value).lower()
 
     async def test_run_in_transaction_success(self, repository, db_connection, test_tables):
         """Test running a function in a transaction successfully."""
+
         # Define test function that inserts data
         async def test_func(conn):
             await conn.execute(
                 "INSERT INTO users (name, data) VALUES (%s, %s::jsonb)",
-                ("Transaction User", '{"transactional": true}')
+                ("Transaction User", '{"transactional": true}'),
             )
             # Verify we can query within transaction
-            cursor = await conn.execute("SELECT COUNT(*) FROM users WHERE name = %s", ("Transaction User",))
+            cursor = await conn.execute(
+                "SELECT COUNT(*) FROM users WHERE name = %s", ("Transaction User",)
+            )
             row = await cursor.fetchone()
             return row[0]
 
@@ -285,19 +287,22 @@ class TestFraiseQLRepository:
 
         # Verify function returned expected value
         assert result == 1
-        
+
         # Verify data was committed (check in new transaction)
-        cursor = await db_connection.execute("SELECT COUNT(*) FROM users WHERE name = %s", ("Transaction User",))
+        cursor = await db_connection.execute(
+            "SELECT COUNT(*) FROM users WHERE name = %s", ("Transaction User",)
+        )
         row = await cursor.fetchone()
         assert row[0] == 1
 
     async def test_run_in_transaction_rollback(self, repository, db_connection, test_tables):
         """Test transaction rollback on error."""
+
         # Define test function that raises error after insert
         async def test_func(conn):
             await conn.execute(
                 "INSERT INTO users (name, data) VALUES (%s, %s::jsonb)",
-                ("Rollback User", '{"should_rollback": true}')
+                ("Rollback User", '{"should_rollback": true}'),
             )
             raise ValueError("Test error")
 
@@ -306,7 +311,9 @@ class TestFraiseQLRepository:
             await repository.run_in_transaction(test_func)
 
         # Verify data was rolled back
-        cursor = await db_connection.execute("SELECT COUNT(*) FROM users WHERE name = %s", ("Rollback User",))
+        cursor = await db_connection.execute(
+            "SELECT COUNT(*) FROM users WHERE name = %s", ("Rollback User",)
+        )
         row = await cursor.fetchone()
         assert row[0] == 0  # Should not exist due to rollback
 
@@ -314,7 +321,7 @@ class TestFraiseQLRepository:
         """Test executing a PostgreSQL function."""
         # Execute function with parameters
         result = await repository.execute_function("test_function", {"test_key": "test_value"})
-        
+
         # Verify result
         assert result["id"] == "123"
         assert result["status"] == "success"
@@ -324,7 +331,7 @@ class TestFraiseQLRepository:
         """Test executing a function that returns no result."""
         # Execute void function
         result = await repository.execute_function("void_function", {"ignored": "param"})
-        
+
         # Verify empty result
         assert result == {}
 
@@ -338,14 +345,18 @@ class TestFraiseQLRepository:
                (%s, %s, %s::jsonb), 
                (%s, %s, %s::jsonb)""",
             (
-                user1_id, "Alice", '{"id": "' + str(user1_id) + '", "age": 25}',
-                user2_id, "Bob", '{"id": "' + str(user2_id) + '", "age": 30}'
-            )
+                user1_id,
+                "Alice",
+                '{"id": "' + str(user1_id) + '", "age": 25}',
+                user2_id,
+                "Bob",
+                '{"id": "' + str(user2_id) + '", "age": 30}',
+            ),
         )
-        
+
         # Execute find
         results = await repository.find("users_view")
-        
+
         # Verify - in production mode, returns raw dicts
         assert len(results) == 2
         # Results should contain the JSONB data
@@ -359,12 +370,16 @@ class TestFraiseQLRepository:
         user_id = uuid4()
         await db_connection.execute(
             "INSERT INTO users (id, name, data) VALUES (%s, %s, %s::jsonb)",
-            (user_id, "Single User", '{"id": "' + str(user_id) + '", "email": "single@example.com"}')
+            (
+                user_id,
+                "Single User",
+                '{"id": "' + str(user_id) + '", "email": "single@example.com"}',
+            ),
         )
-        
+
         # Execute find_one
         result = await repository.find_one("users_view", id=user_id)
-        
+
         # Verify
         assert result is not None
         assert result["name"] == "Single User"
@@ -374,7 +389,7 @@ class TestFraiseQLRepository:
         """Test find_one when no result found."""
         # Execute find_one with non-existent ID
         result = await repository.find_one("users_view", id=uuid4())
-        
+
         # Verify
         assert result is None
 
@@ -402,7 +417,7 @@ class TestRepositoryModes:
         assert repo.mode == "development"
 
 
-@pytest.mark.database  
+@pytest.mark.database
 class TestRepositoryHelpers:
     """Test repository helper methods."""
 

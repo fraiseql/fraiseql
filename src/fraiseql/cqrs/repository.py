@@ -653,7 +653,7 @@ class CQRSRepository:
             List of entity dictionaries
         """
         view_name = self._get_view_name(entity_class)
-        
+
         # Convert order_by tuples to string format
         order_by_str = None
         if order_by:
@@ -661,7 +661,7 @@ class CQRSRepository:
             for field, direction in order_by:
                 parts.append(f"{field} {direction}")
             order_by_str = ", ".join(parts)
-        
+
         return await self.select_from_json_view(
             view_name,
             where=where,
@@ -712,11 +712,11 @@ class CQRSRepository:
             Count of matching entities
         """
         view_name = self._get_view_name(entity_class)
-        
+
         # Build count query
         query_parts = [SQL("SELECT COUNT(*) FROM {}").format(SQL(view_name))]
         params = []
-        
+
         if where:
             query_parts.append(SQL(" WHERE "))
             conditions = []
@@ -729,9 +729,9 @@ class CQRSRepository:
                     conditions.append(SQL("data->>{} = %s").format(SQL(f"'{key}'")))
                     params.append(str(value))
             query_parts.append(SQL(" AND ").join(conditions))
-        
+
         query = Composed(query_parts)
-        
+
         async with self.connection.cursor() as cursor:
             await cursor.execute(query, params)
             result = await cursor.fetchone()
@@ -765,7 +765,7 @@ class CQRSRepository:
     #
     # Example view with relationships:
     # CREATE VIEW user_view AS
-    # SELECT 
+    # SELECT
     #     u.id,
     #     jsonb_build_object(
     #         'id', u.id,

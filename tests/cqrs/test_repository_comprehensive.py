@@ -136,7 +136,7 @@ class TestCQRSRepositoryQueries:
         mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = [
             expected_data["data"]
         ]
-        
+
         from fraiseql.types import fraise_type
 
         @fraise_type
@@ -152,7 +152,7 @@ class TestCQRSRepositoryQueries:
         # Check the query was executed
         cursor = mock_connection.cursor.return_value.__aenter__.return_value
         cursor.execute.assert_called_once()
-        
+
         # Verify the SQL query
         query_args = cursor.execute.call_args[0]
         assert "vw_user" in str(query_args[0])  # View name
@@ -163,7 +163,7 @@ class TestCQRSRepositoryQueries:
         test_id = uuid4()
 
         mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = None
-        
+
         from fraiseql.types import fraise_type
 
         @fraise_type
@@ -184,7 +184,7 @@ class TestCQRSRepositoryQueries:
         mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = [
             [row["data"]] for row in expected_data
         ]
-        
+
         from fraiseql.types import fraise_type
 
         @fraise_type
@@ -197,7 +197,7 @@ class TestCQRSRepositoryQueries:
         # Check cursor was called
         cursor = mock_connection.cursor.return_value.__aenter__.return_value
         cursor.execute.assert_called_once()
-        
+
         # Verify the SQL query
         query_args = cursor.execute.call_args[0]
         query_str = str(query_args[0])
@@ -213,7 +213,7 @@ class TestCQRSRepositoryQueries:
         mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = [
             [row["data"]] for row in expected_data
         ]
-        
+
         from fraiseql.types import fraise_type
 
         @fraise_type
@@ -238,7 +238,7 @@ class TestCQRSRepositoryQueries:
         expected_data = []
 
         mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = []
-        
+
         from fraiseql.types import fraise_type
 
         @fraise_type
@@ -255,7 +255,7 @@ class TestCQRSRepositoryQueries:
         # Check cursor was called
         cursor = mock_connection.cursor.return_value.__aenter__.return_value
         cursor.execute.assert_called_once()
-        
+
         # Verify the SQL query
         query_args = cursor.execute.call_args[0]
         query_str = str(query_args[0])
@@ -271,7 +271,7 @@ class TestCQRSRepositoryQueries:
         mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = [
             [row["data"]] for row in expected_data
         ]
-        
+
         from fraiseql.types import fraise_type
 
         @fraise_type
@@ -288,7 +288,7 @@ class TestCQRSRepositoryQueries:
         # Check cursor was called
         cursor = mock_connection.cursor.return_value.__aenter__.return_value
         cursor.execute.assert_called_once()
-        
+
         # Verify the SQL query
         query_args = cursor.execute.call_args[0]
         assert "vw_active_users" in str(query_args[0])
@@ -425,7 +425,7 @@ class TestCQRSRepositoryUtilities:
         expected_count = [{"count": 42}]
 
         mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = [42]
-        
+
         from fraiseql.types import fraise_type
 
         @fraise_type
@@ -449,7 +449,7 @@ class TestCQRSRepositoryUtilities:
         mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = [
             {"id": str(test_id), "name": "Test"}
         ]
-        
+
         from fraiseql.types import fraise_type
 
         @fraise_type
@@ -478,8 +478,10 @@ class TestCQRSRepositoryErrorHandling:
 
     async def test_handle_query_error(self, repository, mock_connection):
         """Test handling query execution errors."""
-        mock_connection.cursor.return_value.__aenter__.return_value.execute.side_effect = Exception("relation does not exist")
-        
+        mock_connection.cursor.return_value.__aenter__.return_value.execute.side_effect = Exception(
+            "relation does not exist"
+        )
+
         from fraiseql.types import fraise_type
 
         @fraise_type

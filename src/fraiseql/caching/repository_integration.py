@@ -67,9 +67,12 @@ class CachedRepository(FraiseQLRepository):
         )
 
         # Use cache
+        async def fetch() -> list[Union[dict[str, Any], Any]]:
+            return await self._base.find(view_name, **kwargs)
+
         return await self._cache.get_or_set(
             key=cache_key,
-            func=lambda: self._base.find(view_name, **kwargs),
+            func=fetch,
             ttl=cache_ttl,
         )
 
@@ -101,9 +104,12 @@ class CachedRepository(FraiseQLRepository):
         )
 
         # Use cache
+        async def fetch() -> Optional[Union[dict[str, Any], Any]]:
+            return await self._base.find_one(view_name, **kwargs)
+
         return await self._cache.get_or_set(
             key=cache_key,
-            func=lambda: self._base.find_one(view_name, **kwargs),
+            func=fetch,
             ttl=cache_ttl,
         )
 

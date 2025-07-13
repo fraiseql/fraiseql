@@ -1,16 +1,10 @@
 """Extended tests for database functionality to improve coverage."""
 
 import os
-from decimal import Decimal
-from typing import Optional
 from unittest.mock import patch
-from uuid import UUID, uuid4
 
 import pytest
 from psycopg.sql import SQL, Composed
-
-# Import database fixtures for this database test
-from tests.database_conftest import *  # noqa: F403
 
 from fraiseql.db import (
     DatabaseQuery,
@@ -18,6 +12,9 @@ from fraiseql.db import (
     _type_registry,
     register_type_for_view,
 )
+
+# Import database fixtures for this database test
+from tests.database_conftest import *  # noqa: F403
 
 
 @pytest.mark.database
@@ -117,7 +114,7 @@ class TestFraiseQLRepository:
                 data JSONB DEFAULT '{}'
             )
         """)
-        
+
         await db_connection.execute("""
             CREATE TABLE IF NOT EXISTS test_posts (
                 id SERIAL PRIMARY KEY,
@@ -153,9 +150,9 @@ class TestFraiseQLRepository:
         # Insert test data
         await db_connection.execute(
             "INSERT INTO test_users (name, email) VALUES (%s, %s), (%s, %s)",
-            ("Alice", "alice@example.com", "Bob", "bob@example.com")
+            ("Alice", "alice@example.com", "Bob", "bob@example.com"),
         )
-        
+
         # Create and run query
         query = DatabaseQuery(
             SQL("SELECT id, name FROM test_users ORDER BY id"),
@@ -182,9 +179,11 @@ class TestFraiseQLRepository:
         result = await repository.run(query)
 
         assert result == []
-        
+
         # Verify data was inserted
-        cursor = await db_connection.execute("SELECT name FROM test_users WHERE name = %s", ("Charlie",))
+        cursor = await db_connection.execute(
+            "SELECT name FROM test_users WHERE name = %s", ("Charlie",)
+        )
         row = await cursor.fetchone()
         assert row[0] == "Charlie"
 
@@ -196,18 +195,19 @@ class TestFraiseQLRepository:
 
         with pytest.raises(Exception) as exc_info:
             await repository.run(query)
-            
+
         assert "relation" in str(exc_info.value).lower()
         assert "does not exist" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_run_in_transaction_success(self, repository, db_connection, test_tables):
         """Test successful transaction execution."""
+
         # Function to run in transaction
         async def test_func(conn, value):
             await conn.execute(
                 "INSERT INTO test_users (name, email) VALUES (%s, %s)",
-                (f"User {value}", f"user{value}@example.com")
+                (f"User {value}", f"user{value}@example.com"),
             )
             cursor = await conn.execute("SELECT COUNT(*) FROM test_users")
             row = await cursor.fetchone()
@@ -219,6 +219,7 @@ class TestFraiseQLRepository:
     @pytest.mark.asyncio
     async def test_run_in_transaction_with_kwargs(self, repository, test_tables):
         """Test transaction with keyword arguments."""
+
         async def test_func(conn, a, b=None):
             # Simple function that uses kwargs
             await conn.execute("SELECT 1")  # Just to use the connection
@@ -230,20 +231,17 @@ class TestFraiseQLRepository:
     @pytest.mark.asyncio
     async def test_run_in_transaction_exception(self, repository, db_connection, test_tables):
         """Test transaction rollback on exception."""
+
         async def failing_func(conn):
-            await conn.execute(
-                "INSERT INTO test_users (name) VALUES (%s)",
-                ("Should Rollback",)
-            )
+            await conn.execute("INSERT INTO test_users (name) VALUES (%s)", ("Should Rollback",))
             raise ValueError("Transaction failed")
 
         with pytest.raises(ValueError, match="Transaction failed"):
             await repository.run_in_transaction(failing_func)
-            
+
         # Verify rollback occurred
         cursor = await db_connection.execute(
-            "SELECT COUNT(*) FROM test_users WHERE name = %s",
-            ("Should Rollback",)
+            "SELECT COUNT(*) FROM test_users WHERE name = %s", ("Should Rollback",)
         )
         row = await cursor.fetchone()
         assert row[0] == 0
@@ -318,7 +316,7 @@ class TestRepositoryEdgeCases:
         await db_connection.execute(
             "INSERT INTO edge_test (id, status) VALUES (1, 'active'), (2, 'inactive')"
         )
-        
+
         # Complex composed SQL
         complex_sql = Composed(
             [
@@ -338,18 +336,17 @@ class TestRepositoryEdgeCases:
     @pytest.mark.asyncio
     async def test_nested_transaction_calls(self, repository, test_tables):
         """Test nested transaction function calls."""
+
         async def outer_func(conn, value):
             # Insert a row
             await conn.execute(
-                "INSERT INTO edge_test (id, status) VALUES (%s, %s)",
-                (value, f"status_{value}")
+                "INSERT INTO edge_test (id, status) VALUES (%s, %s)", (value, f"status_{value}")
             )
-            
+
             # Inner function that queries the data
             async def inner_func():
                 cursor = await conn.execute(
-                    "SELECT COUNT(*) FROM edge_test WHERE id = %s",
-                    (value,)
+                    "SELECT COUNT(*) FROM edge_test WHERE id = %s", (value,)
                 )
                 row = await cursor.fetchone()
                 return row[0]

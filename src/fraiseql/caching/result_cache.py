@@ -7,7 +7,7 @@ different backends, automatic key generation, and cache invalidation.
 import functools
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Protocol, TypeVar
+from typing import Any, Awaitable, Callable, Protocol, TypeVar
 
 from .cache_key import CacheKeyBuilder
 
@@ -90,7 +90,7 @@ class ResultCache:
     async def get_or_set(
         self,
         key: str,
-        func: Callable[[], T],
+        func: Callable[[], Awaitable[T]],
         ttl: int | None = None,
     ) -> T:
         """Get from cache or execute function and cache result.

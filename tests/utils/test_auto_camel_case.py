@@ -169,7 +169,9 @@ class TestAutoCamelCase:
         assert to_snake_case("apiKey") == "api_key"
         assert to_snake_case("APIKey") == "api_key"  # Consecutive caps handled correctly
         assert to_snake_case("page2Content") == "page2_content"
-        assert to_snake_case("HTTPSConnection") == "https_connection"  # Consecutive caps handled correctly
+        assert (
+            to_snake_case("HTTPSConnection") == "https_connection"
+        )  # Consecutive caps handled correctly
         assert to_snake_case("id") == "id"
         assert to_snake_case("ID") == "id"  # Consecutive caps handled correctly
 

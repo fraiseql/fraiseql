@@ -62,7 +62,7 @@ async def get_merged_data(info) -> Dict[str, Any]:
 class TestMultipleContextSources:
     """Test merging context from multiple sources."""
 
-    def test_multiple_context_getters(self):
+    def test_multiple_context_getters(self, clear_registry):
         """Test merging contexts from multiple getter functions."""
 
         # Define multiple context getters
@@ -165,7 +165,7 @@ class TestMultipleContextSources:
         assert "custom_data" in merged_data  # From custom
         assert merged_data["source"] == "custom"  # Last one wins
 
-    def test_context_override_precedence(self):
+    def test_context_override_precedence(self, clear_registry):
         """Test that context override follows correct precedence."""
         precedence_log = []
 
@@ -245,7 +245,7 @@ class TestMultipleContextSources:
         # Verify execution order
         assert data["precedence_order"] == ["low", "medium", "high"]
 
-    def test_partial_context_merging(self):
+    def test_partial_context_merging(self, clear_registry):
         """Test merging contexts where some sources return None or empty."""
 
         async def maybe_auth_context(request: Request) -> Optional[Dict[str, Any]]:
@@ -489,7 +489,7 @@ class TestAsyncContextGetters:
         assert context["status"] == "ok"
         assert context["data"] == "valid"
 
-    def test_async_context_with_dependencies(self):
+    def test_async_context_with_dependencies(self, clear_registry):
         """Test async context getters with dependencies between them."""
 
         async def get_user_id_context(request: Request) -> Dict[str, Any]:
@@ -589,7 +589,7 @@ class TestAsyncContextGetters:
 class TestContextMergingEdgeCases:
     """Test edge cases in context merging."""
 
-    def test_deeply_nested_context_merging(self):
+    def test_deeply_nested_context_merging(self, clear_registry):
         """Test merging deeply nested context objects."""
 
         async def deep_context_a(request: Request) -> Dict[str, Any]:
@@ -671,7 +671,7 @@ class TestContextMergingEdgeCases:
         # Arrays are replaced, not merged
         assert data["level1"]["arrays"] == [4, 5, 6]
 
-    def test_context_with_circular_references(self):
+    def test_context_with_circular_references(self, clear_registry):
         """Test context merging with circular references."""
 
         async def circular_context(request: Request) -> Dict[str, Any]:
@@ -703,7 +703,7 @@ class TestContextMergingEdgeCases:
         except Exception as e:
             pytest.fail(f"Circular reference handling failed: {e}")
 
-    def test_context_key_conflicts(self):
+    def test_context_key_conflicts(self, clear_registry):
         """Test handling of conflicting context keys."""
 
         async def system_context(request: Request) -> Dict[str, Any]:

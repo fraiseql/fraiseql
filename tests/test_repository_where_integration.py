@@ -14,11 +14,10 @@ import pytest
 pytestmark = pytest.mark.database
 
 # Import database fixtures for this database test
-from tests.database_conftest import *  # noqa: F403
-
 from fraiseql import fraise_type
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
+from tests.database_conftest import *  # noqa: F403
 
 
 # Test types

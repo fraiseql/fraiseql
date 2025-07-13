@@ -4,11 +4,11 @@ from uuid import uuid4
 
 import pytest
 
-# Import database fixtures for this database test
-from tests.database_conftest import *  # noqa: F403
-
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
+
+# Import database fixtures for this database test
+from tests.database_conftest import *  # noqa: F403
 
 
 @fraiseql.type
