@@ -101,7 +101,7 @@ class TestCQRSRepositoryCommands:
         ) as mock_exec:
             result = await repository.delete("user", test_id)
 
-            mock_exec.assert_called_once_with("fn_delete_user", {"id": test_id})
+            mock_exec.assert_called_once_with("fn_delete_user", {"id": str(test_id)})
             assert result == expected_result
 
     async def test_execute_custom_function(self, repository):
