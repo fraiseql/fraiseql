@@ -630,7 +630,7 @@ class CQRSRepository:
         """
         return await self.get_by_id(view_name, entity_id)
 
-    async def list(
+    async def list(  # noqa: A003
         self,
         entity_class: type[T],
         *,
