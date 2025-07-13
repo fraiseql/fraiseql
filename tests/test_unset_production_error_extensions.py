@@ -58,6 +58,7 @@ def test_production_mode_unset_in_graphql_error_extensions():
     """Test that production mode properly cleans UNSET from GraphQL error extensions."""
     # Create production app with explicit config
     config = FraiseQLConfig(
+        database_url="postgresql://test/test",
         environment="production",
         enable_playground=False,
         enable_introspection=False,
@@ -109,6 +110,7 @@ def test_production_mode_unset_in_graphql_error_extensions():
 def test_production_mode_validation_error_with_unset():
     """Test that production mode handles validation errors that might have UNSET."""
     config = FraiseQLConfig(
+        database_url="postgresql://test/test",
         environment="production",
         enable_playground=False,
         enable_introspection=False,
@@ -153,6 +155,7 @@ def test_production_mode_with_detailed_errors():
     """Test production mode when hide_error_details is False."""
     # Custom config that shows error details in production
     config = FraiseQLConfig(
+        database_url="postgresql://test/test",
         environment="production",
         enable_playground=False,
         enable_introspection=False,

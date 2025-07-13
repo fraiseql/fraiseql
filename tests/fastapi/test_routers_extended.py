@@ -507,7 +507,6 @@ class TestProductionRouter:
 
         # Config with hidden error details (default)
         config = FraiseQLConfig(database_url="postgresql://test:test@localhost/test")
-        config.config = {"hide_error_details": True}
 
         router = create_production_router(self.schema, config)
         client = TestClient(router)
@@ -536,7 +535,6 @@ class TestProductionRouter:
 
         # Config with exposed error details
         config = FraiseQLConfig(database_url="postgresql://test:test@localhost/test")
-        config.config = {"hide_error_details": False}
 
         router = create_production_router(self.schema, config)
         client = TestClient(router)
