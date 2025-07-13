@@ -171,13 +171,13 @@ class TestGraphQLWhereRepositoryIntegration:
 
         # Test price range
         where_input = ProductWhereInput(
-            price=DecimalFilter(gte=Decimal("20"), lt=Decimal("100")),
+            price=DecimalFilter(gte=Decimal(20), lt=Decimal(100)),
         )
 
         results = await repo.find("test_product_view", where=where_input)
 
         assert len(results) == 2  # Widget B and Gadget X
-        assert all(Decimal("20") <= r.price < Decimal("100") for r in results)
+        assert all(Decimal(20) <= r.price < Decimal(100) for r in results)
 
     async def test_graphql_where_string_operations(self, db_pool, setup_test_data):
         """Test string operations with GraphQL where input."""
@@ -210,8 +210,8 @@ class TestGraphQLWhereRepositoryIntegration:
         # Multiple price conditions
         where_input = ProductWhereInput(
             price=DecimalFilter(
-                gt=Decimal("10"),
-                lte=Decimal("30"),
+                gt=Decimal(10),
+                lte=Decimal(30),
             ),
             stock=IntFilter(gt=0),
         )
@@ -219,7 +219,7 @@ class TestGraphQLWhereRepositoryIntegration:
         results = await repo.find("test_product_view", where=where_input)
 
         assert len(results) == 2  # Widget A and Widget B
-        assert all(Decimal("10") < r.price <= Decimal("30") for r in results)
+        assert all(Decimal(10) < r.price <= Decimal(30) for r in results)
         assert all(r.stock > 0 for r in results)
 
     async def test_graphql_where_in_operator(self, db_pool, setup_test_data):
@@ -256,7 +256,7 @@ class TestGraphQLWhereRepositoryIntegration:
 
         # GraphQL where for price
         where_input = ProductWhereInput(
-            price=DecimalFilter(lt=Decimal("50")),
+            price=DecimalFilter(lt=Decimal(50)),
         )
 
         # Additional kwargs filter
@@ -267,7 +267,7 @@ class TestGraphQLWhereRepositoryIntegration:
         )
 
         assert len(results) == 2  # Active products under $50
-        assert all(r.price < Decimal("50") for r in results)
+        assert all(r.price < Decimal(50) for r in results)
         assert all(r.is_active for r in results)
 
     async def test_graphql_where_empty_filter(self, db_pool, setup_test_data):
@@ -319,7 +319,7 @@ class TestGraphQLWhereRepositoryIntegration:
             category=StringFilter(eq="widgets"),
             is_active=BooleanFilter(eq=True),
             stock=IntFilter(gt=0),
-            price=DecimalFilter(lt=Decimal("30")),
+            price=DecimalFilter(lt=Decimal(30)),
         )
 
         results = await repo.find(

@@ -20,6 +20,7 @@ def fraise_type(
     _cls: None = None,
     *,
     sql_source: str | None = None,
+    jsonb_column: str | None = None,
     implements: list[type] | None = None,
 ) -> Callable[[T], T]: ...
 
@@ -32,6 +33,7 @@ def fraise_type(
     _cls: T | None = None,
     *,
     sql_source: str | None = None,
+    jsonb_column: str | None = None,
     implements: list[type] | None = None,
 ) -> T | Callable[[T], T]:
     """Decorator to define a FraiseQL GraphQL output type.
@@ -44,6 +46,9 @@ def fraise_type(
         sql_source: Optional table or view name to bind this type to for automatic
             SQL query generation. When provided, the type becomes queryable and
             filterable through GraphQL.
+        jsonb_column: Optional name of the JSONB column containing the type data.
+            Defaults to "data" if not specified. Used in production mode to
+            extract JSONB content instead of returning full database rows.
         implements: Optional list of GraphQL interface types that this type implements.
 
     Returns:
@@ -68,6 +73,16 @@ def fraise_type(
             id: int
             name: str
             email: str
+        ```
+
+        Type with custom JSONB column:
+        ```python
+        @fraise_type(sql_source="tv_machine", jsonb_column="machine_data")
+        @dataclass
+        class Machine:
+            id: UUID
+            identifier: str
+            serial_number: str
         ```
 
         Type implementing interfaces:
@@ -96,6 +111,8 @@ def fraise_type(
         if sql_source:
             cls.__gql_table__ = sql_source
             cls.__fraiseql_definition__.sql_source = sql_source
+            # Store JSONB column information for production mode extraction
+            cls.__fraiseql_definition__.jsonb_column = jsonb_column or "data"
             cls.__gql_where_type__ = safe_create_where_type(cls)
 
         # Store interfaces this type implements

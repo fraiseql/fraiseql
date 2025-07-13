@@ -97,6 +97,9 @@ class FraiseQLConfig(BaseSettings):
         enable_request_logging: Log all incoming requests.
         enable_response_logging: Log all outgoing responses.
         request_id_header: Header name for request correlation ID.
+        jsonb_extraction_enabled: Enable automatic JSONB column extraction in production mode.
+        jsonb_default_columns: Default JSONB column names to search for.
+        jsonb_auto_detect: Automatically detect JSONB columns by analyzing content.
 
     Example:
         ```python
@@ -168,6 +171,12 @@ class FraiseQLConfig(BaseSettings):
     cache_ttl: int = 300  # seconds
     enable_turbo_router: bool = True  # Enable TurboRouter for registered queries
     turbo_router_cache_size: int = 1000  # Max number of queries to cache
+
+    # JSONB Extraction settings
+    jsonb_extraction_enabled: bool = True  # Enable JSONB column extraction in production mode
+    # Default JSONB column names to try
+    jsonb_default_columns: list[str] = ["data", "json_data", "jsonb_data"]  
+    jsonb_auto_detect: bool = True  # Auto-detect JSONB columns by content analysis
 
     # Token revocation settings
     revocation_enabled: bool = True

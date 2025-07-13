@@ -227,20 +227,20 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool):
     """
     from fraiseql.fastapi.app import create_fraiseql_app
     from fraiseql.fastapi.dependencies import set_db_pool
-    
+
     def _create_app(**kwargs):
         """Create a FraiseQL app with proper database URL and pool."""
         # Use the real database URL from the container
-        kwargs.setdefault('database_url', postgres_url)
-        
+        kwargs.setdefault("database_url", postgres_url)
+
         # Create the app
         app = create_fraiseql_app(**kwargs)
-        
+
         # Manually set the database pool to bypass lifespan issues in tests
         set_db_pool(db_pool)
-        
+
         return app
-    
+
     return _create_app
 
 

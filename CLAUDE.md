@@ -55,10 +55,21 @@ pytest tests  # Combines both
 - **Testcontainers**: 🐌 ~60 seconds (fallback)
 
 ### Database Test Architecture
-- Single PostgreSQL instance per test session
+
+FraiseQL supports two database testing patterns:
+
+#### Transaction Rollback Pattern (Default)
 - Each test runs in its own transaction that gets rolled back
-- Perfect test isolation without cleanup overhead
-- Supports parallel testing with local PostgreSQL
+- Fast cleanup with perfect test isolation
+- Works well for simple unit tests
+
+#### Committed Data Fixture Pattern (For Integration Tests)  
+- Creates unique schemas for complex multi-query tests
+- Data is committed and visible across connection pool
+- Automatic schema cleanup after test completion
+- Required for tests that need data visibility across queries
+
+Use `db_connection` for rollback tests, `db_connection_committed` for integration tests.
 
 **📖 See [Database Testing Guide](docs/testing/database-testing-guide.md) for complete setup instructions.**
 
@@ -165,3 +176,10 @@ FROM users;
 ### GraphQL Processing
 - `mutations/selection_filter.py` - Filter mutation results based on GraphQL selection sets
 - `gql/graphql_entrypoint.py` - Alternative GraphQL HTTP router (GraphNoteRouter)
+
+### Database Testing Utilities
+- `tests/utils/schema_utils.py` - Schema-qualified query helpers for database tests
+- `get_current_schema(connection)` - Get current schema name from database connection
+- `SchemaQualifiedQueryBuilder` - Fluent interface for building schema-qualified SQL
+- `build_select_query()`, `build_insert_query()`, etc. - Convenience query builders
+- Use for tests with `db_connection_committed` fixture to ensure proper schema isolation

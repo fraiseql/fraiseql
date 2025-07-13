@@ -88,7 +88,7 @@ class TestFraiseQLMetrics:
             samples = list(metrics.query_total.collect())[0].samples
             assert len(samples) > 0
             assert any(s.value > 0 for s in samples)
-            
+
             success_samples = list(metrics.query_success.collect())[0].samples
             assert len(success_samples) > 0
             assert any(s.value > 0 for s in success_samples)
@@ -126,7 +126,7 @@ class TestFraiseQLMetrics:
             mutation_samples = list(metrics.mutation_total.collect())[0].samples
             assert len(mutation_samples) > 0
             assert any(s.value > 0 for s in mutation_samples)
-            
+
             success_samples = list(metrics.mutation_success.collect())[0].samples
             assert len(success_samples) > 0
             assert any(s.value > 0 for s in success_samples)
@@ -300,7 +300,7 @@ class TestMetricsIntegration:
     def test_setup_metrics(self):
         """Test setting up global metrics."""
         from fastapi import FastAPI
-        
+
         app = FastAPI()
         config = MetricsConfig(namespace="test")
         metrics = setup_metrics(app, config)
@@ -324,7 +324,7 @@ class TestMetricsIntegration:
     async def test_with_metrics_decorator(self):
         """Test metrics decorator for async functions."""
         from fastapi import FastAPI
-        
+
         app = FastAPI()
         metrics = setup_metrics(app)
 
@@ -346,7 +346,7 @@ class TestMetricsIntegration:
     async def test_with_metrics_decorator_error(self):
         """Test metrics decorator with function that raises error."""
         from fastapi import FastAPI
-        
+
         app = FastAPI()
         metrics = setup_metrics(app)
 
@@ -366,7 +366,7 @@ class TestMetricsIntegration:
     def test_with_metrics_sync_function(self):
         """Test metrics decorator with sync function."""
         from fastapi import FastAPI
-        
+
         app = FastAPI()
         metrics = setup_metrics(app)
 

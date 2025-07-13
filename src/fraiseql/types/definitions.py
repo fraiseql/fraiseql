@@ -20,6 +20,7 @@ class FraiseQLTypeDefinition:
         is_input (bool): True if this type is meant for input (e.g., arguments).
         kind (str): 'input', 'type', 'success', or 'failure'.
         sql_source (str | None): Optional SQL table/view this type is bound to.
+        jsonb_column (str | None): Optional JSONB column name for data extraction.
         fields (dict[str, FraiseQLField]): Ordered field name → metadata.
         type_hints (dict[str, type]): Field name → resolved Python type hints.
         is_frozen (bool): Whether the type is immutable.
@@ -33,6 +34,7 @@ class FraiseQLTypeDefinition:
         "fields",
         "is_frozen",
         "is_input",
+        "jsonb_column",
         "kind",
         "kw_only",
         "python_type",
@@ -48,6 +50,7 @@ class FraiseQLTypeDefinition:
         is_input: bool,
         kind: str,
         sql_source: str | None,
+        jsonb_column: str | None = None,
         fields: dict[str, FraiseQLField],
         type_hints: dict[str, type],
         is_frozen: bool = False,
@@ -57,6 +60,7 @@ class FraiseQLTypeDefinition:
         self.is_input = is_input
         self.kind = kind
         self.sql_source = sql_source
+        self.jsonb_column = jsonb_column
         self.fields = fields
         self.type_hints = type_hints
         self.is_frozen = is_frozen
@@ -81,6 +85,7 @@ class FraiseQLTypeDefinition:
             f"is_frozen={self.is_frozen}, "
             f"kw_only={self.kw_only}, "
             f"sql_source={self.sql_source}, "
+            f"jsonb_column={self.jsonb_column}, "
             f"fields={list(self.fields.keys())})>"
         )
 
@@ -91,6 +96,7 @@ class FraiseQLTypeDefinition:
             "is_input": self.is_input,
             "kind": self.kind,
             "sql_source": self.sql_source,
+            "jsonb_column": self.jsonb_column,
             "is_frozen": self.is_frozen,
             "kw_only": self.kw_only,
             "fields": {

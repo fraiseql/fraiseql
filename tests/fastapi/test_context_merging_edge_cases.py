@@ -9,11 +9,10 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-from fraiseql import fraise_type
-from fraiseql.fastapi import create_fraiseql_app
-
 # Import database fixtures for real PostgreSQL testing
 from tests.database_conftest import *  # noqa: F403
+
+from fraiseql import fraise_type
 
 
 # Test types
@@ -255,7 +254,7 @@ class TestMultipleContextSources:
             if not auth_header:
                 return None  # No auth context
 
-            return {"user": {"id": 1, "name": "Authenticated"}}
+            return {"user": {"id": 1, "name": "Authenticated", "roles": ["user"]}}
 
         async def maybe_feature_context(request: Request) -> Dict[str, Any]:
             """Feature flags that might be empty."""
@@ -269,7 +268,7 @@ class TestMultipleContextSources:
             return {
                 "timestamp": time.time(),
                 "request_path": str(request.url.path),
-                "default_user": {"id": 0, "name": "Anonymous"},
+                "default_user": {"id": 0, "name": "Anonymous", "roles": ["guest"]},
             }
 
         async def safe_merged_context(request: Request) -> Dict[str, Any]:
@@ -306,7 +305,11 @@ class TestMultipleContextSources:
             json={"query": "{ getCurrentUser { id name } }"},
         )
 
-        data = response.json()["data"]
+        result = response.json()
+        assert response.status_code == 200, f"Response: {result}"
+        data = result.get("data")
+        assert data is not None, f"No data in response: {result}"
+        assert data.get("getCurrentUser") is not None, f"getCurrentUser is None: {result}"
         assert data["getCurrentUser"]["id"] == 0
         assert data["getCurrentUser"]["name"] == "Anonymous"
 
@@ -371,7 +374,7 @@ class TestAsyncContextGetters:
             timing_log.append(("auth", start, time.time()))
 
             return {
-                "user": {"id": 1, "name": "Async User"},
+                "user": {"id": 1, "name": "Async User", "roles": ["user"]},
                 "auth_latency": 0.1,
             }
 
@@ -716,7 +719,7 @@ class TestContextMergingEdgeCases:
         async def user_context(request: Request) -> Dict[str, Any]:
             """User-level context."""
             return {
-                "user": {"id": 1, "name": "Real User"},  # Dict value (different type)
+                "user": {"id": 1, "name": "Real User", "roles": ["user"]},  # Dict value (different type)
                 "priority": 100,  # Number instead of string
                 "timestamp": 9876543210,  # Newer timestamp
                 "meta": {"source": "user", "extra": "data"},
@@ -760,7 +763,7 @@ class TestContextMergingEdgeCases:
         data = response.json()["data"]["getMergedData"]
 
         # User context won for direct conflicts
-        assert data["user"] == {"id": 1, "name": "Real User"}
+        assert data["user"] == {"id": 1, "name": "Real User", "roles": ["user"]}
         assert data["priority"] == 100
         assert data["timestamp"] == 9876543210
 

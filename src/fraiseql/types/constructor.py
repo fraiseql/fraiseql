@@ -51,6 +51,7 @@ def define_fraiseql_type(
         is_input=(kind == "input"),
         kind=kind,  # ✅ required by tests
         sql_source=None,
+        jsonb_column=None,
         fields=field_map,
         type_hints=patched_annotations,
     )

@@ -287,11 +287,12 @@ class FraiseQLRepository:
 
         if self.mode == "production":
             # Production: Extract JSONB data if present, otherwise return raw dicts
-            if rows and len(rows) > 0 and "data" in rows[0]:
+            jsonb_column = self._determine_jsonb_column(view_name, rows)
+            if rows and jsonb_column:
                 # Clean UNSET values from extracted JSONB data before returning
                 from fraiseql.fastapi.json_encoder import clean_unset_values
 
-                return [clean_unset_values(row["data"]) for row in rows]
+                return [clean_unset_values(row[jsonb_column]) for row in rows]
             return rows
 
         # Development: Full instantiation
@@ -323,11 +324,12 @@ class FraiseQLRepository:
 
         if self.mode == "production":
             # Production: Extract JSONB data if present, otherwise return raw dict
-            if "data" in row:
+            jsonb_column = self._determine_jsonb_column(view_name, [row] if row else [])
+            if row and jsonb_column:
                 # Clean UNSET values from extracted JSONB data before returning
                 from fraiseql.fastapi.json_encoder import clean_unset_values
 
-                return clean_unset_values(row["data"])
+                return clean_unset_values(row[jsonb_column])
             return row
 
         type_class = self._get_type_for_view(view_name)
@@ -483,6 +485,81 @@ class FraiseQLRepository:
                     item_type = self._extract_list_type(arg)
                     if item_type:
                         return item_type
+        return None
+
+    def _determine_jsonb_column(self, view_name: str, rows: list[dict[str, Any]]) -> str | None:
+        """Determine which JSONB column to extract data from.
+
+        Args:
+            view_name: Name of the database view
+            rows: Sample rows to inspect for JSONB columns
+
+        Returns:
+            Name of the JSONB column to extract, or None if no suitable column found
+        """
+        # Check if JSONB extraction is enabled
+        config = self.context.get("config")
+        if (config and hasattr(config, "jsonb_extraction_enabled") 
+            and not config.jsonb_extraction_enabled):
+            logger.debug(f"JSONB extraction disabled by config for view '{view_name}'")
+            return None
+        # Strategy 1: Check if a type is registered for this view and has explicit JSONB column
+        if view_name in _type_registry:
+            type_class = _type_registry[view_name]
+            if hasattr(type_class, "__fraiseql_definition__"):
+                definition = type_class.__fraiseql_definition__
+                if definition.jsonb_column:
+                    # Verify the column exists in the data
+                    if rows and definition.jsonb_column in rows[0]:
+                        logger.debug(
+                            f"Using explicit JSONB column '{definition.jsonb_column}' "
+                            f"for view '{view_name}'"
+                        )
+                        return definition.jsonb_column
+                    logger.warning(
+                        f"Explicit JSONB column '{definition.jsonb_column}' not found "
+                        f"in data for view '{view_name}'. Available columns: "
+                        f"{list(rows[0].keys()) if rows else 'None'}"
+                    )
+
+        # Strategy 2: Default column names to try
+        # Get default columns from config if available, otherwise use hardcoded defaults
+        config = self.context.get("config")
+        if config and hasattr(config, "jsonb_default_columns"):
+            default_columns = config.jsonb_default_columns
+        else:
+            default_columns = ["data", "json_data", "jsonb_data"]
+
+        if rows:
+            for col_name in default_columns:
+                if col_name in rows[0]:
+                    # Verify it contains dict-like data (not just a primitive)
+                    value = rows[0][col_name]
+                    if isinstance(value, dict) and value:
+                        logger.debug(
+                            f"Using default JSONB column '{col_name}' for view '{view_name}'"
+                        )
+                        return col_name
+
+        # Strategy 3: Auto-detect JSONB columns by content (if enabled)
+        config = self.context.get("config")
+        auto_detect_enabled = True
+        if config and hasattr(config, "jsonb_auto_detect"):
+            auto_detect_enabled = config.jsonb_auto_detect
+
+        if auto_detect_enabled and rows:
+            for key, value in rows[0].items():
+                # Look for columns with dict content that might be JSONB
+                if (isinstance(value, dict) and
+                    value and
+                    key not in ["metadata", "context", "config"] and  # Skip common metadata columns
+                    not key.endswith("_id")):  # Skip foreign key columns
+                    logger.debug(
+                        f"Auto-detected JSONB column '{key}' for view '{view_name}'"
+                    )
+                    return key
+
+        logger.debug(f"No JSONB column found for view '{view_name}', returning raw rows")
         return None
 
     def _get_type_for_view(self, view_name: str) -> type:

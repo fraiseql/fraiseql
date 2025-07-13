@@ -6,10 +6,10 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-from fraiseql import fraise_type
-
 # Import database fixtures to support database-aware testing
 from tests.database_conftest import *  # noqa: F403
+
+from fraiseql import fraise_type
 
 
 # Sample type

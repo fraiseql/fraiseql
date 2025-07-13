@@ -178,7 +178,7 @@ class TestCreateGraphQLWhereInput:
         # Create GraphQL where input
         where_input = ProductWhereInput(
             name=StringFilter(contains="test"),
-            price=DecimalFilter(gt=Decimal("50")),
+            price=DecimalFilter(gt=Decimal(50)),
             is_active=BooleanFilter(eq=True),
         )
 
@@ -195,7 +195,7 @@ class TestCreateGraphQLWhereInput:
 
         # Verify the operator dictionaries
         assert sql_where.name == {"contains": "test"}
-        assert sql_where.price == {"gt": Decimal("50")}
+        assert sql_where.price == {"gt": Decimal(50)}
         assert sql_where.is_active == {"eq": True}
 
     def test_in_operator_field_mapping(self):
@@ -254,7 +254,7 @@ class TestCreateGraphQLWhereInput:
         where_input.string_field = StringFilter(eq="test")
         where_input.int_field = IntFilter(gt=5)
         where_input.float_field = FloatFilter(lte=10.5)
-        where_input.decimal_field = DecimalFilter(gte=Decimal("100"))
+        where_input.decimal_field = DecimalFilter(gte=Decimal(100))
         where_input.bool_field = BooleanFilter(eq=True)
         where_input.uuid_field = UUIDFilter(eq=uuid.uuid4())
         where_input.date_field = DateFilter(gt=date.today())
@@ -264,7 +264,7 @@ class TestCreateGraphQLWhereInput:
         assert where_input.string_field.eq == "test"
         assert where_input.int_field.gt == 5
         assert where_input.float_field.lte == 10.5
-        assert where_input.decimal_field.gte == Decimal("100")
+        assert where_input.decimal_field.gte == Decimal(100)
         assert where_input.bool_field.eq is True
         assert isinstance(where_input.uuid_field.eq, uuid.UUID)
         assert isinstance(where_input.date_field.gt, date)
@@ -280,7 +280,7 @@ class TestGraphQLWhereIntegration:
 
         where_input = ProductWhereInput(
             name=StringFilter(contains="Widget", isnull=False),
-            price=DecimalFilter(gte=Decimal("10"), lt=Decimal("100")),
+            price=DecimalFilter(gte=Decimal(10), lt=Decimal(100)),
             is_active=BooleanFilter(eq=True),
         )
 
@@ -299,7 +299,7 @@ class TestGraphQLWhereIntegration:
 
         where_input = ProductWhereInput(
             # Multiple operators on same field
-            price=DecimalFilter(gte=Decimal("10"), lte=Decimal("100"), neq=Decimal("50")),
+            price=DecimalFilter(gte=Decimal(10), lte=Decimal(100), neq=Decimal(50)),
             # String operations
             name=StringFilter(startswith="Pro", contains="duct", isnull=False),
             # Array operations
@@ -322,14 +322,14 @@ class TestGraphQLWhereIntegration:
 
         where_input = ProductWhereInput(
             name=StringFilter(eq="test", contains=None),  # contains should be ignored
-            price=DecimalFilter(gt=None, lte=Decimal("100")),  # gt should be ignored
+            price=DecimalFilter(gt=None, lte=Decimal(100)),  # gt should be ignored
         )
 
         sql_where = where_input._to_sql_where()
 
         # Only non-None values should be in the operator dict
         assert sql_where.name == {"eq": "test"}
-        assert sql_where.price == {"lte": Decimal("100")}
+        assert sql_where.price == {"lte": Decimal(100)}
 
 
 class TestEdgeCases:
