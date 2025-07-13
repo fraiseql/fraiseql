@@ -158,3 +158,6 @@ Thumbs.db
 
 # Benchmark results
 benchmarks/performance-benchmarks/results-aggregator/*.json
+
+# Private tickets
+/tickets/

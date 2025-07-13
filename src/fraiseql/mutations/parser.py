@@ -172,6 +172,11 @@ def _parse_success(
 
     # Handle main entity from object_data if not already mapped
     if result.object_data:
+        # Clean UNSET values before processing to prevent serialization issues
+        from fraiseql.fastapi.json_encoder import clean_unset_values
+
+        cleaned_object_data = clean_unset_values(result.object_data)
+
         # Check if we need to map object_data to a main field
         # We have object data but no entity fields have been populated yet
         non_standard_fields = [f for f in fields if f not in ("message", "status")]
@@ -180,7 +185,7 @@ def _parse_success(
             main_field = _find_main_field(annotations, result.extra_metadata)
             if main_field and main_field not in fields:
                 field_type = annotations[main_field]
-                value = _instantiate_type(field_type, result.object_data)
+                value = _instantiate_type(field_type, cleaned_object_data)
                 if value is not None:
                     fields[main_field] = value
 
@@ -345,6 +350,11 @@ def _instantiate_type(field_type: type, data: Any) -> Any:
 
     # Handle FraiseQL types - check for both from_dict and __fraiseql_definition__
     if isinstance(data, dict):
+        # Clean UNSET values from dict data before instantiation
+        from fraiseql.fastapi.json_encoder import clean_unset_values
+
+        cleaned_data = clean_unset_values(data)
+
         # Check if it's a FraiseQL type (decorated with @fraise_type, @success, @failure)
         if (
             hasattr(field_type, "__fraiseql_definition__")
@@ -353,15 +363,15 @@ def _instantiate_type(field_type: type, data: Any) -> Any:
         ):
             # Use the constructor directly
             try:
-                return field_type(**data)
+                return field_type(**cleaned_data)
             except TypeError:
                 # If direct construction fails, try from_dict if available
                 if hasattr(field_type, "from_dict"):
-                    return field_type.from_dict(data)
+                    return field_type.from_dict(cleaned_data)
 
         # Fallback to from_dict if available
         if hasattr(field_type, "from_dict"):
-            return field_type.from_dict(data)
+            return field_type.from_dict(cleaned_data)
 
     # Return as-is for unhandled types
     return data
