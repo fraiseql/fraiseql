@@ -225,6 +225,24 @@ class GraphQLCSRFValidator:
                 ],
             },
         )
+    
+    async def validate_request(self, request: Request) -> bool:
+        """Validate CSRF token for a request.
+        
+        Args:
+            request: The incoming request
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        # Get CSRF token
+        csrf_token = self._get_csrf_token_from_request(request)
+        if not csrf_token:
+            return False
+        
+        # Validate token
+        session_id = self._get_session_id(request)
+        return self.token_generator.validate_token(csrf_token, session_id)
 
 
 class CSRFProtectionMiddleware(BaseHTTPMiddleware):

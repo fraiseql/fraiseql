@@ -127,7 +127,7 @@ class MetricsConfig:
     labels: dict[str, str] = dataclass_field(default_factory=dict)
 
     def __post_init__(self):
-        """Validate configuration."""
+        """Validate configuration and create metric instances."""
         if not self.namespace:
             msg = "Namespace cannot be empty"
             raise ValueError(msg)
@@ -137,6 +137,68 @@ class MetricsConfig:
             if self.buckets[i] <= self.buckets[i - 1]:
                 msg = "Histogram buckets must be monotonically increasing"
                 raise ValueError(msg)
+        
+        # Create metric instances as attributes for backward compatibility
+        self.http_requests_total = Counter(
+            f"{self.namespace}_http_requests_total",
+            "Total HTTP requests",
+            ["method", "endpoint", "status"],
+        )
+        
+        self.http_request_duration_seconds = Histogram(
+            f"{self.namespace}_http_request_duration_seconds",
+            "HTTP request duration in seconds",
+            ["method", "endpoint", "status"],
+            buckets=self.buckets,
+        )
+        
+        self.graphql_queries_total = Counter(
+            f"{self.namespace}_graphql_queries_total",
+            "Total GraphQL queries",
+            ["operation_type", "operation_name"],
+        )
+        
+        self.graphql_query_duration_seconds = Histogram(
+            f"{self.namespace}_graphql_query_duration_seconds",
+            "GraphQL query duration in seconds",
+            ["operation_type", "operation_name"],
+            buckets=self.buckets,
+        )
+        
+        self.graphql_errors_total = Counter(
+            f"{self.namespace}_graphql_errors_total",
+            "Total GraphQL errors",
+            ["operation_type", "error_type"],
+        )
+        
+        self.database_connections_active = Gauge(
+            f"{self.namespace}_database_connections_active",
+            "Active database connections",
+        )
+        
+        self.database_connections_total = Counter(
+            f"{self.namespace}_database_connections_total",
+            "Total database connections created",
+        )
+        
+        self.database_query_duration_seconds = Histogram(
+            f"{self.namespace}_database_query_duration_seconds",
+            "Database query duration in seconds",
+            ["query_type"],
+            buckets=self.buckets,
+        )
+        
+        self.cache_hits_total = Counter(
+            f"{self.namespace}_cache_hits_total",
+            "Total cache hits",
+            ["cache_type"],
+        )
+        
+        self.cache_misses_total = Counter(
+            f"{self.namespace}_cache_misses_total",
+            "Total cache misses",
+            ["cache_type"],
+        )
 
 
 # Export all imports for convenience

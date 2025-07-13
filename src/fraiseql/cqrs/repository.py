@@ -576,15 +576,15 @@ class CQRSRepository:
             entity_class: Entity class
 
         Returns:
-            View name (e.g., 'user_view')
+            View name (e.g., 'vw_user')
         """
-        # Convert class name to snake_case and add _view suffix
+        # Convert class name to snake_case and add vw_ prefix
         class_name = entity_class.__name__
         # Simple conversion: CamelCase -> snake_case
         import re
 
         snake_case = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", class_name).lower()
-        return f"{snake_case}_view"
+        return f"vw_{snake_case}"
 
     def _get_function_name(self, operation: str, entity_type: str) -> str:
         """Get function name for an operation.
@@ -618,16 +618,17 @@ class CQRSRepository:
 
     # Alias methods for backward compatibility and common patterns
 
-    async def find_by_id(self, view_name: str, entity_id: UUID) -> dict[str, Any] | None:
-        """Alias for get_by_id for backward compatibility.
+    async def find_by_id(self, entity_class: type[T], entity_id: UUID) -> dict[str, Any] | None:
+        """Find entity by ID using entity class.
 
         Args:
-            view_name: Name of the view
+            entity_class: Entity class to determine view name
             entity_id: ID of the entity
 
         Returns:
             Entity dict or None
         """
+        view_name = self._get_view_name(entity_class)
         return await self.get_by_id(view_name, entity_id)
 
     async def list(
@@ -697,19 +698,21 @@ class CQRSRepository:
 
     async def count(
         self,
-        view_name: str,
+        entity_class: type[T],
         *,
         where: dict[str, Any] | None = None,
     ) -> int:
         """Count entities in a view with optional filtering.
 
         Args:
-            view_name: Name of the view
+            entity_class: Entity class to determine view name
             where: Optional WHERE conditions
 
         Returns:
             Count of matching entities
         """
+        view_name = self._get_view_name(entity_class)
+        
         # Build count query
         query_parts = [SQL("SELECT COUNT(*) FROM {}").format(SQL(view_name))]
         params = []
@@ -718,8 +721,13 @@ class CQRSRepository:
             query_parts.append(SQL(" WHERE "))
             conditions = []
             for key, value in where.items():
-                conditions.append(SQL("data->>{} = %s").format(SQL(f"'{key}'")))
-                params.append(str(value))
+                if isinstance(value, dict) and "eq" in value:
+                    # Handle GraphQL where format
+                    conditions.append(SQL("data->>{} = %s").format(SQL(f"'{key}'")))
+                    params.append(str(value["eq"]))
+                else:
+                    conditions.append(SQL("data->>{} = %s").format(SQL(f"'{key}'")))
+                    params.append(str(value))
             query_parts.append(SQL(" AND ").join(conditions))
         
         query = Composed(query_parts)
@@ -731,21 +739,20 @@ class CQRSRepository:
 
     async def exists(
         self,
-        view_name: str,
-        *,
-        where: dict[str, Any] | None = None,
+        entity_class: type[T],
+        entity_id: UUID,
     ) -> bool:
-        """Check if any entities exist in a view with optional filtering.
+        """Check if an entity exists by ID.
 
         Args:
-            view_name: Name of the view
-            where: Optional WHERE conditions
+            entity_class: Entity class to determine view name
+            entity_id: ID of the entity to check
 
         Returns:
-            True if at least one entity exists
+            True if entity exists
         """
-        count = await self.count(view_name, where=where)
-        return count > 0
+        result = await self.find_by_id(entity_class, entity_id)
+        return result is not None
 
     # Note: FraiseQL Philosophy on Relationships
     # =========================================
