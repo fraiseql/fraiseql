@@ -11,17 +11,56 @@ FraiseQL is a lightweight GraphQL-to-PostgreSQL query builder using JSONB. It pr
 - FastAPI integration
 - Production-ready features (auth, monitoring, caching)
 
-## Testing with Containers
+## Testing with Hybrid Database Approach
 
-FraiseQL uses Docker containers for database integration tests.
+FraiseQL uses a **hybrid database testing system** that automatically adapts to your environment for optimal speed:
 
-### Database Tests
+### Quick Start (Recommended)
+```bash
+# 1. Install PostgreSQL locally for fastest tests
+brew install postgresql  # macOS
+sudo apt install postgresql  # Ubuntu
 
-All database tests use the unified container system from `tests/database_conftest.py`:
-- Single PostgreSQL container for the entire test session
-- Each test runs in its own transaction that is rolled back
-- Uses Docker for container management
-- Socket communication for better performance
+# 2. Create test database
+createdb fraiseql_test
+
+# 3. Set environment variable
+export TEST_DATABASE_URL="postgresql://localhost/fraiseql_test"
+
+# 4. Run tests (super fast!)
+pytest tests -m database  # ~5 seconds vs ~60 seconds with containers
+```
+
+### Automatic Fallback
+```bash
+# If no local PostgreSQL, testcontainers auto-starts one
+pytest tests -m database  # Slower but works everywhere
+```
+
+### Test Categories
+```bash
+# Unit tests (no database required)
+pytest tests -m "not database"  # ~10 seconds
+
+# Database integration tests  
+pytest tests -m database  # Speed depends on setup
+
+# All tests
+pytest tests  # Combines both
+```
+
+### Performance Comparison
+- **Local PostgreSQL**: ⚡ ~5 seconds (10-20x faster)
+- **CI/CD PostgreSQL Service**: ⚡ ~30 seconds  
+- **Testcontainers**: 🐌 ~60 seconds (fallback)
+
+### Database Test Architecture
+- Single PostgreSQL instance per test session
+- Each test runs in its own transaction that gets rolled back
+- Perfect test isolation without cleanup overhead
+- Supports parallel testing with local PostgreSQL
+
+**📖 See [Database Testing Guide](docs/testing/database-testing-guide.md) for complete setup instructions.**
 
 ## Code Style and Linting
 

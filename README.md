@@ -449,11 +449,29 @@ pytest
 pytest -m "not database"
 ```
 
-### Container Runtime
+### Database Testing
 
-FraiseQL uses Docker containers for database integration tests. Tests are optimized with a unified container approach - a single PostgreSQL container runs for the entire test session, providing fast test execution.
+FraiseQL uses a **hybrid database testing approach** that automatically adapts to your environment for optimal speed:
 
-Tests requiring containers are automatically skipped if Docker is not available. See [docs/testing/unified-container-testing.md](docs/testing/unified-container-testing.md) for architecture details.
+**🚀 Fastest Setup (Recommended):**
+```bash
+# Install PostgreSQL locally (10-20x faster than containers)
+brew install postgresql  # macOS
+sudo apt install postgresql  # Ubuntu
+
+# Create test database and run tests
+createdb fraiseql_test
+export TEST_DATABASE_URL="postgresql://localhost/fraiseql_test"
+pytest  # Super fast database tests
+```
+
+**🐳 Zero-Setup Fallback:**
+```bash
+# If no local PostgreSQL, testcontainers automatically starts one
+pytest  # Slower but works everywhere
+```
+
+See [Database Testing Guide](docs/testing/database-testing-guide.md) for complete setup instructions and troubleshooting.
 
 ### Code Quality
 

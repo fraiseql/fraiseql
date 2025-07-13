@@ -58,6 +58,9 @@ jobs:
           - python-version: "3.12"
             postgres-version: "15"
 
+    # 🚀 PostgreSQL Service: 10-20x faster than testcontainers!
+    # This provides a real PostgreSQL instance for database tests
+    # while being much faster than spinning up containers per test
     services:
       postgres:
         image: postgres:${{ matrix.postgres-version }}
@@ -131,6 +134,7 @@ jobs:
     name: Test Examples
     needs: quality
     runs-on: ubuntu-latest
+    # PostgreSQL service for examples that need database connectivity
     services:
       postgres:
         image: postgres:16
