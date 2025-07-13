@@ -133,41 +133,46 @@ class TestCQRSRepositoryQueries:
             },
         }
 
-        with patch.object(
-            repository.executor,
-            "execute_query",
-            return_value=[expected_data],
-        ) as mock_exec:
-            from fraiseql.types import fraise_type
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = [
+            expected_data["data"]
+        ]
+        
+        from fraiseql.types import fraise_type
 
-            @fraise_type
-            class User:
-                id: UUID
-                name: str
-                email: str
+        @fraise_type
+        class User:
+            id: UUID
+            name: str
+            email: str
 
-            _ = await repository.find_by_id(User, test_id)
+        result = await repository.find_by_id(User, test_id)
 
-            # Should query the appropriate view
-            mock_exec.assert_called_once()
-            call_args = mock_exec.call_args[0]
-            assert "vw_user" in str(call_args[0])  # View name
-            assert str(test_id) in str(call_args[1])  # ID in where clause
+        # Should have made cursor call
+        mock_connection.cursor.assert_called()
+        # Check the query was executed
+        cursor = mock_connection.cursor.return_value.__aenter__.return_value
+        cursor.execute.assert_called_once()
+        
+        # Verify the SQL query
+        query_args = cursor.execute.call_args[0]
+        assert "vw_user" in str(query_args[0])  # View name
+        assert test_id in query_args[1]  # ID in parameters
 
     async def test_find_by_id_not_found(self, repository):
         """Test finding entity by ID when not found."""
         test_id = uuid4()
 
-        with patch.object(repository.executor, "execute_query", return_value=[]):
-            from fraiseql.types import fraise_type
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = None
+        
+        from fraiseql.types import fraise_type
 
-            @fraise_type
-            class User:
-                id: UUID
-                name: str
+        @fraise_type
+        class User:
+            id: UUID
+            name: str
 
-            result = await repository.find_by_id(User, test_id)
-            assert result is None
+        result = await repository.find_by_id(User, test_id)
+        assert result is None
 
     async def test_list_entities(self, repository):
         """Test listing entities with pagination."""
@@ -176,81 +181,86 @@ class TestCQRSRepositoryQueries:
             {"data": {"id": "2", "name": "User 2"}},
         ]
 
-        with patch.object(
-            repository.executor,
-            "execute_query",
-            return_value=expected_data,
-        ) as mock_exec:
-            from fraiseql.types import fraise_type
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = [
+            [row["data"]] for row in expected_data
+        ]
+        
+        from fraiseql.types import fraise_type
 
-            @fraise_type
-            class User:
-                id: str
-                name: str
+        @fraise_type
+        class User:
+            id: str
+            name: str
 
-            _ = await repository.list(User, limit=10, offset=0)
+        _ = await repository.list(User, limit=10, offset=0)
 
-            mock_exec.assert_called_once()
-            call_args = mock_exec.call_args[0]
-            query_str = str(call_args[0])
+        # Check cursor was called
+        cursor = mock_connection.cursor.return_value.__aenter__.return_value
+        cursor.execute.assert_called_once()
+        
+        # Verify the SQL query
+        query_args = cursor.execute.call_args[0]
+        query_str = str(query_args[0])
 
-            assert "vw_user" in query_str
-            assert "LIMIT" in query_str
-            assert "OFFSET" in query_str
+        assert "vw_user" in query_str
+        assert "LIMIT" in query_str
+        assert "OFFSET" in query_str
 
     async def test_list_with_filtering(self, repository):
         """Test listing entities with where clause."""
         expected_data = [{"data": {"id": "1", "name": "Active User"}}]
 
-        with patch.object(
-            repository.executor,
-            "execute_query",
-            return_value=expected_data,
-        ) as mock_exec:
-            from fraiseql.types import fraise_type
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = [
+            [row["data"]] for row in expected_data
+        ]
+        
+        from fraiseql.types import fraise_type
 
-            @fraise_type
-            class User:
-                id: str
-                name: str
-                status: str
+        @fraise_type
+        class User:
+            id: str
+            name: str
+            status: str
 
-            _ = await repository.list(
-                User,
-                where={"status": {"eq": "active"}},
-                limit=10,
-            )
+        _ = await repository.list(
+            User,
+            where={"status": {"eq": "active"}},
+            limit=10,
+        )
 
-            mock_exec.assert_called_once()
-            # Where clause should be applied
+        # Check cursor was called
+        cursor = mock_connection.cursor.return_value.__aenter__.return_value
+        cursor.execute.assert_called_once()
+        # Where clause should be applied
 
     async def test_list_with_ordering(self, repository):
         """Test listing entities with order by."""
         expected_data = []
 
-        with patch.object(
-            repository.executor,
-            "execute_query",
-            return_value=expected_data,
-        ) as mock_exec:
-            from fraiseql.types import fraise_type
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = []
+        
+        from fraiseql.types import fraise_type
 
-            @fraise_type
-            class User:
-                id: str
-                created_at: str
+        @fraise_type
+        class User:
+            id: str
+            created_at: str
 
-            _ = await repository.list(
-                User,
-                order_by=[("created_at", "DESC")],
-                limit=10,
-            )
+        _ = await repository.list(
+            User,
+            order_by=[("created_at", "DESC")],
+            limit=10,
+        )
 
-            mock_exec.assert_called_once()
-            call_args = mock_exec.call_args[0]
-            query_str = str(call_args[0])
+        # Check cursor was called
+        cursor = mock_connection.cursor.return_value.__aenter__.return_value
+        cursor.execute.assert_called_once()
+        
+        # Verify the SQL query
+        query_args = cursor.execute.call_args[0]
+        query_str = str(query_args[0])
 
-            assert "ORDER BY" in query_str
+        assert "ORDER BY" in query_str
 
     async def test_find_by_view(self, repository):
         """Test finding by custom view."""
@@ -258,28 +268,30 @@ class TestCQRSRepositoryQueries:
             {"data": {"id": "1", "email": "user@example.com"}},
         ]
 
-        with patch.object(
-            repository.executor,
-            "execute_query",
-            return_value=expected_data,
-        ) as mock_exec:
-            from fraiseql.types import fraise_type
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = [
+            [row["data"]] for row in expected_data
+        ]
+        
+        from fraiseql.types import fraise_type
 
-            @fraise_type
-            class User:
-                id: str
-                email: str
+        @fraise_type
+        class User:
+            id: str
+            email: str
 
-            _ = await repository.find_by_view(
-                "vw_active_users",
-                User,
-                where={"email": {"like": "%@example.com"}},
-                limit=5,
-            )
+        _ = await repository.find_by_view(
+            "vw_active_users",
+            where={"email": {"like": "%@example.com"}},
+            limit=5,
+        )
 
-            mock_exec.assert_called_once()
-            call_args = mock_exec.call_args[0]
-            assert "vw_active_users" in str(call_args[0])
+        # Check cursor was called
+        cursor = mock_connection.cursor.return_value.__aenter__.return_value
+        cursor.execute.assert_called_once()
+        
+        # Verify the SQL query
+        query_args = cursor.execute.call_args[0]
+        assert "vw_active_users" in str(query_args[0])
 
     async def test_execute_raw_query(self, repository):
         """Test executing raw SQL query."""
@@ -412,43 +424,45 @@ class TestCQRSRepositoryUtilities:
         """Test counting entities."""
         expected_count = [{"count": 42}]
 
-        with patch.object(
-            repository.executor,
-            "execute_query",
-            return_value=expected_count,
-        ) as mock_exec:
-            from fraiseql.types import fraise_type
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = [42]
+        
+        from fraiseql.types import fraise_type
 
-            @fraise_type
-            class User:
-                id: str
+        @fraise_type
+        class User:
+            id: str
 
-            count = await repository.count(User, where={"is_active": {"eq": True}})
+        count = await repository.count(User, where={"is_active": {"eq": True}})
 
-            assert count == 42
-            # Should use COUNT(*) query
-            call_args = mock_exec.call_args[0]
-            assert "COUNT(*)" in str(call_args[0])
+        assert count == 42
+        # Should use COUNT(*) query
+        cursor = mock_connection.cursor.return_value.__aenter__.return_value
+        cursor.execute.assert_called_once()
+        query_args = cursor.execute.call_args[0]
+        assert "COUNT(*)" in str(query_args[0])
 
     async def test_exists(self, repository):
         """Test checking entity existence."""
         test_id = uuid4()
 
         # Entity exists
-        with patch.object(repository.executor, "execute_query", return_value=[{"exists": True}]):
-            from fraiseql.types import fraise_type
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = [
+            {"id": str(test_id), "name": "Test"}
+        ]
+        
+        from fraiseql.types import fraise_type
 
-            @fraise_type
-            class User:
-                id: UUID
+        @fraise_type
+        class User:
+            id: UUID
 
-            exists = await repository.exists(User, test_id)
-            assert exists is True
+        exists = await repository.exists(User, test_id)
+        assert exists is True
 
         # Entity doesn't exist
-        with patch.object(repository.executor, "execute_query", return_value=[{"exists": False}]):
-            exists = await repository.exists(User, test_id)
-            assert exists is False
+        mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = None
+        exists = await repository.exists(User, test_id)
+        assert exists is False
 
 
 class TestCQRSRepositoryErrorHandling:
@@ -464,14 +478,13 @@ class TestCQRSRepositoryErrorHandling:
 
     async def test_handle_query_error(self, repository):
         """Test handling query execution errors."""
-        with patch.object(repository.executor, "execute_query") as mock_exec:
-            mock_exec.side_effect = Exception("relation does not exist")
+        mock_connection.cursor.return_value.__aenter__.return_value.execute.side_effect = Exception("relation does not exist")
+        
+        from fraiseql.types import fraise_type
 
-            from fraiseql.types import fraise_type
+        @fraise_type
+        class User:
+            id: str
 
-            @fraise_type
-            class User:
-                id: str
-
-            with pytest.raises(Exception, match="relation does not exist"):
-                await repository.list(User)
+        with pytest.raises(Exception, match="relation does not exist"):
+            await repository.list(User)
