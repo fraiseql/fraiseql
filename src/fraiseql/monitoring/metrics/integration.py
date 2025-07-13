@@ -86,15 +86,13 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             raise
 
 
-def get_metrics() -> FraiseQLMetrics:
+def get_metrics() -> FraiseQLMetrics | None:
     """Get the global metrics instance.
 
     Returns:
-        The global FraiseQLMetrics instance, creating it if necessary.
+        The global FraiseQLMetrics instance, or None if not set up.
     """
     global _metrics_instance
-    if _metrics_instance is None:
-        _metrics_instance = FraiseQLMetrics()
     return _metrics_instance
 
 
@@ -178,21 +176,23 @@ def with_metrics(operation_type: str = "operation"):
                 success = True
                 return result
             except Exception as e:
-                metrics.record_error(
-                    error_type=type(e).__name__,
-                    error_code=getattr(e, "code", "UNKNOWN"),
-                    operation=func.__name__,
-                )
+                if metrics:
+                    metrics.record_error(
+                        error_type=type(e).__name__,
+                        error_code=getattr(e, "code", "UNKNOWN"),
+                        operation=func.__name__,
+                    )
                 raise
             finally:
-                duration_ms = (time.time() - start_time) * 1000
-                if operation_type in ("query", "mutation"):
-                    metrics.record_query(
-                        operation_type=operation_type,
-                        operation_name=func.__name__,
-                        duration_ms=duration_ms,
-                        success=success,
-                    )
+                if metrics:
+                    duration_ms = (time.time() - start_time) * 1000
+                    if operation_type in ("query", "mutation"):
+                        metrics.record_query(
+                            operation_type=operation_type,
+                            operation_name=func.__name__,
+                            duration_ms=duration_ms,
+                            success=success,
+                        )
 
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
@@ -205,21 +205,23 @@ def with_metrics(operation_type: str = "operation"):
                 success = True
                 return result
             except Exception as e:
-                metrics.record_error(
-                    error_type=type(e).__name__,
-                    error_code=getattr(e, "code", "UNKNOWN"),
-                    operation=func.__name__,
-                )
+                if metrics:
+                    metrics.record_error(
+                        error_type=type(e).__name__,
+                        error_code=getattr(e, "code", "UNKNOWN"),
+                        operation=func.__name__,
+                    )
                 raise
             finally:
-                duration_ms = (time.time() - start_time) * 1000
-                if operation_type in ("query", "mutation"):
-                    metrics.record_query(
-                        operation_type=operation_type,
-                        operation_name=func.__name__,
-                        duration_ms=duration_ms,
-                        success=success,
-                    )
+                if metrics:
+                    duration_ms = (time.time() - start_time) * 1000
+                    if operation_type in ("query", "mutation"):
+                        metrics.record_query(
+                            operation_type=operation_type,
+                            operation_name=func.__name__,
+                            duration_ms=duration_ms,
+                            success=success,
+                        )
 
         # Return appropriate wrapper based on function type
         import asyncio

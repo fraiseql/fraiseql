@@ -208,6 +208,42 @@ def create_test_view():
     # Cleanup is handled by transaction rollback
 
 
+@pytest.fixture
+def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool):
+    """Factory fixture to create FraiseQL apps with real database connection.
+    
+    This fixture provides a factory function that creates properly configured
+    FraiseQL apps using the real PostgreSQL container and pre-initialized pool.
+    
+    Usage:
+        def test_something(create_fraiseql_app_with_db):
+            app = create_fraiseql_app_with_db(
+                types=[MyType],
+                queries=[my_query],
+                production=False
+            )
+            client = TestClient(app)
+            # Use the app...
+    """
+    from fraiseql.fastapi.app import create_fraiseql_app
+    from fraiseql.fastapi.dependencies import set_db_pool
+    
+    def _create_app(**kwargs):
+        """Create a FraiseQL app with proper database URL and pool."""
+        # Use the real database URL from the container
+        kwargs.setdefault('database_url', postgres_url)
+        
+        # Create the app
+        app = create_fraiseql_app(**kwargs)
+        
+        # Manually set the database pool to bypass lifespan issues in tests
+        set_db_pool(db_pool)
+        
+        return app
+    
+    return _create_app
+
+
 # Alternative fixtures for tests that need committed data
 @pytest_asyncio.fixture
 async def db_connection_committed(

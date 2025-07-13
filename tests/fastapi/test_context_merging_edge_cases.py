@@ -12,6 +12,9 @@ from fastapi.testclient import TestClient
 from fraiseql import fraise_type
 from fraiseql.fastapi import create_fraiseql_app
 
+# Import database fixtures for real PostgreSQL testing
+from tests.database_conftest import *  # noqa: F403
+
 
 # Test types
 @fraise_type
@@ -62,7 +65,7 @@ async def get_merged_data(info) -> Dict[str, Any]:
 class TestMultipleContextSources:
     """Test merging context from multiple sources."""
 
-    def test_multiple_context_getters(self, clear_registry):
+    def test_multiple_context_getters(self, create_fraiseql_app_with_db):
         """Test merging contexts from multiple getter functions."""
 
         # Define multiple context getters
@@ -126,8 +129,7 @@ class TestMultipleContextSources:
             return merged
 
         # Create app with merged context
-        app = create_fraiseql_app(
-            database_url="postgresql://localhost/test",
+        app = create_fraiseql_app_with_db(
             types=[ContextInfo, User],
             queries=[get_context_info, get_current_user, get_merged_data],
             context_getter=merged_context_getter,
@@ -165,7 +167,7 @@ class TestMultipleContextSources:
         assert "custom_data" in merged_data  # From custom
         assert merged_data["source"] == "custom"  # Last one wins
 
-    def test_context_override_precedence(self, clear_registry):
+    def test_context_override_precedence(self, create_fraiseql_app_with_db):
         """Test that context override follows correct precedence."""
         precedence_log = []
 
@@ -215,8 +217,7 @@ class TestMultipleContextSources:
             merged["precedence_order"] = precedence_log.copy()
             return merged
 
-        app = create_fraiseql_app(
-            database_url="postgresql://localhost/test",
+        app = create_fraiseql_app_with_db(
             types=[ContextInfo],
             queries=[get_merged_data],
             context_getter=priority_merged_context,
@@ -245,7 +246,7 @@ class TestMultipleContextSources:
         # Verify execution order
         assert data["precedence_order"] == ["low", "medium", "high"]
 
-    def test_partial_context_merging(self, clear_registry):
+    def test_partial_context_merging(self, create_fraiseql_app_with_db):
         """Test merging contexts where some sources return None or empty."""
 
         async def maybe_auth_context(request: Request) -> Optional[Dict[str, Any]]:
@@ -290,8 +291,7 @@ class TestMultipleContextSources:
 
             return merged
 
-        app = create_fraiseql_app(
-            database_url="postgresql://localhost/test",
+        app = create_fraiseql_app_with_db(
             types=[User],
             queries=[get_current_user, get_merged_data],
             context_getter=safe_merged_context,
@@ -489,7 +489,7 @@ class TestAsyncContextGetters:
         assert context["status"] == "ok"
         assert context["data"] == "valid"
 
-    def test_async_context_with_dependencies(self, clear_registry):
+    def test_async_context_with_dependencies(self, create_fraiseql_app_with_db):
         """Test async context getters with dependencies between them."""
 
         async def get_user_id_context(request: Request) -> Dict[str, Any]:
@@ -552,8 +552,7 @@ class TestAsyncContextGetters:
 
             return merged
 
-        app = create_fraiseql_app(
-            database_url="postgresql://localhost/test",
+        app = create_fraiseql_app_with_db(
             types=[User],
             queries=[get_merged_data],
             context_getter=dependent_context_getter,
@@ -589,7 +588,7 @@ class TestAsyncContextGetters:
 class TestContextMergingEdgeCases:
     """Test edge cases in context merging."""
 
-    def test_deeply_nested_context_merging(self, clear_registry):
+    def test_deeply_nested_context_merging(self, create_fraiseql_app_with_db):
         """Test merging deeply nested context objects."""
 
         async def deep_context_a(request: Request) -> Dict[str, Any]:
@@ -641,8 +640,7 @@ class TestContextMergingEdgeCases:
             deep_update(merged, ctx_b)
             return merged
 
-        app = create_fraiseql_app(
-            database_url="postgresql://localhost/test",
+        app = create_fraiseql_app_with_db(
             types=[],
             queries=[get_merged_data],
             context_getter=deep_merge_context,
@@ -703,7 +701,7 @@ class TestContextMergingEdgeCases:
         except Exception as e:
             pytest.fail(f"Circular reference handling failed: {e}")
 
-    def test_context_key_conflicts(self, clear_registry):
+    def test_context_key_conflicts(self, create_fraiseql_app_with_db):
         """Test handling of conflicting context keys."""
 
         async def system_context(request: Request) -> Dict[str, Any]:
@@ -745,8 +743,7 @@ class TestContextMergingEdgeCases:
 
             return merged
 
-        app = create_fraiseql_app(
-            database_url="postgresql://localhost/test",
+        app = create_fraiseql_app_with_db(
             types=[],
             queries=[get_merged_data],
             context_getter=conflict_resolution_context,
