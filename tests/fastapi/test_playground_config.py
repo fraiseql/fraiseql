@@ -88,9 +88,9 @@ def test_playground_disabled_in_production(clear_registry):
     )
 
     with TestClient(app) as client:
-        # In production, playground is disabled so GET requests without query should return an error
+        # In production, playground is disabled and GET requests are not allowed
         response = client.get("/graphql")
-        assert response.status_code == 400  # Bad request without query in production
+        assert response.status_code == 405  # Method not allowed in production
 
 
 def test_playground_tool_env_var(monkeypatch):

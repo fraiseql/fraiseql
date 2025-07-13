@@ -51,7 +51,7 @@ class BaseOperatorStrategy(ABC):
     ) -> Composed:
         """Build the SQL for this operator."""
 
-    def _apply_type_cast(self, path_sql: SQL, val: Any, op: str) -> SQL:
+    def _apply_type_cast(self, path_sql: SQL, val: Any, op: str) -> SQL | Composed:
         """Apply appropriate type casting to the JSONB path."""
         # Handle booleans first
         if isinstance(val, bool):
