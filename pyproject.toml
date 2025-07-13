@@ -147,6 +147,7 @@ ignore = [
   "FURB162", # Unnecessary timezone replacement - false positive for ISO format parsing
   "FIX002",  # TODO comments are fine in development
   "N818",    # Exception naming - would require breaking changes
+  "A003",    # Builtins shadowing - needed for 'list' method in repository
 
   # Documentation - enable for public APIs only
   "D105",    # Missing docstring in magic method
