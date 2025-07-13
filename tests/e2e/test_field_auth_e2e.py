@@ -77,6 +77,7 @@ async def get_user(info, user_id: int) -> User:
     )
 
 
+@pytest.mark.database
 class TestFieldAuthE2E:
     """End-to-end tests for field-level authorization."""
 
@@ -282,6 +283,7 @@ class TestFieldAuthE2E:
         assert data["data"]["me"]["username"] == "user456"
 
 
+@pytest.mark.database
 class TestFieldAuthIntegration:
     """Integration tests for field authorization with GraphQL execution."""
 

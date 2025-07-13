@@ -92,6 +92,7 @@ async def get_customer_full(info, customer_id: int) -> Customer:
     )
 
 
+@pytest.mark.database
 class TestTurboRouterE2E:
     """End-to-end tests for TurboRouter with complexity analysis."""
 
@@ -316,6 +317,7 @@ class TestTurboRouterE2E:
 
 
 @pytest.mark.asyncio
+@pytest.mark.database
 class TestTurboRouterAsync:
     """Async tests for TurboRouter functionality."""
 
