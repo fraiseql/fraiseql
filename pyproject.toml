@@ -67,6 +67,7 @@ dev = [
   "pytest-xdist>=3.5.0",
   "pytest-watch>=1.0.0",
   "pytest-cov>=4.0.0",
+  "pytest-mock>=3.11.0",
   "tox>=4.0.0",
   "ruff>=0.8.4",
   "pyright>=1.1.401",

@@ -28,7 +28,7 @@ class TestType:
 
 
 @fraiseql.query
-async def test_query_with_error(info) -> TestType:
+async def error_query(info) -> TestType:
     """Test query that raises an error with UNSET in extensions."""
     # Simulate an error that includes UNSET values in extensions
     input_data = TestInput(required_field="test")
@@ -48,7 +48,7 @@ async def test_query_with_error(info) -> TestType:
 
 
 @fraiseql.query
-async def test_query_with_validation_error(info) -> list[TestType]:
+async def validation_error_query(info) -> list[TestType]:
     """Test query that triggers validation error."""
     # This will be used to test the validation error path
     return []
@@ -66,7 +66,7 @@ def test_production_mode_unset_in_graphql_error_extensions():
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
         types=[TestType],
-        queries=[test_query_with_error, test_query_with_validation_error],
+        queries=[error_query, validation_error_query],
         config=config,
     )
 
@@ -75,7 +75,7 @@ def test_production_mode_unset_in_graphql_error_extensions():
     # Test query that raises error with UNSET in extensions
     query = """
     query {
-        testQueryWithError {
+        errorQuery {
             id
             name
         }
@@ -117,7 +117,7 @@ def test_production_mode_validation_error_with_unset():
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
         types=[TestType],
-        queries=[test_query_with_validation_error],
+        queries=[validation_error_query],
         config=config,
     )
 
@@ -126,7 +126,7 @@ def test_production_mode_validation_error_with_unset():
     # Send an invalid query to trigger validation error
     query = """
     query {
-        testQueryWithValidationError {
+        validationErrorQuery {
             id
             name
             invalidField
@@ -162,7 +162,7 @@ def test_production_mode_with_detailed_errors():
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
         types=[TestType],
-        queries=[test_query_with_error],
+        queries=[error_query],
         config=config,
     )
 
@@ -170,7 +170,7 @@ def test_production_mode_with_detailed_errors():
 
     query = """
     query {
-        testQueryWithError {
+        errorQuery {
             id
             name
         }

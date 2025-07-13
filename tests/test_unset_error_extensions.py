@@ -52,7 +52,7 @@ class CreateTestItem:
 
 # Mock query that might raise an error with UNSET in extensions
 @fraiseql.query
-async def test_query(info) -> TestType:
+async def test_error_query(info) -> TestType:
     """Test query that raises an error with UNSET in extensions."""
     # Simulate an error that includes input data with UNSET
     input_data = TestInput(required_field="test")
@@ -80,7 +80,7 @@ def test_app():
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
         types=[TestType],
-        queries=[test_query],
+        queries=[test_error_query],
         mutations=[CreateTestItem],
     )
     return app
@@ -96,7 +96,7 @@ def test_graphql_error_with_unset_in_extensions(test_client):
     """Test that UNSET values in error extensions are properly serialized."""
     query = """
     query {
-        testQuery {
+        testErrorQuery {
             id
             name
         }
@@ -199,7 +199,7 @@ def test_production_mode_error_handling(mocker):
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
         types=[TestType],
-        queries=[test_query],
+        queries=[test_error_query],
         production=True,
     )
 
@@ -207,7 +207,7 @@ def test_production_mode_error_handling(mocker):
 
     query = """
     query {
-        testQuery {
+        testErrorQuery {
             id
             name
         }

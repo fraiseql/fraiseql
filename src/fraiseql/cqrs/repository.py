@@ -494,3 +494,123 @@ class CQRSRepository:
             order_direction=order_direction,
             include_total=include_total,
         )
+
+    # Batch operations
+
+    async def batch_create(
+        self,
+        entity_type: str,
+        inputs: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Batch create multiple entities.
+
+        Args:
+            entity_type: Type of entity to create
+            inputs: List of input dictionaries
+
+        Returns:
+            List of result dictionaries
+        """
+        results = []
+        for input_data in inputs:
+            result = await self.create(entity_type, input_data)
+            results.append(result)
+        return results
+
+    async def batch_update(
+        self,
+        entity_type: str,
+        updates: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Batch update multiple entities.
+
+        Args:
+            entity_type: Type of entity to update
+            updates: List of update dictionaries (must include 'id')
+
+        Returns:
+            List of result dictionaries
+        """
+        results = []
+        for update_data in updates:
+            result = await self.update(entity_type, update_data)
+            results.append(result)
+        return results
+
+    async def batch_delete(
+        self,
+        entity_type: str,
+        entity_ids: list[UUID],
+    ) -> list[dict[str, Any]]:
+        """Batch delete multiple entities.
+
+        Args:
+            entity_type: Type of entity to delete
+            entity_ids: List of entity IDs to delete
+
+        Returns:
+            List of result dictionaries
+        """
+        results = []
+        for entity_id in entity_ids:
+            result = await self.delete(entity_type, entity_id)
+            results.append(result)
+        return results
+
+    # Transaction support
+
+    def transaction(self):
+        """Create a transaction context manager.
+
+        Returns:
+            Transaction context manager
+        """
+        return self.connection.transaction()
+
+    # Utility methods
+
+    def _get_view_name(self, entity_class: type) -> str:
+        """Get view name for an entity class.
+
+        Args:
+            entity_class: Entity class
+
+        Returns:
+            View name (e.g., 'user_view')
+        """
+        # Convert class name to snake_case and add _view suffix
+        class_name = entity_class.__name__
+        # Simple conversion: CamelCase -> snake_case
+        import re
+        snake_case = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', class_name).lower()
+        return f"{snake_case}_view"
+
+    def _get_function_name(self, operation: str, entity_type: str) -> str:
+        """Get function name for an operation.
+
+        Args:
+            operation: Operation type (create, update, delete)
+            entity_type: Entity type
+
+        Returns:
+            Function name (e.g., 'fn_create_user')
+        """
+        return f"fn_{operation}_{entity_type}"
+
+    # Query execution
+
+    async def execute_query(
+        self,
+        query: str | SQL | Composed,
+        params: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Execute a raw SQL query.
+
+        Args:
+            query: SQL query (string or composed)
+            params: Optional parameters
+
+        Returns:
+            List of result dictionaries
+        """
+        return await self.executor.execute_query(query, params)

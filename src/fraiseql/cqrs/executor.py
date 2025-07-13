@@ -58,3 +58,22 @@ class CQRSExecutor:
                 }
 
             return dict(result)
+
+    async def execute_query(
+        self,
+        query: str | SQL,
+        params: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Execute a SQL query and return results.
+
+        Args:
+            query: SQL query (string or SQL object)
+            params: Optional parameters for the query
+
+        Returns:
+            List of result rows as dictionaries
+        """
+        async with self.connection.cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(query, params or {})
+            results = await cursor.fetchall()
+            return [dict(row) for row in results]
