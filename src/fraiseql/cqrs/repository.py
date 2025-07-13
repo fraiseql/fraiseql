@@ -615,3 +615,213 @@ class CQRSRepository:
             List of result dictionaries
         """
         return await self.executor.execute_query(query, params)
+
+    # Alias methods for backward compatibility and common patterns
+
+    async def find_by_id(self, view_name: str, entity_id: UUID) -> dict[str, Any] | None:
+        """Alias for get_by_id for backward compatibility.
+
+        Args:
+            view_name: Name of the view
+            entity_id: ID of the entity
+
+        Returns:
+            Entity dict or None
+        """
+        return await self.get_by_id(view_name, entity_id)
+
+    async def list(
+        self,
+        entity_class: type[T],
+        *,
+        where: dict[str, Any] | None = None,
+        order_by: list[tuple[str, str]] | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List entities with optional filtering and ordering.
+
+        Args:
+            entity_class: Entity class to determine view name
+            where: Optional WHERE conditions
+            order_by: Optional ordering as list of (field, direction) tuples
+            limit: Maximum number of results
+            offset: Number of results to skip
+
+        Returns:
+            List of entity dictionaries
+        """
+        view_name = self._get_view_name(entity_class)
+        
+        # Convert order_by tuples to string format
+        order_by_str = None
+        if order_by:
+            parts = []
+            for field, direction in order_by:
+                parts.append(f"{field} {direction}")
+            order_by_str = ", ".join(parts)
+        
+        return await self.select_from_json_view(
+            view_name,
+            where=where,
+            order_by=order_by_str,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def find_by_view(
+        self,
+        view_name: str,
+        *,
+        where: dict[str, Any] | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Find entities by view name with optional filtering.
+
+        Args:
+            view_name: Name of the database view
+            where: Optional WHERE conditions
+            order_by: Optional ORDER BY clause
+            limit: Maximum number of results
+
+        Returns:
+            List of entity dictionaries
+        """
+        return await self.select_from_json_view(
+            view_name,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+
+    async def count(
+        self,
+        view_name: str,
+        *,
+        where: dict[str, Any] | None = None,
+    ) -> int:
+        """Count entities in a view with optional filtering.
+
+        Args:
+            view_name: Name of the view
+            where: Optional WHERE conditions
+
+        Returns:
+            Count of matching entities
+        """
+        # Build count query
+        query_parts = [SQL("SELECT COUNT(*) FROM {}").format(SQL(view_name))]
+        params = []
+        
+        if where:
+            query_parts.append(SQL(" WHERE "))
+            conditions = []
+            for key, value in where.items():
+                conditions.append(SQL("data->>{} = %s").format(SQL(f"'{key}'")))
+                params.append(str(value))
+            query_parts.append(SQL(" AND ").join(conditions))
+        
+        query = Composed(query_parts)
+        
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(query, params)
+            result = await cursor.fetchone()
+            return result[0] if result else 0
+
+    async def exists(
+        self,
+        view_name: str,
+        *,
+        where: dict[str, Any] | None = None,
+    ) -> bool:
+        """Check if any entities exist in a view with optional filtering.
+
+        Args:
+            view_name: Name of the view
+            where: Optional WHERE conditions
+
+        Returns:
+            True if at least one entity exists
+        """
+        count = await self.count(view_name, where=where)
+        return count > 0
+
+    async def load_one_to_many(
+        self,
+        parent: dict[str, Any],
+        relation_name: str,
+        child_class: type[T],
+        foreign_key: str,
+    ) -> dict[str, Any]:
+        """Load one-to-many relationship.
+
+        Args:
+            parent: Parent entity dictionary
+            relation_name: Name of the relation field
+            child_class: Child entity class
+            foreign_key: Foreign key field name in child
+
+        Returns:
+            Parent dict with loaded relation
+        """
+        if "id" not in parent:
+            parent[relation_name] = []
+            return parent
+            
+        child_view = self._get_view_name(child_class)
+        children = await self.select_from_json_view(
+            child_view,
+            where={foreign_key: parent["id"]},
+        )
+        
+        parent[relation_name] = children
+        return parent
+
+    async def load_many_to_many(
+        self,
+        parent: dict[str, Any],
+        relation_name: str,
+        target_class: type[T],
+        junction_table: str,
+        parent_fk: str,
+        target_fk: str,
+    ) -> dict[str, Any]:
+        """Load many-to-many relationship.
+
+        Args:
+            parent: Parent entity dictionary
+            relation_name: Name of the relation field
+            target_class: Target entity class
+            junction_table: Junction table name
+            parent_fk: Parent foreign key in junction table
+            target_fk: Target foreign key in junction table
+
+        Returns:
+            Parent dict with loaded relation
+        """
+        if "id" not in parent:
+            parent[relation_name] = []
+            return parent
+            
+        # Query junction table and target view
+        target_view = self._get_view_name(target_class)
+        
+        query = SQL("""
+            SELECT t.data
+            FROM {target_view} t
+            JOIN {junction_table} j ON t.id = j.{target_fk}
+            WHERE j.{parent_fk} = %s
+        """).format(
+            target_view=SQL(target_view),
+            junction_table=SQL(junction_table),
+            target_fk=SQL(target_fk),
+            parent_fk=SQL(parent_fk),
+        )
+        
+        async with self.connection.cursor() as cursor:
+            await cursor.execute(query, [parent["id"]])
+            results = await cursor.fetchall()
+            parent[relation_name] = [row[0] for row in results]
+            
+        return parent

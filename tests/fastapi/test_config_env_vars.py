@@ -24,7 +24,7 @@ def test_config_ignores_non_prefixed_env_vars(monkeypatch) -> None:
     # Verify config uses default values, not the non-prefixed env vars
     assert config.environment == "development"  # Not "staging" from ENVIRONMENT
     assert config.app_name == "FraiseQL API"  # Not "MyApp" from APP_NAME
-    assert config.database_url.unicode_string() == "postgresql://localhost/test"
+    assert config.database_url == "postgresql://localhost/test"
 
 
 def test_config_uses_prefixed_env_vars(monkeypatch) -> None:
@@ -40,7 +40,7 @@ def test_config_uses_prefixed_env_vars(monkeypatch) -> None:
     config = FraiseQLConfig()
 
     # Verify values from environment
-    assert config.database_url.unicode_string() == "postgresql://dbuser:dbpass@dbhost/dbname"
+    assert config.database_url == "postgresql://dbuser:dbpass@dbhost/dbname"
     assert config.environment == "production"
     assert config.app_name == "My FraiseQL App"
     assert config.database_pool_size == 50
@@ -56,7 +56,7 @@ def test_config_case_insensitive(monkeypatch) -> None:
 
     config = FraiseQLConfig()
 
-    assert config.database_url.unicode_string() == "postgresql://localhost/test1"
+    assert config.database_url == "postgresql://localhost/test1"
     assert config.app_name == "Test App"
     assert config.environment == "testing"
 
@@ -71,7 +71,7 @@ def test_config_without_env_file(monkeypatch, tmp_path) -> None:
 
     # Should work without .env file
     config = FraiseQLConfig()
-    assert config.database_url.unicode_string() == "postgresql://localhost/test"
+    assert config.database_url == "postgresql://localhost/test"
 
 
 def test_config_validation_errors() -> None:

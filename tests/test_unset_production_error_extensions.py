@@ -54,7 +54,7 @@ async def validation_error_query(info) -> list[TestType]:
     return []
 
 
-def test_production_mode_unset_in_graphql_error_extensions():
+def test_production_mode_unset_in_graphql_error_extensions(clear_registry):
     """Test that production mode properly cleans UNSET from GraphQL error extensions."""
     # Create production app with explicit config
     config = FraiseQLConfig(
@@ -107,7 +107,7 @@ def test_production_mode_unset_in_graphql_error_extensions():
     # Should not raise JSON serialization error
 
 
-def test_production_mode_validation_error_with_unset():
+def test_production_mode_validation_error_with_unset(clear_registry):
     """Test that production mode handles validation errors that might have UNSET."""
     config = FraiseQLConfig(
         database_url="postgresql://test/test",
@@ -151,7 +151,7 @@ def test_production_mode_validation_error_with_unset():
     assert error["extensions"]["code"] == "GRAPHQL_VALIDATION_FAILED"
 
 
-def test_production_mode_with_detailed_errors():
+def test_production_mode_with_detailed_errors(clear_registry):
     """Test production mode when hide_error_details is False."""
     # Custom config that shows error details in production
     config = FraiseQLConfig(
