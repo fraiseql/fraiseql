@@ -582,7 +582,8 @@ class CQRSRepository:
         class_name = entity_class.__name__
         # Simple conversion: CamelCase -> snake_case
         import re
-        snake_case = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', class_name).lower()
+
+        snake_case = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", class_name).lower()
         return f"{snake_case}_view"
 
     def _get_function_name(self, operation: str, entity_type: str) -> str:
