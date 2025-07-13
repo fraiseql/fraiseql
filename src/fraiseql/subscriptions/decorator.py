@@ -54,7 +54,7 @@ def subscription(fn: F) -> F:
     schema_registry.register_subscription(fn)
 
     # Add metadata
-    fn._is_subscription = True
+    fn.__fraiseql_subscription__ = True
     fn._field_def = field
 
     return fn
