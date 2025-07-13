@@ -209,10 +209,10 @@ class TestFraiseQLRepository:
         user1_id = uuid4()
         user2_id = uuid4()
         await db_connection.execute(
-            "INSERT INTO users (id, name, data) VALUES (%s, %s, %s), (%s, %s, %s)",
+            "INSERT INTO users (id, name, data) VALUES (%s, %s, %s::jsonb), (%s, %s, %s::jsonb)",
             (
-                user1_id, "User 1", '{"age": 25}'::JSONB,
-                user2_id, "User 2", '{"age": 30}'::JSONB
+                user1_id, "User 1", '{"age": 25}',
+                user2_id, "User 2", '{"age": 30}'
             )
         )
         
@@ -234,8 +234,8 @@ class TestFraiseQLRepository:
         """Test running a query without fetching results."""
         # Create insert query
         query = DatabaseQuery(
-            statement=SQL("INSERT INTO users (name, data) VALUES (%(name)s, %(data)s)"),
-            params={"name": "Test User", "data": '{"test": true}'::JSONB},
+            statement=SQL("INSERT INTO users (name, data) VALUES (%(name)s, %(data)s::jsonb)"),
+            params={"name": "Test User", "data": '{"test": true}'},
             fetch_result=False,
         )
         
@@ -272,8 +272,8 @@ class TestFraiseQLRepository:
         # Define test function that inserts data
         async def test_func(conn):
             await conn.execute(
-                "INSERT INTO users (name, data) VALUES (%s, %s)",
-                ("Transaction User", '{"transactional": true}'::JSONB)
+                "INSERT INTO users (name, data) VALUES (%s, %s::jsonb)",
+                ("Transaction User", '{"transactional": true}')
             )
             # Verify we can query within transaction
             cursor = await conn.execute("SELECT COUNT(*) FROM users WHERE name = %s", ("Transaction User",))
@@ -296,8 +296,8 @@ class TestFraiseQLRepository:
         # Define test function that raises error after insert
         async def test_func(conn):
             await conn.execute(
-                "INSERT INTO users (name, data) VALUES (%s, %s)",
-                ("Rollback User", '{"should_rollback": true}'::JSONB)
+                "INSERT INTO users (name, data) VALUES (%s, %s::jsonb)",
+                ("Rollback User", '{"should_rollback": true}')
             )
             raise ValueError("Test error")
 
@@ -335,11 +335,11 @@ class TestFraiseQLRepository:
         user2_id = uuid4()
         await db_connection.execute(
             """INSERT INTO users (id, name, data) VALUES 
-               (%s, %s, %s), 
-               (%s, %s, %s)""",
+               (%s, %s, %s::jsonb), 
+               (%s, %s, %s::jsonb)""",
             (
-                user1_id, "Alice", '{"id": "' + str(user1_id) + '", "age": 25}'::JSONB,
-                user2_id, "Bob", '{"id": "' + str(user2_id) + '", "age": 30}'::JSONB
+                user1_id, "Alice", '{"id": "' + str(user1_id) + '", "age": 25}',
+                user2_id, "Bob", '{"id": "' + str(user2_id) + '", "age": 30}'
             )
         )
         
@@ -358,8 +358,8 @@ class TestFraiseQLRepository:
         # Insert test data
         user_id = uuid4()
         await db_connection.execute(
-            "INSERT INTO users (id, name, data) VALUES (%s, %s, %s)",
-            (user_id, "Single User", '{"id": "' + str(user_id) + '", "email": "single@example.com"}'::JSONB)
+            "INSERT INTO users (id, name, data) VALUES (%s, %s, %s::jsonb)",
+            (user_id, "Single User", '{"id": "' + str(user_id) + '", "email": "single@example.com"}')
         )
         
         # Execute find_one
