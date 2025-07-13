@@ -1,6 +1,6 @@
 """CQRS Repository base class for FraiseQL."""
 
-from typing import Any, TypeVar
+from typing import Any, List, TypeVar
 from uuid import UUID
 
 from psycopg import AsyncConnection
@@ -635,10 +635,10 @@ class CQRSRepository:
         entity_class: type[T],
         *,
         where: dict[str, Any] | None = None,
-        order_by: list[tuple[str, str]] | None = None,
+        order_by: List[tuple[str, str]] | None = None,
         limit: int | None = None,
         offset: int = 0,
-    ) -> list[dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         """List entities with optional filtering and ordering.
 
         Args:
@@ -676,7 +676,7 @@ class CQRSRepository:
         where: dict[str, Any] | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> List[dict[str, Any]]:
         """Find entities by view name with optional filtering.
 
         Args:
