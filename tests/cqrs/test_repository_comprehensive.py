@@ -122,7 +122,7 @@ class TestCQRSRepositoryCommands:
 class TestCQRSRepositoryQueries:
     """Test query methods (read operations)."""
 
-    async def test_find_by_id(self, repository):
+    async def test_find_by_id(self, repository, mock_connection):
         """Test finding entity by ID."""
         test_id = uuid4()
         expected_data = {
@@ -158,7 +158,7 @@ class TestCQRSRepositoryQueries:
         assert "vw_user" in str(query_args[0])  # View name
         assert test_id in query_args[1]  # ID in parameters
 
-    async def test_find_by_id_not_found(self, repository):
+    async def test_find_by_id_not_found(self, repository, mock_connection):
         """Test finding entity by ID when not found."""
         test_id = uuid4()
 
@@ -174,7 +174,7 @@ class TestCQRSRepositoryQueries:
         result = await repository.find_by_id(User, test_id)
         assert result is None
 
-    async def test_list_entities(self, repository):
+    async def test_list_entities(self, repository, mock_connection):
         """Test listing entities with pagination."""
         expected_data = [
             {"data": {"id": "1", "name": "User 1"}},
@@ -206,7 +206,7 @@ class TestCQRSRepositoryQueries:
         assert "LIMIT" in query_str
         assert "OFFSET" in query_str
 
-    async def test_list_with_filtering(self, repository):
+    async def test_list_with_filtering(self, repository, mock_connection):
         """Test listing entities with where clause."""
         expected_data = [{"data": {"id": "1", "name": "Active User"}}]
 
@@ -233,7 +233,7 @@ class TestCQRSRepositoryQueries:
         cursor.execute.assert_called_once()
         # Where clause should be applied
 
-    async def test_list_with_ordering(self, repository):
+    async def test_list_with_ordering(self, repository, mock_connection):
         """Test listing entities with order by."""
         expected_data = []
 
@@ -262,7 +262,7 @@ class TestCQRSRepositoryQueries:
 
         assert "ORDER BY" in query_str
 
-    async def test_find_by_view(self, repository):
+    async def test_find_by_view(self, repository, mock_connection):
         """Test finding by custom view."""
         expected_data = [
             {"data": {"id": "1", "email": "user@example.com"}},
@@ -420,7 +420,7 @@ class TestCQRSRepositoryUtilities:
         assert repo._get_function_name("create", "user") == "fn_create_user"
         assert repo._get_function_name("update", "user_profile") == "fn_update_user_profile"
 
-    async def test_count_entities(self, repository):
+    async def test_count_entities(self, repository, mock_connection):
         """Test counting entities."""
         expected_count = [{"count": 42}]
 
@@ -441,7 +441,7 @@ class TestCQRSRepositoryUtilities:
         query_args = cursor.execute.call_args[0]
         assert "COUNT(*)" in str(query_args[0])
 
-    async def test_exists(self, repository):
+    async def test_exists(self, repository, mock_connection):
         """Test checking entity existence."""
         test_id = uuid4()
 
@@ -476,7 +476,7 @@ class TestCQRSRepositoryErrorHandling:
             with pytest.raises(Exception, match="function.*does not exist"):
                 await repository.create("invalid", {"data": "test"})
 
-    async def test_handle_query_error(self, repository):
+    async def test_handle_query_error(self, repository, mock_connection):
         """Test handling query execution errors."""
         mock_connection.cursor.return_value.__aenter__.return_value.execute.side_effect = Exception("relation does not exist")
         

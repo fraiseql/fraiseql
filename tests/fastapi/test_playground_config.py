@@ -33,7 +33,7 @@ def test_graphiql_default(clear_registry):
     )
 
     with TestClient(app) as client:
-        response = client.get("/playground")
+        response = client.get("/graphql")
         assert response.status_code == 200
         assert "GraphiQL" in response.text
         assert "graphiql.min.js" in response.text
@@ -53,7 +53,7 @@ def test_apollo_sandbox_config(clear_registry):
     )
 
     with TestClient(app) as client:
-        response = client.get("/playground")
+        response = client.get("/graphql")
         assert response.status_code == 200
         assert "Apollo Sandbox" in response.text
         assert "embeddable-sandbox.cdn.apollographql.com" in response.text
@@ -73,7 +73,7 @@ def test_graphiql_explicit_config(clear_registry):
     )
 
     with TestClient(app) as client:
-        response = client.get("/playground")
+        response = client.get("/graphql")
         assert response.status_code == 200
         assert "GraphiQL" in response.text
         assert "graphiql.min.js" in response.text
@@ -88,8 +88,9 @@ def test_playground_disabled_in_production(clear_registry):
     )
 
     with TestClient(app) as client:
-        response = client.get("/playground")
-        assert response.status_code == 404
+        # In production, playground is disabled so GET requests without query should return an error
+        response = client.get("/graphql")
+        assert response.status_code == 400  # Bad request without query in production
 
 
 def test_playground_tool_env_var(monkeypatch):

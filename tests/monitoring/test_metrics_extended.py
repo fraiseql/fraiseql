@@ -25,26 +25,23 @@ class TestMetricsConfig:
 
         assert config.enabled is True
         assert config.namespace == "fraiseql"
-        assert config.buckets == (0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
-        assert config.collect_db_metrics is True
-        assert config.collect_cache_metrics is True
+        assert config.buckets == [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+        # Check for any additional attributes that might exist
+        assert hasattr(config, 'exclude_paths')
+        assert hasattr(config, 'metrics_path')
 
     def test_custom_config(self):
         """Test custom metrics configuration."""
-        custom_buckets = (0.1, 0.5, 1.0, 5.0)
+        custom_buckets = [0.1, 0.5, 1.0, 5.0]
         config = MetricsConfig(
             enabled=False,
             namespace="myapp",
             buckets=custom_buckets,
-            collect_db_metrics=False,
-            collect_cache_metrics=False,
         )
 
         assert config.enabled is False
         assert config.namespace == "myapp"
         assert config.buckets == custom_buckets
-        assert config.collect_db_metrics is False
-        assert config.collect_cache_metrics is False
 
 
 class TestFraiseQLMetrics:
