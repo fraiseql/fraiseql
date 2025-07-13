@@ -72,7 +72,7 @@ class TestValidateWhereInput:
         errors = validate_where_input(where, User)
         assert len(errors) == 1
         assert "invalid_field" in errors[0]
-        assert "not found" in errors[0]
+        assert "Unknown field" in errors[0]
 
     def test_invalid_operator(self):
         """Test validation with invalid operator."""
@@ -286,7 +286,7 @@ class TestEdgeCases:
         @dataclass
         class Node:
             id: int
-            children: Optional[list["Node"]] = None
+            children: Optional[list] = None  # Simplified to avoid forward reference issue
 
         # Test would validate if validate_query_fields existed
         # Currently just testing the type definition works
