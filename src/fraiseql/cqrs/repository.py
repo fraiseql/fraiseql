@@ -747,81 +747,30 @@ class CQRSRepository:
         count = await self.count(view_name, where=where)
         return count > 0
 
-    async def load_one_to_many(
-        self,
-        parent: dict[str, Any],
-        relation_name: str,
-        child_class: type[T],
-        foreign_key: str,
-    ) -> dict[str, Any]:
-        """Load one-to-many relationship.
-
-        Args:
-            parent: Parent entity dictionary
-            relation_name: Name of the relation field
-            child_class: Child entity class
-            foreign_key: Foreign key field name in child
-
-        Returns:
-            Parent dict with loaded relation
-        """
-        if "id" not in parent:
-            parent[relation_name] = []
-            return parent
-            
-        child_view = self._get_view_name(child_class)
-        children = await self.select_from_json_view(
-            child_view,
-            where={foreign_key: parent["id"]},
-        )
-        
-        parent[relation_name] = children
-        return parent
-
-    async def load_many_to_many(
-        self,
-        parent: dict[str, Any],
-        relation_name: str,
-        target_class: type[T],
-        junction_table: str,
-        parent_fk: str,
-        target_fk: str,
-    ) -> dict[str, Any]:
-        """Load many-to-many relationship.
-
-        Args:
-            parent: Parent entity dictionary
-            relation_name: Name of the relation field
-            target_class: Target entity class
-            junction_table: Junction table name
-            parent_fk: Parent foreign key in junction table
-            target_fk: Target foreign key in junction table
-
-        Returns:
-            Parent dict with loaded relation
-        """
-        if "id" not in parent:
-            parent[relation_name] = []
-            return parent
-            
-        # Query junction table and target view
-        target_view = self._get_view_name(target_class)
-        
-        query = SQL("""
-            SELECT t.data
-            FROM {target_view} t
-            JOIN {junction_table} j ON t.id = j.{target_fk}
-            WHERE j.{parent_fk} = %s
-        """).format(
-            target_view=SQL(target_view),
-            junction_table=SQL(junction_table),
-            target_fk=SQL(target_fk),
-            parent_fk=SQL(parent_fk),
-        )
-        
-        async with self.connection.cursor() as cursor:
-            await cursor.execute(query, [parent["id"]])
-            results = await cursor.fetchall()
-            parent[relation_name] = [row[0] for row in results]
-            
-        return parent
+    # Note: FraiseQL Philosophy on Relationships
+    # =========================================
+    # In FraiseQL, relationships should be composed at the database view level,
+    # not loaded separately in application code. This ensures:
+    # 1. Single query for all data (no N+1 problems)
+    # 2. Better performance through PostgreSQL optimization
+    # 3. GraphQL schema matches database view structure
+    # 4. Simpler application code
+    #
+    # Example view with relationships:
+    # CREATE VIEW user_view AS
+    # SELECT 
+    #     u.id,
+    #     jsonb_build_object(
+    #         'id', u.id,
+    #         'name', u.name,
+    #         'posts', COALESCE(
+    #             (SELECT jsonb_agg(jsonb_build_object(
+    #                 'id', p.id,
+    #                 'title', p.title
+    #             )) FROM posts p WHERE p.user_id = u.id),
+    #             '[]'::jsonb
+    #         )
+    #     ) as data
+    # FROM users u;
+    #
+    # This is why we don't have load_one_to_many or load_many_to_many methods.

@@ -301,64 +301,9 @@ class TestCQRSRepositoryQueries:
             assert results == expected_data
 
 
-class TestCQRSRepositoryRelationships:
-    """Test relationship loading methods."""
-
-    async def test_load_one_to_many(self, repository):
-        """Test loading one-to-many relationship."""
-        parent = {"id": "1", "name": "Parent"}
-        expected_children = [
-            {"data": {"id": "10", "parent_id": "1", "name": "Child 1"}},
-            {"data": {"id": "11", "parent_id": "1", "name": "Child 2"}},
-        ]
-
-        with patch.object(repository.executor, "execute_query", return_value=expected_children):
-            from fraiseql.types import fraise_type
-
-            @fraise_type
-            class Child:
-                id: str
-                parent_id: str
-                name: str
-
-            result = await repository.load_one_to_many(
-                parent,
-                "children",
-                Child,
-                "parent_id",
-            )
-
-            assert result["children"] == [
-                {"id": "10", "parent_id": "1", "name": "Child 1"},
-                {"id": "11", "parent_id": "1", "name": "Child 2"},
-            ]
-
-    async def test_load_many_to_many(self, repository):
-        """Test loading many-to-many relationship."""
-        entity = {"id": "1", "name": "Entity"}
-        expected_related = [
-            {"data": {"id": "20", "name": "Related 1"}},
-            {"data": {"id": "21", "name": "Related 2"}},
-        ]
-
-        with patch.object(repository.executor, "execute_query", return_value=expected_related):
-            from fraiseql.types import fraise_type
-
-            @fraise_type
-            class RelatedEntity:
-                id: str
-                name: str
-
-            result = await repository.load_many_to_many(
-                entity,
-                "related_items",
-                RelatedEntity,
-                "entity_related_mapping",
-                "entity_id",
-                "related_id",
-            )
-
-            assert len(result["related_items"]) == 2
+# Note: TestCQRSRepositoryRelationships class removed
+# FraiseQL philosophy: relationships should be composed in database views,
+# not loaded separately. See CQRS Repository comments for details.
 
 
 class TestCQRSRepositoryBatchOperations:
