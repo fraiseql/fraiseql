@@ -1,5 +1,6 @@
 """Tests for common GraphQL output types and mutation result handling."""
 
+import typing
 import uuid
 from dataclasses import fields
 
@@ -50,8 +51,8 @@ class TestMutationResultRow:
         assert annotations["status"] == str
         assert annotations["updated_fields"] == list[str]
         assert annotations["message"] == str
-        assert annotations["object_data"] == dict[str, any]
-        assert annotations["extra_metadata"] == dict[str, any]
+        assert annotations["object_data"] == dict[str, typing.Any]
+        assert annotations["extra_metadata"] == dict[str, typing.Any]
 
     def test_mutation_result_row_empty_collections(self):
         """Test MutationResultRow with empty collections."""

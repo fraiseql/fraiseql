@@ -167,11 +167,11 @@ class TestAutoCamelCase:
         """Test special cases in camelCase to snake_case conversion."""
         # Test the actual to_snake_case function behavior
         assert to_snake_case("apiKey") == "api_key"
-        assert to_snake_case("APIKey") == "a_p_i_key"  # Current behavior for consecutive caps
+        assert to_snake_case("APIKey") == "api_key"  # Consecutive caps handled correctly
         assert to_snake_case("page2Content") == "page2_content"
-        assert to_snake_case("HTTPSConnection") == "h_t_t_p_s_connection"  # Current behavior
+        assert to_snake_case("HTTPSConnection") == "https_connection"  # Consecutive caps handled correctly
         assert to_snake_case("id") == "id"
-        assert to_snake_case("ID") == "i_d"  # Current behavior
+        assert to_snake_case("ID") == "id"  # Consecutive caps handled correctly
 
     def test_complex_nested_query(self) -> None:
         """Test complex nested query with auto_camel_case."""
