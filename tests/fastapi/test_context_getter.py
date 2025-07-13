@@ -7,7 +7,9 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 
 from fraiseql import fraise_type
-from fraiseql.fastapi import create_fraiseql_app
+
+# Import database fixtures to support database-aware testing
+from tests.database_conftest import *  # noqa: F403
 
 
 # Sample type
@@ -25,7 +27,7 @@ async def get_test(info) -> SampleType:
 
 
 @pytest.fixture
-def app_with_custom_context():
+def app_with_custom_context(create_fraiseql_app_with_db):
     """Create app with custom context getter."""
 
     async def custom_context_getter(request: Request) -> dict[str, Any]:
@@ -39,8 +41,7 @@ def app_with_custom_context():
             "user": None,
         }
 
-    return create_fraiseql_app(
-        database_url="postgresql://localhost/test",
+    return create_fraiseql_app_with_db(
         types=[SampleType],
         queries=[get_test],
         context_getter=custom_context_getter,
@@ -48,6 +49,7 @@ def app_with_custom_context():
     )
 
 
+@pytest.mark.database
 def test_custom_context_getter(app_with_custom_context) -> None:
     """Test that custom context getter is used."""
     client = TestClient(app_with_custom_context)
@@ -70,6 +72,7 @@ def test_custom_context_getter(app_with_custom_context) -> None:
     assert data["data"]["getTest"]["customValue"] == "from_custom_context"
 
 
+@pytest.mark.database
 def test_custom_context_getter_with_get_request(app_with_custom_context) -> None:
     """Test that custom context getter works with GET requests."""
     client = TestClient(app_with_custom_context)
@@ -92,7 +95,8 @@ def test_custom_context_getter_with_get_request(app_with_custom_context) -> None
     assert data["data"]["getTest"]["customValue"] == "from_custom_context"
 
 
-def test_default_context_without_custom_getter() -> None:
+@pytest.mark.database
+def test_default_context_without_custom_getter(create_fraiseql_app_with_db) -> None:
     """Test that default context is used when no custom getter provided."""
 
     # For this test, we need to provide a custom context getter
@@ -105,8 +109,7 @@ def test_default_context_without_custom_getter() -> None:
             "custom_data": {},  # Empty custom data
         }
 
-    app = create_fraiseql_app(
-        database_url="postgresql://localhost/test",
+    app = create_fraiseql_app_with_db(
         types=[SampleType],
         queries=[get_test],
         context_getter=minimal_context_getter,
