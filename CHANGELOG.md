@@ -5,6 +5,29 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b16] - 2025-07-13
+
+### Added
+- **JSONB Column Extraction for Production Mode**: Resolves critical issue where production mode returned complete database rows instead of extracted JSONB data
+  - Added `jsonb_column` parameter to `@fraise_type` decorator for explicit column specification
+  - Implemented 3-strategy JSONB column detection:
+    1. Explicit column from type definition
+    2. Default column names (`data`, `json_data`, `jsonb_data`)
+    3. Auto-detection by content analysis
+  - Added configuration options to `FraiseQLConfig`:
+    - `jsonb_extraction_enabled` (default: True)
+    - `jsonb_default_columns` (default: ["data", "json_data", "jsonb_data"])
+    - `jsonb_auto_detect` (default: True)
+  - Maintains backward compatibility - existing code continues to work unchanged
+  - Fixes PrintOptim issue where ~50 tests were failing due to JSONB extraction in production mode
+
+### Technical Details
+- Enhanced `FraiseQLRepository` with `_determine_jsonb_column()` method for intelligent detection
+- Updated `FraiseQLTypeDefinition` to store JSONB column information
+- Modified `find()` and `find_one()` methods to extract JSONB data in production mode
+- Added comprehensive test suite with 13 tests covering all scenarios
+- Performance: Users can now use production mode (10x faster) while getting proper JSONB extraction
+
 ## [0.1.0b15] - 2025-07-12
 
 ### Added
