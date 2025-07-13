@@ -225,13 +225,13 @@ class GraphQLCSRFValidator:
                 ],
             },
         )
-    
+
     async def validate_request(self, request: Request) -> bool:
         """Validate CSRF token for a request.
-        
+
         Args:
             request: The incoming request
-            
+
         Returns:
             True if valid, False otherwise
         """
