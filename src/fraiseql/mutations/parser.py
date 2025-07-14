@@ -169,6 +169,21 @@ def _parse_success(
 
         if value is not None:
             fields[field_name] = value
+            continue
+
+        # NEW: Check if this is an entity field that should receive the entire object_data
+        # Only do this for single-entity results where object_data is the entity itself
+        if (result.object_data and
+            _is_entity_field(field_name, field_type) and
+            _is_single_entity_object_data(result.object_data, annotations)):
+            # Clean UNSET values before processing
+            from fraiseql.fastapi.json_encoder import clean_unset_values
+            cleaned_object_data = clean_unset_values(result.object_data)
+
+            # Try to instantiate the entire object_data as this field
+            value = _instantiate_type(field_type, cleaned_object_data)
+            if value is not None:
+                fields[field_name] = value
 
     # Handle main entity from object_data if not already mapped
     if result.object_data:
@@ -304,18 +319,31 @@ def _extract_field_value(
     object_data: dict[str, Any] | None,
     metadata: dict[str, Any] | None,
 ) -> Any:
-    """Extract field value from object_data or metadata."""
-    # First check metadata
+    """Extract field value from object_data or metadata.
+    
+    Supports multiple patterns:
+    1. Direct field mapping: object_data[field_name] -> field
+    2. Metadata mapping: metadata[field_name] -> field
+    3. Whole object mapping: object_data -> field (for single entity results)
+    """
+    # First check metadata (highest priority for explicit mappings)
     if metadata and field_name in metadata:
         return _instantiate_type(field_type, metadata[field_name])
 
-    # Then check object_data
+    # Then check if field exists in object_data by exact name
     if object_data and field_name in object_data:
-        return _instantiate_type(field_type, object_data[field_name])
+        # Clean UNSET values before instantiation
+        from fraiseql.fastapi.json_encoder import clean_unset_values
+        field_data = clean_unset_values(object_data[field_name])
+        return _instantiate_type(field_type, field_data)
 
     # For single-field results, object_data might be the field itself
+    # This handles the case where object_data = {id: "...", name: "..."}
+    # and we want to map it to field "location" of type Location
     if object_data and _is_matching_type(field_type, object_data):
-        return _instantiate_type(field_type, object_data)
+        from fraiseql.fastapi.json_encoder import clean_unset_values
+        cleaned_data = clean_unset_values(object_data)
+        return _instantiate_type(field_type, cleaned_data)
 
     return None
 
@@ -415,5 +443,80 @@ def _is_matching_type(field_type: type, data: Any) -> bool:
         # Simple heuristic: if data has any of the expected fields
         expected_fields = getattr(field_type, "__annotations__", {})
         return any(field in data for field in expected_fields)
+
+    return False
+
+
+def _is_entity_field(field_name: str, field_type: type) -> bool:
+    """Check if a field is likely an entity field that should receive object_data.
+    
+    Entity fields are typically:
+    - Not standard fields (message, status, errors)
+    - Complex types (have annotations or are FraiseQL types)
+    - Named after entities (location, machine, user, etc.)
+    """
+    # Skip standard mutation result fields
+    if field_name in ("message", "status", "errors", "code"):
+        return False
+
+    # Check if it's a complex type (not primitive)
+    if field_type in (str, int, float, bool, type(None)):
+        return False
+
+    # Check for Optional/Union types
+    origin = get_origin(field_type)
+    if origin is Union or origin is types.UnionType:
+        # Get the non-None type from Optional[T]
+        args = get_args(field_type)
+        non_none_types = [t for t in args if t is not type(None)]
+        if non_none_types:
+            field_type = non_none_types[0]
+            origin = get_origin(field_type)
+
+    # Lists of entities are entity fields
+    if origin is list:
+        return True
+
+    # Check if it's a FraiseQL type or has annotations (complex type)
+    if (hasattr(field_type, "__annotations__") or
+        hasattr(field_type, "__fraiseql_definition__") or
+        hasattr(field_type, "__fraiseql_success__") or
+        hasattr(field_type, "__fraiseql_failure__")):
+        return True
+
+    return False
+
+
+def _is_single_entity_object_data(
+    object_data: dict[str, Any], annotations: dict[str, type]
+) -> bool:
+    """Check if object_data represents a single entity rather than multiple named entities.
+    
+    Returns True if object_data looks like a single entity (has id, name, etc.)
+    Returns False if object_data has keys matching field names in annotations.
+    """
+    if not object_data:
+        return False
+
+    # Get non-standard fields from annotations
+    entity_fields = [
+        field for field in annotations
+        if field not in ("message", "status", "errors", "code") and
+        _is_entity_field(field, annotations[field])
+    ]
+
+    # If object_data has keys matching entity field names, it's a multi-entity result
+    for field_name in entity_fields:
+        if field_name in object_data:
+            return False
+
+    # Check if object_data looks like an entity (has common entity fields)
+    entity_indicators = {"id", "uuid", "name", "identifier", "created_at", "updated_at"}
+    if any(key in object_data for key in entity_indicators):
+        return True
+
+    # If we have exactly one entity field and object_data is a dict, assume it's for that field
+    if len(entity_fields) == 1 and isinstance(object_data, dict):
+        return True
 
     return False
