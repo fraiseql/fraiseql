@@ -719,7 +719,11 @@ class TestContextMergingEdgeCases:
         async def user_context(request: Request) -> Dict[str, Any]:
             """User-level context."""
             return {
-                "user": {"id": 1, "name": "Real User", "roles": ["user"]},  # Dict value (different type)
+                "user": {
+                    "id": 1,
+                    "name": "Real User",
+                    "roles": ["user"],
+                },  # Dict value (different type)
                 "priority": 100,  # Number instead of string
                 "timestamp": 9876543210,  # Newer timestamp
                 "meta": {"source": "user", "extra": "data"},

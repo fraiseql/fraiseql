@@ -81,11 +81,13 @@ class TestFraiseQLRepositoryIntegration:
         repository = FraiseQLRepository(pool=db_pool)
 
         # Example using the new query builder utility
-        statement = (SchemaQualifiedQueryBuilder(schema)
-                    .select("id", "data->>'name' as name")
-                    .from_table("users")
-                    .order_by("id")
-                    .build())
+        statement = (
+            SchemaQualifiedQueryBuilder(schema)
+            .select("id", "data->>'name' as name")
+            .from_table("users")
+            .order_by("id")
+            .build()
+        )
 
         query = DatabaseQuery(
             statement=statement,
@@ -148,9 +150,9 @@ class TestFraiseQLRepositoryIntegration:
         schema = test_data  # test_data fixture now returns the schema name
         repository = FraiseQLRepository(pool=db_pool)
         query = DatabaseQuery(
-            statement=SQL("INSERT INTO {}.users (data) VALUES (%(data)s::jsonb) RETURNING id, data").format(
-                Identifier(schema)
-            ),
+            statement=SQL(
+                "INSERT INTO {}.users (data) VALUES (%(data)s::jsonb) RETURNING id, data"
+            ).format(Identifier(schema)),
             params={"data": '{"name": "New User", "email": "new@example.com", "active": true}'},
             fetch_result=True,
         )
@@ -169,12 +171,14 @@ class TestFraiseQLRepositoryIntegration:
 
         # Update Bob's status to active
         update_query = DatabaseQuery(
-            statement=Composed([
-                SQL("UPDATE "),
-                Identifier(schema, "users"),
-                SQL(" SET data = jsonb_set(data, '{active}', 'true') "),
-                SQL("WHERE data->>'name' = %(name)s"),
-            ]),
+            statement=Composed(
+                [
+                    SQL("UPDATE "),
+                    Identifier(schema, "users"),
+                    SQL(" SET data = jsonb_set(data, '{active}', 'true') "),
+                    SQL("WHERE data->>'name' = %(name)s"),
+                ]
+            ),
             params={"name": "Bob Wilson"},
             fetch_result=False,
         )
@@ -305,9 +309,7 @@ class TestFraiseQLRepositoryIntegration:
 
         # Test ? operator (key exists)
         has_email_query = DatabaseQuery(
-            statement=SQL("SELECT * FROM {}.users WHERE data ? 'email'").format(
-                Identifier(schema)
-            ),
+            statement=SQL("SELECT * FROM {}.users WHERE data ? 'email'").format(Identifier(schema)),
             params={},
             fetch_result=True,
         )
@@ -330,9 +332,9 @@ class TestFraiseQLRepositoryIntegration:
             columns=[
                 "(data->>'active')::boolean as active",
                 "COUNT(*) as count",
-                "jsonb_agg(data->>'name') as names"
+                "jsonb_agg(data->>'name') as names",
             ],
-            group_by=["(data->>'active')::boolean"]
+            group_by=["(data->>'active')::boolean"],
         )
 
         query = DatabaseQuery(

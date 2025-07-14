@@ -46,20 +46,14 @@ def test_mutation_result_parsing_with_object_data():
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "name": "Test Warehouse",
             "identifier": "WH-001",
-            "active": True
+            "active": True,
         },
-        "extra_metadata": {
-            "entity": "location",
-            "trigger": "api_create"
-        }
+        "extra_metadata": {"entity": "location", "trigger": "api_create"},
     }
 
     # Parse the result
     result = parse_mutation_result(
-        db_result,
-        CreateLocationSuccess,
-        CreateLocationError,
-        error_config=None
+        db_result, CreateLocationSuccess, CreateLocationError, error_config=None
     )
 
     # Verify result is success type
@@ -89,17 +83,13 @@ def test_mutation_result_with_unset_values():
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "name": "Test Location",
             "identifier": "LOC-001",
-            "active": UNSET  # This should be cleaned to None
+            "active": UNSET,  # This should be cleaned to None
         },
-        "extra_metadata": {"entity": "location"}
+        "extra_metadata": {"entity": "location"},
     }
 
     # Parse the result
-    result = parse_mutation_result(
-        db_result,
-        CreateLocationSuccess,
-        CreateLocationError
-    )
+    result = parse_mutation_result(db_result, CreateLocationSuccess, CreateLocationError)
 
     # Verify result
     assert isinstance(result, CreateLocationSuccess)
@@ -107,4 +97,3 @@ def test_mutation_result_with_unset_values():
     assert result.location.name == "Test Location"
     # UNSET should be cleaned to None (not the default value)
     assert result.location.active is None
-

@@ -12,10 +12,10 @@ from psycopg.sql import SQL, Composed, Identifier
 
 async def get_current_schema(connection: AsyncConnection) -> str:
     """Get the current schema name from a database connection.
-    
+
     Args:
         connection: The database connection to query
-        
+
     Returns:
         The current schema name, or "public" as fallback
     """
@@ -33,19 +33,19 @@ async def get_current_schema(connection: AsyncConnection) -> str:
 
 def schema_qualified_sql(sql_template: str, schema: str, *identifiers: str) -> SQL:
     """Create a schema-qualified SQL query.
-    
+
     Args:
         sql_template: SQL template with {} placeholders for schema and identifiers
         schema: The schema name to use
         *identifiers: Additional identifiers (table names, column names, etc.)
-        
+
     Returns:
         A SQL object with proper schema qualification
-        
+
     Examples:
         >>> schema_qualified_sql("SELECT * FROM {}.{}", "test_schema", "users")
         SQL('SELECT * FROM "test_schema"."users"')
-        
+
         >>> schema_qualified_sql("UPDATE {}.{} SET {} = %s", "test_schema", "users", "name")
         SQL('UPDATE "test_schema"."users" SET "name" = %s')
     """
@@ -58,26 +58,26 @@ def schema_qualified_composed(
     table: str,
     operation: str = "SELECT",
     columns: Optional[list[str]] = None,
-    where_clause: Optional[str] = None
+    where_clause: Optional[str] = None,
 ) -> Composed:
     """Create a schema-qualified composed SQL query.
-    
+
     Args:
         schema: The schema name
         table: The table name
         operation: SQL operation (SELECT, INSERT, UPDATE, DELETE)
         columns: List of column names for SELECT or INSERT
         where_clause: WHERE clause (without the WHERE keyword)
-        
+
     Returns:
         A Composed SQL object with proper schema qualification
-        
+
     Examples:
         >>> schema_qualified_composed("test_schema", "users")
         Composed([SQL('SELECT * FROM '), Identifier('test_schema', 'users')])
-        
+
         >>> schema_qualified_composed("test_schema", "users", columns=["id", "name"])
-        Composed([SQL('SELECT '), Identifier('id'), SQL(', '), Identifier('name'), 
+        Composed([SQL('SELECT '), Identifier('id'), SQL(', '), Identifier('name'),
                  SQL(' FROM '), Identifier('test_schema', 'users')])
     """
     parts = []
@@ -113,13 +113,13 @@ def schema_qualified_composed(
 
 async def create_test_schema_context(connection: AsyncConnection) -> str:
     """Create a unique test schema and set it as the current search path.
-    
+
     Args:
         connection: Database connection to use
-        
+
     Returns:
         The name of the created test schema
-        
+
     Note:
         This is typically used in test fixtures. The schema should be cleaned up
         after the test using drop_test_schema_context().
@@ -137,7 +137,7 @@ async def create_test_schema_context(connection: AsyncConnection) -> str:
 
 async def drop_test_schema_context(connection: AsyncConnection, schema: str) -> None:
     """Drop a test schema and all its contents.
-    
+
     Args:
         connection: Database connection to use
         schema: Name of the schema to drop
@@ -148,14 +148,14 @@ async def drop_test_schema_context(connection: AsyncConnection, schema: str) -> 
 
 class SchemaQualifiedQueryBuilder:
     """Helper class for building schema-qualified queries.
-    
+
     This class provides a fluent interface for building complex schema-qualified
     SQL queries in tests.
     """
 
     def __init__(self, schema: str):
         """Initialize the query builder with a schema name.
-        
+
         Args:
             schema: The schema name to use for all queries
         """
@@ -170,8 +170,15 @@ class SchemaQualifiedQueryBuilder:
                 if i > 0:
                     self._parts.append(SQL(", "))
                 # Check if this is a simple column name or an expression
-                if (" " in col or "(" in col or ">" in col or "-" in col or
-                    "'" in col or ":" in col or "as " in col.lower()):
+                if (
+                    " " in col
+                    or "(" in col
+                    or ">" in col
+                    or "-" in col
+                    or "'" in col
+                    or ":" in col
+                    or "as " in col.lower()
+                ):
                     # This is an expression, use SQL instead of Identifier
                     self._parts.append(SQL(col))
                 else:
@@ -287,11 +294,17 @@ class SchemaQualifiedQueryBuilder:
 
 
 # Convenience functions for common query patterns
-def build_select_query(schema: str, table: str, columns: Optional[list[str]] = None,
-                      where: Optional[str] = None, group_by: Optional[list[str]] = None,
-                      order_by: Optional[list[str]] = None, limit: Optional[int] = None) -> Composed:
+def build_select_query(
+    schema: str,
+    table: str,
+    columns: Optional[list[str]] = None,
+    where: Optional[str] = None,
+    group_by: Optional[list[str]] = None,
+    order_by: Optional[list[str]] = None,
+    limit: Optional[int] = None,
+) -> Composed:
     """Build a SELECT query with schema qualification.
-    
+
     Args:
         schema: Schema name
         table: Table name
@@ -300,7 +313,7 @@ def build_select_query(schema: str, table: str, columns: Optional[list[str]] = N
         group_by: Columns to group by
         order_by: Columns to order by
         limit: LIMIT value
-        
+
     Returns:
         Composed SQL query
     """
@@ -318,22 +331,21 @@ def build_select_query(schema: str, table: str, columns: Optional[list[str]] = N
     return builder.build()
 
 
-def build_insert_query(schema: str, table: str, columns: list[str],
-                      returning: Optional[list[str]] = None) -> Composed:
+def build_insert_query(
+    schema: str, table: str, columns: list[str], returning: Optional[list[str]] = None
+) -> Composed:
     """Build an INSERT query with schema qualification.
-    
+
     Args:
         schema: Schema name
         table: Table name
         columns: Column names for the insert
         returning: Columns to return (None for no RETURNING clause)
-        
+
     Returns:
         Composed SQL query
     """
-    builder = (SchemaQualifiedQueryBuilder(schema)
-               .insert_into(table)
-               .values(columns))
+    builder = SchemaQualifiedQueryBuilder(schema).insert_into(table).values(columns)
 
     if returning:
         builder.returning(*returning)
@@ -341,24 +353,31 @@ def build_insert_query(schema: str, table: str, columns: list[str],
     return builder.build()
 
 
-def build_update_query(schema: str, table: str, set_columns: dict[str, any],
-                      where: str, returning: Optional[list[str]] = None) -> Composed:
+def build_update_query(
+    schema: str,
+    table: str,
+    set_columns: dict[str, any],
+    where: str,
+    returning: Optional[list[str]] = None,
+) -> Composed:
     """Build an UPDATE query with schema qualification.
-    
+
     Args:
         schema: Schema name
         table: Table name
         set_columns: Dictionary of column names to update
         where: WHERE clause condition
         returning: Columns to return (None for no RETURNING clause)
-        
+
     Returns:
         Composed SQL query
     """
-    builder = (SchemaQualifiedQueryBuilder(schema)
-               .update_table(table)
-               .set_columns(**set_columns)
-               .where(where))
+    builder = (
+        SchemaQualifiedQueryBuilder(schema)
+        .update_table(table)
+        .set_columns(**set_columns)
+        .where(where)
+    )
 
     if returning:
         builder.returning(*returning)
@@ -366,22 +385,21 @@ def build_update_query(schema: str, table: str, set_columns: dict[str, any],
     return builder.build()
 
 
-def build_delete_query(schema: str, table: str, where: str,
-                      returning: Optional[list[str]] = None) -> Composed:
+def build_delete_query(
+    schema: str, table: str, where: str, returning: Optional[list[str]] = None
+) -> Composed:
     """Build a DELETE query with schema qualification.
-    
+
     Args:
         schema: Schema name
         table: Table name
         where: WHERE clause condition
         returning: Columns to return (None for no RETURNING clause)
-        
+
     Returns:
         Composed SQL query
     """
-    builder = (SchemaQualifiedQueryBuilder(schema)
-               .delete_from(table)
-               .where(where))
+    builder = SchemaQualifiedQueryBuilder(schema).delete_from(table).where(where)
 
     if returning:
         builder.returning(*returning)

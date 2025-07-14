@@ -12,6 +12,7 @@ from fraiseql.fastapi.config import FraiseQLConfig
 @fraise_type(sql_source="test_view", jsonb_column="data")
 class TestType:
     """Test type with explicit JSONB column."""
+
     id: str
     name: str
     value: int
@@ -20,6 +21,7 @@ class TestType:
 @fraise_type(sql_source="custom_view", jsonb_column="custom_data")
 class CustomTestType:
     """Test type with custom JSONB column."""
+
     id: str
     title: str
     content: str
@@ -28,6 +30,7 @@ class CustomTestType:
 @fraise_type(sql_source="auto_detect_view")
 class AutoDetectType:
     """Test type that should auto-detect JSONB column."""
+
     id: str
     description: str
 
@@ -60,23 +63,15 @@ class TestJSONBExtraction:
             {
                 "id": "123",
                 "tenant_id": "tenant-456",
-                "data": {
-                    "id": "123",
-                    "name": "Test Item",
-                    "value": 42
-                },
-                "created_at": "2025-01-01T00:00:00Z"
+                "data": {"id": "123", "name": "Test Item", "value": 42},
+                "created_at": "2025-01-01T00:00:00Z",
             },
             {
                 "id": "124",
                 "tenant_id": "tenant-456",
-                "data": {
-                    "id": "124",
-                    "name": "Another Item",
-                    "value": 84
-                },
-                "created_at": "2025-01-02T00:00:00Z"
-            }
+                "data": {"id": "124", "name": "Another Item", "value": 84},
+                "created_at": "2025-01-02T00:00:00Z",
+            },
         ]
 
         # Mock the run method to return our test data
@@ -110,9 +105,9 @@ class TestJSONBExtraction:
                 "custom_data": {
                     "id": "123",
                     "title": "Test Article",
-                    "content": "This is test content"
+                    "content": "This is test content",
                 },
-                "metadata": {"version": 1}
+                "metadata": {"version": 1},
             }
         ]
 
@@ -126,7 +121,7 @@ class TestJSONBExtraction:
         assert results[0] == {
             "id": "123",
             "title": "Test Article",
-            "content": "This is test content"
+            "content": "This is test content",
         }
 
     @pytest.mark.asyncio
@@ -136,7 +131,7 @@ class TestJSONBExtraction:
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             jsonb_extraction_enabled=True,
-            jsonb_default_columns=["data", "json_data", "jsonb_data"]
+            jsonb_default_columns=["data", "json_data", "jsonb_data"],
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -146,11 +141,8 @@ class TestJSONBExtraction:
         mock_rows = [
             {
                 "id": "123",
-                "json_data": {
-                    "id": "123",
-                    "description": "Auto-detected content"
-                },
-                "other_field": "ignored"
+                "json_data": {"id": "123", "description": "Auto-detected content"},
+                "other_field": "ignored",
             }
         ]
 
@@ -170,7 +162,7 @@ class TestJSONBExtraction:
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             jsonb_extraction_enabled=True,
-            jsonb_auto_detect=True
+            jsonb_auto_detect=True,
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -183,9 +175,9 @@ class TestJSONBExtraction:
                 "tenant_id": "tenant-456",
                 "content_info": {  # This should be auto-detected
                     "id": "123",
-                    "description": "Auto-detected from content_info"
+                    "description": "Auto-detected from content_info",
                 },
-                "last_updated": "2025-01-01T00:00:00Z"
+                "last_updated": "2025-01-01T00:00:00Z",
             }
         ]
 
@@ -203,8 +195,7 @@ class TestJSONBExtraction:
         """Test that JSONB extraction can be disabled."""
         mock_pool = Mock()
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=False
+            database_url="postgresql://test@localhost/test", jsonb_extraction_enabled=False
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -212,11 +203,7 @@ class TestJSONBExtraction:
 
         # Mock database response with JSONB data
         mock_rows = [
-            {
-                "id": "123",
-                "data": {"id": "123", "name": "Test Item"},
-                "tenant_id": "tenant-456"
-            }
+            {"id": "123", "data": {"id": "123", "name": "Test Item"}, "tenant_id": "tenant-456"}
         ]
 
         repo.run = AsyncMock(return_value=mock_rows)
@@ -229,7 +216,7 @@ class TestJSONBExtraction:
         assert results[0] == {
             "id": "123",
             "data": {"id": "123", "name": "Test Item"},
-            "tenant_id": "tenant-456"
+            "tenant_id": "tenant-456",
         }
 
     @pytest.mark.asyncio
@@ -237,8 +224,7 @@ class TestJSONBExtraction:
         """Test JSONB extraction in find_one method."""
         mock_pool = Mock()
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True
+            database_url="postgresql://test@localhost/test", jsonb_extraction_enabled=True
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -248,7 +234,7 @@ class TestJSONBExtraction:
         test_row = {
             "id": "123",
             "data": {"id": "123", "name": "Single Item", "value": 99},
-            "metadata": {"version": 1}
+            "metadata": {"version": 1},
         }
 
         # Mock the internal database execution to avoid complex connection mocking
@@ -296,22 +282,14 @@ class TestJSONBExtraction:
         """Test behavior when no JSONB column is found."""
         mock_pool = Mock()
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True
+            database_url="postgresql://test@localhost/test", jsonb_extraction_enabled=True
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
         repo.mode = "production"
 
         # Mock database response with no JSONB columns
-        mock_rows = [
-            {
-                "id": "123",
-                "name": "Plain Row",
-                "value": 42,
-                "tenant_id": "tenant-456"
-            }
-        ]
+        mock_rows = [{"id": "123", "name": "Plain Row", "value": 42, "tenant_id": "tenant-456"}]
 
         repo.run = AsyncMock(return_value=mock_rows)
 
@@ -324,12 +302,13 @@ class TestJSONBExtraction:
             "id": "123",
             "name": "Plain Row",
             "value": 42,
-            "tenant_id": "tenant-456"
+            "tenant_id": "tenant-456",
         }
 
     @pytest.mark.asyncio
     async def test_invalid_jsonb_column_specified(self):
         """Test behavior when specified JSONB column doesn't exist."""
+
         # Create a type with non-existent JSONB column
         @fraise_type(sql_source="invalid_view", jsonb_column="nonexistent_column")
         class InvalidType:
@@ -340,8 +319,7 @@ class TestJSONBExtraction:
 
         mock_pool = Mock()
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True
+            database_url="postgresql://test@localhost/test", jsonb_extraction_enabled=True
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -349,11 +327,7 @@ class TestJSONBExtraction:
 
         # Mock database response without the specified JSONB column
         mock_rows = [
-            {
-                "id": "123",
-                "data": {"id": "123", "name": "Test Item"},
-                "tenant_id": "tenant-456"
-            }
+            {"id": "123", "data": {"id": "123", "name": "Test Item"}, "tenant_id": "tenant-456"}
         ]
 
         repo.run = AsyncMock(return_value=mock_rows)
@@ -370,8 +344,7 @@ class TestJSONBExtraction:
         """Test JSONB extraction with empty result sets."""
         mock_pool = Mock()
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True
+            database_url="postgresql://test@localhost/test", jsonb_extraction_enabled=True
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -393,7 +366,7 @@ class TestJSONBExtraction:
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             jsonb_extraction_enabled=True,
-            jsonb_default_columns=["content", "payload", "body"]
+            jsonb_default_columns=["content", "payload", "body"],
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -403,11 +376,8 @@ class TestJSONBExtraction:
         mock_rows = [
             {
                 "id": "123",
-                "payload": {
-                    "id": "123",
-                    "description": "Found in payload column"
-                },
-                "metadata": {"timestamp": "2025-01-01"}
+                "payload": {"id": "123", "description": "Found in payload column"},
+                "metadata": {"timestamp": "2025-01-01"},
             }
         ]
 
@@ -427,7 +397,7 @@ class TestJSONBExtraction:
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             jsonb_extraction_enabled=True,
-            jsonb_auto_detect=False
+            jsonb_auto_detect=False,
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -439,9 +409,9 @@ class TestJSONBExtraction:
                 "id": "123",
                 "random_column": {
                     "id": "123",
-                    "should_not_be_detected": "because auto-detect is disabled"
+                    "should_not_be_detected": "because auto-detect is disabled",
                 },
-                "other_field": "value"
+                "other_field": "value",
             }
         ]
 
@@ -456,17 +426,16 @@ class TestJSONBExtraction:
             "id": "123",
             "random_column": {
                 "id": "123",
-                "should_not_be_detected": "because auto-detect is disabled"
+                "should_not_be_detected": "because auto-detect is disabled",
             },
-            "other_field": "value"
+            "other_field": "value",
         }
 
     def test_determine_jsonb_column_edge_cases(self):
         """Test edge cases in JSONB column determination."""
         mock_pool = Mock()
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True
+            database_url="postgresql://test@localhost/test", jsonb_extraction_enabled=True
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -482,7 +451,7 @@ class TestJSONBExtraction:
                 "metadata": {"excluded": True},
                 "context": {"also": "excluded"},
                 "config": {"still": "excluded"},
-                "user_id": "foreign_key_excluded"
+                "user_id": "foreign_key_excluded",
             }
         ]
         result = repo._determine_jsonb_column("unknown_view", rows_with_excluded)
@@ -493,7 +462,7 @@ class TestJSONBExtraction:
             {
                 "id": "123",
                 "data": "string_not_dict",  # Should not be detected
-                "value": 42
+                "value": 42,
             }
         ]
         result = repo._determine_jsonb_column("unknown_view", rows_with_primitive)
@@ -506,6 +475,7 @@ class TestJSONBExtractionIntegration:
     @pytest.mark.asyncio
     async def test_printoptim_like_scenario(self):
         """Test scenario similar to PrintOptim's use case."""
+
         # Define a Machine type like PrintOptim uses
         @fraise_type(sql_source="tv_machine", jsonb_column="data")
         class Machine:
@@ -521,7 +491,7 @@ class TestJSONBExtractionIntegration:
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             environment="production",
-            jsonb_extraction_enabled=True
+            jsonb_extraction_enabled=True,
         )
         context = {"config": config}
         repo = FraiseQLRepository(mock_pool, context)
@@ -540,10 +510,10 @@ class TestJSONBExtractionIntegration:
                     "identifier": "machine-001",
                     "machine_serial_number": "SN-12345",
                     "model": {"name": "Model X", "version": "1.0"},
-                    "order": {"id": "order-456", "date": "2025-01-01"}
+                    "order": {"id": "order-456", "date": "2025-01-01"},
                 },
                 "last_updated": "2025-07-12 13:17:25",
-                "updated_by": None
+                "updated_by": None,
             }
         ]
 
@@ -558,7 +528,7 @@ class TestJSONBExtractionIntegration:
             "identifier": "machine-001",
             "machine_serial_number": "SN-12345",
             "model": {"name": "Model X", "version": "1.0"},
-            "order": {"id": "order-456", "date": "2025-01-01"}
+            "order": {"id": "order-456", "date": "2025-01-01"},
         }
 
         assert len(results) == 1

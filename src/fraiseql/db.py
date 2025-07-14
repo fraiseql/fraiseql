@@ -499,8 +499,11 @@ class FraiseQLRepository:
         """
         # Check if JSONB extraction is enabled
         config = self.context.get("config")
-        if (config and hasattr(config, "jsonb_extraction_enabled") 
-            and not config.jsonb_extraction_enabled):
+        if (
+            config
+            and hasattr(config, "jsonb_extraction_enabled")
+            and not config.jsonb_extraction_enabled
+        ):
             logger.debug(f"JSONB extraction disabled by config for view '{view_name}'")
             return None
         # Strategy 1: Check if a type is registered for this view and has explicit JSONB column
@@ -550,13 +553,13 @@ class FraiseQLRepository:
         if auto_detect_enabled and rows:
             for key, value in rows[0].items():
                 # Look for columns with dict content that might be JSONB
-                if (isinstance(value, dict) and
-                    value and
-                    key not in ["metadata", "context", "config"] and  # Skip common metadata columns
-                    not key.endswith("_id")):  # Skip foreign key columns
-                    logger.debug(
-                        f"Auto-detected JSONB column '{key}' for view '{view_name}'"
-                    )
+                if (
+                    isinstance(value, dict)
+                    and value
+                    and key not in ["metadata", "context", "config"]  # Skip common metadata columns
+                    and not key.endswith("_id")
+                ):  # Skip foreign key columns
+                    logger.debug(f"Auto-detected JSONB column '{key}' for view '{view_name}'")
                     return key
 
         logger.debug(f"No JSONB column found for view '{view_name}', returning raw rows")

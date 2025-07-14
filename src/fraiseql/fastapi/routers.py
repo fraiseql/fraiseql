@@ -324,7 +324,7 @@ def create_production_router(
                     {
                         "message": (
                             "Internal server error"
-                            if config.get("hide_error_details", True)
+                            if config.environment == "production"
                             else error.message
                         ),
                         "extensions": (
