@@ -107,4 +107,3 @@ def test_mutation_result_with_unset_values():
     assert result.location.name == "Test Location"
     # UNSET should be cleaned to None (not the default value)
     assert result.location.active is None
-

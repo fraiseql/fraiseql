@@ -15,7 +15,7 @@ This release fixes a critical issue with PostgreSQL date serialization in mutati
 2. These objects weren't properly serialized when passed to PostgreSQL functions
 3. PostgreSQL results containing date columns were converted to Python `date` objects by psycopg3
 
-**Solution**: 
+**Solution**:
 - Added proper date serialization in the mutation decorator's `_to_dict` function
 - Configured psycopg3 to return date/time columns as ISO 8601 strings instead of Python objects
 - Registered custom `TextLoader` for all PostgreSQL date/time types

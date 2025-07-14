@@ -67,7 +67,7 @@ def run_rate_limiting_tests():
         complex_complexity = limiter._estimate_complexity(complex_query)
         assert complex_complexity > simple_complexity
 
-        return True  # noqa: TRY300
+        return True
 
     except Exception:
         return False
@@ -135,7 +135,7 @@ def run_csrf_protection_tests():
         assert validator._requires_csrf_protection("mutation")
         assert not validator._requires_csrf_protection("query")
 
-        return True  # noqa: TRY300
+        return True
 
     except Exception:
         return False
@@ -195,7 +195,7 @@ def run_security_headers_tests():
         assert prod_config.hsts_include_subdomains is True
         assert prod_config.csp is not None
 
-        return True  # noqa: TRY300
+        return True
 
     except Exception:
         return False
@@ -250,7 +250,7 @@ def run_integration_tests():
         assert callable(setup_production_security)
         assert callable(setup_development_security)
 
-        return True  # noqa: TRY300
+        return True
 
     except Exception:
         return False

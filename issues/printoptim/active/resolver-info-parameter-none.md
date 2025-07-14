@@ -23,7 +23,7 @@ fraiseql_app = create_fraiseql_app(
 @fraiseql.type
 class QueryRoot:
     """Root query type for GraphQL schema."""
-    
+
     async def resolve_machines(
         self,
         info,
@@ -48,7 +48,7 @@ async def machines(
     # Debug output shows:
     # DEBUG: info type: <class 'NoneType'>
     # DEBUG: info: None
-    
+
     conn = info.context["db"]  # This fails with AttributeError
     tenant_id = info.context.get("tenant_id")
     # ... rest of implementation
@@ -90,7 +90,7 @@ We get:
 3. **Resolver Structure**: We have a two-tier structure:
    - QueryRoot class with `resolve_*` methods
    - Separate resolver functions in query modules
-   
+
    Is this the correct pattern, or should all resolver logic be in the QueryRoot class methods?
 
 4. **Context Access**: Once we fix the info parameter issue, how should we access:

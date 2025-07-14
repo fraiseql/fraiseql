@@ -55,15 +55,15 @@ from fraiseql.analysis.complexity_config import ComplexityConfig
 config = ComplexityConfig(
     # Field scoring
     base_field_cost=1,  # Cost per field
-    
+
     # Depth scoring
     depth_multiplier=1.5,  # Exponential factor for depth
     max_depth_penalty=100,  # Cap to prevent overflow
-    
+
     # Array scoring
     array_field_multiplier=10,  # Base cost for array fields
     array_depth_factor=1.2,  # How depth affects arrays
-    
+
     # Cache thresholds
     simple_query_threshold=10,
     moderate_query_threshold=50,
@@ -207,15 +207,15 @@ class ComplexityRateLimiter:
     def __init__(self, max_cost_per_minute: int = 1000):
         self.max_cost = max_cost_per_minute
         self.user_costs = {}  # Track per user
-    
+
     def check_query(self, user_id: str, query: str) -> bool:
         score = analyze_query_complexity(query)
         cost = score.total_score
-        
+
         current_cost = self.user_costs.get(user_id, 0)
         if current_cost + cost > self.max_cost:
             return False
-        
+
         self.user_costs[user_id] = current_cost + cost
         return True
 ```
@@ -231,7 +231,7 @@ class CustomComplexityConfig(ComplexityConfig):
         if depth <= 2:
             return depth
         return int(2 ** (depth - 1))
-    
+
     def is_array_field(self, field_name: str) -> bool:
         # Add domain-specific logic
         if field_name.startswith("get_all_"):
@@ -287,13 +287,13 @@ class ComplexityScore:
     fragment_count: int = 0
     depth_score: int = 0
     array_score: int = 0
-    
+
     @property
     def total_score(self) -> int: ...
-    
+
     @property
     def cache_weight(self) -> float: ...
-    
+
     def should_cache(self, threshold: int = 200) -> bool: ...
 ```
 

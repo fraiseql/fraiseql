@@ -173,7 +173,7 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
                 return where.get(field_name)
             else:
                 return getattr(where, field_name, None)
-        
+
         # Option 2: Direct checking
         name = where.get('name') if isinstance(where, dict) else where.name
 ```
@@ -269,7 +269,7 @@ where.status = {"eq": "active"}
 users = await db.find("user_view", where=where)
 
 # With pagination
-users = await db.find("user_view", 
+users = await db.find("user_view",
     where=where,
     limit=10,
     offset=20,
@@ -425,9 +425,9 @@ app = create_fraiseql_app(
 async def get_context(request: Request) -> dict[str, Any]:
     pool = request.app.state.db_pool
     tenant_id = request.headers.get("tenant-id")
-    
+
     repo = FraiseQLRepository(pool, context={"tenant_id": tenant_id})
-    
+
     return {
         "db": repo,
         "tenant_id": tenant_id,
@@ -474,15 +474,15 @@ app = create_fraiseql_app(
 async def my_query(info) -> Any:
     # Get database
     db = info.context["db"]
-    
+
     # Get user (may be None)
     user = info.context.get("user")
-    
+
     # Check authentication
     if info.context["authenticated"]:
         # User is logged in
         pass
-    
+
     # Get custom values
     tenant_id = info.context.get("tenant_id")
 ```
@@ -495,7 +495,7 @@ async def get_context(request: Request) -> dict[str, Any]:
     # Get default context first (recommended)
     from fraiseql.fastapi.dependencies import build_graphql_context
     context = await build_graphql_context(request)
-    
+
     # Add custom values
     context.update({
         "tenant_id": request.headers.get("tenant-id"),
@@ -504,7 +504,7 @@ async def get_context(request: Request) -> dict[str, Any]:
             "new_feature": True
         }
     })
-    
+
     return context
 ```
 
@@ -593,7 +593,7 @@ class UserContext:
     email: str | None      # User email
     roles: list[str]       # User roles
     permissions: list[str] # User permissions
-    
+
     def has_role(self, role: str) -> bool
     def has_permission(self, permission: str) -> bool
 ```
@@ -799,10 +799,10 @@ from graphql import GraphQLError
 async def my_query(info, id: UUID) -> User:
     db = info.context["db"]
     user = await db.find_one("user_view", id=id)
-    
+
     if not user:
         raise GraphQLError(f"User {id} not found")
-    
+
     return user
 ```
 
@@ -852,32 +852,32 @@ class UserWhereInput:
 @fraiseql.query
 async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]
-    
+
     # Build filters from where input
     filters = _build_user_filters(where)
-    
+
     return await db.find("user_view", **filters)
 
 def _build_user_filters(where: UserWhereInput | dict | None) -> dict[str, Any]:
     """Convert where input to database filters."""
     filters = {}
-    
+
     if not where:
         return filters
-    
+
     # Handle both dict and object input
     get_field = (lambda f: where.get(f)) if isinstance(where, dict) else (lambda f: getattr(where, f, None))
-    
+
     # Add filters for each field
     for field in ['id', 'email', 'status']:
         value = get_field(field)
         if value is not None:
             filters[field] = value
-    
+
     # Boolean filters
     if get_field('is_active') is not None:
         filters['is_active'] = get_field('is_active')
-    
+
     return filters
 ```
 
@@ -897,11 +897,11 @@ class OrderWhereInput:
 @fraiseql.query
 async def orders(info, where: OrderWhereInput | None = None) -> list[Order]:
     db = info.context["db"]
-    
+
     # Check if we need custom SQL
     if where and _needs_custom_sql(where):
         return await _filter_orders_custom(db, where)
-    
+
     # Otherwise use standard filtering
     filters = _build_order_filters(where)
     return await db.find("order_view", **filters)
@@ -909,42 +909,42 @@ async def orders(info, where: OrderWhereInput | None = None) -> list[Order]:
 async def _filter_orders_custom(db: FraiseQLRepository, where: OrderWhereInput) -> list[Order]:
     from fraiseql.db import DatabaseQuery
     from psycopg.sql import SQL
-    
+
     conditions = []
     params = {}
-    
+
     get_field = (lambda f: where.get(f)) if isinstance(where, dict) else (lambda f: getattr(where, f, None))
-    
+
     if get_field('status'):
         conditions.append("status = %(status)s")
         params['status'] = get_field('status')
-    
+
     if get_field('created_after'):
         conditions.append("created_at >= %(created_after)s")
         params['created_after'] = get_field('created_after')
-    
+
     if get_field('created_before'):
         conditions.append("created_at <= %(created_before)s")
         params['created_before'] = get_field('created_before')
-    
+
     if get_field('total_min') is not None:
         conditions.append("total_amount >= %(total_min)s")
         params['total_min'] = get_field('total_min')
-    
+
     if get_field('total_max') is not None:
         conditions.append("total_amount <= %(total_max)s")
         params['total_max'] = get_field('total_max')
-    
+
     where_clause = " AND ".join(conditions) if conditions else "TRUE"
-    
+
     query = DatabaseQuery(
         statement=SQL(f"SELECT * FROM order_view WHERE {where_clause}"),
         params=params,
         fetch_result=True
     )
-    
+
     results = await db.run(query)
-    
+
     # Handle mode-specific returns
     if db.mode == "development":
         return [Order(**row["data"]) for row in results]
@@ -957,7 +957,7 @@ For best performance, pre-compute boolean flags in your database views:
 
 ```sql
 CREATE VIEW machine_view AS
-SELECT 
+SELECT
     id,
     tenant_id,
     status,
@@ -1023,14 +1023,14 @@ class UserFilter:
 @fraiseql.query
 async def users(info, filter: UserFilter | None = None) -> list[User]:
     db = info.context["db"]
-    
+
     kwargs = {}
     if filter:
         if filter.role:
             kwargs["role"] = filter.role
         if filter.status:
             kwargs["status"] = filter.status
-            
+
     return await db.find("user_view", **kwargs)
 ```
 
@@ -1041,12 +1041,12 @@ async def users(info, filter: UserFilter | None = None) -> list[User]:
 async def update_users(info, ids: list[UUID], input: UpdateUserInput) -> list[User]:
     db = info.context["db"]
     updated = []
-    
+
     for user_id in ids:
         # Update each user
         user = await update_single_user(db, user_id, input)
         updated.append(user)
-    
+
     return updated
 ```
 
@@ -1088,12 +1088,12 @@ async def get_context(request: Request) -> dict[str, Any]:
 SELECT * FROM information_schema.views WHERE table_name = 'your_view';
 
 -- Verify view has data column
-SELECT column_name FROM information_schema.columns 
+SELECT column_name FROM information_schema.columns
 WHERE table_name = 'your_view' AND column_name = 'data';
 
 -- Correct view structure
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id, status, tenant_id,  -- Filtering columns
     jsonb_build_object(
         'id', id,
@@ -1130,7 +1130,7 @@ async def debug_mode(info) -> str:
 async def test_repository_setup(info) -> dict[str, str]:
     """Test if repository is properly configured."""
     db = info.context["db"]
-    
+
     return {
         "repository_type": type(db).__name__,
         "has_find": str(hasattr(db, 'find')),
@@ -1146,7 +1146,7 @@ async def test_repository_setup(info) -> dict[str, str]:
 async def test_view_access(info, view_name: str) -> dict[str, Any]:
     """Test if view is accessible."""
     db = info.context["db"]
-    
+
     try:
         # Try to fetch one record
         result = await db.find(view_name, limit=1)

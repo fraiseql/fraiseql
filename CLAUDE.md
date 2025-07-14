@@ -42,7 +42,7 @@ pytest tests -m database  # Slower but works everywhere
 # Unit tests (no database required)
 pytest tests -m "not database"  # ~10 seconds
 
-# Database integration tests  
+# Database integration tests
 pytest tests -m database  # Speed depends on setup
 
 # All tests
@@ -51,7 +51,7 @@ pytest tests  # Combines both
 
 ### Performance Comparison
 - **Local PostgreSQL**: ⚡ ~5 seconds (10-20x faster)
-- **CI/CD PostgreSQL Service**: ⚡ ~30 seconds  
+- **CI/CD PostgreSQL Service**: ⚡ ~30 seconds
 - **Testcontainers**: 🐌 ~60 seconds (fallback)
 
 ### Database Test Architecture
@@ -63,7 +63,7 @@ FraiseQL supports two database testing patterns:
 - Fast cleanup with perfect test isolation
 - Works well for simple unit tests
 
-#### Committed Data Fixture Pattern (For Integration Tests)  
+#### Committed Data Fixture Pattern (For Integration Tests)
 - Creates unique schemas for complex multi-query tests
 - Data is committed and visible across connection pool
 - Automatic schema cleanup after test completion
@@ -136,7 +136,7 @@ async def users(info, limit: int = 10) -> list[User]:
 ```sql
 -- All views must have 'data' column with JSONB
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     tenant_id,       -- For access control
     jsonb_build_object(

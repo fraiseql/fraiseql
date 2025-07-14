@@ -61,13 +61,13 @@ class Allocation:
     is_reserved: bool
     is_stock: bool
     data: dict[str, Any]
-    
+
     # Properties to access nested data from the JSONB column
     @property
     def identifier(self) -> str | None:
         """Human-readable allocation identifier."""
         return self.data.get("identifier") if self.data else None
-    
+
     @property
     def machine(self) -> "Machine | None":
         """The allocated machine details from the nested JSONB data."""
@@ -79,7 +79,7 @@ class Allocation:
         # In development mode, FraiseQL should handle instantiation?
         # In production mode, this returns the dict?
         return machine_data
-    
+
     @property
     def location(self) -> "Location | None":
         """The allocation location details from the nested JSONB data."""
@@ -87,7 +87,7 @@ class Allocation:
             return None
         location_data = self.data.get("location")
         return location_data
-    
+
     # ... similar properties for organizational_unit, network_configuration, etc.
 ```
 

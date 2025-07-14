@@ -173,11 +173,14 @@ def _parse_success(
 
         # NEW: Check if this is an entity field that should receive the entire object_data
         # Only do this for single-entity results where object_data is the entity itself
-        if (result.object_data and
-            _is_entity_field(field_name, field_type) and
-            _is_single_entity_object_data(result.object_data, annotations)):
+        if (
+            result.object_data
+            and _is_entity_field(field_name, field_type)
+            and _is_single_entity_object_data(result.object_data, annotations)
+        ):
             # Clean UNSET values before processing
             from fraiseql.fastapi.json_encoder import clean_unset_values
+
             cleaned_object_data = clean_unset_values(result.object_data)
 
             # Try to instantiate the entire object_data as this field
@@ -320,7 +323,7 @@ def _extract_field_value(
     metadata: dict[str, Any] | None,
 ) -> Any:
     """Extract field value from object_data or metadata.
-    
+
     Supports multiple patterns:
     1. Direct field mapping: object_data[field_name] -> field
     2. Metadata mapping: metadata[field_name] -> field
@@ -334,6 +337,7 @@ def _extract_field_value(
     if object_data and field_name in object_data:
         # Clean UNSET values before instantiation
         from fraiseql.fastapi.json_encoder import clean_unset_values
+
         field_data = clean_unset_values(object_data[field_name])
         return _instantiate_type(field_type, field_data)
 
@@ -342,6 +346,7 @@ def _extract_field_value(
     # and we want to map it to field "location" of type Location
     if object_data and _is_matching_type(field_type, object_data):
         from fraiseql.fastapi.json_encoder import clean_unset_values
+
         cleaned_data = clean_unset_values(object_data)
         return _instantiate_type(field_type, cleaned_data)
 
@@ -449,7 +454,7 @@ def _is_matching_type(field_type: type, data: Any) -> bool:
 
 def _is_entity_field(field_name: str, field_type: type) -> bool:
     """Check if a field is likely an entity field that should receive object_data.
-    
+
     Entity fields are typically:
     - Not standard fields (message, status, errors)
     - Complex types (have annotations or are FraiseQL types)
@@ -478,10 +483,12 @@ def _is_entity_field(field_name: str, field_type: type) -> bool:
         return True
 
     # Check if it's a FraiseQL type or has annotations (complex type)
-    if (hasattr(field_type, "__annotations__") or
-        hasattr(field_type, "__fraiseql_definition__") or
-        hasattr(field_type, "__fraiseql_success__") or
-        hasattr(field_type, "__fraiseql_failure__")):
+    if (
+        hasattr(field_type, "__annotations__")
+        or hasattr(field_type, "__fraiseql_definition__")
+        or hasattr(field_type, "__fraiseql_success__")
+        or hasattr(field_type, "__fraiseql_failure__")
+    ):
         return True
 
     return False
@@ -491,7 +498,7 @@ def _is_single_entity_object_data(
     object_data: dict[str, Any], annotations: dict[str, type]
 ) -> bool:
     """Check if object_data represents a single entity rather than multiple named entities.
-    
+
     Returns True if object_data looks like a single entity (has id, name, etc.)
     Returns False if object_data has keys matching field names in annotations.
     """
@@ -500,9 +507,10 @@ def _is_single_entity_object_data(
 
     # Get non-standard fields from annotations
     entity_fields = [
-        field for field in annotations
-        if field not in ("message", "status", "errors", "code") and
-        _is_entity_field(field, annotations[field])
+        field
+        for field in annotations
+        if field not in ("message", "status", "errors", "code")
+        and _is_entity_field(field, annotations[field])
     ]
 
     # If object_data has keys matching entity field names, it's a multi-entity result

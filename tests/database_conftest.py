@@ -211,10 +211,10 @@ def create_test_view():
 @pytest.fixture
 def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool):
     """Factory fixture to create FraiseQL apps with real database connection.
-    
+
     This fixture provides a factory function that creates properly configured
     FraiseQL apps using the real PostgreSQL container and pre-initialized pool.
-    
+
     Usage:
         def test_something(create_fraiseql_app_with_db):
             app = create_fraiseql_app_with_db(

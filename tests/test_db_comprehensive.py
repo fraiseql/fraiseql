@@ -341,8 +341,8 @@ class TestFraiseQLRepository:
         user1_id = uuid4()
         user2_id = uuid4()
         await db_connection.execute(
-            """INSERT INTO users (id, name, data) VALUES 
-               (%s, %s, %s::jsonb), 
+            """INSERT INTO users (id, name, data) VALUES
+               (%s, %s, %s::jsonb),
                (%s, %s, %s::jsonb)""",
             (
                 user1_id,

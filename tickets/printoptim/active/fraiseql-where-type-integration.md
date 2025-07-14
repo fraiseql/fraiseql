@@ -153,11 +153,11 @@ from fraiseql.sql.where_generator import safe_create_where_type
 
 def test_where_type_generation():
     MachineWhere = safe_create_where_type(Machine)
-    
+
     where = MachineWhere()
     where.power_output = {"gt": 100}
     where.status = {"eq": "running"}
-    
+
     # Test SQL generation
     sql = where.to_sql()
     assert sql is not None

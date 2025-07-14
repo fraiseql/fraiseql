@@ -87,29 +87,29 @@ app = fraiseql.create_fraiseql_app(
 ## Key Principles
 
 1. **Queries are Functions** - Not methods, not resolvers
-2. **Views Return JSONB** - All data in the `data` column  
+2. **Views Return JSONB** - All data in the `data` column
 3. **Repository Pattern** - Always use `info.context["db"]`
 4. **Type Everything** - Full type annotations required
 5. **Async by Default** - All queries should be async
 
 ## Common Mistakes to Avoid
 
-❌ **DON'T** use `resolve_` prefix methods  
-❌ **DON'T** create resolver classes  
-❌ **DON'T** forget the `data` column in views  
-❌ **DON'T** create your own database connections  
-❌ **DON'T** put `info` anywhere but first parameter  
+❌ **DON'T** use `resolve_` prefix methods
+❌ **DON'T** create resolver classes
+❌ **DON'T** forget the `data` column in views
+❌ **DON'T** create your own database connections
+❌ **DON'T** put `info` anywhere but first parameter
 
-✅ **DO** use `@fraiseql.query` decorator  
-✅ **DO** make `info` the first parameter  
-✅ **DO** return all data in JSONB  
-✅ **DO** use the repository from context  
-✅ **DO** include type annotations  
+✅ **DO** use `@fraiseql.query` decorator
+✅ **DO** make `info` the first parameter
+✅ **DO** return all data in JSONB
+✅ **DO** use the repository from context
+✅ **DO** include type annotations
 
 ## Next Steps
 
 1. Master [Query Patterns](./queries.md) first
-2. Understand [Database Patterns](./database.md) 
+2. Understand [Database Patterns](./database.md)
 3. Learn from [Common Errors](./error-handling.md)
 4. Explore [Advanced Patterns](../COMMON_PATTERNS.md)
 5. Check out [Examples](../../examples/)
