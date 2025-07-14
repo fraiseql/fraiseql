@@ -46,22 +46,22 @@ class Allocation:
     machine_id: uuid.UUID | None
     # ... other fields ...
     data: dict[str, Any]
-    
+
     @fraiseql.field
     async def machine(self, info) -> dict[str, Any] | None:
         """Extract machine from JSONB data."""
         return self.data.get("machine")
-    
+
     @fraiseql.field
     async def location(self, info) -> dict[str, Any] | None:
         """Extract location from JSONB data."""
         return self.data.get("location")
-    
+
     @fraiseql.field
     async def organizational_unit(self, info) -> dict[str, Any] | None:
         """Extract organizational unit from JSONB data."""
         return self.data.get("organizational_unit")
-    
+
     @fraiseql.field
     async def network_configuration(self, info) -> dict[str, Any] | None:
         """Extract network configuration from JSONB data."""
@@ -84,7 +84,7 @@ class Allocation:
     machine_id: uuid.UUID | None
     # ... other fields ...
     data: dict[str, Any]
-    
+
     @fraiseql.field
     async def machine(self, info) -> Machine | None:
         """Extract and transform machine from JSONB data."""

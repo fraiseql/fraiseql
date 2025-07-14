@@ -17,22 +17,22 @@ async def machines(
     where: MachineWhereInput | None = None,
 ) -> list[Machine]:
     """Retrieve a list of machines with filtering."""
-    
+
     # Validate limit to prevent performance issues
     if limit > 100:
         raise GraphQLError("Limit cannot exceed 100")
-    
+
     db = info.context["db"]  # This is a FraiseQLRepository
-    
+
     # Get tenant_id from request headers (since we don't have custom context)
     request = info.context.get("request")
     tenant_id = "550e8400-e29b-41d4-a716-446655440000"  # Default tenant for now
     if request and hasattr(request, 'headers'):
         tenant_id = request.headers.get("tenant-id", tenant_id)
-    
+
     # Build filters from where input
     filters = _build_machine_filters(where, tenant_id)
-    
+
     # Use FraiseQL's find method with filters
     return await db.find("tb_machine",
         **filters,
@@ -48,77 +48,77 @@ async def machines(
 def _build_machine_filters(where: MachineWhereInput | dict | None, tenant_id: str | None) -> dict[str, Any]:
     """Convert machine where input to database filters."""
     filters = {}
-    
+
     # Always include tenant for security
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     if not where:
         return filters
-    
+
     # Handle both MachineWhereInput instances and dicts
     def get_field(field_name: str):
         if isinstance(where, dict):
             return where.get(field_name)
         else:
             return getattr(where, field_name, None)
-    
+
     # Define field mappings
     DIRECT_FIELDS = [
         'id', 'identifier', 'model_id', 'contract_id', 'order_id',
         'customer_organization_id', 'provider_organization_id'
     ]
-    
+
     # Add all direct field filters
     for field in DIRECT_FIELDS:
         value = get_field(field)
         if value is not None:
             filters[field] = value
-    
+
     # Note: Boolean filters (is_current, is_reserved, is_stock, is_unallocated)
     # would need special handling if implemented
-    
+
     return filters
 
 
 def _build_allocation_filters(where: AllocationWhereInput | dict | None, tenant_id: str | None) -> dict[str, Any]:
     """Convert allocation where input to database filters."""
     filters = {}
-    
+
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     if not where:
         return filters
-    
+
     # Handle both AllocationWhereInput instances and dicts
     def get_field(field_name: str):
         if isinstance(where, dict):
             return where.get(field_name)
         else:
             return getattr(where, field_name, None)
-    
+
     # Define field mappings
     DIRECT_FIELDS = [
-        'id', 'machine_id', 'machine_item_id', 
+        'id', 'machine_id', 'machine_item_id',
         'organizational_unit_id', 'location_id'
     ]
-    
+
     # Add all direct field filters
     for field in DIRECT_FIELDS:
         value = get_field(field)
         if value is not None:
             filters[field] = value
-    
+
     # Date filters - these might need special handling for SQL operators
     if get_field('valid_from_gte') is not None:
         filters["valid_from__gte"] = get_field('valid_from_gte')
     if get_field('valid_from_lte') is not None:
         filters["valid_from__lte"] = get_field('valid_from_lte')
-    
+
     # Note: Boolean filters (is_current, is_past, is_future, is_reserved, is_stock)
     # would need special handling based on dates or status
-    
+
     return filters
 ```
 

@@ -40,7 +40,7 @@ async def get_user(info, id: UUID) -> User:
 ```sql
 -- All your views must follow this pattern:
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     email,           -- For lookups
     jsonb_build_object(
@@ -69,7 +69,7 @@ user = await db.find_one("user_view", id=1)
 print(type(user))  # <class 'User'>
 print(user.name)   # Direct attribute access
 
-# Production mode example  
+# Production mode example
 user = await db.find_one("user_view", id=1)
 print(type(user))  # <class 'dict'>
 print(user["data"]["name"])  # Dict access
@@ -132,12 +132,12 @@ async def book(info, id: UUID) -> Book | None:
 # Step 3: Create the app
 if __name__ == "__main__":
     import uvicorn
-    
+
     app = create_fraiseql_app(
         types=[Book],  # Register your types
         production=False  # Enable GraphQL Playground
     )
-    
+
     print("🚀 GraphQL Playground: http://localhost:8000/graphql")
     uvicorn.run(app, port=8000)
 ```
@@ -167,7 +167,7 @@ Now let's connect to a real PostgreSQL database:
 ```sql
 -- CRITICAL: Your view MUST follow this pattern!
 CREATE VIEW book_view AS
-SELECT 
+SELECT
     id,                      -- For filtering
     author,                  -- For author queries
     published,               -- For date filtering
@@ -188,7 +188,7 @@ async def books(info, author: str | None = None) -> list[Book]:
     """Get all books, optionally filtered by author."""
     # Access the database through info.context
     db = info.context["db"]  # This is a FraiseQLRepository
-    
+
     if author:
         # Use the filtering column, not the JSONB data
         return await db.find("book_view", author=author)
@@ -224,7 +224,7 @@ async def my_query(info, arg1: str, arg2: int = 10) -> ReturnType:
     # Access context through info.context
     db = info.context["db"]
     user = info.context.get("user")  # If auth is enabled
-    
+
     # Your logic here
     return result
 ```
@@ -276,13 +276,13 @@ This is a **CRITICAL** concept in FraiseQL v0.1.0a14+:
 ```sql
 -- Every view MUST have this structure:
 CREATE VIEW entity_view AS
-SELECT 
+SELECT
     -- Filtering columns (used in WHERE clauses)
     id,
     tenant_id,
     status,
     created_at,
-    
+
     -- Data column (used for object instantiation)
     jsonb_build_object(
         'id', id,
@@ -328,13 +328,13 @@ Add your own values:
 async def get_context(request: Request) -> dict[str, Any]:
     """Build custom context."""
     pool = request.app.state.db_pool
-    
+
     # Create repository with custom context
     repo = FraiseQLRepository(pool, context={
         "tenant_id": request.headers.get("tenant-id"),
         "mode": "development"  # or "production"
     })
-    
+
     return {
         "db": repo,
         "request": request,
@@ -360,7 +360,7 @@ async def tenant_books(info) -> list[Book]:
     """Get books for current tenant."""
     db = info.context["db"]
     tenant_id = info.context["tenant_id"]
-    
+
     return await db.find("book_view", tenant_id=tenant_id)
 ```
 
@@ -375,7 +375,7 @@ async def my_books(info) -> list[Book]:
     """Get current user's books."""
     db = info.context["db"]
     user = info.context["user"]  # Guaranteed to exist
-    
+
     return await db.find("book_view", user_id=user.id)
 ```
 
@@ -391,10 +391,10 @@ async def paginated_books(
     """Get paginated books."""
     db = info.context["db"]
     offset = (page - 1) * per_page
-    
+
     books = await db.find("book_view", limit=per_page, offset=offset)
     total = await db.count("book_view")  # Implement count method
-    
+
     return {
         "items": books,
         "total": total,

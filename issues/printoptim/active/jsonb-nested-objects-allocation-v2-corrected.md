@@ -25,7 +25,7 @@ class Allocation:
     is_future: bool
     is_reserved: bool
     is_stock: bool
-    
+
     # The JSONB column containing nested data
     data: Optional["AllocationData"]
 
@@ -38,7 +38,7 @@ class AllocationData:
     notes: Optional[str]
     notes_contact: Optional[str]
     is_provisionnal: bool = fraiseql.field(default=False)
-    
+
     # Nested objects
     machine: Optional[Machine]
     location: Optional[Location]
@@ -116,15 +116,15 @@ You can keep the `data` field as a dict and use properties for convenience:
 class Allocation:
     """Allocation type representing machine item allocations."""
     # ... all the direct fields ...
-    
+
     # Keep as dict - no automatic instantiation of nested objects
     data: dict[str, Any]
-    
+
     # Convenience properties for common access patterns
     @property
     def identifier(self) -> Optional[str]:
         return self.data.get("identifier") if self.data else None
-    
+
     @property
     def machine_data(self) -> Optional[dict]:
         """Returns the raw machine data dict."""

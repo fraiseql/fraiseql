@@ -293,4 +293,3 @@ def test_list_entity_mapping():
     assert len(result.locations) == 2
     assert result.locations[0].name == "Location 1"
     assert result.locations[1].name == "Location 2"
-

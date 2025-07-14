@@ -52,15 +52,15 @@ info.context = {
 async def my_query(info) -> Result:
     # Get required values
     db = info.context["db"]
-    
+
     # Get optional values safely
     user = info.context.get("user")
     tenant_id = info.context.get("tenant_id")
-    
+
     # Check authentication
     if not info.context["authenticated"]:
         raise GraphQLError("Authentication required")
-    
+
     return await db.find("some_view")
 ```
 
@@ -80,10 +80,10 @@ async def users(info) -> list[User]:
 async def me(info) -> User:
     if not info.context["authenticated"]:
         raise GraphQLError("Not authenticated")
-    
+
     user = info.context["user"]
     db = info.context["db"]
-    
+
     return await db.find_one("user_view", id=user.user_id)
 ```
 
@@ -111,12 +111,12 @@ You can add custom values to the context using a `context_getter` function:
 async def get_context(request: Request) -> dict[str, Any]:
     # Start with default context
     context = await get_default_context(request)
-    
+
     # Add custom values
     context["tenant_id"] = request.headers.get("x-tenant-id")
     context["api_version"] = request.headers.get("x-api-version", "v1")
     context["request_id"] = str(uuid4())
-    
+
     return context
 
 # Use in app creation
@@ -136,10 +136,10 @@ import redis.asyncio as redis
 async def get_context(request: Request) -> Dict[str, Any]:
     # Get database pool from app state
     db_pool = request.app.state.db_pool
-    
+
     # Extract tenant from subdomain or header
     tenant_id = extract_tenant_id(request)
-    
+
     # Create repository with tenant context
     repo = FraiseQLRepository(
         pool=db_pool,
@@ -148,17 +148,17 @@ async def get_context(request: Request) -> Dict[str, Any]:
             "request_id": request.headers.get("x-request-id", str(uuid4()))
         }
     )
-    
+
     # Get current user if authenticated
     user = None
     authenticated = False
     if "authorization" in request.headers:
         user = await get_current_user(request)
         authenticated = user is not None
-    
+
     # Additional services
     cache = redis.from_url("redis://localhost")
-    
+
     return {
         "db": repo,
         "user": user,
@@ -174,14 +174,14 @@ def extract_tenant_id(request: Request) -> str:
     # From header
     if "x-tenant-id" in request.headers:
         return request.headers["x-tenant-id"]
-    
+
     # From subdomain
     host = request.headers.get("host", "")
     if "." in host:
         subdomain = host.split(".")[0]
         if subdomain != "www":
             return subdomain
-    
+
     # Default
     return "default"
 ```
@@ -194,21 +194,21 @@ async def tenant_stats(info) -> TenantStats:
     tenant_id = info.context["tenant_id"]
     cache = info.context["cache"]
     feature_flags = info.context["feature_flags"]
-    
+
     # Check cache first
     cache_key = f"stats:{tenant_id}"
     cached = await cache.get(cache_key)
     if cached:
         return TenantStats(**json.loads(cached))
-    
+
     # Query database
     db = info.context["db"]
     stats = await calculate_tenant_stats(db, tenant_id)
-    
+
     # Cache if feature enabled
     if feature_flags.get("enable_stats_cache"):
         await cache.setex(cache_key, 300, json.dumps(stats))
-    
+
     return stats
 ```
 
@@ -239,15 +239,15 @@ async def my_profile(info) -> UserProfile:
     # After @requires_auth, user is guaranteed to exist
     user = info.context["user"]
     db = info.context["db"]
-    
+
     profile = await db.find_one("user_profile_view", id=user.user_id)
     if not profile:
         raise GraphQLError("Profile not found")
-    
+
     # Add computed fields
     profile.email = user.email
     profile.roles = user.roles
-    
+
     return profile
 ```
 
@@ -261,7 +261,7 @@ async def admin_dashboard(info) -> AdminStats:
     # User is guaranteed to be admin
     user = info.context["user"]
     db = info.context["db"]
-    
+
     return await db.find_one("admin_stats_view")
 
 @fraiseql.query
@@ -269,7 +269,7 @@ async def admin_dashboard(info) -> AdminStats:
 async def my_resources(info) -> list[Resource]:
     user = info.context["user"]
     db = info.context["db"]
-    
+
     # Filter based on user role
     if "admin" in user.roles:
         # Admins see all
@@ -285,10 +285,10 @@ async def my_resources(info) -> list[Resource]:
 async def get_context(request: Request) -> dict[str, Any]:
     # Custom auth logic
     auth_header = request.headers.get("authorization", "")
-    
+
     user = None
     authenticated = False
-    
+
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
         try:
@@ -304,14 +304,14 @@ async def get_context(request: Request) -> dict[str, Any]:
             authenticated = True
         except jwt.InvalidTokenError:
             pass  # Invalid token, user remains None
-    
+
     # Get default context and add auth
     context = await get_default_context(request)
     context.update({
         "user": user,
         "authenticated": authenticated
     })
-    
+
     return context
 ```
 
@@ -331,7 +331,7 @@ class Post:
     id: UUID
     title: str
     author_id: UUID
-    
+
     @fraiseql.field
     async def author(self, info) -> User:
         # Get loader from registry
@@ -343,11 +343,11 @@ class UserLoader(DataLoader[UUID, User]):
     def __init__(self, db: FraiseQLRepository):
         super().__init__()
         self.db = db
-    
+
     async def batch_load(self, user_ids: list[UUID]) -> list[Optional[User]]:
         # Batch query
         users = await self.db.find("user_view", id=user_ids)
-        
+
         # Return in same order as requested
         user_map = {u.id: u for u in users}
         return [user_map.get(uid) for uid in user_ids]
@@ -358,15 +358,15 @@ class UserLoader(DataLoader[UUID, User]):
 ```python
 async def get_context(request: Request) -> dict[str, Any]:
     context = await get_default_context(request)
-    
+
     # Pre-create loaders
     db = context["db"]
     registry = context["loader_registry"]
-    
+
     registry.register(UserLoader(db))
     registry.register(PostLoader(db))
     registry.register(CommentLoader(db))
-    
+
     return context
 ```
 
@@ -384,12 +384,12 @@ async def get_context(request: Request) -> dict[str, Any]:
     tenant_id = request.headers.get("x-tenant-id")
     if not tenant_id:
         raise HTTPException(400, "Missing tenant ID")
-    
+
     # Validate tenant
     tenant = await validate_tenant(tenant_id)
     if not tenant:
         raise HTTPException(404, "Invalid tenant")
-    
+
     # Create tenant-scoped repository
     db_pool = request.app.state.db_pool
     repo = FraiseQLRepository(
@@ -399,14 +399,14 @@ async def get_context(request: Request) -> dict[str, Any]:
             "tenant": tenant
         }
     )
-    
+
     # Get user within tenant context
     user = None
     authenticated = False
     if auth_header := request.headers.get("authorization"):
         user = await get_tenant_user(tenant_id, auth_header)
         authenticated = user is not None
-    
+
     return {
         "db": repo,
         "tenant_id": tenant_id,
@@ -425,14 +425,14 @@ async def get_context(request: Request) -> dict[str, Any]:
 async def tenant_users(info) -> list[User]:
     tenant_id = info.context["tenant_id"]
     db = info.context["db"]
-    
+
     # Always filter by tenant
     return await db.find("user_view", tenant_id=tenant_id)
 
 @fraiseql.query
 async def tenant_settings(info) -> TenantSettings:
     tenant = info.context["tenant"]
-    
+
     return TenantSettings(
         id=tenant.id,
         name=tenant.name,
@@ -450,11 +450,11 @@ async def update_tenant_settings(
     tenant_id = info.context["tenant_id"]
     user = info.context["user"]
     db = info.context["db"]
-    
+
     # Verify user belongs to tenant
     if user.tenant_id != tenant_id:
         raise GraphQLError("Access denied")
-    
+
     # Update tenant
     result = await db.call_function(
         "update_tenant",
@@ -462,7 +462,7 @@ async def update_tenant_settings(
         updates=input.__dict__,
         updated_by=user.user_id
     )
-    
+
     return TenantSettings(**result)
 ```
 
@@ -480,7 +480,7 @@ from unittest.mock import Mock, AsyncMock
 def mock_context():
     """Create mock context for testing."""
     mock_db = AsyncMock(spec=FraiseQLRepository)
-    
+
     return {
         "db": mock_db,
         "user": UserContext(
@@ -507,10 +507,10 @@ async def test_user_query(mock_info):
     # Setup mock response
     mock_user = User(id="123", name="Test User", email="test@example.com")
     mock_info.context["db"].find_one.return_value = mock_user
-    
+
     # Test query
     result = await user(mock_info, id="123")
-    
+
     # Verify
     assert result == mock_user
     mock_info.context["db"].find_one.assert_called_once_with(
@@ -526,12 +526,12 @@ async def test_user_query(mock_info):
 async def test_context(test_db_pool):
     """Create real context for integration tests."""
     repo = FraiseQLRepository(test_db_pool)
-    
+
     return {
         "db": repo,
         "user": UserContext(
             user_id="test-user",
-            email="test@example.com", 
+            email="test@example.com",
             roles=["admin"],
             permissions=["users:read", "users:write"],
             metadata={}
@@ -546,15 +546,15 @@ async def test_create_user_integration(test_context):
     # Create info object
     info = Mock()
     info.context = test_context
-    
+
     # Test mutation
     input_data = CreateUserInput(
         email="new@example.com",
         name="New User"
     )
-    
+
     result = await create_user(info, input=input_data)
-    
+
     # Verify in database
     db = test_context["db"]
     created = await db.find_one("user_view", email="new@example.com")
@@ -614,7 +614,7 @@ async def tenant_specific_query(info) -> Result:
     # Validate required context
     if "tenant_id" not in info.context:
         raise GraphQLError("Tenant context required")
-    
+
     tenant_id = info.context["tenant_id"]
     # Continue with query...
 ```
@@ -625,7 +625,7 @@ async def tenant_specific_query(info) -> Result:
 async def get_context(request: Request) -> dict[str, Any]:
     """
     Create GraphQL context.
-    
+
     Adds:
     - tenant_id: From X-Tenant-ID header
     - feature_flags: Tenant-specific features

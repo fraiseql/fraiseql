@@ -1,7 +1,7 @@
 # Production Mode JSONB Extraction Enhancement
 
-**Date:** 2025-07-12  
-**Version:** 0.1.0b12+  
+**Date:** 2025-07-12
+**Version:** 0.1.0b12+
 **Feature:** Automatic JSONB data extraction in production mode
 
 ## Overview
@@ -122,7 +122,7 @@ async def products(info) -> list[Product]:
 - When you need maximum performance
 - Standard JSONB-based tables
 
-### Development Mode  
+### Development Mode
 - Complex business logic in type methods
 - Runtime type validation needed
 - Custom property getters/setters
@@ -138,6 +138,6 @@ async def products(info) -> list[Product]:
 ## Compatibility
 
 - Works with all existing JSONB-based tables/views
-- No changes needed to GraphQL types or resolvers  
+- No changes needed to GraphQL types or resolvers
 - Backward compatible with non-JSONB tables
 - Available in FraiseQL v0.1.0b12+

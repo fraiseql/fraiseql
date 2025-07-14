@@ -93,7 +93,7 @@ class User:
     name: str = fraise_field(description="User's display name")
     email: str = fraise_field(description="User's email address")
     created_at: datetime = fraise_field(description="User creation timestamp")
-    
+
     # Automatic relationship resolution
     posts: list["Post"] = fraise_field(description="User's posts")
 
@@ -106,7 +106,7 @@ class Post:
     published: bool = fraise_field(default=False, description="Publication status")
     created_at: datetime = fraise_field(description="Post creation timestamp")
     user_id: UUID = fraise_field(description="Author's user ID")
-    
+
     # Automatic relationship resolution
     author: User = fraise_field(description="Post author")
 
@@ -178,7 +178,7 @@ def resolve_post_author(post, info):
 def resolve_create_user(_, info, input):
     try:
         db = get_db_connection()
-        
+
         # Check for existing email
         existing = db.execute("SELECT id FROM users WHERE email = ?", (input["email"],)).fetchone()
         if existing:
@@ -187,20 +187,20 @@ def resolve_create_user(_, info, input):
                 "message": "Email already exists",
                 "field": "email"
             }
-        
+
         # Create user
         cursor = db.execute(
             "INSERT INTO users (name, email) VALUES (?, ?) RETURNING *",
             (input["name"], input["email"])
         )
         user = cursor.fetchone()
-        
+
         return {
             "success": True,
             "user": user,
             "message": "User created successfully"
         }
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -239,25 +239,25 @@ async def posts(info, published: bool | None = None) -> list[Post]:
 async def create_user(info, input: CreateUserInput) -> UserSuccess | UserError:
     """Create user with proper error handling."""
     repository = FraiseQLRepository(info.context["db"])
-    
+
     # Check for existing email
     existing = await repository.get_one(
-        User, 
+        User,
         where={"email": {"_eq": input.email}}
     )
-    
+
     if existing:
         return UserError(
             message="Email already registered",
             field="email"
         )
-    
+
     # Create user
     user = await repository.create(User, {
         "name": input.name,
         "email": input.email
     })
-    
+
     return UserSuccess(
         user=user,
         message="User created successfully"
@@ -277,24 +277,24 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
-    
+
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     email = Column(String(120), unique=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     posts = relationship("Post", back_populates="author")
 
 class Post(Base):
     __tablename__ = 'posts'
-    
+
     id = Column(Integer, primary_key=True)
     title = Column(String(200), nullable=False)
     content = Column(String, nullable=False)
     published = Column(Boolean, default=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     author = relationship("User", back_populates="posts")
 ```
 
@@ -326,7 +326,7 @@ CREATE INDEX idx_posts_user_id ON posts USING GIN ((data->>'user_id'));
 
 -- Views for automatic relationship resolution
 CREATE VIEW posts_with_author AS
-SELECT 
+SELECT
     p.id,
     p.data || jsonb_build_object(
         'author', u.data
@@ -337,11 +337,11 @@ FROM posts p
 LEFT JOIN users u ON (p.data->>'user_id')::uuid = u.id;
 
 CREATE VIEW users_with_posts AS
-SELECT 
+SELECT
     u.id,
     u.data || jsonb_build_object(
         'posts', COALESCE(
-            json_agg(p.data) FILTER (WHERE p.id IS NOT NULL), 
+            json_agg(p.data) FILTER (WHERE p.id IS NOT NULL),
             '[]'::json
         )
     ) as data,
@@ -364,26 +364,26 @@ def resolve_create_user(_, info, input):
         # Validation
         if not input.get("email") or "@" not in input["email"]:
             raise GraphQLError("Invalid email format")
-        
+
         # Business logic
         db = get_db_connection()
         existing = db.execute("SELECT id FROM users WHERE email = ?", (input["email"],)).fetchone()
-        
+
         if existing:
             raise GraphQLError("Email already exists")
-        
+
         # Create user
         cursor = db.execute(
             "INSERT INTO users (name, email) VALUES (?, ?) RETURNING *",
             (input["name"], input["email"])
         )
         user = cursor.fetchone()
-        
+
         return {
             "user": user,
             "success": True
         }
-        
+
     except GraphQLError:
         raise
     except Exception as e:
@@ -403,32 +403,32 @@ class CreateUserError:
 async def create_user(info, input: CreateUserInput) -> UserSuccess | CreateUserError:
     """Create user with comprehensive error handling."""
     repository = FraiseQLRepository(info.context["db"])
-    
+
     # Input validation is automatic through type system
     # Business logic with proper error handling
     try:
         existing = await repository.get_one(
-            User, 
+            User,
             where={"email": {"_eq": input.email}}
         )
-        
+
         if existing:
             return CreateUserError(
                 message="Email already registered",
                 field="email",
                 code="EMAIL_EXISTS"
             )
-        
+
         user = await repository.create(User, {
             "name": input.name,
             "email": input.email
         })
-        
+
         return UserSuccess(
             user=user,
             message="User created successfully"
         )
-        
+
     except Exception as e:
         return CreateUserError(
             message="Failed to create user",
@@ -450,10 +450,10 @@ app = Flask(__name__)
 # Load schema and resolvers
 type_defs = load_schema_from_path("schema.graphql")
 schema = make_executable_schema(
-    type_defs, 
-    query, 
-    mutation, 
-    user_type, 
+    type_defs,
+    query,
+    mutation,
+    user_type,
     post_type
 )
 
@@ -464,14 +464,14 @@ def graphql_playground():
 @app.route("/graphql", methods=["POST"])
 def graphql_server():
     data = request.get_json()
-    
+
     success, result = graphql_sync(
         schema,
         data,
         context_value={"request": request},
         debug=app.debug
     )
-    
+
     status_code = 200 if success else 400
     return jsonify(result), status_code
 
@@ -545,7 +545,7 @@ from fraiseql import subscription
 async def user_updates(info) -> User:
     """Real-time user updates with automatic optimization."""
     repository = FraiseQLRepository(info.context["db"])
-    
+
     # Built-in subscription management with caching
     async for user in repository.subscribe_to_changes(User):
         yield user
@@ -572,7 +572,7 @@ def test_get_users():
             }
         }
     """
-    
+
     success, result = graphql_sync(schema, {"query": query})
     assert success
     assert "data" in result
@@ -592,7 +592,7 @@ def test_create_user():
             }
         }
     """
-    
+
     success, result = graphql_sync(schema, {"query": mutation})
     assert success
     assert result["data"]["createUser"]["success"] is True
@@ -607,7 +607,7 @@ from fraiseql.testing import GraphQLTestClient
 async def test_get_users(db_session, clear_registry):
     """Test getting all users."""
     client = GraphQLTestClient(schema, context={"db": db_session})
-    
+
     query = """
         query {
             users {
@@ -617,7 +617,7 @@ async def test_get_users(db_session, clear_registry):
             }
         }
     """
-    
+
     result = await client.execute(query)
     assert not result.errors
     assert len(result.data["users"]) >= 0
@@ -626,7 +626,7 @@ async def test_get_users(db_session, clear_registry):
 async def test_create_user_success(db_session, clear_registry):
     """Test successful user creation."""
     client = GraphQLTestClient(schema, context={"db": db_session})
-    
+
     mutation = """
         mutation CreateUser($input: CreateUserInput!) {
             createUser(input: $input) {
@@ -646,14 +646,14 @@ async def test_create_user_success(db_session, clear_registry):
             }
         }
     """
-    
+
     variables = {
         "input": {
             "name": "Test User",
             "email": "test@example.com"
         }
     }
-    
+
     result = await client.execute(mutation, variables)
     assert not result.errors
     assert result.data["createUser"]["message"] == "User created successfully"
@@ -662,10 +662,10 @@ async def test_create_user_success(db_session, clear_registry):
 async def test_create_user_duplicate_email(db_session, clear_registry):
     """Test user creation with duplicate email."""
     client = GraphQLTestClient(schema, context={"db": db_session})
-    
+
     # Create first user
     await client.execute(create_user_mutation, first_user_variables)
-    
+
     # Try to create user with same email
     result = await client.execute(create_user_mutation, duplicate_email_variables)
     assert not result.errors
@@ -685,10 +685,10 @@ def require_auth(f):
     def decorated_function(*args, **kwargs):
         info = args[1]  # GraphQL info object
         token = info.context.get("request").headers.get("Authorization")
-        
+
         if not token:
             raise GraphQLError("Authentication required")
-        
+
         try:
             # Remove "Bearer " prefix
             token = token.replace("Bearer ", "")
@@ -696,7 +696,7 @@ def require_auth(f):
             info.context["user"] = payload
         except jwt.InvalidTokenError:
             raise GraphQLError("Invalid token")
-        
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -737,7 +737,7 @@ async def admin_create_user(info, input: CreateUserInput) -> UserSuccess | UserE
 query {
   users {          # 1 query to get users
     name
-    posts {        # N queries (one per user) 
+    posts {        # N queries (one per user)
       title
       author {     # N more queries for authors
         name

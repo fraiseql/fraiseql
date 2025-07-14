@@ -503,7 +503,7 @@ groups:
   rules:
   - alert: HighQueryLatency
     expr: |
-      histogram_quantile(0.99, 
+      histogram_quantile(0.99,
         sum(rate(fraiseql_graphql_query_duration_seconds_bucket[5m])) by (le, operation_name)
       ) > 5
     for: 5m
@@ -649,13 +649,13 @@ route:
     receiver: pagerduty-critical
     group_wait: 0s
     repeat_interval: 5m
-  
+
   # Security alerts get special handling
   - match:
       team: security
     receiver: security-team
     group_wait: 30s
-    
+
   # Performance warnings to Slack during business hours
   - match:
       severity: warning
@@ -663,7 +663,7 @@ route:
     receiver: slack-performance
     active_time_intervals:
     - business-hours
-    
+
   # Low priority info alerts
   - match:
       severity: info
@@ -872,13 +872,13 @@ alerts:
     severity: critical
     estimated_resolution_time: "15 minutes"
     escalation_path: "SRE → Engineering Manager → CTO"
-    
+
   DatabaseConnectionsExhausted:
     runbook_url: "https://runbooks.company.com/fraiseql/db-connections"
     severity: critical
     estimated_resolution_time: "10 minutes"
     escalation_path: "Backend Team → Database Team"
-    
+
   HighQueryLatency:
     runbook_url: "https://runbooks.company.com/fraiseql/performance"
     severity: warning
@@ -897,10 +897,10 @@ from prometheus_client import CollectorRegistry
 
 class FraiseQLCustomMetrics:
     """Custom business and application metrics for FraiseQL."""
-    
+
     def __init__(self, registry: CollectorRegistry):
         self.registry = registry
-        
+
         # Business metrics
         self.user_queries = Counter(
             'fraiseql_user_queries_total',
@@ -908,7 +908,7 @@ class FraiseQLCustomMetrics:
             ['user_id', 'user_type', 'subscription_tier'],
             registry=registry
         )
-        
+
         self.query_complexity = Histogram(
             'fraiseql_query_complexity_score',
             'GraphQL query complexity scores',
@@ -916,14 +916,14 @@ class FraiseQLCustomMetrics:
             buckets=[1, 5, 10, 25, 50, 100, 200],
             registry=registry
         )
-        
+
         self.active_subscriptions = Gauge(
             'fraiseql_active_subscriptions',
             'Number of active GraphQL subscriptions',
             ['subscription_type'],
             registry=registry
         )
-        
+
         # Application-specific metrics
         self.schema_validation_errors = Counter(
             'fraiseql_schema_validation_errors_total',
@@ -931,7 +931,7 @@ class FraiseQLCustomMetrics:
             ['error_type', 'field_path'],
             registry=registry
         )
-        
+
         self.feature_usage = Counter(
             'fraiseql_feature_usage_total',
             'Feature usage tracking',
@@ -971,7 +971,7 @@ async def get_user(info, user_id: str) -> User:
         user_type=user_context.user_type,
         tier=user_context.subscription_tier
     )
-    
+
     # Calculate query complexity
     complexity = calculate_query_complexity(info.field_nodes)
     custom_metrics.record_query_complexity(
@@ -979,7 +979,7 @@ async def get_user(info, user_id: str) -> User:
         user_type=user_context.user_type,
         complexity=complexity
     )
-    
+
     # Your resolver logic here
     return await repository.get_user(user_id)
 ```
@@ -1021,7 +1021,7 @@ async def get_user(info, user_id: str) -> User:
     },
     {
       "title": "Error Rate %",
-      "type": "stat", 
+      "type": "stat",
       "targets": [{
         "expr": "100 * sum(rate(fraiseql_graphql_queries_errors[1m])) / sum(rate(fraiseql_graphql_queries_total[1m]))",
         "refId": "B"
@@ -1101,7 +1101,7 @@ async def get_user(info, user_id: str) -> User:
         },
         {
           "expr": "rate(fraiseql_cache_misses_total[1m])",
-          "legendFormat": "Misses/sec", 
+          "legendFormat": "Misses/sec",
           "refId": "G"
         }
       ]

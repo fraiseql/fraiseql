@@ -175,7 +175,7 @@ class FraiseQLConfig(BaseSettings):
     # JSONB Extraction settings
     jsonb_extraction_enabled: bool = True  # Enable JSONB column extraction in production mode
     # Default JSONB column names to try
-    jsonb_default_columns: list[str] = ["data", "json_data", "jsonb_data"]  
+    jsonb_default_columns: list[str] = ["data", "json_data", "jsonb_data"]
     jsonb_auto_detect: bool = True  # Auto-detect JSONB columns by content analysis
 
     # Token revocation settings

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Users table  
+-- Users table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id),
@@ -69,8 +69,8 @@ DECLARE
 BEGIN
     -- Validate organization exists and is active
     IF NOT EXISTS (
-        SELECT 1 FROM organizations 
-        WHERE id = input_pk_organization 
+        SELECT 1 FROM organizations
+        WHERE id = input_pk_organization
         AND active = true
     ) THEN
         v_result.status := 'error';
@@ -78,11 +78,11 @@ BEGIN
         v_result.object_data := jsonb_build_object('code', 'INVALID_ORGANIZATION');
         RETURN v_result;
     END IF;
-    
+
     -- Validate user belongs to organization
     IF NOT EXISTS (
-        SELECT 1 FROM users 
-        WHERE id = input_created_by 
+        SELECT 1 FROM users
+        WHERE id = input_created_by
         AND organization_id = input_pk_organization
         AND active = true
     ) THEN
@@ -91,7 +91,7 @@ BEGIN
         v_result.object_data := jsonb_build_object('code', 'UNAUTHORIZED_USER');
         RETURN v_result;
     END IF;
-    
+
     -- Validate required fields
     IF input_json->>'name' IS NULL OR input_json->>'address' IS NULL THEN
         v_result.status := 'error';
@@ -99,11 +99,11 @@ BEGIN
         v_result.object_data := jsonb_build_object('code', 'MISSING_REQUIRED_FIELDS');
         RETURN v_result;
     END IF;
-    
+
     -- Create the location with proper tenant isolation
     INSERT INTO locations (
         id,
-        organization_id,    -- Ensures tenant isolation 
+        organization_id,    -- Ensures tenant isolation
         created_by,         -- Audit trail
         name,
         address,
@@ -120,16 +120,16 @@ BEGIN
         COALESCE((input_json->>'longitude')::NUMERIC, NULL),
         NOW()
     ) RETURNING id INTO v_location_id;
-    
+
     -- Return success result
     v_result.status := 'success';
     v_result.message := 'Location created successfully';
     v_result.object_data := jsonb_build_object(
         'location_id', v_location_id
     );
-    
+
     RETURN v_result;
-    
+
 EXCEPTION
     WHEN OTHERS THEN
         v_result.status := 'error';
@@ -155,11 +155,11 @@ DECLARE
 BEGIN
     -- Get location ID
     v_location_id := (input_json->>'id')::UUID;
-    
+
     -- Validate location exists and belongs to organization
     IF NOT EXISTS (
-        SELECT 1 FROM locations 
-        WHERE id = v_location_id 
+        SELECT 1 FROM locations
+        WHERE id = v_location_id
         AND organization_id = input_pk_organization
         AND active = true
     ) THEN
@@ -168,7 +168,7 @@ BEGIN
         v_result.object_data := jsonb_build_object('code', 'LOCATION_NOT_FOUND');
         RETURN v_result;
     END IF;
-    
+
     -- Update fields that are provided
     UPDATE locations SET
         name = COALESCE(input_json->>'name', name),
@@ -178,13 +178,13 @@ BEGIN
         updated_by = input_updated_by,
         updated_at = NOW()
     WHERE id = v_location_id;
-    
+
     -- Track which fields were updated
     IF input_json ? 'name' THEN v_updated_fields := array_append(v_updated_fields, 'name'); END IF;
     IF input_json ? 'address' THEN v_updated_fields := array_append(v_updated_fields, 'address'); END IF;
     IF input_json ? 'latitude' THEN v_updated_fields := array_append(v_updated_fields, 'latitude'); END IF;
     IF input_json ? 'longitude' THEN v_updated_fields := array_append(v_updated_fields, 'longitude'); END IF;
-    
+
     -- Return success result
     v_result.status := 'success';
     v_result.message := 'Location updated successfully';
@@ -192,9 +192,9 @@ BEGIN
         'location_id', v_location_id,
         'updated_fields', to_jsonb(v_updated_fields)
     );
-    
+
     RETURN v_result;
-    
+
 EXCEPTION
     WHEN OTHERS THEN
         v_result.status := 'error';
@@ -207,7 +207,7 @@ $$;
 -- Delete location function with context parameters
 CREATE OR REPLACE FUNCTION app.delete_location(
     input_pk_organization UUID,  -- Tenant ID from context
-    input_deleted_by UUID,       -- User ID from context  
+    input_deleted_by UUID,       -- User ID from context
     input_json JSONB             -- Contains location ID
 ) RETURNS app.mutation_result
 LANGUAGE plpgsql
@@ -218,11 +218,11 @@ DECLARE
     v_result app.mutation_result;
 BEGIN
     v_location_id := (input_json->>'id')::UUID;
-    
+
     -- Validate location exists and belongs to organization
     IF NOT EXISTS (
-        SELECT 1 FROM locations 
-        WHERE id = v_location_id 
+        SELECT 1 FROM locations
+        WHERE id = v_location_id
         AND organization_id = input_pk_organization
         AND active = true
     ) THEN
@@ -231,23 +231,23 @@ BEGIN
         v_result.object_data := jsonb_build_object('code', 'LOCATION_NOT_FOUND');
         RETURN v_result;
     END IF;
-    
+
     -- Soft delete the location (preserve audit trail)
     UPDATE locations SET
         active = false,
         updated_by = input_deleted_by,
         updated_at = NOW()
     WHERE id = v_location_id;
-    
+
     -- Return success result
     v_result.status := 'success';
     v_result.message := 'Location deleted successfully';
     v_result.object_data := jsonb_build_object(
         'location_id', v_location_id
     );
-    
+
     RETURN v_result;
-    
+
 EXCEPTION
     WHEN OTHERS THEN
         v_result.status := 'error';
@@ -274,18 +274,18 @@ BEGIN
     -- Extract context from the input data (not ideal)
     v_organization_id := (input_data->>'tenant_id')::UUID;
     v_created_by := (input_data->>'created_by')::UUID;
-    
+
     -- Validate organization
     IF NOT EXISTS (
-        SELECT 1 FROM organizations 
-        WHERE id = v_organization_id 
+        SELECT 1 FROM organizations
+        WHERE id = v_organization_id
         AND active = true
     ) THEN
         v_result.status := 'error';
         v_result.message := 'Organization not found';
         RETURN v_result;
     END IF;
-    
+
     -- Create category
     INSERT INTO categories (
         organization_id,
@@ -298,13 +298,13 @@ BEGIN
         input_data->>'name',
         input_data->>'description'
     ) RETURNING id INTO v_category_id;
-    
+
     v_result.status := 'success';
     v_result.message := 'Category created successfully';
     v_result.object_data := jsonb_build_object('category_id', v_category_id);
-    
+
     RETURN v_result;
-    
+
 EXCEPTION
     WHEN OTHERS THEN
         v_result.status := 'error';
@@ -314,7 +314,7 @@ END;
 $$;
 
 -- Create some sample data for testing
-INSERT INTO organizations (id, name) VALUES 
+INSERT INTO organizations (id, name) VALUES
     ('550e8400-e29b-41d4-a716-446655440000', 'Acme Corporation'),
     ('550e8400-e29b-41d4-a716-446655440001', 'Widget Inc')
 ON CONFLICT (id) DO NOTHING;

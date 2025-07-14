@@ -74,7 +74,7 @@ pip install fraiseql[subscriptions]
 
 ## Impact
 - **Breaking Change**: No, this would be backwards compatible
-- **Benefits**: 
+- **Benefits**:
   - Smaller dependency footprint for users not needing subscriptions
   - Faster installation
   - Easier to use in environments where Redis is not available

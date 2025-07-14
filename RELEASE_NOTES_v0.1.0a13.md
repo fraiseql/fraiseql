@@ -32,7 +32,7 @@ print(isinstance(product, Product))  # True
 
 # Production mode - returns raw dicts
 repo = FraiseQLRepository(pool, {"mode": "production"})
-product = await repo.find_one("products", id=product_id)  
+product = await repo.find_one("products", id=product_id)
 print(product["name"])  # Dictionary access
 print(isinstance(product, dict))  # True
 ```

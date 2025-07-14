@@ -1,7 +1,7 @@
 # Solution: FraiseQL JSONB Type Instantiation Issue
 
-**Date:** 2025-07-12  
-**Issue:** GraphQL queries returning raw dictionaries instead of typed objects  
+**Date:** 2025-07-12
+**Issue:** GraphQL queries returning raw dictionaries instead of typed objects
 **Root Cause:** FraiseQL repository running in production mode
 
 ## The Problem
@@ -85,7 +85,7 @@ app = create_fraiseql_app(
    ```python
    # Correct
    register_type_for_view("tv_machine", Machine)
-   
+
    # Incorrect (causes "relation does not exist")
    register_type_for_view("public.tv_machine", Machine)
    ```

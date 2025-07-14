@@ -16,16 +16,16 @@ from fraiseql.db import FraiseQLRepository
 async def get_context(request: Request) -> dict[str, Any]:
     """Get context for GraphQL requests."""
     pool = get_db_pool(request)
-    
+
     # Create repository with context
     context = {
         "mode": "development",  # or "production"
         "tenant_id": request.headers.get("tenant-id"),
     }
-    
+
     # FraiseQLRepository manages its own connections
     repo = FraiseQLRepository(pool, context=context)
-    
+
     return {
         "db": repo,  # Pass repository, not connection
         "request": request,
@@ -110,13 +110,13 @@ For multi-tenancy, pass tenant info through the repository context:
 async def get_context(request: Request) -> dict[str, Any]:
     pool = get_db_pool()
     tenant_id = request.headers.get("tenant-id")
-    
+
     # Pass tenant_id in repository context
     repo = FraiseQLRepository(pool, context={
         "tenant_id": tenant_id,
         "mode": "development",  # or from environment
     })
-    
+
     return {
         "db": repo,
         "request": request,
@@ -153,13 +153,13 @@ class Allocation:
 async def get_context(request: Request) -> dict[str, Any]:
     # Get pool from app state
     pool = request.app.state.db_pool
-    
+
     # Create repository with request-specific context
     repo = FraiseQLRepository(pool, context={
         "tenant_id": request.headers.get("tenant-id"),
         "mode": "development",
     })
-    
+
     return {
         "db": repo,
         "request": request,
