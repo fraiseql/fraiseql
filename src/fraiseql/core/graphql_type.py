@@ -10,6 +10,7 @@ Supports:
 """
 
 import logging
+import types
 from enum import Enum
 from types import UnionType
 from typing import (
@@ -336,19 +337,56 @@ def convert_type_to_graphql_output(
                 for name, field in fields.items():
                     field_type = field.field_type or type_hints.get(name)
                     if field_type is not None:
-                        # Create a field resolver that handles enum serialization
-                        def make_field_resolver(field_name: str):
+                        # Create a field resolver that handles enum serialization and nested object conversion
+                        def make_field_resolver(field_name: str, field_type: Any):
                             def resolve_field(obj: Any, info: Any) -> Any:
                                 value = getattr(obj, field_name, None)
+                                
+                                # Handle None values
+                                if value is None:
+                                    return None
+                                
                                 # Handle enum serialization at field level
                                 if isinstance(value, Enum):
                                     return value.name
                                 if isinstance(value, list):
-                                    # Handle lists of enums
-                                    return [
-                                        item.name if isinstance(item, Enum) else item
-                                        for item in value
-                                    ]
+                                    # Handle lists of enums or nested objects
+                                    result = []
+                                    for item in value:
+                                        if isinstance(item, Enum):
+                                            result.append(item.name)
+                                        elif isinstance(item, dict) and hasattr(field_type, "__args__"):
+                                            # Check if list contains FraiseQL types that need conversion
+                                            list_item_type = field_type.__args__[0] if field_type.__args__ else None
+                                            if list_item_type and hasattr(list_item_type, "__fraiseql_definition__"):
+                                                # Convert dict to typed object
+                                                if hasattr(list_item_type, "from_dict"):
+                                                    result.append(list_item_type.from_dict(item))
+                                                else:
+                                                    result.append(item)
+                                            else:
+                                                result.append(item)
+                                        else:
+                                            result.append(item)
+                                    return result
+                                
+                                # Handle nested objects - check if value is dict but field expects FraiseQL type
+                                if isinstance(value, dict):
+                                    # Extract actual type from Optional if needed
+                                    actual_field_type = field_type
+                                    origin = get_origin(field_type)
+                                    if origin is Union or origin is types.UnionType:
+                                        args = get_args(field_type)
+                                        non_none_types = [t for t in args if t is not type(None)]
+                                        if non_none_types:
+                                            actual_field_type = non_none_types[0]
+                                    
+                                    # Check if the field type is a FraiseQL type
+                                    if hasattr(actual_field_type, "__fraiseql_definition__"):
+                                        # Convert dict to typed object using from_dict
+                                        if hasattr(actual_field_type, "from_dict"):
+                                            return actual_field_type.from_dict(value)
+                                
                                 return value
 
                             return resolve_field
@@ -366,7 +404,7 @@ def convert_type_to_graphql_output(
                         gql_fields[graphql_field_name] = GraphQLField(
                             type_=convert_type_to_graphql_output(field_type),
                             description=field.description,
-                            resolve=make_field_resolver(name),
+                            resolve=make_field_resolver(name, field_type),
                         )
 
                 # Check for custom field methods (@dataloader_field, @field, etc.)

@@ -22,8 +22,9 @@ def test_basic_from_dict() -> None:
     user_data = {"id": str(uuid4()), "name": "John Doe", "age": 30, "isActive": True}
 
     user = User.from_dict(user_data)
-    # UUID field gets the string value directly
-    assert user.id == user_data["id"]
+    # UUID field now gets properly converted to UUID object
+    assert isinstance(user.id, UUID)
+    assert str(user.id) == user_data["id"]
     assert user.name == "John Doe"
     assert user.age == 30
     assert user.is_active is True
@@ -57,9 +58,11 @@ def test_from_dict_with_nested_types() -> None:
 
     user = User.from_dict(user_data)
     assert user.name == "Jane Smith"
-    # Note: This will pass the dict as-is since we don't recursively convert nested objects
-    assert isinstance(user.primary_address, dict)
-    assert user.primary_address["street"] == "123 Main St"
+    # Now nested objects are properly instantiated
+    assert isinstance(user.primary_address, Address)
+    assert user.primary_address.street == "123 Main St"
+    assert user.primary_address.city == "New York"
+    assert user.primary_address.zip_code == "10001"
 
 
 def test_from_dict_with_optional_fields() -> None:
@@ -170,8 +173,9 @@ def test_from_dict_with_uuid() -> None:
     }
 
     account = Account.from_dict(account_data)
-    # UUID field gets the string value directly
-    assert account.id == account_data["id"]
+    # UUID field now gets properly converted to UUID object
+    assert isinstance(account.id, UUID)
+    assert str(account.id) == account_data["id"]
     assert account.name == "Savings Account"
     assert account.balance == 1000.50
 
