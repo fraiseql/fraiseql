@@ -7,11 +7,12 @@ results return null for the object field despite successful creation.
 from uuid import UUID
 
 import pytest
+from graphql import execute
 
-from fraiseql import FraiseQL
-from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.types.common_outputs import MutationResultBase
-from fraiseql.types.types import failure, fraise_type, input_type, mutation, success
+from fraiseql import failure, fraise_type, mutation, success
+from fraiseql import input as input_type
+from fraiseql.db import FraiseQLRepository
+from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
 # Define the GraphQL types
@@ -30,13 +31,16 @@ class CreateLocationInput:
 
 
 @success
-class CreateLocationSuccess(MutationResultBase):
+class CreateLocationSuccess:
+    status: str = "success"
+    message: str = ""
     location: Location | None = None
 
 
 @failure
-class CreateLocationError(MutationResultBase):
-    pass
+class CreateLocationError:
+    status: str = "error"
+    message: str = ""
 
 
 @mutation(
@@ -56,10 +60,13 @@ class TestMutationObjectDataMapping:
     @pytest.fixture
     def setup_database(self, db_connection_committed):
         """Set up test database schema and function."""
-        db = db_connection_committed
+        conn = db_connection_committed
+
+        # Create app schema
+        conn.execute("CREATE SCHEMA IF NOT EXISTS app")
 
         # Create the mutation_result type
-        db.execute("""
+        conn.execute("""
             CREATE TYPE app.mutation_result AS (
                 id UUID,
                 updated_fields TEXT[],
@@ -71,18 +78,23 @@ class TestMutationObjectDataMapping:
         """)
 
         # Create the function that returns mutation_result
-        db.execute("""
+        conn.execute("""
             CREATE OR REPLACE FUNCTION app.create_location(
-                p_name TEXT,
-                p_identifier TEXT
+                p_input JSONB
             ) RETURNS app.mutation_result AS $$
             DECLARE
                 v_id UUID;
                 v_result app.mutation_result;
+                v_name TEXT;
+                v_identifier TEXT;
             BEGIN
+                -- Extract fields from input
+                v_name := p_input->>'name';
+                v_identifier := p_input->>'identifier';
+
                 -- Generate a new ID
                 v_id := gen_random_uuid();
-                
+
                 -- Build the result
                 v_result.id := v_id;
                 v_result.updated_fields := ARRAY['created'];
@@ -90,55 +102,72 @@ class TestMutationObjectDataMapping:
                 v_result.message := 'Location successfully created.';
                 v_result.object_data := jsonb_build_object(
                     'id', v_id,
-                    'name', p_name,
-                    'identifier', p_identifier,
+                    'name', v_name,
+                    'identifier', v_identifier,
                     'active', true
                 );
                 v_result.extra_metadata := jsonb_build_object(
                     'entity', 'location',
                     'trigger', 'api_create'
                 );
-                
+
                 RETURN v_result;
             END;
             $$ LANGUAGE plpgsql;
         """)
 
-        db.commit()
-        return db
+        conn.commit()
+        return conn
 
     @pytest.fixture
-    def fraiseql_production(self, setup_database):
-        """Create FraiseQL instance in production mode."""
-        config = FraiseQLConfig(
-            environment="production",
-            database_url=setup_database.url,
-            enable_introspection=True,
+    def graphql_schema(self):
+        """Create GraphQL schema with the mutation."""
+        return build_fraiseql_schema(
+            mutation_resolvers=[CreateLocation],
+            camel_case_fields=True,
         )
-
-        fraiseql = FraiseQL(config)
-        fraiseql.mutation(CreateLocation)
-
-        return fraiseql
 
     @pytest.fixture
-    def fraiseql_development(self, setup_database):
-        """Create FraiseQL instance in development mode."""
-        config = FraiseQLConfig(
-            environment="development",
-            database_url=setup_database.url,
-            enable_introspection=True,
-        )
+    def mock_pool_production(self, setup_database):
+        """Create a mock pool for production mode."""
 
-        fraiseql = FraiseQL(config)
-        fraiseql.mutation(CreateLocation)
+        class MockPool:
+            def connection(self):
+                class ConnContext:
+                    async def __aenter__(self):
+                        return setup_database
 
-        return fraiseql
+                    async def __aexit__(self, *args):
+                        pass
+
+                return ConnContext()
+
+        return MockPool()
+
+    @pytest.fixture
+    def mock_pool_development(self, setup_database):
+        """Create a mock pool for development mode."""
+
+        class MockPool:
+            def connection(self):
+                class ConnContext:
+                    async def __aenter__(self):
+                        return setup_database
+
+                    async def __aexit__(self, *args):
+                        pass
+
+                return ConnContext()
+
+        return MockPool()
 
     async def test_mutation_object_data_mapping_production(
-        self, fraiseql_production, setup_database
+        self, graphql_schema, mock_pool_production, setup_database
     ):
         """Test that object_data is properly mapped in production mode."""
+        # Create repository in production mode
+        repo = FraiseQLRepository(mock_pool_production, mode="production")
+
         # Execute the mutation
         query = """
             mutation CreateLocation($input: CreateLocationInput!) {
@@ -163,8 +192,8 @@ class TestMutationObjectDataMapping:
 
         variables = {"input": {"name": "Test Warehouse", "identifier": "WH-001"}}
 
-        result = await fraiseql_production.execute_query(
-            query, variables=variables, context={"db": setup_database}
+        result = await execute(
+            graphql_schema, query, variable_values=variables, context_value={"db": repo}
         )
 
         # Verify the result
@@ -184,9 +213,12 @@ class TestMutationObjectDataMapping:
         assert isinstance(mutation_result["location"]["id"], str)
 
     async def test_mutation_object_data_mapping_development(
-        self, fraiseql_development, setup_database
+        self, graphql_schema, mock_pool_development, setup_database
     ):
         """Test that object_data is properly mapped in development mode (control test)."""
+        # Create repository in development mode
+        repo = FraiseQLRepository(mock_pool_development, mode="development")
+
         # Execute the same mutation in development mode
         query = """
             mutation CreateLocation($input: CreateLocationInput!) {
@@ -211,8 +243,8 @@ class TestMutationObjectDataMapping:
 
         variables = {"input": {"name": "Dev Warehouse", "identifier": "WH-002"}}
 
-        result = await fraiseql_development.execute_query(
-            query, variables=variables, context={"db": setup_database}
+        result = await execute(
+            graphql_schema, query, variable_values=variables, context_value={"db": repo}
         )
 
         # Verify the result
@@ -230,8 +262,13 @@ class TestMutationObjectDataMapping:
         assert mutation_result["location"]["identifier"] == "WH-002"
         assert mutation_result["location"]["active"] is True
 
-    async def test_mutation_with_entity_hint_in_metadata(self, fraiseql_production, setup_database):
+    async def test_mutation_with_entity_hint_in_metadata(
+        self, graphql_schema, mock_pool_production, setup_database
+    ):
         """Test that entity hint in extra_metadata helps with mapping."""
+        # Create repository in production mode
+        repo = FraiseQLRepository(mock_pool_production, mode="production")
+
         # The function already includes entity: 'location' in metadata
         # This should help the parser find the correct field to map object_data to
 
@@ -248,7 +285,7 @@ class TestMutationObjectDataMapping:
             }
         """
 
-        result = await fraiseql_production.execute_query(query, context={"db": setup_database})
+        result = await execute(graphql_schema, query, context_value={"db": repo})
 
         assert result.errors is None
         assert result.data["createLocation"]["location"] is not None

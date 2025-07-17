@@ -1,10 +1,9 @@
 """Integration test to verify query timeout fix works with actual database operations."""
 
 import pytest
-from psycopg_pool import AsyncConnectionPool
 
+from fraiseql import fraise_type, query
 from fraiseql.db import FraiseQLRepository
-from fraiseql.gql import FraiseQLGQL, fraise_type
 
 
 @fraise_type
@@ -33,7 +32,7 @@ async def test_find_one_with_timeout_integration(db_connection_committed):
 
     await conn.execute("""
         CREATE OR REPLACE VIEW gateway_view AS
-        SELECT 
+        SELECT
             id,
             jsonb_build_object(
                 'id', id,
@@ -99,7 +98,7 @@ async def test_graphql_query_with_timeout(db_connection_committed):
 
     await conn.execute("""
         CREATE OR REPLACE VIEW gateway_view AS
-        SELECT 
+        SELECT
             id,
             jsonb_build_object(
                 'id', id,
@@ -112,24 +111,21 @@ async def test_graphql_query_with_timeout(db_connection_committed):
     # Insert test data
     await conn.execute("""
         INSERT INTO gateways (id, ip_address, name)
-        VALUES 
+        VALUES
             ('gw-1', '10.0.0.1', 'Gateway 1'),
             ('gw-2', '10.0.0.2', 'Gateway 2')
     """)
 
     await conn.commit()
 
-    # Create FraiseQL instance
-    fraiseql = FraiseQLGQL()
-
-    # Define query
-    @fraiseql.query
+    # Define queries
+    @query
     async def gateway(info, id: str) -> Gateway | None:
         db: FraiseQLRepository = info.context["db"]
         result = await db.find_one("gateway_view", id=id)
         return result
 
-    @fraiseql.query
+    @query
     async def gateways(info) -> list[Gateway]:
         db: FraiseQLRepository = info.context["db"]
         results = await db.find("gateway_view")
@@ -150,8 +146,15 @@ async def test_graphql_query_with_timeout(db_connection_committed):
     mock_pool = MockPool()
     repo = FraiseQLRepository(mock_pool, context={"query_timeout": 30})
 
+    # Build schema
+    from graphql import execute
+
+    from fraiseql.gql.schema_builder import build_fraiseql_schema
+
+    schema = build_fraiseql_schema(query_types=[gateway, gateways])
+
     # Execute GraphQL query
-    query = """
+    query_str = """
         query GetGateway($id: String!) {
             gateway(id: $id) {
                 id
@@ -161,8 +164,11 @@ async def test_graphql_query_with_timeout(db_connection_committed):
         }
     """
 
-    result = await fraiseql.run(query, {"id": "gw-1"}, context={"db": repo})
+    result = await execute(
+        schema, query_str, variable_values={"id": "gw-1"}, context_value={"db": repo}
+    )
 
+    assert result.errors is None
     assert result.data is not None
     assert result.data["gateway"]["id"] == "gw-1"
     assert result.data["gateway"]["ipAddress"] == "10.0.0.1"
@@ -178,8 +184,9 @@ async def test_graphql_query_with_timeout(db_connection_committed):
         }
     """
 
-    result = await fraiseql.run(list_query, context={"db": repo})
+    result = await execute(schema, list_query, context_value={"db": repo})
 
+    assert result.errors is None
     assert result.data is not None
     assert len(result.data["gateways"]) == 2
     assert any(gw["id"] == "gw-1" for gw in result.data["gateways"])
