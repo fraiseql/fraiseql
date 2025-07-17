@@ -59,6 +59,8 @@ class MutationTypeBuilder:
             # Use convert_type_to_graphql_output for the return type
             gql_return_type = convert_type_to_graphql_output(cast("type", resolved))
             gql_args: dict[str, GraphQLArgument] = {}
+            # Track mapping from GraphQL arg names to Python param names
+            arg_name_mapping: dict[str, str] = {}
 
             # Detect argument (usually just one input arg + info)
             for param_name, param_type in hints.items():
@@ -71,9 +73,17 @@ class MutationTypeBuilder:
                 graphql_arg_name = (
                     snake_to_camel(param_name) if config.camel_case_fields else param_name
                 )
+                
+                # Special handling for Python reserved words that have trailing underscore
+                if param_name.endswith("_") and graphql_arg_name == param_name:
+                    # Remove trailing underscore for GraphQL (e.g., id_ -> id, class_ -> class)
+                    graphql_arg_name = param_name.rstrip("_")
+                
                 gql_args[graphql_arg_name] = GraphQLArgument(GraphQLNonNull(gql_input_type))
+                # Store mapping from GraphQL name to Python name
+                arg_name_mapping[graphql_arg_name] = param_name
 
-            resolver = wrap_resolver_with_input_coercion(fn)
+            resolver = self._wrap_mutation_resolver(fn, arg_name_mapping)
 
             # Convert field name to camelCase if configured
             config = SchemaConfig.get_instance()
@@ -86,3 +96,47 @@ class MutationTypeBuilder:
             )
 
         return GraphQLObjectType(name="Mutation", fields=MappingProxyType(fields))
+    
+    def _wrap_mutation_resolver(self, fn, arg_name_mapping: dict[str, str] | None = None):
+        """Wrap a mutation function with argument mapping and input coercion.
+        
+        Args:
+            fn: The mutation function to wrap.
+            arg_name_mapping: Mapping from GraphQL argument names to Python parameter names.
+            
+        Returns:
+            A wrapped resolver function.
+        """
+        # First wrap with input coercion
+        from fraiseql.types.coercion import wrap_resolver_with_input_coercion
+        coerced_fn = wrap_resolver_with_input_coercion(fn)
+        
+        # Then wrap with argument mapping
+        import asyncio
+        
+        if asyncio.iscoroutinefunction(coerced_fn):
+            async def async_resolver(root, info, **kwargs):
+                # Map GraphQL argument names to Python parameter names
+                if arg_name_mapping:
+                    mapped_kwargs = {}
+                    for gql_name, value in kwargs.items():
+                        python_name = arg_name_mapping.get(gql_name, gql_name)
+                        mapped_kwargs[python_name] = value
+                    kwargs = mapped_kwargs
+                
+                return await coerced_fn(root, info, **kwargs)
+            
+            return async_resolver
+        else:
+            def sync_resolver(root, info, **kwargs):
+                # Map GraphQL argument names to Python parameter names
+                if arg_name_mapping:
+                    mapped_kwargs = {}
+                    for gql_name, value in kwargs.items():
+                        python_name = arg_name_mapping.get(gql_name, gql_name)
+                        mapped_kwargs[python_name] = value
+                    kwargs = mapped_kwargs
+                
+                return coerced_fn(root, info, **kwargs)
+            
+            return sync_resolver

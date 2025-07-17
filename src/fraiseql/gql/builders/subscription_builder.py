@@ -56,6 +56,8 @@ class SubscriptionTypeBuilder:
             # Use convert_type_to_graphql_output for the yield type
             gql_return_type = convert_type_to_graphql_output(yield_type)
             gql_args: dict[str, GraphQLArgument] = {}
+            # Track mapping from GraphQL arg names to Python param names
+            arg_name_mapping: dict[str, str] = {}
 
             # Detect arguments (excluding 'info' and 'root')
             for param_name, param_type in hints.items():
@@ -68,10 +70,18 @@ class SubscriptionTypeBuilder:
                 graphql_arg_name = (
                     snake_to_camel(param_name) if config.camel_case_fields else param_name
                 )
+                
+                # Special handling for Python reserved words that have trailing underscore
+                if param_name.endswith("_") and graphql_arg_name == param_name:
+                    # Remove trailing underscore for GraphQL (e.g., id_ -> id, class_ -> class)
+                    graphql_arg_name = param_name.rstrip("_")
+                
                 gql_args[graphql_arg_name] = GraphQLArgument(gql_input_type)
+                # Store mapping from GraphQL name to Python name
+                arg_name_mapping[graphql_arg_name] = param_name
 
             # Create a wrapper that adapts the GraphQL subscription signature
-            wrapped_resolver = self._make_subscription(fn)
+            wrapped_resolver = self._make_subscription(fn, arg_name_mapping)
 
             # Convert field name to camelCase if configured
             config = SchemaConfig.get_instance()
@@ -86,17 +96,26 @@ class SubscriptionTypeBuilder:
 
         return GraphQLObjectType(name="Subscription", fields=MappingProxyType(fields))
 
-    def _make_subscription(self, fn):
+    def _make_subscription(self, fn, arg_name_mapping: dict[str, str] | None = None):
         """Create a GraphQL subscription from an async generator function.
 
         Args:
             fn: The async generator function to wrap as a GraphQL subscription.
+            arg_name_mapping: Mapping from GraphQL argument names to Python parameter names.
 
         Returns:
             A GraphQL-compatible subscription function.
         """
 
         async def subscribe(root, info, **kwargs):
+            # Map GraphQL argument names to Python parameter names
+            if arg_name_mapping:
+                mapped_kwargs = {}
+                for gql_name, value in kwargs.items():
+                    python_name = arg_name_mapping.get(gql_name, gql_name)
+                    mapped_kwargs[python_name] = value
+                kwargs = mapped_kwargs
+            
             # Call the original function without the root argument
             async for value in fn(info, **kwargs):
                 yield value

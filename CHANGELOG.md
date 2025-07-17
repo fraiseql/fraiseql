@@ -5,6 +5,16 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b22] - 2025-07-17
+
+### Fixed
+- **Python Reserved Word Parameter Handling**: Fixed issue where GraphQL rejected standard parameter names like `id` when Python functions used `id_`
+  - GraphQL now accepts `id` as parameter name even when Python function uses `id_` (following Python naming conventions)
+  - Automatically strips trailing underscore from Python parameter names in GraphQL schema (e.g., `id_` → `id`, `class_` → `class`)
+  - Internal mapping ensures GraphQL arguments are correctly passed to Python functions
+  - Applies to queries, mutations, and subscriptions
+  - Maintains GraphQL best practices while respecting Python reserved word conventions
+
 ## [0.1.0b21] - 2025-07-17
 
 ### Fixed

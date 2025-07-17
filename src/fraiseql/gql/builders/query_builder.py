@@ -82,6 +82,8 @@ class QueryTypeBuilder:
                 gql_return_type,
             )
             gql_args: dict[str, GraphQLArgument] = {}
+            # Track mapping from GraphQL arg names to Python param names
+            arg_name_mapping: dict[str, str] = {}
 
             # Detect arguments (excluding 'info' and 'root')
             for param_name, param_type in hints.items():
@@ -94,10 +96,18 @@ class QueryTypeBuilder:
                 graphql_arg_name = (
                     snake_to_camel(param_name) if config.camel_case_fields else param_name
                 )
+                
+                # Special handling for Python reserved words that have trailing underscore
+                if param_name.endswith("_") and graphql_arg_name == param_name:
+                    # Remove trailing underscore for GraphQL (e.g., id_ -> id, class_ -> class)
+                    graphql_arg_name = param_name.rstrip("_")
+                
                 gql_args[graphql_arg_name] = GraphQLArgument(gql_input_type)
+                # Store mapping from GraphQL name to Python name
+                arg_name_mapping[graphql_arg_name] = param_name
 
             # Create a wrapper that adapts the GraphQL resolver signature
-            wrapped_resolver = self._create_gql_resolver(fn)
+            wrapped_resolver = self._create_gql_resolver(fn, arg_name_mapping)
             wrapped_resolver = wrap_resolver_with_enum_serialization(wrapped_resolver)
 
             # Convert field name to camelCase if configured
@@ -110,11 +120,12 @@ class QueryTypeBuilder:
                 resolve=wrapped_resolver,
             )
 
-    def _create_gql_resolver(self, fn):
+    def _create_gql_resolver(self, fn, arg_name_mapping: dict[str, str] | None = None):
         """Create a GraphQL resolver from a function.
 
         Args:
             fn: The function to wrap as a GraphQL resolver.
+            arg_name_mapping: Mapping from GraphQL argument names to Python parameter names.
 
         Returns:
             A GraphQL-compatible resolver function.
@@ -122,12 +133,28 @@ class QueryTypeBuilder:
         if asyncio.iscoroutinefunction(fn):
 
             async def async_resolver(root, info, **kwargs):
+                # Map GraphQL argument names to Python parameter names
+                if arg_name_mapping:
+                    mapped_kwargs = {}
+                    for gql_name, value in kwargs.items():
+                        python_name = arg_name_mapping.get(gql_name, gql_name)
+                        mapped_kwargs[python_name] = value
+                    kwargs = mapped_kwargs
+                
                 # Call the original function without the root argument
                 return await fn(info, **kwargs)
 
             return async_resolver
 
         def sync_resolver(root, info, **kwargs):
+            # Map GraphQL argument names to Python parameter names
+            if arg_name_mapping:
+                mapped_kwargs = {}
+                for gql_name, value in kwargs.items():
+                    python_name = arg_name_mapping.get(gql_name, gql_name)
+                    mapped_kwargs[python_name] = value
+                kwargs = mapped_kwargs
+            
             # Call the original function without the root argument
             return fn(info, **kwargs)
 
