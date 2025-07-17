@@ -5,6 +5,15 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b20] - 2025-07-17
+
+### Fixed
+- **Query Timeout Parameter Binding**: Fixed critical bug where `find_one` method used parameterized SQL for `SET LOCAL statement_timeout`
+  - PostgreSQL doesn't support parameters in SET LOCAL commands, causing "syntax error at or near '$1'" errors
+  - Changed from `SET LOCAL statement_timeout = %s` to literal value interpolation
+  - Affects all queries using `find_one` when `query_timeout` is configured
+  - Fixes issue reported in PrintOptim backend where gateway queries were failing
+
 ## [0.1.0b16] - 2025-07-13
 
 ### Added

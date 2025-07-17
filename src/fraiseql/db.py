@@ -311,9 +311,11 @@ class FraiseQLRepository:
         ):
             # Set statement timeout for this query
             if self.query_timeout:
+                # Use literal value, not prepared statement parameters
+                # PostgreSQL doesn't support parameters in SET LOCAL
+                timeout_ms = int(self.query_timeout * 1000)
                 await cursor.execute(
-                    "SET LOCAL statement_timeout = %s",
-                    (f"{self.query_timeout * 1000}ms",),
+                    f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                 )
 
             await cursor.execute(query.statement, query.params)
