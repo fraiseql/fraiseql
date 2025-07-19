@@ -16,7 +16,7 @@ T = TypeVar("T")
 def _extract_type(field_type: Any) -> Any:
     """Extract the actual type from Optional, Union, etc."""
     origin = typing.get_origin(field_type)
-    
+
     # Handle Optional[T] which is Union[T, None] or T | None (UnionType in Python 3.10+)
     if origin is typing.Union or origin is types.UnionType:
         args = typing.get_args(field_type)
@@ -25,13 +25,13 @@ def _extract_type(field_type: Any) -> Any:
         if len(non_none_args) == 1:
             return non_none_args[0]
         return field_type
-    
+
     return field_type
 
 
 def _process_field_value(value: Any, field_type: Any) -> Any:
     """Process a field value based on its type hint.
-    
+
     Handles:
     - Nested FraiseQL objects
     - Lists of FraiseQL objects
@@ -40,11 +40,11 @@ def _process_field_value(value: Any, field_type: Any) -> Any:
     """
     if value is None:
         return None
-    
+
     # Extract actual type from Optional
     actual_type = _extract_type(field_type)
     origin = typing.get_origin(actual_type)
-    
+
     # Handle lists
     if origin is list:
         args = typing.get_args(actual_type)
@@ -52,19 +52,19 @@ def _process_field_value(value: Any, field_type: Any) -> Any:
             item_type = args[0]
             if isinstance(value, list):
                 return [_process_field_value(item, item_type) for item in value]
-    
+
     # Handle FraiseQL types
     if hasattr(actual_type, "__fraiseql_definition__") and isinstance(value, dict):
         # Recursively instantiate nested object
         return actual_type.from_dict(value)
-    
+
     # Handle UUID conversion
     if actual_type is UUID and isinstance(value, str):
         try:
             return UUID(value)
         except ValueError:
             return value
-    
+
     # Return value as-is for other types
     return value
 
@@ -131,14 +131,14 @@ def define_fraiseql_type(
             """
             # Get type hints for the class
             type_hints = getattr(cls, "__gql_type_hints__", {})
-            
+
             # Convert camelCase keys to snake_case and handle nested objects
             snake_case_data = {}
             for key, value in data.items():
                 if key == "__typename":  # Skip GraphQL metadata
                     continue
                 snake_key = to_snake_case(key)
-                
+
                 # Process the value based on type hints
                 if snake_key in type_hints:
                     field_type = type_hints[snake_key]

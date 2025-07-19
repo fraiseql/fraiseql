@@ -3,8 +3,6 @@
 import uuid
 from typing import Optional
 
-import pytest
-
 from fraiseql import fraise_type
 
 

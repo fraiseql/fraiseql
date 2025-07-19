@@ -5,6 +5,63 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b24] - 2025-07-19
+
+### Added
+
+- **Snake_case to camelCase transformation for mutation extra_metadata fields**: The mutation parser now automatically maps snake_case fields from `extra_metadata` to match camelCase fields in Python failure types. This enables using idiomatic Python naming (snake_case) while exposing GraphQL-compliant camelCase fields in the API.
+  - Example: Database `extra_metadata.conflict_object` → Python `error.conflict_object` → GraphQL API `error.conflictObject`
+  - Fully backward compatible - existing snake_case fields continue to work
+  - Supports both generic fields like `conflict_object` and entity-specific fields like `conflict_dns_server`
+  - Works seamlessly with the existing `auto_camel_case` configuration
+
+### Developer Notes
+
+This change allows PrintOptim and other projects to use Python naming conventions while maintaining GraphQL best practices. No database changes are required - PostgreSQL functions can continue returning snake_case fields in `extra_metadata`.
+
+## [0.1.0b23] - 2025-07-18
+
+### Fixed
+
+#### Critical Partial Update Issue with UNSET Fields
+
+**Problem**: FraiseQL was sending ALL fields from input types in the JSONB payload, including optional fields that weren't provided by the client. This caused NULL constraint violations when performing partial updates because PostgreSQL received `{"hostname": null}` even when hostname wasn't provided.
+
+**Solution**: Modified the `_to_dict()` function in `mutation_decorator.py` to skip fields with `UNSET` values entirely. This enables true partial updates by only sending explicitly provided fields to PostgreSQL.
+
+**Breaking Change**: To use partial updates properly, change your input type definitions from:
+```python
+# Old approach (causes issues)
+@fraise_input
+class UpdateInput:
+    id: str
+    name: str | None = None  # Sent as null even if not provided!
+
+# New approach (fixes partial updates)
+@fraise_input
+class UpdateInput:
+    id: str
+    name: str | None = UNSET  # Excluded if not provided!
+```
+
+**Benefits**:
+- ✅ Enables true partial updates without NULL constraint violations
+- ✅ Distinguishes between "field not provided" (UNSET) and "field set to null" (explicit None)
+- ✅ PostgreSQL functions can reliably check field presence with `p_input ? 'field_name'`
+- ✅ Maintains backward compatibility (existing code with None defaults still works)
+
+### Added
+
+- Comprehensive [Partial Updates Guide](docs/guides/partial-updates-guide.md)
+- SQL helper utilities in `fraiseql.utils.sql_helpers`
+- Documentation for UNSET usage patterns
+- Examples for common partial update scenarios
+
+### Changed
+
+- Clarified that **PostgreSQL always receives snake_case field names** regardless of GraphQL schema configuration
+- Updated documentation to reflect correct field name handling
+
 ## [0.1.0b22] - 2025-07-17
 
 ### Fixed

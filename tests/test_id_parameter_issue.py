@@ -1,9 +1,11 @@
 """Test for ID parameter naming issue."""
 
+from uuid import UUID
+
 import pytest
-from uuid import UUID, uuid4
+
 from fraiseql import fraise_type, query
-from fraiseql.gql.builders import SchemaRegistry, SchemaComposer
+from fraiseql.gql.builders import SchemaComposer, SchemaRegistry
 
 
 @fraise_type
@@ -19,11 +21,7 @@ async def allocation(info, id: UUID) -> Allocation | None:
     """Get allocation by ID."""
     # Simulate database lookup
     if str(id) == "12345678-1234-5678-1234-567812345678":
-        return Allocation(
-            id=id,
-            identifier="TEST-001",
-            machine_id=None
-        )
+        return Allocation(id=id, identifier="TEST-001", machine_id=None)
     return None
 
 
@@ -33,11 +31,7 @@ async def allocation_workaround(info, id_: UUID) -> Allocation | None:
     """Get allocation by ID using id_ parameter."""
     # Simulate database lookup
     if str(id_) == "12345678-1234-5678-1234-567812345678":
-        return Allocation(
-            id=id_,
-            identifier="TEST-001",
-            machine_id=None
-        )
+        return Allocation(id=id_, identifier="TEST-001", machine_id=None)
     return None
 
 
@@ -48,48 +42,48 @@ class TestIdParameterIssue:
         registry = SchemaRegistry.get_instance()
         composer = SchemaComposer(registry)
         schema = composer.compose()
-        
+
         # Check that the schema has the expected field
         query_type = schema.type_map.get("Query")
         assert query_type is not None
-        
+
         # Check allocation field exists
         allocation_field = query_type.fields.get("allocation")
         assert allocation_field is not None
-        
+
         # Check that it has an 'id' argument
         assert "id" in allocation_field.args
         id_arg = allocation_field.args["id"]
         assert id_arg is not None
-        
+
     def test_query_with_id_underscore_parameter(self):
         """Test that queries with id_ parameter work."""
         # Create schema
         registry = SchemaRegistry.get_instance()
         composer = SchemaComposer(registry)
         schema = composer.compose()
-        
+
         # Check that the schema has the expected field
         query_type = schema.type_map.get("Query")
         assert query_type is not None
-        
+
         # Check allocation_workaround field exists
         allocation_field = query_type.fields.get("allocationWorkaround")
         assert allocation_field is not None
-        
+
         # Check that it has an 'id_' argument (or 'id' in GraphQL)
         # This is the key question - what does GraphQL see?
         print(f"Arguments for allocationWorkaround: {list(allocation_field.args.keys())}")
-        
+
     @pytest.mark.asyncio
     async def test_resolver_execution_with_id(self):
         """Test that the resolver can be called with id parameter."""
         from graphql import graphql
-        
+
         registry = SchemaRegistry.get_instance()
         composer = SchemaComposer(registry)
         schema = composer.compose()
-        
+
         # GraphQL query using 'id' parameter
         query_str = """
             query GetAllocation($id: ID!) {
@@ -99,15 +93,15 @@ class TestIdParameterIssue:
                 }
             }
         """
-        
+
         # Execute query
         result = await graphql(
             schema,
             query_str,
             variable_values={"id": "12345678-1234-5678-1234-567812345678"},
-            context_value={"db": None}  # Mock context
+            context_value={"db": None},  # Mock context
         )
-        
+
         # This is where we expect it to fail with "unexpected keyword argument 'id'"
         if result.errors:
             print(f"Errors: {result.errors}")

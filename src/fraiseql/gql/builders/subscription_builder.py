@@ -70,12 +70,12 @@ class SubscriptionTypeBuilder:
                 graphql_arg_name = (
                     snake_to_camel(param_name) if config.camel_case_fields else param_name
                 )
-                
+
                 # Special handling for Python reserved words that have trailing underscore
                 if param_name.endswith("_") and graphql_arg_name == param_name:
                     # Remove trailing underscore for GraphQL (e.g., id_ -> id, class_ -> class)
                     graphql_arg_name = param_name.rstrip("_")
-                
+
                 gql_args[graphql_arg_name] = GraphQLArgument(gql_input_type)
                 # Store mapping from GraphQL name to Python name
                 arg_name_mapping[graphql_arg_name] = param_name
@@ -115,7 +115,7 @@ class SubscriptionTypeBuilder:
                     python_name = arg_name_mapping.get(gql_name, gql_name)
                     mapped_kwargs[python_name] = value
                 kwargs = mapped_kwargs
-            
+
             # Call the original function without the root argument
             async for value in fn(info, **kwargs):
                 yield value

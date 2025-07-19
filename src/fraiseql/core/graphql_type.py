@@ -341,11 +341,11 @@ def convert_type_to_graphql_output(
                         def make_field_resolver(field_name: str, field_type: Any):
                             def resolve_field(obj: Any, info: Any) -> Any:
                                 value = getattr(obj, field_name, None)
-                                
+
                                 # Handle None values
                                 if value is None:
                                     return None
-                                
+
                                 # Handle enum serialization at field level
                                 if isinstance(value, Enum):
                                     return value.name
@@ -355,10 +355,18 @@ def convert_type_to_graphql_output(
                                     for item in value:
                                         if isinstance(item, Enum):
                                             result.append(item.name)
-                                        elif isinstance(item, dict) and hasattr(field_type, "__args__"):
+                                        elif isinstance(item, dict) and hasattr(
+                                            field_type, "__args__"
+                                        ):
                                             # Check if list contains FraiseQL types that need conversion
-                                            list_item_type = field_type.__args__[0] if field_type.__args__ else None
-                                            if list_item_type and hasattr(list_item_type, "__fraiseql_definition__"):
+                                            list_item_type = (
+                                                field_type.__args__[0]
+                                                if field_type.__args__
+                                                else None
+                                            )
+                                            if list_item_type and hasattr(
+                                                list_item_type, "__fraiseql_definition__"
+                                            ):
                                                 # Convert dict to typed object
                                                 if hasattr(list_item_type, "from_dict"):
                                                     result.append(list_item_type.from_dict(item))
@@ -369,7 +377,7 @@ def convert_type_to_graphql_output(
                                         else:
                                             result.append(item)
                                     return result
-                                
+
                                 # Handle nested objects - check if value is dict but field expects FraiseQL type
                                 if isinstance(value, dict):
                                     # Extract actual type from Optional if needed
@@ -380,13 +388,13 @@ def convert_type_to_graphql_output(
                                         non_none_types = [t for t in args if t is not type(None)]
                                         if non_none_types:
                                             actual_field_type = non_none_types[0]
-                                    
+
                                     # Check if the field type is a FraiseQL type
                                     if hasattr(actual_field_type, "__fraiseql_definition__"):
                                         # Convert dict to typed object using from_dict
                                         if hasattr(actual_field_type, "from_dict"):
                                             return actual_field_type.from_dict(value)
-                                
+
                                 return value
 
                             return resolve_field

@@ -232,13 +232,23 @@ def _parse_error(
 
     # Process other fields from metadata
     if result.extra_metadata:
+        from fraiseql.utils.casing import to_snake_case
+
         for field_name, field_type in annotations.items():
             if field_name in ("message", "code"):
                 continue
 
-            # Check if field exists in metadata
+            # Check if field exists in metadata with exact name
             if field_name in result.extra_metadata:
                 value = _instantiate_type(field_type, result.extra_metadata[field_name])
+                if value is not None:
+                    fields[field_name] = value
+                    continue
+
+            # Try snake_case version of camelCase field name
+            snake_field_name = to_snake_case(field_name)
+            if snake_field_name != field_name and snake_field_name in result.extra_metadata:
+                value = _instantiate_type(field_type, result.extra_metadata[snake_field_name])
                 if value is not None:
                     fields[field_name] = value
 

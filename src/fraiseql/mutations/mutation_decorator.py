@@ -459,7 +459,11 @@ def _camel_to_snake(name: str) -> str:
 
 
 def _to_dict(obj: Any) -> dict[str, Any]:
-    """Convert an object to a dictionary."""
+    """Convert an object to a dictionary.
+
+    UNSET values are excluded from the dictionary to enable partial updates.
+    Only fields that were explicitly provided (including explicit None) are included.
+    """
     if hasattr(obj, "to_dict"):
         return obj.to_dict()
     if hasattr(obj, "__dict__"):
@@ -468,8 +472,9 @@ def _to_dict(obj: Any) -> dict[str, Any]:
         for k, v in obj.__dict__.items():
             if not k.startswith("_"):
                 if v is UNSET:
-                    result[k] = None
-                elif hasattr(v, "hex"):  # UUID
+                    # Skip UNSET fields entirely - they weren't provided
+                    continue
+                if hasattr(v, "hex"):  # UUID
                     result[k] = str(v)
                 elif hasattr(v, "isoformat"):  # date, datetime, time
                     result[k] = v.isoformat()
