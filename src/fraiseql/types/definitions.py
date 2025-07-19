@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from fraiseql.fields import FraiseQLField
@@ -112,13 +112,21 @@ class FraiseQLTypeDefinition:
         }
 
 
-class Unset:
+class UnsetType:
     """Sentinel value representing a missing or undefined input.
 
     This is used to distinguish between unset and explicitly-null values.
+    Implements singleton pattern to ensure only one instance exists.
     """
 
-    __slots__ = ()
+    __instance: Optional[UnsetType] = None
+
+    def __new__(cls: type[UnsetType]) -> UnsetType:
+        """Ensure only one instance of UnsetType exists."""
+        if cls.__instance is None:
+            ret = super().__new__(cls)
+            cls.__instance = ret
+        return cls.__instance
 
     def __bool__(self) -> bool:
         """UNSET is always falsy."""
@@ -126,14 +134,19 @@ class Unset:
 
     def __str__(self) -> str:
         """String representation of UNSET."""
-        return "UNSET"
+        return ""
 
     def __repr__(self) -> str:
         """Repr of UNSET sentinel value."""
         return "UNSET"
 
 
-UNSET = Unset()
+# Type UNSET as Any to make it compatible with any type annotation
+UNSET: Any = UnsetType()
+
+
+# Keep the old Unset class name as an alias for backward compatibility
+Unset = UnsetType
 
 
 class ScalarMarker:

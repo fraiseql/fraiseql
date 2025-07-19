@@ -19,6 +19,7 @@ from .mutations.mutation_decorator import mutation
 from .optimization.decorators import dataloader_field
 from .subscriptions import subscription
 from .types import fraise_input, fraise_type
+from .types.definitions import UNSET
 from .types.enum import fraise_enum
 from .types.generic import (
     Connection,
@@ -70,13 +71,14 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "0.1.0b20"
+__version__ = "0.1.0b25"
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",
     "DEFAULT_ERROR_CONFIG",
     "JSON",
     "PRINTOPTIM_ERROR_CONFIG",
+    "UNSET",
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",

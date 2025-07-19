@@ -5,6 +5,20 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b25] - 2025-07-19
+
+### Added
+
+- **Type-compatible UNSET sentinel value**: Made `UNSET` compatible with type checkers (Pyright, mypy) by typing it as `Any`. This allows using `UNSET` as a default value for any optional field without type errors.
+  - Changed `UNSET` implementation to use singleton pattern like Strawberry GraphQL
+  - Added `UNSET` to main package exports (`from fraiseql import UNSET`)
+  - No breaking changes - existing code continues to work
+  - Example: `field: UUID | None = UNSET` now works without type errors
+
+### Developer Notes
+
+This change significantly improves the developer experience when using `UNSET` to distinguish between "field not provided" and "field set to null" in GraphQL mutations. Projects using FraiseQL no longer need workarounds or type ignores when using `UNSET` with typed optional fields.
+
 ## [0.1.0b24] - 2025-07-19
 
 ### Added
