@@ -5,7 +5,7 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0b26] - 2025-07-20
+## [0.1.0b27] - 2025-07-20
 
 ### Added
 
@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This release adds debugging capabilities to help diagnose query registration issues without changing any functionality. The logging is at DEBUG level, so it won't affect production logs unless explicitly enabled.
 
 The camelCase fix ensures consistency in GraphQL API responses - when camelCase is enabled, all fields including those in error details are properly transformed.
+
+## [0.1.0b26] - 2025-07-19
+
+[Version skipped - the UNSET feature listed here was actually released as v0.1.0b25]
 
 ## [0.1.0b25] - 2025-07-19
 
