@@ -98,7 +98,24 @@ def query(fn: F | None = None) -> F | Callable[[F], F]:
     def decorator(func: F) -> F:
         # Register with schema
         registry = SchemaRegistry.get_instance()
+
+        # Debug logging
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug(
+            "Query decorator called for function '%s' in module '%s'",
+            func.__name__,
+            func.__module__,
+        )
+
         registry.register_query(func)
+
+        # Log current state
+        logger.debug(
+            "Total queries registered after '%s': %d", func.__name__, len(registry.queries)
+        )
+
         return func
 
     if fn is None:
@@ -264,6 +281,7 @@ def field(
         method: The method to decorate (when used without parentheses)
         resolver: Optional custom resolver function to override default behavior
         description: Field description that appears in GraphQL schema documentation
+        track_n1: Whether to track N+1 query patterns for this field (default: True)
 
     Returns:
         Decorated method with GraphQL field metadata and N+1 query detection

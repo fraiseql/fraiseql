@@ -33,7 +33,10 @@ class SchemaRegistry:
     def get_instance(cls) -> SchemaRegistry:
         """Get or create the singleton registry instance."""
         if cls._instance is None:
+            logger.debug("Creating new SchemaRegistry instance")
             cls._instance = cls()
+        else:
+            logger.debug("Returning existing SchemaRegistry instance")
         return cls._instance
 
     def clear(self) -> None:
@@ -151,7 +154,33 @@ class SchemaRegistry:
 
     def register_query(self, query_fn: Callable[..., Any]) -> None:
         """Register a query function as a GraphQL field."""
+        name = query_fn.__name__
+
+        # Debug logging
+        if name in self._queries:
+            prev_module = (
+                self._queries[name].__module__
+                if hasattr(self._queries[name], "__module__")
+                else "unknown"
+            )
+            new_module = query_fn.__module__ if hasattr(query_fn, "__module__") else "unknown"
+            logger.warning(
+                "Query '%s' is being overwritten. Previous module: %s, New module: %s",
+                name,
+                prev_module,
+                new_module,
+            )
+        else:
+            logger.debug(
+                "Registering query '%s' from module '%s'",
+                name,
+                query_fn.__module__ if hasattr(query_fn, "__module__") else "unknown",
+            )
+
         self._queries[query_fn.__name__] = query_fn
+
+        # Log current registry state
+        logger.debug("Current queries in registry: %s", list(self._queries.keys()))
 
     def register_subscription(self, subscription_fn: Callable[..., Any]) -> None:
         """Register a subscription function as a GraphQL field."""

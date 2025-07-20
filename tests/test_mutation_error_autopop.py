@@ -67,7 +67,14 @@ class TestMutationErrorAutoPopulation:
         assert parsed.errors[0].message == "Entity already exists"
         assert parsed.errors[0].code == 409  # already_exists gets 409 (conflict)
         assert parsed.errors[0].identifier == "already_exists"
-        assert parsed.errors[0].details == {"conflict_id": "existing-id"}
+        # Check details - they should be camelCase if config.camel_case_fields is True
+        from fraiseql.config.schema_config import SchemaConfig
+
+        config_instance = SchemaConfig.get_instance()
+        if config_instance.camel_case_fields:
+            assert parsed.errors[0].details == {"conflictId": "existing-id"}
+        else:
+            assert parsed.errors[0].details == {"conflict_id": "existing-id"}
 
     def test_error_field_not_overwritten_if_provided(self):
         """Test that explicitly provided errors are not overwritten."""

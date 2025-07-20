@@ -310,9 +310,18 @@ def _parse_error(
 
                 # Add details if available (clean UNSET values to prevent serialization issues)
                 if result.extra_metadata:
+                    from fraiseql.config.schema_config import SchemaConfig
                     from fraiseql.fastapi.json_encoder import clean_unset_values
+                    from fraiseql.utils.casing import transform_keys_to_camel_case
 
-                    error_data["details"] = clean_unset_values(result.extra_metadata)
+                    cleaned_metadata = clean_unset_values(result.extra_metadata)
+
+                    # Transform keys to camelCase if configured
+                    config = SchemaConfig.get_instance()
+                    if config.camel_case_fields:
+                        error_data["details"] = transform_keys_to_camel_case(cleaned_metadata)
+                    else:
+                        error_data["details"] = cleaned_metadata
 
                 try:
                     # Instantiate the error type

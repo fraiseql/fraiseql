@@ -66,6 +66,12 @@ class QueryTypeBuilder:
         Args:
             fields: The fields dictionary to populate.
         """
+        logger.debug(
+            "Building query fields. Found %d registered queries: %s",
+            len(self.registry.queries),
+            list(self.registry.queries.keys()),
+        )
+
         for name, fn in self.registry.queries.items():
             hints = get_type_hints(fn)
 
@@ -118,6 +124,13 @@ class QueryTypeBuilder:
                 type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 resolve=wrapped_resolver,
+            )
+
+            logger.debug(
+                "Successfully added query field '%s' (GraphQL name: '%s') from function '%s'",
+                name,
+                graphql_field_name,
+                fn.__module__ if hasattr(fn, "__module__") else "unknown",
             )
 
     def _create_gql_resolver(self, fn, arg_name_mapping: dict[str, str] | None = None):

@@ -5,6 +5,33 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b26] - 2025-07-20
+
+### Added
+
+- **Enhanced debug logging for query registration**: Added comprehensive debug logging throughout the query registration process to help diagnose auto-discovery issues.
+  - `@fraiseql.query` decorator now logs function name and module when registering
+  - `SchemaRegistry` logs when singleton instance is created or reused
+  - `SchemaRegistry.register_query()` logs registration details and warns about overwrites
+  - `QueryTypeBuilder` logs all registered queries when building schema
+  - Helps troubleshoot issues where queries in certain modules aren't being auto-discovered
+  - Enable with: `logging.getLogger("fraiseql").setLevel(logging.DEBUG)`
+
+### Fixed
+
+- **Error details in mutations now respect camelCase configuration**: Fixed an issue where `extra_metadata` fields in mutation error details were not being transformed to camelCase when `camel_case_fields` is enabled.
+  - Error details from PostgreSQL functions (in `extra_metadata`) are now properly transformed
+  - Example: `{"conflict_object": {"ip_address": "..."}}` → `{"conflictObject": {"ipAddress": "..."}}`
+  - Transformation is recursive, handling nested objects and arrays
+  - Only applies when `SchemaConfig.camel_case_fields = True` (default)
+  - Fixes issue reported in PrintOptim where conflict objects in error details remained snake_case
+
+### Developer Notes
+
+This release adds debugging capabilities to help diagnose query registration issues without changing any functionality. The logging is at DEBUG level, so it won't affect production logs unless explicitly enabled.
+
+The camelCase fix ensures consistency in GraphQL API responses - when camelCase is enabled, all fields including those in error details are properly transformed.
+
 ## [0.1.0b25] - 2025-07-19
 
 ### Added
