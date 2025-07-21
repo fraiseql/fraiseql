@@ -72,6 +72,27 @@ db = info.context["db"]  # FraiseQLRepository
 user = await db.find_one("user_view", id=user_id)
 ```
 
+## 🎯 Built-in Validation with Scalar Types
+
+FraiseQL includes comprehensive scalar types for common data validation needs:
+
+```python
+from fraiseql.types import Port, IpAddress, CIDR, Hostname, MacAddress, EmailAddress
+
+@fraise_type
+class NetworkDevice:
+    hostname: Hostname          # DNS hostname validation
+    ip_address: IpAddress      # IPv4/IPv6 validation
+    mac_address: MacAddress    # Hardware address (multiple formats)
+    subnet: CIDR              # Network range (192.168.1.0/24)
+    ssh_port: Port           # Port number (1-65535)
+    admin_email: EmailAddress # Email validation
+```
+
+**Available Scalars**: `Port`, `IpAddress`, `CIDR`, `Hostname`, `MacAddress`, `EmailAddress`, `UUID`, `DateTime`, `Date`, `JSON`, and more.
+
+→ **[Complete Scalar Reference](docs/scalars.md)**
+
 ## ✨ Key Features
 
 | Feature | Description |

@@ -5,6 +5,45 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b28] - 2025-07-21
+
+### Added
+
+- **New network-related scalar types**: Added comprehensive validation scalars for network infrastructure applications
+  - `Port`: Network port numbers (1-65535) with validation
+  - `CIDR`: CIDR notation for IP network ranges (supports IPv4/IPv6)
+  - `Hostname`: DNS hostnames following RFC 1123 specifications
+  - `MacAddress`: Hardware MAC addresses with format normalization
+  - All scalars support multiple input formats where applicable
+  - Consistent error messages and validation patterns across all scalars
+
+- **Enhanced scalar type system**: Improved scalar architecture following established FraiseQL patterns
+  - All scalars include comprehensive test coverage
+  - GraphQL schema integration with proper descriptions
+  - Type-safe Python field classes with validation
+  - Support for serialization, parsing, and AST literal parsing
+
+- **Documentation improvements**: Added comprehensive scalar type documentation
+  - New `docs/scalars.md` with complete scalar reference
+  - Usage examples for network infrastructure applications
+  - Migration guide for existing applications
+  - Error handling and best practices
+
+### Enhanced
+
+- **Network scalars coverage**: FraiseQL now provides validation for most common network data types
+  - IP addresses (IPv4/IPv6) - existing `IpAddress` scalar
+  - Email addresses - existing `EmailAddress` scalar
+  - Network ports, CIDR ranges, hostnames, MAC addresses - new scalars
+  - Consistent normalization (e.g., MAC addresses to uppercase colon format)
+  - Multi-format support (e.g., MAC addresses accept colon, hyphen, dot, or no separators)
+
+### Developer Notes
+
+This release significantly expands FraiseQL's built-in validation capabilities, making it ideal for network management, infrastructure automation, and DevOps applications. All new scalars follow the established patterns and include the same level of validation and error reporting as existing scalars.
+
+The network scalars are production-ready and include comprehensive test coverage. They can be used immediately in any FraiseQL application requiring network data validation.
+
 ## [0.1.0b27] - 2025-07-20
 
 ### Added
