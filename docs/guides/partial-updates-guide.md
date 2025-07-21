@@ -76,7 +76,7 @@ mutation {
 
 # PostgreSQL receives snake_case:
 {
-  "id": "123", 
+  "id": "123",
   "ip_address": "192.168.1.100"  # Automatically converted!
 }
 ```
@@ -110,30 +110,30 @@ DECLARE
 BEGIN
     -- Extract the ID
     v_id := (p_input->>'id')::UUID;
-    
+
     -- Update only fields that are present in the input
     -- Note: Always use snake_case for JSONB field checks
     IF p_input ? 'ip_address' THEN
-        UPDATE tenant.tb_router 
+        UPDATE tenant.tb_router
         SET ip_address = p_input->>'ip_address'
         WHERE id = v_id;
         v_updated_fields := array_append(v_updated_fields, 'ip_address');
     END IF;
-    
+
     IF p_input ? 'hostname' THEN
-        UPDATE tenant.tb_router 
+        UPDATE tenant.tb_router
         SET hostname = p_input->>'hostname'
         WHERE id = v_id;
         v_updated_fields := array_append(v_updated_fields, 'hostname');
     END IF;
-    
+
     IF p_input ? 'mac_address' THEN
-        UPDATE tenant.tb_router 
+        UPDATE tenant.tb_router
         SET mac_address = p_input->>'mac_address'
         WHERE id = v_id;
         v_updated_fields := array_append(v_updated_fields, 'mac_address');
     END IF;
-    
+
     -- Build the result with full object data
     SELECT INTO v_result.object_data
         jsonb_build_object(
@@ -144,12 +144,12 @@ BEGIN
         )
     FROM tenant.tb_router
     WHERE id = v_id;
-    
+
     v_result.id := v_id;
     v_result.status := 'success';
     v_result.message := 'Router updated successfully';
     v_result.updated_fields := v_updated_fields;
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql;
@@ -168,25 +168,25 @@ DECLARE
     v_id UUID;
 BEGIN
     v_id := (p_input->>'id')::UUID;
-    
+
     -- Single UPDATE with conditional assignments
     UPDATE tenant.tb_router
-    SET 
-        ip_address = CASE 
+    SET
+        ip_address = CASE
             WHEN p_input ? 'ip_address' THEN p_input->>'ip_address'
-            ELSE ip_address 
+            ELSE ip_address
         END,
-        hostname = CASE 
+        hostname = CASE
             WHEN p_input ? 'hostname' THEN p_input->>'hostname'
-            ELSE hostname 
+            ELSE hostname
         END,
-        mac_address = CASE 
+        mac_address = CASE
             WHEN p_input ? 'mac_address' THEN p_input->>'mac_address'
-            ELSE mac_address 
+            ELSE mac_address
         END,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = v_id;
-    
+
     -- Rest of function...
 END;
 $$ LANGUAGE plpgsql;
@@ -199,14 +199,14 @@ When you need to support explicit NULL updates (to clear a field), add a NULL ch
 ```sql
 -- Check if field exists AND is not null (for non-nullable fields)
 IF p_input ? 'hostname' AND p_input->>'hostname' IS NOT NULL THEN
-    UPDATE tenant.tb_router 
+    UPDATE tenant.tb_router
     SET hostname = p_input->>'hostname'
     WHERE id = v_id;
 END IF;
 
 -- For nullable fields, allow NULL updates
 IF p_input ? 'location' THEN
-    UPDATE tenant.tb_router 
+    UPDATE tenant.tb_router
     SET location = p_input->>'location'  -- Can be NULL
     WHERE id = v_id;
 END IF;
@@ -272,9 +272,9 @@ v_input := jsonb_populate_record(NULL::app.type_input, p_input);
 @fraise_input
 class UpdateInput:
     name: str | None = None  # Will be sent as null!
-    
+
 # Correct: Using UNSET
-@fraise_input  
+@fraise_input
 class UpdateInput:
     name: str | None = UNSET  # Excluded if not provided
 ```
@@ -282,7 +282,7 @@ class UpdateInput:
 ### ❌ Don't update fields that weren't provided
 ```sql
 -- Wrong: Updates all fields even if not provided
-UPDATE table SET 
+UPDATE table SET
     field1 = COALESCE(p_input->>'field1', field1),  -- Still triggers update
     field2 = COALESCE(p_input->>'field2', field2)
 WHERE id = v_id;
@@ -330,53 +330,53 @@ BEGIN
         v_result.message := 'Router ID is required';
         RETURN v_result;
     END IF;
-    
+
     v_id := (p_input->>'id')::UUID;
-    
+
     -- Check if router exists
     IF NOT EXISTS (SELECT 1 FROM tenant.tb_router WHERE id = v_id) THEN
         v_result.status := 'error';
         v_result.message := 'Router not found';
         RETURN v_result;
     END IF;
-    
+
     -- Update only provided fields
     IF p_input ? 'hostname' THEN
-        UPDATE tenant.tb_router 
+        UPDATE tenant.tb_router
         SET hostname = p_input->>'hostname',
             updated_at = CURRENT_TIMESTAMP
         WHERE id = v_id;
         v_updated_fields := array_append(v_updated_fields, 'hostname');
         v_update_count := v_update_count + 1;
     END IF;
-    
+
     IF p_input ? 'ip_address' THEN
-        UPDATE tenant.tb_router 
+        UPDATE tenant.tb_router
         SET ip_address = p_input->>'ip_address',
             updated_at = CURRENT_TIMESTAMP
         WHERE id = v_id;
         v_updated_fields := array_append(v_updated_fields, 'ip_address');
         v_update_count := v_update_count + 1;
     END IF;
-    
+
     IF p_input ? 'mac_address' THEN
-        UPDATE tenant.tb_router 
+        UPDATE tenant.tb_router
         SET mac_address = p_input->>'mac_address',
             updated_at = CURRENT_TIMESTAMP
         WHERE id = v_id;
         v_updated_fields := array_append(v_updated_fields, 'mac_address');
         v_update_count := v_update_count + 1;
     END IF;
-    
+
     IF p_input ? 'location' THEN
-        UPDATE tenant.tb_router 
+        UPDATE tenant.tb_router
         SET location = NULLIF(p_input->>'location', ''),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = v_id;
         v_updated_fields := array_append(v_updated_fields, 'location');
         v_update_count := v_update_count + 1;
     END IF;
-    
+
     -- Build result
     SELECT INTO v_result.object_data
         jsonb_build_object(
@@ -390,7 +390,7 @@ BEGIN
         )
     FROM tenant.tb_router
     WHERE id = v_id;
-    
+
     v_result.id := v_id;
     v_result.status := 'success';
     v_result.message := format('Router updated successfully (%s fields)', v_update_count);
@@ -400,7 +400,7 @@ BEGIN
         'operation', 'update',
         'fields_updated', v_update_count
     );
-    
+
     RETURN v_result;
 EXCEPTION
     WHEN OTHERS THEN

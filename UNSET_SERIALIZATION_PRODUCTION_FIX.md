@@ -1,7 +1,7 @@
 # UNSET Serialization Fix for Production Mode
 
-**Date:** 2025-07-11  
-**FraiseQL Version:** 0.1.0b11+ (this fix)  
+**Date:** 2025-07-11
+**FraiseQL Version:** 0.1.0b11+ (this fix)
 **Issue:** UNSET values in GraphQL error extensions not being cleaned in production mode
 
 ## Problem
@@ -12,7 +12,7 @@ The UNSET serialization fix in v0.1.0b10 only applied to the development router.
 
 While the development router correctly used `clean_unset_values()` on error extensions, the production router had different error handling paths that didn't apply this cleaning:
 1. Production router's GraphQL execution errors
-2. Production router's validation errors  
+2. Production router's validation errors
 3. Alternative GraphQL endpoints (GraphNoteRouter)
 4. WebSocket subscription error handling
 

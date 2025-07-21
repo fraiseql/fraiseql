@@ -51,7 +51,7 @@ class Query:
     async def users(self, info) -> list[User]:
         # Resolver method on a class
         pass
-    
+
     async def resolve_posts(self, info) -> list[Post]:
         # resolve_ prefix pattern
         pass
@@ -112,10 +112,10 @@ async def user(info, id: UUID) -> Optional[User]:
     """Get a specific user by ID."""
     db = info.context["db"]
     user = await db.find_one("user_view", id=id)
-    
+
     if not user:
         return None
-    
+
     return user
 ```
 
@@ -134,14 +134,14 @@ async def users_by_criteria(
 ) -> list[User]:
     """Get users matching criteria."""
     db = info.context["db"]
-    
+
     # Build filters
     filters = {"is_active": is_active}
     if role:
         filters["role"] = role
     if created_after:
         filters["created_at__gte"] = created_after
-    
+
     return await db.find("user_view", limit=limit, **filters)
 ```
 
@@ -156,11 +156,11 @@ async def my_profile(info) -> User:
     """Get the current user's profile."""
     user = info.context["user"]  # Guaranteed after @requires_auth
     db = info.context["db"]
-    
+
     profile = await db.find_one("user_view", id=user.user_id)
     if not profile:
         raise GraphQLError("Profile not found")
-    
+
     return profile
 ```
 
@@ -186,7 +186,7 @@ class Comment:
 async def post_with_comments(info, id: UUID) -> Optional[Post]:
     """Get a post with all its comments and authors."""
     db = info.context["db"]
-    
+
     # The view handles the nesting
     return await db.find_one("post_with_comments_view", id=id)
 ```
@@ -229,20 +229,20 @@ async def recommended_posts(info, limit: int = 10) -> list[Post]:
     """Get personalized post recommendations."""
     db = info.context["db"]
     user = info.context.get("user")
-    
+
     if not user:
         # Unauthenticated users get popular posts
         return await db.find(
             "popular_posts_view",
             limit=limit
         )
-    
+
     # Get user preferences
     preferences = await db.find_one(
         "user_preferences_view",
         user_id=user.user_id
     )
-    
+
     if preferences and preferences.favorite_tags:
         # Get posts matching user's interests
         return await db.find(
@@ -250,7 +250,7 @@ async def recommended_posts(info, limit: int = 10) -> list[Post]:
             tags=preferences.favorite_tags,
             limit=limit
         )
-    
+
     # Default to recent posts
     return await db.find(
         "recent_posts_view",
@@ -377,7 +377,7 @@ async def users(info) -> list[User]:
 # Graphene pattern
 class Query(graphene.ObjectType):
     users = graphene.List(UserType)
-    
+
     def resolve_users(self, info):
         return User.objects.all()
 
@@ -440,12 +440,12 @@ async def user_statistics(info, user_id: UUID) -> UserStats:
 async def user(info, id: UUID) -> User:
     db = info.context["db"]
     user = await db.find_one("user_view", id=id)
-    
+
     if not user:
         raise GraphQLError(f"User {id} not found", extensions={
             "code": "USER_NOT_FOUND"
         })
-    
+
     return user
 ```
 
@@ -471,7 +471,7 @@ async def search_users(
 async def active_users(info) -> list[User]:
     """
     Get all active users in the system.
-    
+
     Returns users where is_active=true, ordered by last_login.
     """
     db = info.context["db"]

@@ -15,9 +15,9 @@ CREATE TABLE your_table (
     id uuid,              -- For primary key
     tenant_id uuid,       -- For access control
     other_id uuid,        -- For filtering/joins
-    
+
     data jsonb,           -- REQUIRED: Complete object data
-    
+
     created_at timestamptz,
     updated_by uuid
 );
@@ -44,7 +44,7 @@ Ensure all views have a `data` column:
 ```sql
 -- Example: Update your view to include data column
 CREATE OR REPLACE VIEW your_view AS
-SELECT 
+SELECT
     t.id,
     t.tenant_id,
     t.other_columns,
@@ -80,7 +80,7 @@ item = await repo.find_one("your_view", id=item_id)
 print(item.name)  # Typed access
 
 # Production mode - returns raw dicts
-repo = FraiseQLRepository(pool, {"mode": "production"})  
+repo = FraiseQLRepository(pool, {"mode": "production"})
 item = await repo.find_one("your_view", id=item_id)
 print(item["data"]["name"])  # Dict access
 ```

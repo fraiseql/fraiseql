@@ -180,7 +180,7 @@ Instead of:
 
 Should be:
 ```
-Query function 'machines' has invalid signature. 
+Query function 'machines' has invalid signature.
 Expected: @fraiseql.query decorated function with (info, ...) parameters.
 Got: method with 'resolve_' prefix (not supported in FraiseQL).
 See: https://docs.fraiseql.com/query-patterns

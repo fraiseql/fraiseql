@@ -15,7 +15,7 @@ I've thoroughly investigated the FraiseQL query auto-discovery issue reported in
 ### 1. Registration Mechanism is Sound
 The core registration mechanism works correctly. When `@fraiseql.query` is applied to a function:
 - The decorator gets the singleton registry instance
-- It calls `registry.register_query(func)` 
+- It calls `registry.register_query(func)`
 - The function is stored in `registry._queries` dictionary
 
 ### 2. Potential Issues Identified

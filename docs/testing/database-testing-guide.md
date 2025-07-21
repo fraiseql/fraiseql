@@ -33,7 +33,7 @@ The testing system automatically chooses the best database option:
 ```python
 # Priority order (tests/database_conftest.py)
 1. TEST_DATABASE_URL environment variable (fastest)
-2. DATABASE_URL environment variable  
+2. DATABASE_URL environment variable
 3. Testcontainers PostgreSQL (fallback)
 ```
 
@@ -160,7 +160,7 @@ pytest tests  # Combines unit + database tests
 # Primary: Use specific test database
 export TEST_DATABASE_URL="postgresql://localhost/fraiseql_test"
 
-# Fallback: Use any PostgreSQL database  
+# Fallback: Use any PostgreSQL database
 export DATABASE_URL="postgresql://user:pass@host/db"
 
 # Skip database tests entirely

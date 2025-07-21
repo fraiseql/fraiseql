@@ -27,64 +27,64 @@ class FraiseQLRepository:
         self.connection = connection
         self.context = context or {}
         self.mode = self._determine_mode()
-    
+
     def _determine_mode(self):
         """Determine if we're in dev or production mode."""
         # Check context first (allows per-request override)
         if 'mode' in self.context:
             return self.context['mode']
-        
+
         # Then environment
         env = os.getenv('FRAISEQL_ENV', 'production')
         return 'development' if env == 'development' else 'production'
-    
+
     async def find(self, view_name: str, **kwargs):
         """Find records with mode-appropriate return type."""
         rows = await self._execute_query(view_name, **kwargs)
-        
+
         if self.mode == 'production':
             # Production: Return raw dicts
             return rows
-        
+
         # Development: Full instantiation
         type_class = self._get_type_for_view(view_name)
         return [self._instantiate_recursive(type_class, row) for row in rows]
-    
+
     async def find_one(self, view_name: str, **kwargs):
         """Find single record with mode-appropriate return type."""
         row = await self._execute_single_query(view_name, **kwargs)
-        
+
         if not row:
             return None
-            
+
         if self.mode == 'production':
             return row
-            
+
         type_class = self._get_type_for_view(view_name)
         return self._instantiate_recursive(type_class, row)
-    
+
     def _instantiate_recursive(self, type_class, data, cache=None, depth=0):
         """Recursively instantiate nested objects (dev mode only)."""
         if cache is None:
             cache = {}
-        
+
         # Check cache for circular references
         if isinstance(data, dict) and 'id' in data:
             obj_id = data['id']
             if obj_id in cache:
                 return cache[obj_id]
-        
+
         # Max recursion check
         if depth > 10:
             raise ValueError(f"Max recursion depth exceeded for {type_class.__name__}")
-        
+
         # Convert camelCase to snake_case
         snake_data = {}
         for key, value in data.items():
             if key == '__typename':
                 continue
             snake_key = to_snake_case(key)
-            
+
             # Check if this field should be recursively instantiated
             if isinstance(value, dict) and snake_key in type_class.__gql_type_hints__:
                 field_type = type_class.__gql_type_hints__[snake_key]
@@ -100,16 +100,16 @@ class FraiseQLRepository:
                         self._instantiate_recursive(item_type, item, cache, depth + 1)
                         for item in value
                     ]
-            
+
             snake_data[snake_key] = value
-        
+
         # Create instance
         instance = type_class(**snake_data)
-        
+
         # Cache it
         if 'id' in data:
             cache[data['id']] = instance
-        
+
         return instance
 ```
 
@@ -125,7 +125,7 @@ class Query:
         """Get all allocations."""
         repo = FraiseQLRepository(info.context["db"], info.context)
         return await repo.find("tv_allocation")
-    
+
     @fraiseql.field
     async def allocation(self, info: fraiseql.Info, id: UUID) -> Allocation | None:
         """Get single allocation."""
@@ -143,7 +143,7 @@ class Allocation:
     id: UUID
     machine_id: UUID | None
     data: dict[str, Any]  # Raw JSONB data
-    
+
     # These work in both modes:
     # - Dev: machine is a Machine instance
     # - Prod: machine is a dict
@@ -188,11 +188,11 @@ async def build_graphql_context(request: Request, db_connection) -> dict:
         "db": db_connection,
         "request": request,
     }
-    
+
     # Allow header-based override for testing
     if "X-FraiseQL-Mode" in request.headers:
         context["mode"] = request.headers["X-FraiseQL-Mode"]
-    
+
     return context
 ```
 
@@ -222,7 +222,7 @@ print(type(allocation))  # <class 'Allocation'>
 print(type(allocation.machine))  # <class 'Machine'>
 print(allocation.machine.name)  # "Printer XYZ"
 
-# Production mode output  
+# Production mode output
 allocation = await repo.find_one("tv_allocation", id=some_id)
 print(type(allocation))  # <class 'dict'>
 print(type(allocation['machine']))  # <class 'dict'>
@@ -237,9 +237,9 @@ async def test_allocation_query_modes(mode):
     """Test that both modes work correctly."""
     context = {"mode": mode}
     repo = FraiseQLRepository(db, context)
-    
+
     result = await repo.find("tv_allocation")
-    
+
     if mode == "development":
         assert isinstance(result[0], Allocation)
         assert isinstance(result[0].machine, Machine)

@@ -7,15 +7,16 @@ PrintOptim's PostgreSQL status conventions where:
 - All other statuses follow the tb_entity_change_log constraint
 """
 
-from fraiseql import (
-    fraise_type,
-    fraise_input,
-    success,
-    failure,
-    mutation,
-    PRINTOPTIM_ERROR_CONFIG,
-)
 from uuid import UUID
+
+from fraiseql import (
+    PRINTOPTIM_ERROR_CONFIG,
+    failure,
+    fraise_input,
+    fraise_type,
+    mutation,
+    success,
+)
 
 
 # Input type
@@ -30,7 +31,7 @@ class CreateMachineInput:
 @success
 class CreateMachineSuccess:
     message: str
-    machine: 'Machine'
+    machine: "Machine"
     status: str  # Will contain: 'new', 'existing', 'updated', etc.
 
 
@@ -57,11 +58,8 @@ class Machine:
 @mutation(
     function="create_machine",
     schema="app",
-    context_params={
-        "tenant_id": "input_pk_organization",
-        "user": "input_created_by"
-    },
-    error_config=PRINTOPTIM_ERROR_CONFIG  # Use PrintOptim's error detection rules
+    context_params={"tenant_id": "input_pk_organization", "user": "input_created_by"},
+    error_config=PRINTOPTIM_ERROR_CONFIG,  # Use PrintOptim's error detection rules
 )
 class CreateMachine:
     input: CreateMachineInput
@@ -85,8 +83,8 @@ DECLARE
 BEGIN
     -- Validation: Check if contract exists
     IF NOT EXISTS (
-        SELECT 1 FROM contracts 
-        WHERE id = v_contract_id 
+        SELECT 1 FROM contracts
+        WHERE id = v_contract_id
         AND organization_id = input_pk_organization
     ) THEN
         -- Return with 'noop:' prefix - will be returned as data, not error
@@ -107,13 +105,13 @@ BEGIN
             )
         );
     END IF;
-    
+
     -- Check if machine already exists
     SELECT * INTO v_existing_machine
-    FROM machines 
+    FROM machines
     WHERE name = v_input->>'name'
     AND organization_id = input_pk_organization;
-    
+
     IF v_existing_machine.id IS NOT NULL THEN
         -- Return existing machine with 'noop:existing' status
         RETURN log_and_return_mutation(
@@ -138,13 +136,13 @@ BEGIN
             )
         );
     END IF;
-    
+
     -- Try to create the machine
     BEGIN
         INSERT INTO machines (name, contract_id, organization_id)
         VALUES (v_input->>'name', v_contract_id, input_pk_organization)
         RETURNING id INTO v_machine_id;
-        
+
         -- Success case
         RETURN log_and_return_mutation(
             input_pk_organization,
@@ -164,7 +162,7 @@ BEGIN
             ),
             NULL
         );
-        
+
     EXCEPTION WHEN OTHERS THEN
         -- Only use 'failed:' prefix for actual errors
         RETURN log_and_return_mutation(
@@ -192,7 +190,7 @@ $$ LANGUAGE plpgsql;
 # Test example showing how errors are returned as data:
 def test_create_machine_with_invalid_contract():
     """Test that noop statuses are returned as data, not errors."""
-    mutation = '''
+    mutation = """
         mutation CreateMachine($input: CreateMachineInput!) {
             createMachine(input: $input) {
                 ... on CreateMachineSuccess {
@@ -212,25 +210,28 @@ def test_create_machine_with_invalid_contract():
                 }
             }
         }
-    '''
-    
-    response = client.post("/graphql", json={
-        "query": mutation,
-        "variables": {
-            "input": {
-                "name": "Test Machine",
-                "contractId": "00000000-0000-0000-0000-000000000000",
-                "organizationId": org_id
-            }
-        }
-    })
-    
+    """
+
+    response = client.post(
+        "/graphql",
+        json={
+            "query": mutation,
+            "variables": {
+                "input": {
+                    "name": "Test Machine",
+                    "contractId": "00000000-0000-0000-0000-000000000000",
+                    "organizationId": org_id,
+                }
+            },
+        },
+    )
+
     result = response.json()
-    
+
     # With PRINTOPTIM_ERROR_CONFIG, noop: statuses are in data, not errors
     assert "data" in result
     assert "errors" not in result  # No GraphQL errors!
-    
+
     # The result is in the data field as CreateMachineError type
     machine_result = result["data"]["createMachine"]
     assert machine_result["__typename"] == "CreateMachineError"
@@ -243,18 +244,21 @@ def test_create_machine_with_invalid_contract():
 def test_create_machine_with_database_error():
     """Test that failed: statuses still trigger GraphQL errors."""
     # Simulate a database error that returns 'failed:database_error'
-    
-    response = client.post("/graphql", json={
-        "query": mutation,
-        "variables": {
-            "input": {
-                # Invalid input that causes database error
-            }
-        }
-    })
-    
+
+    response = client.post(
+        "/graphql",
+        json={
+            "query": mutation,
+            "variables": {
+                "input": {
+                    # Invalid input that causes database error
+                }
+            },
+        },
+    )
+
     result = response.json()
-    
+
     # With PRINTOPTIM_ERROR_CONFIG, failed: statuses are GraphQL errors
     assert "errors" in result
     assert result["errors"][0]["extensions"]["code"] == "failed:database_error"
@@ -263,10 +267,11 @@ def test_create_machine_with_database_error():
 # Alternative: Use ALWAYS_DATA_CONFIG to never raise GraphQL errors
 from fraiseql import ALWAYS_DATA_CONFIG
 
+
 @mutation(
     function="create_machine_v2",
     schema="app",
-    error_config=ALWAYS_DATA_CONFIG  # ALL errors returned as data
+    error_config=ALWAYS_DATA_CONFIG,  # ALL errors returned as data
 )
 class CreateMachineV2:
     input: CreateMachineInput
@@ -280,19 +285,26 @@ from fraiseql import MutationErrorConfig
 # Create custom error detection for your project
 CUSTOM_ERROR_CONFIG = MutationErrorConfig(
     success_keywords={
-        "success", "completed", "ok", "done", 
-        "new", "existing", "updated", "deleted", "synced"
+        "success",
+        "completed",
+        "ok",
+        "done",
+        "new",
+        "existing",
+        "updated",
+        "deleted",
+        "synced",
     },
     error_prefixes={
-        "failed:",      # Database/system failures
-        "error:",       # Application errors
-        "critical:",    # Critical failures
+        "failed:",  # Database/system failures
+        "error:",  # Application errors
+        "critical:",  # Critical failures
     },
     error_as_data_prefixes={
-        "noop:",        # No operation performed
-        "blocked:",     # Business rule blockage
-        "skipped:",     # Skipped processing
-        "warning:",     # Warnings but operation succeeded
+        "noop:",  # No operation performed
+        "blocked:",  # Business rule blockage
+        "skipped:",  # Skipped processing
+        "warning:",  # Warnings but operation succeeded
     },
     error_keywords=set(),  # Don't use generic keywords
 )

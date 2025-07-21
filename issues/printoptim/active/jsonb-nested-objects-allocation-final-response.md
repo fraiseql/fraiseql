@@ -21,7 +21,7 @@ class AllocationData:
     notes: Optional[str]
     notes_contact: Optional[str]
     is_provisionnal: bool = fraise_field(default=False)
-    
+
     # Nested objects - FraiseQL will recursively instantiate these
     machine: Optional[Machine]
     location: Optional[Location]
@@ -44,7 +44,7 @@ class Allocation:
     is_future: bool
     is_reserved: bool
     is_stock: bool
-    
+
     # The JSONB column - typed as AllocationData, not dict!
     data: Optional[AllocationData]
 ```
@@ -62,10 +62,10 @@ When FraiseQL processes your query results in development mode:
 
 Keep your view exactly as it is:
 ```sql
-SELECT 
+SELECT
     id, machine_id, organizational_unit_id, location_id,
     valid_from, valid_until, is_past, is_current, is_future,
-    is_reserved, is_stock, 
+    is_reserved, is_stock,
     data  -- JSONB column with nested structure
 FROM app.tv_allocation
 ```
@@ -101,16 +101,16 @@ print(allocation["data"]["machine"]["name"])
 
 ## Answers to Your Specific Questions
 
-1. **Do you need to modify your database view?**  
+1. **Do you need to modify your database view?**
    No! Your current structure with the `data` JSONB column is perfect.
 
-2. **Field mapping?**  
+2. **Field mapping?**
    Fields are accessed through the nested structure: `allocation.data.identifier` instead of trying to flatten them.
 
-3. **Query usage?**  
+3. **Query usage?**
    Your current query is compatible. FraiseQL handles the JSONB → AllocationData conversion.
 
-4. **Duplicate date fields?**  
+4. **Duplicate date fields?**
    Keep both - they likely serve different purposes:
    - `valid_from/valid_until`: When the allocation is valid
    - `data.start_date/data.end_date`: Contract or agreement dates

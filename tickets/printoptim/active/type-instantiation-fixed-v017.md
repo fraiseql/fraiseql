@@ -20,12 +20,12 @@ The repository now correctly reads the mode from the config:
 async def get_db() -> FraiseQLRepository:
     pool = get_db_pool()
     config = get_fraiseql_config()
-    
+
     # Create repository with mode from config
     context = {}
     if config and hasattr(config, 'environment'):
         context["mode"] = "development" if config.environment == "development" else "production"
-    
+
     return FraiseQLRepository(pool=pool, context=context)
 ```
 

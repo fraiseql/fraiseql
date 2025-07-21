@@ -42,7 +42,7 @@ def generate_field_update_blocks(
     blocks = []
     for graphql_name, pg_column in fields.items():
         block = f"""    IF p_input ? '{graphql_name}' THEN
-        UPDATE {schema}.{table_name} 
+        UPDATE {schema}.{table_name}
         SET {pg_column} = p_input->>'{graphql_name}',
             updated_at = CURRENT_TIMESTAMP
         WHERE id = v_id;
@@ -134,25 +134,25 @@ BEGIN
         v_result.message := '{entity} ID is required';
         RETURN v_result;
     END IF;
-    
+
     v_id := (p_input->>'id')::UUID;
-    
+
     -- Check if {entity} exists
     IF NOT EXISTS (SELECT 1 FROM {schema}.{table_name} WHERE id = v_id) THEN
         v_result.status := 'error';
         v_result.message := '{entity} not found';
         RETURN v_result;
     END IF;
-    
+
     -- Update only provided fields
 {field_updates}
-    
+
     -- Build result with full object data
     SELECT INTO v_result.object_data
         {jsonb_object}
     FROM {schema}.{table_name}
     WHERE id = v_id;
-    
+
     v_result.id := v_id;
     v_result.status := 'success';
     v_result.message := format('{entity} updated successfully (%s fields)', v_update_count);
@@ -162,7 +162,7 @@ BEGIN
         'operation', 'update',
         'fields_updated', v_update_count
     );
-    
+
     RETURN v_result;
 EXCEPTION
     WHEN OTHERS THEN

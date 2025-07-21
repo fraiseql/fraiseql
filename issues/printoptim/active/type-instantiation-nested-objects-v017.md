@@ -82,7 +82,7 @@ The data is stored in a JSONB column with complete nested objects:
 ```sql
 -- tv_allocation table
 id: uuid
-tenant_id: uuid  
+tenant_id: uuid
 identifier: text
 data: jsonb  -- Contains full nested objects
 

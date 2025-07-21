@@ -209,7 +209,7 @@ FraiseQL fully supports returning complete objects from mutations. When your SQL
 ### Why Return Full Objects?
 
 - **Better DX**: Clients get all data in one request
-- **Cache Updates**: Apollo/Relay can update caches immediately  
+- **Cache Updates**: Apollo/Relay can update caches immediately
 - **GraphQL Best Practices**: Follows patterns used by GitHub, Shopify APIs
 - **No Extra Queries**: Data is already fetched by your SQL function
 
@@ -222,7 +222,7 @@ class CreateUserSuccess:
     user_id: str  # ❌ Requires another query
 
 # Return the full object
-@fraiseql.success  
+@fraiseql.success
 class CreateUserSuccess:
     user: User  # ✅ Complete object with all fields
 ```
