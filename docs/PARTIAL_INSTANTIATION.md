@@ -36,7 +36,7 @@ class Profile:
     bio: str    # Required field
     website: str | None = None
 
-@fraise_type  
+@fraise_type
 class User:
     id: UUID
     name: str
@@ -130,7 +130,7 @@ Missing required fields are set to `None`:
 ```python
 # If only id and avatar were requested:
 profile.id       # ✓ Has value
-profile.avatar   # ✓ Has value  
+profile.avatar   # ✓ Has value
 profile.email    # None (even though it's required)
 profile.bio      # None (even though it's required)
 profile.website  # None (was already optional)
@@ -158,7 +158,7 @@ Your JSONB `data` column must contain all fields:
 
 ```sql
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,
     jsonb_build_object(
         'id', id,
@@ -249,11 +249,11 @@ class Article:
     id: UUID
     title: str
     slug: str
-    
+
     # Often skipped in lists
     content: str
     html_content: str
-    
+
     # Metadata - sometimes needed
     created_at: datetime
     updated_at: datetime
@@ -269,7 +269,7 @@ For computed or expensive fields, consider using field resolvers:
 class User:
     id: UUID
     name: str
-    
+
     @fraise_field
     async def statistics(self, info) -> UserStats:
         # Only computed when requested
@@ -284,7 +284,7 @@ Make it clear which fields are always available vs. potentially None:
 @fraise_type
 class Product:
     """Product type.
-    
+
     Fields always available: id, name, sku
     Fields that may be None in partial queries: description, specs, images
     """

@@ -210,13 +210,13 @@ class TestQueryComplexityAnalyzer:
                 }
             }
         }
-        
+
         fragment UserFields on User {
             id
             name
             email
         }
-        
+
         fragment PostFields on Post {
             id
             title

@@ -113,13 +113,13 @@ async def users(info) -> list[User]:
 @fraiseql.mutation
 async def transfer_funds(info, from_id: UUID, to_id: UUID, amount: int) -> bool:
     db = info.context["db"]
-    
+
     # Use the pool for transactions
     async with db._pool.connection() as conn:
         async with conn.transaction():
             # All queries within transaction
             await conn.execute(...)
-    
+
     return True
 ```
 
@@ -384,7 +384,7 @@ from fraiseql import fraise_type, fraise_input, fraise_enum
 # user.py
 from .post import Post
 
-# post.py  
+# post.py
 from .user import User
 
 # ✅ Use forward references
@@ -450,14 +450,14 @@ from fraiseql import GraphQLError
 async def user(info, id: UUID) -> User:
     db = info.context["db"]
     user = await db.find_one("user_view", id=id)
-    
+
     if not user:
         # Proper GraphQL error
         raise GraphQLError(
             f"User {id} not found",
             extensions={"code": "USER_NOT_FOUND"}
         )
-    
+
     return user
 ```
 

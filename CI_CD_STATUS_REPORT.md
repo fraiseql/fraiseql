@@ -8,7 +8,7 @@ FraiseQL has a comprehensive CI/CD setup with 7 GitHub Actions workflows. Here's
 
 ### 1. **CI** (`.github/workflows/ci.yml`)
 - **Trigger**: Push to main/develop, PRs to main
-- **Jobs**: 
+- **Jobs**:
   - Lint & Format Check (Ruff + Black)
   - Type Checking (Pyright)
   - Tests with coverage (Python 3.11, 3.12)
@@ -51,7 +51,7 @@ FraiseQL has a comprehensive CI/CD setup with 7 GitHub Actions workflows. Here's
   - Test installation on multiple Python versions
   - Publish to TestPyPI or PyPI
 - **Status**: ✅ Well-designed
-- **Features**: 
+- **Features**:
   - Supports TestPyPI for testing
   - Tests on Python 3.10-3.13
   - Uses trusted publishing (OIDC)

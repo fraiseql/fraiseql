@@ -25,12 +25,12 @@ Add this debugging code to see what you're actually getting:
 async def machines(info, limit: int = 20) -> list[Machine]:
     """Debug repository type."""
     db = info.context["db"]
-    
+
     # Debug information
     print(f"Repository type: {type(db)}")
     print(f"Repository methods: {[method for method in dir(db) if not method.startswith('_')]}")
     print(f"Has find method: {hasattr(db, 'find')}")
-    
+
     # Your actual query
     return await db.find("tv_machine", limit=limit)
 ```
@@ -44,13 +44,13 @@ from fraiseql.db import FraiseQLRepository
 async def get_context(request: Request) -> dict[str, Any]:
     """Build GraphQL context."""
     pool = request.app.state.db_pool
-    
+
     # Create repository with proper context
     repo = FraiseQLRepository(pool, context={
         "mode": "development",  # or "production"
         "tenant_id": extract_tenant_id(request)
     })
-    
+
     return {
         "db": repo,
         "request": request,
@@ -70,7 +70,7 @@ Find multiple records with filtering:
 machines = await db.find("tv_machine")
 
 # With filters
-active_machines = await db.find("tv_machine", 
+active_machines = await db.find("tv_machine",
     status="active",
     tenant_id=tenant_id
 )
@@ -100,7 +100,7 @@ Find a single record:
 machine = await db.find_one("tv_machine", id=machine_id)
 
 # Find with multiple filters
-machine = await db.find_one("tv_machine", 
+machine = await db.find_one("tv_machine",
     id=machine_id,
     tenant_id=tenant_id
 )
@@ -147,22 +147,22 @@ async def machines(
     try:
         db = info.context["db"]
         tenant_id = info.context.get("tenant_id")
-        
+
         # Verify repository type (remove after debugging)
         if not hasattr(db, 'find'):
             raise RuntimeError(f"Repository {type(db)} doesn't have find method")
-        
+
         # Build filters
         filters = {}
         if tenant_id:
             filters["tenant_id"] = tenant_id
-        
+
         # Add where conditions
         if where:
             if where.status:
                 filters["status"] = where.status
             # Add other filters as needed
-        
+
         # Execute query
         return await db.find("tv_machine",
             **filters,
@@ -170,7 +170,7 @@ async def machines(
             offset=offset,
             order_by="removed_at DESC NULLS LAST"
         )
-        
+
     except Exception as e:
         print(f"Query error: {e}")
         print(f"Repository type: {type(info.context.get('db'))}")
@@ -181,11 +181,11 @@ async def machine(info, id: UUID) -> Optional[Machine]:
     """Get a single machine by ID."""
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     filters = {"id": id}
     if tenant_id:
         filters["tenant_id"] = tenant_id
-    
+
     return await db.find_one("tv_machine", **filters)
 ```
 
@@ -199,16 +199,16 @@ async def get_context(request: Request) -> dict[str, Any]:
     """Build GraphQL context."""
     # Get pool from app state
     pool = request.app.state.db_pool
-    
+
     # Extract tenant (adjust to your auth logic)
     tenant_id = request.headers.get("x-tenant-id")
-    
+
     # Create repository
     repo = FraiseQLRepository(pool, context={
         "mode": "development",  # or get from env
         "tenant_id": tenant_id
     })
-    
+
     return {
         "db": repo,
         "tenant_id": tenant_id,
@@ -279,12 +279,12 @@ Try this simple test query:
 async def test_repository(info) -> str:
     """Test repository API."""
     db = info.context["db"]
-    
+
     # Check repository
     repo_type = type(db).__name__
     has_find = hasattr(db, 'find')
     has_find_one = hasattr(db, 'find_one')
-    
+
     return f"Repository: {repo_type}, find: {has_find}, find_one: {has_find_one}"
 ```
 

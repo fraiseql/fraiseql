@@ -24,7 +24,7 @@ You need to modify your view to extract JSONB fields to the top level:
 
 ```sql
 CREATE OR REPLACE VIEW app.tv_allocation AS
-SELECT 
+SELECT
     -- Direct table columns
     a.id,
     a.machine_id,
@@ -38,7 +38,7 @@ SELECT
     a.is_future,
     a.is_reserved,
     a.is_stock,
-    
+
     -- Extract scalar fields from JSONB
     a.data->>'identifier' as identifier,
     (a.data->>'start_date')::date as start_date,
@@ -46,13 +46,13 @@ SELECT
     a.data->>'notes' as notes,
     a.data->>'notes_contact' as notes_contact,
     (a.data->>'is_provisionnal')::boolean as is_provisionnal,
-    
+
     -- Extract nested objects as JSONB (not text)
     a.data->'machine' as machine,
     a.data->'location' as location,
     a.data->'organizational_unit' as organizational_unit,
     a.data->'network_configuration' as network_configuration,
-    
+
     -- Keep the original data column if needed for other purposes
     a.data as data
 FROM public.tv_allocation a;
@@ -84,7 +84,7 @@ class Allocation:
     is_future: bool
     is_reserved: bool
     is_stock: bool
-    
+
     # Fields extracted from JSONB
     identifier: Optional[str]
     start_date: Optional[date]
@@ -92,7 +92,7 @@ class Allocation:
     notes: Optional[str]
     notes_contact: Optional[str]
     is_provisionnal: bool = fraiseql.field(default=False)  # Use field() for defaults
-    
+
     # Nested objects - FraiseQL will instantiate these
     machine: Optional[Machine]
     location: Optional[Location]
@@ -132,7 +132,7 @@ class Allocation:
     # Database columns
     valid_from: date      # From table column
     valid_until: Optional[date]  # From table column
-    
+
     # JSONB fields (different names)
     start_date: Optional[date]   # From data->>'start_date'
     end_date: Optional[date]     # From data->>'end_date'

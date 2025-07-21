@@ -41,30 +41,30 @@ We will implement defense-in-depth with:
 # src/fraiseql/security/validators.py
 class InputValidator:
     """Validates user input for security threats."""
-    
+
     SUSPICIOUS_SQL_PATTERNS = [
         (r"(--|#|/\*|\*/)", "SQL comment syntax detected"),
-        (r"\b(union\s+select|drop\s+table|delete\s+from)\b", 
+        (r"\b(union\s+select|drop\s+table|delete\s+from)\b",
          "Suspicious SQL keyword pattern"),
         (r";\s*(select|insert|update|delete|drop)", "Stacked query attempt"),
     ]
-    
+
     @classmethod
     def validate_field_value(cls, field: str, value: Any) -> ValidationResult:
         """Validate a single field value."""
         errors = []
         warnings = []
-        
+
         if isinstance(value, str):
             # Check for SQL injection patterns
             for pattern, message in cls.SUSPICIOUS_SQL_PATTERNS:
                 if re.search(pattern, value, re.IGNORECASE):
                     errors.append(f"{field}: {message}")
-            
+
             # Check for XSS patterns
             if cls._contains_script_tags(value):
                 errors.append(f"{field}: Script tags not allowed")
-        
+
         return ValidationResult(
             is_valid=len(errors) == 0,
             errors=errors,
@@ -104,12 +104,12 @@ def build_operator_composed(
 # src/fraiseql/analysis/query_complexity.py
 class QueryComplexityAnalyzer:
     """Analyzes GraphQL query complexity."""
-    
+
     def calculate_depth(self, query: DocumentNode) -> int:
         """Calculate maximum query depth."""
         # Traverse AST and find deepest selection set
         return self._traverse_selections(query.definitions[0].selection_set)
-    
+
     def validate_query(self, query: DocumentNode, max_depth: int) -> None:
         """Validate query doesn't exceed complexity limits."""
         depth = self.calculate_depth(query)
@@ -124,10 +124,10 @@ class QueryComplexityAnalyzer:
 # src/fraiseql/security/rate_limiting.py
 class RateLimiter:
     """Token bucket rate limiter."""
-    
+
     async def check_rate_limit(
-        self, 
-        key: str, 
+        self,
+        key: str,
         requests: int = 100,
         period: int = 60
     ) -> bool:
@@ -135,12 +135,12 @@ class RateLimiter:
         current = await self.redis.incr(f"rl:{key}")
         if current == 1:
             await self.redis.expire(f"rl:{key}", period)
-        
+
         if current > requests:
             raise RateLimitExceededError(
                 f"Rate limit exceeded: {requests} requests per {period}s"
             )
-        
+
         return True
 ```
 
@@ -149,7 +149,7 @@ class RateLimiter:
 # src/fraiseql/security/security_headers.py
 class SecurityHeadersMiddleware:
     """Adds security headers to all responses."""
-    
+
     SECURITY_HEADERS = {
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
@@ -157,7 +157,7 @@ class SecurityHeadersMiddleware:
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         "Content-Security-Policy": "default-src 'self'",
     }
-    
+
     async def __call__(self, request: Request, call_next):
         response = await call_next(request)
         for header, value in self.SECURITY_HEADERS.items():

@@ -1,9 +1,9 @@
 # UNSET Serialization Issue Persists After v0.1.0b10 Upgrade
 
-**Date:** 2025-07-11  
-**Reporter:** PrintOptim Backend Team  
-**FraiseQL Version:** 0.1.0b10 (freshly reinstalled)  
-**Status:** Critical - Still blocking 137+ tests  
+**Date:** 2025-07-11
+**Reporter:** PrintOptim Backend Team
+**FraiseQL Version:** 0.1.0b10 (freshly reinstalled)
+**Status:** Critical - Still blocking 137+ tests
 
 ## Issue Update
 

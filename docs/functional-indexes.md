@@ -13,7 +13,7 @@ FraiseQL stores all data in JSONB columns within PostgreSQL views. This provides
 FraiseQL views follow this pattern:
 ```sql
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,                    -- Used for filtering
     tenant_id,             -- For multi-tenancy
     created_at,            -- For ordering
@@ -31,15 +31,15 @@ FROM users;
 FraiseQL generates SQL queries like:
 ```sql
 -- Filtering by JSONB field
-SELECT data FROM user_view 
+SELECT data FROM user_view
 WHERE (data ->> 'email') = 'user@example.com';
 
 -- Numeric comparisons
-SELECT data FROM user_view 
+SELECT data FROM user_view
 WHERE (data ->> 'age')::numeric > 21;
 
 -- Pattern matching
-SELECT data FROM user_view 
+SELECT data FROM user_view
 WHERE (data ->> 'name') ILIKE '%john%';
 ```
 
@@ -49,11 +49,11 @@ WHERE (data ->> 'name') ILIKE '%john%';
 
 For exact matches on text fields:
 ```sql
-CREATE INDEX idx_user_email ON users 
+CREATE INDEX idx_user_email ON users
     ((data ->> 'email'));
 
 -- For case-insensitive searches
-CREATE INDEX idx_user_email_lower ON users 
+CREATE INDEX idx_user_email_lower ON users
     (lower(data ->> 'email'));
 ```
 
@@ -61,11 +61,11 @@ CREATE INDEX idx_user_email_lower ON users
 
 For numeric comparisons:
 ```sql
-CREATE INDEX idx_product_price ON products 
+CREATE INDEX idx_product_price ON products
     (((data ->> 'price')::numeric));
 
 -- For integer fields
-CREATE INDEX idx_user_age ON users 
+CREATE INDEX idx_user_age ON users
     (((data ->> 'age')::int));
 ```
 
@@ -73,7 +73,7 @@ CREATE INDEX idx_user_age ON users
 
 For boolean filters:
 ```sql
-CREATE INDEX idx_user_active ON users 
+CREATE INDEX idx_user_active ON users
     (((data ->> 'active')::boolean));
 ```
 
@@ -81,7 +81,7 @@ CREATE INDEX idx_user_active ON users
 
 For date/time queries:
 ```sql
-CREATE INDEX idx_order_created ON orders 
+CREATE INDEX idx_order_created ON orders
     (((data ->> 'created_at')::timestamptz));
 ```
 
@@ -90,11 +90,11 @@ CREATE INDEX idx_order_created ON orders
 For array contains operations:
 ```sql
 -- GIN index for array contains
-CREATE INDEX idx_user_tags ON users USING gin 
+CREATE INDEX idx_user_tags ON users USING gin
     ((data -> 'tags'));
 
 -- For array length queries
-CREATE INDEX idx_user_tags_length ON users 
+CREATE INDEX idx_user_tags_length ON users
     ((jsonb_array_length(data -> 'tags')));
 ```
 
@@ -103,12 +103,12 @@ CREATE INDEX idx_user_tags_length ON users
 For nested JSONB queries:
 ```sql
 -- Index on nested field
-CREATE INDEX idx_user_address_city ON users 
+CREATE INDEX idx_user_address_city ON users
     ((data -> 'address' ->> 'city'));
 
 -- Composite index on multiple nested fields
-CREATE INDEX idx_user_location ON users 
-    ((data -> 'address' ->> 'country'), 
+CREATE INDEX idx_user_location ON users
+    ((data -> 'address' ->> 'country'),
      (data -> 'address' ->> 'city'));
 ```
 
@@ -118,7 +118,7 @@ CREATE INDEX idx_user_location ON users
 
 Combine frequently filtered fields:
 ```sql
-CREATE INDEX idx_user_status_created ON users 
+CREATE INDEX idx_user_status_created ON users
     ((data ->> 'status'), created_at DESC);
 ```
 
@@ -127,12 +127,12 @@ CREATE INDEX idx_user_status_created ON users
 Index only relevant rows:
 ```sql
 -- Index only active users
-CREATE INDEX idx_active_user_email ON users 
+CREATE INDEX idx_active_user_email ON users
     ((data ->> 'email'))
     WHERE (data ->> 'status') = 'active';
 
 -- Index only recent records
-CREATE INDEX idx_recent_orders ON orders 
+CREATE INDEX idx_recent_orders ON orders
     ((data ->> 'customer_id'))
     WHERE created_at > CURRENT_DATE - INTERVAL '30 days';
 ```
@@ -142,11 +142,11 @@ CREATE INDEX idx_recent_orders ON orders
 For complex expressions:
 ```sql
 -- Full name search
-CREATE INDEX idx_user_full_name ON users 
+CREATE INDEX idx_user_full_name ON users
     ((data ->> 'first_name' || ' ' || data ->> 'last_name'));
 
 -- Computed values
-CREATE INDEX idx_order_total_with_tax ON orders 
+CREATE INDEX idx_order_total_with_tax ON orders
     ((((data ->> 'total')::numeric * 1.08)));
 ```
 
@@ -156,8 +156,8 @@ For full-text search:
 ```sql
 -- GIN index for text search
 CREATE INDEX idx_product_search ON products USING gin
-    (to_tsvector('english', 
-        coalesce(data ->> 'name', '') || ' ' || 
+    (to_tsvector('english',
+        coalesce(data ->> 'name', '') || ' ' ||
         coalesce(data ->> 'description', '')
     ));
 ```
@@ -168,8 +168,8 @@ CREATE INDEX idx_product_search ON products USING gin
 
 Use EXPLAIN ANALYZE to verify index usage:
 ```sql
-EXPLAIN (ANALYZE, BUFFERS) 
-SELECT data FROM user_view 
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT data FROM user_view
 WHERE (data ->> 'email') = 'user@example.com';
 ```
 
@@ -177,7 +177,7 @@ WHERE (data ->> 'email') = 'user@example.com';
 
 Monitor index usage:
 ```sql
-SELECT 
+SELECT
     schemaname,
     tablename,
     indexname,
@@ -193,7 +193,7 @@ ORDER BY idx_scan DESC;
 
 Find slow queries without indexes:
 ```sql
-SELECT 
+SELECT
     query,
     calls,
     total_time,
@@ -227,7 +227,7 @@ REINDEX INDEX idx_user_email;
 ANALYZE users;
 
 -- Monitor bloat
-SELECT 
+SELECT
     schemaname,
     tablename,
     indexname,
@@ -254,7 +254,7 @@ ORDER BY pg_relation_size(indexrelid) DESC;
 
 ```sql
 -- Composite index for tenant isolation
-CREATE INDEX idx_user_tenant_email ON users 
+CREATE INDEX idx_user_tenant_email ON users
     (tenant_id, (data ->> 'email'));
 ```
 
@@ -262,7 +262,7 @@ CREATE INDEX idx_user_tenant_email ON users
 
 ```sql
 -- Optimize for recent data access
-CREATE INDEX idx_event_recent ON events 
+CREATE INDEX idx_event_recent ON events
     (created_at DESC)
     WHERE created_at > CURRENT_DATE - INTERVAL '7 days';
 ```

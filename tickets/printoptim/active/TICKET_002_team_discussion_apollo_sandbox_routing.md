@@ -84,7 +84,7 @@ class FraiseQLConfig:
 
 ## Technical Considerations
 
-1. **Security:** 
+1. **Security:**
    - Only affects development mode
    - Production mode doesn't serve GET requests
 

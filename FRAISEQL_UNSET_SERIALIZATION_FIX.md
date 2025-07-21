@@ -107,7 +107,7 @@ class MyInput:
     required_field: str
     optional_field: str | None = UNSET  # ✅ Now serializes correctly in errors
 
-@fraiseql.mutation(function="my_function", schema="app")  
+@fraiseql.mutation(function="my_function", schema="app")
 class MyMutation:
     input: MyInput
     success: MySuccess

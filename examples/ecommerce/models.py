@@ -144,7 +144,7 @@ class Order:
     subtotal: Decimal = fraise_field(description="Subtotal before tax/shipping")
     tax_amount: Decimal = fraise_field(description="Tax amount")
     shipping_amount: Decimal = fraise_field(description="Shipping cost")
-    discount_amount: Decimal = fraise_field(default=Decimal("0"), description="Discount applied")
+    discount_amount: Decimal = fraise_field(default=Decimal(0), description="Discount applied")
     total: Decimal = fraise_field(description="Total amount")
 
     # Tracking

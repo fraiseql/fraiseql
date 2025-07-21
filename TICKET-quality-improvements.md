@@ -6,7 +6,7 @@ Continue improving FraiseQL project quality by removing dead code, setting up CI
 ## Background
 Initial assessment showed FraiseQL had 29.3% test coverage with critical modules under 20%. We've successfully:
 - Increased test coverage by creating 7 comprehensive test files (2,736 lines)
-- Reduced linting errors from 540 to ~100 
+- Reduced linting errors from 540 to ~100
 - Fixed all type errors
 - Committed improvements in two batches
 
@@ -19,7 +19,7 @@ Initial assessment showed FraiseQL had 29.3% test coverage with critical modules
 ## Tasks
 
 ### 1. Dead Code Removal (2-3 hours)
-**Priority**: Medium  
+**Priority**: Medium
 **Blockers**: Requires thorough testing before removal
 
 - [ ] Run full test suite with coverage report
@@ -38,7 +38,7 @@ Initial assessment showed FraiseQL had 29.3% test coverage with critical modules
 - [ ] Commit with clear message about what was removed and why
 
 ### 2. CI/CD Pipeline Setup (3-4 hours)
-**Priority**: High  
+**Priority**: High
 **Location**: `.github/workflows/ci.yml`
 
 - [ ] Create GitHub Actions workflow with:
@@ -57,7 +57,7 @@ Initial assessment showed FraiseQL had 29.3% test coverage with critical modules
 - [ ] Set up branch protection requiring CI to pass
 
 ### 3. Coverage Requirements (1-2 hours)
-**Priority**: High  
+**Priority**: High
 **Dependencies**: CI/CD pipeline
 
 - [ ] Add coverage configuration to pyproject.toml:
@@ -80,7 +80,7 @@ Initial assessment showed FraiseQL had 29.3% test coverage with critical modules
 - [ ] Document coverage expectations in CONTRIBUTING.md
 
 ### 4. API Documentation (2-3 hours)
-**Priority**: Medium  
+**Priority**: Medium
 **Tools**: Sphinx or MkDocs
 
 - [ ] Set up documentation framework
@@ -91,7 +91,7 @@ Initial assessment showed FraiseQL had 29.3% test coverage with critical modules
 - [ ] Add documentation badge to README
 
 ### 5. Code Quality Improvements (2-3 hours)
-**Priority**: Medium  
+**Priority**: Medium
 **Focus**: Maintainability
 
 - [ ] Fix remaining ~100 line length issues
@@ -116,7 +116,7 @@ Initial assessment showed FraiseQL had 29.3% test coverage with critical modules
 ## Risks & Mitigations
 - **Risk**: Removing files breaks hidden dependencies
   - **Mitigation**: Comprehensive testing before each removal
-- **Risk**: CI/CD setup delays other work  
+- **Risk**: CI/CD setup delays other work
   - **Mitigation**: Use GitHub Actions templates, implement incrementally
 - **Risk**: Coverage requirements too strict
   - **Mitigation**: Start at 70%, increase gradually
