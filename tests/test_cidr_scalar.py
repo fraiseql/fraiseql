@@ -2,6 +2,7 @@
 
 import pytest
 from graphql import GraphQLError
+from graphql.language import IntValueNode, StringValueNode
 
 from fraiseql.types.scalars.cidr import (
     CIDRField,
@@ -33,15 +34,17 @@ class TestCIDRSerialization:
         assert serialize_cidr("192.168.1.1/24") == "192.168.1.1/24"
         assert serialize_cidr("10.0.0.5/8") == "10.0.0.5/8"
 
+    def test_serialize_ip_without_prefix(self):
+        """Test serializing IP without prefix (automatically gets /32 for IPv4, /128 for IPv6)."""
+        assert serialize_cidr("192.168.1.0") == "192.168.1.0"
+        assert serialize_cidr("2001:db8::1") == "2001:db8::1"
+
     def test_serialize_none(self):
         """Test serializing None returns None."""
         assert serialize_cidr(None) is None
 
     def test_serialize_invalid_cidr(self):
         """Test serializing invalid CIDR raises error."""
-        with pytest.raises(GraphQLError, match="Invalid CIDR notation"):
-            serialize_cidr("192.168.1.0")  # Missing prefix
-
         with pytest.raises(GraphQLError, match="Invalid CIDR notation"):
             serialize_cidr("192.168.1.0/33")  # Invalid prefix for IPv4
 
@@ -50,6 +53,9 @@ class TestCIDRSerialization:
 
         with pytest.raises(GraphQLError, match="Invalid CIDR notation"):
             serialize_cidr("192.168.1.0/abc")  # Invalid prefix
+
+        with pytest.raises(GraphQLError, match="Invalid CIDR notation"):
+            serialize_cidr("invalid")  # Invalid format
 
     def test_serialize_invalid_type(self):
         """Test serializing non-string types raises error."""
@@ -72,10 +78,10 @@ class TestCIDRParsing:
     def test_parse_invalid_cidr(self):
         """Test parsing invalid CIDR raises error."""
         with pytest.raises(GraphQLError, match="Invalid CIDR notation"):
-            parse_cidr_value("192.168.1.0")
+            parse_cidr_value("192.168.1.0/33")  # Invalid prefix for IPv4
 
         with pytest.raises(GraphQLError, match="Invalid CIDR notation"):
-            parse_cidr_value("192.168.1.0/40")
+            parse_cidr_value("192.168.1.256/24")  # Invalid IP octet
 
     def test_parse_invalid_type(self):
         """Test parsing non-string types raises error."""
@@ -101,27 +107,13 @@ class TestCIDRField:
     def test_create_invalid_cidr_field(self):
         """Test creating CIDRField with invalid values raises error."""
         with pytest.raises(ValueError, match="Invalid CIDR notation"):
-            CIDRField("192.168.1.0")
+            CIDRField("192.168.1.0/33")  # Invalid prefix for IPv4
 
         with pytest.raises(ValueError, match="Invalid CIDR notation"):
-            CIDRField("192.168.1.0/33")
+            CIDRField("invalid")  # Invalid format
 
         with pytest.raises(ValueError, match="Invalid CIDR notation"):
-            CIDRField("invalid")
-
-
-class MockStringValueNode:
-    """Mock AST node for string values."""
-
-    def __init__(self, value):
-        self.value = value
-
-
-class MockIntValueNode:
-    """Mock AST node for integer values."""
-
-    def __init__(self, value):
-        self.value = str(value)
+            CIDRField("999.999.999.999/24")  # Invalid IP
 
 
 class TestCIDRLiteralParsing:
@@ -129,16 +121,16 @@ class TestCIDRLiteralParsing:
 
     def test_parse_valid_literal(self):
         """Test parsing valid CIDR literals."""
-        assert parse_cidr_literal(MockStringValueNode("192.168.1.0/24")) == "192.168.1.0/24"
-        assert parse_cidr_literal(MockStringValueNode("10.0.0.0/8")) == "10.0.0.0/8"
-        assert parse_cidr_literal(MockStringValueNode("2001:db8::/32")) == "2001:db8::/32"
+        assert parse_cidr_literal(StringValueNode(value="192.168.1.0/24")) == "192.168.1.0/24"
+        assert parse_cidr_literal(StringValueNode(value="10.0.0.0/8")) == "10.0.0.0/8"
+        assert parse_cidr_literal(StringValueNode(value="2001:db8::/32")) == "2001:db8::/32"
 
     def test_parse_invalid_literal_format(self):
         """Test parsing invalid CIDR format literals."""
         with pytest.raises(GraphQLError, match="Invalid CIDR notation"):
-            parse_cidr_literal(MockStringValueNode("192.168.1.0"))
+            parse_cidr_literal(StringValueNode(value="192.168.1.0/33"))  # Invalid prefix
 
     def test_parse_non_string_literal(self):
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="CIDR must be a string"):
-            parse_cidr_literal(MockIntValueNode(192))
+            parse_cidr_literal(IntValueNode(value="192"))

@@ -29,7 +29,7 @@ from .cidr import CIDRField, CIDRScalar
 from .date import DateScalar
 from .datetime import DateTimeScalar
 from .hostname import HostnameField, HostnameScalar
-from .ip_address import IpAddressScalar, SubnetMaskScalar
+from .ip_address import IpAddressField, IpAddressScalar, SubnetMaskScalar
 from .json import JSONField, JSONScalar
 from .mac_address import MacAddressField, MacAddressScalar
 from .port import PortField, PortScalar
@@ -52,6 +52,7 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         datetime.time: GraphQLString,
         ipaddress.IPv4Address: IpAddressScalar,
         ipaddress.IPv4Network: SubnetMaskScalar,
+        IpAddressField: IpAddressScalar,
         CIDRField: CIDRScalar,
         HostnameField: HostnameScalar,
         MacAddressField: MacAddressScalar,

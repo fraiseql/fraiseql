@@ -2,6 +2,7 @@
 
 import pytest
 from graphql import GraphQLError
+from graphql.language import IntValueNode, StringValueNode
 
 from fraiseql.types.scalars.hostname import (
     HostnameField,
@@ -31,8 +32,8 @@ class TestHostnameSerialization:
 
     def test_serialize_max_length(self):
         """Test serializing hostname at maximum length."""
-        # 253 characters total
-        long_hostname = "a" * 63 + "." + "b" * 63 + "." + "c" * 63 + "." + "d" * 62
+        # 253 characters total (4 labels with dots)
+        long_hostname = "a" * 63 + "." + "b" * 63 + "." + "c" * 63 + "." + "d" * 61
         assert len(long_hostname) == 253
         assert serialize_hostname(long_hostname) == long_hostname
 
@@ -142,38 +143,24 @@ class TestHostnameField:
             HostnameField("a" * 64 + ".com")
 
 
-class MockStringValueNode:
-    """Mock AST node for string values."""
-
-    def __init__(self, value):
-        self.value = value
-
-
-class MockIntValueNode:
-    """Mock AST node for integer values."""
-
-    def __init__(self, value):
-        self.value = str(value)
-
-
 class TestHostnameLiteralParsing:
     """Test parsing hostname from GraphQL literals."""
 
     def test_parse_valid_literal(self):
         """Test parsing valid hostname literals."""
-        assert parse_hostname_literal(MockStringValueNode("example.com")) == "example.com"
-        assert parse_hostname_literal(MockStringValueNode("SUB.EXAMPLE.COM")) == "sub.example.com"
-        assert parse_hostname_literal(MockStringValueNode("my-server")) == "my-server"
+        assert parse_hostname_literal(StringValueNode(value="example.com")) == "example.com"
+        assert parse_hostname_literal(StringValueNode(value="SUB.EXAMPLE.COM")) == "sub.example.com"
+        assert parse_hostname_literal(StringValueNode(value="my-server")) == "my-server"
 
     def test_parse_invalid_literal_format(self):
         """Test parsing invalid hostname format literals."""
         with pytest.raises(GraphQLError, match="Invalid hostname"):
-            parse_hostname_literal(MockStringValueNode("-invalid.com"))
+            parse_hostname_literal(StringValueNode(value="-invalid.com"))
 
         with pytest.raises(GraphQLError, match="Invalid hostname"):
-            parse_hostname_literal(MockStringValueNode("invalid..com"))
+            parse_hostname_literal(StringValueNode(value="invalid..com"))
 
     def test_parse_non_string_literal(self):
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="Hostname must be a string"):
-            parse_hostname_literal(MockIntValueNode(123))
+            parse_hostname_literal(IntValueNode(value="123"))

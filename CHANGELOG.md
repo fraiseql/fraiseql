@@ -5,6 +5,27 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b29] - 2025-07-21
+
+### Fixed
+
+- **IpAddress scalar in input types**: Fixed critical bug where `IpAddress` scalar could not be used in GraphQL input types
+  - Added missing `IpAddressField` import in `graphql_utils.py`
+  - Added `IpAddressField: IpAddressScalar` mapping to scalar type conversion
+  - This fix enables the primary use case for network validation scalars in mutations
+
+### Added
+
+- **IpAddress scalar tests**: Added comprehensive test coverage for IpAddress scalar
+  - Serialization tests for IPv4 and IPv6 addresses
+  - Parsing tests with proper error messages
+  - GraphQL AST literal parsing tests
+  - Input type integration tests to prevent regression
+
+### Developer Notes
+
+This hotfix release addresses a critical issue reported in the community where the `IpAddress` scalar type introduced in v0.1.0b28 could not be used in GraphQL input types. This was due to a missing mapping in the type conversion system. The issue is now resolved and all network scalars (Port, IpAddress, CIDR, Hostname, MacAddress) work correctly in both output and input types.
+
 ## [0.1.0b28] - 2025-07-21
 
 ### Added

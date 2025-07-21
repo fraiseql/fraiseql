@@ -31,13 +31,13 @@ class TestPortSerialization:
         """Test serializing out-of-range ports raises error."""
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             serialize_port(0)
-        
+
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             serialize_port(-1)
-        
+
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             serialize_port(65536)
-        
+
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             serialize_port(100000)
 
@@ -62,10 +62,10 @@ class TestPortParsing:
         """Test parsing out-of-range ports raises error."""
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             parse_port_value(0)
-        
+
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             parse_port_value(-1)
-        
+
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             parse_port_value(65536)
 
@@ -73,10 +73,10 @@ class TestPortParsing:
         """Test parsing non-integer types raises error."""
         with pytest.raises(GraphQLError, match="Port must be an integer"):
             parse_port_value("80")
-        
+
         with pytest.raises(GraphQLError, match="Port must be an integer"):
             parse_port_value(80.5)
-        
+
         with pytest.raises(GraphQLError, match="Port must be an integer"):
             parse_port_value(None)
 
@@ -89,7 +89,7 @@ class TestPortField:
         port = PortField(80)
         assert port == 80
         assert isinstance(port, int)
-        
+
         port = PortField(65535)
         assert port == 65535
 
@@ -97,10 +97,10 @@ class TestPortField:
         """Test creating PortField with invalid values raises error."""
         with pytest.raises(ValueError, match="Port must be between 1 and 65535"):
             PortField(0)
-        
+
         with pytest.raises(ValueError, match="Port must be between 1 and 65535"):
             PortField(-1)
-        
+
         with pytest.raises(ValueError, match="Port must be between 1 and 65535"):
             PortField(65536)
 
@@ -119,7 +119,7 @@ class TestPortLiteralParsing:
         """Test parsing out-of-range port literals."""
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             parse_port_literal(IntValueNode(value="0"))
-        
+
         with pytest.raises(GraphQLError, match="Port must be between 1 and 65535"):
             parse_port_literal(IntValueNode(value="65536"))
 

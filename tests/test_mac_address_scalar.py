@@ -2,6 +2,7 @@
 
 import pytest
 from graphql import GraphQLError
+from graphql.language import IntValueNode, StringValueNode
 
 from fraiseql.types.scalars.mac_address import (
     MacAddressField,
@@ -154,46 +155,33 @@ class TestMacAddressField:
             MacAddressField("ZZ:11:22:33:44:55")  # Invalid hex
 
 
-class MockStringValueNode:
-    """Mock AST node for string values."""
-
-    def __init__(self, value):
-        self.value = value
-
-
-class MockIntValueNode:
-    """Mock AST node for integer values."""
-
-    def __init__(self, value):
-        self.value = str(value)
-
-
 class TestMacAddressLiteralParsing:
     """Test parsing MAC address from GraphQL literals."""
 
     def test_parse_valid_literal(self):
         """Test parsing valid MAC address literals."""
         assert (
-            parse_mac_address_literal(MockStringValueNode("00:11:22:33:44:55"))
+            parse_mac_address_literal(StringValueNode(value="00:11:22:33:44:55"))
             == "00:11:22:33:44:55"
         )
         assert (
-            parse_mac_address_literal(MockStringValueNode("00-11-22-33-44-55"))
+            parse_mac_address_literal(StringValueNode(value="00-11-22-33-44-55"))
             == "00:11:22:33:44:55"
         )
         assert (
-            parse_mac_address_literal(MockStringValueNode("0011.2233.4455")) == "00:11:22:33:44:55"
+            parse_mac_address_literal(StringValueNode(value="0011.2233.4455"))
+            == "00:11:22:33:44:55"
         )
 
     def test_parse_invalid_literal_format(self):
         """Test parsing invalid MAC address format literals."""
         with pytest.raises(GraphQLError, match="Invalid MAC address"):
-            parse_mac_address_literal(MockStringValueNode("invalid"))
+            parse_mac_address_literal(StringValueNode(value="invalid"))
 
         with pytest.raises(GraphQLError, match="Invalid MAC address"):
-            parse_mac_address_literal(MockStringValueNode("00:11:22:33:44"))
+            parse_mac_address_literal(StringValueNode(value="00:11:22:33:44"))
 
     def test_parse_non_string_literal(self):
         """Test parsing non-string literals."""
         with pytest.raises(GraphQLError, match="MAC address must be a string"):
-            parse_mac_address_literal(MockIntValueNode(123))
+            parse_mac_address_literal(IntValueNode(value="123"))
