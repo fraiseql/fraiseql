@@ -29,7 +29,8 @@ class RegisterRequest(BaseModel):
     name: str
 
     @field_validator("password")
-    def validate_password(self, v):
+    @classmethod
+    def validate_password(cls, v):
         """Validate password meets security requirements."""
         if not any(c.isupper() for c in v):
             raise ValueError("Password must contain at least one uppercase letter")
@@ -74,7 +75,8 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8)
 
     @field_validator("new_password")
-    def validate_password(self, v):
+    @classmethod
+    def validate_password(cls, v):
         """Validate new password meets security requirements."""
         # Same validation as RegisterRequest
         if not any(c.isupper() for c in v):
