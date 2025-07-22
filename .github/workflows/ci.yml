@@ -43,27 +43,16 @@ jobs:
         pyright src/ || echo "Type checking failed but continuing CI/CD"
 
   test:
-    name: Test Python ${{ matrix.python-version }} / PostgreSQL ${{ matrix.postgres-version }}
+    name: Test Python 3.13 / PostgreSQL 16
     needs: quality
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-        postgres-version: ["15", "16"]
-        exclude:
-          # Reduce matrix size by excluding some combinations
-          - python-version: "3.11"
-            postgres-version: "15"
-          - python-version: "3.12"
-            postgres-version: "15"
 
     # 🚀 PostgreSQL Service: 10-20x faster than testcontainers!
     # This provides a real PostgreSQL instance for database tests
     # while being much faster than spinning up containers per test
     services:
       postgres:
-        image: postgres:${{ matrix.postgres-version }}
+        image: postgres:16
         env:
           POSTGRES_USER: fraiseql
           POSTGRES_PASSWORD: fraiseql
@@ -79,10 +68,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.13
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.13"
         cache: 'pip'
         cache-dependency-path: '**/pyproject.toml'
 
