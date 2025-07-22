@@ -33,6 +33,9 @@ async def app(db_with_native_auth):
     from fraiseql.auth.native.router import get_db
 
     async def override_get_db():
+        # For tests, we need to ensure autocommit is enabled
+        # since we're using db_connection_committed fixture
+        await db_with_native_auth.set_autocommit(True)
         yield db_with_native_auth
 
     app.dependency_overrides[get_db] = override_get_db

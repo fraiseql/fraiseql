@@ -139,7 +139,7 @@ class SessionResponse(BaseModel):
 
 
 # Security
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 # Router
@@ -185,6 +185,13 @@ async def get_current_user(
     token_manager: Annotated[TokenManager, Depends(get_token_manager)],
 ) -> User:
     """Get current authenticated user."""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     try:
         payload = token_manager.verify_access_token(credentials.credentials)
 
