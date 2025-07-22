@@ -89,20 +89,21 @@ def postgres_container():
 
 
 @pytest.fixture(scope="session")
-def postgres_url(postgres_container) -> str:
+def postgres_url() -> str:
     """Get the PostgreSQL connection URL from the container or environment."""
     # Check for external database URL (e.g., GitHub Actions)
     external_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
     if external_url:
         return external_url
 
-    # Otherwise use testcontainers
-    if postgres_container is None:
-        pytest.skip("No database available")
-
-    # testcontainers returns postgresql+psycopg:// but psycopg3 expects postgresql://
-    url = postgres_container.get_connection_url()
-    return url.replace("postgresql+psycopg://", "postgresql://")
+    # Otherwise check if we have a container
+    if "postgres" in _container_cache:
+        container = _container_cache["postgres"]
+        # testcontainers returns postgresql+psycopg:// but psycopg3 expects postgresql://
+        url = container.get_connection_url()
+        return url.replace("postgresql+psycopg://", "postgresql://")
+    
+    pytest.skip("No database available")
 
 
 @pytest_asyncio.fixture(scope="session")
