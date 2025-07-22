@@ -27,9 +27,23 @@ Brief description of what this PR does.
 Describe the tests that you ran to verify your changes:
 
 ```bash
-# Example:
-TESTCONTAINERS_PODMAN=true pytest tests/test_new_feature.py
+# Example: 
+pytest tests/test_new_feature.py -v
+
+# For native auth changes, also run:
+pytest tests/auth/native/ -v
+python scripts/test-native-auth.py
 ```
+
+### Native Authentication Changes
+
+If your PR affects the native authentication system, please confirm:
+
+- [ ] Unit tests pass: `pytest tests/auth/native/ -m "not database" -v`  
+- [ ] Database integration tests pass (requires PostgreSQL): `pytest tests/auth/native/ -m database -v`
+- [ ] Comprehensive auth system test passes: `python scripts/test-native-auth.py`
+- [ ] Example application compiles: `python -m py_compile examples/native_auth_app.py`
+- [ ] Security features tested (password hashing, token security, etc.)
 
 ## Related Issues
 

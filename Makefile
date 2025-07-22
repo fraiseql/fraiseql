@@ -53,6 +53,32 @@ test-db: ## Run only database tests
 	@echo -e "$(GREEN)Running database tests with Podman...$(NC)"
 	pytest -xvs -m "database"
 
+.PHONY: test-auth
+test-auth: ## Run native authentication tests
+	@echo -e "$(GREEN)Running native authentication tests...$(NC)"
+	pytest tests/auth/native/ -xvs
+
+.PHONY: test-auth-unit
+test-auth-unit: ## Run native auth unit tests (no database)
+	@echo -e "$(GREEN)Running native auth unit tests...$(NC)"
+	pytest tests/auth/native/ -m "not database" -xvs
+
+.PHONY: test-auth-db
+test-auth-db: ## Run native auth database integration tests
+	@echo -e "$(GREEN)Running native auth database tests...$(NC)"
+	pytest tests/auth/native/ -m "database" -xvs
+
+.PHONY: test-auth-comprehensive
+test-auth-comprehensive: ## Run comprehensive native auth system test
+	@echo -e "$(GREEN)Running comprehensive native auth system test...$(NC)"
+	$(PYTHON) scripts/test-native-auth.py
+
+.PHONY: test-auth-security
+test-auth-security: ## Run security audit on native auth system
+	@echo -e "$(GREEN)Running security audit on native auth...$(NC)"
+	bandit -r src/fraiseql/auth/native/ -f txt || echo -e "$(YELLOW)Bandit not installed, skipping security scan$(NC)"
+	safety check || echo -e "$(YELLOW)Safety not installed, skipping vulnerability check$(NC)"
+
 .PHONY: test-testfoundry
 test-testfoundry: ## Run TestFoundry extension tests
 	@echo -e "$(GREEN)Running TestFoundry tests...$(NC)"

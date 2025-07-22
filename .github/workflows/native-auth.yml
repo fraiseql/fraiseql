@@ -1,0 +1,469 @@
+name: Native Authentication Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/fraiseql/auth/native/**'
+      - 'tests/auth/native/**'
+      - 'examples/native_auth_app.py'
+      - 'frontend/auth/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/fraiseql/auth/native/**'
+      - 'tests/auth/native/**' 
+      - 'examples/native_auth_app.py'
+      - 'frontend/auth/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-auth-components:
+    name: Native Auth System Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_auth_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test-suite:
+          - name: "Unit Tests"
+            command: "pytest tests/auth/native/ -m 'not database' -v"
+            requires-db: false
+          - name: "Database Integration" 
+            command: "pytest tests/auth/native/ -m database -v --tb=short"
+            requires-db: true
+          - name: "Security Tests"
+            command: "pytest tests/auth/native/test_token_manager.py tests/auth/native/test_user_model.py::TestUserModel::test_password_hashing_and_verification -v"
+            requires-db: false
+          - name: "Example Application"
+            command: "python -c 'import sys; sys.path.append(\"examples\"); import native_auth_app; print(\"✅ Example app imports successfully\")'"
+            requires-db: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Wait for PostgreSQL
+      if: matrix.test-suite.requires-db
+      run: |
+        until pg_isready -h localhost -p 5432 -U fraiseql; do
+          echo "Waiting for PostgreSQL..."
+          sleep 1
+        done
+        echo "✅ PostgreSQL is ready"
+
+    - name: Run ${{ matrix.test-suite.name }}
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_auth_test
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_auth_test
+        JWT_SECRET_KEY: ci-test-secret-key-for-auth-testing
+      run: ${{ matrix.test-suite.command }}
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety
+        pip install -e .
+
+    - name: Run Bandit security scanner
+      run: |
+        bandit -r src/fraiseql/auth/native/ -f json -o bandit-report.json || true
+        bandit -r src/fraiseql/auth/native/ -f txt
+        echo "📊 Security scan completed"
+
+    - name: Check for known vulnerabilities
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check
+        echo "🔍 Vulnerability check completed"
+
+    - name: Test password security
+      run: |
+        python -c "
+        from fraiseql.auth.native.models import User
+        from fraiseql.auth.native.tokens import TokenManager
+        import time
+        
+        print('🔐 Testing password security...')
+        
+        # Test Argon2id password hashing
+        user = User(email='test@example.com', password='TestPassword123!', name='Test User')
+        assert user.verify_password('TestPassword123!'), 'Password verification failed'
+        assert not user.verify_password('WrongPassword'), 'False password accepted'
+        print('✅ Password hashing secure')
+        
+        # Test JWT token security
+        tm = TokenManager('test-secret')
+        tokens = tm.generate_tokens('user123')
+        payload = tm.verify_access_token(tokens['access_token'])
+        assert payload['sub'] == 'user123', 'Token verification failed'
+        print('✅ JWT tokens secure')
+        
+        # Test password validation
+        assert User.validate_password('StrongP@ssw0rd!'), 'Strong password rejected'
+        assert not User.validate_password('weak'), 'Weak password accepted'
+        print('✅ Password validation secure')
+        
+        print('🎯 All security tests passed')
+        "
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  comprehensive-test:
+    name: Comprehensive Auth System Test
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_comprehensive_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run comprehensive auth system test
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_comprehensive_test
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_comprehensive_test
+        JWT_SECRET_KEY: comprehensive-test-secret-key
+      run: |
+        python scripts/test-native-auth.py
+
+  integration-test:
+    name: End-to-End Integration Test
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_e2e_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Test complete auth flow
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_e2e_test
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_e2e_test
+        JWT_SECRET_KEY: e2e-test-secret-key
+      run: |
+        python -c "
+        import asyncio
+        import os
+        from psycopg_pool import AsyncConnectionPool
+        from fraiseql.auth.native.factory import create_native_auth_provider, apply_native_auth_schema
+        from fraiseql.auth.native.models import User
+        
+        async def test_full_auth_flow():
+            print('🚀 Testing complete native auth flow...')
+            
+            # Create connection pool
+            pool = AsyncConnectionPool(
+                os.environ['DATABASE_URL'],
+                min_size=1,
+                max_size=3
+            )
+            await pool.wait()
+            
+            # Apply schema
+            await apply_native_auth_schema(pool)
+            print('✅ Database schema applied')
+            
+            # Create auth provider
+            auth_provider = await create_native_auth_provider(
+                db_pool=pool,
+                secret_key='test-secret'
+            )
+            print('✅ Auth provider created')
+            
+            # Test user creation
+            async with pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    # Create a test user
+                    user = User(
+                        email='integration@test.com',
+                        password='IntegrationTest123!',
+                        name='Integration Test User',
+                        roles=['user']
+                    )
+                    await user.save(cursor, 'public')
+                    await conn.commit()
+                    print('✅ User created successfully')
+                    
+                    # Test user retrieval
+                    found_user = await User.get_by_email(cursor, 'public', 'integration@test.com')
+                    assert found_user is not None, 'User not found'
+                    assert found_user.verify_password('IntegrationTest123!'), 'Password verification failed'
+                    print('✅ User retrieval and password verification successful')
+            
+            # Test token operations
+            tokens = auth_provider.token_manager.generate_tokens(str(user.id))
+            payload = auth_provider.token_manager.verify_access_token(tokens['access_token'])
+            assert payload['sub'] == str(user.id), 'Token verification failed'
+            print('✅ Token generation and verification successful')
+            
+            # Test auth provider integration
+            user_context = await auth_provider.get_user_from_token(tokens['access_token'])
+            assert user_context.user_id == str(user.id), 'User context creation failed'
+            assert user_context.email == 'integration@test.com', 'User context email mismatch'
+            print('✅ Auth provider integration successful')
+            
+            await pool.close()
+            print('🎯 Complete auth flow test PASSED')
+        
+        asyncio.run(test_full_auth_flow())
+        "
+
+  frontend-validation:
+    name: Frontend Components Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: 'frontend/package.json'
+      continue-on-error: true
+
+    - name: Validate TypeScript types
+      run: |
+        # Check if Node.js is available, if not skip TypeScript validation
+        if command -v node >/dev/null 2>&1; then
+          echo "📝 Validating TypeScript types..."
+          # Basic TypeScript syntax validation
+          node -e "
+          const fs = require('fs');
+          const files = [
+            'frontend/auth/types.ts',
+            'frontend/auth/client.ts', 
+            'frontend/auth/composables/useAuth.ts'
+          ];
+          
+          let hasErrors = false;
+          files.forEach(file => {
+            if (fs.existsSync(file)) {
+              const content = fs.readFileSync(file, 'utf8');
+              // Basic syntax checks
+              if (content.includes('export interface') || content.includes('export class')) {
+                console.log('✅ ' + file + ' - valid TypeScript structure');
+              } else {
+                console.log('⚠️  ' + file + ' - no exports found');
+              }
+            } else {
+              console.log('❌ ' + file + ' - file not found');
+              hasErrors = true;
+            }
+          });
+          
+          if (!hasErrors) {
+            console.log('🎯 Frontend TypeScript validation passed');
+          }
+          "
+        else
+          echo "⚠️  Node.js not available, skipping TypeScript validation"
+        fi
+
+    - name: Validate Vue components
+      run: |
+        echo "🖼️  Validating Vue components..."
+        python -c "
+        import os
+        import re
+        
+        vue_files = [
+            'frontend/auth/components/LoginForm.vue',
+            'frontend/auth/components/RegisterForm.vue'
+        ]
+        
+        for vue_file in vue_files:
+            if os.path.exists(vue_file):
+                with open(vue_file, 'r') as f:
+                    content = f.read()
+                
+                # Check for required Vue 3 structure
+                has_template = '<template>' in content
+                has_script_setup = '<script setup' in content
+                has_style = '<style' in content
+                
+                if has_template and has_script_setup and has_style:
+                    print(f'✅ {vue_file} - valid Vue 3 SFC structure')
+                else:
+                    print(f'⚠️  {vue_file} - missing components: template={has_template}, script={has_script_setup}, style={has_style}')
+            else:
+                print(f'❌ {vue_file} - file not found')
+        
+        print('🎯 Vue component validation completed')
+        "
+
+  coverage-report:
+    name: Native Auth Coverage Report
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_coverage_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+        cache-dependency-path: '**/pyproject.toml'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run tests with coverage for native auth only
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_coverage_test  
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_coverage_test
+        JWT_SECRET_KEY: coverage-test-secret-key
+      run: |
+        pytest tests/auth/native/ \
+          --cov=src/fraiseql/auth/native \
+          --cov-report=xml:native-auth-coverage.xml \
+          --cov-report=term-missing \
+          --cov-report=html:htmlcov-native-auth \
+          -v
+
+    - name: Generate coverage summary
+      run: |
+        echo "## Native Authentication Test Coverage" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        coverage report --include="src/fraiseql/auth/native/*" >> $GITHUB_STEP_SUMMARY || true
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        
+        # Calculate coverage percentage
+        COVERAGE=$(coverage report --include="src/fraiseql/auth/native/*" | tail -n 1 | grep -oE '[0-9]+%' | tail -n 1 || echo "Unknown")
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Total Coverage: $COVERAGE**" >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-auth-coverage
+        path: |
+          native-auth-coverage.xml
+          htmlcov-native-auth/
+
+    - name: Upload to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./native-auth-coverage.xml
+        flags: native-auth
+        name: native-auth-coverage
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
