@@ -285,7 +285,7 @@ class AuthSystemTester:
                 
                 # Create tokens with session metadata
                 session_metadata = {
-                    "device_info": "pytest-runner",
+                    "user_agent": "pytest-runner",
                     "ip_address": "127.0.0.1"
                 }
                 tokens = await self.auth_provider.create_tokens_for_user(

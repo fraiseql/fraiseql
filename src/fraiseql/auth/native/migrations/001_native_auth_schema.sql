@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS tb_session (
     pk_session UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     fk_user UUID NOT NULL REFERENCES tb_user(pk_user) ON DELETE CASCADE,
     token_family UUID NOT NULL,
-    device_info JSONB DEFAULT '{}',
+    user_agent TEXT,
     ip_address INET,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

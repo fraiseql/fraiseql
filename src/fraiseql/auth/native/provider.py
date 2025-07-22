@@ -201,7 +201,7 @@ class NativeAuthProvider(AuthProvider):
 
         Args:
             user_id: User ID
-            session_metadata: Optional session metadata (device info, IP, etc.)
+            session_metadata: Optional session metadata (user agent, IP, etc.)
 
         Returns:
             Dictionary with access_token, refresh_token, family_id, expires_at
@@ -214,14 +214,14 @@ class NativeAuthProvider(AuthProvider):
             await cursor.execute(
                 f"""
                     INSERT INTO {self.schema}.tb_session (
-                        fk_user, token_family, device_info, ip_address
+                        fk_user, token_family, user_agent, ip_address
                     ) VALUES (%s, %s, %s, %s)
                     RETURNING pk_session
                     """,
                 (
                     user_id,
                     tokens["family_id"],
-                    session_metadata.get("device_info") if session_metadata else None,
+                    session_metadata.get("user_agent") if session_metadata else None,
                     session_metadata.get("ip_address") if session_metadata else None,
                 ),
             )

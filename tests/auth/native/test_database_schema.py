@@ -179,8 +179,8 @@ class TestSessionTableSchema:
             assert column_dict["token_family"]["type"] == "uuid"
             assert column_dict["token_family"]["nullable"] == "NO"
 
-            assert "device_info" in column_dict
-            assert column_dict["device_info"]["type"] == "jsonb"
+            assert "user_agent" in column_dict
+            assert column_dict["user_agent"]["type"] == "text"
 
             assert "ip_address" in column_dict
             assert column_dict["ip_address"]["type"] == "inet"

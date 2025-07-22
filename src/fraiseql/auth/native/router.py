@@ -235,7 +235,7 @@ async def register(
     async with db.cursor() as cursor:
         await cursor.execute(
             f"""
-            INSERT INTO {schema}.tb_session (fk_user, token_family, device_info, ip_address)
+            INSERT INTO {schema}.tb_session (fk_user, token_family, user_agent, ip_address)
             VALUES (%s, %s, %s, %s)
             RETURNING pk_session
             """,
@@ -295,7 +295,7 @@ async def login(
     async with db.cursor() as cursor:
         await cursor.execute(
             f"""
-            INSERT INTO {schema}.tb_session (fk_user, token_family, device_info, ip_address)
+            INSERT INTO {schema}.tb_session (fk_user, token_family, user_agent, ip_address)
             VALUES (%s, %s, %s, %s)
             RETURNING pk_session
             """,
@@ -538,7 +538,7 @@ async def list_sessions(
     async with db.cursor() as cursor:
         await cursor.execute(
             f"""
-            SELECT pk_session, device_info, ip_address, created_at, last_used_at
+            SELECT pk_session, user_agent, ip_address, created_at, last_used_at
             FROM {schema}.tb_session
             WHERE fk_user = %s
             AND revoked_at IS NULL
@@ -554,7 +554,7 @@ async def list_sessions(
     return [
         SessionResponse(
             id=session[0],  # pk_session
-            user_agent=session[1],  # device_info
+            user_agent=session[1],  # user_agent
             ip_address=session[2],  # ip_address
             created_at=session[3],  # created_at
             last_used_at=session[4],  # last_used_at
