@@ -22,12 +22,15 @@ from fraiseql.auth.native.tokens import (
 
 # Pydantic models for request/response
 class RegisterRequest(BaseModel):
+    """Request model for user registration."""
+
     email: EmailStr
     password: str = Field(..., min_length=8)
     name: str
 
     @field_validator("password")
     def validate_password(self, v):
+        """Validate password meets security requirements."""
         if not any(c.isupper() for c in v):
             raise ValueError("Password must contain at least one uppercase letter")
         if not any(c.islower() for c in v):
@@ -40,28 +43,39 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
+    """Request model for user login."""
+
     email: EmailStr
     password: str
 
 
 class RefreshRequest(BaseModel):
+    """Request model for token refresh."""
+
     refresh_token: str
 
 
 class LogoutRequest(BaseModel):
+    """Request model for user logout."""
+
     refresh_token: str
 
 
 class ForgotPasswordRequest(BaseModel):
+    """Request model for password reset initiation."""
+
     email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):
+    """Request model for password reset completion."""
+
     token: str
     new_password: str = Field(..., min_length=8)
 
     @field_validator("new_password")
     def validate_password(self, v):
+        """Validate new password meets security requirements."""
         # Same validation as RegisterRequest
         if not any(c.isupper() for c in v):
             raise ValueError("Password must contain at least one uppercase letter")
@@ -75,6 +89,8 @@ class ResetPasswordRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
+    """Response model for user data."""
+
     id: UUID
     email: str
     name: str
@@ -87,6 +103,8 @@ class UserResponse(BaseModel):
 
 
 class AuthResponse(BaseModel):
+    """Response model for authentication operations."""
+
     user: UserResponse
     access_token: str
     refresh_token: str
@@ -94,16 +112,22 @@ class AuthResponse(BaseModel):
 
 
 class TokenResponse(BaseModel):
+    """Response model for token operations."""
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
 
 
 class MessageResponse(BaseModel):
+    """Response model for simple message responses."""
+
     message: str
 
 
 class SessionResponse(BaseModel):
+    """Response model for session data."""
+
     id: UUID
     user_agent: Optional[str]
     ip_address: Optional[str]
@@ -153,10 +177,10 @@ def get_token_manager() -> TokenManager:
 
 # Dependency to get current user
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncConnection = Depends(get_db),
-    schema: str = Depends(get_schema),
-    token_manager: TokenManager = Depends(get_token_manager),
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    db: Annotated[AsyncConnection, Depends(get_db)],
+    schema: Annotated[str, Depends(get_schema)],
+    token_manager: Annotated[TokenManager, Depends(get_token_manager)],
 ) -> User:
     """Get current authenticated user."""
     try:

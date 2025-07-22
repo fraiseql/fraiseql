@@ -358,7 +358,7 @@ def convert_type_to_graphql_output(
                                         elif isinstance(item, dict) and hasattr(
                                             field_type, "__args__"
                                         ):
-                                            # Check if list contains FraiseQL types needing conversion
+                                            # Check if list has FraiseQL types needing conversion
                                             list_item_type = (
                                                 field_type.__args__[0]
                                                 if field_type.__args__

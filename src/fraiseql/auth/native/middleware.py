@@ -40,6 +40,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
 
     async def dispatch(self, request: Request, call_next):
+        """Process request and add security headers to response.
+
+        Args:
+            request: The incoming HTTP request
+            call_next: The next middleware in the chain
+
+        Returns:
+            Response with security headers added
+        """
         response = await call_next(request)
 
         # Add security headers
@@ -162,6 +171,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return False  # Allow request
 
     async def dispatch(self, request: Request, call_next):
+        """Apply rate limiting to incoming requests.
+
+        Args:
+            request: The incoming HTTP request
+            call_next: The next middleware in the chain
+
+        Returns:
+            Response or 429 error if rate limit exceeded
+        """
         # Clean up old entries periodically
         self._cleanup_old_entries()
 
@@ -281,15 +299,23 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         return True
 
     async def dispatch(self, request: Request, call_next):
+        """Validate CSRF tokens for state-changing requests.
+
+        Args:
+            request: The incoming HTTP request
+            call_next: The next middleware in the chain
+
+        Returns:
+            Response or 403 error if CSRF validation fails
+        """
         if self._should_check_csrf(request):
             # Get CSRF token from header or form data
             csrf_token = request.headers.get(self.header_name)
 
-            if not csrf_token:
+            if not csrf_token and hasattr(request, "_json"):
                 # Try to get from form data for form submissions
-                if hasattr(request, "_json"):
-                    body = await request.json()
-                    csrf_token = body.get("csrf_token")
+                body = await request.json()
+                csrf_token = body.get("csrf_token")
 
             # Get session data for validation (could be user ID from JWT)
             session_data = ""

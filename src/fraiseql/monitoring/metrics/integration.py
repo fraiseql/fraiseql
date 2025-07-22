@@ -92,7 +92,6 @@ def get_metrics() -> FraiseQLMetrics | None:
     Returns:
         The global FraiseQLMetrics instance, or None if not set up.
     """
-    global _metrics_instance
     return _metrics_instance
 
 

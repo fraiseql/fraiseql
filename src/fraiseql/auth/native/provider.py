@@ -149,17 +149,15 @@ class NativeAuthProvider(AuthProvider):
                     return
 
                 # Get family from session
-                async with self.db_pool.connection() as conn:
-                    async with conn.cursor() as cursor:
-                        await cursor.execute(
-                            f"SELECT token_family FROM {self.schema}.tb_session "
-                            f"WHERE pk_session = %s",
-                            (session_id,),
-                        )
-                        result = await cursor.fetchone()
-                        if not result:
-                            return
-                        family_id = result[0]
+                async with self.db_pool.connection() as conn, conn.cursor() as cursor:
+                    await cursor.execute(
+                        f"SELECT token_family FROM {self.schema}.tb_session WHERE pk_session = %s",
+                        (session_id,),
+                    )
+                    result = await cursor.fetchone()
+                    if not result:
+                        return
+                    family_id = result[0]
 
             except (TokenExpiredError, InvalidTokenError):
                 # Token is invalid, nothing to revoke
