@@ -70,6 +70,11 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
             for item in cast("list[object]", raw_value)
         ]
 
+    # Handle IPv4Address and IPv6Address objects
+    import ipaddress
+    if isinstance(raw_value, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
+        return str(raw_value)
+
     return raw_value
 
 

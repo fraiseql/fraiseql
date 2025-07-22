@@ -5,6 +5,26 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b31] - 2025-07-22
+
+### Fixed
+
+- **IPv4Address/IPv6Address serialization**: Fixed critical serialization bug where Python's `ipaddress.IPv4Address` and `ipaddress.IPv6Address` objects were not JSON serializable
+  - Added IPv4Address/IPv6Address object handling in `constructor.py` to convert to strings during field value processing
+  - Added IPv4Address/IPv6Address object handling in `coercion.py` to convert to strings during field coercion
+  - Enhanced FraiseQL scalar type handling in `constructor.py` to properly serialize scalar objects to strings
+  - Fixes "Object of type IPv4Address is not JSON serializable" errors during GraphQL mutations
+  - This resolves compatibility issues between FraiseQL's IpAddress scalar and Python's standard `ipaddress` module
+
+### Enhanced
+
+- **Type safety**: Improved scalar serialization robustness by ensuring all FraiseQL scalar types are properly handled
+- **JSON serialization**: Enhanced the type processing pipeline to handle standard Python objects in addition to primitive types
+
+### Developer Notes
+
+This release fixes a fundamental serialization issue where Python's standard `ipaddress.IPv4Address` and `ipaddress.IPv6Address` objects couldn't be JSON serialized when used with FraiseQL's `IpAddress` scalar type. The fix operates at two levels: field value processing and field coercion, ensuring comprehensive coverage. All existing functionality remains unchanged, and the fix is fully backward compatible.
+
 ## [0.1.0b30] - 2025-07-22
 
 ### Fixed
