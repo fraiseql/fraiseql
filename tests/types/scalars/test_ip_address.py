@@ -145,3 +145,21 @@ def test_parse_subnet_mask_literal_invalid() -> None:
     ast = StringValueNode(value="invalid")
     with pytest.raises(GraphQLError):
         parse_subnet_mask_literal(ast)
+
+
+# Test for IPv4Address object serialization in complex data structures
+def test_ip_address_in_nested_structure() -> None:
+    """Test that IPv4Address objects serialize correctly when nested in data structures."""
+    # This simulates what might happen in a GraphQL response
+    data = {
+        "server": {
+            "id": "123",
+            "name": "Primary DNS",
+            "ip_address": IPv4Address("192.168.1.1"),
+        }
+    }
+
+    # The scalar serializer should handle this
+    serialized_ip = serialize_ip_address_string(data["server"]["ip_address"])
+    assert serialized_ip == "192.168.1.1"
+    assert isinstance(serialized_ip, str)

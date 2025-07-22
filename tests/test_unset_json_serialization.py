@@ -1,5 +1,6 @@
 """Test UNSET value handling in JSON serialization."""
 
+import ipaddress
 import json
 
 import fraiseql
@@ -238,6 +239,74 @@ def test_clean_unset_values_function():
     assert cleaned_list == expected_list
 
 
+def test_fraiseql_json_encoder_handles_ipaddress():
+    """Test that FraiseQLJSONEncoder properly serializes IPv4Address and IPv6Address objects."""
+    encoder = FraiseQLJSONEncoder()
+
+    # Test IPv4Address
+    ipv4 = ipaddress.IPv4Address("192.168.1.1")
+    assert encoder.encode(ipv4) == '"192.168.1.1"'
+
+    # Test IPv6Address
+    ipv6 = ipaddress.IPv6Address("2001:db8::1")
+    assert encoder.encode(ipv6) == '"2001:db8::1"'
+
+    # Test in a dictionary (simulating mutation response)
+    data = {
+        "dns_server": {
+            "id": "123",
+            "name": "Primary DNS",
+            "ip_address": ipaddress.IPv4Address("8.8.8.8"),
+        }
+    }
+    result = json.loads(encoder.encode(data))
+    assert result["dns_server"]["ip_address"] == "8.8.8.8"
+
+    # Test in a list
+    data_list = {
+        "servers": [
+            {"name": "DNS1", "ip": ipaddress.IPv4Address("8.8.8.8")},
+            {"name": "DNS2", "ip": ipaddress.IPv6Address("2001:db8::2")},
+        ]
+    }
+    result_list = json.loads(encoder.encode(data_list))
+    assert result_list["servers"][0]["ip"] == "8.8.8.8"
+    assert result_list["servers"][1]["ip"] == "2001:db8::2"
+
+
+def test_fraiseql_json_response_with_ipaddress():
+    """Test that FraiseQLJSONResponse properly handles IPv4Address objects.
+
+    This test reproduces the bug reported in FRAISEQL_IPV4ADDRESS_JSON_SERIALIZATION_BUG.md
+    """
+    # Simulate a mutation response with IPv4Address objects
+    content = {
+        "data": {
+            "createDnsServer": {
+                "__typename": "CreateDnsServerSuccess",
+                "status": "ok",
+                "message": "DNS server created",
+                "dnsServer": {
+                    "id": "123",
+                    "name": "Primary DNS",
+                    "ipAddress": ipaddress.IPv4Address("192.168.1.1"),
+                },
+            }
+        },
+        "errors": None,
+    }
+
+    response = FraiseQLJSONResponse(content=content)
+
+    # Get the rendered content
+    rendered = response.render(content)
+    result = json.loads(rendered.decode("utf-8"))
+
+    # The IPv4Address should be serialized as a string
+    assert result["data"]["createDnsServer"]["dnsServer"]["ipAddress"] == "192.168.1.1"
+    assert isinstance(result["data"]["createDnsServer"]["dnsServer"]["ipAddress"], str)
+
+
 if __name__ == "__main__":
     test_fraiseql_json_encoder_handles_unset()
     print("✓ test_fraiseql_json_encoder_handles_unset passed")
@@ -259,5 +328,11 @@ if __name__ == "__main__":
 
     test_clean_unset_values_function()
     print("✓ test_clean_unset_values_function passed")
+
+    test_fraiseql_json_encoder_handles_ipaddress()
+    print("✓ test_fraiseql_json_encoder_handles_ipaddress passed")
+
+    test_fraiseql_json_response_with_ipaddress()
+    print("✓ test_fraiseql_json_response_with_ipaddress passed")
 
     print("\nAll tests passed!")

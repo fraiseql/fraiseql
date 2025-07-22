@@ -5,6 +5,33 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b30] - 2025-07-22
+
+### Fixed
+
+- **EmailAddress scalar in input types**: Fixed critical bug where `EmailAddress` scalar could not be used in GraphQL input types
+  - Added missing `EmailAddressField` import and mapping in `graphql_utils.py`
+  - Added `EmailAddressField: EmailAddressScalar` mapping to scalar type conversion
+  - This completes the network scalar type system by ensuring all scalars work in both input and output types
+
+### Added
+
+- **Comprehensive network scalar tests**: Added integration test suite for all network scalars in GraphQL schemas
+  - Test coverage for EmailAddress, IpAddress, MacAddress, Port, and Hostname in input types
+  - Test coverage for all network scalars in output/query types
+  - Test coverage for optional/nullable network scalar fields
+  - Tests include proper schema registry cleanup to prevent type conflicts
+
+### Enhanced
+
+- **IpAddress serialization**: Verified and confirmed IpAddress scalar properly serializes in mutation returns
+  - No code changes needed as serialization was already working correctly
+  - Added explicit tests to prevent regression
+
+### Developer Notes
+
+This release completes the network scalar type system introduced in v0.1.0b28. All network-related scalars (EmailAddress, IpAddress, MacAddress, Port, Hostname, CIDR) now work correctly in both GraphQL input and output types. The issue with EmailAddress in input types was due to a missing mapping in the scalar type conversion system, similar to the IpAddress issue fixed in v0.1.0b29.
+
 ## [0.1.0b29] - 2025-07-21
 
 ### Fixed

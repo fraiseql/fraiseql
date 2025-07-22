@@ -2,7 +2,7 @@
 
 import pytest
 from graphql import GraphQLError
-from graphql.language import StringValueNode, IntValueNode
+from graphql.language import IntValueNode, StringValueNode
 
 from fraiseql.types.scalars.ip_address import (
     IpAddressField,
@@ -29,22 +29,25 @@ class TestIpAddressSerialization:
         assert serialize_ip_address_string("2001:db8::1") == "2001:db8::1"
         assert serialize_ip_address_string("::1") == "::1"
         assert serialize_ip_address_string("fe80::1") == "fe80::1"
-        assert serialize_ip_address_string("2001:db8:85a3::8a2e:370:7334") == "2001:db8:85a3::8a2e:370:7334"
+        assert (
+            serialize_ip_address_string("2001:db8:85a3::8a2e:370:7334")
+            == "2001:db8:85a3::8a2e:370:7334"
+        )
 
     def test_serialize_invalid_ip(self):
         """Test serializing invalid IP addresses raises error."""
         with pytest.raises(GraphQLError, match="cannot represent non-IP address"):
             serialize_ip_address_string("999.999.999.999")
-        
+
         with pytest.raises(GraphQLError, match="cannot represent non-IP address"):
             serialize_ip_address_string("192.168.1")
-        
+
         with pytest.raises(GraphQLError, match="cannot represent non-IP address"):
             serialize_ip_address_string("192.168.1.1.1")
-        
+
         with pytest.raises(GraphQLError, match="cannot represent non-IP address"):
             serialize_ip_address_string("invalid")
-        
+
         with pytest.raises(GraphQLError, match="cannot represent non-IP address"):
             serialize_ip_address_string("localhost")
 
@@ -56,7 +59,7 @@ class TestIpAddressParsing:
         """Test parsing valid IPv4 addresses."""
         result = parse_ip_address_value("192.168.1.1")
         assert str(result) == "192.168.1.1"
-        
+
         result = parse_ip_address_value("10.0.0.1")
         assert str(result) == "10.0.0.1"
 
@@ -64,7 +67,7 @@ class TestIpAddressParsing:
         """Test parsing valid IPv6 addresses."""
         result = parse_ip_address_value("2001:db8::1")
         assert str(result) == "2001:db8::1"
-        
+
         result = parse_ip_address_value("::1")
         assert str(result) == "::1"
 
@@ -72,7 +75,7 @@ class TestIpAddressParsing:
         """Test parsing invalid IP addresses raises error."""
         with pytest.raises(GraphQLError, match="Invalid IP address string"):
             parse_ip_address_value("999.999.999.999")
-        
+
         with pytest.raises(GraphQLError, match="Invalid IP address string"):
             parse_ip_address_value("invalid")
 
@@ -80,7 +83,7 @@ class TestIpAddressParsing:
         """Test parsing non-string types raises error."""
         with pytest.raises(GraphQLError, match="cannot represent non-string value"):
             parse_ip_address_value(123)
-        
+
         with pytest.raises(GraphQLError, match="cannot represent non-string value"):
             parse_ip_address_value(None)
 
@@ -109,7 +112,7 @@ class TestIpAddressLiteralParsing:
         """Test parsing valid IP address literals."""
         result = parse_ip_address_literal(StringValueNode(value="192.168.1.1"))
         assert str(result) == "192.168.1.1"
-        
+
         result = parse_ip_address_literal(StringValueNode(value="2001:db8::1"))
         assert str(result) == "2001:db8::1"
 
@@ -146,9 +149,7 @@ class TestIpAddressInInputTypes:
 
         # Test creating an instance
         input_obj = CreateSmtpServerInput(
-            hostname="smtp.example.com",
-            ip_address="192.168.1.1",
-            port=587
+            hostname="smtp.example.com", ip_address="192.168.1.1", port=587
         )
         assert input_obj.hostname == "smtp.example.com"
         assert input_obj.ip_address == "192.168.1.1"
@@ -157,7 +158,7 @@ class TestIpAddressInInputTypes:
     def test_network_device_input_with_all_scalars(self):
         """Test using multiple network scalars in an input type."""
         from fraiseql import UNSET
-        from fraiseql.types import IpAddress, CIDR, Hostname, MacAddress, Port
+        from fraiseql.types import CIDR, Hostname, IpAddress, MacAddress, Port
         from fraiseql.types.fraise_input import fraise_input
 
         @fraise_input
@@ -173,7 +174,7 @@ class TestIpAddressInInputTypes:
             hostname="router.local",
             ip_address="10.0.0.1",
             mac_address="00:11:22:33:44:55",
-            subnet="10.0.0.0/24"
+            subnet="10.0.0.0/24",
         )
 
         assert device.hostname == "router.local"
