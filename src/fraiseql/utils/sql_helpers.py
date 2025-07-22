@@ -13,7 +13,8 @@ def generate_partial_update_checks(fields: dict[str, str]) -> str:
     Example:
         >>> fields = {"ipAddress": "ip_address", "hostname": "hostname"}
         >>> generate_partial_update_checks(fields)
-        'ip_address = CASE WHEN p_input ? 'ipAddress' THEN p_input->>'ipAddress' ELSE ip_address END,
+        'ip_address = CASE WHEN p_input ? 'ipAddress' THEN ' + \
+         "p_input->>'ipAddress' ELSE ip_address END,
          hostname = CASE WHEN p_input ? 'hostname' THEN p_input->>'hostname' ELSE hostname END'
     """
     updates = []
@@ -207,7 +208,8 @@ def generate_partial_update_function(
     # Add update count increment to each block
     field_updates = field_updates.replace(
         "v_updated_fields := array_append(v_updated_fields,",
-        "v_update_count := v_update_count + 1;\n        v_updated_fields := array_append(v_updated_fields,",
+        "v_update_count := v_update_count + 1;\n        "
+        "v_updated_fields := array_append(v_updated_fields,",
     )
 
     # Generate JSONB object for result

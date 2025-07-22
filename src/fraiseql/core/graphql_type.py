@@ -337,7 +337,7 @@ def convert_type_to_graphql_output(
                 for name, field in fields.items():
                     field_type = field.field_type or type_hints.get(name)
                     if field_type is not None:
-                        # Create a field resolver that handles enum serialization and nested object conversion
+                        # Create resolver for enum serialization and nested object conversion
                         def make_field_resolver(field_name: str, field_type: Any):
                             def resolve_field(obj: Any, info: Any) -> Any:
                                 value = getattr(obj, field_name, None)
@@ -358,7 +358,7 @@ def convert_type_to_graphql_output(
                                         elif isinstance(item, dict) and hasattr(
                                             field_type, "__args__"
                                         ):
-                                            # Check if list contains FraiseQL types that need conversion
+                                            # Check if list contains FraiseQL types needing conversion
                                             list_item_type = (
                                                 field_type.__args__[0]
                                                 if field_type.__args__
@@ -378,7 +378,7 @@ def convert_type_to_graphql_output(
                                             result.append(item)
                                     return result
 
-                                # Handle nested objects - check if value is dict but field expects FraiseQL type
+                                # Handle nested objects - check dict to FraiseQL conversion
                                 if isinstance(value, dict):
                                     # Extract actual type from Optional if needed
                                     actual_field_type = field_type
@@ -390,10 +390,10 @@ def convert_type_to_graphql_output(
                                             actual_field_type = non_none_types[0]
 
                                     # Check if the field type is a FraiseQL type
-                                    if hasattr(actual_field_type, "__fraiseql_definition__"):
-                                        # Convert dict to typed object using from_dict
-                                        if hasattr(actual_field_type, "from_dict"):
-                                            return actual_field_type.from_dict(value)
+                                    if hasattr(
+                                        actual_field_type, "__fraiseql_definition__"
+                                    ) and hasattr(actual_field_type, "from_dict"):
+                                        return actual_field_type.from_dict(value)
 
                                 return value
 

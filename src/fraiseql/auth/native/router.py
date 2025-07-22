@@ -247,7 +247,9 @@ async def register(
 
 @auth_router.post("/login", response_model=AuthResponse)
 async def login(
-    request: LoginRequest, db: Annotated[AsyncConnection, Depends(get_db)], schema: Annotated[str, Depends(get_schema)]
+    request: LoginRequest,
+    db: Annotated[AsyncConnection, Depends(get_db)],
+    schema: Annotated[str, Depends(get_schema)],
 ):
     """Login with email and password."""
     # Get user by email
