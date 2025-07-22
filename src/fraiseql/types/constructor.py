@@ -67,11 +67,13 @@ def _process_field_value(value: Any, field_type: Any) -> Any:
 
     # Handle IPv4Address and IPv6Address objects
     import ipaddress
+
     if isinstance(value, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
         return str(value)
 
     # Handle FraiseQL scalar types
     from fraiseql.types.definitions import ScalarMarker
+
     if isinstance(actual_type, type) and issubclass(actual_type, ScalarMarker):
         if isinstance(value, str):
             return value

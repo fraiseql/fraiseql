@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Self
 
 if TYPE_CHECKING:
     from fraiseql.fields import FraiseQLField
@@ -121,7 +121,7 @@ class UnsetType:
 
     __instance: Optional[UnsetType] = None
 
-    def __new__(cls: type[UnsetType]) -> UnsetType:
+    def __new__(cls) -> Self:
         """Ensure only one instance of UnsetType exists."""
         if cls.__instance is None:
             ret = super().__new__(cls)
