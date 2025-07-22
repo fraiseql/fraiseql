@@ -540,11 +540,11 @@ async def list_sessions(
     async with db.cursor() as cursor:
         await cursor.execute(
             f"""
-            SELECT pk_session, user_agent, ip_address, created_at, last_used_at
+            SELECT pk_session, user_agent, ip_address, created_at, last_active
             FROM {schema}.tb_session
             WHERE fk_user = %s
             AND revoked_at IS NULL
-            ORDER BY last_used_at DESC
+            ORDER BY last_active DESC
             """,
             (current_user.id,),
         )
@@ -559,7 +559,7 @@ async def list_sessions(
             user_agent=session[1],  # user_agent
             ip_address=session[2],  # ip_address
             created_at=session[3],  # created_at
-            last_used_at=session[4],  # last_used_at
+            last_used_at=session[4],  # last_active
             is_current=str(session[0]) == current_session_id,
         )
         for session in sessions
