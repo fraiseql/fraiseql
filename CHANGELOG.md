@@ -5,6 +5,43 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b34] - 2025-07-23
+
+### Added
+
+- **DateTime UTC normalization**: Implemented automatic UTC conversion with 'Z' suffix for all DateTime values
+  - The DateTime scalar now converts all timestamps to UTC timezone
+  - All DateTime values are serialized with 'Z' suffix instead of '+00:00' for JavaScript compatibility
+  - Works for both datetime objects and string inputs (e.g., from JSONB columns)
+  - Naive datetimes are assumed to be UTC
+  - Added comprehensive test coverage for various timezone conversions
+
+- **DateTime UTC normalization documentation**: Added comprehensive guide for handling DateTime values at the database level
+  - New documentation at `docs/patterns/datetime-utc-normalization.md` explaining best practices
+  - PostgreSQL view patterns using `to_char()` to format timestamps with 'Z' suffix
+  - Helper function `to_utc_z()` for consistent UTC formatting across views
+  - Example migration file at `examples/migrations/datetime_utc_normalization.sql`
+  - Covers handling of `timestamptz` and `timestamp` columns
+  - Shows patterns for nested objects, arrays, and nullable timestamps
+
+### Breaking Changes
+
+- **DateTime serialization**: All DateTime values are now normalized to UTC with 'Z' suffix
+  - Previously: `"2025-01-15T14:00:00+02:00"` 
+  - Now: `"2025-01-15T12:00:00Z"` (converted to UTC)
+  - This ensures consistent timezone handling and better JavaScript compatibility
+  - If you need to preserve original timezone information, store it separately
+
+### Enhanced
+
+- **JavaScript compatibility**: DateTime values now use the preferred 'Z' suffix format
+- **Consistency**: All timestamps are guaranteed to be in UTC regardless of input timezone
+- **Database patterns**: Provided PostgreSQL patterns for consistent UTC handling at the view level
+
+### Developer Notes
+
+This release implements the DateTime UTC normalization feature as requested. Since we're in beta and the framework is designed for JavaScript frontends, this breaking change ensures all DateTime values are consistently formatted with the 'Z' suffix. Both application-level (Python scalar) and database-level (PostgreSQL views) approaches are now documented and supported.
+
 ## [0.1.0b33] - 2025-07-23
 
 ### Added

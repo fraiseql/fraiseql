@@ -1,6 +1,6 @@
 """Missing docstring."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from graphql import GraphQLError, GraphQLScalarType
@@ -15,25 +15,42 @@ def raise_value_error(msg: str) -> None:
 
 
 def serialize_datetime(value: Any) -> str:
-    """Serialize datetime to ISO 8601 string, using 'Z' for UTC."""
-    # If it's already a string, validate it's a proper ISO datetime
+    """Serialize datetime to ISO 8601 string, always using 'Z' for UTC."""
+    # Handle datetime objects
+    if isinstance(value, datetime):
+        # Convert to UTC if not already
+        if value.tzinfo is not None:
+            value = value.astimezone(UTC)
+        else:
+            # Assume naive datetimes are UTC
+            value = value.replace(tzinfo=UTC)
+
+        # Return with 'Z' suffix
+        return value.isoformat().replace("+00:00", "Z")
+
+    # Handle string inputs (e.g., from JSONB)
     if isinstance(value, str):
         try:
-            # Validate by parsing (this also ensures timezone awareness)
-            parse_datetime_value(value)
-            return value
+            # Parse the datetime string
+            dt = parse_datetime_value(value)
+            if dt is None:
+                return None
+
+            # Convert to UTC
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(UTC)
+            else:
+                # Assume naive datetimes are UTC
+                dt = dt.replace(tzinfo=UTC)
+
+            # Return with 'Z' suffix
+            return dt.isoformat().replace("+00:00", "Z")
+
         except GraphQLError:
             msg = f"DateTime cannot represent invalid ISO datetime string: {value!r}"
             raise GraphQLError(msg)
 
-    # If it's a datetime object, convert to ISO string
-    if isinstance(value, datetime):
-        iso = value.isoformat()
-        if value.tzinfo is not None and value.utcoffset() == timedelta(0):
-            return iso.replace("+00:00", "Z")
-        return iso
-
-    # Otherwise, it's an invalid type
+    # Invalid type
     msg = f"DateTime cannot represent non-datetime value: {value!r}"
     raise GraphQLError(msg)
 
