@@ -16,14 +16,26 @@ def raise_value_error(msg: str) -> None:
 
 def serialize_datetime(value: Any) -> str:
     """Serialize datetime to ISO 8601 string, using 'Z' for UTC."""
-    if not isinstance(value, datetime):
-        msg = f"DateTime cannot represent non-datetime value: {value!r}"
-        raise GraphQLError(msg)
+    # If it's already a string, validate it's a proper ISO datetime
+    if isinstance(value, str):
+        try:
+            # Validate by parsing (this also ensures timezone awareness)
+            parse_datetime_value(value)
+            return value
+        except GraphQLError:
+            msg = f"DateTime cannot represent invalid ISO datetime string: {value!r}"
+            raise GraphQLError(msg)
 
-    iso = value.isoformat()
-    if value.tzinfo is not None and value.utcoffset() == timedelta(0):
-        return iso.replace("+00:00", "Z")
-    return iso
+    # If it's a datetime object, convert to ISO string
+    if isinstance(value, datetime):
+        iso = value.isoformat()
+        if value.tzinfo is not None and value.utcoffset() == timedelta(0):
+            return iso.replace("+00:00", "Z")
+        return iso
+
+    # Otherwise, it's an invalid type
+    msg = f"DateTime cannot represent non-datetime value: {value!r}"
+    raise GraphQLError(msg)
 
 
 def parse_datetime_value(value: Any) -> datetime | None:

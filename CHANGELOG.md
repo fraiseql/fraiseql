@@ -5,6 +5,27 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b32] - 2025-07-23
+
+### Fixed
+
+- **Date and DateTime scalars with JSONB**: Fixed serialization to accept ISO strings from PostgreSQL JSONB columns
+  - Modified `serialize_date` in `date.py` to accept both Python date objects and valid ISO date strings
+  - Modified `serialize_datetime` in `datetime.py` to accept both Python datetime objects and valid ISO datetime strings with timezone
+  - When PostgreSQL stores dates/timestamps in JSONB columns, they are automatically converted to ISO strings
+  - This fix allows FraiseQL to handle these pre-serialized values from database views without errors
+  - Maintains full backward compatibility - existing code using Python date/datetime objects continues to work
+  - Added comprehensive test coverage for JSONB use cases
+
+### Enhanced
+
+- **Type validation**: Both scalars now validate string inputs to ensure they are properly formatted ISO dates/datetimes
+- **Error messages**: More specific error messages distinguish between invalid types and invalid ISO string formats
+
+### Developer Notes
+
+This release addresses a common issue when using FraiseQL with PostgreSQL views that return JSONB data. Previously, the Date and DateTime scalars would throw "cannot represent non-date value" errors when encountering ISO date strings from JSONB columns. The fix maintains backward compatibility while adding support for this common database pattern.
+
 ## [0.1.0b31] - 2025-07-22
 
 ### Fixed

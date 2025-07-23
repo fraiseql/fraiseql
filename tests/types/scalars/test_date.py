@@ -22,14 +22,14 @@ class TestDateScalar:
         assert result == "2023-12-25"
 
     def test_serialize_date_string(self) -> None:
-        """Test serializing date string raises error."""
+        """Test serializing valid date string returns the same string."""
         date_str = "2023-12-25"
-        with pytest.raises(GraphQLError, match="Date cannot represent non-date value"):
-            serialize_date(date_str)
+        result = serialize_date(date_str)
+        assert result == "2023-12-25"
 
     def test_serialize_invalid_date_string(self) -> None:
         """Test serializing invalid date string raises error."""
-        with pytest.raises(GraphQLError, match="Date cannot represent non-date value"):
+        with pytest.raises(GraphQLError, match="Date cannot represent invalid ISO date string"):
             serialize_date("2023-13-45")  # Invalid month and day
 
     def test_serialize_non_date_type(self) -> None:
@@ -94,8 +94,9 @@ class TestDateScalar:
         test_date = date(2023, 12, 25)
         date_str = "2023-12-25"
 
-        # Test serialize - only accepts date objects
+        # Test serialize - accepts both date objects and ISO strings
         assert DateScalar.serialize(test_date) == date_str
+        assert DateScalar.serialize(date_str) == date_str
 
         # Test parse_value
         parsed = DateScalar.parse_value(date_str)
@@ -140,3 +141,23 @@ class TestDateScalar:
 
         with pytest.raises(GraphQLError, match="Invalid ISO 8601 Date"):
             parse_date_value("2023-12-25 10:30:00")
+
+    def test_serialize_jsonb_date_string(self) -> None:
+        """Test serializing date strings from PostgreSQL JSONB columns.
+
+        When PostgreSQL stores dates in JSONB columns, they are automatically
+        converted to ISO strings. This test ensures FraiseQL can handle these
+        pre-serialized dates from database views.
+        """
+        # Simulate date string from JSONB column
+        jsonb_date = "2025-01-09"
+        result = serialize_date(jsonb_date)
+        assert result == "2025-01-09"
+
+        # Invalid date string should still raise error
+        with pytest.raises(GraphQLError, match="Date cannot represent invalid ISO date string"):
+            serialize_date("not-a-date")
+
+        # Malformed date should raise error
+        with pytest.raises(GraphQLError, match="Date cannot represent invalid ISO date string"):
+            serialize_date("2025-13-01")  # Invalid month

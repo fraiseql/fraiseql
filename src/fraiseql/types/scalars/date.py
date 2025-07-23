@@ -11,10 +11,23 @@ from fraiseql.types.definitions import ScalarMarker
 
 def serialize_date(value: Any) -> str:
     """Serialize a Python `date` to an ISO 8601 string."""
-    if not isinstance(value, date):
-        msg = f"Date cannot represent non-date value: {value!r}"
-        raise GraphQLError(msg)
-    return value.isoformat()
+    # If it's already a string, check if it's a valid ISO date
+    if isinstance(value, str):
+        try:
+            # Validate the string is a proper ISO date
+            date.fromisoformat(value)
+            return value
+        except ValueError:
+            msg = f"Date cannot represent invalid ISO date string: {value!r}"
+            raise GraphQLError(msg)
+
+    # If it's a date object, convert to ISO string
+    if isinstance(value, date):
+        return value.isoformat()
+
+    # Otherwise, it's an invalid type
+    msg = f"Date cannot represent non-date value: {value!r}"
+    raise GraphQLError(msg)
 
 
 def parse_date_value(value: Any) -> date | None:
