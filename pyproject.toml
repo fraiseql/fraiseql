@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fraiseql"
-version = "0.1.0b32"
+version = "0.1.0b33"
 description = "Lightweight GraphQL-to-PostgreSQL query builder using jsonb"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
@@ -310,13 +310,26 @@ version_scheme = "python-simplified-semver"
 local_scheme = "node-and-date"
 
 [tool.hatch.build]
-include = ["src/fraiseql"]
+include = [
+    "src/fraiseql/**/*.py",
+    "src/fraiseql/**/*.pyi", 
+    "src/fraiseql/py.typed"
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fraiseql"]
+include = [
+    "src/fraiseql/**/*.py",
+    "src/fraiseql/**/*.pyi",
+    "src/fraiseql/py.typed"
+]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/fraiseql"]
+include = [
+    "src/fraiseql/**/*.py", 
+    "src/fraiseql/**/*.pyi",
+    "src/fraiseql/py.typed"
+]
 
 [dependency-groups]
 dev = [

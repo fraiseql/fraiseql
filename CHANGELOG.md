@@ -5,6 +5,30 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b33] - 2025-07-23
+
+### Added
+
+- **Complete type stub support**: Added comprehensive type stubs (.pyi files) for better IDE support and type checking
+  - Added `py.typed` marker file to indicate the package includes type information
+  - Created `__init__.pyi` with type stubs for all decorators (@type, @input, @query, @field, @mutation, etc.)
+  - Created `fastapi.pyi` with FraiseQLConfig and create_fraiseql_app type definitions
+  - Created `mutations/error_config.pyi` with MutationErrorConfig types
+  - Created `cqrs/repository.pyi` with CQRSRepository and CQRSExecutor types
+  - All scalar types (Date, DateTime, JSON, EmailAddress, IpAddress, etc.) have proper type definitions
+  - Generic types (Connection, Edge, PageInfo) for GraphQL pagination support
+  - Authentication types (AuthProvider, UserContext, Auth0Config) when auth module is available
+
+### Enhanced
+
+- **Developer experience**: Projects using FraiseQL will now pass pyright/mypy type checks
+- **IDE support**: Full autocompletion and type hints in VS Code, PyCharm, and other IDEs
+- **Build configuration**: Updated pyproject.toml to include .pyi files and py.typed marker in distributions
+
+### Developer Notes
+
+This release adds comprehensive type stub support to FraiseQL, enabling downstream projects to benefit from static type checking. The type stubs follow PEP 561 conventions and are automatically included in the package distribution. This is a non-breaking change that only adds type information without modifying any runtime behavior.
+
 ## [0.1.0b32] - 2025-07-23
 
 ### Fixed
