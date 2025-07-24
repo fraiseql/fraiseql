@@ -5,6 +5,31 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b35] - 2025-07-24
+
+### Added
+
+- **Date range validation utilities**: New built-in utilities for validating date ranges in input types
+  - `validate_date_range()` function for checking that end_date is not before start_date
+  - `get_date_range_validation_errors()` function that returns errors in standard FraiseQL format
+  - `DateRangeValidationMixin` class for easy integration with input types
+  - `@date_range_validator` decorator as an alternative approach
+  - `DateRangeValidatable` protocol for type safety
+  - Proper handling of `UNSET` values for partial updates
+  - Comprehensive test coverage with 17 test cases
+  - Exported from `fraiseql.types` for easy import
+
+### Enhanced
+
+- **Developer experience**: Reduced boilerplate code for common date range validation scenarios
+- **Consistency**: Standardized error format (code 422) for date validation errors
+- **Flexibility**: Support for both mixin and decorator patterns
+- **Type safety**: Protocol-based approach ensures proper typing
+
+### Developer Notes
+
+This release adds the frequently requested date range validation feature. Many applications collect start and end dates as separate fields in forms, requiring validation that the end date is not before the start date. This feature complements the existing `DateRange` scalar which handles PostgreSQL date range strings. The implementation is non-intrusive and can be adopted incrementally in existing codebases.
+
 ## [0.1.0b34] - 2025-07-23
 
 ### Added

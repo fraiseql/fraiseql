@@ -22,6 +22,13 @@ Usage:
         name: str
 """
 
+from .date_range_validation import (
+    DateRangeValidatable,
+    DateRangeValidationMixin,
+    date_range_validator,
+    get_date_range_validation_errors,
+    validate_date_range,
+)
 from .errors import Error
 from .fraise_input import fraise_input
 from .fraise_type import fraise_type
@@ -51,6 +58,8 @@ __all__ = [
     "Connection",
     "Date",
     "DateRange",
+    "DateRangeValidatable",
+    "DateRangeValidationMixin",
     "DateTime",
     "Edge",
     "EmailAddress",
@@ -64,8 +73,11 @@ __all__ = [
     "Port",
     "convert_scalar_to_graphql",
     "create_connection",
+    "date_range_validator",
     "fraise_input",
     "fraise_type",
+    "get_date_range_validation_errors",
     "input",
     "type",
+    "validate_date_range",
 ]
