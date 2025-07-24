@@ -5,7 +5,6 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 class FraiseQLConfig(BaseModel):
-
     # Database configuration
     database_url: str
     database_pool_size: int
@@ -93,7 +92,6 @@ def create_fraiseql_app(
 ) -> FastAPI: ...
 
 class TurboRouter:
-
     def __init__(
         self,
         cache_size: int = 1000,
@@ -112,7 +110,6 @@ def get_dev_context() -> Dict[str, Any]: ...
 
 # Configuration helpers
 def load_config_from_env() -> FraiseQLConfig: ...
-
 def create_database_pool(database_url: str, **kwargs: Any) -> Any: ...
 
 __all__ = [

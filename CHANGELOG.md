@@ -5,6 +5,39 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0b36] - 2025-07-24
+
+### Fixed
+
+- **Enum serialization for database compatibility**: FraiseQL now serializes enum **values** instead of enum **names** for PostgreSQL function calls
+  - `serialize_enum_value()` updated to use `.value` instead of `.name`
+  - GraphQL enum registration now stores actual enum values for database compatibility
+  - Field resolvers updated to properly handle enum serialization in queries and mutations
+  - Resolves issue where PostgreSQL functions received enum names like `"ITEM"` instead of expected values like `"Item"`
+  - Maintains full GraphQL API backward compatibility - clients still send enum names
+  - Critical fix for PrintOptim backend and other database integrations
+
+- **Type stub file linting compliance**: Resolved all PYI (stub file) linting errors blocking CI/CD
+  - Removed docstrings from all `.pyi` files to comply with PYI021 requirements
+  - Fixed variable shadowing of Python builtins (A001 errors) in `__init__.pyi`
+  - Fixed CamelCase naming for type aliases (PYI042)
+  - Sorted `__all__` lists alphabetically (RUF022)
+  - Fixed whitespace issues in blank lines (W293)
+  - Affected files: `__init__.pyi`, `cqrs/repository.pyi`, `fastapi.pyi`, `mutations/error_config.pyi`
+
+### Enhanced
+
+- **Database integration reliability**: Enum values now properly match SQL CHECK constraints and stored procedures
+- **Code quality**: All type stub files now pass ruff linting checks
+- **CI/CD pipeline**: Resolved linting failures that were blocking automated builds
+- **Developer experience**: More predictable enum behavior aligns with industry GraphQL standards
+
+### Developer Notes
+
+- **Breaking Change**: None - GraphQL schema and client code remain unchanged
+- **Migration**: Existing enum usage requires no changes; serialization is handled internally
+- **Testing**: Updated test expectations to verify enum values instead of names are serialized
+
 ## [0.1.0b35] - 2025-07-24
 
 ### Added
