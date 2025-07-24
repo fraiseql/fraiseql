@@ -191,7 +191,7 @@ async def get_current_user(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     try:
         payload = token_manager.verify_access_token(credentials.credentials)
 

@@ -102,7 +102,7 @@ def postgres_url() -> str:
         # testcontainers returns postgresql+psycopg:// but psycopg3 expects postgresql://
         url = container.get_connection_url()
         return url.replace("postgresql+psycopg://", "postgresql://")
-    
+
     pytest.skip("No database available")
 
 

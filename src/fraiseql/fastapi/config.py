@@ -1,6 +1,5 @@
 """Configuration for FraiseQL FastAPI integration."""
 
-import secrets
 from typing import Annotated, Any, Literal
 
 from pydantic import Field, PostgresDsn, field_validator
@@ -155,9 +154,9 @@ class FraiseQLConfig(BaseSettings):
     @field_validator("dev_auth_username")
     @classmethod
     def generate_dev_username(cls, v: str | None) -> str:
-        """Generate a random username if not explicitly set."""
+        """Set default username if not explicitly set."""
         if v is None:
-            return f"dev_{secrets.token_hex(4)}"
+            return "admin"
         return v
 
     @field_validator("database_url", mode="before")

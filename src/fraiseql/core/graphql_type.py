@@ -348,13 +348,13 @@ def convert_type_to_graphql_output(
 
                                 # Handle enum serialization at field level
                                 if isinstance(value, Enum):
-                                    return value.name
+                                    return value.value
                                 if isinstance(value, list):
                                     # Handle lists of enums or nested objects
                                     result = []
                                     for item in value:
                                         if isinstance(item, Enum):
-                                            result.append(item.name)
+                                            result.append(item.value)
                                         elif isinstance(item, dict) and hasattr(
                                             field_type, "__args__"
                                         ):

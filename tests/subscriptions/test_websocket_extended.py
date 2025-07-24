@@ -472,7 +472,7 @@ class TestWebSocketConnection:
         error_message = mock_send.call_args[0][0]
         assert error_message.type == MessageType.ERROR
         assert error_message.id == "sub1"
-        assert error_message.payload == {"errors": ["Test error"]}
+        assert error_message.payload == {"errors": [{"message": "Test error"}]}
 
     @pytest.mark.asyncio
     async def test_send_error_object(self):

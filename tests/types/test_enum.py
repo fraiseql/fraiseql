@@ -33,10 +33,10 @@ class TestFraiseEnum:
         assert "INACTIVE" in graphql_enum.values
         assert "PENDING" in graphql_enum.values
 
-        # Check internal values (now stores GraphQL names)
-        assert graphql_enum.values["ACTIVE"].value == "ACTIVE"
-        assert graphql_enum.values["INACTIVE"].value == "INACTIVE"
-        assert graphql_enum.values["PENDING"].value == "PENDING"
+        # Check internal values (now stores enum values for database compatibility)
+        assert graphql_enum.values["ACTIVE"].value == "active"
+        assert graphql_enum.values["INACTIVE"].value == "inactive"
+        assert graphql_enum.values["PENDING"].value == "pending"
 
     def test_enum_with_integer_values(self, clear_registry) -> None:
         """Test enum with integer values."""
@@ -49,8 +49,8 @@ class TestFraiseEnum:
             CRITICAL = 4
 
         graphql_enum = Priority.__graphql_type__
-        assert graphql_enum.values["LOW"].value == "LOW"
-        assert graphql_enum.values["HIGH"].value == "HIGH"
+        assert graphql_enum.values["LOW"].value == 1
+        assert graphql_enum.values["HIGH"].value == 3
 
     def test_enum_in_type_definition(self, clear_registry) -> None:
         """Test using enum in a type definition."""
@@ -160,8 +160,8 @@ class TestFraiseEnum:
         assert result.errors is None
         assert result.data == {
             "articles": [
-                {"id": "1", "title": "First", "status": "PUBLISHED"},
-                {"id": "2", "title": "Second", "status": "DRAFT"},
+                {"id": "1", "title": "First", "status": "published"},
+                {"id": "2", "title": "Second", "status": "draft"},
             ],
         }
 
@@ -207,7 +207,7 @@ class TestFraiseEnum:
 
         result = asyncio.run(graphql(schema, mutation, variable_values=variables))
         assert result.errors is None
-        assert result.data == {"updateOrder": {"id": "123", "status": "SHIPPED"}}
+        assert result.data == {"updateOrder": {"id": "123", "status": "shipped"}}
 
     def test_optional_enum_field(self, clear_registry) -> None:
         """Test optional enum fields."""
@@ -251,7 +251,7 @@ class TestFraiseEnum:
         assert result.errors is None
         assert result.data == {
             "products": [
-                {"id": "1", "name": "Laptop", "category": "ELECTRONICS"},
+                {"id": "1", "name": "Laptop", "category": "electronics"},
                 {"id": "2", "name": "Unknown Item", "category": None},
             ],
         }
@@ -305,8 +305,8 @@ class TestFraiseEnum:
         assert result.errors is None
         assert result.data == {
             "roles": [
-                {"name": "Editor", "permissions": ["READ", "WRITE"]},
-                {"name": "Admin", "permissions": ["READ", "WRITE", "DELETE", "ADMIN"]},
+                {"name": "Editor", "permissions": ["read", "write"]},
+                {"name": "Admin", "permissions": ["read", "write", "delete", "admin"]},
             ],
         }
 

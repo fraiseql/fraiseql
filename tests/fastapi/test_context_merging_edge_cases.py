@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient
 # Import database fixtures for real PostgreSQL testing
 from tests.database_conftest import *  # noqa: F403
 
+pytestmark = pytest.mark.database
+
 from fraiseql import fraise_type
 
 

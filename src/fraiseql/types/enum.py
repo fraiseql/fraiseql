@@ -239,7 +239,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
                     )
 
     Notes:
-        - Enum names (not values) are used as GraphQL enum values
+        - Enum values (not names) are serialized for database compatibility
         - Python enum values can be strings, integers, or other types
         - Enums provide type safety and IDE autocompletion
         - Use enums for predefined sets of values in your domain
@@ -260,9 +260,9 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
         enum_values = {}
         for member in cls:
             # Use the enum member name as the GraphQL value name
-            # GraphQL will serialize based on the GraphQLEnumValue's internal value
+            # Store the actual enum value for database compatibility
             enum_values[member.name] = GraphQLEnumValue(
-                value=member.name,  # Store the GraphQL name
+                value=member.value,  # Store the actual enum value for PostgreSQL functions
                 description=getattr(member, "_description", None),
             )
 

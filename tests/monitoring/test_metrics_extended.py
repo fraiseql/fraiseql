@@ -301,6 +301,11 @@ class TestMetricsIntegration:
         """Test setting up global metrics."""
         from fastapi import FastAPI
 
+        # Reset global metrics first
+        import fraiseql.monitoring.metrics.integration
+
+        fraiseql.monitoring.metrics.integration._metrics_instance = None
+
         app = FastAPI()
         config = MetricsConfig(namespace="test")
         metrics = setup_metrics(app, config)

@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import jwt
@@ -33,9 +33,8 @@ async def app(db_with_native_auth):
     from fraiseql.auth.native.router import get_db
 
     async def override_get_db():
-        # For tests, we need to ensure autocommit is enabled
-        # since we're using db_connection_committed fixture
-        await db_with_native_auth.set_autocommit(True)
+        # The db_connection_committed fixture already handles transactions
+        # so we can just yield the connection directly
         yield db_with_native_auth
 
     app.dependency_overrides[get_db] = override_get_db
@@ -131,8 +130,7 @@ class TestAuthEndpoints:
         schema = await get_current_schema(db_with_native_auth)
         async with db_with_native_auth.cursor() as cursor:
             await cursor.execute(
-                f"SELECT * FROM {schema}.tb_session WHERE fk_user = %s",
-                (test_user.id,)
+                f"SELECT * FROM {schema}.tb_session WHERE fk_user = %s", (test_user.id,)
             )
             result = await cursor.fetchone()
         assert result is not None
@@ -257,8 +255,7 @@ class TestAuthEndpoints:
         schema = await get_current_schema(db_with_native_auth)
         async with db_with_native_auth.cursor() as cursor:
             await cursor.execute(
-                f"SELECT * FROM {schema}.tb_password_reset WHERE fk_user = %s",
-                (test_user.id,)
+                f"SELECT * FROM {schema}.tb_password_reset WHERE fk_user = %s", (test_user.id,)
             )
             result = await cursor.fetchone()
         assert result is not None
@@ -276,7 +273,7 @@ class TestAuthEndpoints:
                 INSERT INTO {schema}.tb_password_reset (fk_user, token_hash, expires_at)
                 VALUES (%s, %s, %s)
                 """,
-                (test_user.id, token_hash, datetime.now(UTC) + timedelta(hours=1))
+                (test_user.id, token_hash, datetime.now(UTC) + timedelta(hours=1)),
             )
 
         # Reset password

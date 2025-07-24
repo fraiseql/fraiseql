@@ -193,7 +193,7 @@ class TestGraphQLCSRFValidator:
 
         # Mock token validation
         with patch.object(validator.token_generator, "validate_token", return_value=True):
-            result = await validator.validate_request(request, {"query": "{ user }"})
+            result = await validator.validate_request(request)
             assert result is True
 
     @pytest.mark.asyncio

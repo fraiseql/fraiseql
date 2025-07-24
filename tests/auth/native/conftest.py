@@ -4,13 +4,8 @@ from pathlib import Path
 
 import pytest
 
-# Import specific database fixtures from the main conftest
-from tests.database_conftest import (
-    db_connection,
-    db_connection_committed,
-    db_pool,
-    postgres_url,
-)
+# Import database fixtures
+from tests.database_conftest import *  # noqa: F403
 
 
 @pytest.fixture

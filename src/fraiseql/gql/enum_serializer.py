@@ -5,9 +5,9 @@ from typing import Any
 
 
 def serialize_enum_value(value: Any) -> Any:
-    """Convert Python enum instances to their names for GraphQL serialization."""
+    """Convert Python enum instances to their values for GraphQL serialization."""
     if isinstance(value, Enum):
-        return value.name
+        return value.value
     if isinstance(value, list):
         return [serialize_enum_value(item) for item in value]
     if isinstance(value, dict):
