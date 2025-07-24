@@ -5,7 +5,6 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 class FraiseQLConfig(BaseModel):
-    """Configuration for FraiseQL FastAPI application."""
 
     # Database configuration
     database_url: str
@@ -91,42 +90,15 @@ def create_fraiseql_app(
     redoc_url: str | None = "/redoc",
     openapi_url: str | None = "/openapi.json",
     include_in_schema: bool = True,
-) -> FastAPI:
-    """Create a FraiseQL FastAPI application.
-    
-    Args:
-        config: FraiseQL configuration object
-        types: List of GraphQL output types
-        mutations: List of mutation classes
-        queries: List of query functions (deprecated, use @query decorator)
-        subscriptions: List of subscription functions
-        context_getter: Function to build GraphQL context
-        middleware: List of FastAPI middleware
-        cors_origins: List of allowed CORS origins
-        cors_allow_credentials: Whether to allow credentials in CORS
-        cors_allow_methods: List of allowed HTTP methods for CORS
-        cors_allow_headers: List of allowed headers for CORS
-        title: FastAPI app title
-        description: FastAPI app description
-        version: API version
-        docs_url: URL for Swagger docs
-        redoc_url: URL for ReDoc
-        openapi_url: URL for OpenAPI JSON
-        include_in_schema: Whether to include in OpenAPI schema
-        
-    Returns:
-        Configured FastAPI application
-    """
+) -> FastAPI: ...
 
 class TurboRouter:
-    """Enhanced router for high-performance GraphQL execution."""
 
     def __init__(
         self,
         cache_size: int = 1000,
         enable_complexity_analysis: bool = True,
     ) -> None: ...
-
     async def execute(
         self,
         query: str,
@@ -136,15 +108,12 @@ class TurboRouter:
     ) -> Dict[str, Any]: ...
 
 # Development utilities
-def get_dev_context() -> Dict[str, Any]:
-    """Get development context with mock database and auth."""
+def get_dev_context() -> Dict[str, Any]: ...
 
 # Configuration helpers
-def load_config_from_env() -> FraiseQLConfig:
-    """Load FraiseQL configuration from environment variables."""
+def load_config_from_env() -> FraiseQLConfig: ...
 
-def create_database_pool(database_url: str, **kwargs: Any) -> Any:
-    """Create a database connection pool."""
+def create_database_pool(database_url: str, **kwargs: Any) -> Any: ...
 
 __all__ = [
     "FraiseQLConfig",
