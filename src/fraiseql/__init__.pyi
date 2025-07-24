@@ -7,35 +7,33 @@ _F = TypeVar("_F", bound=Callable[..., Any])
 
 # Core type decorators
 @overload
-def type(cls: Type[_T]) -> Type[_T]: ...
+def fraise_type_decorator(cls: Type[_T]) -> Type[_T]: ...
 @overload
-def type(
+def fraise_type_decorator(
     *,
     sql_source: str | None = None,
     jsonb_column: str | None = None,
     implements: List[Type[Any]] | None = None,
 ) -> Callable[[Type[_T]], Type[_T]]: ...
-def type(
+def fraise_type_decorator(
     cls: Type[_T] | None = None,
     *,
     sql_source: str | None = None,
     jsonb_column: str | None = None,
     implements: List[Type[Any]] | None = None,
 ) -> Type[_T] | Callable[[Type[_T]], Type[_T]]: ...
-
 @overload
-def input(cls: Type[_T]) -> Type[_T]: ...
+def fraise_input_decorator(cls: Type[_T]) -> Type[_T]: ...
 @overload
-def input(
+def fraise_input_decorator(
     *,
     description: str | None = None,
 ) -> Callable[[Type[_T]], Type[_T]]: ...
-def input(
+def fraise_input_decorator(
     cls: Type[_T] | None = None,
     *,
     description: str | None = None,
 ) -> Type[_T] | Callable[[Type[_T]], Type[_T]]: ...
-
 def success(cls: Type[_T]) -> Type[_T]: ...
 def failure(cls: Type[_T]) -> Type[_T]: ...
 def result(cls: Type[_T]) -> Type[_T]: ...
@@ -133,18 +131,15 @@ class Hostname:
 
 # Generic types
 class Connection:
-    """GraphQL connection type."""
     edges: List[Any]
     page_info: Any
     total_count: int | None
 
 class Edge:
-    """GraphQL edge type."""
     node: Any
     cursor: str
 
 class PageInfo:
-    """GraphQL page info type."""
     has_next_page: bool
     has_previous_page: bool
     start_cursor: str | None
@@ -161,7 +156,6 @@ def create_connection(
 
 # CQRS classes
 class CQRSRepository:
-    """FraiseQL CQRS Repository."""
     def __init__(self, connection_or_pool: Any) -> None: ...
     async def find(
         self,
@@ -184,7 +178,6 @@ class CQRSRepository:
     ) -> Dict[str, Any]: ...
 
 class CQRSExecutor:
-    """FraiseQL CQRS Executor."""
     def __init__(self, repository: CQRSRepository) -> None: ...
 
 # Schema builder
@@ -204,11 +197,9 @@ PRINTOPTIM_ERROR_CONFIG: MutationErrorConfig
 UNSET: Any
 
 # Auth types (when available)
-class AuthProvider:
-    """Base authentication provider."""
+class AuthProvider: ...
 
 class UserContext:
-    """User context for authenticated requests."""
     user_id: str
     roles: List[str]
     permissions: List[str]
@@ -218,13 +209,11 @@ def requires_auth(
     *,
     optional: bool = False,
 ) -> _F | Callable[[_F], _F]: ...
-
 def requires_role(
     role: str,
     *,
     optional: bool = False,
 ) -> Callable[[_F], _F]: ...
-
 def requires_permission(
     permission: str,
     *,
@@ -232,13 +221,11 @@ def requires_permission(
 ) -> Callable[[_F], _F]: ...
 
 class Auth0Config:
-    """Auth0 configuration."""
     domain: str
     audience: str
     algorithms: List[str]
 
 class Auth0Provider(AuthProvider):
-    """Auth0 authentication provider."""
     def __init__(self, config: Auth0Config) -> None: ...
 
 # FastAPI integration (when available)
@@ -247,80 +234,73 @@ try:
     from .fastapi import create_fraiseql_app as create_fraiseql_app
 except ImportError:
     type FraiseQLConfig = None
-    type create_fraiseql_app = None
+    type CreateFraiseQLApp = None
 
 # Aliases for backwards compatibility
-fraise_type = type
-fraise_input = input
+fraise_type = fraise_type_decorator
+fraise_input = fraise_input_decorator
 fraise_enum = enum
 fraise_interface = interface
 
 __version__: str
 
 __all__ = [
-    # Core decorators
-    "type",
-    "input",
-    "success",
-    "failure",
-    "result",
-    "enum",
-    "interface",
-    "query",
-    "field",
-    "dataloader_field",
-    "mutation",
-    "subscription",
-    "fraise_field",
-
+    "ALWAYS_DATA_CONFIG",
+    "DEFAULT_ERROR_CONFIG",
+    "JSON",
+    "PRINTOPTIM_ERROR_CONFIG",
+    # Constants
+    "UNSET",
+    "Auth0Config",
+    "Auth0Provider",
+    # Auth (optional)
+    "AuthProvider",
+    "CQRSExecutor",
+    # CQRS
+    "CQRSRepository",
+    # Generic types
+    "Connection",
+    "CreateFraiseQLApp",
     # Scalar types
     "Date",
     "DateTime",
-    "JSON",
-    "EmailAddress",
-    "IpAddress",
-    "MacAddress",
-    "Port",
-    "Hostname",
-
-    # Generic types
-    "Connection",
     "Edge",
-    "PageInfo",
-    "create_connection",
-
-    # CQRS
-    "CQRSRepository",
-    "CQRSExecutor",
-
-    # Schema
-    "build_fraiseql_schema",
-
-    # Error configs
-    "MutationErrorConfig",
-    "ALWAYS_DATA_CONFIG",
-    "DEFAULT_ERROR_CONFIG",
-    "PRINTOPTIM_ERROR_CONFIG",
-
-    # Constants
-    "UNSET",
-
-    # Auth (optional)
-    "AuthProvider",
-    "UserContext",
-    "requires_auth",
-    "requires_role",
-    "requires_permission",
-    "Auth0Config",
-    "Auth0Provider",
-
+    "EmailAddress",
     # FastAPI integration (optional)
     "FraiseQLConfig",
-    "create_fraiseql_app",
-
+    "Hostname",
+    "IpAddress",
+    "MacAddress",
+    # Error configs
+    "MutationErrorConfig",
+    "PageInfo",
+    "Port",
+    "UserContext",
+    # Schema
+    "build_fraiseql_schema",
+    "create_connection",
+    "dataloader_field",
+    "enum",
+    "failure",
+    "field",
+    "fraise_enum",
+    "fraise_field",
+    "fraise_input",
+    "fraise_input_decorator",
+    "fraise_interface",
     # Aliases
     "fraise_type",
-    "fraise_input",
-    "fraise_enum",
-    "fraise_interface",
+    # Core decorators
+    "fraise_type_decorator",
+    "input",
+    "interface",
+    "mutation",
+    "query",
+    "requires_auth",
+    "requires_permission",
+    "requires_role",
+    "result",
+    "subscription",
+    "success",
+    "type",
 ]
