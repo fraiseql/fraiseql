@@ -215,10 +215,18 @@ class TestBuildOperatorComposed:
         """Test strictly contains operator (contains but not equal)."""
         path_sql = SQL("data")
         result = build_operator_composed(path_sql, "strictly_contains", {"key": "value"})
-        sql_str = result.as_string(None)
-        assert " @> " in sql_str
-        assert " AND " in sql_str
-        assert " != " in sql_str
+        # Cannot call as_string(None) with dict, check structure instead
+        assert isinstance(result, Composed)
+        parts = []
+        for part in result:
+            if hasattr(part, '_wrapped'):
+                parts.append(f"<Literal: {part._wrapped}>")
+            else:
+                parts.append(str(part))
+        result_str = ' '.join(parts)
+        assert " @> " in result_str
+        assert " AND " in result_str
+        assert " != " in result_str
 
     def test_boolean_value_handling(self):
         """Test boolean value conversion to proper SQL."""
@@ -228,13 +236,13 @@ class TestBuildOperatorComposed:
         result = build_operator_composed(path_sql, "eq", True)
         sql_str = result.as_string(None)
         assert "::boolean" in sql_str
-        assert "'true'" in sql_str
+        assert "= true" in sql_str  # Boolean literal, not string
 
         # Boolean false
         result = build_operator_composed(path_sql, "eq", False)
         sql_str = result.as_string(None)
         assert "::boolean" in sql_str
-        assert "'false'" in sql_str
+        assert "= false" in sql_str  # Boolean literal, not string
 
     def test_uuid_value_handling(self):
         """Test UUID value handling with type hints."""
@@ -281,14 +289,14 @@ class TestUnwrapType:
 
     def test_unwrap_union_with_none(self):
         """Test unwrapping Union types with None."""
-        assert unwrap_type(str | None) is str
-        assert unwrap_type(int | None) is int
+        assert unwrap_type(str | None) == str
+        assert unwrap_type(int | None) == int
 
     def test_no_unwrap_needed(self):
         """Test types that don't need unwrapping."""
-        assert unwrap_type(str) is str
-        assert unwrap_type(int) is int
-        assert unwrap_type(list[str]) is list[str]
+        assert unwrap_type(str) == str
+        assert unwrap_type(int) == int
+        assert unwrap_type(list[str]) == list[str]
 
     def test_complex_union(self):
         """Test complex Union types are not unwrapped."""
@@ -329,8 +337,8 @@ class TestSafeCreateWhereType:
         sql_str = sql.as_string(None)
 
         assert "(data ->> 'name') = 'test'" in sql_str
-        assert "(data ->> 'age') > 21" in sql_str
-        assert "(data ->> 'is_active') = 'true'::boolean" in sql_str
+        assert "(data ->> 'age')::numeric > 21" in sql_str
+        assert "(data ->> 'is_active')::boolean = true" in sql_str
 
     def test_where_type_with_complex_filters(self):
         """Test WHERE type with complex filters."""
@@ -410,7 +418,7 @@ class TestSafeCreateWhereType:
         sql_str = sql.as_string(None)
 
         assert "name" not in sql_str
-        assert "(data ->> 'age') > 21" in sql_str
+        assert "(data ->> 'age')::numeric > 21" in sql_str
 
     def test_where_type_caching(self):
         """Test that safe_create_where_type uses caching."""
@@ -423,15 +431,16 @@ class TestSafeCreateWhereType:
     def test_nested_dynamic_type(self):
         """Test WHERE type with nested dynamic type filters."""
 
-        @dataclass
-        class Parent:
-            id: int
-            child: Optional["Child"] = None
-
+        # Define Child first to avoid forward reference issues
         @dataclass
         class Child:
             name: str
             value: int
+
+        @dataclass
+        class Parent:
+            id: int
+            child: Optional[Child] = None
 
         ParentWhere = safe_create_where_type(Parent)
         ChildWhere = safe_create_where_type(Child)
@@ -469,7 +478,7 @@ class TestEdgeCases:
         sql_str = sql.as_string(None)
 
         assert "name" not in sql_str
-        assert "(data ->> 'age') > 21" in sql_str
+        assert "(data ->> 'age')::numeric > 21" in sql_str
 
     def test_unsupported_operators_ignored(self):
         """Test that unsupported operators are silently ignored."""

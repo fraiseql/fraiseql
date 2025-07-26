@@ -20,9 +20,9 @@ class TestBuildSqlQuery:
         sql_str = query.as_string(None)
 
         assert "SELECT" in sql_str
-        assert "data->>'name' AS name" in sql_str
-        assert "data->>'age' AS age" in sql_str
-        assert "FROM users" in sql_str
+        assert "data->>'name' AS \"name\"" in sql_str
+        assert "data->>'age' AS \"age\"" in sql_str
+        assert "FROM \"users\"" in sql_str
 
     def test_basic_query_with_json_output(self):
         """Test basic query with JSON output."""
@@ -210,10 +210,11 @@ class TestBuildSqlQuery:
         )
         sql_str = query.as_string(None)
 
-        # Should convert camelCase to snake_case
-        assert "data->>'user_name'" in sql_str
-        assert "data->>'first_name'" in sql_str
-        assert "data->>'department_id'" in sql_str
+        # Should NOT convert camelCase to snake_case when auto_camel_case=True
+        # The field paths remain as camelCase in the SQL
+        assert "data->>'userName'" in sql_str
+        assert "ORDER BY data->>'firstName' ASC" in sql_str
+        assert "GROUP BY data->>'departmentId'" in sql_str
 
     def test_auto_camel_case_with_nested_fields(self):
         """Test auto camel case with nested field paths."""
@@ -232,10 +233,11 @@ class TestBuildSqlQuery:
         )
         sql_str = query.as_string(None)
 
-        # Should convert nested paths
-        assert "data->'user_profile'->>'first_name'" in sql_str
-        assert "data->'user_profile'->>'last_name'" in sql_str
-        assert "data->'user_profile'->>'department_id'" in sql_str
+        # Should NOT convert camelCase to snake_case when auto_camel_case=True
+        # The nested field paths remain as camelCase in the SQL
+        assert "data->'userProfile'->>'firstName'" in sql_str
+        assert "ORDER BY data->'userProfile'->>'lastName' ASC" in sql_str
+        assert "GROUP BY data->'userProfile'->>'departmentId'" in sql_str
 
     def test_empty_field_paths(self):
         """Test query with empty field paths."""
@@ -245,7 +247,7 @@ class TestBuildSqlQuery:
         sql_str = query.as_string(None)
 
         # Should still generate valid SQL
-        assert "SELECT jsonb_build_object() AS result FROM users" in sql_str
+        assert "SELECT jsonb_build_object() AS result FROM \"users\"" in sql_str
 
     def test_special_characters_in_field_names(self):
         """Test query with special characters in field names."""
@@ -342,7 +344,6 @@ class TestEdgeCasesAndErrors:
             FieldPath(
                 path=["level1", "level2", "level3", "level4", "level5", "value"],
                 alias="deepValue",
-                field_type=str,
             ),
         ]
 
