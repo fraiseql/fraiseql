@@ -512,7 +512,7 @@ class TestStrawberryFeatureParity:
             assert response.status_code == 200
             data = response.json()
             assert "data" in data
-            assert data["data"]["getUser"]["role"] == "admin"  # FraiseQL now uses enum value
+            assert data["data"]["getUser"]["role"] == "ADMIN"  # FraiseQL uses enum name
 
     @pytest.mark.xfail(reason="Interface support may not be fully implemented yet")
     def test_strawberry_interface_migration(self) -> None:
