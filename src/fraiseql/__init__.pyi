@@ -243,8 +243,8 @@ fraise_enum = enum
 fraise_interface = interface
 
 # Core aliases
-type = fraise_type
-input = fraise_input
+type = fraise_type  # noqa: A001
+input = fraise_input  # noqa: A001
 
 __version__: str
 
