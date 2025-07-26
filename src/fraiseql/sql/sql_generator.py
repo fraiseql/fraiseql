@@ -37,7 +37,7 @@ def build_sql_query(
         typename: Optional GraphQL typename to include
         order_by: Optional list of (field_path, direction) tuples for ORDER BY
         group_by: Optional list of field paths for GROUP BY
-        auto_camel_case: Whether to preserve camelCase field paths (True) or convert to snake_case (False)
+        auto_camel_case: Whether to preserve camelCase field paths (True) or convert to snake_case
     """
     object_pairs: list[sql.Composable] = []
 
