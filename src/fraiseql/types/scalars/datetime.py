@@ -34,7 +34,7 @@ def serialize_datetime(value: Any) -> str:
             # Parse the datetime string
             dt = parse_datetime_value(value)
             if dt is None:
-                return None
+                raise ValueError(f"Invalid datetime value: {value}")
 
             # Convert to UTC
             if dt.tzinfo is not None:

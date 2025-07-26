@@ -41,6 +41,10 @@ def __getattr__(name):
         from .graphql_where_generator import DateTimeFilter
 
         return DateTimeFilter
+    if name == "create_graphql_where_input":
+        from .graphql_where_generator import create_graphql_where_input
+
+        return create_graphql_where_input
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 

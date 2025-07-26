@@ -126,7 +126,8 @@ class UnsetType:
         if cls.__instance is None:
             ret = super().__new__(cls)
             cls.__instance = ret
-        return cls.__instance
+            return ret
+        return cls.__instance  # type: ignore[return-value]
 
     def __bool__(self) -> bool:
         """UNSET is always falsy."""

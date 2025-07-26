@@ -275,6 +275,7 @@ class TestAuthEndpoints:
                 """,
                 (test_user.id, token_hash, datetime.now(UTC) + timedelta(hours=1)),
             )
+            await db_with_native_auth.commit()  # Ensure token is committed
 
         # Reset password
         response = client.post(

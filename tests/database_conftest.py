@@ -281,12 +281,14 @@ def pytest_configure(config) -> None:
 # Skip database tests if --no-db flag is provided
 def pytest_addoption(parser) -> None:
     """Add custom command line options."""
-    parser.addoption(
-        "--no-db",
-        action="store_true",
-        default=False,
-        help="Skip database integration tests",
-    )
+    # Check if option already exists to avoid duplicate registration
+    if not any(opt.dest == "no_db" for opt in parser._anonymous.options if hasattr(opt, "dest")):
+        parser.addoption(
+            "--no-db",
+            action="store_true",
+            default=False,
+            help="Skip database integration tests",
+        )
 
 
 def pytest_collection_modifyitems(config, items) -> None:

@@ -242,6 +242,10 @@ fraise_input = fraise_input_decorator
 fraise_enum = enum
 fraise_interface = interface
 
+# Core aliases
+type = fraise_type
+input = fraise_input
+
 __version__: str
 
 __all__ = [

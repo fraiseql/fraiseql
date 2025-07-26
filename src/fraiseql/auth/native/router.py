@@ -3,7 +3,7 @@
 import hashlib
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, List, Optional
+from typing import Annotated, AsyncGenerator, List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -147,7 +147,7 @@ auth_router = APIRouter(tags=["auth"])
 
 
 # Dependency to get database connection
-async def get_db(request: Request) -> AsyncConnection:
+async def get_db(request: Request) -> AsyncGenerator[AsyncConnection, None]:
     """Get database connection from request."""
     # In a real app, this would come from app state or dependency injection
     # For tests, we'll get it from the request state
@@ -235,6 +235,7 @@ async def register(
     )
     async with db.cursor() as cursor:
         await user.save(cursor, schema)
+        await db.commit()  # Ensure user is committed
 
     # Generate initial tokens to get family_id
     token_manager = get_token_manager()
@@ -252,6 +253,7 @@ async def register(
         )
         session_result = await cursor.fetchone()
         session_id = str(session_result[0]) if session_result else None
+        await db.commit()  # Ensure session is committed
 
     # Generate final tokens with session_id
     user_claims = {"session_id": session_id} if session_id else {}
@@ -312,6 +314,7 @@ async def login(
         )
         session_result = await cursor.fetchone()
         session_id = str(session_result[0]) if session_result else None
+        await db.commit()  # Ensure session is committed
 
     # Generate final tokens with session_id
     user_claims = {"session_id": session_id} if session_id else {}
@@ -372,6 +375,7 @@ async def refresh_token(
                     """,
                     (payload["family"],),
                 )
+                await db.commit()  # Ensure revocation is committed
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Token theft detected - all sessions revoked",
@@ -385,6 +389,7 @@ async def refresh_token(
                 """,
                 (jti, payload["family"]),
             )
+            await db.commit()  # Ensure the token usage is committed
 
             # Generate new tokens
             new_tokens = token_manager.generate_tokens(
@@ -437,6 +442,7 @@ async def logout(
                 """,
                 (payload["family"],),
             )
+            await db.commit()  # Ensure logout is committed
 
         return MessageResponse(message="Successfully logged out")
 
@@ -533,6 +539,7 @@ async def reset_password(
             """,
             (user.id,),
         )
+        await db.commit()  # Ensure all changes are committed
 
     return MessageResponse(message="Password reset successfully")
 
@@ -605,5 +612,6 @@ async def revoke_session(
             """,
             (result[0],),  # token_family is first column
         )
+        await db.commit()  # Ensure revocation is committed
 
     return MessageResponse(message="Session revoked successfully")
