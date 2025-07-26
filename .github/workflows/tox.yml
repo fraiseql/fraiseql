@@ -44,6 +44,7 @@ jobs:
     - name: Test with tox
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432
         POSTGRES_USER: postgres
@@ -120,6 +121,7 @@ jobs:
     - name: Run coverage
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
       run: tox -e coverage
 
     - name: Upload coverage reports

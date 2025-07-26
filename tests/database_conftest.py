@@ -55,7 +55,10 @@ def postgres_container():
     - Dramatically faster than per-test containers
     """
     # Skip if using external database (e.g., GitHub Actions service container)
-    if os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL"):
+    test_db_url = os.environ.get("TEST_DATABASE_URL")
+    db_url = os.environ.get("DATABASE_URL")
+    if test_db_url or db_url:
+        print(f"[database_conftest] Skipping container creation - TEST_DATABASE_URL={test_db_url}, DATABASE_URL={db_url}")
         yield None
         return
 
@@ -89,19 +92,22 @@ def postgres_container():
 
 
 @pytest.fixture(scope="session")
-def postgres_url() -> str:
+def postgres_url(postgres_container) -> str:
     """Get the PostgreSQL connection URL from the container or environment."""
     # Check for external database URL (e.g., GitHub Actions)
     external_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
     if external_url:
+        print(f"[database_conftest] Using external database URL: {external_url}")
         return external_url
 
     # Otherwise check if we have a container
-    if "postgres" in _container_cache:
+    if postgres_container and "postgres" in _container_cache:
         container = _container_cache["postgres"]
         # testcontainers returns postgresql+psycopg:// but psycopg3 expects postgresql://
         url = container.get_connection_url()
-        return url.replace("postgresql+psycopg://", "postgresql://")
+        url = url.replace("postgresql+psycopg://", "postgresql://")
+        print(f"[database_conftest] Using testcontainers URL: {url}")
+        return url
 
     pytest.skip("No database available")
 
