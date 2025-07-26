@@ -37,7 +37,7 @@ def build_sql_query(
         typename: Optional GraphQL typename to include
         order_by: Optional list of (field_path, direction) tuples for ORDER BY
         group_by: Optional list of field paths for GROUP BY
-        auto_camel_case: Whether to convert field paths to snake_case (when DB uses snake_case)
+        auto_camel_case: Whether to preserve camelCase field paths (True) or convert to snake_case (False)
     """
     object_pairs: list[sql.Composable] = []
 
@@ -81,8 +81,8 @@ def build_sql_query(
             # Convert field path (e.g., "profile.age") to JSONB expression
             path_parts = field_path.split(".")
 
-            # Apply snake_case transformation if auto_camel_case is enabled
-            if auto_camel_case:
+            # Apply snake_case transformation if auto_camel_case is disabled
+            if not auto_camel_case:
                 from fraiseql.utils.casing import to_snake_case
 
                 path_parts = [to_snake_case(part) for part in path_parts]
@@ -108,8 +108,8 @@ def build_sql_query(
             # Convert field path to JSONB expression
             path_parts = field_path.split(".")
 
-            # Apply snake_case transformation if auto_camel_case is enabled
-            if auto_camel_case:
+            # Apply snake_case transformation if auto_camel_case is disabled
+            if not auto_camel_case:
                 from fraiseql.utils.casing import to_snake_case
 
                 path_parts = [to_snake_case(part) for part in path_parts]

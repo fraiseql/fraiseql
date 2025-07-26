@@ -133,13 +133,13 @@ class TestGraphQLWhereRepositoryIntegration:
                         id, name, price, stock, category, is_active, created_at, data
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s, jsonb_build_object(
-                        'id', %s,
-                        'name', %s,
-                        'price', %s,
-                        'stock', %s,
-                        'category', %s,
-                        'is_active', %s,
-                        'created_at', %s
+                        'id', %s::uuid,
+                        'name', %s::text,
+                        'price', %s::decimal,
+                        'stock', %s::integer,
+                        'category', %s::text,
+                        'is_active', %s::boolean,
+                        'created_at', %s::timestamptz
                     ))
                     """,
                     (*prod, *prod),

@@ -239,11 +239,13 @@ class TestWebSocketConnection:
         """Test connection initialization timeout."""
         connection = WebSocketConnection(
             websocket=self.mock_websocket,
-            connection_init_timeout=0.01,  # Very short timeout
+            connection_init_timeout=0.1,  # Short timeout for testing
         )
 
         # Make receive hang
-        self.mock_websocket.receive.side_effect = asyncio.sleep(1)
+        async def hang_forever():
+            await asyncio.sleep(10)  # Much longer than timeout
+        self.mock_websocket.receive.side_effect = hang_forever
 
         with pytest.raises(TimeoutError):
             await connection._wait_for_connection_init()

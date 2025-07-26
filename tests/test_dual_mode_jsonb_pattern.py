@@ -88,6 +88,8 @@ class TestDualModeJSONBPattern:
         tenant_id = uuid4()
 
         # Insert allocation with JSONB data
+        from psycopg.types.json import Json
+        
         await db_connection.execute(
             """
             INSERT INTO allocations (id, tenant_id, machine_id, location_id, data)
@@ -98,7 +100,7 @@ class TestDualModeJSONBPattern:
                 tenant_id,
                 machine_id,
                 location_id,
-                {
+                Json({
                     "id": str(allocation_id),
                     "identifier": "ALLOC-001",
                     "machine_id": str(machine_id),
@@ -119,7 +121,7 @@ class TestDualModeJSONBPattern:
                         "building": "Building A",
                         "floor": "3rd",
                     },
-                },
+                }),
             ),
         )
 

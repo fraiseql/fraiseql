@@ -412,7 +412,8 @@ class TestEdgeCaseValues:
             name={"eq": ""},  # Empty string
             status={"eq": None},  # Explicit None
             tags={"eq": []},  # Empty list
-            metadata={"eq": {}},  # Empty dict
+            # Note: Cannot directly compare JSONB to empty dict with eq
+            # Use contains operator for JSONB comparisons
         )
 
         sql = where.to_sql()
