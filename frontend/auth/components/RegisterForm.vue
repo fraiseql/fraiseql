@@ -75,12 +75,12 @@
             {{ showPassword ? '👁️' : '👁️‍🗨️' }}
           </button>
         </div>
-        
+
         <!-- Password strength indicator -->
         <div v-if="form.password" class="password-strength">
           <div class="strength-bar">
-            <div 
-              class="strength-fill" 
+            <div
+              class="strength-fill"
               :class="`strength-fill--${passwordStrength.level}`"
               :style="{ width: `${passwordStrength.score * 25}%` }"
             ></div>
@@ -92,8 +92,8 @@
 
         <!-- Password requirements -->
         <div v-if="form.password" class="password-requirements">
-          <div 
-            v-for="requirement in passwordRequirements" 
+          <div
+            v-for="requirement in passwordRequirements"
             :key="requirement.label"
             :class="['requirement', { 'requirement--met': requirement.met }]"
           >
@@ -146,9 +146,9 @@
             class="checkbox-input"
           >
           <span class="checkbox-text">
-            I agree to the 
+            I agree to the
             <a href="/terms" target="_blank" class="terms-link">Terms of Service</a>
-            and 
+            and
             <a href="/privacy" target="_blank" class="terms-link">Privacy Policy</a>
           </span>
         </label>
@@ -235,14 +235,14 @@ const showConfirmPassword = ref(false);
 const passwordStrength = computed(() => {
   const password = form.password;
   if (!password) return { level: 'none', score: 0 };
-  
+
   const validation = validatePassword(password);
   const requirements = passwordRequirements.value;
   const metCount = requirements.filter(r => r.met).length;
-  
+
   let level = 'weak';
   let score = metCount;
-  
+
   if (metCount >= 5) {
     level = 'strong';
     score = 4;
@@ -253,7 +253,7 @@ const passwordStrength = computed(() => {
     level = 'fair';
     score = 2;
   }
-  
+
   return { level, score };
 });
 
@@ -283,86 +283,86 @@ const passwordRequirements = computed(() => [
 // Validation functions
 const validateName = () => {
   errors.name = '';
-  
+
   if (!form.name.trim()) {
     errors.name = 'Name is required';
     return false;
   }
-  
+
   if (form.name.trim().length < 2) {
     errors.name = 'Name must be at least 2 characters';
     return false;
   }
-  
+
   return true;
 };
 
 const validateEmail = () => {
   errors.email = '';
-  
+
   if (!form.email) {
     errors.email = 'Email is required';
     return false;
   }
-  
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(form.email)) {
     errors.email = 'Please enter a valid email address';
     return false;
   }
-  
+
   return true;
 };
 
 const validatePassword = () => {
   errors.password = '';
-  
+
   const validation = validatePassword(form.password);
-  
+
   if (!validation.isValid) {
     errors.password = validation.errors[0]; // Show first error
     return false;
   }
-  
+
   return true;
 };
 
 const validateConfirmPassword = () => {
   errors.confirmPassword = '';
-  
+
   if (!form.confirmPassword) {
     errors.confirmPassword = 'Please confirm your password';
     return false;
   }
-  
+
   if (form.password !== form.confirmPassword) {
     errors.confirmPassword = 'Passwords do not match';
     return false;
   }
-  
+
   return true;
 };
 
 const validateTerms = () => {
   errors.acceptTerms = '';
-  
+
   if (!form.acceptTerms) {
     errors.acceptTerms = 'You must accept the terms and conditions';
     return false;
   }
-  
+
   return true;
 };
 
 const isFormValid = computed(() => {
-  return form.name && 
-         form.email && 
-         form.password && 
+  return form.name &&
+         form.email &&
+         form.password &&
          form.confirmPassword &&
          form.acceptTerms &&
-         !errors.name && 
-         !errors.email && 
-         !errors.password && 
+         !errors.name &&
+         !errors.email &&
+         !errors.password &&
          !errors.confirmPassword &&
          !errors.acceptTerms &&
          !isLoading.value;
@@ -372,7 +372,7 @@ const isFormValid = computed(() => {
 const onPasswordInput = () => {
   // Clear password error when user starts typing
   errors.password = '';
-  
+
   // Re-validate confirm password if it was entered
   if (form.confirmPassword) {
     validateConfirmPassword();
@@ -382,14 +382,14 @@ const onPasswordInput = () => {
 // Form submission
 const handleSubmit = async () => {
   clearError();
-  
+
   // Validate all fields
   const nameValid = validateName();
   const emailValid = validateEmail();
   const passwordValid = validatePassword();
   const confirmPasswordValid = validateConfirmPassword();
   const termsValid = validateTerms();
-  
+
   if (!nameValid || !emailValid || !passwordValid || !confirmPasswordValid || !termsValid) {
     return;
   }
@@ -403,7 +403,7 @@ const handleSubmit = async () => {
 
   try {
     const response = await register(registrationData);
-    
+
     if (response) {
       emit('success', response.user);
     } else {

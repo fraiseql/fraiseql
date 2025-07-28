@@ -23,7 +23,7 @@ class CreateMachineItemInput:
     machine_id: uuid.UUID
     source_type: SourceType
     source_id: uuid.UUID
-    
+
     # Optional fields that should be omitted when not provided
     order_id: uuid.UUID | None = UNSET
     order_data: CreateOrderInlineInput | None = UNSET
@@ -81,7 +81,7 @@ END IF;
    ```json
    {
      "machine_id": "123",
-     "source_type": "Product", 
+     "source_type": "Product",
      "source_id": "456",
      "order_id": null
    }
@@ -102,7 +102,7 @@ class MyInput:
 ```python
 from fraiseql.types.definitions import UNSET
 
-@fraiseql.input 
+@fraiseql.input
 class MyInput:
     optional_field: str | None = UNSET  # Omitted when not provided
 ```

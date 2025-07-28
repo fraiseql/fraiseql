@@ -1,7 +1,7 @@
 # FraiseQL Production Mode vs Development Mode - Design Explanation
 
-**Date:** 2025-07-12  
-**For:** PrintOptim Backend Team  
+**Date:** 2025-07-12
+**For:** PrintOptim Backend Team
 **Subject:** Why FraiseQL doesn't instantiate JSONB objects in production mode
 
 ## Overview
@@ -36,7 +36,7 @@ Database → Raw Dict → JSON Response
 
 **Development Mode Pipeline:**
 ```
-Database → Raw Dict → Parse JSONB → Create Machine instances → 
+Database → Raw Dict → Parse JSONB → Create Machine instances →
 Create nested Model, Order, Contract instances → JSON Response
 (~100ms)
 ```
@@ -57,7 +57,7 @@ GraphQL's resolver works identically with both:
 # Object access
 machine.machine_serial_number
 
-# Dict access  
+# Dict access
 machine["machine_serial_number"]
 ```
 
@@ -85,7 +85,7 @@ The issue wasn't about production vs development mode per se, but that in produc
 # What GraphQL expected (just the JSONB content):
 {
     "id": "123",
-    "machine_serial_number": "ABC123", 
+    "machine_serial_number": "ABC123",
     "model": {...}
 }
 ```

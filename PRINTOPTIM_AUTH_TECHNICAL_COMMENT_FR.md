@@ -166,7 +166,7 @@ if not user.is_active:
 ✓ Token refresh
   ✓ 95% < 50ms
   ✓ 99% < 75ms
-  
+
 ✓ Concurrent sessions
   ✓ 10,000 sessions/sec soutenable
   ✓ CPU: 45% utilisation
@@ -180,7 +180,7 @@ if not user.is_active:
 # Direct SQL pour performance optimale
 cursor.execute("""
     SELECT pk_user, email, password_hash, roles, permissions
-    FROM tb_user 
+    FROM tb_user
     WHERE email = %s AND is_active = true
 """, (email,))
 
@@ -245,5 +245,5 @@ Le système est **production-ready** avec une base solide pour évoluer selon le
 
 ---
 
-*Métriques collectées le 22 janvier 2025*  
+*Métriques collectées le 22 janvier 2025*
 *Environment: Python 3.13, PostgreSQL 16, Vue 3.4*

@@ -185,7 +185,7 @@ This document provides comprehensive implementation details for FraiseQL's nativ
    ```python
    # Script to export Auth0 users
    import auth0
-   
+
    def export_auth0_users():
        # Connect to Auth0 Management API
        # Export user profiles, roles, permissions
@@ -211,7 +211,7 @@ This document provides comprehensive implementation details for FraiseQL's nativ
        def __init__(self, auth0_provider, native_provider):
            self.auth0 = auth0_provider
            self.native = native_provider
-       
+
        async def verify_token(self, token: str) -> AuthInfo:
            # Try native auth first
            try:
@@ -236,7 +236,7 @@ This document provides comprehensive implementation details for FraiseQL's nativ
    ```sql
    -- Migrate remaining users with password reset required
    INSERT INTO tb_user (email, name, requires_password_reset)
-   SELECT 
+   SELECT
        auth0_email,
        auth0_name,
        TRUE
@@ -260,14 +260,14 @@ export const useAuth = () => {
   const user = useState<User | null>('auth.user', () => null)
   const isAuthenticated = computed(() => !!user.value)
   const isLoading = useState('auth.loading', () => false)
-  
+
   // CSRF token management
   const csrfToken = useCookie('csrf_token', {
     httpOnly: false,
     secure: true,
     sameSite: 'lax'
   })
-  
+
   const fetchCsrfToken = async () => {
     if (!csrfToken.value) {
       const { csrf_token } = await $fetch('/auth/csrf-token')
@@ -275,7 +275,7 @@ export const useAuth = () => {
     }
     return csrfToken.value
   }
-  
+
   const login = async (credentials: LoginCredentials) => {
     isLoading.value = true
     try {
@@ -286,13 +286,13 @@ export const useAuth = () => {
         body: credentials,
         credentials: 'include'
       })
-      
+
       user.value = response.user
-      
+
       // Navigate to intended route or dashboard
       const redirect = useRoute().query.redirect as string
       await navigateTo(redirect || '/dashboard')
-      
+
       return response
     } catch (error) {
       throw error
@@ -300,7 +300,7 @@ export const useAuth = () => {
       isLoading.value = false
     }
   }
-  
+
   const logout = async () => {
     isLoading.value = true
     try {
@@ -308,18 +308,18 @@ export const useAuth = () => {
         method: 'POST',
         credentials: 'include'
       })
-      
+
       user.value = null
       await navigateTo('/login')
     } finally {
       isLoading.value = false
     }
   }
-  
+
   const register = async (data: RegisterData) => {
     // Similar to login
   }
-  
+
   const checkAuth = async () => {
     try {
       const response = await $fetch('/auth/me', {
@@ -330,20 +330,20 @@ export const useAuth = () => {
       user.value = null
     }
   }
-  
+
   // RBAC helpers
   const hasRole = (role: string) => {
     return user.value?.roles?.includes(role) ?? false
   }
-  
+
   const hasPermission = (permission: string) => {
     return user.value?.permissions?.includes(permission) ?? false
   }
-  
+
   const can = (action: string, resource: string) => {
     return hasPermission(`${action}:${resource}`)
   }
-  
+
   return {
     user: readonly(user),
     isAuthenticated: readonly(isAuthenticated),
@@ -364,10 +364,10 @@ export const useAuth = () => {
 // middleware/auth.ts
 export default defineNuxtRouteMiddleware((to) => {
   const { isAuthenticated } = useAuth()
-  
+
   // Skip for OAuth callback
   if (to.query.code) return
-  
+
   if (!isAuthenticated.value) {
     return navigateTo('/login?redirect=' + encodeURIComponent(to.fullPath))
   }
@@ -388,7 +388,7 @@ const { user, can } = useAuth()
 <template>
   <div>
     <h1>Welcome {{ user?.name }}</h1>
-    
+
     <AdminPanel v-if="can('read', 'admin')" />
   </div>
 </template>
@@ -405,13 +405,13 @@ from fastapi.middleware.base import BaseHTTPMiddleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        
+
         # Security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        
+
         # CSP for XSS protection
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
@@ -420,7 +420,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "img-src 'self' data: https:; "
             "connect-src 'self' https://api.fraiseql.com"
         )
-        
+
         return response
 ```
 
@@ -433,10 +433,10 @@ from fastapi import HTTPException, Request, Response
 class CSRFProtection:
     def __init__(self, secret_key: str):
         self.secret_key = secret_key
-    
+
     def generate_token(self) -> str:
         return secrets.token_urlsafe(32)
-    
+
     def set_csrf_cookie(self, response: Response, token: str):
         response.set_cookie(
             key="csrf_token",
@@ -446,18 +446,18 @@ class CSRFProtection:
             samesite="lax",
             max_age=3600  # 1 hour
         )
-    
+
     def verify_csrf_token(self, request: Request):
         # Get token from header
         header_token = request.headers.get("X-CSRF-Token")
         if not header_token:
             raise HTTPException(status_code=403, detail="CSRF token missing")
-        
+
         # Get token from cookie
         cookie_token = request.cookies.get("csrf_token")
         if not cookie_token:
             raise HTTPException(status_code=403, detail="CSRF cookie missing")
-        
+
         # Compare tokens
         if not secrets.compare_digest(header_token, cookie_token):
             raise HTTPException(status_code=403, detail="CSRF token mismatch")
@@ -477,15 +477,15 @@ class TokenManager:
         self.secret_key = secret_key
         self.access_token_ttl = timedelta(minutes=15)
         self.refresh_token_ttl = timedelta(days=30)
-    
+
     def create_token_family(self, user_id: str) -> str:
         """Create a new token family for tracking token lineage"""
         return str(uuid.uuid4())
-    
+
     def generate_tokens(self, user_id: str, family_id: str = None):
         if not family_id:
             family_id = self.create_token_family(user_id)
-        
+
         # Access token with user data
         access_payload = {
             "sub": user_id,
@@ -494,7 +494,7 @@ class TokenManager:
             "iat": datetime.utcnow(),
             "jti": str(uuid.uuid4())
         }
-        
+
         # Refresh token with family tracking
         refresh_payload = {
             "sub": user_id,
@@ -504,42 +504,42 @@ class TokenManager:
             "iat": datetime.utcnow(),
             "jti": str(uuid.uuid4())
         }
-        
+
         access_token = jwt.encode(access_payload, self.secret_key, algorithm="HS256")
         refresh_token = jwt.encode(refresh_payload, self.secret_key, algorithm="HS256")
-        
+
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "family_id": family_id,
             "expires_at": access_payload["exp"]
         }
-    
+
     async def rotate_refresh_token(self, old_token: str, db):
         """Rotate refresh token and detect token theft"""
         try:
             payload = jwt.decode(old_token, self.secret_key, algorithms=["HS256"])
-            
+
             # Check if token was already used
             used_token = await db.find_one("used_refresh_tokens", {
                 "token_jti": payload["jti"]
             })
-            
+
             if used_token:
                 # Token theft detected! Invalidate entire family
                 await self.invalidate_token_family(payload["family"], db)
                 raise SecurityError("Token reuse detected - possible theft")
-            
+
             # Mark token as used
             await db.insert("used_refresh_tokens", {
                 "token_jti": payload["jti"],
                 "family_id": payload["family"],
                 "used_at": datetime.utcnow()
             })
-            
+
             # Generate new tokens with same family
             return self.generate_tokens(payload["sub"], payload["family"])
-            
+
         except jwt.ExpiredSignatureError:
             raise AuthError("Refresh token expired")
 ```
@@ -585,11 +585,11 @@ class TestTokenManager:
     def test_generate_tokens(self):
         manager = TokenManager("secret")
         tokens = manager.generate_tokens("user123")
-        
+
         assert "access_token" in tokens
         assert "refresh_token" in tokens
         assert "family_id" in tokens
-        
+
     def test_token_rotation_detects_theft(self):
         # Use token twice to simulate theft
         # Verify family invalidation
@@ -607,17 +607,17 @@ async def test_login_flow(client: AsyncClient):
     # Get CSRF token
     csrf_response = await client.get("/auth/csrf-token")
     csrf_token = csrf_response.json()["csrf_token"]
-    
+
     # Login
     login_response = await client.post(
         "/auth/login",
         json={"email": "test@example.com", "password": "password"},
         headers={"X-CSRF-Token": csrf_token}
     )
-    
+
     assert login_response.status_code == 200
     assert "user" in login_response.json()
-    
+
     # Verify cookies are set
     assert "access_token" in login_response.cookies
     assert "refresh_token" in login_response.cookies
@@ -631,17 +631,17 @@ import { test, expect } from '@playwright/test'
 test('complete auth flow', async ({ page }) => {
   // Navigate to login
   await page.goto('/login')
-  
+
   // Fill form
   await page.fill('[name="email"]', 'test@example.com')
   await page.fill('[name="password"]', 'password')
-  
+
   // Submit
   await page.click('[type="submit"]')
-  
+
   // Verify redirect to dashboard
   await expect(page).toHaveURL('/dashboard')
-  
+
   // Verify user info displayed
   await expect(page.locator('text=Welcome')).toBeVisible()
 })
@@ -657,11 +657,11 @@ class TestSecurity:
     def test_csrf_token_validation(self):
         csrf = CSRFProtection("secret")
         token = csrf.generate_token()
-        
+
         # Valid token passes
         # Mismatched token fails
         # Missing token fails
-        
+
     def test_rate_limiting(self):
         # Verify 5 attempts/minute limit
         # Test lockout behavior

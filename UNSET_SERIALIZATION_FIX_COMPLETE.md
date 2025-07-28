@@ -1,7 +1,7 @@
 # UNSET Serialization Fix - Complete Solution
 
-**Date:** 2025-07-11  
-**FraiseQL Version:** 0.1.0b10+ (fix applied)  
+**Date:** 2025-07-11
+**FraiseQL Version:** 0.1.0b10+ (fix applied)
 **Issue:** Object of type Unset is not JSON serializable in GraphQL error extensions
 
 ## Summary
@@ -15,7 +15,7 @@ The UNSET serialization issue was occurring because GraphQL error extensions wer
 - Imported `clean_unset_values` from `json_encoder.py`
 - Applied cleaning to `error.extensions` in all error response paths:
   - Development router: GraphQL execution errors
-  - Development router: N+1 detection errors  
+  - Development router: N+1 detection errors
   - Development router: General exception errors
   - Production router: All error paths (though less relevant as extensions are minimal)
 

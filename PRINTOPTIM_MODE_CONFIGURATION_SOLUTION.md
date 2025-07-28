@@ -1,7 +1,7 @@
 # Solution: FraiseQL Development Mode Configuration Issue
 
-**Date:** 2025-07-12  
-**Issue:** FraiseQL repository remains in production mode despite configuration attempts  
+**Date:** 2025-07-12
+**Issue:** FraiseQL repository remains in production mode despite configuration attempts
 **Root Cause:** Repository mode is determined at initialization, not from GraphQL context
 
 ## The Problem
@@ -104,19 +104,19 @@ Add this to your resolver to debug the actual mode:
 @fraiseql.query
 async def machines(info, limit: int = 20, offset: int = 0) -> list[Machine]:
     db = info.context["db"]
-    
+
     # Debug the actual repository mode
     print(f"Repository mode: {db.mode}")
     print(f"Repository context: {db.context}")
     print(f"GraphQL context mode: {info.context.get('mode', 'not set')}")
-    
+
     # Check environment variable
     import os
     print(f"FRAISEQL_ENV: {os.getenv('FRAISEQL_ENV', 'not set')}")
-    
+
     result = await db.find("tv_machine", limit=limit, offset=offset)
     print(f"Result type: {type(result[0]) if result else 'empty'}")
-    
+
     return result
 ```
 
@@ -146,13 +146,13 @@ If you need a quick workaround while debugging:
 async def machines(info, limit: int = 20, offset: int = 0) -> list[dict]:
     db = info.context["db"]
     result = await db.find("tv_machine", limit=limit, offset=offset)
-    
+
     # Extract JSONB data manually
     machines = []
     for row in result:
         if row and isinstance(row, dict) and 'data' in row:
             machines.append(row['data'])
-    
+
     return machines
 ```
 

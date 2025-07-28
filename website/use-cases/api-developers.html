@@ -33,7 +33,7 @@
     <section class="feature-detail">
         <div class="container">
             <h2>Built by Developers, for Developers</h2>
-            
+
             <div class="feature-grid">
                 <div class="feature">
                     <h3>🎯 Predictable Performance</h3>
@@ -75,7 +75,7 @@ class Post:
     published_at: datetime
     tags: list[str]  # JSONB array
     comments: list[Comment]
-    
+
 @fraise_type
 class AuthorStats:
     total_posts: int
@@ -111,7 +111,7 @@ query = """
     <section class="features">
         <div class="container">
             <h2>Developer-First Features</h2>
-            
+
             <div class="assessment-grid">
                 <div class="assessment-card">
                     <h3>Type Safety</h3>
@@ -122,7 +122,7 @@ query = """
                         <li class="done">✓ IDE autocomplete</li>
                     </ul>
                 </div>
-                
+
                 <div class="assessment-card">
                     <h3>Testing & Debugging</h3>
                     <ul>
@@ -132,7 +132,7 @@ query = """
                         <li class="done">✓ Integration test helpers</li>
                     </ul>
                 </div>
-                
+
                 <div class="assessment-card">
                     <h3>Production Ready</h3>
                     <ul>
@@ -185,7 +185,7 @@ async def trending_posts(info, hours: int = 24) -> list[Post]:
     sql = """
     SELECT data FROM post_analytics_view
     WHERE created_at > NOW() - INTERVAL '%s hours'
-    ORDER BY 
+    ORDER BY
         (views * 0.3 + comments * 0.5 + shares * 0.2) DESC,
         created_at DESC
     LIMIT 20
@@ -198,7 +198,7 @@ async def trending_posts(info, hours: int = 24) -> list[Post]:
         <div class="container">
             <h2>Performance Comparison</h2>
             <img src="/assets/performance-chart.svg" alt="Performance comparison showing FraiseQL's advantage" class="performance-chart">
-            
+
             <table style="margin-top: 2rem;">
                 <thead>
                     <tr>
@@ -259,7 +259,7 @@ app.mount("/graphql", fraiseql_app)</code></pre>
                     <h3>Async/Await Native</h3>
                     <pre><code>@fraiseql.query
 async def search_posts(
-    info, 
+    info,
     query: str,
     limit: int = 20
 ) -> list[Post]:
@@ -269,7 +269,7 @@ async def search_posts(
         query=query,
         limit=limit
     )
-    
+
     # Post-process if needed
     return [enhance_post(p) for p in results]</code></pre>
                 </div>
@@ -285,12 +285,12 @@ async def search_posts(
             }
         }
         """
-        
+
         result = await client.query(
-            query, 
+            query,
             variables={"id": author_id}
         )
-        
+
         assert len(result["author"]["posts"]) > 0</code></pre>
                 </div>
             </div>

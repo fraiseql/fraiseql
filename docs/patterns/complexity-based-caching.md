@@ -34,11 +34,11 @@ config = ComplexityConfig(
     simple_query_threshold=20,      # Higher threshold for simple
     moderate_query_threshold=100,   # Adjust based on monitoring
     complex_query_threshold=300,    # Maximum cacheable complexity
-    
+
     # Tune scoring
     depth_multiplier=1.8,           # How much depth impacts score
     array_field_multiplier=12,      # Cost of array fields
-    
+
     # Cache weights
     simple_query_weight=0.2,        # Simple queries use less space
     complex_query_weight=3.0,       # Complex queries use more space
@@ -113,7 +113,7 @@ class CacheMonitor:
     def __init__(self, registry: EnhancedTurboRegistry):
         self.registry = registry
         self.history = []
-    
+
     async def collect_metrics(self):
         """Collect metrics every minute."""
         while True:
@@ -122,31 +122,31 @@ class CacheMonitor:
                 "timestamp": datetime.now(),
                 "metrics": metrics
             })
-            
+
             # Keep last 24 hours
             cutoff = datetime.now() - timedelta(hours=24)
             self.history = [h for h in self.history if h["timestamp"] > cutoff]
-            
+
             await asyncio.sleep(60)
-    
+
     def get_report(self):
         """Generate performance report."""
         if not self.history:
             return {"error": "No data collected yet"}
-        
+
         latest = self.history[-1]["metrics"]
-        
+
         # Calculate trends
         hour_ago = datetime.now() - timedelta(hours=1)
         hour_data = [h for h in self.history if h["timestamp"] > hour_ago]
-        
+
         if len(hour_data) > 1:
             start_hit_rate = hour_data[0]["metrics"]["hit_rate"]
             end_hit_rate = hour_data[-1]["metrics"]["hit_rate"]
             hit_rate_trend = end_hit_rate - start_hit_rate
         else:
             hit_rate_trend = 0
-        
+
         return {
             "current": {
                 "hit_rate": f"{latest['hit_rate']:.2%}",
@@ -159,20 +159,20 @@ class CacheMonitor:
             },
             "recommendations": self._get_recommendations(latest)
         }
-    
+
     def _get_recommendations(self, metrics):
         """Generate tuning recommendations."""
         recommendations = []
-        
+
         if metrics["hit_rate"] < 0.7:
             recommendations.append("Low hit rate - consider increasing cache size")
-        
+
         if metrics["weight_utilization"] > 0.9:
             recommendations.append("High weight utilization - increase max_total_weight")
-        
+
         if metrics["queries_rejected_complexity"] > metrics["cache_size"] * 0.1:
             recommendations.append("Many queries rejected - consider raising max_complexity")
-        
+
         return recommendations
 
 # Start monitoring
@@ -192,7 +192,7 @@ Pre-populate cache with common queries:
 ```python
 async def warm_cache(registry: EnhancedTurboRegistry):
     """Warm cache with common queries."""
-    
+
     common_queries = [
         # Simple queries - will have low weight
         {
@@ -230,11 +230,11 @@ async def warm_cache(registry: EnhancedTurboRegistry):
             "param_mapping": {"userId": 0},
         },
     ]
-    
+
     for query_def in common_queries:
         # Check if we should cache it
         score, _ = registry.analyze_query(query_def["query"])
-        
+
         if registry.should_cache(score):
             turbo_query = TurboQuery(
                 graphql_query=query_def["query"],
@@ -242,7 +242,7 @@ async def warm_cache(registry: EnhancedTurboRegistry):
                 param_mapping=query_def["param_mapping"],
             )
             registry.register(turbo_query)
-    
+
     print(f"Cache warmed with {len(registry)} queries")
 
 # Run on startup
@@ -268,39 +268,39 @@ class ComplexityRateLimiter:
         self.minute_limit = max_complexity_per_minute
         self.hour_limit = max_complexity_per_hour
         self.user_usage = defaultdict(list)
-    
+
     def check_request(self, user_id: str, query: str) -> tuple[bool, str]:
         """Check if request is allowed."""
         # Analyze query
         score = analyze_query_complexity(query)
         complexity = score.total_score
-        
+
         now = datetime.now()
         user_history = self.user_usage[user_id]
-        
+
         # Clean old entries
         hour_ago = now - timedelta(hours=1)
         user_history[:] = [
-            (timestamp, cost) 
-            for timestamp, cost in user_history 
+            (timestamp, cost)
+            for timestamp, cost in user_history
             if timestamp > hour_ago
         ]
-        
+
         # Calculate usage
         minute_ago = now - timedelta(minutes=1)
         minute_usage = sum(
-            cost for timestamp, cost in user_history 
+            cost for timestamp, cost in user_history
             if timestamp > minute_ago
         )
         hour_usage = sum(cost for _, cost in user_history)
-        
+
         # Check limits
         if minute_usage + complexity > self.minute_limit:
             return False, f"Rate limit exceeded: {minute_usage + complexity}/{self.minute_limit} complexity/minute"
-        
+
         if hour_usage + complexity > self.hour_limit:
             return False, f"Rate limit exceeded: {hour_usage + complexity}/{self.hour_limit} complexity/hour"
-        
+
         # Record usage
         user_history.append((now, complexity))
         return True, "OK"
@@ -314,7 +314,7 @@ async def complexity_limit_middleware(request, call_next):
     if request.url.path == "/graphql":
         # Get user ID from auth
         user_id = request.headers.get("x-user-id", "anonymous")
-        
+
         # Get query from request
         body = await request.body()
         import json
@@ -323,7 +323,7 @@ async def complexity_limit_middleware(request, call_next):
             query = data.get("query", "")
         except:
             query = ""
-        
+
         if query:
             allowed, message = limiter.check_request(user_id, query)
             if not allowed:
@@ -331,7 +331,7 @@ async def complexity_limit_middleware(request, call_next):
                     status_code=429,
                     content={"error": message}
                 )
-    
+
     return await call_next(request)
 ```
 
@@ -399,7 +399,7 @@ hot_cache = EnhancedTurboRegistry(
     )
 )
 
-# Tier 2: Warm cache for moderate queries  
+# Tier 2: Warm cache for moderate queries
 warm_cache = EnhancedTurboRegistry(
     max_size=1000,
     max_complexity=200,
@@ -417,14 +417,14 @@ cold_cache = EnhancedTurboRegistry(
 class MultiTierRouter:
     def __init__(self, tiers: list[EnhancedTurboRegistry]):
         self.tiers = tiers
-    
+
     async def execute(self, query: str, variables: dict, context: dict):
         # Try each tier
         for tier in self.tiers:
             result = await tier.get(query)
             if result:
                 return await result.execute(variables, context)
-        
+
         return None  # Not cached
 ```
 

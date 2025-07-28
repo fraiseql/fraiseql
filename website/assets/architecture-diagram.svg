@@ -8,45 +8,45 @@
     .arrow { stroke: #FF006E; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
     .label { fill: #cccccc; font-size: 12px; }
   </style>
-  
+
   <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+    <marker id="arrowhead" markerWidth="10" markerHeight="7"
             refX="9" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#FF006E" />
     </marker>
   </defs>
-  
+
   <!-- GraphQL Client -->
   <rect class="box" x="20" y="150" width="160" height="100" />
   <text class="text title" x="100" y="190" text-anchor="middle">GraphQL Client</text>
   <text class="text subtitle" x="100" y="220" text-anchor="middle">React/Vue/Mobile</text>
-  
+
   <!-- FraiseQL -->
   <rect class="box-light" x="260" y="50" width="280" height="300" />
   <text class="text title" x="400" y="85" text-anchor="middle">FraiseQL Engine</text>
-  
+
   <!-- Components inside FraiseQL -->
   <rect class="box" x="280" y="110" width="240" height="50" />
   <text class="text subtitle" x="400" y="140" text-anchor="middle">GraphQL Parser</text>
-  
+
   <rect class="box" x="280" y="180" width="240" height="50" />
   <text class="text subtitle" x="400" y="210" text-anchor="middle">SQL Generator</text>
-  
+
   <rect class="box" x="280" y="250" width="240" height="50" />
   <text class="text subtitle" x="400" y="280" text-anchor="middle">TurboRouter (Optional)</text>
-  
+
   <!-- PostgreSQL -->
   <rect class="box" x="620" y="150" width="160" height="100" />
   <text class="text title" x="700" y="190" text-anchor="middle">PostgreSQL</text>
   <text class="text subtitle" x="700" y="220" text-anchor="middle">JSONB + Views</text>
-  
+
   <!-- Arrows -->
   <path class="arrow" d="M 180 200 L 260 200" />
   <text class="label" x="220" y="190" text-anchor="middle">GraphQL Query</text>
-  
+
   <path class="arrow" d="M 540 200 L 620 200" />
   <text class="label" x="580" y="190" text-anchor="middle">SQL Query</text>
-  
+
   <!-- Performance note -->
   <text class="label" x="400" y="380" text-anchor="middle">Single Query • No N+1 • Direct Translation</text>
 </svg>

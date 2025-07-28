@@ -1,6 +1,6 @@
 /**
  * TypeScript types for FraiseQL native authentication.
- * 
+ *
  * These types correspond to the Pydantic models in the Python backend
  * and provide full type safety for frontend auth operations.
  */

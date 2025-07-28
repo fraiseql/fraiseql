@@ -2,7 +2,7 @@
 -- This ensures all timestamps in JSONB are formatted as ISO 8601 with 'Z' suffix
 
 -- Create helper function for consistent UTC formatting
-CREATE OR REPLACE FUNCTION to_utc_z(ts timestamptz) 
+CREATE OR REPLACE FUNCTION to_utc_z(ts timestamptz)
 RETURNS text AS $$
 BEGIN
     IF ts IS NULL THEN
@@ -137,9 +137,9 @@ SELECT
         -- Computed relative time (for reference)
         'timeAgo', CASE
             WHEN a.occurred_at > NOW() - INTERVAL '1 minute' THEN 'just now'
-            WHEN a.occurred_at > NOW() - INTERVAL '1 hour' THEN 
+            WHEN a.occurred_at > NOW() - INTERVAL '1 hour' THEN
                 CONCAT(EXTRACT(MINUTE FROM NOW() - a.occurred_at)::INT, ' minutes ago')
-            WHEN a.occurred_at > NOW() - INTERVAL '1 day' THEN 
+            WHEN a.occurred_at > NOW() - INTERVAL '1 day' THEN
                 CONCAT(EXTRACT(HOUR FROM NOW() - a.occurred_at)::INT, ' hours ago')
             ELSE to_utc_z(a.occurred_at)
         END

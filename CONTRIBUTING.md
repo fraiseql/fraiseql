@@ -186,23 +186,23 @@ async def test_user_creation_with_repository(db_session):
 ### Example Format
 ```python
 async def create_user(
-    self, 
+    self,
     user_data: CreateUserInput,
     context: UserContext | None = None
 ) -> User:
     """Create a new user in the system.
-    
+
     Args:
         user_data: User creation data including name and email
         context: Optional user context for authorization
-        
+
     Returns:
         Created user instance with generated ID
-        
+
     Raises:
         ValidationError: If user data is invalid
         AuthorizationError: If context lacks required permissions
-        
+
     Example:
         >>> user_input = CreateUserInput(name="John", email="john@example.com")
         >>> user = await repository.create_user(user_input)

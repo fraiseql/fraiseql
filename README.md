@@ -54,7 +54,7 @@ async def get_user(info, id: UUID) -> User:
 ### 3. All Data in JSONB Column (v0.1.0a14+)
 ```sql
 CREATE VIEW user_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     tenant_id,       -- For access control
     jsonb_build_object(
@@ -117,7 +117,7 @@ pip install "fraiseql[tracing]"    # OpenTelemetry tracing
 pip install "fraiseql[dev]"        # Development dependencies
 ```
 
-> ⚠️ **Breaking Changes**: 
+> ⚠️ **Breaking Changes**:
 > - **v0.1.0a14**: All database views must now return data in a JSONB `data` column. See the [Migration Guide](docs/MIGRATION_TO_JSONB_PATTERN.md)
 > - **v0.1.0a18**: Partial object instantiation is now supported in development mode, allowing nested queries to request only specific fields
 
@@ -168,7 +168,7 @@ app = fraiseql.create_fraiseql_app(
 # First, create your database view with JSONB data column:
 """
 CREATE VIEW book_view AS
-SELECT 
+SELECT
     id,              -- For filtering
     author,          -- For author queries
     published,       -- For date filtering
@@ -186,7 +186,7 @@ FROM books;
 async def books(info, author: str | None = None) -> list[Book]:
     """Get books, optionally filtered by author."""
     db = info.context["db"]  # FraiseQLRepository
-    
+
     if author:
         return await db.find("book_view", author=author)
     return await db.find("book_view")
@@ -422,7 +422,7 @@ class Product:
 # And the corresponding SQL view
 """
 CREATE VIEW product_catalog AS
-SELECT 
+SELECT
     id,              -- For filtering
     category_id,     -- For joins
     jsonb_build_object(

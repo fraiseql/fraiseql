@@ -83,7 +83,7 @@ class DeviceInput:
 ## 🛠️ Technical Details
 
 - **Production ready** - All scalars include comprehensive test coverage
-- **GraphQL integration** - Proper schema descriptions and error handling  
+- **GraphQL integration** - Proper schema descriptions and error handling
 - **Python integration** - Works with dataclasses, type hints, and IDEs
 - **Performance optimized** - Validation uses efficient regex and built-in libraries
 
@@ -93,7 +93,7 @@ Perfect for applications requiring network data validation:
 
 - **Infrastructure management** - Server and device configuration
 - **Network automation** - Network device provisioning
-- **DevOps tools** - Deployment and monitoring systems  
+- **DevOps tools** - Deployment and monitoring systems
 - **IoT applications** - Device registration and management
 - **Security tools** - Network scanning and audit systems
 
@@ -116,7 +116,7 @@ pip install --upgrade fraiseql
 
 Future scalar enhancements could include:
 - **URL validation** - Full URL with protocol validation
-- **IPv4/IPv6 specific** - Separate scalars for IP version specificity  
+- **IPv4/IPv6 specific** - Separate scalars for IP version specificity
 - **Private IP ranges** - RFC 1918 private network validation
 - **Domain names** - Stricter domain vs hostname validation
 

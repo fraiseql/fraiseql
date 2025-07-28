@@ -103,7 +103,7 @@ CREATE TRIGGER update_tb_user_updated_at BEFORE UPDATE ON tb_user
 
 -- Create view for FraiseQL compatibility (with JSONB data column)
 CREATE OR REPLACE VIEW user_view AS
-SELECT 
+SELECT
     pk_user as id,
     jsonb_build_object(
         'id', pk_user,

@@ -312,7 +312,7 @@ local_scheme = "node-and-date"
 [tool.hatch.build]
 include = [
     "src/fraiseql/**/*.py",
-    "src/fraiseql/**/*.pyi", 
+    "src/fraiseql/**/*.pyi",
     "src/fraiseql/py.typed"
 ]
 
@@ -326,7 +326,7 @@ include = [
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "src/fraiseql/**/*.py", 
+    "src/fraiseql/**/*.py",
     "src/fraiseql/**/*.pyi",
     "src/fraiseql/py.typed"
 ]

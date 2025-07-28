@@ -1,9 +1,9 @@
 # Production Mode Error Logging Fix for PrintOptim Backend
 
-**Date:** 2025-07-12  
-**Issue:** PrintOptim Backend experiencing "Internal server error" in production mode with no debugging details  
-**FraiseQL Version:** v0.1.0b13+  
-**Status:** Fixed  
+**Date:** 2025-07-12
+**Issue:** PrintOptim Backend experiencing "Internal server error" in production mode with no debugging details
+**FraiseQL Version:** v0.1.0b13+
+**Status:** Fixed
 
 ## Issue Summary
 
@@ -28,17 +28,17 @@ except Exception as e:
     # In production, log the actual error for debugging but don't expose details to client
     error_msg = str(e)
     logger.exception("Production GraphQL execution error: %s", error_msg)
-    
+
     # Special logging for UNSET serialization issues
     if "Unset is not JSON serializable" in error_msg:
         logger.error(
             "UNSET serialization error in production mode. "
             "This may be caused by UNSET values in JSONB data that weren't properly cleaned. "
-            "Query: %s, Variables: %s", 
+            "Query: %s, Variables: %s",
             request.query[:200] if request.query else "None",
             str(request.variables)[:200] if request.variables else "None"
         )
-    
+
     return {
         "errors": [
             {

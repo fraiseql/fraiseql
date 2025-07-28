@@ -70,8 +70,8 @@
           <span class="checkbox-text">Remember me</span>
         </label>
 
-        <router-link 
-          to="/auth/forgot-password" 
+        <router-link
+          to="/auth/forgot-password"
           class="forgot-password-link"
         >
           Forgot password?
@@ -149,41 +149,41 @@ const showPassword = ref(false);
 // Validation
 const validateEmail = () => {
   errors.email = '';
-  
+
   if (!form.email) {
     errors.email = 'Email is required';
     return false;
   }
-  
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(form.email)) {
     errors.email = 'Please enter a valid email address';
     return false;
   }
-  
+
   return true;
 };
 
 const validatePassword = () => {
   errors.password = '';
-  
+
   if (!form.password) {
     errors.password = 'Password is required';
     return false;
   }
-  
+
   if (form.password.length < 8) {
     errors.password = 'Password must be at least 8 characters';
     return false;
   }
-  
+
   return true;
 };
 
 const isFormValid = computed(() => {
-  return form.email && 
-         form.password && 
-         !errors.email && 
+  return form.email &&
+         form.password &&
+         !errors.email &&
          !errors.password &&
          !isLoading.value;
 });
@@ -191,11 +191,11 @@ const isFormValid = computed(() => {
 // Form submission
 const handleSubmit = async () => {
   clearError();
-  
+
   // Validate all fields
   const emailValid = validateEmail();
   const passwordValid = validatePassword();
-  
+
   if (!emailValid || !passwordValid) {
     return;
   }
@@ -208,7 +208,7 @@ const handleSubmit = async () => {
 
   try {
     const response = await login(loginData);
-    
+
     if (response) {
       emit('success', response.user);
     } else {
@@ -437,7 +437,7 @@ onMounted(() => {
     margin: 1rem;
     padding: 1.5rem;
   }
-  
+
   .form-options {
     flex-direction: column;
     align-items: flex-start;

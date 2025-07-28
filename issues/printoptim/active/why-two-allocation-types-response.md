@@ -11,7 +11,7 @@ FraiseQL's `_instantiate_recursive` method works with the exact structure return
 ```json
 {
   "id": "123",
-  "machine_id": "456", 
+  "machine_id": "456",
   "is_current": true,
   "data": {
     "identifier": "ALLOC-001",
@@ -33,7 +33,7 @@ The cleanest solution is to flatten the JSONB fields in your database view:
 
 ```sql
 CREATE OR REPLACE VIEW app.tv_allocation_flat AS
-SELECT 
+SELECT
     -- Direct columns
     a.id,
     a.machine_id,
@@ -47,7 +47,7 @@ SELECT
     a.is_future,
     a.is_reserved,
     a.is_stock,
-    
+
     -- Flatten JSONB fields to top level
     a.data->>'identifier' as identifier,
     (a.data->>'start_date')::date as start_date,
@@ -81,7 +81,7 @@ class Allocation:
     is_future: bool
     is_reserved: bool
     is_stock: bool
-    
+
     # From JSONB (now flattened)
     identifier: Optional[str]
     start_date: Optional[date]
@@ -89,7 +89,7 @@ class Allocation:
     notes: Optional[str]
     notes_contact: Optional[str]
     is_provisionnal: bool = fraise_field(default=False)
-    
+
     # Nested objects still work!
     machine: Optional[Machine]
     location: Optional[Location]
@@ -109,20 +109,20 @@ class Allocation:
     machine_id: Optional[UUID]
     # ... other direct fields ...
     data: Optional[AllocationData]
-    
+
     # Convenience properties to access nested data
     @property
     def identifier(self) -> Optional[str]:
         return self.data.identifier if self.data else None
-    
+
     @property
     def machine(self) -> Optional[Machine]:
         return self.data.machine if self.data else None
-    
+
     @property
     def location(self) -> Optional[Location]:
         return self.data.location if self.data else None
-    
+
     # ... more properties for frequently accessed fields
 ```
 
@@ -133,7 +133,7 @@ This gives you `allocation.machine` instead of `allocation.data.machine`.
 Create a "merged" type and manually combine after querying:
 
 ```python
-@fraise_type  
+@fraise_type
 class MergedAllocation:
     """Single type combining both structures."""
     # All fields in one place
@@ -146,7 +146,7 @@ class MergedAllocation:
 async def get_allocation(repo, allocation_id):
     # Get the nested structure
     result = await repo.find_one("tv_allocation", id=allocation_id)
-    
+
     if repo.mode == "development":
         # Manually merge in development mode
         merged_data = {
@@ -183,7 +183,7 @@ This is valuable feedback for FraiseQL. A future enhancement could be a field an
 class Allocation:
     id: UUID
     machine_id: Optional[UUID]
-    
+
     # Tell FraiseQL these come from data JSONB column
     identifier: Optional[str] = fraise_field(source="data.identifier")
     machine: Optional[Machine] = fraise_field(source="data.machine")

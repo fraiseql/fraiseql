@@ -57,16 +57,16 @@ SELECT
         'title', p.title,
         'content', p.content,
         'isPublished', p.is_published,
-        
+
         -- UTC normalized timestamps with Z suffix
         'createdAt', to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
         'updatedAt', to_char(p.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-        'publishedAt', CASE 
-            WHEN p.published_at IS NOT NULL 
+        'publishedAt', CASE
+            WHEN p.published_at IS NOT NULL
             THEN to_char(p.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-            ELSE NULL 
+            ELSE NULL
         END,
-        
+
         -- Nested author with UTC timestamps
         'author', (
             SELECT jsonb_build_object(
@@ -86,7 +86,7 @@ FROM posts p;
 Create a helper function to make the conversion consistent:
 
 ```sql
-CREATE OR REPLACE FUNCTION to_utc_z(ts timestamptz) 
+CREATE OR REPLACE FUNCTION to_utc_z(ts timestamptz)
 RETURNS text AS $$
 BEGIN
     RETURN to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
@@ -112,14 +112,14 @@ For nullable timestamp fields, handle NULL cases explicitly:
 
 ```sql
 -- Using CASE expression
-'deletedAt', CASE 
-    WHEN deleted_at IS NOT NULL 
+'deletedAt', CASE
+    WHEN deleted_at IS NOT NULL
     THEN to_char(deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-    ELSE NULL 
+    ELSE NULL
 END
 
 -- Or with the helper function
-CREATE OR REPLACE FUNCTION to_utc_z(ts timestamptz) 
+CREATE OR REPLACE FUNCTION to_utc_z(ts timestamptz)
 RETURNS text AS $$
 BEGIN
     IF ts IS NULL THEN
@@ -143,8 +143,8 @@ Test your views to ensure proper formatting:
 
 ```sql
 -- Insert test data with different timezones
-INSERT INTO posts (title, created_at) 
-VALUES 
+INSERT INTO posts (title, created_at)
+VALUES
     ('UTC Test', '2025-01-15 12:00:00+00:00'::timestamptz),
     ('EST Test', '2025-01-15 12:00:00-05:00'::timestamptz),
     ('CET Test', '2025-01-15 12:00:00+01:00'::timestamptz);
@@ -163,7 +163,7 @@ For existing views, migrate gradually:
 
 ```sql
 -- Step 1: Create new function
-CREATE OR REPLACE FUNCTION to_utc_z(ts timestamptz) 
+CREATE OR REPLACE FUNCTION to_utc_z(ts timestamptz)
 RETURNS text AS $$
 BEGIN
     IF ts IS NULL THEN RETURN NULL; END IF;
@@ -181,7 +181,7 @@ SELECT
         'email', email,
         -- Old format (PostgreSQL default)
         -- 'createdAt', created_at
-        
+
         -- New format with Z suffix
         'createdAt', to_utc_z(created_at),
         'updatedAt', to_utc_z(updated_at)
@@ -199,8 +199,8 @@ The `to_char` function is very fast, but for high-volume queries, consider:
 
 ```sql
 -- Example with generated column (PostgreSQL 12+)
-ALTER TABLE posts 
-ADD COLUMN created_at_utc text 
+ALTER TABLE posts
+ADD COLUMN created_at_utc text
 GENERATED ALWAYS AS (
     to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
 ) STORED;

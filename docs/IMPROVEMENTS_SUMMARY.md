@@ -131,7 +131,7 @@ router = EnhancedTurboRouter(registry)
 @fraise_type
 class User:
     name: str
-    
+
     @field
     @authorize_field(lambda info: info.context.get("is_admin", False))
     def email(self) -> str:

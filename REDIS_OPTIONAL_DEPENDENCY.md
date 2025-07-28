@@ -1,7 +1,7 @@
 # Redis as Optional Dependency
 
-**Date:** 2025-07-12  
-**Version:** 0.1.0b13+  
+**Date:** 2025-07-12
+**Version:** 0.1.0b13+
 **Feature:** Redis is now an optional dependency
 
 ## Overview
@@ -96,7 +96,7 @@ from fraiseql.caching import RedisCache
 
 # This will raise a helpful error:
 cache = RedisCache(redis_client)
-# ImportError: Redis is required for RedisCache. 
+# ImportError: Redis is required for RedisCache.
 # Install it with: pip install fraiseql[redis]
 ```
 
@@ -123,7 +123,7 @@ redis_client = redis.Redis.from_url("redis://localhost")
 
 app = create_fraiseql_app(
     database_url="postgresql://localhost/mydb",
-    types=[User, Product], 
+    types=[User, Product],
     queries=[users, products],
     cache=RedisCache(redis_client),
     redis_client=redis_client,  # For subscriptions
@@ -177,7 +177,7 @@ Run tests to verify Redis is truly optional:
 pip uninstall redis
 python -c "import fraiseql; print('FraiseQL works without Redis!')"
 
-# Test Redis features with Redis installed  
+# Test Redis features with Redis installed
 pip install redis>=5.0.0
 pytest tests/test_redis_features.py
 ```

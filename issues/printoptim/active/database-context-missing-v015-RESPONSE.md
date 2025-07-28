@@ -12,7 +12,7 @@ In the GraphQL router implementation, the code was:
 if context_getter:
     async def get_context(http_request: Request) -> dict[str, Any]:
         return await context_getter(http_request)  # Only returns custom context!
-    
+
     context_dependency = Depends(get_context)
 else:
     context_dependency = Depends(build_graphql_context)  # Includes db
@@ -80,7 +80,7 @@ async def get_context(request):
     """Get context with tenant_id and database."""
     pool = get_db_pool()
     db = FraiseQLRepository(pool)
-    
+
     return {
         "db": db,
         "tenant_id": request.headers.get("tenant-id", "550e8400-e29b-41d4-a716-446655440000"),

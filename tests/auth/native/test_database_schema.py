@@ -98,7 +98,7 @@ class TestUserTableSchema:
                 """
                 SELECT constraint_name
                 FROM information_schema.table_constraints
-                WHERE table_schema = %s 
+                WHERE table_schema = %s
                 AND table_name = 'tb_user'
                 AND constraint_type = 'UNIQUE'
             """,

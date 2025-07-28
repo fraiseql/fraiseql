@@ -77,7 +77,7 @@ async def login(credentials: LoginCredentials, response: Response):
 // composables/useAuth.ts
 export const useAuth = () => {
   const user = useState<User | null>('auth.user')
-  
+
   const login = async (email: string, password: string) => {
     const { csrf_token } = await $fetch('/auth/csrf-token')
     const response = await $fetch('/auth/login', {
@@ -87,7 +87,7 @@ export const useAuth = () => {
     })
     user.value = response.user
   }
-  
+
   return { user, login, logout, checkAuth }
 }
 ```
@@ -207,4 +207,3 @@ The GraphQL approach is architecturally pure but adds complexity without proport
 ---
 
 *Ready to start? Check out the implementation guide in `/docs/auth-implementation.md`* 🚀
-

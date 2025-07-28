@@ -7,7 +7,7 @@ This document describes the comprehensive CI/CD setup for testing FraiseQL's nat
 The native authentication system is tested through multiple layers to ensure production readiness:
 
 1. **Unit Tests**: Core logic without database dependencies
-2. **Database Integration Tests**: Full database schema and operations  
+2. **Database Integration Tests**: Full database schema and operations
 3. **Security Tests**: Password hashing, token security, vulnerability scanning
 4. **End-to-End Tests**: Complete auth flow testing
 5. **Performance Tests**: Basic performance characteristics
@@ -20,7 +20,7 @@ The native authentication system is tested through multiple layers to ensure pro
 The main CI pipeline includes a dedicated `test-native-auth` job that:
 
 - **Runs on**: Ubuntu Latest with PostgreSQL 16 service
-- **Database**: `fraiseql_native_auth_test` 
+- **Database**: `fraiseql_native_auth_test`
 - **Python Version**: 3.13
 - **Tests**:
   - Unit tests: `pytest tests/auth/native/ -m "not database"`
@@ -39,7 +39,7 @@ Comprehensive testing specifically for authentication system changes:
 
 #### Security Audit Job
 - **Bandit**: Python security vulnerability scanning
-- **Safety**: Dependency vulnerability checking  
+- **Safety**: Dependency vulnerability checking
 - **Custom Security Tests**: Password hashing and JWT validation
 
 #### Comprehensive Test Job
@@ -64,7 +64,7 @@ Comprehensive testing specifically for authentication system changes:
 # All native auth tests
 pytest tests/auth/native/ -v
 
-# Unit tests only (no database)  
+# Unit tests only (no database)
 pytest tests/auth/native/ -m "not database" -v
 
 # Database integration tests
@@ -82,7 +82,7 @@ pytest tests/auth/native/ -m database -v
 End-to-end testing script that validates:
 
 - ✅ **Password Security**: Argon2id hashing, validation rules
-- ✅ **User Management**: Creation, retrieval, updates, deactivation  
+- ✅ **User Management**: Creation, retrieval, updates, deactivation
 - ✅ **Token Operations**: Generation, validation, refresh, theft detection
 - ✅ **Auth Provider Integration**: Complete FraiseQL integration
 - ✅ **Security Features**: Session management, password reset
@@ -108,7 +108,7 @@ make test-auth
 # Unit tests only
 make test-auth-unit
 
-# Database integration tests  
+# Database integration tests
 make test-auth-db
 
 # Comprehensive system test
@@ -175,7 +175,7 @@ make test-auth
 Tests run automatically on:
 
 - **Push** to `main` or `develop` branches
-- **Pull Requests** to `main` branch  
+- **Pull Requests** to `main` branch
 - **File Changes** in:
   - `src/fraiseql/auth/native/**`
   - `tests/auth/native/**`
@@ -194,7 +194,7 @@ DATABASE_URL=postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
 TEST_DATABASE_URL=postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
 ```
 
-### Required for Security Tests  
+### Required for Security Tests
 ```bash
 JWT_SECRET_KEY=test-secret-key-change-in-production
 ```
@@ -222,7 +222,7 @@ echo $DATABASE_URL
 echo $TEST_DATABASE_URL
 ```
 
-**Import Errors**  
+**Import Errors**
 ```bash
 # Ensure FraiseQL is installed
 pip install -e .
@@ -264,7 +264,7 @@ python -c "import sys; print(sys.path)"
 - **GitHub Checks**: Required status checks
 - **Coverage Thresholds**: Enforced minimum coverage
 
-### Performance Monitoring  
+### Performance Monitoring
 - **Benchmark Tests**: Basic performance validation
 - **Regression Detection**: Performance degradation alerts
 - **Resource Usage**: Memory and CPU monitoring in CI
@@ -278,7 +278,7 @@ python -c "import sys; print(sys.path)"
 - [ ] **Mobile SDK Testing**: iOS/Android integration validation
 - [ ] **Performance Benchmarks**: Detailed performance regression testing
 
-### Integration Opportunities  
+### Integration Opportunities
 - [ ] **Playwright**: End-to-end browser testing
 - [ ] **Docker**: Container-based testing environments
 - [ ] **Kubernetes**: Production-like deployment testing

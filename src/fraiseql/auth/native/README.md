@@ -6,7 +6,7 @@ A complete, production-ready authentication system for FraiseQL applications. Re
 
 - 🔐 **Enterprise Security**: Argon2id password hashing, JWT tokens with refresh rotation
 - ⚡ **High Performance**: <10ms authentication, local database queries
-- 🎯 **Token Theft Protection**: Advanced refresh token family tracking with automatic threat detection  
+- 🎯 **Token Theft Protection**: Advanced refresh token family tracking with automatic threat detection
 - 🏢 **Multi-Tenant Ready**: Schema-per-tenant or shared schema with row-level security
 - 🛡️ **Production Hardened**: Rate limiting, security headers, CSRF protection, audit logging
 - 🔄 **Session Management**: Multi-device support, session revocation, device tracking
@@ -66,7 +66,7 @@ app.include_router(auth_router, prefix="/auth")
 
 # Add security middleware
 add_security_middleware(
-    app, 
+    app,
     secret_key=os.environ["JWT_SECRET_KEY"],
     enable_rate_limiting=True,
     enable_security_headers=True
@@ -89,7 +89,7 @@ curl -X POST http://localhost:8000/auth/register \
 curl -X POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com", 
+    "email": "user@example.com",
     "password": "SecurePass123!"
   }'
 ```
@@ -145,7 +145,7 @@ curl -X POST http://localhost:8000/auth/login \
 ### Token Manager
 - **JWT tokens** with HS256 signing
 - **Short-lived access tokens** (15 minutes default)
-- **Refresh token rotation** with family tracking  
+- **Refresh token rotation** with family tracking
 - **Token theft detection** and automatic family invalidation
 - **Session-aware tokens** with device tracking
 
@@ -186,7 +186,7 @@ curl -X POST http://localhost:8000/auth/login \
 - **Password strength requirements**: Configurable validation rules
 - **Timing attack protection**: Constant-time verification
 
-### Token Security  
+### Token Security
 - **JWT with HMAC-SHA256**: Industry standard token format
 - **Refresh token rotation**: New tokens on every refresh
 - **Token theft detection**: Automatic family invalidation on reuse
@@ -195,7 +195,7 @@ curl -X POST http://localhost:8000/auth/login \
 
 ### Session Security
 - **Multi-device tracking**: Monitor user sessions across devices
-- **Session revocation**: Logout from all devices capability  
+- **Session revocation**: Logout from all devices capability
 - **IP and device tracking**: Detect suspicious activity
 - **Automatic cleanup**: Expired session garbage collection
 
@@ -230,7 +230,7 @@ FraiseQL native auth supports multiple tenancy approaches:
 ```python
 # Create tenant-specific auth provider
 tenant_provider = await create_native_auth_provider(
-    pool, 
+    pool,
     schema=f"tenant_{tenant_id}"
 )
 
@@ -357,7 +357,7 @@ MIT License - see **[LICENSE](../../LICENSE)** for details.
 
 > "Migrated from Auth0 to FraiseQL native auth in 2 days. Cut our auth costs by $300/month and improved login performance by 80%." - SaaS Startup
 
-> "The token theft protection saved us when an employee's laptop was compromised. All sessions were automatically invalidated." - B2B Platform  
+> "The token theft protection saved us when an employee's laptop was compromised. All sessions were automatically invalidated." - B2B Platform
 
 > "Schema-per-tenant isolation gives our enterprise customers the security confidence they need for compliance." - Healthcare Platform
 

@@ -89,7 +89,7 @@ class TestDualModeJSONBPattern:
 
         # Insert allocation with JSONB data
         from psycopg.types.json import Json
-        
+
         await db_connection.execute(
             """
             INSERT INTO allocations (id, tenant_id, machine_id, location_id, data)

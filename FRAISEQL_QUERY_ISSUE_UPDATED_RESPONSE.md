@@ -80,16 +80,16 @@ If you're using connection pooling, the query might be getting a different conne
 async def router(info: GraphQLResolveInfo, id: uuid.UUID) -> Router | None:
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id", "...")
-    
+
     # Add debug logging
     import logging
     logger = logging.getLogger(__name__)
     logger.debug(f"Query connection: {id(db.connection)}")
     logger.debug(f"Looking for router {id} with tenant {tenant_id}")
-    
+
     result = await db.find_one("v_router", id=id, tenant_id=tenant_id)
     logger.debug(f"Query result: {result}")
-    
+
     return result
 ```
 
@@ -143,7 +143,7 @@ async def debug_query_issue(client, router_id):
         router_id
     )
     print(f"Raw DB result: {raw_result}")
-    
+
     # 2. Try the query with detailed error handling
     query = """
         query RouterQuery($id: ID!) {
@@ -153,7 +153,7 @@ async def debug_query_issue(client, router_id):
             }
         }
     """
-    
+
     try:
         response = await client.post(
             "/graphql",

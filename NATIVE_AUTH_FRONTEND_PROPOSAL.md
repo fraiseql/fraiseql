@@ -92,7 +92,7 @@ if (!auth0.isAuthenticated) {
 // Simple auth middleware
 export default defineNuxtRouteMiddleware(async (to) => {
   const { user, checkAuth } = useAuth()
-  
+
   if (!user.value) {
     const isAuthenticated = await checkAuth()
     if (!isAuthenticated) {
@@ -111,7 +111,7 @@ Complete auth composable for the frontend:
 export const useAuth = () => {
   const user = useState<User | null>('auth.user', () => null)
   const loading = useState('auth.loading', () => false)
-  
+
   const login = async (email: string, password: string) => {
     loading.value = true
     try {
@@ -129,7 +129,7 @@ export const useAuth = () => {
       loading.value = false
     }
   }
-  
+
   const logout = async () => {
     const { csrf_token } = await $fetch('/auth/csrf-token')
     await $fetch('/auth/logout', {
@@ -139,7 +139,7 @@ export const useAuth = () => {
     user.value = null
     await navigateTo('/')
   }
-  
+
   const register = async (email: string, password: string, fullName: string) => {
     const { csrf_token } = await $fetch('/auth/csrf-token')
     const response = await $fetch('/auth/register', {
@@ -150,7 +150,7 @@ export const useAuth = () => {
     user.value = response.user
     return { success: true }
   }
-  
+
   const checkAuth = async () => {
     try {
       const response = await $fetch('/auth/me')
@@ -161,19 +161,19 @@ export const useAuth = () => {
       return false
     }
   }
-  
+
   // RBAC helpers
-  const hasRole = (role: string) => 
+  const hasRole = (role: string) =>
     user.value?.roles?.some(r => r.identifier === role) ?? false
-    
-  const hasPermission = (permission: string) => 
+
+  const hasPermission = (permission: string) =>
     user.value?.permissions?.some(p => p.identifier === permission) ?? false
-    
-  const can = (resource: string, action: string) => 
-    user.value?.permissions?.some(p => 
+
+  const can = (resource: string, action: string) =>
+    user.value?.permissions?.some(p =>
       p.resource === resource && p.action === action
     ) ?? false
-  
+
   return {
     user: readonly(user),
     loading: readonly(loading),
@@ -195,15 +195,15 @@ export const useAuth = () => {
   <div>
     <!-- Role-based rendering -->
     <AdminPanel v-if="hasRole('admin')" />
-    
+
     <!-- Permission-based rendering -->
-    <button 
-      v-if="can('posts', 'edit')" 
+    <button
+      v-if="can('posts', 'edit')"
       @click="editPost"
     >
       Edit Post
     </button>
-    
+
     <!-- Multiple roles -->
     <ManagerDashboard v-if="hasRole('manager') || hasRole('admin')" />
   </div>
@@ -239,7 +239,7 @@ const { hasRole, can } = useAuth()
 
 #### Phase 2: Frontend Migration (1 week)
 - Replace Auth0 provider with native composable
-- Update Apollo Client configuration  
+- Update Apollo Client configuration
 - Migrate protected routes
 - Test all auth flows
 
@@ -253,7 +253,7 @@ const { hasRole, can } = useAuth()
 
 ```
 POST   /auth/login          # Login
-POST   /auth/logout         # Logout  
+POST   /auth/logout         # Logout
 POST   /auth/refresh        # Refresh token (automatic)
 GET    /auth/me            # Get current user
 POST   /auth/register      # Register
@@ -300,7 +300,7 @@ GET    /auth/csrf-token    # Get CSRF token
 - Should we keep redirect to separate login or use modal?
 - Social login requirements for future?
 
-### 2. Session Management  
+### 2. Session Management
 - Logout from all devices feature needed?
 - Remember me functionality?
 

@@ -109,7 +109,7 @@ async def migrate_to_multi_tenant(db_pool):
     for tenant in get_all_tenants():
         await db_pool.execute(f"CREATE SCHEMA {tenant.schema_name}")
         await apply_native_auth_schema(db_pool, tenant.schema_name)
-    
+
     # 2. Migrer les données
     for tenant in get_all_tenants():
         await migrate_tenant_data(tenant)
@@ -171,10 +171,10 @@ J'ai rarement vu une implémentation d'authentification aussi mature réalisée 
 
 #### Ce qui m'a impressionnée
 
-**1. Le choix d'Argon2id**  
+**1. Le choix d'Argon2id**
 Alors qu'Auth0 utilise encore bcrypt (algorithme de 1999), FraiseQL a opté pour Argon2id, le gagnant de la Password Hashing Competition. La configuration (100MB de RAM, 2 itérations) est parfaitement calibrée : assez coûteuse pour décourager les attaques, mais assez rapide (~100ms) pour ne pas impacter l'UX.
 
-**2. La détection de vol de tokens par famille**  
+**2. La détection de vol de tokens par famille**
 ```python
 # Ce mécanisme est brillant
 if token_already_used:
@@ -184,7 +184,7 @@ if token_already_used:
 ```
 C'est plus sophistiqué que ce que font 90% des services commerciaux. L'idée de révoquer toute la famille force une ré-authentification, alertant ainsi la victime.
 
-**3. La gestion des tokens de reset**  
+**3. La gestion des tokens de reset**
 ```python
 token_hash = hashlib.sha256(token.encode()).hexdigest()
 # Seul le hash est stocké, pas le token
@@ -265,7 +265,7 @@ definePageMeta({ middleware: 'auth' })
 **Le support SSR/CSR transparent**
 ```javascript
 // Fonctionne en SSR et CSR sans modification
-const token = process.client 
+const token = process.client
   ? localStorage.getItem('token')
   : useCookie('token').value
 ```
@@ -415,7 +415,7 @@ auth_success = Counter('auth_login_success_total')
 #### Scaling path clair
 
 1. **Maintenant** : 1 instance, 1 PostgreSQL
-2. **1K users/sec** : 3 instances, PostgreSQL avec read replicas  
+2. **1K users/sec** : 3 instances, PostgreSQL avec read replicas
 3. **10K users/sec** : + Redis cache, + CDN pour les assets
 4. **100K users/sec** : Sharding par tenant
 
@@ -436,11 +436,11 @@ Pas de sur-ingénierie prématurée. J'adore.
 
 ### Consensus des experts
 
-✅ **Sécurité** : Supérieure aux solutions commerciales  
-✅ **Performance** : 10x plus rapide qu'Auth0  
-✅ **Coût** : ROI en 2 mois  
-✅ **DX** : Meilleure expérience développeur  
-✅ **Ops** : Simple à déployer et maintenir  
+✅ **Sécurité** : Supérieure aux solutions commerciales
+✅ **Performance** : 10x plus rapide qu'Auth0
+✅ **Coût** : ROI en 2 mois
+✅ **DX** : Meilleure expérience développeur
+✅ **Ops** : Simple à déployer et maintenir
 
 ### Plan d'action recommandé pour PrintOptim
 
@@ -478,5 +478,5 @@ La complexité multi-tenant est gérable et ne doit pas bloquer l'adoption. Comm
 
 ---
 
-*Analyses réalisées le 22 janvier 2025 par des experts indépendants*  
+*Analyses réalisées le 22 janvier 2025 par des experts indépendants*
 *51 tests automatisés validés | 0 vulnérabilité critique | Production-ready*

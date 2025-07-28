@@ -55,7 +55,7 @@ Register a new user account.
 **Password Requirements:**
 - Minimum 8 characters
 - At least 1 uppercase letter
-- At least 1 lowercase letter  
+- At least 1 lowercase letter
 - At least 1 digit
 - At least 1 special character
 
@@ -239,7 +239,7 @@ Get a new access token using a valid refresh token.
 ```json
 {
   "detail": {
-    "code": "TOKEN_THEFT_DETECTED", 
+    "code": "TOKEN_THEFT_DETECTED",
     "message": "Token reuse detected. All sessions have been invalidated for security."
   }
 }
@@ -475,7 +475,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
       "is_current": true
     },
     {
-      "id": "sess_456e7890-e89b-12d3-a456-426614174111", 
+      "id": "sess_456e7890-e89b-12d3-a456-426614174111",
       "device_info": {
         "user_agent": "Mobile App v1.2.0",
         "platform": "iOS",
@@ -535,7 +535,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```json
 {
   "detail": {
-    "code": "UNAUTHORIZED", 
+    "code": "UNAUTHORIZED",
     "message": "Valid authentication required"
   }
 }
@@ -657,7 +657,7 @@ class FraiseQLAuth {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, name })
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       this.setTokens(data.access_token, data.refresh_token);
@@ -672,7 +672,7 @@ class FraiseQLAuth {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       this.setTokens(data.access_token, data.refresh_token);
@@ -685,12 +685,12 @@ class FraiseQLAuth {
     const response = await fetch(`${this.baseURL}/auth/me`, {
       headers: { 'Authorization': `Bearer ${this.accessToken}` }
     });
-    
+
     if (response.status === 401) {
       await this.refreshAccessToken();
       return this.getCurrentUser();
     }
-    
+
     if (response.ok) {
       return response.json();
     }
@@ -703,7 +703,7 @@ class FraiseQLAuth {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: this.refreshToken })
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       this.setTokens(data.access_token, data.refresh_token);
@@ -739,49 +739,49 @@ class FraiseQLAuth:
         self.access_token = None
         self.refresh_token = None
         self.expires_at = None
-    
+
     def register(self, email, password, name):
-        response = requests.post(f"{self.base_url}/auth/register", 
+        response = requests.post(f"{self.base_url}/auth/register",
             json={"email": email, "password": password, "name": name})
-        
+
         if response.status_code == 201:
             data = response.json()
             self._set_tokens(data)
             return data
         raise Exception("Registration failed")
-    
+
     def login(self, email, password):
         response = requests.post(f"{self.base_url}/auth/login",
             json={"email": email, "password": password})
-        
+
         if response.status_code == 200:
             data = response.json()
             self._set_tokens(data)
             return data
         raise Exception("Login failed")
-    
+
     def get_current_user(self):
         headers = {"Authorization": f"Bearer {self.access_token}"}
         response = requests.get(f"{self.base_url}/auth/me", headers=headers)
-        
+
         if response.status_code == 401:
             self.refresh_access_token()
             return self.get_current_user()
-        
+
         if response.status_code == 200:
             return response.json()
         raise Exception("Failed to get user")
-    
+
     def refresh_access_token(self):
         response = requests.post(f"{self.base_url}/auth/refresh",
             json={"refresh_token": self.refresh_token})
-        
+
         if response.status_code == 200:
             data = response.json()
             self._set_tokens(data)
             return data
         raise Exception("Token refresh failed")
-    
+
     def _set_tokens(self, data):
         self.access_token = data['access_token']
         self.refresh_token = data['refresh_token']
