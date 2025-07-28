@@ -39,34 +39,34 @@ import { ref, computed } from 'vue'
 export const useAuth = () => {
   const user = ref(null)
   const token = ref(localStorage.getItem('access_token'))
-  
+
   const login = async (email, password) => {
     const { data } = await $fetch('/auth/login', {
       method: 'POST',
       body: { email, password }
     })
-    
+
     // Tokens stockés automatiquement
     localStorage.setItem('access_token', data.access_token)
     localStorage.setItem('refresh_token', data.refresh_token)
-    
+
     user.value = data.user
     return navigateTo('/dashboard')
   }
-  
+
   const logout = async () => {
     await $fetch('/auth/logout', {
       method: 'POST',
-      body: { 
-        refresh_token: localStorage.getItem('refresh_token') 
+      body: {
+        refresh_token: localStorage.getItem('refresh_token')
       }
     })
-    
+
     localStorage.clear()
     user.value = null
     return navigateTo('/login')
   }
-  
+
   return {
     user: readonly(user),
     isAuthenticated: computed(() => !!token.value),
@@ -82,7 +82,7 @@ export const useAuth = () => {
 // plugins/auth.client.js
 export default defineNuxtPlugin(() => {
   const { $fetch } = useNuxtApp()
-  
+
   // Intercepteur pour ajouter le token
   $fetch.create({
     onRequest({ options }) {
@@ -94,7 +94,7 @@ export default defineNuxtPlugin(() => {
         }
       }
     },
-    
+
     // Auto-refresh sur 401
     onResponseError({ response }) {
       if (response.status === 401) {
@@ -168,7 +168,7 @@ const { user, login } = useAuth()
 // Avant
 await loginWithRedirect()
 
-// Après  
+// Après
 await login(email, password)
 
 // 3. C'est tout ! 🎉
@@ -198,30 +198,30 @@ app = create_native_auth_app(
   <form @submit.prevent="handleLogin" class="space-y-4">
     <div>
       <label for="email">Email</label>
-      <input 
-        v-model="form.email" 
-        type="email" 
+      <input
+        v-model="form.email"
+        type="email"
         required
         class="w-full px-3 py-2 border rounded"
       />
     </div>
-    
+
     <div>
       <label for="password">Mot de passe</label>
-      <input 
-        v-model="form.password" 
-        type="password" 
+      <input
+        v-model="form.password"
+        type="password"
         required
         class="w-full px-3 py-2 border rounded"
       />
     </div>
-    
+
     <div v-if="error" class="text-red-500">
       {{ error }}
     </div>
-    
-    <button 
-      type="submit" 
+
+    <button
+      type="submit"
       :disabled="loading"
       class="w-full bg-blue-500 text-white py-2 rounded"
     >
@@ -242,7 +242,7 @@ const loading = ref(false)
 const handleLogin = async () => {
   loading.value = true
   error.value = ''
-  
+
   try {
     await login(form.value.email, form.value.password)
     // Redirection automatique vers /dashboard
@@ -261,7 +261,7 @@ const handleLogin = async () => {
 // middleware/auth.js
 export default defineNuxtRouteMiddleware((to, from) => {
   const { isAuthenticated } = useAuth()
-  
+
   if (!isAuthenticated.value) {
     return navigateTo('/login')
   }

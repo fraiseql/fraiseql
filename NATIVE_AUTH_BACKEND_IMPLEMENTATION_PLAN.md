@@ -68,7 +68,7 @@ tb_login_attempt (pk_login_attempt, email, ip_address, success, attempted_at)
 ```sql
 -- User view with RBAC data
 CREATE VIEW v_user AS
-SELECT 
+SELECT
     u.pk_user as id,
     u.pk_user as tenant_id,  -- For FraiseQL compatibility
     jsonb_build_object(
@@ -98,11 +98,11 @@ SELECT
     ) as data
 FROM tb_user u
 LEFT JOIN tb_user_info ui ON u.pk_user = ui.fk_user
-LEFT JOIN tb_user_role ur ON u.pk_user = ur.fk_user 
+LEFT JOIN tb_user_role ur ON u.pk_user = ur.fk_user
     AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
 LEFT JOIN tb_role r ON ur.fk_role = r.pk_role
 WHERE u.deleted_at IS NULL
-GROUP BY u.pk_user, ui.full_name, ui.email_verified, ui.is_active, 
+GROUP BY u.pk_user, ui.full_name, ui.email_verified, ui.is_active,
          u.created_at, ui.last_login_at;
 ```
 
@@ -155,46 +155,46 @@ DECLARE
 BEGIN
     -- Validate input
     IF v_email IS NULL OR v_password IS NULL THEN
-        RETURN ROW(NULL, ARRAY[]::TEXT[], 'error', 
-                  'Email and password required', NULL, 
+        RETURN ROW(NULL, ARRAY[]::TEXT[], 'error',
+                  'Email and password required', NULL,
                   jsonb_build_object('code', 'VALIDATION_ERROR'))::app.mutation_result;
     END IF;
-    
+
     -- Check if user exists
     IF EXISTS (SELECT 1 FROM tb_user WHERE email = v_email) THEN
-        RETURN ROW(NULL, ARRAY[]::TEXT[], 'error', 
+        RETURN ROW(NULL, ARRAY[]::TEXT[], 'error',
                   'Email already registered', NULL,
                   jsonb_build_object('code', 'EMAIL_EXISTS'))::app.mutation_result;
     END IF;
-    
+
     -- Create user
     INSERT INTO tb_user (identifier, email)
     VALUES (v_email, v_email)
     RETURNING pk_user INTO v_user_id;
-    
+
     -- Create user info
     INSERT INTO tb_user_info (
         fk_user, password_hash, full_name, email_verified
     ) VALUES (
-        v_user_id, 
+        v_user_id,
         core.hash_password(v_password),
         v_full_name,
         FALSE
     );
-    
+
     -- Assign default role
     INSERT INTO tb_user_role (fk_user, fk_role)
-    SELECT v_user_id, pk_role 
-    FROM tb_role 
+    SELECT v_user_id, pk_role
+    FROM tb_role
     WHERE identifier = 'user';
-    
+
     -- Create session
     -- ... session creation logic ...
-    
+
     -- Return success
     SELECT * INTO v_result
     FROM core.build_auth_result(v_user_id, 'REGISTER');
-    
+
     RETURN v_result;
 EXCEPTION
     WHEN OTHERS THEN
@@ -214,7 +214,7 @@ src/fraiseql/auth/native/
 ├── config.py           # Configuration classes
 ├── types.py            # FraiseQL type definitions
 ├── mutations.py        # Auth mutations
-├── queries.py          # Auth queries  
+├── queries.py          # Auth queries
 ├── middleware.py       # Auth middleware
 ├── decorators.py       # Enhanced decorators with RBAC
 ├── context.py          # Context builder
@@ -240,7 +240,7 @@ from fraiseql.auth.base import AuthProvider, UserContext, AuthenticationError
 
 class NativeAuthProvider(AuthProvider):
     """Native authentication provider for FraiseQL."""
-    
+
     def __init__(
         self,
         secret_key: str,
@@ -261,31 +261,31 @@ class NativeAuthProvider(AuthProvider):
             "httponly": True,
             "samesite": cookie_samesite
         }
-    
+
     async def validate_token(self, token: str) -> dict[str, Any]:
         """Validate JWT token from cookie."""
         try:
             payload = jwt.decode(
-                token, 
-                self.secret_key, 
+                token,
+                self.secret_key,
                 algorithms=[self.algorithm]
             )
-            
+
             # Verify token type
             if payload.get("type") != "access":
                 raise AuthenticationError("Invalid token type")
-            
+
             return payload
-            
+
         except jwt.ExpiredSignatureError:
             raise TokenExpiredError("Access token expired")
         except jwt.InvalidTokenError as e:
             raise InvalidTokenError(f"Invalid token: {e}")
-    
+
     async def get_user_from_token(self, token: str) -> UserContext:
         """Extract user context from token."""
         payload = await self.validate_token(token)
-        
+
         return UserContext(
             user_id=str(payload["sub"]),
             email=payload.get("email"),
@@ -298,11 +298,11 @@ class NativeAuthProvider(AuthProvider):
                 "token_exp": payload.get("exp")
             }
         )
-    
+
     async def create_tokens(self, user_data: dict) -> tuple[str, str]:
         """Create access and refresh tokens."""
         now = datetime.utcnow()
-        
+
         # Access token with user data
         access_payload = {
             "sub": str(user_data["id"]),
@@ -310,7 +310,7 @@ class NativeAuthProvider(AuthProvider):
             "name": user_data.get("fullName"),
             "roles": [r["identifier"] for r in user_data.get("roles", [])],
             "permissions": [
-                f"{p['resource']}:{p['action']}" 
+                f"{p['resource']}:{p['action']}"
                 for r in user_data.get("roles", [])
                 for p in r.get("permissions", [])
             ],
@@ -319,13 +319,13 @@ class NativeAuthProvider(AuthProvider):
             "iat": now,
             "exp": now + self.access_expire
         }
-        
+
         access_token = jwt.encode(
             access_payload,
             self.secret_key,
             algorithm=self.algorithm
         )
-        
+
         # Refresh token (minimal data)
         refresh_payload = {
             "sub": str(user_data["id"]),
@@ -334,13 +334,13 @@ class NativeAuthProvider(AuthProvider):
             "iat": now,
             "exp": now + self.refresh_expire
         }
-        
+
         refresh_token = jwt.encode(
             refresh_payload,
             self.secret_key,
             algorithm=self.algorithm
         )
-        
+
         return access_token, refresh_token
 ```
 
@@ -373,7 +373,7 @@ class Permission:
     description: Optional[str]
 
 @fraiseql.fraise_type
-@dataclass  
+@dataclass
 class User:
     id: int
     email: str
@@ -418,18 +418,18 @@ from .utils.csrf import generate_csrf_token, verify_csrf_token
 
 @fraiseql.mutation
 async def login(
-    info: GraphQLResolveInfo, 
+    info: GraphQLResolveInfo,
     input: LoginInput
 ) -> AuthPayload:
     """Authenticate user and set cookies."""
     db = info.context["db"]
     response: Response = info.context["response"]
-    
+
     # Verify CSRF token
     csrf_token = info.context["request"].headers.get("X-CSRF-Token")
     if not verify_csrf_token(csrf_token):
         raise GraphQLError("Invalid CSRF token")
-    
+
     # Execute login function
     result = await db.execute_function(
         "app.login_user",
@@ -438,20 +438,20 @@ async def login(
             "password": input.password
         }
     )
-    
+
     if result["change_status"] != "success":
         raise GraphQLError(
             result["message"],
             extensions={"code": result["extra_metadata"]["code"]}
         )
-    
+
     # Get user data
     user_data = result["row_data"]["user"]
-    
+
     # Create tokens
     provider = info.context["auth_provider"]
     access_token, refresh_token = await provider.create_tokens(user_data)
-    
+
     # Set cookies
     set_auth_cookies(
         response,
@@ -460,7 +460,7 @@ async def login(
         result["row_data"]["csrf_token"],
         provider.cookie_config
     )
-    
+
     # Return user
     return AuthPayload(
         user=user_data,
@@ -473,7 +473,7 @@ async def logout(info: GraphQLResolveInfo) -> bool:
     db = info.context["db"]
     response: Response = info.context["response"]
     user = info.context.get("user")
-    
+
     if user:
         # Revoke refresh token in database
         refresh_token = info.context["request"].cookies.get("__Host-refresh-token")
@@ -485,10 +485,10 @@ async def logout(info: GraphQLResolveInfo) -> bool:
                     "refresh_token": refresh_token
                 }
             )
-    
+
     # Clear cookies
     clear_auth_cookies(response)
-    
+
     return True
 
 @fraiseql.mutation
@@ -499,12 +499,12 @@ async def register(
     """Register new user."""
     db = info.context["db"]
     response: Response = info.context["response"]
-    
+
     # Verify CSRF token
     csrf_token = info.context["request"].headers.get("X-CSRF-Token")
     if not verify_csrf_token(csrf_token):
         raise GraphQLError("Invalid CSRF token")
-    
+
     # Execute registration
     result = await db.execute_function(
         "app.register_user",
@@ -514,18 +514,18 @@ async def register(
             "fullName": input.full_name
         }
     )
-    
+
     if result["change_status"] != "success":
         raise GraphQLError(
             result["message"],
             extensions={"code": result["extra_metadata"]["code"]}
         )
-    
+
     # Auto-login after registration
     user_data = result["row_data"]["user"]
     provider = info.context["auth_provider"]
     access_token, refresh_token = await provider.create_tokens(user_data)
-    
+
     set_auth_cookies(
         response,
         access_token,
@@ -533,7 +533,7 @@ async def register(
         result["row_data"]["csrf_token"],
         provider.cookie_config
     )
-    
+
     return AuthPayload(
         user=user_data,
         message="Registration successful"
@@ -555,11 +555,11 @@ async def me(info: GraphQLResolveInfo) -> User:
     """Get current authenticated user."""
     user_context = info.context["user"]
     db = info.context["db"]
-    
+
     user = await db.find_one("v_user", id=int(user_context.user_id))
     if not user:
         raise GraphQLError("User not found")
-    
+
     return user
 
 @fraiseql.query
@@ -586,15 +586,15 @@ from starlette.responses import Response
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):
     """Extract and verify auth tokens from cookies."""
-    
+
     def __init__(self, app, auth_provider):
         super().__init__(app)
         self.auth_provider = auth_provider
-    
+
     async def dispatch(self, request: Request, call_next):
         # Extract access token from cookie
         access_token = request.cookies.get("__Host-access-token")
-        
+
         if access_token:
             try:
                 # Validate token
@@ -611,7 +611,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             except Exception:
                 # Invalid token, continue without user
                 pass
-        
+
         response = await call_next(request)
         return response
 ```
@@ -637,11 +637,11 @@ async def build_auth_context(
         "user": getattr(request.state, "user", None),
         "is_authenticated": hasattr(request.state, "user")
     }
-    
+
     # Add auth provider
     from .provider import NativeAuthProvider
     context["auth_provider"] = request.app.state.auth_provider
-    
+
     return context
 ```
 
@@ -714,26 +714,26 @@ class RateLimiter:
         self.window = timedelta(minutes=window_minutes)
         self.attempts = defaultdict(list)
         self._cleanup_task = None
-    
+
     async def check_rate_limit(self, key: str) -> bool:
         """Check if rate limit exceeded."""
         now = datetime.utcnow()
         cutoff = now - self.window
-        
+
         # Clean old attempts
         self.attempts[key] = [
             attempt for attempt in self.attempts[key]
             if attempt > cutoff
         ]
-        
+
         # Check limit
         if len(self.attempts[key]) >= self.max_attempts:
             return False
-        
+
         # Record attempt
         self.attempts[key].append(now)
         return True
-    
+
     async def start_cleanup(self):
         """Periodically clean old entries."""
         while True:
@@ -760,20 +760,20 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
-    
+
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        
+
         # Security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        
+
         # Remove server header
         response.headers.pop("Server", None)
-        
+
         return response
 ```
 
@@ -810,7 +810,7 @@ async def test_user_registration(client: AsyncClient, db):
     # Get CSRF token
     csrf_response = await client.get("/auth/csrf-token")
     csrf_token = csrf_response.json()["csrf_token"]
-    
+
     # Register user
     response = await client.post(
         "/graphql",
@@ -840,12 +840,12 @@ async def test_user_registration(client: AsyncClient, db):
         },
         headers={"X-CSRF-Token": csrf_token}
     )
-    
+
     assert response.status_code == 200
     data = response.json()["data"]["register"]
     assert data["user"]["email"] == "test@example.com"
     assert data["user"]["roles"][0]["identifier"] == "user"
-    
+
     # Check cookies were set
     assert "__Host-access-token" in response.cookies
     assert "__Host-refresh-token" in response.cookies
@@ -855,7 +855,7 @@ async def test_duplicate_registration(client: AsyncClient, existing_user):
     """Test registration with existing email."""
     csrf_response = await client.get("/auth/csrf-token")
     csrf_token = csrf_response.json()["csrf_token"]
-    
+
     response = await client.post(
         "/graphql",
         json={
@@ -876,7 +876,7 @@ async def test_duplicate_registration(client: AsyncClient, existing_user):
         },
         headers={"X-CSRF-Token": csrf_token}
     )
-    
+
     assert response.status_code == 200
     errors = response.json().get("errors", [])
     assert len(errors) == 1

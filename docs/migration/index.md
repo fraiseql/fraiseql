@@ -81,5 +81,5 @@ Step-by-step guide for migrating from Ariadne (Python) to FraiseQL, including:
 
 Ready to migrate? Choose the guide that matches your current GraphQL implementation:
 
-- **Python developers**: Start with [Graphene](./from-graphene.md) or [Ariadne](./from-ariadne.md) 
+- **Python developers**: Start with [Graphene](./from-graphene.md) or [Ariadne](./from-ariadne.md)
 - **Node.js developers**: Follow the [Apollo Server](./from-apollo-server.md) guide

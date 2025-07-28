@@ -163,7 +163,7 @@ async def create_server(info, input: ServerInput) -> Server:
     # Custom validation
     if input.port == 22 and not input.ssh_enabled:
         raise GraphQLError("Port 22 requires SSH to be enabled")
-    
+
     # Continue with mutation logic...
 ```
 

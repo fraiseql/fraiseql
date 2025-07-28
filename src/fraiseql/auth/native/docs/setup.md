@@ -5,7 +5,7 @@ This guide walks you through setting up FraiseQL's native authentication system 
 ## Prerequisites
 
 - **Python 3.11+** (Python 3.13 recommended)
-- **PostgreSQL 15+** (PostgreSQL 16 recommended)  
+- **PostgreSQL 15+** (PostgreSQL 16 recommended)
 - **FraiseQL v0.1.0b31+**
 
 ## Installation
@@ -69,10 +69,10 @@ async def migrate():
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise ValueError("DATABASE_URL environment variable required")
-    
+
     # Create connection pool
     pool = AsyncConnectionPool(database_url)
-    
+
     try:
         # Apply native auth schema
         await apply_native_auth_schema(pool)
@@ -99,7 +99,7 @@ psql your_app_db -c "\\dt"
 ```
 
 You should see these tables:
-- `tb_user` - User accounts  
+- `tb_user` - User accounts
 - `tb_session` - Active sessions
 - `tb_used_refresh_token` - Token replay prevention
 - `tb_password_reset` - Password reset tokens
@@ -175,23 +175,23 @@ db_pool = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global db_pool
-    
+
     # Startup
     database_url = os.environ.get("DATABASE_URL")
     db_pool = AsyncConnectionPool(database_url)
-    
+
     # Create auth provider
     auth_provider = await create_native_auth_provider(
         db_pool,
         secret_key=os.environ.get("JWT_SECRET_KEY")
     )
-    
+
     # Store in app state
     app.state.db_pool = db_pool
     app.state.auth_provider = auth_provider
-    
+
     yield
-    
+
     # Shutdown
     await db_pool.close()
 
@@ -225,7 +225,7 @@ async def protected_endpoint(request):
     auth_header = request.headers.get("authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return {"error": "Authentication required"}
-    
+
     token = auth_header.split(" ")[1]
     try:
         user = await request.app.state.auth_provider.get_user_from_token(token)
@@ -276,10 +276,10 @@ async def current_user(info) -> User:
 # Multi-tenant configuration
 async def create_tenant_auth_provider(tenant_id: str):
     schema = f"tenant_{tenant_id}"
-    
+
     # Apply schema for new tenant
     await apply_native_auth_schema(db_pool, schema=schema)
-    
+
     # Create tenant-specific provider
     return await create_native_auth_provider(
         db_pool,
@@ -295,7 +295,7 @@ async def tenant_middleware(request, call_next):
     if tenant_id:
         request.state.tenant_id = tenant_id
         # You could set tenant-specific auth provider here
-    
+
     response = await call_next(request)
     return response
 ```
@@ -329,7 +329,7 @@ Expected response:
 {
   "user": {
     "id": "123e4567-e89b-12d3-a456-426614174000",
-    "email": "test@example.com", 
+    "email": "test@example.com",
     "name": "Test User",
     "roles": [],
     "permissions": [],
@@ -379,7 +379,7 @@ After setup, verify these items work:
 
 - [ ] **Database connection**: App starts without database errors
 - [ ] **User registration**: Can create new accounts
-- [ ] **User login**: Can authenticate with credentials  
+- [ ] **User login**: Can authenticate with credentials
 - [ ] **Token validation**: Protected endpoints work with valid tokens
 - [ ] **Token refresh**: Can get new access tokens with refresh tokens
 - [ ] **Session management**: Can list and revoke sessions
@@ -422,7 +422,7 @@ except ImportError as e:
 
 1. **[API Reference](api-reference.md)** - Learn all available endpoints
 2. **[Security Guide](security.md)** - Understand security features
-3. **[Migration Guide](migration.md)** - Migrate from other auth providers  
+3. **[Migration Guide](migration.md)** - Migrate from other auth providers
 4. **[Deployment Guide](deployment.md)** - Deploy to production
 5. **[Multi-Tenant Guide](multi-tenant.md)** - Set up multi-tenancy
 

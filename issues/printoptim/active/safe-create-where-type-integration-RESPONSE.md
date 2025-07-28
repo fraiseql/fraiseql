@@ -19,7 +19,7 @@ However, it has several limitations that make it less suitable for modern GraphQ
 ```graphql
 # The generated API is not intuitive
 query {
-  machines(where: { 
+  machines(where: {
     status: { eq: "active" },
     capacity: { gt: 100, lte: 500 }
   }) {
@@ -29,7 +29,7 @@ query {
 
 # vs. Your current cleaner API:
 query {
-  machines(where: { 
+  machines(where: {
     status: "active",
     capacityMin: 100,
     capacityMax: 500
@@ -67,30 +67,30 @@ T = TypeVar('T')
 
 class FilterBuilder:
     """Generic filter builder for any WhereInput type."""
-    
+
     @staticmethod
     def build(where: T | dict | None, base_filters: dict[str, Any] | None = None) -> dict[str, Any]:
         """Build filters from any where input type."""
         filters = base_filters.copy() if base_filters else {}
-        
+
         if not where:
             return filters
-        
+
         # Handle both dict and object input
         if isinstance(where, dict):
             where_dict = where
         else:
             # Convert object to dict, excluding None values
             where_dict = {
-                k: v for k, v in vars(where).items() 
+                k: v for k, v in vars(where).items()
                 if v is not None and not k.startswith('_')
             }
-        
+
         # Process each field
         for field, value in where_dict.items():
             if value is None:
                 continue
-                
+
             # Handle special field patterns
             if field.endswith('_min') or field.endswith('_gte'):
                 # Range filters (minimum)
@@ -110,9 +110,9 @@ class FilterBuilder:
             else:
                 # Direct equality
                 filters[field] = value
-        
+
         return filters
-    
+
     @staticmethod
     def has_custom_filters(filters: dict[str, Any]) -> bool:
         """Check if filters require custom SQL."""
@@ -144,17 +144,17 @@ async def machines(
     where: MachineWhereInput | None = None,
 ) -> list[Machine]:
     """Retrieve machines with automatic filtering."""
-    
+
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # One line to build all filters!
     filters = build_filters(where, base_filters={"tenant_id": tenant_id})
-    
+
     # Check if we need custom SQL for complex filters
     if FilterBuilder.has_custom_filters(filters):
         return await _query_machines_custom(db, filters, limit, offset)
-    
+
     # Simple filters can use repository directly
     return await db.find("tb_machine", **filters, limit=limit, offset=offset)
 
@@ -167,16 +167,16 @@ async def allocations(
     where: AllocationWhereInput | None = None,
 ) -> list[Allocation]:
     """Retrieve allocations with automatic filtering."""
-    
+
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # Exact same pattern!
     filters = build_filters(where, base_filters={"tenant_id": tenant_id})
-    
+
     if FilterBuilder.has_custom_filters(filters):
         return await _query_allocations_custom(db, filters, limit, offset)
-    
+
     return await db.find("tb_allocation", **filters, limit=limit, offset=offset)
 ```
 
@@ -190,36 +190,36 @@ from typing import get_type_hints, get_origin, get_args
 
 class AdvancedFilterBuilder:
     """Filter builder with type introspection."""
-    
+
     @classmethod
     def from_where_input(cls, where_input_type: Type[T], where: T | dict | None, base_filters: dict[str, Any] | None = None) -> dict[str, Any]:
         """Build filters using type hints from WhereInput class."""
         filters = base_filters.copy() if base_filters else {}
-        
+
         if not where:
             return filters
-        
+
         # Get type hints to understand field types
         type_hints = get_type_hints(where_input_type)
-        
+
         # Get values from where input
         if isinstance(where, dict):
             where_dict = where
         else:
             where_dict = {k: v for k, v in vars(where).items() if v is not None}
-        
+
         for field, value in where_dict.items():
             if field not in type_hints:
                 continue
-                
+
             field_type = type_hints[field]
             origin = get_origin(field_type)
-            
+
             # Handle Optional types
             if origin is Union:
                 args = get_args(field_type)
                 field_type = args[0] if len(args) == 2 and type(None) in args else field_type
-            
+
             # Apply type-specific handling
             if field_type in (datetime, date):
                 # Date fields might need special handling
@@ -230,7 +230,7 @@ class AdvancedFilterBuilder:
             else:
                 # Standard fields
                 filters[field] = value
-        
+
         return filters
 ```
 
@@ -249,16 +249,16 @@ def auto_filter(where_input_type: Type):
         async def wrapper(info, where=None, limit=20, offset=0, **kwargs):
             db = info.context["db"]
             tenant_id = info.context.get("tenant_id")
-            
+
             # Auto-build filters
             filters = build_filters(where, {"tenant_id": tenant_id} if tenant_id else None)
-            
+
             # Inject filters into kwargs
             kwargs['_filters'] = filters
-            
+
             # Call original function
             return await func(info, where=where, limit=limit, offset=offset, **kwargs)
-        
+
         return wrapper
     return decorator
 
@@ -268,7 +268,7 @@ def auto_filter(where_input_type: Type):
 async def machines(info, where=None, limit=20, offset=0, **kwargs) -> list[Machine]:
     db = info.context["db"]
     filters = kwargs.get('_filters', {})
-    
+
     return await db.find("tb_machine", **filters, limit=limit, offset=offset)
 ```
 
@@ -316,20 +316,20 @@ def build_entity_filters(
 ) -> dict[str, Any]:
     """Build filters for any entity type."""
     filters = entity_defaults.copy() if entity_defaults else {}
-    
+
     if not where:
         return filters
-    
+
     # Normalize to dict
     where_dict = where if isinstance(where, dict) else {
-        k: v for k, v in vars(where).items() 
+        k: v for k, v in vars(where).items()
         if v is not None and not k.startswith('_')
     }
-    
+
     # Process all fields
     for field, value in where_dict.items():
         filters[field] = value
-    
+
     return filters
 
 # queries/machines.py
@@ -342,10 +342,10 @@ async def machines(
 ) -> list[Machine]:
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # One line for all filtering!
     filters = build_entity_filters(where, {"tenant_id": tenant_id})
-    
+
     return await db.find("tb_machine", **filters, limit=limit, offset=offset)
 
 # queries/allocations.py
@@ -358,10 +358,10 @@ async def allocations(
 ) -> list[Allocation]:
     db = info.context["db"]
     tenant_id = info.context.get("tenant_id")
-    
+
     # Same pattern, no repetition!
     filters = build_entity_filters(where, {"tenant_id": tenant_id})
-    
+
     return await db.find("tb_allocation", **filters, limit=limit, offset=offset)
 ```
 

@@ -46,5 +46,5 @@ Thanks to the community member who reported this issue with detailed reproductio
 
 ---
 
-*Released: 2025-07-21*  
+*Released: 2025-07-21*
 *Version: 0.1.0b29*

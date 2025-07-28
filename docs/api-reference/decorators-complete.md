@@ -60,7 +60,7 @@ class User:
     created_at: datetime
     updated_at: Optional[datetime] = None
     is_active: bool = fraise_field(default=True, description="Whether user can log in")
-    
+
     # Relationships (resolved separately)
     posts: list['Post'] = fraise_field(description="Posts authored by this user")
     profile: Optional['UserProfile'] = None
@@ -157,7 +157,7 @@ async def user(info, id: UUID) -> Optional[User]:
 ```python
 @fraiseql.query
 async def users_by_role(
-    info, 
+    info,
     role: str,
     is_active: bool = True,
     limit: int = 100
@@ -186,11 +186,11 @@ async def paginated_users(
 ) -> PaginatedResponse[User]:
     """Get paginated users with optional filtering."""
     db = info.context["db"]
-    
+
     # Implementation details...
     users = await db.find("user_view", limit=per_page, offset=(page-1)*per_page)
     total = await db.count("user_view")
-    
+
     return PaginatedResponse(
         items=users,
         total=total,
@@ -275,7 +275,7 @@ class CreateUserInput:
 async def create_user(info, input: CreateUserInput) -> User:
     """Create a new user."""
     db = info.context["db"]
-    
+
     # In production mode, use PostgreSQL function
     result = await db.call_function(
         "create_user",
@@ -283,7 +283,7 @@ async def create_user(info, input: CreateUserInput) -> User:
         name=input.name,
         password_hash=hash_password(input.password)
     )
-    
+
     return User(**result)
 ```
 
@@ -299,7 +299,7 @@ class CreateUserSuccess:
     user: User
     message: str = "User created successfully"
 
-@fraiseql.failure  
+@fraiseql.failure
 class CreateUserError:
     message: str
     code: str
@@ -307,12 +307,12 @@ class CreateUserError:
 
 @fraiseql.mutation
 async def create_user_safe(
-    info, 
+    info,
     input: CreateUserInput
 ) -> Union[CreateUserSuccess, CreateUserError]:
     """Create user with error handling."""
     db = info.context["db"]
-    
+
     try:
         # Validate input
         if not is_valid_email(input.email):
@@ -321,16 +321,16 @@ async def create_user_safe(
                 code="INVALID_EMAIL",
                 field="email"
             )
-        
+
         # Create user
         user_data = await db.call_function(
             "create_user",
             email=input.email,
             name=input.name
         )
-        
+
         return CreateUserSuccess(user=User(**user_data))
-        
+
     except UniqueViolationError:
         return CreateUserError(
             message="Email already exists",
@@ -364,7 +364,7 @@ class UpdateUserInput:
     name: Optional[str] = None
     email: Optional[str] = None
     is_active: Optional[bool] = None
-    
+
     # Nested input types are supported
     profile: Optional['UpdateProfileInput'] = None
 
@@ -383,19 +383,19 @@ class UpdateProfileInput:
 async def update_user(info, input: UpdateUserInput) -> User:
     """Update user with partial data."""
     db = info.context["db"]
-    
+
     # Build update data, excluding None values
     update_data = {
-        k: v for k, v in input.__dict__.items() 
+        k: v for k, v in input.__dict__.items()
         if v is not None and k != 'id'
     }
-    
+
     result = await db.call_function(
         "update_user",
         user_id=input.id,
         updates=update_data
     )
-    
+
     return User(**result)
 ```
 
@@ -468,7 +468,7 @@ Add custom field resolvers to types. Used for computed fields or complex data fe
 class TypeName:
     # Regular fields
     id: int
-    
+
     @fraiseql.field
     async def computed_field(self, info) -> FieldType:
         # Custom resolution logic
@@ -485,12 +485,12 @@ class User:
     id: UUID
     first_name: str
     last_name: str
-    
+
     @fraiseql.field
     async def full_name(self, info) -> str:
         """Computed full name."""
         return f"{self.first_name} {self.last_name}"
-    
+
     @fraiseql.field
     async def post_count(self, info) -> int:
         """Count of user's posts."""
@@ -505,7 +505,7 @@ class User:
 class User:
     id: UUID
     email: str
-    
+
     @fraiseql.field
     async def recent_posts(self, info, limit: int = 5) -> list[Post]:
         """Get user's recent posts."""
@@ -595,11 +595,11 @@ async def post_created(info, author_id: Optional[UUID] = None) -> AsyncIterator[
     """Subscribe to new posts, optionally filtered by author."""
     # Get pubsub from context
     pubsub = info.context["pubsub"]
-    
+
     # Subscribe to channel
     channel = f"posts:{author_id}" if author_id else "posts:all"
     subscription = await pubsub.subscribe(channel)
-    
+
     try:
         async for message in subscription:
             post_data = json.loads(message)
@@ -613,15 +613,15 @@ async def create_post(info, input: CreatePostInput) -> Post:
     """Create a post and notify subscribers."""
     db = info.context["db"]
     pubsub = info.context["pubsub"]
-    
+
     # Create post
     post_data = await db.call_function("create_post", **input.__dict__)
     post = Post(**post_data)
-    
+
     # Publish to subscribers
     await pubsub.publish("posts:all", json.dumps(post_data))
     await pubsub.publish(f"posts:{post.author_id}", json.dumps(post_data))
-    
+
     return post
 ```
 
@@ -687,13 +687,13 @@ class LoginError:
 # Use in mutation
 @fraiseql.mutation
 async def login(
-    info, 
-    email: str, 
+    info,
+    email: str,
     password: str
 ) -> Union[LoginSuccess, LoginError]:
     """Authenticate user and return token."""
     db = info.context["db"]
-    
+
     # Find user
     user = await db.find_one("user_view", email=email)
     if not user:
@@ -701,24 +701,24 @@ async def login(
             message="Invalid email or password",
             code="INVALID_CREDENTIALS"
         )
-    
+
     # Check password
     if not verify_password(password, user.password_hash):
         return LoginError(
             message="Invalid email or password",
             code="INVALID_CREDENTIALS"
         )
-    
+
     # Check if account is active
     if not user.is_active:
         return LoginError(
             message="Account has been deactivated",
             code="ACCOUNT_LOCKED"
         )
-    
+
     # Generate token
     token, expires_at = generate_token(user.id)
-    
+
     return LoginSuccess(
         user=user,
         token=token,

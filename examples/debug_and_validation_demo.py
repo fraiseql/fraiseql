@@ -122,7 +122,7 @@ async def demo_validation():
     }
 
     errors = validate_where_input(invalid_where, User)
-    print(f"\nInvalid where clause errors:")
+    print("\nInvalid where clause errors:")
     for error in errors:
         print(f"  - {error}")
 

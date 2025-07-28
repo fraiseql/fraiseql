@@ -1,6 +1,6 @@
 /**
  * Vue 3 / Nuxt 3 Composable for FraiseQL Native Authentication
- * 
+ *
  * Provides reactive authentication state and methods for Vue/Nuxt applications.
  * Integrates seamlessly with FraiseQL's native auth backend.
  */
@@ -52,7 +52,7 @@ export function useAuth(options: UseAuthOptions = {}) {
         globalAuthState.tokens = null;
         globalAuthState.isAuthenticated = false;
         globalAuthState.error = 'Your session has expired. Please log in again.';
-        
+
         // Redirect to login if specified
         if (options.redirectOnLogout && typeof window !== 'undefined') {
           window.location.href = options.redirectOnLogout;
@@ -87,7 +87,7 @@ export function useAuth(options: UseAuthOptions = {}) {
 
     try {
       const response = await authClient!.register(data);
-      
+
       globalAuthState.user = response.user;
       globalAuthState.tokens = {
         access_token: response.access_token,
@@ -117,7 +117,7 @@ export function useAuth(options: UseAuthOptions = {}) {
 
     try {
       const response = await authClient!.login(data);
-      
+
       globalAuthState.user = response.user;
       globalAuthState.tokens = {
         access_token: response.access_token,
@@ -250,7 +250,7 @@ export function useAuth(options: UseAuthOptions = {}) {
 
   // GraphQL helper
   const graphqlQuery = async <T = any>(
-    query: string, 
+    query: string,
     variables?: Record<string, any>
   ) => {
     if (!isAuthenticated.value) {
@@ -312,11 +312,11 @@ export function useAuth(options: UseAuthOptions = {}) {
     isAuthenticated: readonly(isAuthenticated),
     isLoading: readonly(isLoading),
     error: readonly(error),
-    
+
     // Session state
     sessions: readonly(sessions),
     sessionsLoading: readonly(sessionsLoading),
-    
+
     // Authentication methods
     register,
     login,
@@ -324,14 +324,14 @@ export function useAuth(options: UseAuthOptions = {}) {
     forgotPassword,
     resetPassword,
     refreshUser,
-    
+
     // Session management
     getSessions,
     revokeSession,
-    
+
     // GraphQL
     graphqlQuery,
-    
+
     // Utilities
     hasRole,
     hasPermission,
@@ -341,7 +341,7 @@ export function useAuth(options: UseAuthOptions = {}) {
     clearError,
     setError,
     initialize,
-    
+
     // Raw client access for advanced use cases
     client: authClient,
   };

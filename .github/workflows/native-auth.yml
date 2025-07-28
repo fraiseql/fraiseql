@@ -12,7 +12,7 @@ on:
     branches: [ main ]
     paths:
       - 'src/fraiseql/auth/native/**'
-      - 'tests/auth/native/**' 
+      - 'tests/auth/native/**'
       - 'examples/native_auth_app.py'
       - 'frontend/auth/**'
 
@@ -24,7 +24,7 @@ jobs:
   test-auth-components:
     name: Native Auth System Tests
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:16
@@ -47,7 +47,7 @@ jobs:
           - name: "Unit Tests"
             command: "pytest tests/auth/native/ -m 'not database' -v"
             requires-db: false
-          - name: "Database Integration" 
+          - name: "Database Integration"
             command: "pytest tests/auth/native/ -m database -v --tb=short"
             requires-db: true
           - name: "Security Tests"
@@ -123,27 +123,27 @@ jobs:
         from fraiseql.auth.native.models import User
         from fraiseql.auth.native.tokens import TokenManager
         import time
-        
+
         print('🔐 Testing password security...')
-        
+
         # Test Argon2id password hashing
         user = User(email='test@example.com', password='TestPassword123!', name='Test User')
         assert user.verify_password('TestPassword123!'), 'Password verification failed'
         assert not user.verify_password('WrongPassword'), 'False password accepted'
         print('✅ Password hashing secure')
-        
+
         # Test JWT token security
         tm = TokenManager('test-secret')
         tokens = tm.generate_tokens('user123')
         payload = tm.verify_access_token(tokens['access_token'])
         assert payload['sub'] == 'user123', 'Token verification failed'
         print('✅ JWT tokens secure')
-        
+
         # Test password validation
         assert User.validate_password('StrongP@ssw0rd!'), 'Strong password rejected'
         assert not User.validate_password('weak'), 'Weak password accepted'
         print('✅ Password validation secure')
-        
+
         print('🎯 All security tests passed')
         "
 
@@ -159,7 +159,7 @@ jobs:
   comprehensive-test:
     name: Comprehensive Auth System Test
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:16
@@ -201,7 +201,7 @@ jobs:
   integration-test:
     name: End-to-End Integration Test
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:16
@@ -244,10 +244,10 @@ jobs:
         from psycopg_pool import AsyncConnectionPool
         from fraiseql.auth.native.factory import create_native_auth_provider, apply_native_auth_schema
         from fraiseql.auth.native.models import User
-        
+
         async def test_full_auth_flow():
             print('🚀 Testing complete native auth flow...')
-            
+
             # Create connection pool
             pool = AsyncConnectionPool(
                 os.environ['DATABASE_URL'],
@@ -255,18 +255,18 @@ jobs:
                 max_size=3
             )
             await pool.wait()
-            
+
             # Apply schema
             await apply_native_auth_schema(pool)
             print('✅ Database schema applied')
-            
+
             # Create auth provider
             auth_provider = await create_native_auth_provider(
                 db_pool=pool,
                 secret_key='test-secret'
             )
             print('✅ Auth provider created')
-            
+
             # Test user creation
             async with pool.connection() as conn:
                 async with conn.cursor() as cursor:
@@ -280,35 +280,35 @@ jobs:
                     await user.save(cursor, 'public')
                     await conn.commit()
                     print('✅ User created successfully')
-                    
+
                     # Test user retrieval
                     found_user = await User.get_by_email(cursor, 'public', 'integration@test.com')
                     assert found_user is not None, 'User not found'
                     assert found_user.verify_password('IntegrationTest123!'), 'Password verification failed'
                     print('✅ User retrieval and password verification successful')
-            
+
             # Test token operations
             tokens = auth_provider.token_manager.generate_tokens(str(user.id))
             payload = auth_provider.token_manager.verify_access_token(tokens['access_token'])
             assert payload['sub'] == str(user.id), 'Token verification failed'
             print('✅ Token generation and verification successful')
-            
+
             # Test auth provider integration
             user_context = await auth_provider.get_user_from_token(tokens['access_token'])
             assert user_context.user_id == str(user.id), 'User context creation failed'
             assert user_context.email == 'integration@test.com', 'User context email mismatch'
             print('✅ Auth provider integration successful')
-            
+
             await pool.close()
             print('🎯 Complete auth flow test PASSED')
-        
+
         asyncio.run(test_full_auth_flow())
         "
 
   frontend-validation:
     name: Frontend Components Validation
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
 
@@ -330,10 +330,10 @@ jobs:
           const fs = require('fs');
           const files = [
             'frontend/auth/types.ts',
-            'frontend/auth/client.ts', 
+            'frontend/auth/client.ts',
             'frontend/auth/composables/useAuth.ts'
           ];
-          
+
           let hasErrors = false;
           files.forEach(file => {
             if (fs.existsSync(file)) {
@@ -349,7 +349,7 @@ jobs:
               hasErrors = true;
             }
           });
-          
+
           if (!hasErrors) {
             console.log('🎯 Frontend TypeScript validation passed');
           }
@@ -364,36 +364,36 @@ jobs:
         python -c "
         import os
         import re
-        
+
         vue_files = [
             'frontend/auth/components/LoginForm.vue',
             'frontend/auth/components/RegisterForm.vue'
         ]
-        
+
         for vue_file in vue_files:
             if os.path.exists(vue_file):
                 with open(vue_file, 'r') as f:
                     content = f.read()
-                
+
                 # Check for required Vue 3 structure
                 has_template = '<template>' in content
                 has_script_setup = '<script setup' in content
                 has_style = '<style' in content
-                
+
                 if has_template and has_script_setup and has_style:
                     print(f'✅ {vue_file} - valid Vue 3 SFC structure')
                 else:
                     print(f'⚠️  {vue_file} - missing components: template={has_template}, script={has_script_setup}, style={has_style}')
             else:
                 print(f'❌ {vue_file} - file not found')
-        
+
         print('🎯 Vue component validation completed')
         "
 
   coverage-report:
     name: Native Auth Coverage Report
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:16
@@ -426,7 +426,7 @@ jobs:
 
     - name: Run tests with coverage for native auth only
       env:
-        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_coverage_test  
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_coverage_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_coverage_test
         JWT_SECRET_KEY: coverage-test-secret-key
       run: |
@@ -445,7 +445,7 @@ jobs:
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         coverage report --include="src/fraiseql/auth/native/*" >> $GITHUB_STEP_SUMMARY || true
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        
+
         # Calculate coverage percentage
         COVERAGE=$(coverage report --include="src/fraiseql/auth/native/*" | tail -n 1 | grep -oE '[0-9]+%' | tail -n 1 || echo "Unknown")
         echo "" >> $GITHUB_STEP_SUMMARY

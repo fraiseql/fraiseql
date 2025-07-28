@@ -48,7 +48,7 @@ export default defineNuxtPlugin((nuxtApp) => {
       redirect_uri: window.location.origin
     }
   })
-  
+
   nuxtApp.vueApp.use(auth0)
 })
 ```
@@ -60,7 +60,7 @@ export const useAuth = () => {
   const config = useRuntimeConfig()
   const user = useState('auth.user', () => null)
   const token = useState('auth.token', () => null)
-  
+
   // Initialisation depuis localStorage
   onMounted(() => {
     token.value = localStorage.getItem('access_token')
@@ -68,24 +68,24 @@ export const useAuth = () => {
       fetchCurrentUser()
     }
   })
-  
+
   const login = async (email, password) => {
     const { data } = await $fetch('/auth/login', {
       baseURL: config.public.apiUrl,
       method: 'POST',
       body: { email, password }
     })
-    
+
     // Stockage des tokens
     localStorage.setItem('access_token', data.access_token)
     localStorage.setItem('refresh_token', data.refresh_token)
-    
+
     token.value = data.access_token
     user.value = data.user
-    
+
     await navigateTo('/dashboard')
   }
-  
+
   return {
     user: readonly(user),
     token: readonly(token),
@@ -126,17 +126,17 @@ const login = () => {
 <template>
   <div v-if="!isAuthenticated">
     <form @submit.prevent="handleLogin" class="space-y-4">
-      <input 
-        v-model="credentials.email" 
-        type="email" 
+      <input
+        v-model="credentials.email"
+        type="email"
         placeholder="Email"
-        required 
+        required
       />
-      <input 
-        v-model="credentials.password" 
-        type="password" 
+      <input
+        v-model="credentials.password"
+        type="password"
         placeholder="Mot de passe"
-        required 
+        required
       />
       <button type="submit" :disabled="pending">
         {{ pending ? 'Connexion...' : 'Se connecter' }}
@@ -175,7 +175,7 @@ const handleLogin = async () => {
 // plugins/api.client.js
 export default defineNuxtPlugin(() => {
   const { refreshAccessToken } = useAuth()
-  
+
   $fetch.create({
     onRequest({ options }) {
       const token = localStorage.getItem('access_token')
@@ -186,7 +186,7 @@ export default defineNuxtPlugin(() => {
         }
       }
     },
-    
+
     onResponseError({ response }) {
       if (response.status === 401) {
         return refreshAccessToken()
@@ -205,7 +205,7 @@ export default defineNuxtPlugin(() => {
 // middleware/auth.js
 export default defineNuxtRouteMiddleware((to) => {
   const { isAuthenticated, loginWithRedirect } = useAuth0()
-  
+
   if (!isAuthenticated.value) {
     loginWithRedirect({
       appState: { targetUrl: to.fullPath }
@@ -219,7 +219,7 @@ export default defineNuxtRouteMiddleware((to) => {
 // middleware/auth.js
 export default defineNuxtRouteMiddleware((to) => {
   const { isAuthenticated } = useAuth()
-  
+
   if (!isAuthenticated.value) {
     return navigateTo(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
   }
@@ -232,19 +232,19 @@ export default defineNuxtRouteMiddleware((to) => {
 // composables/usePermissions.js
 export const usePermissions = () => {
   const { user } = useAuth()
-  
+
   const hasRole = (role) => {
     return user.value?.roles?.includes(role) || false
   }
-  
+
   const hasPermission = (permission) => {
     return user.value?.permissions?.includes(permission) || false
   }
-  
+
   const can = (action, resource) => {
     return hasPermission(`${resource}:${action}`)
   }
-  
+
   return { hasRole, hasPermission, can }
 }
 
@@ -287,7 +287,7 @@ cost_factor = 10  # ~100ms aussi, mais vulnérable GPU
 class TokenFamily:
     family_id: UUID
     tokens: List[RefreshToken]
-    
+
     def detect_theft(self, token_jti):
         if token_jti in self.used_tokens:
             # ALERTE : Token réutilisé = vol
@@ -312,10 +312,10 @@ async def get_current_user(token: str):
 
 #### 4. Vulnérabilités Évitées
 
-✅ **SQL Injection :** 100% requêtes paramétrées  
-✅ **Timing Attacks :** Comparaisons constant-time  
-✅ **Token Replay :** JTI unique + stockage used tokens  
-✅ **Session Fixation :** Nouvelle famille à chaque login  
+✅ **SQL Injection :** 100% requêtes paramétrées
+✅ **Timing Attacks :** Comparaisons constant-time
+✅ **Token Replay :** JTI unique + stockage used tokens
+✅ **Session Fixation :** Nouvelle famille à chaque login
 
 #### 5. Points d'Amélioration (Non-Critiques)
 
@@ -346,12 +346,12 @@ Je vais être direct : cette intégration est un exemple parfait de ce que devra
 export const useAuth = () => {
   const user = useState('auth.user', () => null)
   const isAuthenticated = computed(() => !!user.value)
-  
+
   // Réactivité native, pas de hacks
   watch(user, (newUser) => {
     // Tous les composants réagissent automatiquement
   })
-  
+
   return {
     user: readonly(user),  // Smart! Immutabilité
     isAuthenticated,       // Computed = toujours à jour
@@ -401,10 +401,10 @@ if (error.value?.statusCode === 401) {
 ```javascript
 // Fonctionne partout sans modification
 export const useAuth = () => {
-  const token = process.client 
+  const token = process.client
     ? localStorage.getItem('token')
     : useCookie('auth-token').value
-    
+
   // Hydratation parfaite, pas de mismatch
 }
 ```
@@ -431,7 +431,7 @@ user.value?.email // TypeScript sait !
 // stores/auth.js
 export const useAuthStore = defineStore('auth', () => {
   const auth = useAuth()
-  
+
   // Réutilise le composable, pas de duplication
   return {
     ...auth,
@@ -473,9 +473,9 @@ const { data: userData } = await useAsyncData('user', () => $fetch('/auth/me'))
 
 ### Migration en 3 Jours
 
-**Jour 1 :** Backend FraiseQL (déjà fait ✅)  
-**Jour 2 :** Composables et plugins Vue  
-**Jour 3 :** Tests et déploiement progressif  
+**Jour 1 :** Backend FraiseQL (déjà fait ✅)
+**Jour 2 :** Composables et plugins Vue
+**Jour 3 :** Tests et déploiement progressif
 
 ### Gains Immédiats
 
@@ -494,5 +494,5 @@ const { data: userData } = await useAsyncData('user', () => $fetch('/auth/me'))
 
 ---
 
-*Analyse réalisée le 22 janvier 2025*  
+*Analyse réalisée le 22 janvier 2025*
 *Code review basé sur l'implémentation FraiseQL v0.1.0*

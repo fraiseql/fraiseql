@@ -56,7 +56,7 @@ You might also want to add list queries for these entities:
 # List queries for multiple entities
 @fraiseql.query
 async def routers(
-    info: GraphQLResolveInfo, 
+    info: GraphQLResolveInfo,
     limit: int = 100,
     offset: int = 0
 ) -> list[Router]:
@@ -126,7 +126,7 @@ This will show you which queries are being registered when your application star
    ```python
    # Import query resolvers first
    import your_app.graphql.queries
-   
+
    # Then create the app
    app = create_fraiseql_app(...)
    ```

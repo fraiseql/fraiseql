@@ -36,15 +36,15 @@ async def allocations(
     where: AllocationWhereInput | None = None,
 ) -> list[Allocation]:
     """Retrieve a list of allocations."""
-    
+
     # Get the repository with mode from context
     db = info.context["db"]
-    
+
     # If db doesn't have the right mode, create new instance with mode
     if db.mode != "development":
         pool = db._pool  # Get the connection pool
         db = FraiseQLRepository(pool, context={"mode": "development"})
-    
+
     return await db.find("tv_allocation",
         limit=limit,
         offset=offset,
@@ -88,7 +88,7 @@ Add this debug query to check the repository mode:
 async def debug_repository(info) -> dict[str, str]:
     """Debug repository configuration."""
     db = info.context["db"]
-    
+
     return {
         "repository_mode": db.mode,
         "registry_has_tv_allocation": str("tv_allocation" in db._type_registry),
@@ -111,7 +111,7 @@ Example:
 @fraiseql.query
 async def allocations(info, limit: int = 20) -> list[Allocation]:
     db = info.context["db"]
-    
+
     # This will return Allocation instances in development mode
     return await db.find("tv_allocation", limit=limit)
 ```
@@ -132,7 +132,7 @@ The fastest fix is to modify your app creation to ensure the repository gets dev
 async def get_context(request):
     return {
         "tenant_id": request.headers.get("tenant-id"),
-        "contact_id": request.headers.get("contact-id"), 
+        "contact_id": request.headers.get("contact-id"),
         "mode": "development",  # Add this!
     }
 ```

@@ -408,7 +408,7 @@ async def debug_session(user_id: str):
                 (user_id,)
             )
             sessions = await cursor.fetchall()
-            
+
             for session in sessions:
                 print(f"Session: {session[0]}")
                 print(f"Family: {session[1]}")
@@ -455,12 +455,12 @@ async def test_tenant_isolation():
     tenant2_provider = await create_native_auth_provider(
         db_pool, schema="tenant_2"
     )
-    
+
     # Test that tenant1 cannot access tenant2 data
     try:
         tenant1_users = await get_all_users(tenant1_provider)
         tenant2_users = await get_all_users(tenant2_provider)
-        
+
         # Should be different
         assert tenant1_users != tenant2_users
         print("✅ Tenant isolation working correctly")
@@ -518,15 +518,15 @@ class AuthStorage {
         // Use localStorage for SPAs
         localStorage.setItem('access_token', accessToken);
         localStorage.setItem('refresh_token', refreshToken);
-        
+
         // Or use secure cookies for SSR
         document.cookie = `access_token=${accessToken}; HttpOnly; Secure; SameSite=Strict`;
     }
-    
+
     getAccessToken() {
         return localStorage.getItem('access_token');
     }
-    
+
     clearTokens() {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
@@ -565,7 +565,7 @@ class DebugCursor:
     def __init__(self, cursor):
         self._cursor = cursor
         self.logger = logging.getLogger("sql_debug")
-    
+
     async def execute(self, query, parameters=None):
         self.logger.debug(f"SQL: {query}")
         if parameters:
@@ -584,7 +584,7 @@ import json
 def debug_token(token: str, secret_key: str):
     """Debug JWT token details"""
     token_manager = TokenManager(secret_key=secret_key)
-    
+
     try:
         # Decode without verification first
         import jwt
@@ -592,13 +592,13 @@ def debug_token(token: str, secret_key: str):
         print("Unverified payload:")
         print(json.dumps(unverified, indent=2))
         print()
-        
+
         # Try to verify
         verified = token_manager.verify_access_token(token)
         print("✅ Token is valid")
         print("Verified payload:")
         print(json.dumps(verified, indent=2))
-        
+
     except jwt.ExpiredSignatureError:
         print("❌ Token has expired")
     except jwt.InvalidTokenError as e:
@@ -610,7 +610,7 @@ if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("Usage: python debug_token.py <token> <secret_key>")
         sys.exit(1)
-    
+
     debug_token(sys.argv[1], sys.argv[2])
 ```
 
@@ -630,24 +630,24 @@ from fraiseql.auth.native.models import User
 
 async def profile_auth_operations():
     """Profile authentication operations"""
-    
+
     user = User()
-    
+
     # Profile password hashing
     def hash_password():
         user.set_password("TestPassword123!")
-    
+
     print("Profiling password hashing...")
     cProfile.run('hash_password()', sort='cumtime')
-    
+
     # Profile token operations
     from fraiseql.auth.native.tokens import TokenManager
     token_manager = TokenManager(secret_key="test-secret")
-    
+
     def generate_tokens():
         for _ in range(100):
             token_manager.generate_tokens("user-id")
-    
+
     print("\nProfiling token generation...")
     cProfile.run('generate_tokens()', sort='cumtime')
 
@@ -670,14 +670,14 @@ class AuthFlowTester:
         self.base_url = base_url
         self.session = None
         self.tokens = {}
-    
+
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.session.close()
-    
+
     async def test_registration(self):
         """Test user registration"""
         data = {
@@ -685,7 +685,7 @@ class AuthFlowTester:
             "password": "TestPassword123!",
             "name": "Test User"
         }
-        
+
         async with self.session.post(
             f"{self.base_url}/auth/register",
             json=data
@@ -702,11 +702,11 @@ class AuthFlowTester:
                 error = await resp.text()
                 print(f"❌ Registration failed: {error}")
                 return False
-    
+
     async def test_login(self, email, password):
         """Test user login"""
         data = {"email": email, "password": password}
-        
+
         async with self.session.post(
             f"{self.base_url}/auth/login",
             json=data
@@ -723,13 +723,13 @@ class AuthFlowTester:
                 error = await resp.text()
                 print(f"❌ Login failed: {error}")
                 return False
-    
+
     async def test_protected_endpoint(self):
         """Test accessing protected endpoint"""
         headers = {
             'Authorization': f"Bearer {self.tokens['access_token']}"
         }
-        
+
         async with self.session.get(
             f"{self.base_url}/auth/me",
             headers=headers
@@ -742,11 +742,11 @@ class AuthFlowTester:
                 error = await resp.text()
                 print(f"❌ Protected endpoint access failed: {error}")
                 return False
-    
+
     async def test_token_refresh(self):
         """Test token refresh"""
         data = {"refresh_token": self.tokens['refresh_token']}
-        
+
         async with self.session.post(
             f"{self.base_url}/auth/refresh",
             json=data
@@ -763,27 +763,27 @@ class AuthFlowTester:
                 error = await resp.text()
                 print(f"❌ Token refresh failed: {error}")
                 return False
-    
+
     async def run_full_test(self):
         """Run complete authentication flow test"""
         print("🔄 Starting authentication flow test...\n")
-        
+
         # Test registration
         if not await self.test_registration():
             return False
-        
+
         # Test protected endpoint access
         if not await self.test_protected_endpoint():
             return False
-        
+
         # Test token refresh
         if not await self.test_token_refresh():
             return False
-        
+
         # Test protected endpoint with new token
         if not await self.test_protected_endpoint():
             return False
-        
+
         print("\n🎉 All authentication tests passed!")
         return True
 
@@ -835,19 +835,19 @@ When reporting issues, please include:
 
 ```markdown
 ## Environment
-- FraiseQL version: 
-- Python version: 
-- PostgreSQL version: 
-- Operating System: 
+- FraiseQL version:
+- Python version:
+- PostgreSQL version:
+- Operating System:
 - Deployment type: (local/docker/kubernetes/etc.)
 
 ## Issue Description
 Brief description of the problem
 
 ## Steps to Reproduce
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ## Expected Behavior
 What should have happened

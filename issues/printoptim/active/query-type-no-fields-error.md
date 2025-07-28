@@ -11,9 +11,9 @@ We're getting `TypeError: Type Query must define one or more fields` when trying
 @fraiseql.type
 class Query:
     """Root query type."""
-    
+
     async def machines(
-        self, 
+        self,
         info,
         limit: int = 20,
         offset: int = 0,
@@ -22,20 +22,20 @@ class Query:
         """Retrieve a list of machines."""
         db = info.context["db"]
         tenant_id = info.context.get("tenant_id")
-        
+
         return await db.find("tv_machine",
             tenant_id=tenant_id,
             limit=limit,
             offset=offset,
             order_by="removed_at DESC NULLS LAST"
         )
-    
+
     async def machine(self, info, id: uuid.UUID) -> Optional[Machine]:
         """Get a single machine by ID."""
         db = info.context["db"]
         tenant_id = info.context.get("tenant_id")
-        
-        return await db.find_one("tv_machine", 
+
+        return await db.find_one("tv_machine",
             id=id,
             tenant_id=tenant_id
         )

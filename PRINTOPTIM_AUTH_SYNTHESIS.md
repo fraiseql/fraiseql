@@ -18,7 +18,7 @@ This is a synthesis of the native authentication proposal and implementation det
 
 ### REST API Endpoints
 - `/auth/login` - User authentication
-- `/auth/logout` - Session termination  
+- `/auth/logout` - Session termination
 - `/auth/register` - New account creation
 - `/auth/refresh` - Token refresh
 - `/auth/me` - Current user info

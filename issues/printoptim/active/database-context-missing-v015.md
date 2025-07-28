@@ -52,13 +52,13 @@ async def machines(
     where: MachineWhereInput | None = None,
 ) -> list[Machine]:
     """Retrieve a list of machines with filtering."""
-    
+
     db = info.context["db"]  # <-- This line fails with KeyError: 'db'
     tenant_id = info.context.get("tenant_id", "550e8400-e29b-41d4-a716-446655440000")
-    
+
     # Build filters from where input
     filters = _build_machine_filters(where, tenant_id)
-    
+
     return await db.find("tb_machine",
         **filters,
         limit=limit,

@@ -1,6 +1,6 @@
 /**
  * FraiseQL Native Auth Client
- * 
+ *
  * Provides a complete client-side authentication solution for FraiseQL
  * with automatic token management, refresh handling, and error recovery.
  */
@@ -83,11 +83,11 @@ export class FraiseQLAuthClient {
 
   // HTTP utilities
   private async makeRequest<T>(
-    path: string, 
+    path: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -109,7 +109,7 @@ export class FraiseQLAuthClient {
     options: RequestInit = {}
   ): Promise<T> {
     const tokens = await this.getValidTokens();
-    
+
     return this.makeRequest<T>(path, {
       ...options,
       headers: {
@@ -122,7 +122,7 @@ export class FraiseQLAuthClient {
   // Token refresh logic
   private async getValidTokens(): Promise<AuthTokens> {
     const tokens = this.getStoredTokens();
-    
+
     if (!tokens) {
       throw new Error('Not authenticated');
     }
@@ -131,7 +131,7 @@ export class FraiseQLAuthClient {
     try {
       const payload = JSON.parse(atob(tokens.access_token.split('.')[1]));
       const now = Math.floor(Date.now() / 1000);
-      
+
       // If token expires in less than 1 minute, refresh it
       if (payload.exp && payload.exp - now < 60) {
         return await this.refreshTokens();
@@ -151,7 +151,7 @@ export class FraiseQLAuthClient {
     }
 
     this.refreshPromise = this._performTokenRefresh();
-    
+
     try {
       const newTokens = await this.refreshPromise;
       this.setStoredTokens(newTokens);
@@ -168,7 +168,7 @@ export class FraiseQLAuthClient {
 
   private async _performTokenRefresh(): Promise<AuthTokens> {
     const tokens = this.getStoredTokens();
-    
+
     if (!tokens?.refresh_token) {
       throw new Error('No refresh token available');
     }
@@ -227,7 +227,7 @@ export class FraiseQLAuthClient {
 
   async logout(): Promise<void> {
     const tokens = this.getStoredTokens();
-    
+
     if (tokens?.refresh_token) {
       try {
         await this.makeRequest<MessageResponse>(
@@ -286,7 +286,7 @@ export class FraiseQLAuthClient {
 
   // GraphQL integration
   async graphqlQuery<T = any>(
-    query: string, 
+    query: string,
     variables?: Record<string, any>
   ): Promise<GraphQLResponse<T>> {
     const tokens = await this.getValidTokens();
@@ -356,7 +356,7 @@ export class FraiseQLAuthClient {
   createAuthenticatedFetch() {
     return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const tokens = await this.getValidTokens();
-      
+
       return fetch(input, {
         ...init,
         headers: {

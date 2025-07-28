@@ -30,7 +30,7 @@ class Author:
     email: str
 
 
-@fraise_type  
+@fraise_type
 class Comment:
     id: int
     text: str
@@ -100,13 +100,13 @@ async def get_all_users_deep(info) -> list[User]:
             email=f"user{user_id}@example.com",
             posts=[],
         )
-        
+
         # Add posts with comments
         for post_id in range(5):
             post = Post(
                 id=post_id,
                 title=f"Post {post_id}",
-                content=f"Content",
+                content="Content",
                 author=Author(id=user_id, name=f"User {user_id}", email=""),
                 comments=[
                     Comment(
@@ -122,21 +122,20 @@ async def get_all_users_deep(info) -> list[User]:
                 ],
             )
             user.posts.append(post)
-        
+
         users.append(user)
-    
+
     return users
 
 
 # Create the enhanced TurboRouter
 def create_enhanced_app() -> FastAPI:
     """Create a FastAPI app with enhanced TurboRouter."""
-    
     # Build schema
     schema = build_fraiseql_schema(
         query_types=[get_user, get_user_with_posts, get_all_users_deep],
     )
-    
+
     # Create enhanced registry with complexity limits
     enhanced_registry = EnhancedTurboRegistry(
         max_size=100,  # Max 100 queries
@@ -144,29 +143,29 @@ def create_enhanced_app() -> FastAPI:
         max_total_weight=200.0,  # Total cache weight limit
         schema=schema,
     )
-    
+
     # Create enhanced router
     turbo_router = EnhancedTurboRouter(enhanced_registry)
-    
+
     # Create the app
     app = create_fraiseql_app(
         schema=schema,
         path="/graphql",
     )
-    
+
     # Add monitoring endpoint
     @app.get("/cache-metrics")
     async def get_cache_metrics():
         """Get TurboRouter cache metrics."""
         return enhanced_registry.get_metrics()
-    
+
     # Add endpoint to check if a query would be cached
     @app.post("/analyze-query")
     async def analyze_query(query_string: str):
         """Analyze a query's complexity and caching decision."""
         score, weight = enhanced_registry.analyze_query(query_string)
         should_cache = enhanced_registry.should_cache(score)
-        
+
         return {
             "complexity_score": score.total_score,
             "field_count": score.field_count,
@@ -180,12 +179,11 @@ def create_enhanced_app() -> FastAPI:
                 else f"Query complexity ({score.total_score}) exceeds threshold"
             ),
         }
-    
+
     # Simulate registering some queries
     @app.on_event("startup")
     async def register_common_queries():
         """Pre-register common queries for turbo execution."""
-        
         # Simple query - will be cached
         simple_query = """
         query GetUser($userId: Int!) {
@@ -196,30 +194,30 @@ def create_enhanced_app() -> FastAPI:
             }
         }
         """
-        
+
         # This would normally be generated from actual execution
         simple_sql = """
         SELECT jsonb_build_object(
             'id', id,
-            'name', name, 
+            'name', name,
             'email', email
         ) as result
         FROM users
         WHERE id = %(userId)s
         """
-        
+
         turbo_query = TurboQuery(
             graphql_query=simple_query,
             sql_template=simple_sql,
             param_mapping={"userId": "userId"},
         )
-        
+
         result = enhanced_registry.register(turbo_query)
         if result:
             print(f"✓ Registered simple query (hash: {result[:8]}...)")
         else:
             print("✗ Simple query rejected by complexity analysis")
-        
+
         # Complex query - might be rejected
         complex_query = """
         query GetAllUsersDeep {
@@ -248,33 +246,33 @@ def create_enhanced_app() -> FastAPI:
             }
         }
         """
-        
+
         complex_sql = "SELECT * FROM get_all_users_deep()"  # Simplified
-        
+
         complex_turbo = TurboQuery(
             graphql_query=complex_query,
             sql_template=complex_sql,
             param_mapping={},
         )
-        
+
         result = enhanced_registry.register(complex_turbo)
         if result:
             print(f"✓ Registered complex query (hash: {result[:8]}...)")
         else:
             print("✗ Complex query rejected by complexity analysis")
-    
+
     return app
 
 
 # Example usage
 if __name__ == "__main__":
     import uvicorn
-    
+
     app = create_enhanced_app()
-    
+
     print("Starting FraiseQL with Enhanced TurboRouter...")
     print("Visit http://localhost:8000/graphql for GraphQL playground")
     print("Visit http://localhost:8000/cache-metrics for cache statistics")
-    print("")
-    
+    print()
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

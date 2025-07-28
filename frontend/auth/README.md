@@ -26,12 +26,12 @@ npm install vue@^3.0.0 @vue/composition-api
 <script setup lang="ts">
 import { useAuth } from './auth/composables/useAuth';
 
-const { 
-  user, 
-  isAuthenticated, 
-  login, 
+const {
+  user,
+  isAuthenticated,
+  login,
   logout,
-  register 
+  register
 } = useAuth({
   baseUrl: 'http://localhost:8000',
   redirectOnLogin: '/dashboard'
@@ -56,7 +56,7 @@ import RegisterForm from './auth/components/RegisterForm.vue';
 
 <template>
   <!-- Login page -->
-  <LoginForm 
+  <LoginForm
     redirect-to="/dashboard"
     @success="handleSuccess"
     @error="handleError"
@@ -81,7 +81,7 @@ const { graphqlQuery, isAuthenticated } = useAuth();
 
 const fetchUserPosts = async () => {
   if (!isAuthenticated.value) return;
-  
+
   const response = await graphqlQuery(`
     query MyPosts {
       myPosts(limit: 10) {
@@ -92,7 +92,7 @@ const fetchUserPosts = async () => {
       }
     }
   `);
-  
+
   return response.data?.myPosts || [];
 };
 </script>
@@ -174,7 +174,7 @@ const { ... } = useAuth({
 
 #### LoginForm
 ```vue
-<LoginForm 
+<LoginForm
   redirect-to="/dashboard"
   @success="user => { ... }"
   @error="error => { ... }"

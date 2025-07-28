@@ -81,7 +81,7 @@ class PostType(SQLAlchemyObjectType):
         interfaces = (graphene.relay.Node,)
 
     author = graphene.Field(UserType)
-    
+
     def resolve_author(self, info):
         # Manual resolver - potential N+1 issue
         return User.query.get(self.user_id)
@@ -106,7 +106,7 @@ class Post:
     title: str = fraise_field(description="Post title")
     content: str = fraise_field(description="Post content")
     user_id: UUID = fraise_field(description="Author's user ID")
-    
+
     # Automatic relationship resolution through views
     author: User = fraise_field(description="Post author")
 ```
@@ -119,14 +119,14 @@ class Query(graphene.ObjectType):
     users = graphene.List(UserType)
     user = graphene.Field(UserType, id=graphene.ID(required=True))
     posts = graphene.List(PostType)
-    
+
     def resolve_users(self, info):
         # Manual database query
         return User.query.all()
-    
+
     def resolve_user(self, info, id):
         return User.query.get(id)
-    
+
     def resolve_posts(self, info):
         # Potential N+1 query issue
         return Post.query.all()
@@ -168,14 +168,14 @@ class CreateUser(graphene.Mutation):
     class Arguments:
         name = graphene.String(required=True)
         email = graphene.String(required=True)
-    
+
     user = graphene.Field(UserType)
-    
+
     def mutate(self, info, name, email):
         # Manual validation and creation
         if User.query.filter_by(email=email).first():
             raise Exception("Email already exists")
-        
+
         user = User(name=name, email=email)
         db.session.add(user)
         db.session.commit()
@@ -211,25 +211,25 @@ class CreateUserError:
 async def create_user(info, input: CreateUserInput) -> CreateUserSuccess | CreateUserError:
     """Create a new user with proper error handling."""
     repository = FraiseQLRepository(info.context["db"])
-    
+
     # Check for existing email
     existing = await repository.get_one(
-        User, 
+        User,
         where={"email": {"_eq": input.email}}
     )
-    
+
     if existing:
         return CreateUserError(
             message="Email already registered",
             email_conflict=True
         )
-    
+
     # Create new user
     user = await repository.create(User, {
         "name": input.name,
         "email": input.email
     })
-    
+
     return CreateUserSuccess(
         message="User created successfully",
         user=user
@@ -246,7 +246,7 @@ class AuthMiddleware:
         token = info.context.get('HTTP_AUTHORIZATION')
         if not token:
             raise Exception("Authentication required")
-        
+
         user = validate_token(token)
         info.context['user'] = user
         return next(root, info, **args)
@@ -275,7 +275,7 @@ async def admin_create_user(info, input: CreateUserInput) -> CreateUserSuccess |
     """Admin-only user creation."""
     user_context: UserContext = info.context["user"]
     # User is automatically validated and available
-    
+
     repository = FraiseQLRepository(info.context["db"])
     # ... creation logic
 ```
@@ -291,13 +291,13 @@ class Query(graphene.ObjectType):
         limit=graphene.Int(default_value=20),
         offset=graphene.Int(default_value=0)
     )
-    
+
     def resolve_users(self, info, name_contains=None, limit=20, offset=0):
         query = User.query
-        
+
         if name_contains:
             query = query.filter(User.name.contains(name_contains))
-        
+
         return query.offset(offset).limit(limit).all()
 ```
 
@@ -310,14 +310,14 @@ UserWhereInput = safe_create_where_type(User)
 
 @query
 async def users(
-    info, 
+    info,
     where: UserWhereInput | None = None,
     limit: int = 20,
     offset: int = 0
 ) -> list[User]:
     """Get users with automatic filtering and pagination."""
     repository = FraiseQLRepository(info.context["db"])
-    
+
     return await repository.get_many(
         User,
         where=where,
@@ -342,7 +342,7 @@ Create PostgreSQL views to handle relationships efficiently:
 ```sql
 -- View for posts with author information
 CREATE VIEW posts_with_author AS
-SELECT 
+SELECT
     p.id,
     p.data || jsonb_build_object(
         'author', u.data
@@ -354,7 +354,7 @@ LEFT JOIN users u ON (p.data->>'user_id')::uuid = u.id;
 
 -- View for users with post counts
 CREATE VIEW users_with_post_count AS
-SELECT 
+SELECT
     u.id,
     u.data || jsonb_build_object(
         'post_count', COALESCE(post_counts.count, 0)
@@ -363,10 +363,10 @@ SELECT
     u.updated_at
 FROM users u
 LEFT JOIN (
-    SELECT 
+    SELECT
         (data->>'user_id')::uuid as user_id,
         COUNT(*) as count
-    FROM posts 
+    FROM posts
     GROUP BY data->>'user_id'
 ) post_counts ON u.id = post_counts.user_id;
 ```
@@ -442,7 +442,7 @@ from fraiseql.testing import GraphQLTestClient
 @pytest.mark.asyncio
 async def test_user_query(db_session):
     client = GraphQLTestClient(schema, context={"db": db_session})
-    
+
     result = await client.execute('''
         query {
             users {

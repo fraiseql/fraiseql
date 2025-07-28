@@ -51,7 +51,7 @@ ARGON2_CONFIG = {
 PASSWORD_REQUIREMENTS = {
     "min_length": 8,
     "require_uppercase": True,
-    "require_lowercase": True, 
+    "require_lowercase": True,
     "require_digits": True,
     "require_special_chars": True,
     "forbidden_patterns": [
@@ -75,14 +75,14 @@ class User:
         # 1. Validate strength
         if not self.validate_password(password):
             raise ValueError("Password requirements not met")
-        
+
         # 2. Generate unique salt (automatic)
         # 3. Hash with Argon2id
         self._password_hash = argon2_hasher.hash(password)
-        
+
         # 4. Update timestamp
         self.updated_at = datetime.now(UTC)
-        
+
         # 5. Never store plaintext
         # password variable is cleared automatically
 ```
@@ -145,16 +145,16 @@ LOW_RISK_TTL = 60 minutes       # Internal tools
 async def rotate_refresh_token(self, old_token: str):
     payload = self.verify_refresh_token(old_token)
     family_id = payload["family"]
-    
+
     # Check if token was already used
     if await self._is_token_used(old_token):
         # THEFT DETECTED - invalidate entire family
         await self._invalidate_family(family_id)
         raise SecurityError("Token reuse detected")
-    
+
     # Mark old token as used
     await self._mark_token_used(old_token)
-    
+
     # Generate new token pair
     return self._generate_token_family(user_id, family_id)
 ```
@@ -168,10 +168,10 @@ Every token has a unique identifier for tracking and revocation:
 async def revoke_token(self, token: str):
     payload = self.verify_token(token)
     jti = payload["jti"]
-    
+
     # Add JTI to revocation list
     await self._add_to_revoked_jtis(jti)
-    
+
     # Cleanup expired JTIs periodically
     await self._cleanup_expired_jtis()
 ```
@@ -185,15 +185,15 @@ Tokens are tied to specific sessions for enhanced tracking:
 async def validate_token_session(self, token: str):
     payload = self.verify_token(token)
     session_id = payload.get("sid")
-    
+
     if not session_id:
         raise InvalidTokenError("Token missing session ID")
-    
+
     # Verify session is still active
     session = await self._get_session(session_id)
     if not session or session.revoked_at:
         raise InvalidTokenError("Session no longer valid")
-    
+
     return payload
 ```
 
@@ -311,14 +311,14 @@ RATE_LIMITS = {
         "burst_allowance": 10,        # 10 in burst window
         "lockout_duration": 300       # 5-minute lockout
     },
-    
-    # General API endpoints  
+
+    # General API endpoints
     "general_endpoints": {
         "requests_per_minute": 60,    # 60 requests/min
         "burst_allowance": 120,       # 120 in burst window
         "lockout_duration": 60        # 1-minute cooldown
     },
-    
+
     # Password reset (special handling)
     "password_reset": {
         "requests_per_hour": 3,       # 3 reset requests/hour
@@ -341,22 +341,22 @@ Comprehensive security headers protect against common attacks:
 SECURITY_HEADERS = {
     # HTTPS enforcement
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
-    
+
     # Prevent MIME sniffing
     "X-Content-Type-Options": "nosniff",
-    
+
     # Prevent clickjacking
     "X-Frame-Options": "DENY",
-    
+
     # XSS protection
     "X-XSS-Protection": "1; mode=block",
-    
+
     # Content Security Policy
     "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'",
-    
+
     # Referrer policy
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    
+
     # Permissions policy
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
 }
@@ -372,7 +372,7 @@ csrf_token = secrets.token_urlsafe(32)
 
 # Set cookie (readable by JavaScript)
 response.set_cookie(
-    "csrf_token", 
+    "csrf_token",
     csrf_token,
     httponly=False,      # JS needs to read this
     secure=True,         # HTTPS only
@@ -383,7 +383,7 @@ response.set_cookie(
 async def validate_csrf(request: Request):
     cookie_token = request.cookies.get("csrf_token")
     header_token = request.headers.get("X-CSRF-Token")
-    
+
     if not cookie_token or cookie_token != header_token:
         raise HTTPException(403, "CSRF token mismatch")
 ```
@@ -408,7 +408,7 @@ CREATE TABLE tb_auth_audit (
 -- Logged events
 EVENT_TYPES = [
     'login_success', 'login_failure', 'logout',
-    'register', 'password_reset_requested', 
+    'register', 'password_reset_requested',
     'password_reset_completed', 'token_refresh',
     'token_theft_detected', 'session_revoked',
     'account_locked', 'account_unlocked',
@@ -429,12 +429,12 @@ class SecurityMonitor:
             if failures >= 5:
                 await self._lock_account_temporarily(user_id)
                 await self._alert_security_team("Account locked", user_id)
-        
+
         # Unusual location
         if event['type'] == 'login_success':
             if await self._is_unusual_location(user_id, event['ip']):
                 await self._send_location_alert(user_id, event['ip'])
-        
+
         # Token theft detection
         if event['type'] == 'token_theft_detected':
             await self._alert_security_team("Token theft", user_id)
@@ -449,7 +449,7 @@ Monitor authentication performance for DoS detection:
 # Performance metrics
 PERFORMANCE_THRESHOLDS = {
     "max_login_time": 5.0,          # 5 seconds max
-    "avg_login_time": 0.5,          # 500ms average  
+    "avg_login_time": 0.5,          # 500ms average
     "max_concurrent_logins": 100,    # Concurrent limit
     "token_validation_time": 0.001   # 1ms max
 }
@@ -470,14 +470,14 @@ Perfect tenant isolation using PostgreSQL schemas:
 # Tenant-specific provider
 async def create_tenant_provider(tenant_id: str):
     schema = f"tenant_{tenant_id}"
-    
+
     # All queries automatically scoped to tenant schema
     provider = NativeAuthProvider(
         token_manager=token_manager,
         db_pool=db_pool,
         schema=schema  # Complete isolation
     )
-    
+
     return provider
 
 # Impossible to access other tenant data
@@ -495,7 +495,7 @@ TENANT_SECURITY_CONFIG = {
         "require_mfa": True,            # Future feature
         "allow_password_reset": False   # Admin-only resets
     },
-    
+
     "standard_tenant": {
         "password_requirements": "STANDARD",
         "session_timeout": 60,          # 1-hour timeout
@@ -546,7 +546,7 @@ ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
 
 -- Row Level Security (if using shared schema)
 ALTER TABLE tb_user ENABLE ROW LEVEL SECURITY;
-CREATE POLICY user_isolation ON tb_user 
+CREATE POLICY user_isolation ON tb_user
     USING (tenant_id = current_setting('app.current_tenant')::UUID);
 ```
 
@@ -608,45 +608,45 @@ class SecurityTests:
         password = "TestPassword123!"
         hash1 = argon2_hasher.hash(password)
         hash2 = argon2_hasher.hash(password)
-        
+
         # Different hashes (unique salts)
         assert hash1 != hash2
-        
+
         # Both verify correctly
         assert argon2_hasher.verify(hash1, password)
         assert argon2_hasher.verify(hash2, password)
-        
+
         # Timing should be ~100ms (security vs usability)
         import time
         start = time.time()
         argon2_hasher.hash(password)
         duration = time.time() - start
         assert 0.05 < duration < 0.5  # 50ms - 500ms acceptable
-    
+
     async def test_token_theft_detection(self):
         """Verify token reuse detection works"""
         # Generate token family
         tokens = token_manager.generate_tokens(user_id)
-        
+
         # Use refresh token once (normal)
         new_tokens = await token_manager.rotate_refresh_token(
             tokens["refresh_token"], cursor, schema
         )
-        
+
         # Try to reuse old refresh token (theft)
         with pytest.raises(SecurityError, match="Token reuse detected"):
             await token_manager.rotate_refresh_token(
                 tokens["refresh_token"], cursor, schema
             )
-    
+
     async def test_sql_injection_prevention(self):
         """Verify SQL injection is impossible"""
         malicious_email = "'; DROP TABLE tb_user; --"
-        
+
         # This should not cause any database damage
         user = await User.get_by_email(cursor, schema, malicious_email)
         assert user is None  # User not found (safe)
-        
+
         # Verify table still exists
         await cursor.execute(f"SELECT COUNT(*) FROM {schema}.tb_user")
         count = await cursor.fetchone()
@@ -692,7 +692,7 @@ class SecurityDashboard:
 ### Regulatory Compliance
 
 - **GDPR** - EU data protection regulation
-- **CCPA** - California consumer privacy act  
+- **CCPA** - California consumer privacy act
 - **PIPEDA** - Canadian privacy law
 - **LGPD** - Brazilian data protection law
 

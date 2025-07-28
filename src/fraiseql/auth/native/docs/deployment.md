@@ -76,15 +76,15 @@ import os
 def load_secrets_from_aws():
     """Load secrets from AWS Secrets Manager"""
     client = boto3.client('secretsmanager', region_name='us-west-2')
-    
+
     try:
         response = client.get_secret_value(SecretId='fraiseql/production')
         secrets = json.loads(response['SecretString'])
-        
+
         # Set environment variables
         os.environ['JWT_SECRET_KEY'] = secrets['jwt_secret_key']
         os.environ['DATABASE_URL'] = secrets['database_url']
-        
+
     except Exception as e:
         print(f"Error loading secrets: {e}")
         raise
@@ -104,10 +104,10 @@ def load_secrets_from_azure():
     """Load secrets from Azure Key Vault"""
     credential = DefaultAzureCredential()
     client = SecretClient(
-        vault_url="https://your-vault.vault.azure.net/", 
+        vault_url="https://your-vault.vault.azure.net/",
         credential=credential
     )
-    
+
     # Load secrets
     os.environ['JWT_SECRET_KEY'] = client.get_secret("jwt-secret-key").value
     os.environ['DATABASE_URL'] = client.get_secret("database-url").value
@@ -123,7 +123,7 @@ def load_secrets_from_google():
     """Load secrets from Google Secret Manager"""
     client = secretmanager.SecretManagerServiceClient()
     project_id = "your-project-id"
-    
+
     # Load JWT secret
     jwt_secret_name = f"projects/{project_id}/secrets/jwt-secret-key/versions/latest"
     jwt_response = client.access_secret_version(request={"name": jwt_secret_name})
@@ -171,29 +171,29 @@ async def migrate_production():
     if not database_url:
         print("❌ DATABASE_URL environment variable required")
         sys.exit(1)
-    
+
     if not database_url.startswith("postgresql"):
         print("❌ DATABASE_URL must be a PostgreSQL connection string")
         sys.exit(1)
-    
+
     print("🔄 Starting database migration...")
-    
+
     try:
         pool = AsyncConnectionPool(
             database_url,
             min_size=1,
             max_size=5
         )
-        
+
         # Apply native auth schema
         await apply_native_auth_schema(pool, schema=os.environ.get("DEFAULT_SCHEMA", "public"))
-        
+
         print("✅ Database migration completed successfully")
-        
+
     except Exception as e:
         print(f"❌ Migration failed: {e}")
         sys.exit(1)
-    
+
     finally:
         await pool.close()
 
@@ -514,7 +514,7 @@ async def health_check():
         "version": "1.0.0",
         "checks": {}
     }
-    
+
     # Database connectivity
     try:
         async with app.state.db_pool.connection() as conn:
@@ -523,7 +523,7 @@ async def health_check():
     except Exception as e:
         health_status["checks"]["database"] = f"unhealthy: {e}"
         health_status["status"] = "unhealthy"
-    
+
     # Redis connectivity (if used)
     try:
         redis_client = app.state.redis_client
@@ -532,14 +532,14 @@ async def health_check():
     except Exception as e:
         health_status["checks"]["redis"] = f"unhealthy: {e}"
         # Redis is optional, don't mark overall status as unhealthy
-    
+
     # JWT secret key present
     jwt_secret = os.environ.get("JWT_SECRET_KEY")
     health_status["checks"]["jwt_config"] = "healthy" if jwt_secret else "unhealthy: missing secret"
-    
+
     if health_status["status"] == "unhealthy":
         raise HTTPException(status_code=503, detail=health_status)
-    
+
     return health_status
 
 @router.get("/health/ready")
@@ -569,7 +569,7 @@ import time
 
 # Authentication metrics
 auth_requests_total = Counter(
-    'auth_requests_total', 
+    'auth_requests_total',
     'Total authentication requests',
     ['endpoint', 'status']
 )
@@ -594,17 +594,17 @@ token_theft_detections = Counter(
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
     start_time = time.time()
-    
+
     response = await call_next(request)
-    
+
     # Record metrics
     endpoint = request.url.path
     status = "success" if response.status_code < 400 else "error"
     duration = time.time() - start_time
-    
+
     auth_requests_total.labels(endpoint=endpoint, status=status).inc()
     auth_duration.labels(endpoint=endpoint).observe(duration)
-    
+
     return response
 
 # Expose metrics endpoint
@@ -622,42 +622,42 @@ from pythonjsonlogger import jsonlogger
 
 def setup_logging():
     """Configure structured logging for production"""
-    
+
     # Create logger
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    
+
     # Create handler
     handler = logging.StreamHandler(sys.stdout)
-    
+
     # Create JSON formatter
     formatter = jsonlogger.JsonFormatter(
         fmt='%(asctime)s %(name)s %(levelname)s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     handler.setFormatter(formatter)
-    
+
     # Add handler to logger
     logger.addHandler(handler)
-    
+
     # Set log levels for specific modules
     logging.getLogger("uvicorn").setLevel(logging.INFO)
     logging.getLogger("fraiseql.auth").setLevel(logging.INFO)
-    
+
     return logger
 
 # Security event logging
 def log_security_event(event_type: str, user_id: str = None, **kwargs):
     """Log security events with structured data"""
     logger = logging.getLogger("fraiseql.auth.security")
-    
+
     event_data = {
         "event_type": event_type,
         "user_id": user_id,
         "timestamp": datetime.utcnow().isoformat(),
         **kwargs
     }
-    
+
     logger.info("Security event", extra=event_data)
 ```
 
@@ -767,10 +767,10 @@ async def cache_user_session(session_id: str, user_data: dict):
 async def check_rate_limit(ip_address: str) -> bool:
     key = f"rate_limit:{ip_address}"
     current = await redis_client.get(key)
-    
+
     if current and int(current) >= 60:  # 60 requests/minute
         return False
-    
+
     await redis_client.incr(key)
     await redis_client.expire(key, 60)  # 1 minute window
     return True
@@ -844,20 +844,20 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.13'
-    
+
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
         pip install -e .
-    
+
     - name: Run tests
       run: pytest tests/auth/native/ -v
       env:
@@ -868,17 +868,17 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-west-2
-    
+
     - name: Build and push Docker image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -887,7 +887,7 @@ jobs:
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-    
+
     - name: Deploy to EKS
       run: |
         aws eks update-kubeconfig --name production-cluster
@@ -966,7 +966,7 @@ groups:
     annotations:
       summary: "High authentication error rate"
       description: "Auth error rate is {{ $value }} requests/second"
-  
+
   - alert: DatabaseDown
     expr: up{job="fraiseql-auth"} == 0
     for: 1m
@@ -975,7 +975,7 @@ groups:
     annotations:
       summary: "FraiseQL Auth service is down"
       description: "FraiseQL Auth has been down for more than 1 minute"
-  
+
   - alert: TokenTheftDetected
     expr: increase(token_theft_detections_total[1h]) > 0
     for: 0m
@@ -994,7 +994,7 @@ After deployment, verify:
 
 - [ ] **Health checks** return 200 OK
 - [ ] **User registration** works correctly
-- [ ] **User login** works correctly  
+- [ ] **User login** works correctly
 - [ ] **Token refresh** works correctly
 - [ ] **Password reset** works correctly
 - [ ] **Rate limiting** is functioning
@@ -1016,36 +1016,36 @@ from concurrent.futures import ThreadPoolExecutor
 
 async def test_auth_endpoint(session, base_url):
     """Test authentication endpoint under load"""
-    async with session.post(f"{base_url}/auth/login", 
+    async with session.post(f"{base_url}/auth/login",
                            json={"email": "test@example.com", "password": "TestPass123!"}) as resp:
         return resp.status
 
 async def run_load_test(base_url, concurrent_users=100, duration_seconds=60):
     """Run load test against authentication endpoints"""
-    
+
     async with aiohttp.ClientSession() as session:
         start_time = time.time()
         request_count = 0
         error_count = 0
-        
+
         while time.time() - start_time < duration_seconds:
             tasks = []
             for _ in range(concurrent_users):
                 task = asyncio.create_task(test_auth_endpoint(session, base_url))
                 tasks.append(task)
-            
+
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             for result in results:
                 request_count += 1
                 if isinstance(result, Exception) or result != 200:
                     error_count += 1
-        
+
         # Calculate metrics
         total_time = time.time() - start_time
         rps = request_count / total_time
         error_rate = error_count / request_count * 100
-        
+
         print(f"Load test results:")
         print(f"Duration: {total_time:.2f}s")
         print(f"Requests: {request_count}")

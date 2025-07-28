@@ -703,8 +703,8 @@ kubectl rollout restart statefulset/postgres-replica -n fraiseql-secondary
 # 4. Verify replication status
 echo "Verifying replication status..."
 kubectl exec -n fraiseql-primary postgres-primary-0 -- psql -d fraiseql_production -c "
-    SELECT client_addr, state, sent_lsn, write_lsn, flush_lsn, replay_lsn, 
-           write_lag, flush_lag, replay_lag 
+    SELECT client_addr, state, sent_lsn, write_lsn, flush_lsn, replay_lsn,
+           write_lag, flush_lag, replay_lag
     FROM pg_stat_replication;
 "
 
@@ -729,33 +729,33 @@ async def monitor_replication_lag():
     """Monitor and report replication lag."""
     primary_conn = await asyncpg.connect("postgresql://user:pass@postgres-primary:5432/fraiseql")
     replica_conn = await asyncpg.connect("postgresql://user:pass@postgres-replica:5432/fraiseql")
-    
+
     try:
         while True:
             # Get current LSN from primary
             primary_lsn = await primary_conn.fetchval("SELECT pg_current_wal_lsn()")
-            
+
             # Get replay LSN from replica
             replica_lsn = await replica_conn.fetchval("SELECT pg_last_wal_replay_lsn()")
-            
+
             # Calculate lag in bytes and seconds
             lag_bytes = await primary_conn.fetchval(
                 "SELECT $1::pg_lsn - $2::pg_lsn", primary_lsn, replica_lsn
             )
-            
+
             # Estimate lag in seconds (approximate)
             lag_seconds = lag_bytes / (1024 * 1024)  # Rough estimate
-            
+
             replication_lag_gauge.set(lag_seconds)
-            
+
             logging.info(f"Replication lag: {lag_seconds:.2f} seconds ({lag_bytes} bytes)")
-            
+
             # Alert if lag is too high
             if lag_seconds > 60:  # 1 minute threshold
                 logging.warning(f"High replication lag detected: {lag_seconds:.2f} seconds")
-            
+
             await asyncio.sleep(10)
-            
+
     finally:
         await primary_conn.close()
         await replica_conn.close()
@@ -764,23 +764,23 @@ async def verify_data_consistency():
     """Verify data consistency between primary and replica."""
     primary_conn = await asyncpg.connect("postgresql://user:pass@postgres-primary:5432/fraiseql")
     replica_conn = await asyncpg.connect("postgresql://user:pass@postgres-replica:5432/fraiseql")
-    
+
     try:
         # Check critical tables for consistency
         tables = ['users', 'posts', 'sessions']
-        
+
         for table in tables:
             # Count records
             primary_count = await primary_conn.fetchval(f"SELECT count(*) FROM {table}")
             replica_count = await replica_conn.fetchval(f"SELECT count(*) FROM {table}")
-            
+
             if primary_count == replica_count:
                 data_consistency_counter.labels(status='consistent').inc()
                 logging.info(f"Table {table}: consistent ({primary_count} records)")
             else:
                 data_consistency_counter.labels(status='inconsistent').inc()
                 logging.error(f"Table {table}: inconsistent (primary: {primary_count}, replica: {replica_count})")
-        
+
         # Check recent data
         cutoff_time = datetime.now() - timedelta(minutes=5)
         recent_primary = await primary_conn.fetchval(
@@ -789,23 +789,23 @@ async def verify_data_consistency():
         recent_replica = await replica_conn.fetchval(
             "SELECT count(*) FROM users WHERE created_at > $1", cutoff_time
         )
-        
+
         logging.info(f"Recent data (5min): primary={recent_primary}, replica={recent_replica}")
-        
+
     finally:
         await primary_conn.close()
         await replica_conn.close()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
     # Run monitoring tasks
     loop = asyncio.get_event_loop()
     tasks = [
         monitor_replication_lag(),
         verify_data_consistency()
     ]
-    
+
     try:
         loop.run_until_complete(asyncio.gather(*tasks))
     except KeyboardInterrupt:
@@ -826,12 +826,12 @@ from kubernetes import client, config
 
 class FailoverController:
     """Automated failover controller for FraiseQL."""
-    
+
     def __init__(self):
         config.load_incluster_config()  # Running inside cluster
         self.k8s_apps = client.AppsV1Api()
         self.k8s_core = client.CoreV1Api()
-        
+
     async def check_primary_health(self):
         """Check if primary database is healthy."""
         try:
@@ -840,59 +840,59 @@ class FailoverController:
                 namespace="fraiseql-primary",
                 label_selector="app=postgres,role=primary"
             )
-            
+
             if not pods.items:
                 return False
-                
+
             pod = pods.items[0]
             if pod.status.phase != "Running":
                 return False
-            
+
             # Check database connectivity
             result = subprocess.run([
-                "kubectl", "exec", "-n", "fraiseql-primary", 
-                pod.metadata.name, "--", 
+                "kubectl", "exec", "-n", "fraiseql-primary",
+                pod.metadata.name, "--",
                 "pg_isready", "-h", "localhost", "-p", "5432"
             ], capture_output=True, text=True, timeout=10)
-            
+
             return result.returncode == 0
-            
+
         except Exception as e:
             logging.error(f"Primary health check failed: {e}")
             return False
-    
+
     async def promote_replica(self):
         """Promote replica to primary."""
         logging.info("Starting replica promotion...")
-        
+
         try:
             # 1. Promote PostgreSQL replica
             pods = self.k8s_core.list_namespaced_pod(
                 namespace="fraiseql-secondary",
                 label_selector="app=postgres,role=replica"
             )
-            
+
             if not pods.items:
                 raise Exception("No replica pod found")
-            
+
             replica_pod = pods.items[0].metadata.name
-            
+
             # Create promote trigger file
             subprocess.run([
                 "kubectl", "exec", "-n", "fraiseql-secondary",
-                replica_pod, "--", 
+                replica_pod, "--",
                 "touch", "/tmp/promote_trigger"
             ], check=True)
-            
+
             # Wait for promotion to complete
             await asyncio.sleep(10)
-            
+
             # 2. Update FraiseQL application to use promoted database
             deployment = self.k8s_apps.read_namespaced_deployment(
                 name="fraiseql",
                 namespace="fraiseql-secondary"
             )
-            
+
             # Update environment variables
             for container in deployment.spec.template.spec.containers:
                 if container.name == "fraiseql":
@@ -901,14 +901,14 @@ class FailoverController:
                             env.value = "false"
                         elif env.name == "ROLE":
                             env.value = "primary"
-            
+
             # Apply the update
             self.k8s_apps.patch_namespaced_deployment(
                 name="fraiseql",
                 namespace="fraiseql-secondary",
                 body=deployment
             )
-            
+
             # 3. Scale up secondary region
             deployment.spec.replicas = 3
             self.k8s_apps.patch_namespaced_deployment(
@@ -916,27 +916,27 @@ class FailoverController:
                 namespace="fraiseql-secondary",
                 body=deployment
             )
-            
+
             # 4. Update DNS/Load Balancer to point to secondary region
             # This would depend on your specific setup (AWS Route 53, etc.)
             await self.update_dns_failover()
-            
+
             logging.info("Replica promotion completed successfully")
             return True
-            
+
         except Exception as e:
             logging.error(f"Replica promotion failed: {e}")
             return False
-    
+
     async def update_dns_failover(self):
         """Update DNS to point to secondary region."""
         # Implementation depends on your DNS provider
         # Example for AWS Route 53:
-        
+
         import boto3
-        
+
         route53 = boto3.client('route53')
-        
+
         # Update A record to point to secondary region load balancer
         response = route53.change_resource_record_sets(
             HostedZoneId='Z1234567890',
@@ -954,14 +954,14 @@ class FailoverController:
                 }]
             }
         )
-        
+
         logging.info(f"DNS failover initiated: {response['ChangeInfo']['Id']}")
-    
+
     async def run_failover_monitoring(self):
         """Main failover monitoring loop."""
         consecutive_failures = 0
         failure_threshold = 3
-        
+
         while True:
             try:
                 if await self.check_primary_health():
@@ -970,10 +970,10 @@ class FailoverController:
                 else:
                     consecutive_failures += 1
                     logging.warning(f"Primary health check failed ({consecutive_failures}/{failure_threshold})")
-                    
+
                     if consecutive_failures >= failure_threshold:
                         logging.critical("Primary database is down, initiating failover...")
-                        
+
                         success = await self.promote_replica()
                         if success:
                             logging.info("Failover completed successfully")
@@ -983,13 +983,13 @@ class FailoverController:
                         else:
                             logging.error("Failover failed, retrying in 30 seconds...")
                             await asyncio.sleep(30)
-                
+
                 await asyncio.sleep(30)  # Check every 30 seconds
-                
+
             except Exception as e:
                 logging.error(f"Failover monitoring error: {e}")
                 await asyncio.sleep(60)
-    
+
     async def send_failover_notification(self):
         """Send notification about failover event."""
         # Implementation for your notification system (Slack, PagerDuty, etc.)
@@ -1005,13 +1005,13 @@ Action Required: Investigate primary region issues
 
 Monitoring Dashboard: https://grafana.company.com/d/fraiseql-disaster-recovery
 """
-        
+
         # Send to Slack, PagerDuty, etc.
         logging.info("Failover notification sent")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
     controller = FailoverController()
     asyncio.run(controller.run_failover_monitoring())
 ```
@@ -1100,7 +1100,7 @@ from datetime import datetime, timedelta
 
 async def test_recovery_times():
     """Test various recovery scenarios and measure RTO."""
-    
+
     scenarios = [
         {
             "name": "Application Pod Restart",
@@ -1118,29 +1118,29 @@ async def test_recovery_times():
             "test_func": test_region_failover
         }
     ]
-    
+
     results = {}
-    
+
     for scenario in scenarios:
         print(f"\nTesting {scenario['name']}...")
-        
+
         start_time = time.time()
         success = await scenario["test_func"]()
         end_time = time.time()
-        
+
         rto = end_time - start_time
         target_rto = scenario["target_rto"]
-        
+
         results[scenario["name"]] = {
             "rto": rto,
             "target_rto": target_rto,
             "success": success,
             "within_target": rto <= target_rto
         }
-        
+
         status = "✅ PASS" if success and rto <= target_rto else "❌ FAIL"
         print(f"{scenario['name']}: {rto:.1f}s (target: {target_rto}s) {status}")
-    
+
     return results
 
 async def test_pod_restart():
@@ -1160,12 +1160,12 @@ async def test_region_failover():
 
 if __name__ == "__main__":
     results = asyncio.run(test_recovery_times())
-    
+
     # Generate report
     print("\n" + "="*50)
     print("RECOVERY TIME OBJECTIVE TEST REPORT")
     print("="*50)
-    
+
     for test_name, result in results.items():
         print(f"\n{test_name}:")
         print(f"  Measured RTO: {result['rto']:.1f} seconds")

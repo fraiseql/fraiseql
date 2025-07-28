@@ -225,7 +225,7 @@ class TestTokenManager:
             # Create session record
             await cursor.execute(
                 f"""
-                INSERT INTO {schema}.tb_session 
+                INSERT INTO {schema}.tb_session
                 (fk_user, token_family, user_agent, ip_address)
                 VALUES (%s, %s, %s, %s)
             """,
