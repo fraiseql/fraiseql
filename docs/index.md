@@ -146,7 +146,7 @@ FraiseQL embraces **Database Domain-Driven Design**:
 
 This means:
 - ✅ No more N+1 queries
-- ✅ No more complex ORM queries  
+- ✅ No more complex ORM queries
 - ✅ No more manual query optimization
 - ✅ Full control over your GraphQL schema
 

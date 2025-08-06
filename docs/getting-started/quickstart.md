@@ -34,7 +34,7 @@ CREATE TABLE tasks (
 );
 
 -- Insert sample data
-INSERT INTO tasks (title, description) VALUES 
+INSERT INTO tasks (title, description) VALUES
     ('Learn FraiseQL', 'Complete the quickstart tutorial'),
     ('Build an API', 'Create my first GraphQL API'),
     ('Deploy to production', 'Ship it!');
@@ -47,7 +47,7 @@ FraiseQL reads from views that return JSONB data. Create a view for tasks:
 ```sql
 -- Create a view with id column for filtering and data column with JSONB
 CREATE VIEW v_task AS
-SELECT 
+SELECT
     id,  -- Keep id as separate column for efficient filtering
     jsonb_build_object(
         'id', id,
@@ -100,12 +100,12 @@ class Task:
 async def tasks(info, completed: bool | None = None) -> list[Task]:
     """Get all tasks, optionally filtered by completion status"""
     repo = info.context["repo"]
-    
+
     # Build WHERE clause if filter provided
     where = {}
     if completed is not None:
         where["completed"] = completed
-    
+
     # Fetch from our view - FraiseQL uses the separate columns for filtering
     results = await repo.find("v_tasks", where=where)
     return [Task(**result) for result in results]
@@ -122,22 +122,22 @@ async def task(info, id: ID) -> Task | None:
 async def test_queries():
     """Test our queries directly"""
     from fraiseql.repository import FraiseQLRepository
-    
+
     async with FraiseQLRepository(
         database_url=os.getenv("DATABASE_URL", "postgresql://localhost/todo_app")
     ) as repo:
         # Create a mock info object
         class Info:
             context = {"repo": repo}
-        
+
         info = Info()
-        
+
         # Test fetching all tasks
         all_tasks = await tasks(info)
         print(f"Found {len(all_tasks)} tasks:")
         for task in all_tasks:
             print(f"  - {task.title} (completed: {task.completed})")
-        
+
         # Test fetching incomplete tasks
         incomplete = await tasks(info, completed=False)
         print(f"\n{len(incomplete)} incomplete tasks")
@@ -254,19 +254,19 @@ BEGIN
     INSERT INTO tasks (title, description)
     VALUES (p_title, p_description)
     RETURNING id INTO v_id;
-    
+
     RETURN v_id;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to mark task complete
-CREATE OR REPLACE FUNCTION fn_complete_task(p_id UUID) 
+CREATE OR REPLACE FUNCTION fn_complete_task(p_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
-    UPDATE tasks 
-    SET completed = true 
+    UPDATE tasks
+    SET completed = true
     WHERE id = p_id;
-    
+
     RETURN FOUND;  -- Returns true if row was updated
 END;
 $$ LANGUAGE plpgsql;
@@ -286,14 +286,14 @@ class CreateTaskInput:
 async def create_task(info, input: CreateTaskInput) -> Task:
     """Create a new task"""
     repo = info.context["repo"]
-    
+
     # Call PostgreSQL function
     task_id = await repo.call_function(
         "fn_create_task",
         p_title=input.title,
         p_description=input.description
     )
-    
+
     # Fetch the created task
     result = await repo.find_one("v_tasks", where={"id": task_id})
     return Task(**result)
@@ -302,10 +302,10 @@ async def create_task(info, input: CreateTaskInput) -> Task:
 async def complete_task(info, id: ID) -> Task | None:
     """Mark a task as complete"""
     repo = info.context["repo"]
-    
+
     # Call PostgreSQL function
     success = await repo.call_function("fn_complete_task", p_id=id)
-    
+
     if success:
         # Fetch the updated task
         result = await repo.find_one("v_tasks", where={"id": id})
@@ -340,15 +340,15 @@ mutation MarkComplete($id: ID!) {
 
 !!! info "Why separate ID column?"
     FraiseQL views typically include the ID as a separate column alongside the JSONB data:
-    
+
     - **Efficient filtering**: PostgreSQL can use indexes on the `id` column
     - **Better query plans**: The optimizer can work with regular columns
     - **Flexibility**: Can add other indexed columns for common filters
-    
+
     Example with multiple filter columns:
     ```sql
     CREATE VIEW v_task AS
-    SELECT 
+    SELECT
         id,
         completed,  -- Another column for filtering
         user_id,    -- And another

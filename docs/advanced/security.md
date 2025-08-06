@@ -18,7 +18,7 @@ graph TD
     F --> G[SQL Injection Prevention]
     G --> H[Parameterized Queries]
     H --> I[Database]
-    
+
     J[Security Logger] --> K[Audit Trail]
     B --> J
     C --> J
@@ -192,13 +192,13 @@ from fraiseql.security import authorize_field
 class VUser:  # Maps to v_user view
     id: int
     name: str  # Public field
-    
+
     @field
     @authorize_field(lambda info: info.context.get("is_admin", False))
     def email(self) -> str:
         """Only admins can see email addresses."""
         return self._email
-    
+
     @field
     @authorize_field(
         lambda info, root: info.context.get("user_id") == root.id,
@@ -225,7 +225,7 @@ class VFinancialData:  # Maps to v_financial_data view
     @authorize_field(has_role("finance"))
     def revenue(self) -> float:
         return self._revenue
-    
+
     @field
     @authorize_field(has_role("executive"))
     def profit_margin(self) -> float:
@@ -240,7 +240,7 @@ async def check_data_ownership(info, root):
     user_id = info.context.get("user_id")
     if not user_id:
         return False
-    
+
     # Check ownership in database
     pool = info.context["db_pool"]
     async with pool.connection() as conn:
@@ -280,7 +280,7 @@ WHERE id = current_setting('app.current_user_id')::int;
 
 -- Create table view for materialized access
 CREATE MATERIALIZED VIEW tv_user_profiles AS
-SELECT 
+SELECT
     u.id,
     u.name,
     u.email,
@@ -291,13 +291,13 @@ JOIN tb_profiles p ON u.id = p.user_id
 WHERE u.active = true;
 
 -- Refresh function for single record
-CREATE FUNCTION refresh_tv_user_profile(p_user_id int) 
+CREATE FUNCTION refresh_tv_user_profile(p_user_id int)
 RETURNS void AS $$
 BEGIN
     -- Update specific record in table view
     DELETE FROM tv_user_profiles WHERE id = p_user_id;
     INSERT INTO tv_user_profiles
-    SELECT 
+    SELECT
         u.id,
         u.name,
         u.email,
@@ -332,14 +332,14 @@ class TVUserProfile:  # Maps to tv_user_profiles (table view)
 async def context_getter(request: Request) -> dict:
     """Set database session variables for RLS."""
     user_id = get_user_id_from_token(request)
-    
+
     async with get_db_pool().connection() as conn:
         # Set session variable for RLS
         await conn.execute(
             "SET LOCAL app.current_user_id = %s",
             (user_id,)
         )
-        
+
     return {
         "user_id": user_id,
         "db_conn": conn,
@@ -471,7 +471,7 @@ ORDER BY created_at DESC;
 
 -- Table view for frequent queries
 CREATE MATERIALIZED VIEW tv_user_audit_summary AS
-SELECT 
+SELECT
     user_id,
     COUNT(*) as total_events,
     COUNT(CASE WHEN success = false THEN 1 END) as failed_attempts,
@@ -612,7 +612,7 @@ WHERE revoked_at > NOW() - INTERVAL '24 hours';
 
 ### Vulnerability: Exposed GraphQL Schema
 **Risk**: Attackers can explore your entire API structure.
-**Mitigation**: 
+**Mitigation**:
 ```python
 config = FraiseQLConfig(
     environment="production",
@@ -672,7 +672,7 @@ class VUser:  # Maps to v_user view
     # Public fields
     id: int
     username: str
-    
+
     # Restricted fields
     @field
     @authorize_field(is_self_or_admin)

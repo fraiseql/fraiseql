@@ -16,12 +16,12 @@ graph TD
     A[GraphQL Request] --> B{Query in Registry?}
     B -->|Yes| C[TurboRouter Path]
     B -->|No| D[Standard GraphQL Path]
-    
+
     C --> E[Extract Variables]
     E --> F[Map to SQL Parameters]
     F --> G[Execute SQL Template]
     G --> H[Return JSON Response]
-    
+
     D --> I[Parse GraphQL]
     I --> J[Validate]
     J --> K[Generate SQL]
@@ -110,15 +110,15 @@ config = FraiseQLConfig(
     # TurboRouter settings
     enable_turbo_router=True,
     turbo_router_cache_size=2000,  # Max cached queries
-    
+
     # Adaptive caching
     turbo_enable_adaptive_caching=True,
     turbo_max_complexity=150,  # Max complexity to cache
     turbo_max_total_weight=5000.0,  # Total cache weight limit
-    
+
     # Auto-registration
     turbo_router_auto_register=False,  # Manual registration only
-    
+
     # Execution priority
     execution_mode_priority=["turbo", "passthrough", "normal"],
 )
@@ -144,7 +144,7 @@ get_user_query = TurboQuery(
         }
     """,
     sql_template="""
-        SELECT 
+        SELECT
             id::text as id,
             name,
             email,
@@ -236,7 +236,7 @@ def register_turbo_queries(registry: TurboRegistry):
             param_mapping={"limit": "limit"}
         ),
     ]
-    
+
     for query in queries:
         registry.register(query)
 ```
@@ -286,8 +286,8 @@ TurboQuery(
         }
     """,
     sql_template="""
-        SELECT data 
-        FROM %(table)s 
+        SELECT data
+        FROM %(table)s
         WHERE id = %(id)s
     """,
     param_mapping={"table": "table", "id": "id"}
@@ -302,7 +302,7 @@ Common pattern with consistent structure:
 TurboQuery(
     graphql_query="""
         query ListItems(
-            $limit: Int = 20, 
+            $limit: Int = 20,
             $offset: Int = 0,
             $orderBy: String = "created_at"
         ) {
@@ -341,7 +341,7 @@ TurboQuery(
                     )
                 ),
                 'pageInfo', jsonb_build_object(
-                    'hasNextPage', 
+                    'hasNextPage',
                     COALESCE(MAX(total_count), 0) > %(offset)s + %(limit)s,
                     'total', COALESCE(MAX(total_count), 0)
                 )
@@ -416,24 +416,24 @@ sql_template = f"SELECT * FROM users WHERE id = {id}"  # Never do this
 ```python
 def validate_turbo_query(query: TurboQuery) -> bool:
     """Validate query before registration."""
-    
+
     # Check for SQL injection patterns
     forbidden_patterns = [
         "--;", "/*", "*/", "xp_", "sp_",
         "DROP", "DELETE", "INSERT", "UPDATE"
     ]
-    
+
     for pattern in forbidden_patterns:
         if pattern.upper() in query.sql_template.upper():
             raise ValueError(f"Forbidden pattern in SQL: {pattern}")
-    
+
     # Ensure all parameters are mapped
     import re
     sql_params = re.findall(r'%\((\w+)\)s', query.sql_template)
     for param in sql_params:
         if param not in query.param_mapping.values():
             raise ValueError(f"Unmapped parameter: {param}")
-    
+
     return True
 ```
 
@@ -482,7 +482,7 @@ config = FraiseQLConfig(
 @app.on_event("shutdown")
 async def analyze_turbo_performance():
     stats = turbo_registry.get_stats()
-    
+
     print(f"TurboRouter Statistics:")
     print(f"  Total queries: {stats['total_queries']}")
     print(f"  Cache hits: {stats['hits']} ({stats['hit_rate']:.1%})")
@@ -512,7 +512,7 @@ async def analyze_turbo_performance():
 
 ```python
 # 1. Identify hot queries from logs
-SELECT 
+SELECT
     query_fingerprint,
     calls,
     mean_exec_time
@@ -530,16 +530,16 @@ def generate_sql_template(graphql_query: str) -> str:
 # 3. Register progressively
 def progressive_registration(registry: TurboRegistry):
     """Register queries based on usage patterns."""
-    
+
     # Phase 1: Critical queries (login, auth)
     register_auth_queries(registry)
-    
+
     # Phase 2: Common lookups
     register_lookup_queries(registry)
-    
+
     # Phase 3: List/search queries
     register_list_queries(registry)
-    
+
     # Phase 4: Analytics queries
     if config.environment == "production":
         register_analytics_queries(registry)
@@ -551,25 +551,25 @@ def progressive_registration(registry: TurboRegistry):
 # Implement cache warming
 async def warm_turbo_cache(app: FastAPI):
     """Pre-warm TurboRouter cache on startup."""
-    
+
     common_queries = load_common_queries()
-    
+
     for query in common_queries:
         turbo_registry.register(query)
-    
+
     logger.info(f"Warmed TurboRouter with {len(common_queries)} queries")
 
 # Periodic cache analysis
 async def analyze_cache_effectiveness():
     """Analyze and optimize cache contents."""
-    
+
     stats = turbo_registry.get_query_stats()
-    
+
     # Remove rarely used queries
     for query_hash, stats in stats.items():
         if stats['calls'] < 10 and stats['age_hours'] > 24:
             turbo_registry.evict(query_hash)
-    
+
     # Log cache effectiveness
     logger.info(f"Cache hit rate: {stats['hit_rate']:.1%}")
 ```
@@ -589,7 +589,7 @@ async def analyze_cache_effectiveness():
 def debug_turbo_miss(query: str):
     normalized = turbo_registry.normalize_query(query)
     query_hash = turbo_registry.hash_query(normalized)
-    
+
     if query_hash not in turbo_registry._queries:
         print(f"Query not registered. Hash: {query_hash}")
         print(f"Normalized: {normalized}")
@@ -658,21 +658,21 @@ class CachedTurboRouter(TurboRouter):
     def __init__(self, registry, cache):
         super().__init__(registry)
         self.cache = cache
-    
+
     async def execute(self, query, variables, context):
         # Check cache first
         cache_key = self.get_cache_key(query, variables)
         cached = await self.cache.get(cache_key)
         if cached:
             return cached
-        
+
         # Execute via TurboRouter
         result = await super().execute(query, variables, context)
-        
+
         # Cache result
         if result:
             await self.cache.set(cache_key, result, ttl=300)
-        
+
         return result
 ```
 
@@ -711,7 +711,7 @@ async def load_queries(self, turbo_registry):
     WHERE is_active = true
     ORDER BY execution_count DESC  -- Prioritize hot queries
     """
-    
+
     for row in queries:
         turbo_query = TurboQuery(
             graphql_query=row["graphql_query"],
@@ -729,7 +729,7 @@ sql_template = 'SELECT * FROM v_user WHERE id = $1'
 
 -- With Lazy Caching: Cache function
 sql_template = 'SELECT turbo.fn_get_cached_response(
-    ''user'', $1::text, ''user'', 
+    ''user'', $1::text, ''user'',
     ''user.fn_build'', jsonb_build_object(''id'', $1)
 )'
 ```

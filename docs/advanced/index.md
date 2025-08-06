@@ -174,7 +174,7 @@ Example:
 ```sql
 -- Composable view eliminates N+1
 CREATE VIEW v_user_with_stats AS
-SELECT 
+SELECT
     u.*,
     jsonb_build_object(
         'post_count', COUNT(p.id),
@@ -230,12 +230,12 @@ Prevents:
 class User:
     id: UUID          # Public
     email: str        # Public
-    
+
     @field
     @requires_role("admin")
     def ssn(self) -> str:
         return self._ssn  # Admin only
-    
+
     @field
     @requires_auth
     def private_notes(self) -> str:

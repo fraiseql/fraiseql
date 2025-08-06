@@ -20,22 +20,22 @@ graph TD
     D --> E{Threshold Exceeded?}
     E -->|Yes| F[Generate Warning]
     E -->|No| G[Continue]
-    
+
     B --> H{Resolution Strategy}
     H -->|DataLoader| I[Batch Loading]
     H -->|View Composition| J[Single Query]
     H -->|Prefetch| K[Eager Loading]
-    
+
     I --> L[Cache Check]
     L --> M[Batch Request]
     M --> N[Result Distribution]
-    
+
     J --> O[Optimized View]
     O --> P[JSONB Aggregation]
-    
+
     K --> Q[Join Strategy]
     Q --> R[Memory Efficient Loading]
-    
+
     F --> S[Actionable Suggestions]
     S --> T[Code Examples]
 ```
@@ -97,7 +97,7 @@ class Post:
     id: UUID
     title: str
     author_id: UUID
-    
+
     @strawberry.field
     async def author(self, info) -> User:
         # BAD: This executes once per post
@@ -135,7 +135,7 @@ Suggested solutions:
 
 2. Use view composition:
    CREATE VIEW v_post_with_author AS
-   SELECT p.*, 
+   SELECT p.*,
           jsonb_build_object('id', u.id, 'name', u.name) as author
    FROM tb_posts p
    JOIN tb_users u ON u.id = p.author_id;
@@ -155,26 +155,26 @@ import asyncpg
 
 class UserDataLoader(DataLoader[UUID, dict[str, Any]]):
     """Batch load users by ID."""
-    
+
     def __init__(self, db_pool: asyncpg.Pool):
         super().__init__()
         self.db_pool = db_pool
-    
+
     async def batch_load(self, user_ids: list[UUID]) -> list[dict[str, Any] | None]:
         """Load multiple users in a single query."""
         async with self.db_pool.acquire() as conn:
             # Use ANY for efficient batch loading
             rows = await conn.fetch(
                 """
-                SELECT * FROM v_user 
+                SELECT * FROM v_user
                 WHERE id = ANY($1::uuid[])
                 """,
                 user_ids
             )
-            
+
             # Create lookup map
             user_map = {row["id"]: dict(row) for row in rows}
-            
+
             # Return in same order as requested
             return [user_map.get(user_id) for user_id in user_ids]
 
@@ -197,12 +197,12 @@ class Post:
     id: UUID
     title: str
     author_id: UUID
-    
+
     @dataloader_field(UserDataLoader, key_field="author_id")
     async def author(self, info) -> User | None:
         """Author is automatically loaded via DataLoader."""
         pass  # Implementation is auto-generated!
-    
+
     @dataloader_field(CommentsByPostLoader, key_field="id")
     async def comments(self, info) -> list[Comment]:
         """Comments are automatically batched."""
@@ -214,12 +214,12 @@ class Post:
 ```python
 class CommentsByPostDataLoader(DataLoader[UUID, list[dict[str, Any]]]):
     """Load comments grouped by post ID with nested author data."""
-    
+
     def __init__(self, db_pool: asyncpg.Pool, limit: int = 100):
         super().__init__()
         self.db_pool = db_pool
         self.limit = limit
-    
+
     async def batch_load(self, post_ids: list[UUID]) -> list[list[dict[str, Any]]]:
         """Load comments for multiple posts with authors."""
         async with self.db_pool.acquire() as conn:
@@ -227,7 +227,7 @@ class CommentsByPostDataLoader(DataLoader[UUID, list[dict[str, Any]]]):
             rows = await conn.fetch(
                 """
                 WITH ranked_comments AS (
-                    SELECT 
+                    SELECT
                         c.*,
                         jsonb_build_object(
                             'id', u.id,
@@ -235,7 +235,7 @@ class CommentsByPostDataLoader(DataLoader[UUID, list[dict[str, Any]]]):
                             'avatar_url', u.avatar_url
                         ) as author,
                         ROW_NUMBER() OVER (
-                            PARTITION BY c.post_id 
+                            PARTITION BY c.post_id
                             ORDER BY c.created_at DESC
                         ) as rn
                     FROM tb_comments c
@@ -250,7 +250,7 @@ class CommentsByPostDataLoader(DataLoader[UUID, list[dict[str, Any]]]):
                 post_ids,
                 self.limit
             )
-            
+
             # Group by post_id
             comments_by_post: dict[UUID, list[dict]] = {}
             for row in rows:
@@ -258,7 +258,7 @@ class CommentsByPostDataLoader(DataLoader[UUID, list[dict[str, Any]]]):
                 if post_id not in comments_by_post:
                     comments_by_post[post_id] = []
                 comments_by_post[post_id].append(dict(row))
-            
+
             # Return in order with empty lists for posts without comments
             return [comments_by_post.get(post_id, []) for post_id in post_ids]
 ```
@@ -270,7 +270,7 @@ class CommentsByPostDataLoader(DataLoader[UUID, list[dict[str, Any]]]):
 ```sql
 -- Instead of N+1 queries, compose data in a single view
 CREATE OR REPLACE VIEW v_post_with_author AS
-SELECT 
+SELECT
     p.id,
     p.title,
     p.content,
@@ -293,7 +293,7 @@ class PostWithAuthor:
     title: str
     content: str
     author: User
-    
+
     @classmethod
     def from_row(cls, row: dict) -> "PostWithAuthor":
         return cls(
@@ -325,13 +325,13 @@ SELECT
             'name', u.name,
             'email', u.email,
             'post_count', (
-                SELECT count(*) 
-                FROM tb_posts 
+                SELECT count(*)
+                FROM tb_posts
                 WHERE author_id = u.id
             ),
             'comment_count', (
-                SELECT count(*) 
-                FROM tb_comments 
+                SELECT count(*)
+                FROM tb_comments
                 WHERE author_id = u.id
             )
         ),
@@ -364,7 +364,7 @@ SELECT
             )
             FROM tb_comments c
             JOIN tb_users cu ON cu.id = c.author_id
-            WHERE c.post_id = p.id 
+            WHERE c.post_id = p.id
                 AND c.parent_id IS NULL
                 AND c.is_deleted = false
             ),
@@ -382,14 +382,14 @@ SELECT
         'stats', jsonb_build_object(
             'view_count', p.view_count,
             'like_count', (
-                SELECT count(*) 
-                FROM tb_post_likes 
+                SELECT count(*)
+                FROM tb_post_likes
                 WHERE post_id = p.id
             ),
             'comment_count', (
-                SELECT count(*) 
-                FROM tb_comments 
-                WHERE post_id = p.id 
+                SELECT count(*)
+                FROM tb_comments
+                WHERE post_id = p.id
                     AND is_deleted = false
             )
         )
@@ -406,7 +406,7 @@ WHERE p.is_published = true
 -- For expensive aggregations, use materialized views
 CREATE MATERIALIZED VIEW tv_popular_posts AS
 WITH post_scores AS (
-    SELECT 
+    SELECT
         p.id,
         p.title,
         p.author_id,
@@ -427,7 +427,7 @@ WITH post_scores AS (
     WHERE p.is_published = true
         AND p.created_at > CURRENT_DATE - INTERVAL '30 days'
 )
-SELECT 
+SELECT
     ps.*,
     u.name as author_name,
     u.avatar_url as author_avatar
@@ -460,18 +460,18 @@ SELECT cron.schedule(
 ```python
 class TasksByProjectLoader(DataLoader[UUID, list[dict[str, Any]]]):
     """Load tasks for multiple projects using window functions."""
-    
+
     async def batch_load(self, project_ids: list[UUID]) -> list[list[dict[str, Any]]]:
         # Use ROW_NUMBER() for efficient limiting per group
         query = """
         WITH ranked_tasks AS (
-            SELECT 
+            SELECT
                 t.*,
                 u.name as assignee_name,
                 ROW_NUMBER() OVER (
                     PARTITION BY t.project_id
-                    ORDER BY 
-                        CASE t.priority 
+                    ORDER BY
+                        CASE t.priority
                             WHEN 'critical' THEN 1
                             WHEN 'high' THEN 2
                             WHEN 'medium' THEN 3
@@ -488,14 +488,14 @@ class TasksByProjectLoader(DataLoader[UUID, list[dict[str, Any]]]):
         WHERE rn <= $2
         ORDER BY project_id, rn
         """
-        
+
         rows = await self.db.fetch(query, project_ids, self.limit)
-        
+
         # Group and return
         tasks_by_project = defaultdict(list)
         for row in rows:
             tasks_by_project[row["project_id"]].append(dict(row))
-        
+
         return [tasks_by_project[pid] for pid in project_ids]
 ```
 
@@ -507,10 +507,10 @@ async def get_posts_with_comments(
     limit: int = 20
 ) -> list[PostWithComments]:
     """Prefetch posts with their comments in a single query."""
-    
+
     # Use lateral join for correlated subqueries
     query = """
-    SELECT 
+    SELECT
         p.*,
         COALESCE(comments.data, '[]'::jsonb) as comments
     FROM tb_posts p
@@ -533,7 +533,7 @@ async def get_posts_with_comments(
     ORDER BY p.created_at DESC
     LIMIT $1
     """
-    
+
     rows = await db.fetch(query, limit)
     return [PostWithComments.from_row(row) for row in rows]
 ```
@@ -548,23 +548,23 @@ from fraiseql.optimization import n1_detection_context
 @strawberry.field
 async def posts(self, info, limit: int = 20) -> list[Post]:
     """Query posts with N+1 monitoring."""
-    
+
     # Custom detection context with specific configuration
     async with n1_detection_context(
         request_id=info.context["request_id"],
         threshold=5,  # More sensitive for this query
         field_path="Query.posts"
     ) as detector:
-        
+
         posts = await fetch_posts(limit)
-        
+
         # Check for issues after resolution
         if issues := detector.get_issues():
             logger.warning(
                 f"N+1 issues detected: {issues}",
                 extra={"request_id": info.context["request_id"]}
             )
-        
+
         return posts
 ```
 
@@ -575,18 +575,18 @@ from fraiseql.monitoring import metrics
 
 class InstrumentedDataLoader(DataLoader[K, V]):
     """DataLoader with performance metrics."""
-    
+
     async def batch_load(self, keys: list[K]) -> list[V | None]:
-        with metrics.timer("dataloader.batch_load", 
+        with metrics.timer("dataloader.batch_load",
                           tags={"loader": self.__class__.__name__}):
-            
+
             # Track batch size
             metrics.histogram(
                 "dataloader.batch_size",
                 len(keys),
                 tags={"loader": self.__class__.__name__}
             )
-            
+
             # Track cache performance
             cache_hits = sum(1 for k in keys if k in self._cache)
             if cache_hits > 0:
@@ -595,7 +595,7 @@ class InstrumentedDataLoader(DataLoader[K, V]):
                     cache_hits,
                     tags={"loader": self.__class__.__name__}
                 )
-            
+
             return await super().batch_load(keys)
 ```
 
@@ -609,7 +609,7 @@ class InstrumentedDataLoader(DataLoader[K, V]):
 class Author:
     id: UUID
     name: str
-    
+
     @strawberry.field
     async def recent_posts(self, info) -> list[Post]:
         # BAD: Executes for each author
@@ -626,7 +626,7 @@ class RecentPostsByAuthorLoader(DataLoader[UUID, list[dict]]):
         # Single query for all authors
         query = """
         WITH recent_posts AS (
-            SELECT *, 
+            SELECT *,
                    ROW_NUMBER() OVER (PARTITION BY author_id ORDER BY created_at DESC) as rn
             FROM tb_posts
             WHERE author_id = ANY($1::uuid[])
@@ -640,7 +640,7 @@ class RecentPostsByAuthorLoader(DataLoader[UUID, list[dict]]):
 class Author:
     id: UUID
     name: str
-    
+
     @dataloader_field(RecentPostsByAuthorLoader, key_field="id")
     async def recent_posts(self, info) -> list[Post]:
         """Recent posts are now automatically batched!"""
@@ -674,12 +674,12 @@ SELECT ...
 class CachedDataLoader(DataLoader[K, V]):
     def __init__(self, redis_client):
         self.redis = redis_client
-        
+
     async def load(self, key: K) -> V | None:
         # Check Redis first
         if cached := await self.redis.get(f"loader:{key}"):
             return json.loads(cached)
-        
+
         # Fall back to batch loading
         return await super().load(key)
 ```
@@ -699,7 +699,7 @@ class OptimizedLoader(DataLoader[UUID, dict]):
     def __init__(self, db_pool, max_batch_size: int = 500):
         super().__init__(max_batch_size=max_batch_size)
         self.db_pool = db_pool
-    
+
     async def batch_load(self, ids: list[UUID]) -> list[dict | None]:
         # Use prepared statement for better performance
         stmt = await self.db_pool.prepare(
@@ -722,8 +722,8 @@ CREATE INDEX idx_posts_data ON tb_posts USING GIN (data);
 
 -- Efficient existence check
 'has_comments', EXISTS (
-    SELECT 1 FROM tb_comments 
-    WHERE post_id = p.id 
+    SELECT 1 FROM tb_comments
+    WHERE post_id = p.id
     LIMIT 1
 )
 
@@ -750,7 +750,7 @@ class ManagedDataLoader(DataLoader[K, V]):
         """Clear caches and release resources."""
         self._cache.clear()
         self._queue.clear()
-        
+
     def __del__(self):
         """Ensure cleanup on garbage collection."""
         if self._cache:
@@ -776,22 +776,22 @@ async def loader_context(db_pool):
 ```python
 class SecureDataLoader(DataLoader[str, dict]):
     """DataLoader with SQL injection prevention."""
-    
+
     async def batch_load(self, keys: list[str]) -> list[dict | None]:
         # Validate keys before using in query
         for key in keys:
             if not self._is_valid_key(key):
                 raise ValueError(f"Invalid key format: {key}")
-        
+
         # Use parameterized queries
         query = "SELECT * FROM v_data WHERE key = ANY($1::text[])"
         rows = await self.db.fetch(query, keys)
-        
+
         # Never use string formatting for queries!
         # BAD: f"WHERE key IN ({','.join(keys)})"
-        
+
         return self._map_results(rows, keys)
-    
+
     def _is_valid_key(self, key: str) -> bool:
         """Validate key format to prevent injection."""
         # Example: alphanumeric + hyphens only
@@ -803,12 +803,12 @@ class SecureDataLoader(DataLoader[str, dict]):
 ```python
 class AuthorizedDataLoader(DataLoader[UUID, dict]):
     """DataLoader with built-in authorization."""
-    
+
     def __init__(self, db_pool, user_context: UserContext):
         super().__init__()
         self.db_pool = db_pool
         self.user_context = user_context
-    
+
     async def batch_load(self, ids: list[UUID]) -> list[dict | None]:
         # Include authorization in query
         query = """
@@ -820,14 +820,14 @@ class AuthorizedDataLoader(DataLoader[UUID, dict]):
                 OR $3 = ANY(allowed_users)
             )
         """
-        
+
         rows = await self.db_pool.fetch(
             query,
             ids,
             self.user_context.user_id,
             self.user_context.user_id
         )
-        
+
         # Return None for unauthorized items
         authorized_map = {row["id"]: dict(row) for row in rows}
         return [authorized_map.get(id) for id in ids]
@@ -871,7 +871,7 @@ async def resolve_user(parent, info):
 ```sql
 -- Bad: Fetching everything
 CREATE VIEW v_post_heavy AS
-SELECT p.*, 
+SELECT p.*,
        (SELECT row_to_json(u.*) FROM tb_users u WHERE u.id = p.author_id),
        (SELECT array_agg(row_to_json(c.*)) FROM tb_comments c WHERE c.post_id = p.id),
        -- ... many more joins
@@ -976,8 +976,8 @@ EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM v_post_full LIMIT 10;
 ANALYZE tb_posts, tb_users, tb_comments;
 
 -- Add missing indexes
-CREATE INDEX CONCURRENTLY idx_comments_post_id 
-ON tb_comments(post_id) 
+CREATE INDEX CONCURRENTLY idx_comments_post_id
+ON tb_comments(post_id)
 WHERE is_deleted = false;
 ```
 
@@ -994,13 +994,13 @@ class MonitoredDataLoader(DataLoader):
         before = psutil.Process().memory_info().rss / 1024 / 1024
         result = await super().batch_load(keys)
         after = psutil.Process().memory_info().rss / 1024 / 1024
-        
+
         if after - before > 50:  # 50MB increase
             logging.warning(
                 f"Large memory increase in {self.__class__.__name__}: "
                 f"{after - before:.2f}MB for {len(keys)} keys"
             )
-        
+
         return result
 ```
 

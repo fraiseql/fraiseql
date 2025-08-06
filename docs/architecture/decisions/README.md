@@ -6,20 +6,20 @@ Understanding why FraiseQL works the way it does helps you leverage its full pow
 
 **Decision**: FraiseQL only supports PostgreSQL, not multiple databases.
 
-**Reasoning**: 
+**Reasoning**:
 - PostgreSQL's advanced features (JSONB, views, functions, CTEs) enable incredible performance optimizations
 - Single database focus means we can leverage PostgreSQL-specific features fully
 - 90% of applications only use one database anyway
 - PostgreSQL has become the de facto standard for modern applications
 
-**Trade-offs**: 
+**Trade-offs**:
 - ✅ **Pro**: 10-100x better performance through PostgreSQL-specific optimizations
 - ✅ **Pro**: Simpler codebase, fewer bugs, faster development
 - ✅ **Pro**: Can use advanced features like JSONB, arrays, full-text search
 - ❌ **Con**: Can't switch to MySQL/MongoDB/etc. later
 - ❌ **Con**: Teams without PostgreSQL experience need to learn it
 
-**Real-world impact**: 
+**Real-world impact**:
 Your API responses complete in 1-10ms instead of 50-500ms. Complex queries that would require multiple roundtrips in other databases complete in a single, optimized query.
 
 ## Why Views Instead of ORMs?
@@ -48,7 +48,7 @@ SELECT jsonb_build_object(
     'name', u.name,
     'posts', (
         SELECT jsonb_agg(p.*)
-        FROM posts p 
+        FROM posts p
         WHERE p.author_id = u.id
         ORDER BY p.created_at DESC
     )
@@ -110,8 +110,8 @@ SELECT jsonb_build_object(
     'author', (SELECT data FROM v_user WHERE id = p.author_id),
     -- Aggregate pre-composed comment objects
     'comments', (
-        SELECT jsonb_agg(data) 
-        FROM v_comment 
+        SELECT jsonb_agg(data)
+        FROM v_comment
         WHERE post_id = p.id
     )
 ) as data
@@ -171,7 +171,7 @@ FROM tb_users u;
 
 -- Table view for complete denormalized entity
 CREATE TABLE tv_user AS
-SELECT 
+SELECT
     u.id,
     u.tenant_id,
     jsonb_build_object(/* complete user data with all relations */) as data
@@ -212,23 +212,23 @@ BEGIN
     IF LENGTH(p_title) < 3 THEN
         RAISE EXCEPTION 'Title too short';
     END IF;
-    
+
     -- Create post
     INSERT INTO tb_posts (title, content, author_id)
     VALUES (p_title, p_content, p_author_id)
     RETURNING id INTO v_post_id;
-    
+
     -- Update user stats
-    UPDATE tb_users 
+    UPDATE tb_users
     SET post_count = post_count + 1
     WHERE id = p_author_id;
-    
+
     -- Return complete result using pre-composed views
     SELECT jsonb_build_object(
         'post', (SELECT data FROM v_post WHERE id = v_post_id),
         'user', (SELECT data FROM v_user WHERE id = p_author_id)
     ) INTO v_result;
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql;

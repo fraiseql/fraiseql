@@ -112,19 +112,19 @@ DECLARE
 BEGIN
     -- Generate slug from title
     generated_slug := LOWER(REGEXP_REPLACE(
-        input_data->>'title', 
+        input_data->>'title',
         '[^a-zA-Z0-9]+', '-', 'g'
     ));
-    
+
     -- Ensure uniqueness
     WHILE EXISTS (SELECT 1 FROM tb_posts WHERE slug = generated_slug) LOOP
-        generated_slug := generated_slug || '-' || 
+        generated_slug := generated_slug || '-' ||
             EXTRACT(EPOCH FROM NOW())::INTEGER;
     END LOOP;
 
     -- Insert with all fields
     INSERT INTO tb_posts (
-        title, slug, content, author_id, 
+        title, slug, content, author_id,
         tags, is_published, published_at
     )
     VALUES (
@@ -137,10 +137,10 @@ BEGIN
             ARRAY[]::TEXT[]
         ),
         COALESCE((input_data->>'is_published')::BOOLEAN, false),
-        CASE 
-            WHEN (input_data->>'is_published')::BOOLEAN 
-            THEN NOW() 
-            ELSE NULL 
+        CASE
+            WHEN (input_data->>'is_published')::BOOLEAN
+            THEN NOW()
+            ELSE NULL
         END
     )
     RETURNING id INTO new_post_id;
@@ -182,7 +182,7 @@ async def create_post(
 ) -> CreatePostSuccess | CreatePostError:
     """Create a new post via PostgreSQL function."""
     db = info.context["db"]
-    
+
     # Call the PostgreSQL function
     result = await db.execute_function(
         "fn_create_post",
@@ -194,7 +194,7 @@ async def create_post(
             "is_published": input.is_published
         }
     )
-    
+
     if result["success"]:
         # Fetch the created post from the view
         post_data = await db.get_post_by_id(result["post_id"])
@@ -217,11 +217,11 @@ async def update_user(parent, info, id, **kwargs):
     user = User.query.get(id)
     if not user:
         raise GraphQLError("User not found")
-    
+
     for key, value in kwargs.items():
         if value is not None:
             setattr(user, key, value)
-    
+
     db.session.commit()
     return user
 ```
@@ -247,7 +247,7 @@ BEGIN
 
     -- Get current version for optimistic locking
     SELECT version INTO current_version
-    FROM tb_users 
+    FROM tb_users
     WHERE id = (input_data->>'id')::UUID;
 
     IF current_version IS NULL THEN
@@ -259,7 +259,7 @@ BEGIN
     END IF;
 
     -- Check version if provided
-    IF input_data->>'version' IS NOT NULL AND 
+    IF input_data->>'version' IS NOT NULL AND
        (input_data->>'version')::INTEGER != current_version THEN
         RETURN json_build_object(
             'success', false,
@@ -299,7 +299,7 @@ async def delete_post(parent, info, id):
     post = Post.query.get(id)
     if not post:
         return {"success": False, "error": "Post not found"}
-    
+
     # Manual cascade for related data
     Comment.query.filter_by(post_id=id).delete()
     db.session.delete(post)
@@ -319,13 +319,13 @@ DECLARE
 BEGIN
     -- Check delete type
     is_soft_delete := COALESCE(
-        (input_data->>'soft_delete')::BOOLEAN, 
+        (input_data->>'soft_delete')::BOOLEAN,
         true  -- Default to soft delete
     );
 
     -- Verify post exists
     SELECT EXISTS (
-        SELECT 1 FROM tb_posts 
+        SELECT 1 FROM tb_posts
         WHERE id = (input_data->>'id')::UUID
         AND (deleted_at IS NULL OR NOT is_soft_delete)
     ) INTO post_exists;
@@ -341,21 +341,21 @@ BEGIN
     IF is_soft_delete THEN
         -- Soft delete: just mark as deleted
         UPDATE tb_posts
-        SET 
+        SET
             deleted_at = NOW(),
             deleted_by = (input_data->>'user_id')::UUID
         WHERE id = (input_data->>'id')::UUID;
     ELSE
         -- Hard delete: remove permanently
         -- Comments will cascade due to FK constraint
-        DELETE FROM tb_posts 
+        DELETE FROM tb_posts
         WHERE id = (input_data->>'id')::UUID;
     END IF;
 
     RETURN json_build_object(
         'success', true,
-        'message', CASE 
-            WHEN is_soft_delete 
+        'message', CASE
+            WHEN is_soft_delete
             THEN 'Post archived successfully'
             ELSE 'Post permanently deleted'
         END
@@ -379,17 +379,17 @@ DECLARE
     errors JSON[] := ARRAY[]::JSON[];
 BEGIN
     -- Process each post update
-    FOR post_update IN 
+    FOR post_update IN
         SELECT json_array_elements(input_data->'posts')
     LOOP
         BEGIN
             UPDATE tb_posts
-            SET 
+            SET
                 title = COALESCE(post_update->>'title', title),
                 content = COALESCE(post_update->>'content', content),
                 updated_at = NOW()
             WHERE id = (post_update->>'id')::UUID;
-            
+
             success_count := success_count + 1;
         EXCEPTION WHEN OTHERS THEN
             error_count := error_count + 1;
@@ -434,7 +434,7 @@ BEGIN
     END IF;
 
     -- Check publishing requirements
-    can_publish := 
+    can_publish :=
         LENGTH(post_record.title) >= 10 AND
         LENGTH(post_record.content) >= 100 AND
         post_record.excerpt IS NOT NULL AND
@@ -456,7 +456,7 @@ BEGIN
 
     -- Publish the post
     UPDATE tb_posts
-    SET 
+    SET
         is_published = true,
         published_at = NOW(),
         publish_version = publish_version + 1
@@ -464,12 +464,12 @@ BEGIN
 
     -- Log the publishing event
     INSERT INTO tb_audit_log (
-        entity_type, entity_id, action, 
+        entity_type, entity_id, action,
         user_id, metadata
     )
     VALUES (
-        'post', 
-        post_record.id, 
+        'post',
+        post_record.id,
         'published',
         (input_data->>'user_id')::UUID,
         json_build_object(
@@ -499,7 +499,7 @@ RETURNS TABLE(test_name TEXT, passed BOOLEAN, message TEXT) AS $$
 BEGIN
     -- Test 1: Valid input
     RETURN QUERY
-    SELECT 
+    SELECT
         'Valid user creation'::TEXT,
         (fn_create_user(json_build_object(
             'email', 'test@example.com',
@@ -509,7 +509,7 @@ BEGIN
 
     -- Test 2: Missing required field
     RETURN QUERY
-    SELECT 
+    SELECT
         'Missing email validation'::TEXT,
         NOT (fn_create_user(json_build_object(
             'name', 'Test User'
@@ -555,9 +555,9 @@ async def test_create_post_mutation():
                 }
             }
         )
-        
+
         author_id = author_result["data"]["createUser"]["user"]["id"]
-        
+
         # Test: Create post
         result = await client.mutate(
             """
@@ -587,7 +587,7 @@ async def test_create_post_mutation():
                 }
             }
         )
-        
+
         assert result["data"]["createPost"]["post"]["title"] == "Test Post"
         assert result["data"]["createPost"]["post"]["slug"] == "test-post"
 ```
@@ -661,7 +661,7 @@ ARRAY(SELECT json_array_elements_text(input_data->'tags'))
 **Problem:** Distinguishing between null and missing
 ```sql
 -- Check if field exists
-CASE 
+CASE
     WHEN input_data ? 'field_name' THEN
         -- Field exists (might be null)
         input_data->>'field_name'
@@ -679,10 +679,10 @@ END
 BEGIN
     -- Create savepoint
     SAVEPOINT before_risky_operation;
-    
+
     -- Risky operation
     PERFORM risky_operation();
-    
+
 EXCEPTION WHEN OTHERS THEN
     -- Rollback to savepoint
     ROLLBACK TO SAVEPOINT before_risky_operation;
@@ -706,7 +706,7 @@ RETURNING id, slug, created_at INTO new_id, new_slug, created_time;
 ```sql
 -- Use unnest for bulk inserts
 INSERT INTO tb_tags (post_id, tag_name)
-SELECT 
+SELECT
     (input_data->>'post_id')::UUID,
     unnest(ARRAY(SELECT json_array_elements_text(input_data->'tags')))
 ON CONFLICT (post_id, tag_name) DO NOTHING;

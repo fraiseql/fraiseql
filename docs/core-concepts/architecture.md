@@ -13,28 +13,28 @@ graph TB
     Translator[Query Translator]
     Repo[Repository Layer]
     PG[(PostgreSQL Database)]
-    
+
     Client -->|GraphQL Query| API
     API --> Schema
     Schema --> Resolver
     Resolver --> Translator
     Translator -->|SQL with JSONB| Repo
     Repo --> PG
-    
+
     PG -->|JSONB Result| Repo
     Repo -->|Domain Objects| Resolver
     Resolver -->|GraphQL Response| API
     API --> Client
-    
+
     subgraph "CQRS Pattern"
         Views[Views<br/>v_*, tv_*]
         Functions[Functions<br/>fn_*]
         Tables[Tables<br/>tb_*]
-        
+
         Views -.->|READ| Tables
         Functions -.->|WRITE| Tables
     end
-    
+
     Repo --> Views
     Repo --> Functions
 ```
@@ -275,7 +275,7 @@ services:
       DATABASE_URL: postgresql://...
     deploy:
       replicas: 3
-      
+
   postgres:
     image: postgres:16
     volumes:

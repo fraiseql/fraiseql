@@ -236,7 +236,7 @@ END;
 $$;
 
 -- Add comment for documentation
-COMMENT ON FUNCTION lazy_cache_product_with_category(UUID) IS 
+COMMENT ON FUNCTION lazy_cache_product_with_category(UUID) IS
 'Turbo mode cache function for GetProduct query. Returns complete GraphQL response structure.';
 ```
 
@@ -312,14 +312,14 @@ class UnifiedExecutor:
         self.turbo_router = turbo_router
         self.query_analyzer = query_analyzer or QueryAnalyzer(schema)
 
-    async def execute(self, query: str, variables: dict[str, Any] = None, 
+    async def execute(self, query: str, variables: dict[str, Any] = None,
                      context: dict[str, Any] = None) -> dict[str, Any]:
         # Select execution mode based on query characteristics
         mode = self.mode_selector.select_mode(query, variables or {}, context or {})
-        
+
         # Track mode selection for monitoring
         context["execution_mode"] = mode.value
-        
+
         # Execute using the selected mode
         if mode == ExecutionMode.TURBO:
             return await self._execute_turbo(query, variables, context)
@@ -335,20 +335,20 @@ The `ModeSelector` follows this decision tree:
 
 ```python
 class ModeSelector:
-    def select_mode(self, query: str, variables: dict[str, Any], 
+    def select_mode(self, query: str, variables: dict[str, Any],
                    context: dict[str, Any]) -> ExecutionMode:
         # 1. Check for explicit mode hints in query comments
         mode_hint = self._extract_mode_hint(query)  # e.g., "# @mode: turbo"
         if mode_hint:
             return mode_hint
-            
+
         # 2. Try modes in configured priority order
         for mode_name in self.config.execution_mode_priority:
             if mode_name == "turbo" and self._can_use_turbo(query):
                 return ExecutionMode.TURBO
             elif mode_name == "passthrough" and self._can_use_passthrough(query, variables):
                 return ExecutionMode.PASSTHROUGH
-                
+
         # 3. Default fallback
         return ExecutionMode.NORMAL
 ```
@@ -394,18 +394,18 @@ result = await executor.execute(
 Each mode implements graceful fallback:
 
 1. **Turbo → Normal**: If query not registered or execution fails
-2. **Passthrough → Normal**: If query too complex or analysis fails  
+2. **Passthrough → Normal**: If query too complex or analysis fails
 3. **Normal**: Always available as final fallback
 
 ```python
 async def _execute_turbo(self, query: str, variables: Dict, context: Dict):
     if not self.turbo_router:
         return await self._execute_normal(query, variables, None, context)
-        
+
     result = await self.turbo_router.execute(query, variables, context)
     if result is None:  # Query not in registry
         return await self._execute_normal(query, variables, None, context)
-        
+
     return result
 ```
 
@@ -471,7 +471,7 @@ context = {
 
 ```python
 class DynamicModeSelector(ModeSelector):
-    def select_mode(self, query: str, variables: dict[str, Any], 
+    def select_mode(self, query: str, variables: dict[str, Any],
                    context: dict[str, Any]) -> ExecutionMode:
         # Custom logic based on time of day, user type, etc.
         if context.get("user_type") == "premium":
@@ -603,7 +603,7 @@ config = FraiseQLConfig(
 async def product(info, id: UUID) -> Product:
     # Repository returns raw dictionaries for passthrough
     product_data = await ProductRepository.get_product_with_relations(id)
-    
+
     # JSONPassthrough wrapper provides object-like access
     return JSONPassthrough(product_data, "Product")
 
@@ -630,8 +630,8 @@ Create `migrations/20240115_add_product_cache_functions.sql`:
 -- Date: 2024-01-15
 
 CREATE OR REPLACE FUNCTION lazy_cache_product_full(product_id UUID)
-RETURNS JSONB 
-LANGUAGE plpgsql 
+RETURNS JSONB
+LANGUAGE plpgsql
 STABLE  -- Function doesn't modify database
 CACHE   -- PostgreSQL automatically caches results
 AS $$
@@ -696,7 +696,7 @@ END;
 $$;
 
 -- Add documentation comment
-COMMENT ON FUNCTION lazy_cache_product_full(UUID) IS 
+COMMENT ON FUNCTION lazy_cache_product_full(UUID) IS
 'Turbo mode cache function for GetProductDetails query. Returns complete GraphQL response with nested data.';
 ```
 
@@ -764,7 +764,7 @@ config = FraiseQLConfig(
 # Identify hot queries from metrics
 hot_queries = [
     "GetUserProfile",
-    "GetProductList", 
+    "GetProductList",
     "GetOrderSummary"
 ]
 
@@ -797,7 +797,7 @@ metrics = executor.get_metrics()
 {
     "execution_counts": {
         "turbo": 1250,
-        "passthrough": 830, 
+        "passthrough": 830,
         "normal": 120
     },
     "average_execution_times": {
@@ -976,7 +976,7 @@ TurboQuery(
 config.passthrough_complexity_limit = 100  # Increase if needed
 config.passthrough_max_depth = 5
 
-# Problem: Mode hints ignored  
+# Problem: Mode hints ignored
 # Solution: Check configuration
 config.enable_mode_hints = True
 ```
@@ -1000,8 +1000,8 @@ print(f"Normalized: {normalized}")
 # Solution: Verify migration was applied
 def check_turbo_functions(connection):
     result = connection.execute("""
-        SELECT routine_name 
-        FROM information_schema.routines 
+        SELECT routine_name
+        FROM information_schema.routines
         WHERE routine_name LIKE 'lazy_cache_%'
     """)
     functions = [row[0] for row in result]
@@ -1035,20 +1035,20 @@ else:
 
 ```python
 class AuthenticatedModeSelector(ModeSelector):
-    def select_mode(self, query: str, variables: dict[str, Any], 
+    def select_mode(self, query: str, variables: dict[str, Any],
                    context: dict[str, Any]) -> ExecutionMode:
         user = context.get("user")
-        
+
         # Premium users get Turbo priority
         if user and user.subscription == "premium":
             if self._can_use_turbo(query):
                 return ExecutionMode.TURBO
-                
+
         # API keys get Passthrough for performance
         if context.get("auth_type") == "api_key":
             if self._can_use_passthrough(query, variables):
                 return ExecutionMode.PASSTHROUGH
-                
+
         return super().select_mode(query, variables, context)
 ```
 
@@ -1095,26 +1095,26 @@ class MonitoredUnifiedExecutor(UnifiedExecutor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.metrics = ExecutionModeMetrics()
-        
+
     async def execute(self, query: str, variables=None, context=None):
         start_time = time.time()
-        
+
         try:
             result = await super().execute(query, variables, context)
-            
+
             # Record successful execution
             execution_time = time.time() - start_time
             mode = context.get("execution_mode", "unknown")
-            
+
             self.metrics.record_execution(
                 mode=mode,
                 query_hash=hash(query),
                 execution_time=execution_time,
                 success=True
             )
-            
+
             return result
-            
+
         except Exception as e:
             # Record failed execution
             self.metrics.record_execution(
@@ -1181,49 +1181,49 @@ if "turbo_cache_metrics" in metrics:
 # Check if Turbo functions exist
 def verify_turbo_functions(db_connection):
     """Verify that Turbo cache functions are properly installed."""
-    
+
     functions_query = """
-    SELECT 
+    SELECT
         routine_name,
         routine_type,
         created
-    FROM information_schema.routines 
+    FROM information_schema.routines
     WHERE routine_name LIKE 'lazy_cache_%'
     ORDER BY routine_name
     """
-    
+
     result = db_connection.execute(functions_query)
     functions = result.fetchall()
-    
+
     if not functions:
         print("❌ No Turbo cache functions found")
         print("   Run your database migrations to create cache functions")
         return False
-        
+
     print("✅ Turbo cache functions found:")
     for func in functions:
         print(f"   - {func.routine_name} ({func.routine_type})")
-        
+
     return True
 
 # Test a specific function
 def test_turbo_function(db_connection, function_name, test_params):
     """Test that a Turbo cache function works correctly."""
-    
+
     try:
         result = db_connection.execute(
             f"SELECT {function_name}(%s)",
             test_params
         )
         data = result.fetchone()[0]
-        
+
         if data and isinstance(data, dict) and 'data' in data:
             print(f"✅ Function {function_name} working correctly")
             return True
         else:
             print(f"❌ Function {function_name} returned unexpected format: {data}")
             return False
-            
+
     except Exception as e:
         print(f"❌ Function {function_name} failed: {e}")
         return False
@@ -1231,8 +1231,8 @@ def test_turbo_function(db_connection, function_name, test_params):
 # Usage example
 if verify_turbo_functions(db_connection):
     test_turbo_function(
-        db_connection, 
-        "lazy_cache_user_profile", 
+        db_connection,
+        "lazy_cache_user_profile",
         ("123e4567-e89b-12d3-a456-426614174000",)
     )
 ```
@@ -1243,16 +1243,16 @@ if verify_turbo_functions(db_connection):
 # Validate configuration
 def validate_execution_config(config: FraiseQLConfig):
     issues = []
-    
+
     if config.enable_turbo_router and not hasattr(config, 'turbo_router_cache_size'):
         issues.append("Turbo enabled but no cache size configured")
-        
+
     if config.json_passthrough_enabled and not config.passthrough_complexity_limit:
         issues.append("Passthrough enabled but no complexity limit set")
-        
+
     if "turbo" in config.execution_mode_priority and not config.enable_turbo_router:
         issues.append("Turbo in priority but not enabled")
-        
+
     return issues
 
 # Check for issues
@@ -1268,19 +1268,19 @@ for issue in issues:
 class ExecutionModeAnalyzer:
     def __init__(self, executor: UnifiedExecutor):
         self.executor = executor
-        
+
     def analyze_query(self, query: str, variables=None, context=None):
         """Analyze why a query uses a specific execution mode."""
         variables = variables or {}
         context = context or {}
-        
+
         selector = self.executor.mode_selector
-        
+
         # Check mode hint
         hint = selector._extract_mode_hint(query)
         if hint:
             return f"Mode hint found: {hint.value}"
-            
+
         # Check priority order
         for mode_name in selector.config.execution_mode_priority:
             if mode_name == "turbo":
@@ -1288,14 +1288,14 @@ class ExecutionModeAnalyzer:
                     return f"Turbo available and prioritized"
                 else:
                     reason = "Query not registered" if not selector.turbo_registry else "Turbo disabled"
-                    
+
             elif mode_name == "passthrough":
                 if selector._can_use_passthrough(query, variables):
                     return f"Passthrough available and prioritized"
                 else:
                     analysis = selector.query_analyzer.analyze_for_passthrough(query, variables)
                     return f"Passthrough unavailable: complexity={analysis.complexity_score}, depth={analysis.max_depth}"
-                    
+
         return "Fallback to Normal mode"
 
 # Usage
@@ -1313,18 +1313,18 @@ The execution mode system is built around several key components:
 ```python
 class UnifiedExecutor:
     """Central orchestrator for all execution modes."""
-    
+
     def __init__(self, schema, mode_selector, turbo_router=None, query_analyzer=None):
         self.schema = schema
         self.mode_selector = mode_selector
         self.turbo_router = turbo_router
         self.query_analyzer = query_analyzer
-        
+
         # Wire dependencies
         if turbo_router:
             mode_selector.set_turbo_registry(turbo_router.registry)
         mode_selector.set_query_analyzer(self.query_analyzer)
-        
+
         # Metrics tracking
         self._execution_counts = {mode: 0 for mode in ExecutionMode}
         self._execution_times = {mode: [] for mode in ExecutionMode}
@@ -1334,19 +1334,19 @@ class UnifiedExecutor:
 ```python
 class ModeSelector:
     """Intelligent mode selection based on query characteristics."""
-    
+
     def select_mode(self, query: str, variables: Dict, context: Dict) -> ExecutionMode:
         # Priority-based selection with fallback logic
-        
+
         # 1. Check explicit mode hints in query comments
         if mode_hint := self._extract_mode_hint(query):
             return mode_hint
-            
+
         # 2. Try modes in configured priority order
         for mode in self.config.execution_mode_priority:
             if self._mode_available(mode, query, variables):
                 return ExecutionMode(mode)
-                
+
         # 3. Always fallback to Normal
         return ExecutionMode.NORMAL
 ```
@@ -1364,7 +1364,7 @@ The system leverages PostgreSQL's native features:
 ```python
 class ExecutionModeOptimizedPool:
     """Connection pool optimized for different execution modes."""
-    
+
     def __init__(self, config):
         # Different pools for different modes
         self.turbo_pool = create_pool(
@@ -1372,7 +1372,7 @@ class ExecutionModeOptimizedPool:
             max_overflow=0,  # No overflow for consistent performance
             timeout=1  # Fast timeout for cache hits
         )
-        
+
         self.normal_pool = create_pool(
             size=config.normal_pool_size,
             max_overflow=config.normal_pool_overflow,

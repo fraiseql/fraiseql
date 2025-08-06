@@ -40,17 +40,17 @@ DECLARE
 BEGIN
     -- Extract and validate input
     v_items := input_data->'items';
-    
+
     -- Validate customer exists and is active
-    SELECT * INTO v_customer 
-    FROM tb_customers 
+    SELECT * INTO v_customer
+    FROM tb_customers
     WHERE id = (input_data->>'customer_id')::UUID
         AND status = 'active';
-    
+
     IF NOT FOUND THEN
         RETURN ROW(false, 'Customer not found or inactive', NULL)::mutation_result;
     END IF;
-    
+
     -- Create order aggregate root
     INSERT INTO tb_orders (
         customer_id,
@@ -67,56 +67,56 @@ BEGIN
         input_data->>'notes',
         NOW()
     ) RETURNING id INTO v_order_id;
-    
+
     -- Create order items (aggregate members)
     INSERT INTO tb_order_items (order_id, product_id, variant_id, quantity, unit_price)
-    SELECT 
+    SELECT
         v_order_id,
         (item->>'product_id')::UUID,
         (item->>'variant_id')::UUID,
         (item->>'quantity')::INT,
         (item->>'price')::NUMERIC
     FROM jsonb_array_elements(v_items) AS item;
-    
+
     -- Validate all products exist and are active
     IF EXISTS (
         SELECT 1 FROM tb_order_items oi
         LEFT JOIN tb_products p ON p.id = oi.product_id
-        WHERE oi.order_id = v_order_id 
+        WHERE oi.order_id = v_order_id
             AND (p.id IS NULL OR p.status != 'active')
     ) THEN
         -- Rollback will happen automatically
         RAISE EXCEPTION 'One or more products are not available';
     END IF;
-    
+
     -- Calculate total
     SELECT SUM(quantity * unit_price) INTO v_total
     FROM tb_order_items
     WHERE order_id = v_order_id;
-    
+
     -- Apply coupon if provided
     IF input_data->>'coupon_code' IS NOT NULL THEN
         -- Apply discount logic here
         PERFORM fn_apply_coupon(v_order_id, input_data->>'coupon_code');
     END IF;
-    
+
     -- Update order with total
-    UPDATE tb_orders 
+    UPDATE tb_orders
     SET total_amount = v_total
     WHERE id = v_order_id;
-    
+
     -- Emit domain event
-    PERFORM pg_notify('order_created', 
+    PERFORM pg_notify('order_created',
         jsonb_build_object(
             'order_id', v_order_id,
             'customer_id', (input_data->>'customer_id')::UUID,
             'total', v_total
         )::TEXT
     );
-    
+
     -- Return success with created order
     RETURN ROW(
-        true, 
+        true,
         'Order created successfully',
         jsonb_build_object(
             'id', v_order_id,
@@ -142,7 +142,7 @@ class OrderItemInput:
     quantity: int
     price: float
 
-@input  
+@input
 class CreateOrderInput:
     customer_id: UUID
     shipping_address_id: UUID
@@ -170,13 +170,13 @@ async def create_order(
     # FraiseQL automatically converts the input to JSON
     # and passes it to the PostgreSQL function
     db = context["db"]
-    
+
     # The input is automatically serialized to JSON
     result = await db.execute_function(
         "fn_create_order",
         input  # FraiseQL handles the conversion to dict/JSON
     )
-    
+
     if result["success"]:
         # Fetch the created order from the view
         order_data = await db.query_one(
@@ -209,7 +209,7 @@ Queries use materialized views that present denormalized, read-optimized data:
 CREATE OR REPLACE VIEW v_order_aggregate AS
 WITH order_items_agg AS (
     -- Pre-aggregate items for performance
-    SELECT 
+    SELECT
         order_id,
         jsonb_agg(
             jsonb_build_object(
@@ -226,7 +226,7 @@ WITH order_items_agg AS (
     JOIN v_products p ON p.id = oi.product_id
     GROUP BY order_id
 )
-SELECT 
+SELECT
     o.id,
     o.customer_id,
     o.status,
@@ -252,7 +252,7 @@ LEFT JOIN v_addresses sa ON sa.id = o.shipping_address_id
 LEFT JOIN v_addresses ba ON ba.id = o.billing_address_id;
 
 -- Index for fast aggregate queries
-CREATE INDEX idx_order_aggregate_lookup 
+CREATE INDEX idx_order_aggregate_lookup
 ON tb_orders(id, customer_id, status, created_at);
 ```
 
@@ -279,18 +279,18 @@ RETURNS TRIGGER AS $$
 BEGIN
     -- Project events to read model
     IF NEW.event_type = 'OrderCreated' THEN
-        INSERT INTO tb_orders 
+        INSERT INTO tb_orders
         SELECT * FROM jsonb_populate_record(NULL::tb_orders, NEW.event_data);
     ELSIF NEW.event_type = 'OrderItemAdded' THEN
         INSERT INTO tb_order_items
         SELECT * FROM jsonb_populate_record(NULL::tb_order_items, NEW.event_data);
     ELSIF NEW.event_type = 'OrderShipped' THEN
-        UPDATE tb_orders 
+        UPDATE tb_orders
         SET status = 'shipped',
             shipped_at = (NEW.event_data->>'shipped_at')::TIMESTAMPTZ
         WHERE id = NEW.aggregate_id;
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -388,7 +388,7 @@ SELECT
                     ) ORDER BY date DESC
                 )
                 FROM (
-                    SELECT 
+                    SELECT
                         DATE(o2.created_at) AS date,
                         SUM(oi2.quantity) AS quantity,
                         SUM(oi2.quantity * oi2.unit_price) AS revenue
@@ -415,7 +415,7 @@ BEGIN
     -- Use UPSERT pattern for incremental updates
     INSERT INTO tv_product_analytics
     SELECT * FROM generate_product_analytics()
-    ON CONFLICT (product_id) 
+    ON CONFLICT (product_id)
     DO UPDATE SET
         unique_buyers = EXCLUDED.unique_buyers,
         total_sold = EXCLUDED.total_sold,
@@ -543,7 +543,7 @@ BEGIN
             AND address_type = NEW.address_type
             AND id != NEW.id;
     END IF;
-    
+
     -- Rule: Customer must have at least one address
     IF TG_OP = 'DELETE' THEN
         IF NOT EXISTS (
@@ -554,7 +554,7 @@ BEGIN
             RAISE EXCEPTION 'Customer must have at least one address';
         END IF;
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -634,7 +634,7 @@ SELECT
     jsonb_build_object(
         '__typename', 'OrderFulfillment',
         'order', (
-            SELECT data FROM sales.v_orders 
+            SELECT data FROM sales.v_orders
             WHERE id = o.id
         ),
         'inventory_status', (
@@ -646,7 +646,7 @@ SELECT
                 )
             )
             FROM sales.tb_order_items oi
-            LEFT JOIN inventory.v_stock_availability sa 
+            LEFT JOIN inventory.v_stock_availability sa
                 ON sa.product_id = oi.product_id
             WHERE oi.order_id = o.id
         )
@@ -698,7 +698,7 @@ BEGIN
             )
         )
     );
-    
+
     -- Also notify via PostgreSQL LISTEN/NOTIFY
     PERFORM pg_notify(
         'domain_event',
@@ -708,7 +708,7 @@ BEGIN
             'id', NEW.id
         )::TEXT
     );
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -722,19 +722,19 @@ BEGIN
         UPDATE inventory.tb_stock_levels sl
         SET reserved = reserved + items.quantity
         FROM (
-            SELECT 
+            SELECT
                 (item->>'product_id')::UUID AS product_id,
                 (item->>'quantity')::INT AS quantity
             FROM jsonb_array_elements(NEW.event_data->'items') AS item
         ) items
         WHERE sl.product_id = items.product_id;
-        
+
         -- Mark event as processed
         UPDATE public.tb_domain_events
         SET processed_at = NOW()
         WHERE id = NEW.id;
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -769,14 +769,14 @@ BEGIN
         p_event_type,
         p_event_data,
         COALESCE(
-            (SELECT MAX(event_version) + 1 
-             FROM tb_domain_events 
+            (SELECT MAX(event_version) + 1
+             FROM tb_domain_events
              WHERE aggregate_id = p_aggregate_id),
             1
         ),
         NOW()
     );
-    
+
     -- Notify listeners
     PERFORM pg_notify(
         'domain_event_' || p_aggregate_type,
@@ -801,18 +801,18 @@ DECLARE
 BEGIN
     -- Determine event type
     CASE TG_OP
-        WHEN 'INSERT' THEN 
+        WHEN 'INSERT' THEN
             v_event_type := TG_TABLE_NAME || 'Created';
             v_new_data := to_jsonb(NEW);
-        WHEN 'UPDATE' THEN 
+        WHEN 'UPDATE' THEN
             v_event_type := TG_TABLE_NAME || 'Updated';
             v_old_data := to_jsonb(OLD);
             v_new_data := to_jsonb(NEW);
-        WHEN 'DELETE' THEN 
+        WHEN 'DELETE' THEN
             v_event_type := TG_TABLE_NAME || 'Deleted';
             v_old_data := to_jsonb(OLD);
     END CASE;
-    
+
     -- Publish event
     PERFORM fn_publish_domain_event(
         TG_TABLE_NAME,
@@ -824,12 +824,12 @@ BEGIN
             'changed_fields', (
                 SELECT jsonb_object_agg(key, value)
                 FROM jsonb_each(v_new_data)
-                WHERE v_old_data IS NULL 
+                WHERE v_old_data IS NULL
                     OR v_old_data->>key IS DISTINCT FROM value::TEXT
             )
         )
     );
-    
+
     RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
@@ -850,47 +850,47 @@ from typing import Callable, Any
 
 class DomainEventListener:
     """Subscribe to domain events from PostgreSQL."""
-    
+
     def __init__(self, connection_url: str):
         self.connection_url = connection_url
         self.handlers: dict[str, list[Callable]] = {}
-    
+
     def on(self, event_type: str, handler: Callable):
         """Register event handler."""
         if event_type not in self.handlers:
             self.handlers[event_type] = []
         self.handlers[event_type].append(handler)
-    
+
     async def listen(self, aggregate_types: list[str]):
         """Start listening for domain events."""
         conn = await asyncpg.connect(self.connection_url)
-        
+
         # Subscribe to channels
         for aggregate_type in aggregate_types:
             await conn.add_listener(
                 f'domain_event_{aggregate_type}',
                 self._handle_notification
             )
-        
+
         print(f"Listening for events on: {aggregate_types}")
-        
+
         # Keep connection alive
         try:
             await asyncio.Future()  # Run forever
         finally:
             await conn.close()
-    
+
     async def _handle_notification(
-        self, 
-        connection, 
-        pid, 
-        channel, 
+        self,
+        connection,
+        pid,
+        channel,
         payload
     ):
         """Process incoming domain event."""
         event = json.loads(payload)
         event_type = event['event_type']
-        
+
         # Call registered handlers
         for handler in self.handlers.get(event_type, []):
             try:
@@ -928,31 +928,31 @@ from uuid import UUID
 
 class OrderRepository(CQRSRepository):
     """Domain repository for Order aggregate."""
-    
+
     async def create_order(self, order_data: dict) -> dict:
         """Create a new order - passes JSON to PostgreSQL function."""
         result = await self.execute_function('fn_create_order', order_data)
-        
+
         if result["success"]:
             # Fetch complete order from view
             order = await self.get_by_id('v_order_aggregate', result["data"]["id"])
             return {"success": True, "order": order}
         else:
             return {"success": False, "error": result["message"]}
-    
+
     async def ship_order(self, order_id: UUID, tracking_number: str) -> dict:
         """Ship an order - business logic in PostgreSQL."""
         return await self.execute_function('fn_ship_order', {
             "order_id": str(order_id),
             "tracking_number": tracking_number
         })
-    
+
     async def get_order(self, order_id: UUID) -> dict | None:
         """Get order aggregate from read model."""
         return await self.get_by_id('v_order_aggregate', order_id)
-    
+
     async def find_customer_orders(
-        self, 
+        self,
         customer_id: UUID,
         status: str | None = None,
         limit: int = 10
@@ -961,7 +961,7 @@ class OrderRepository(CQRSRepository):
         filters = {'customer_id': {'eq': str(customer_id)}}
         if status:
             filters['status'] = {'eq': status}
-        
+
         return await self.query(
             'v_order_aggregate',
             filters=filters,
@@ -981,23 +981,23 @@ from uuid import UUID
 @dataclass
 class OrderService:
     """Domain service for complex order operations."""
-    
+
     order_repo: OrderRepository
     inventory_repo: InventoryRepository
     payment_repo: PaymentRepository
-    
+
     async def fulfill_order(
         self,
         order_id: UUID,
         warehouse_id: UUID
     ) -> dict:
         """Orchestrate order fulfillment across bounded contexts."""
-        
+
         # Get order details
         order = await self.order_repo.get_order(order_id)
         if not order:
             return {"success": False, "error": "Order not found"}
-        
+
         # Check inventory across warehouses
         for item in order["data"]["items"]:
             available = await self.inventory_repo.check_availability(
@@ -1007,10 +1007,10 @@ class OrderService:
             )
             if not available:
                 return {
-                    "success": False, 
+                    "success": False,
                     "error": f"Insufficient inventory for {item['product']['name']}"
                 }
-        
+
         # Reserve inventory (transaction in PostgreSQL)
         reservation = await self.inventory_repo.reserve_items(
             order_id=order_id,
@@ -1020,7 +1020,7 @@ class OrderService:
                 "quantity": item["quantity"]
             } for item in order["data"]["items"]]
         )
-        
+
         if reservation["success"]:
             # Update order status
             return await self.order_repo.execute_function(
@@ -1045,7 +1045,7 @@ For complex aggregates, use materialized views or table views:
 -- Materialized view for complex aggregates
 CREATE MATERIALIZED VIEW mv_customer_360 AS
 WITH customer_orders AS (
-    SELECT 
+    SELECT
         customer_id,
         COUNT(*) AS order_count,
         SUM(total_amount) AS lifetime_value,
@@ -1056,7 +1056,7 @@ WITH customer_orders AS (
     GROUP BY customer_id
 ),
 customer_products AS (
-    SELECT 
+    SELECT
         o.customer_id,
         jsonb_agg(DISTINCT p.category_id) AS categories_purchased,
         COUNT(DISTINCT oi.product_id) AS unique_products
@@ -1083,7 +1083,7 @@ SELECT
             'unique_products', COALESCE(cp.unique_products, 0)
         ),
         'segments', (
-            CASE 
+            CASE
                 WHEN co.lifetime_value > 1000 THEN ARRAY['vip']
                 WHEN co.order_count > 5 THEN ARRAY['loyal']
                 WHEN co.last_order_date > CURRENT_DATE - INTERVAL '30 days' THEN ARRAY['active']
@@ -1140,23 +1140,23 @@ BEGIN
         (SELECT COUNT(*) FROM tb_order_items WHERE order_id = o.id),
         o.created_at,
         ARRAY(
-            SELECT p.name 
-            FROM tb_order_items oi 
-            JOIN tb_products p ON p.id = oi.product_id 
+            SELECT p.name
+            FROM tb_order_items oi
+            JOIN tb_products p ON p.id = oi.product_id
             WHERE oi.order_id = o.id
         ),
         ARRAY(
-            SELECT p.sku 
-            FROM tb_order_items oi 
-            JOIN tb_products p ON p.id = oi.product_id 
+            SELECT p.sku
+            FROM tb_order_items oi
+            JOIN tb_products p ON p.id = oi.product_id
             WHERE oi.order_id = o.id
         ),
-        to_tsvector('english', 
-            c.name || ' ' || c.email || ' ' || 
+        to_tsvector('english',
+            c.name || ' ' || c.email || ' ' ||
             o.status || ' ' ||
             (SELECT string_agg(p.name || ' ' || p.sku, ' ')
-             FROM tb_order_items oi 
-             JOIN tb_products p ON p.id = oi.product_id 
+             FROM tb_order_items oi
+             JOIN tb_products p ON p.id = oi.product_id
              WHERE oi.order_id = o.id)
         ),
         (SELECT data FROM v_order_aggregate WHERE id = o.id)
@@ -1167,17 +1167,17 @@ BEGIN
         status = EXCLUDED.status,
         data = EXCLUDED.data,
         search_vector = EXCLUDED.search_vector;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Fast search using projection
-CREATE INDEX idx_order_search_vector 
-ON tv_order_search_projection 
+CREATE INDEX idx_order_search_vector
+ON tv_order_search_projection
 USING gin(search_vector);
 
-CREATE INDEX idx_order_search_status_date 
+CREATE INDEX idx_order_search_status_date
 ON tv_order_search_projection(status, created_at DESC);
 ```
 
@@ -1226,7 +1226,7 @@ CREATE OR REPLACE VIEW v_products AS
 SELECT * FROM v_products_v2;
 
 -- Deprecation notice
-COMMENT ON VIEW v_products_v1 IS 
+COMMENT ON VIEW v_products_v1 IS
 'DEPRECATED: Use v_products (v2). Will be removed in next major version.';
 ```
 
@@ -1259,7 +1259,7 @@ SELECT
         'id', o.id,
         'status', o.status,
         'fulfillment', (
-            SELECT data FROM v_order_fulfillment 
+            SELECT data FROM v_order_fulfillment
             WHERE order_id = o.id
         )
     ) AS data

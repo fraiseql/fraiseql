@@ -15,7 +15,7 @@ Complete technical reference for FraiseQL v0.1.0 components, functions, and conf
 FraiseQL provides powerful decorators for GraphQL schema definition:
 
 - [`@query`](./decorators.md#query) - Define GraphQL queries
-- [`@mutation`](./decorators.md#mutation) - Define GraphQL mutations  
+- [`@mutation`](./decorators.md#mutation) - Define GraphQL mutations
 - [`@subscription`](./decorators.md#subscription) - Define real-time subscriptions
 - [`@field`](./decorators.md#field) - Define computed fields
 - [`@dataloader_field`](./decorators.md#dataloader_field) - N+1 query prevention
@@ -86,7 +86,7 @@ Automatic batching for N+1 prevention:
 @fraise_type
 class User:
     id: UUID
-    
+
     @dataloader_field
     async def posts(self, info) -> list[Post]:
         # Automatically batched
@@ -147,9 +147,9 @@ async def delete_user(info, id: UUID) -> bool:
 class User:
     id: UUID
     email: str  # Public
-    
+
     @field
-    @requires_auth  
+    @requires_auth
     def ssn(self) -> str:
         # Only visible to authenticated users
         return self._ssn

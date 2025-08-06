@@ -111,7 +111,7 @@ class User:
     id: str
     email: str
     name: str
-    
+
     @strawberry.field
     @requires_permission("users:read:sensitive")
     def social_security_number(self) -> str:
@@ -150,16 +150,16 @@ class CustomAuthProvider(Auth0Provider):
     def __init__(self, *args, revocation_service: TokenRevocationService, **kwargs):
         super().__init__(*args, **kwargs)
         self.revocation_service = revocation_service
-    
+
     async def validate_token(self, token: str) -> dict[str, Any]:
         payload = await super().validate_token(token)
-        
+
         # Check if token is revoked
         if await self.revocation_service.is_token_revoked(payload):
             raise AuthenticationError("Token has been revoked")
-        
+
         return payload
-    
+
     async def logout(self, token: str) -> None:
         """Revoke token on logout"""
         payload = jwt.decode(token, options={"verify_signature": False})
@@ -196,7 +196,7 @@ class Login:
     input: LoginInput
     success: LoginSuccess
     failure: LoginError
-    
+
     async def post_process(self, result: LoginSuccess, info) -> LoginSuccess:
         """Add tokens to response"""
         if isinstance(result, LoginSuccess):
@@ -238,28 +238,28 @@ oauth.register(
 class GoogleOAuth2Provider(OAuth2Provider):
     def __init__(self, oauth_client):
         self.client = oauth_client
-    
+
     async def get_authorization_url(self, redirect_uri: str) -> str:
         """Generate OAuth2 authorization URL"""
         return await self.client.google.authorize_redirect(redirect_uri)
-    
+
     async def handle_callback(self, request) -> UserContext:
         """Process OAuth2 callback and create user context"""
         token = await self.client.google.authorize_access_token(request)
         user_info = token.get('userinfo')
-        
+
         # Create or update user in database
         async with db_pool.connection() as conn:
             user = await conn.fetchrow("""
                 INSERT INTO tb_users (email, name, oauth_provider, oauth_id)
                 VALUES ($1, $2, $3, $4)
-                ON CONFLICT (email) 
-                DO UPDATE SET 
+                ON CONFLICT (email)
+                DO UPDATE SET
                     last_login = CURRENT_TIMESTAMP,
                     name = EXCLUDED.name
                 RETURNING id, email, name
             """, user_info['email'], user_info['name'], 'google', user_info['sub'])
-        
+
         return UserContext(
             user_id=str(user['id']),
             email=user['email'],
@@ -278,13 +278,13 @@ from fraiseql.auth.api_key import APIKeyProvider
 class DatabaseAPIKeyProvider(APIKeyProvider):
     def __init__(self, db_pool):
         self.db_pool = db_pool
-    
+
     async def validate_api_key(self, api_key: str) -> UserContext | None:
         """Validate API key against database"""
         async with self.db_pool.connection() as conn:
             # Check API key and get associated service account
             service = await conn.fetchrow("""
-                SELECT 
+                SELECT
                     s.id,
                     s.name,
                     s.permissions,
@@ -295,10 +295,10 @@ class DatabaseAPIKeyProvider(APIKeyProvider):
                     AND k.expires_at > CURRENT_TIMESTAMP
                     AND k.is_active = true
             """, api_key)
-            
+
             if not service:
                 return None
-            
+
             # Log API key usage
             await conn.execute("""
                 INSERT INTO tb_api_key_usage (api_key_id, used_at, ip_address)
@@ -308,7 +308,7 @@ class DatabaseAPIKeyProvider(APIKeyProvider):
                     $2
                 )
             """, api_key, info.context.get("client_ip"))
-            
+
             return UserContext(
                 user_id=f"service:{service['id']}",
                 name=service['name'],
@@ -355,14 +355,14 @@ BEGIN
     -- Context is also available via session variables
     -- current_setting('app.user_id')
     -- current_setting('app.tenant_id')
-    
+
     INSERT INTO tb_posts (title, content, author_id, tenant_id)
     VALUES (p_title, p_content, p_author_id, p_tenant_id);
-    
+
     -- Return through secure view
     RETURN (
-        SELECT row_to_json(p) 
-        FROM v_posts p 
+        SELECT row_to_json(p)
+        FROM v_posts p
         WHERE p.id = LASTVAL()
     );
 END;
@@ -372,7 +372,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 # Context is also available in queries
 @query(
     sql="""
-    SELECT * FROM v_posts 
+    SELECT * FROM v_posts
     WHERE tenant_id = current_setting('app.tenant_id')::uuid
         AND (
             author_id = current_setting('app.user_id')::uuid
@@ -439,7 +439,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 class PostgreSQLAuthMiddleware:
     async def resolve(self, next, root, info, **args):
         user_context = info.context.get("user")
-        
+
         if user_context:
             # Set PostgreSQL session variables
             async with info.context["db_pool"].connection() as conn:
@@ -449,7 +449,7 @@ class PostgreSQLAuthMiddleware:
                     info.context.get("tenant_id"),
                     "app_authenticated" if not user_context.has_role("admin") else "app_admin"
                 )
-        
+
         return await next(root, info, **args)
 ```
 
@@ -471,21 +471,21 @@ class DatabaseTenantMiddleware(TenantMiddleware):
         # Extract tenant from subdomain
         host = request.headers.get("host", "")
         subdomain = host.split(".")[0]
-        
+
         async with self.db_pool.connection() as conn:
             tenant = await conn.fetchrow("""
                 SELECT id, name, settings
                 FROM tb_tenants
                 WHERE subdomain = $1 AND is_active = true
             """, subdomain)
-            
+
             if tenant:
                 return TenantContext(
                     tenant_id=str(tenant['id']),
                     tenant_name=tenant['name'],
                     tenant_settings=tenant['settings']
                 )
-        
+
         return None
 
 # Automatic tenant filtering in queries
@@ -531,13 +531,13 @@ class CachedAuthProvider(Auth0Provider):
     def __init__(self, *args, token_cache: TokenCache, **kwargs):
         super().__init__(*args, **kwargs)
         self.token_cache = token_cache
-    
+
     async def validate_token(self, token: str) -> dict[str, Any]:
         # Check cache first
         cached = await self.token_cache.get(token)
         if cached:
             return cached
-        
+
         # Validate and cache
         payload = await super().validate_token(token)
         await self.token_cache.set(token, payload)
@@ -604,7 +604,7 @@ from fraiseql.validation import EmailStr, SecurePassword
 class LoginInput:
     email: EmailStr  # Validates email format
     password: SecurePassword  # Validates password strength
-    
+
     @validator("password")
     def validate_password(cls, v):
         if len(v) < 12:
@@ -656,7 +656,7 @@ payload = jwt.decode(token, key, options={"verify_signature": True})
 
 # Good: Full validation
 payload = jwt.decode(
-    token, 
+    token,
     key,
     algorithms=["HS256"],
     options={
@@ -683,14 +683,14 @@ localStorage.removeItem('token')
 async def logout(info) -> bool:
     token = info.context["auth_token"]
     await auth_provider.logout(token)
-    
+
     # Clear session data
     await conn.execute("""
-        UPDATE tb_sessions 
-        SET revoked_at = CURRENT_TIMESTAMP 
+        UPDATE tb_sessions
+        SET revoked_at = CURRENT_TIMESTAMP
         WHERE token = $1
     """, token)
-    
+
     return True
 ```
 
@@ -715,7 +715,7 @@ CREATE POLICY tenant_isolation ON tb_posts
 
 ### Error: "JWT signature verification failed"
 **Cause**: Mismatched signing keys or algorithms
-**Solution**: 
+**Solution**:
 ```python
 # Verify JWKS endpoint for Auth0
 print(f"JWKS URL: {auth_provider.jwks_uri}")
@@ -725,7 +725,7 @@ print(f"Algorithms: {auth_provider.algorithms}")
 
 ### Error: "Token has been revoked"
 **Cause**: Token in revocation list
-**Solution**: 
+**Solution**:
 ```python
 # Check revocation status
 is_revoked = await revocation_service.is_token_revoked(payload)
@@ -735,7 +735,7 @@ await revocation_service.clear_revocation(jti)
 
 ### Error: "Refresh token theft detected"
 **Cause**: Refresh token reused after rotation
-**Solution**: 
+**Solution**:
 ```python
 # Invalidate entire token family
 await token_manager.invalidate_token_family(family_id)
@@ -744,7 +744,7 @@ await token_manager.invalidate_token_family(family_id)
 
 ### Error: "Permission denied for relation"
 **Cause**: PostgreSQL role lacks permissions
-**Solution**: 
+**Solution**:
 ```sql
 -- Check current role
 SELECT current_user, current_setting('role');

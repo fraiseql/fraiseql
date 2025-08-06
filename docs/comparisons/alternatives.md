@@ -28,7 +28,7 @@ FraiseQL makes an aggressive architectural choice:
 ```sql
 -- 1. Table Views (tv_): Complete denormalized entities
 CREATE TABLE tv_user AS
-SELECT 
+SELECT
     u.id,
     u.email,
     u.name,
@@ -88,15 +88,15 @@ graph TD
     A[GraphQL Request] --> B{Query in TurboRouter?}
     B -->|No| C[Standard GraphQL Processing]
     B -->|Yes| D[Execute SQL Template]
-    
+
     D --> E{Cache Fresh?}
     E -->|Yes| F[Return Cached JSON < 1ms]
     E -->|No| G[Build Fresh Response]
-    
+
     G --> H[Query Table Views]
     H --> I[Store in Cache]
     I --> J[Return JSON]
-    
+
     K[Data Modification] --> L[Increment Domain Version]
     L --> M[Cache Marked Stale]
 ```
@@ -201,7 +201,7 @@ class TurboLoader:
         WHERE is_active = true
         ORDER BY execution_count DESC  -- Prioritize hot queries
         """
-        
+
         for row in queries:
             turbo_query = TurboQuery(
                 graphql_query=row["graphql_query"],
@@ -218,7 +218,7 @@ class TurboLoader:
 #### Phase 1: Identify Hot Queries
 ```sql
 -- Find most executed queries
-SELECT 
+SELECT
     operation_name,
     execution_count,
     avg_execution_time_ms
@@ -232,7 +232,7 @@ LIMIT 20;
 ```sql
 -- Create denormalized views for entities
 CREATE TABLE tv_allocation AS
-SELECT 
+SELECT
     a.id,
     a.tenant_id,
     jsonb_build_object(
@@ -261,7 +261,7 @@ INSERT INTO graphql.tb_turbo_query (
 #### Phase 4: Monitor Cache Performance
 ```sql
 -- Cache hit rate and performance
-SELECT 
+SELECT
     query_type,
     COUNT(*) FILTER (WHERE cache_hit) as hits,
     COUNT(*) FILTER (WHERE NOT cache_hit) as misses,
@@ -347,7 +347,7 @@ CREATE TABLE turbo.tb_domain_version (...);
 
 #### Traditional Frameworks
 ```
-Client → GraphQL Server → Parse → Validate → Resolve → 
+Client → GraphQL Server → Parse → Validate → Resolve →
 → N Database Queries → Transform → Return
 Total: 50-500ms
 ```

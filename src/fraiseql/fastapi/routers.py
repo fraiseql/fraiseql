@@ -96,7 +96,7 @@ def create_graphql_router(
             logger.info(f"Creating TurboRouter with registry: {turbo_registry}")
             turbo_router = TurboRouter(turbo_registry)
             logger.info(f"TurboRouter created successfully: {turbo_router}")
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to create TurboRouter")
 
     logger.info(

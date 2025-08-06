@@ -35,7 +35,7 @@ query {
 ```sql
 SELECT jsonb_build_object(
     'id', data->>'id',
-    'name', data->>'name', 
+    'name', data->>'name',
     'email', data->>'email'
 ) AS result
 FROM v_user
@@ -91,7 +91,7 @@ class BlogRepository(FraiseQLRepository):
     async def get_user(self, user_id: str):
         """Get user by ID using view."""
         return await self.get_by_id("v_user", user_id)
-    
+
     async def get_posts(self, where=None, limit=20, offset=0):
         """Get posts with filtering."""
         return await self.select_from_json_view(
@@ -127,7 +127,7 @@ SELECT jsonb_agg(
     )
 ) AS result
 FROM v_post
-WHERE is_published = $1 
+WHERE is_published = $1
   AND author_id = $2;
 ```
 
@@ -157,7 +157,7 @@ SELECT jsonb_agg(data) AS result
 FROM v_post
 WHERE is_published = $1
   AND (
-    title ILIKE $2 
+    title ILIKE $2
     OR content ILIKE $3
   )
   AND created_at >= $4;
@@ -228,7 +228,7 @@ query {
 **Generated SQL:**
 ```sql
 WITH paginated AS (
-    SELECT 
+    SELECT
         data,
         id,
         ROW_NUMBER() OVER (ORDER BY published_at DESC) as row_num
@@ -262,7 +262,7 @@ FraiseQL prevents N+1 queries through view composition:
 posts = await db.query("SELECT * FROM posts LIMIT 10")
 for post in posts:
     post.author = await db.query(
-        "SELECT * FROM users WHERE id = ?", 
+        "SELECT * FROM users WHERE id = ?",
         post.author_id
     )
 # Total: 1 + 10 = 11 queries
@@ -298,7 +298,7 @@ from fraiseql.analysis import analyze_query_complexity
 def analyze_graphql_query(query: str) -> dict:
     """Analyze query complexity before execution."""
     analysis = analyze_query_complexity(query)
-    
+
     return {
         "depth": analysis.depth,  # Nesting level
         "breadth": analysis.breadth,  # Number of fields
@@ -331,10 +331,10 @@ if complexity["estimated_cost"] > 1000:
 async def explain_query(query: str, params: list):
     """Get PostgreSQL query plan."""
     explain_sql = f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {query}"
-    
+
     result = await db.execute(explain_sql, params)
     plan = result[0]["Plan"]
-    
+
     return {
         "total_cost": plan["Total Cost"],
         "execution_time": plan["Actual Total Time"],
@@ -352,7 +352,7 @@ def build_field_projection(fields: list[str]) -> str:
     """Build JSONB projection for selected fields."""
     if not fields:
         return "data"  # Return entire JSONB
-    
+
     projections = []
     for field in fields:
         if "." in field:
@@ -362,9 +362,9 @@ def build_field_projection(fields: list[str]) -> str:
         else:
             # Top-level field
             projection = f"data->>'{field}'"
-        
+
         projections.append(f"'{field}', {projection}")
-    
+
     return f"jsonb_build_object({', '.join(projections)})"
 ```
 
@@ -392,7 +392,7 @@ from fraiseql import dataloader_field
 class User:
     id: UUID
     name: str
-    
+
     @dataloader_field
     async def recent_activity(self, info) -> list[Activity]:
         """Batched loading of user activity."""
@@ -403,16 +403,16 @@ class ActivityLoader(DataLoader):
     async def batch_load_fn(self, user_ids: list[str]):
         """Load activities for multiple users in one query."""
         sql = """
-            SELECT 
+            SELECT
                 user_id,
                 jsonb_agg(data ORDER BY created_at DESC) as activities
             FROM v_activities
             WHERE user_id = ANY($1)
             GROUP BY user_id
         """
-        
+
         results = await db.execute(sql, [user_ids])
-        
+
         # Map results back to user IDs
         activity_map = {r["user_id"]: r["activities"] for r in results}
         return [activity_map.get(uid, []) for uid in user_ids]
@@ -499,7 +499,7 @@ def generate_query_hash(graphql_query: str, variables: dict) -> str:
 ```python
 def select_optimal_view(fields: set[str]) -> str:
     """Choose the most efficient view based on requested fields."""
-    
+
     if "comments" in fields and "author" in fields:
         return "v_posts_full"  # Has everything
     elif "author" in fields:
@@ -514,16 +514,16 @@ def select_optimal_view(fields: set[str]) -> str:
 ```python
 def build_query_with_joins(fields: set[str]) -> str:
     """Build query with only necessary joins."""
-    
+
     base_query = "SELECT p.* FROM tb_posts p"
     joins = []
-    
+
     if "author" in fields:
         joins.append("LEFT JOIN v_authors a ON a.id = p.author_id")
-    
+
     if "category" in fields:
         joins.append("LEFT JOIN v_categories c ON c.id = p.category_id")
-    
+
     if joins:
         return f"{base_query} {' '.join(joins)}"
     return base_query
@@ -602,7 +602,7 @@ CREATE OR REPLACE VIEW v_post_with_author AS ...
 ### 2. Index Filter Columns
 ```sql
 -- Index columns used in WHERE clauses
-CREATE INDEX idx_posts_published 
+CREATE INDEX idx_posts_published
 ON tb_posts(is_published, published_at DESC);
 ```
 
@@ -637,13 +637,13 @@ async def execute_with_metrics(sql: str, params: list):
     try:
         result = await db.execute(sql, params)
         duration = time.perf_counter() - start
-        
+
         metrics.record_query(
             sql_hash=hash(sql),
             duration_ms=duration * 1000,
             row_count=len(result)
         )
-        
+
         return result
     except Exception as e:
         metrics.record_query_error(sql_hash=hash(sql))

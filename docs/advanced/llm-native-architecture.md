@@ -40,17 +40,17 @@ CREATE TABLE tb_subscription_plans (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-COMMENT ON TABLE tb_subscription_plans IS 
-'Subscription plans define pricing tiers and feature access for SaaS customers. 
+COMMENT ON TABLE tb_subscription_plans IS
+'Subscription plans define pricing tiers and feature access for SaaS customers.
 Plans can be billed monthly or yearly with different feature limits.';
 
-COMMENT ON COLUMN tb_subscription_plans.features IS 
+COMMENT ON COLUMN tb_subscription_plans.features IS
 'JSONB object defining available features like {"api_access": true, "priority_support": false, "custom_branding": true}';
 
-COMMENT ON COLUMN tb_subscription_plans.max_users IS 
+COMMENT ON COLUMN tb_subscription_plans.max_users IS
 'Maximum number of user accounts allowed on this plan. NULL means unlimited.';
 
-COMMENT ON COLUMN tb_subscription_plans.max_storage_gb IS 
+COMMENT ON COLUMN tb_subscription_plans.max_storage_gb IS
 'Storage limit in gigabytes. NULL means unlimited storage.';
 
 -- AI-friendly view with comprehensive documentation
@@ -66,7 +66,7 @@ SELECT
         'pricing', jsonb_build_object(
             'monthly', p.monthly_price,
             'yearly', p.yearly_price,
-            'yearly_discount', CASE 
+            'yearly_discount', CASE
                 WHEN p.yearly_price IS NOT NULL AND p.monthly_price > 0
                 THEN ROUND(((p.monthly_price * 12 - p.yearly_price) / (p.monthly_price * 12)) * 100, 1)
                 ELSE NULL
@@ -84,8 +84,8 @@ SELECT
 FROM tb_subscription_plans p
 WHERE p.monthly_price > 0;  -- Only active plans
 
-COMMENT ON VIEW v_subscription_plans IS 
-'Subscription plans available for purchase. Includes calculated yearly discount percentage 
+COMMENT ON VIEW v_subscription_plans IS
+'Subscription plans available for purchase. Includes calculated yearly discount percentage
 and normalized limits structure. Use this view for plan selection UI and billing flows.
 Example queries:
 - Find plans under $50/month: WHERE monthly_price < 50
@@ -117,17 +117,17 @@ CREATE TABLE tb_invoice_line_items (
     tax_rate NUMERIC(5,4) NOT NULL,      -- Tax rate (e.g., 0.0825 for 8.25%)
     is_taxable BOOLEAN DEFAULT true,     -- Whether this item is taxable
     line_total NUMERIC(10,2) GENERATED ALWAYS AS (
-        (unit_price * quantity * (1 - discount_percent/100)) * 
+        (unit_price * quantity * (1 - discount_percent/100)) *
         (1 + CASE WHEN is_taxable THEN tax_rate ELSE 0 END)
     ) STORED
 );
 
-COMMENT ON TABLE tb_invoice_line_items IS 
-'Individual line items on invoices. Each line represents a product or service 
-with pricing, tax, and discount calculations. Line total is automatically 
+COMMENT ON TABLE tb_invoice_line_items IS
+'Individual line items on invoices. Each line represents a product or service
+with pricing, tax, and discount calculations. Line total is automatically
 calculated including discounts and tax.';
 
-COMMENT ON COLUMN tb_invoice_line_items.line_total IS 
+COMMENT ON COLUMN tb_invoice_line_items.line_total IS
 'Calculated total for this line item: (unit_price * quantity * (1 - discount_percent/100)) * (1 + tax_rate if taxable)';
 ```
 
@@ -155,8 +155,8 @@ SELECT
             'avg_invoice_value', COALESCE(AVG(i.total_amount), 0),
             'first_purchase', MIN(i.created_at),
             'last_purchase', MAX(i.created_at),
-            'days_since_last_purchase', CASE 
-                WHEN MAX(i.created_at) IS NOT NULL 
+            'days_since_last_purchase', CASE
+                WHEN MAX(i.created_at) IS NOT NULL
                 THEN EXTRACT(days FROM NOW() - MAX(i.created_at))::INT
                 ELSE NULL
             END,
@@ -166,24 +166,24 @@ SELECT
         'segments', (
             SELECT ARRAY_AGG(DISTINCT segment)
             FROM (
-                SELECT 
-                    CASE 
+                SELECT
+                    CASE
                         WHEN COALESCE(SUM(i2.total_amount), 0) > 10000 THEN 'high_value'
                         WHEN COALESCE(SUM(i2.total_amount), 0) > 1000 THEN 'medium_value'
                         WHEN COALESCE(SUM(i2.total_amount), 0) > 0 THEN 'low_value'
                         ELSE 'prospect'
                     END AS segment
-                FROM tb_invoices i2 
+                FROM tb_invoices i2
                 WHERE i2.customer_id = c.id
                 UNION
                 SELECT
-                    CASE 
+                    CASE
                         WHEN COUNT(i3.id) >= 12 THEN 'frequent_buyer'
                         WHEN COUNT(i3.id) >= 3 THEN 'regular_buyer'
                         WHEN COUNT(i3.id) >= 1 THEN 'occasional_buyer'
                         ELSE 'new_prospect'
                     END AS segment
-                FROM tb_invoices i3 
+                FROM tb_invoices i3
                 WHERE i3.customer_id = c.id
             ) segments
         )
@@ -193,7 +193,7 @@ LEFT JOIN tb_invoices i ON i.customer_id = c.id
 LEFT JOIN tb_payments p ON p.invoice_id = i.id
 GROUP BY c.id, c.email, c.name, c.company, c.created_at;
 
-COMMENT ON VIEW v_customer_analytics IS 
+COMMENT ON VIEW v_customer_analytics IS
 'Comprehensive customer analytics including lifetime value, purchase patterns, and automatic segmentation.
 
 AI Query Examples:
@@ -225,7 +225,7 @@ SELECT
     o.id,
     o.customer_id,      -- For customer-specific filtering
     o.status,           -- For status filtering
-    o.created_at,       -- For date range filtering  
+    o.created_at,       -- For date range filtering
     o.total_amount,     -- For amount range filtering
     o.payment_status,   -- For payment status filtering
     jsonb_build_object(
@@ -255,12 +255,12 @@ SELECT
 FROM tb_orders o
 LEFT JOIN v_customers c ON c.id = o.customer_id;
 
-COMMENT ON VIEW v_orders_filterable IS 
+COMMENT ON VIEW v_orders_filterable IS
 'Orders with consistent filtering patterns. All filter columns are exposed for standard queries.
 
 Standard Filter Patterns:
 - By customer: WHERE customer_id = $1
-- By status: WHERE status = $1 or WHERE status IN ($1, $2, $3)  
+- By status: WHERE status = $1 or WHERE status IN ($1, $2, $3)
 - By date range: WHERE created_at >= $1 AND created_at <= $2
 - By amount range: WHERE total_amount >= $1 AND total_amount <= $2
 - By payment status: WHERE payment_status = $1
@@ -291,12 +291,12 @@ SELECT
             'total_revenue', SUM(total_amount),
             'avg_order_value', AVG(total_amount),
             'unique_customers', COUNT(DISTINCT customer_id),
-            'new_customers', COUNT(DISTINCT CASE 
+            'new_customers', COUNT(DISTINCT CASE
                 WHEN NOT EXISTS (
-                    SELECT 1 FROM tb_orders o2 
-                    WHERE o2.customer_id = tb_orders.customer_id 
+                    SELECT 1 FROM tb_orders o2
+                    WHERE o2.customer_id = tb_orders.customer_id
                     AND o2.created_at < tb_orders.created_at
-                ) THEN customer_id 
+                ) THEN customer_id
             END)
         )
     ) AS data
@@ -318,12 +318,12 @@ SELECT
             'total_revenue', SUM(total_amount),
             'avg_order_value', AVG(total_amount),
             'unique_customers', COUNT(DISTINCT customer_id),
-            'new_customers', COUNT(DISTINCT CASE 
+            'new_customers', COUNT(DISTINCT CASE
                 WHEN NOT EXISTS (
-                    SELECT 1 FROM tb_orders o2 
-                    WHERE o2.customer_id = tb_orders.customer_id 
+                    SELECT 1 FROM tb_orders o2
+                    WHERE o2.customer_id = tb_orders.customer_id
                     AND o2.created_at < DATE_TRUNC('week', tb_orders.created_at)
-                ) THEN customer_id 
+                ) THEN customer_id
             END)
         )
     ) AS data
@@ -331,7 +331,7 @@ FROM tb_orders
 WHERE status = 'completed'
 GROUP BY DATE_TRUNC('week', created_at);
 
-COMMENT ON VIEW v_sales_aggregations IS 
+COMMENT ON VIEW v_sales_aggregations IS
 'Sales metrics aggregated by time period. Supports daily and weekly aggregations.
 
 AI Query Patterns:
@@ -373,9 +373,9 @@ SELECT
             'formatted', '$' || p.base_price::text,
             'is_expensive', p.base_price > 100,
             'is_budget_friendly', p.base_price <= 50,
-            'price_tier', CASE 
+            'price_tier', CASE
                 WHEN p.base_price <= 25 THEN 'budget'
-                WHEN p.base_price <= 100 THEN 'mid_range' 
+                WHEN p.base_price <= 100 THEN 'mid_range'
                 ELSE 'premium'
             END
         ),
@@ -386,8 +386,8 @@ SELECT
                 WHERE product_id = p.id
             ),
             'stock_level', (
-                SELECT 
-                    CASE 
+                SELECT
+                    CASE
                         WHEN SUM(quantity) > 100 THEN 'high'
                         WHEN SUM(quantity) > 10 THEN 'medium'
                         WHEN SUM(quantity) > 0 THEN 'low'
@@ -396,34 +396,34 @@ SELECT
                 FROM tb_inventory
                 WHERE product_id = p.id
             ),
-            'estimated_restock', CASE 
-                WHEN (SELECT SUM(quantity) FROM tb_inventory WHERE product_id = p.id) > 0 
+            'estimated_restock', CASE
+                WHEN (SELECT SUM(quantity) FROM tb_inventory WHERE product_id = p.id) > 0
                 THEN NULL
                 ELSE CURRENT_DATE + INTERVAL '2 weeks'
             END
         ),
         'popularity', jsonb_build_object(
             'view_count', (
-                SELECT COUNT(*) FROM tb_product_views 
-                WHERE product_id = p.id 
+                SELECT COUNT(*) FROM tb_product_views
+                WHERE product_id = p.id
                 AND created_at > CURRENT_DATE - INTERVAL '30 days'
             ),
             'purchase_count', (
                 SELECT COUNT(*) FROM tb_order_items oi
                 JOIN tb_orders o ON o.id = oi.order_id
-                WHERE oi.product_id = p.id 
+                WHERE oi.product_id = p.id
                 AND o.status = 'completed'
                 AND o.created_at > CURRENT_DATE - INTERVAL '30 days'
             ),
             'is_trending', (
-                SELECT COUNT(*) > 10 FROM tb_product_views 
-                WHERE product_id = p.id 
+                SELECT COUNT(*) > 10 FROM tb_product_views
+                WHERE product_id = p.id
                 AND created_at > CURRENT_DATE - INTERVAL '7 days'
             ),
             'is_bestseller', (
                 SELECT COUNT(*) FROM tb_order_items oi
                 JOIN tb_orders o ON o.id = oi.order_id
-                WHERE oi.product_id = p.id 
+                WHERE oi.product_id = p.id
                 AND o.status = 'completed'
                 AND o.created_at > CURRENT_DATE - INTERVAL '30 days'
             ) >= 100
@@ -434,12 +434,12 @@ SELECT
 FROM tb_products p
 WHERE p.status = 'active';
 
-COMMENT ON VIEW v_products_nlp_friendly IS 
+COMMENT ON VIEW v_products_nlp_friendly IS
 'Product catalog optimized for natural language queries and AI understanding.
 
 Natural Language Query Mappings:
 - "expensive products" → WHERE (data->''price''->>''is_expensive'')::boolean = true
-- "budget products" → WHERE (data->''price''->>''is_budget_friendly'')::boolean = true  
+- "budget products" → WHERE (data->''price''->>''is_budget_friendly'')::boolean = true
 - "out of stock items" → WHERE data->''availability''->>''stock_level'' = ''out_of_stock''
 - "trending products" → WHERE (data->''popularity''->>''is_trending'')::boolean = true
 - "bestselling items" → WHERE (data->''popularity''->>''is_bestseller'')::boolean = true
@@ -470,7 +470,7 @@ SELECT
             'name', c.name,
             'email', c.email
         ),
-        'risk_score', CASE 
+        'risk_score', CASE
             WHEN days_since_last_order > 90 AND lifetime_orders > 3 THEN 'high'
             WHEN days_since_last_order > 60 AND lifetime_orders > 1 THEN 'medium'
             WHEN days_since_last_order > 30 AND lifetime_orders > 0 THEN 'low'
@@ -482,7 +482,7 @@ SELECT
             'lifetime_value', lifetime_value,
             'avg_order_value', CASE WHEN lifetime_orders > 0 THEN lifetime_value / lifetime_orders ELSE 0 END
         ),
-        'recommendations', CASE 
+        'recommendations', CASE
             WHEN days_since_last_order > 90 THEN jsonb_build_array(
                 'Send personalized discount offer',
                 'Re-engagement email campaign',
@@ -496,7 +496,7 @@ SELECT
         END
     ) AS data
 FROM (
-    SELECT 
+    SELECT
         c.id,
         c.name,
         c.email,
@@ -509,7 +509,7 @@ FROM (
 ) customer_stats
 WHERE lifetime_orders > 0;  -- Only customers who have purchased
 
-COMMENT ON VIEW v_business_insights IS 
+COMMENT ON VIEW v_business_insights IS
 'Business insights derived from customer behavior patterns. Designed for AI to answer natural language business questions.
 
 Natural Language Questions Supported:
@@ -531,7 +531,7 @@ Use PostgreSQL's type system to prevent common AI mistakes:
 -- Strongly typed enums prevent invalid values
 CREATE TYPE order_status AS ENUM (
     'pending',
-    'confirmed', 
+    'confirmed',
     'processing',
     'shipped',
     'delivered',
@@ -561,10 +561,10 @@ CREATE TABLE tb_orders_typed (
     delivered_at TIMESTAMPTZ CHECK (delivered_at IS NULL OR delivered_at >= shipped_at)
 );
 
-COMMENT ON TYPE order_status IS 
+COMMENT ON TYPE order_status IS
 'Valid order status values. AI systems should only use these exact values when updating orders.';
 
-COMMENT ON TYPE payment_status IS 
+COMMENT ON TYPE payment_status IS
 'Valid payment status values. These track the payment lifecycle from pending to final status.';
 
 -- View with type validation examples
@@ -573,7 +573,7 @@ SELECT
     o.id,
     o.customer_id,
     o.status,  -- Exposed as filter column
-    o.payment_status,  -- Exposed as filter column  
+    o.payment_status,  -- Exposed as filter column
     o.total_amount,  -- Exposed as filter column
     jsonb_build_object(
         '__typename', 'Order',
@@ -593,7 +593,7 @@ SELECT
             'created_at', o.created_at,
             'shipped_at', o.shipped_at,
             'delivered_at', o.delivered_at,
-            'estimated_delivery', CASE 
+            'estimated_delivery', CASE
                 WHEN o.shipped_at IS NOT NULL THEN o.shipped_at + INTERVAL '3 days'
                 WHEN o.status = 'processing' THEN NOW() + INTERVAL '5 days'
                 ELSE NULL
@@ -602,7 +602,7 @@ SELECT
     ) AS data
 FROM tb_orders_typed o;
 
-COMMENT ON VIEW v_orders_typed IS 
+COMMENT ON VIEW v_orders_typed IS
 'Strongly typed orders view with validation helpers. AI can safely query this without type errors.
 
 Type-Safe Query Examples:
@@ -613,7 +613,7 @@ Type-Safe Query Examples:
 
 AI Benefits:
 - Cannot insert invalid enum values
-- Cannot set negative amounts  
+- Cannot set negative amounts
 - Cannot set delivered_at before shipped_at
 - Clear status transition rules in status_info';
 ```
@@ -633,13 +633,13 @@ CREATE TABLE tb_subscription_changes (
     effective_date DATE NOT NULL DEFAULT CURRENT_DATE,
     prorated_credit NUMERIC(8,2) DEFAULT 0 CHECK (prorated_credit >= 0),
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    
+
     -- Business rule: Can't change to the same plan
     CONSTRAINT no_same_plan_change CHECK (from_plan_id != to_plan_id),
-    
+
     -- Business rule: Effective date can't be in the past
     CONSTRAINT effective_date_not_past CHECK (effective_date >= CURRENT_DATE),
-    
+
     -- Business rule: Can't have multiple changes for same customer on same date
     CONSTRAINT one_change_per_customer_per_day UNIQUE (customer_id, effective_date)
 );
@@ -659,30 +659,30 @@ BEGIN
     -- Extract and validate input
     v_customer_id := (input_data->>'customer_id')::UUID;
     v_to_plan_id := (input_data->>'to_plan_id')::UUID;
-    
+
     -- Get customer's current plan
     SELECT sp.*, cs.plan_id INTO v_from_plan
     FROM tb_customer_subscriptions cs
     JOIN tb_subscription_plans sp ON sp.id = cs.plan_id
-    WHERE cs.customer_id = v_customer_id 
+    WHERE cs.customer_id = v_customer_id
         AND cs.status = 'active'
     LIMIT 1;
-    
+
     IF NOT FOUND THEN
         RETURN ROW(false, 'Customer has no active subscription', NULL)::mutation_result;
     END IF;
-    
+
     v_from_plan_id := v_from_plan.id;
-    
+
     -- Get target plan details
     SELECT * INTO v_to_plan
     FROM tb_subscription_plans
     WHERE id = v_to_plan_id;
-    
+
     IF NOT FOUND THEN
-        RETURN ROW(false, 'Target plan not found', NULL)::mutation_result;  
+        RETURN ROW(false, 'Target plan not found', NULL)::mutation_result;
     END IF;
-    
+
     -- Determine change type and calculate prorated credit
     IF v_to_plan.monthly_price > v_from_plan.monthly_price THEN
         v_change_type := 'upgrade';
@@ -695,12 +695,12 @@ BEGIN
         v_change_type := 'switch';  -- Same price, different features
         v_prorated_credit := 0;
     END IF;
-    
+
     -- Create subscription change record (constraints will validate)
     INSERT INTO tb_subscription_changes (
         customer_id,
         from_plan_id,
-        to_plan_id, 
+        to_plan_id,
         change_type,
         prorated_credit,
         effective_date
@@ -712,16 +712,16 @@ BEGIN
         v_prorated_credit,
         COALESCE((input_data->>'effective_date')::DATE, CURRENT_DATE)
     );
-    
+
     -- Apply the change immediately if effective today
     IF COALESCE((input_data->>'effective_date')::DATE, CURRENT_DATE) = CURRENT_DATE THEN
         UPDATE tb_customer_subscriptions
         SET plan_id = v_to_plan_id,
             updated_at = NOW()
-        WHERE customer_id = v_customer_id 
+        WHERE customer_id = v_customer_id
             AND status = 'active';
     END IF;
-    
+
     RETURN ROW(
         true,
         'Subscription change scheduled successfully',
@@ -733,7 +733,7 @@ BEGIN
             'effective_date', COALESCE((input_data->>'effective_date')::DATE, CURRENT_DATE)
         )
     )::mutation_result;
-    
+
 EXCEPTION
     WHEN unique_violation THEN
         RETURN ROW(false, 'Customer already has a plan change scheduled for this date', NULL)::mutation_result;
@@ -742,12 +742,12 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION fn_change_subscription_plan IS 
+COMMENT ON FUNCTION fn_change_subscription_plan IS
 'Safely changes customer subscription plans with automatic validation and business rule enforcement.
 
 AI Usage:
 - All business rules are enforced by database constraints
-- Function handles upgrade/downgrade logic automatically  
+- Function handles upgrade/downgrade logic automatically
 - Cannot create invalid changes (same plan, past dates, etc.)
 - Returns clear success/error messages for AI to interpret
 
@@ -784,7 +784,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Standardized success responses  
+-- Standardized success responses
 CREATE OR REPLACE FUNCTION standardized_success(
     p_message TEXT,
     p_data JSONB
@@ -811,7 +811,7 @@ DECLARE
 BEGIN
     -- Extract email
     v_email := input_data->>'email';
-    
+
     -- Validate email format
     IF v_email !~ '^[^@]+@[^@]+\.[^@]+$' THEN
         RETURN standardized_error(
@@ -820,7 +820,7 @@ BEGIN
             jsonb_build_object('field', 'email', 'value', v_email)
         );
     END IF;
-    
+
     -- Check for duplicate email
     IF EXISTS (SELECT 1 FROM tb_customers WHERE email = v_email) THEN
         RETURN standardized_error(
@@ -831,7 +831,7 @@ BEGIN
             ))
         );
     END IF;
-    
+
     -- Create customer
     INSERT INTO tb_customers (
         email,
@@ -844,7 +844,7 @@ BEGIN
         input_data->>'company',
         input_data->>'phone'
     ) RETURNING id INTO v_customer_id;
-    
+
     -- Return standardized success
     RETURN standardized_success(
         'Customer created successfully',
@@ -854,7 +854,7 @@ BEGIN
             'created_at', NOW()
         )
     );
-    
+
 EXCEPTION
     WHEN OTHERS THEN
         RETURN standardized_error(
@@ -865,7 +865,7 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION fn_create_customer IS 
+COMMENT ON FUNCTION fn_create_customer IS
 'Creates a new customer with standardized response format for AI consumption.
 
 Response Format:
@@ -894,7 +894,7 @@ SELECT
         'company', c.company,
         'status', c.status,
         'created_at', c.created_at,
-        'subscription', CASE 
+        'subscription', CASE
             WHEN cs.id IS NOT NULL THEN
                 jsonb_build_object(
                     'plan', sp.name,
@@ -922,10 +922,10 @@ SELECT
         -- Related operations
         'related_operations', jsonb_build_object(
             'view_orders', '/api/customers/' || c.id || '/orders',
-            'view_invoices', '/api/customers/' || c.id || '/invoices', 
+            'view_invoices', '/api/customers/' || c.id || '/invoices',
             'view_support_tickets', '/api/customers/' || c.id || '/tickets',
-            'subscription_management', CASE 
-                WHEN cs.id IS NOT NULL 
+            'subscription_management', CASE
+                WHEN cs.id IS NOT NULL
                 THEN '/api/customers/' || c.id || '/subscription'
                 ELSE NULL
             END
@@ -935,12 +935,12 @@ FROM tb_customers c
 LEFT JOIN tb_customer_subscriptions cs ON cs.customer_id = c.id AND cs.status = 'active'
 LEFT JOIN tb_subscription_plans sp ON sp.id = cs.plan_id;
 
-COMMENT ON VIEW v_customers_with_operations IS 
+COMMENT ON VIEW v_customers_with_operations IS
 'Customer data with operation metadata to guide AI interactions.
 
 AI Usage:
 - Check available_operations before attempting operations
-- Use state_transitions to understand valid next states  
+- Use state_transitions to understand valid next states
 - Use related_operations to discover related endpoints
 - Prevents AI from attempting invalid operations
 
@@ -1001,7 +1001,7 @@ openai_functions = [
                     "description": "Customer's unique identifier"
                 },
                 "to_plan_id": {
-                    "type": "string", 
+                    "type": "string",
                     "format": "uuid",
                     "description": "Target subscription plan ID"
                 },
@@ -1018,7 +1018,7 @@ openai_functions = [
         "name": "get_customer_analytics",
         "description": "Retrieves comprehensive customer analytics including lifetime value and churn risk",
         "parameters": {
-            "type": "object", 
+            "type": "object",
             "properties": {
                 "customer_id": {
                     "type": "string",
@@ -1038,7 +1038,7 @@ openai_functions = [
 
 # AI can call these functions with natural language:
 # "Create a customer named John Doe with email john@example.com"
-# "Change customer abc-123 to the premium plan starting next month"  
+# "Change customer abc-123 to the premium plan starting next month"
 # "Show me analytics for customer xyz-789 including predictions"
 ```
 
@@ -1061,7 +1061,7 @@ class CreateCustomerInput(BaseModel):
 class FraiseQLTool:
     def __init__(self, connection_url: str):
         self.connection_url = connection_url
-    
+
     async def create_customer(self, input_data: CreateCustomerInput) -> dict:
         """Create a new customer with validation."""
         async with asyncpg.connect(self.connection_url) as conn:
@@ -1070,18 +1070,18 @@ class FraiseQLTool:
                 input_data.dict(exclude_none=True)
             )
             return dict(result)
-    
+
     async def query_customers(self, query: str) -> list[dict]:
         """Query customers with natural language filters."""
         # Convert natural language to SQL WHERE clause
         sql_filter = self._natural_language_to_sql(query)
-        
+
         async with asyncpg.connect(self.connection_url) as conn:
             results = await conn.fetch(
                 f"SELECT data FROM v_customers_nlp_friendly WHERE {sql_filter}"
             )
             return [dict(r) for r in results]
-    
+
     def _natural_language_to_sql(self, query: str) -> str:
         """Convert natural language to SQL WHERE clause."""
         # Simple mappings for common phrases
@@ -1092,11 +1092,11 @@ class FraiseQLTool:
             "active subscriptions": "data->'subscription'->>'status' = 'active'",
             "premium customers": "data->'subscription'->'plan'->>'name' ILIKE '%premium%'"
         }
-        
+
         for phrase, sql in mappings.items():
             if phrase in query.lower():
                 return sql
-        
+
         # Fallback to basic search
         return f"data->'name' ILIKE '%{query}%' OR data->'company' ILIKE '%{query}%'"
 
@@ -1127,61 +1127,61 @@ import asyncpg
 
 class FraiseQLQueryEngine:
     """Query engine that understands FraiseQL schema and business context."""
-    
+
     def __init__(self, connection_url: str):
         self.connection_url = connection_url
         self.schema_docs = self._load_schema_documentation()
         self.index = VectorStoreIndex.from_documents(self.schema_docs)
-        
+
     def _load_schema_documentation(self):
         """Load schema documentation from database comments."""
         # This would extract COMMENT ON statements and create documents
         # containing table/view/function documentation for the index
         pass
-        
+
     async def query(self, query_str: str) -> str:
         """Answer questions about data using schema knowledge."""
-        
+
         # First, understand what the user is asking about
         query_engine = self.index.as_query_engine()
         schema_context = query_engine.query(
             f"What database tables and views would I need to answer: {query_str}"
         )
-        
+
         # Generate and execute SQL query
         sql_query = await self._generate_sql_query(query_str, schema_context)
-        
+
         async with asyncpg.connect(self.connection_url) as conn:
             results = await conn.fetch(sql_query)
             return self._format_results(results, query_str)
-    
+
     async def _generate_sql_query(self, question: str, schema_context: str) -> str:
         """Generate SQL query based on question and schema context."""
         llm = OpenAI(model="gpt-4")
-        
+
         prompt = f"""
         Based on this schema context:
         {schema_context}
-        
+
         Generate a PostgreSQL query to answer: {question}
-        
+
         Use these FraiseQL conventions:
         - Query views (v_*) not tables (tb_*)
         - Extract data from JSONB 'data' column
         - Use proper JSONB operators (->>, ->, ?)
         - Include relevant WHERE clauses for performance
-        
+
         Return only the SQL query:
         """
-        
+
         response = await llm.aquery(prompt)
         return response.text.strip()
-    
+
     def _format_results(self, results: list, original_question: str) -> str:
         """Format query results into natural language response."""
         if not results:
             return f"I couldn't find any data to answer: {original_question}"
-        
+
         # Convert results to natural language based on question type
         if "how many" in original_question.lower():
             return f"I found {len(results)} results."
@@ -1201,7 +1201,7 @@ engine = FraiseQLQueryEngine("postgresql://...")
 
 # AI can answer business questions naturally:
 # "How many customers signed up last month?"
-# "Who are our highest value customers?"  
+# "Who are our highest value customers?"
 # "Which products are running low on inventory?"
 # "Show me customers at risk of churning"
 ```
@@ -1216,23 +1216,23 @@ Generate client SDKs from database schema:
 # Schema introspection for API generation
 async def generate_api_client(connection_url: str) -> str:
     """Generate TypeScript client from FraiseQL schema."""
-    
+
     async with asyncpg.connect(connection_url) as conn:
         # Get all views and their structures
         views = await conn.fetch("""
-            SELECT 
+            SELECT
                 table_name,
                 obj_description(c.oid) as comment
             FROM information_schema.tables t
             JOIN pg_class c ON c.relname = t.table_name
-            WHERE table_schema = 'public' 
+            WHERE table_schema = 'public'
                 AND table_name LIKE 'v_%'
                 AND table_type = 'VIEW'
         """)
-        
+
         # Get function signatures for mutations
         functions = await conn.fetch("""
-            SELECT 
+            SELECT
                 routine_name,
                 parameters,
                 obj_description(p.oid) as comment
@@ -1241,17 +1241,17 @@ async def generate_api_client(connection_url: str) -> str:
             WHERE routine_schema = 'public'
                 AND routine_name LIKE 'fn_%'
         """)
-        
+
         # Generate TypeScript interfaces
         client_code = generate_typescript_client(views, functions)
-        
+
         return client_code
 
 def generate_typescript_client(views: list, functions: list) -> str:
     """Generate TypeScript client code."""
-    
+
     interfaces = []
-    
+
     # Generate interfaces from view schemas
     for view in views:
         interface = f"""
@@ -1266,7 +1266,7 @@ interface {to_pascal_case(view['table_name'])} {{
 }}
 """
         interfaces.append(interface)
-    
+
     # Generate mutation functions
     mutations = []
     for func in functions:
@@ -1279,7 +1279,7 @@ async {to_camel_case(func['routine_name'])}(
 }}
 """
         mutations.append(mutation)
-    
+
     return f"""
 // Auto-generated FraiseQL client
 // Generated from database schema on {datetime.now()}
@@ -1288,11 +1288,11 @@ async {to_camel_case(func['routine_name'])}(
 
 class FraiseQLClient {{
     constructor(private apiUrl: string) {{}}
-    
+
     {chr(10).join(mutations)}
-    
+
     private async executeMutation(
-        functionName: string, 
+        functionName: string,
         input: any
     ): Promise<MutationResult> {{
         // Implementation
@@ -1309,14 +1309,14 @@ Generate resolvers from database functions:
 # Auto-generate GraphQL resolvers from database schema
 def generate_graphql_resolvers(connection_url: str) -> str:
     """Generate GraphQL resolvers from FraiseQL functions."""
-    
+
     resolver_code = """
 # Auto-generated GraphQL resolvers
 from fraiseql import query, mutation
 # Modern typing patterns used (built-in types)
 
 """
-    
+
     # Generate query resolvers from views
     views = get_views_from_db(connection_url)
     for view in views:
@@ -1330,14 +1330,14 @@ async def {to_snake_case(view['name'])}(
 ) -> list[{to_pascal_case(view['name'])}]:
     '''
     {view['comment']}
-    
+
     Auto-generated resolver for {view['name']}
     '''
     # FraiseQL handles the query automatically
     pass
 """
-    
-    # Generate mutation resolvers from functions  
+
+    # Generate mutation resolvers from functions
     functions = get_functions_from_db(connection_url)
     for func in functions:
         resolver_code += f"""
@@ -1348,13 +1348,13 @@ async def {to_snake_case(func['name'])}(
 ) -> {to_pascal_case(func['name'])}Success | {to_pascal_case(func['name'])}Error:
     '''
     {func['comment']}
-    
+
     Auto-generated mutation for {func['name']}
     '''
     # FraiseQL handles the function call automatically
     pass
 """
-    
+
     return resolver_code
 ```
 
@@ -1379,7 +1379,7 @@ SELECT
     COALESCE(metrics.avg_order_value, 0) as avg_order_value,
     COALESCE(metrics.days_since_last_order, 999) as days_since_last_order,
     -- Pre-computed segments for fast filtering
-    CASE 
+    CASE
         WHEN COALESCE(metrics.lifetime_value, 0) > 5000 THEN 'vip'
         WHEN COALESCE(metrics.lifetime_value, 0) > 1000 THEN 'high_value'
         WHEN COALESCE(metrics.order_count, 0) > 5 THEN 'loyal'
@@ -1403,14 +1403,14 @@ SELECT
         'created_at', c.created_at
     ) AS data,
     -- Search vector for text queries
-    to_tsvector('english', 
-        COALESCE(c.name, '') || ' ' || 
-        COALESCE(c.company, '') || ' ' || 
+    to_tsvector('english',
+        COALESCE(c.name, '') || ' ' ||
+        COALESCE(c.company, '') || ' ' ||
         c.email
     ) AS search_vector
 FROM tb_customers c
 LEFT JOIN (
-    SELECT 
+    SELECT
         customer_id,
         COUNT(*) as order_count,
         SUM(total_amount) as lifetime_value,
@@ -1440,7 +1440,7 @@ SELECT
     search_vector  -- Exposed for text search
 FROM tv_ai_customer_summary;
 
-COMMENT ON VIEW v_customers_ai_optimized IS 
+COMMENT ON VIEW v_customers_ai_optimized IS
 'AI-optimized customer view with pre-computed segments and fast filtering.
 
 Optimized AI Query Patterns:
@@ -1495,7 +1495,7 @@ All common AI queries hit indexes and return sub-millisecond.';
 ### Autonomous Schema Evolution
 
 - AI systems could suggest schema improvements based on query patterns
-- Automated index creation based on AI query analysis  
+- Automated index creation based on AI query analysis
 - Self-optimizing views that adapt to AI usage patterns
 - Intelligent materialization of frequently accessed AI computations
 

@@ -23,19 +23,19 @@ graph TB
         GQ[GraphQL Query]
         TR[TurboRouter]
     end
-    
+
     subgraph "Bounded Context (Source of Truth)"
         TV[Table Views<br/>tv_user, tv_allocation<br/>Complete Entities]
         VT[Version Triggers<br/>On tv_ tables only]
     end
-    
+
     subgraph "Cache Infrastructure"
         TQ[tb_turbo_query<br/>Query Registry]
         LC[tb_graphql_cache<br/>Response Cache + History]
         DV[tb_domain_version<br/>Bounded Context Versions]
         CF[Cache Functions<br/>fn_get_cached_response]
     end
-    
+
     GQ --> TR
     TR --> TQ
     TQ --> CF
@@ -65,8 +65,8 @@ CREATE TABLE turbo.tb_graphql_cache (
 );
 
 -- Partial unique index for current cache
-CREATE UNIQUE INDEX idx_current_cache 
-ON turbo.tb_graphql_cache(tenant_id, query_type, query_key) 
+CREATE UNIQUE INDEX idx_current_cache
+ON turbo.tb_graphql_cache(tenant_id, query_type, query_key)
 WHERE is_current = true;
 
 -- 2. Version Tracking: Bounded context versions
@@ -133,7 +133,7 @@ DECLARE
 BEGIN
     -- Extract bounded context from trigger argument
     v_domain := TG_ARGV[0];
-    
+
     -- Get affected tenant(s)
     -- For INSERT/UPDATE use NEW, for DELETE use OLD
     IF TG_OP IN ('INSERT', 'UPDATE') THEN
@@ -143,22 +143,22 @@ BEGIN
         SELECT DISTINCT tenant_id INTO v_tenant_id
         FROM OLD;
     END IF;
-    
+
     -- Archive current version
-    INSERT INTO turbo.tb_domain_version_history 
+    INSERT INTO turbo.tb_domain_version_history
         (tenant_id, domain, version, modified_at, modified_by, change_summary)
-    SELECT 
-        tenant_id, 
-        domain, 
-        version, 
+    SELECT
+        tenant_id,
+        domain,
+        version,
         last_modified,
         modified_by,
         change_summary
     FROM turbo.tb_domain_version
     WHERE tenant_id = v_tenant_id AND domain = v_domain;
-    
+
     -- Increment version
-    INSERT INTO turbo.tb_domain_version 
+    INSERT INTO turbo.tb_domain_version
         (tenant_id, domain, version, last_modified, modified_by, change_summary)
     VALUES (
         v_tenant_id,
@@ -173,7 +173,7 @@ BEGIN
         last_modified = NOW(),
         modified_by = current_setting('app.user_id', true),
         change_summary = format('%s on tv_%s', TG_OP, v_domain);
-    
+
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -211,12 +211,12 @@ DECLARE
     v_fresh_data JSONB;
 BEGIN
     v_tenant_id := current_setting('app.tenant_id')::uuid;
-    
+
     -- Get current domain version
     SELECT COALESCE(version, 0) INTO v_current_version
     FROM turbo.tb_domain_version
     WHERE tenant_id = v_tenant_id AND domain = p_domain;
-    
+
     -- Try current cache
     SELECT response_json, cache_version INTO v_cached_data
     FROM turbo.tb_graphql_cache
@@ -224,17 +224,17 @@ BEGIN
       AND query_type = p_query_type
       AND query_key = p_query_key
       AND is_current = true;
-    
+
     -- Return if fresh
     IF v_cached_data.response_json IS NOT NULL
        AND v_cached_data.cache_version >= v_current_version THEN
         RETURN v_cached_data.response_json::json;
     END IF;
-    
+
     -- Build fresh data
-    EXECUTE format('SELECT %s(%L::jsonb)', p_builder_function, p_params) 
+    EXECUTE format('SELECT %s(%L::jsonb)', p_builder_function, p_params)
     INTO v_fresh_data;
-    
+
     IF p_preserve_history AND v_cached_data.response_json IS NOT NULL THEN
         -- Archive old cache entry
         UPDATE turbo.tb_graphql_cache
@@ -244,21 +244,21 @@ BEGIN
           AND query_key = p_query_key
           AND is_current = true;
     END IF;
-    
+
     -- Insert new cache entry
     INSERT INTO turbo.tb_graphql_cache
-        (tenant_id, query_type, query_key, response_json, 
+        (tenant_id, query_type, query_key, response_json,
          cache_version, is_current)
     VALUES
-        (v_tenant_id, p_query_type, p_query_key, v_fresh_data, 
+        (v_tenant_id, p_query_type, p_query_key, v_fresh_data,
          v_current_version, true)
-    ON CONFLICT (tenant_id, query_type, query_key) 
+    ON CONFLICT (tenant_id, query_type, query_key)
     WHERE is_current = true
     DO UPDATE SET
         response_json = EXCLUDED.response_json,
         cache_version = EXCLUDED.cache_version,
         updated_at = NOW();
-    
+
     RETURN v_fresh_data::json;
 END;
 $$ LANGUAGE plpgsql;
@@ -306,7 +306,7 @@ $$ LANGUAGE plpgsql;
 
 -- Example: Compare user profile over time
 WITH historical_data AS (
-    SELECT 
+    SELECT
         cache_version,
         created_at,
         response_json->'data'->'user'->>'name' as name,
@@ -327,7 +327,7 @@ SELECT * FROM historical_data;
 ```sql
 -- Audit view: Track all changes to a bounded context
 CREATE VIEW v_audit_trail AS
-SELECT 
+SELECT
     v.domain as bounded_context,
     v.version,
     v.modified_at,
@@ -338,8 +338,8 @@ SELECT
         SUM(pg_column_size(c.response_json))::bigint
     ) as cache_size_at_version
 FROM turbo.tb_domain_version_history v
-LEFT JOIN turbo.tb_graphql_cache c ON 
-    c.tenant_id = v.tenant_id 
+LEFT JOIN turbo.tb_graphql_cache c ON
+    c.tenant_id = v.tenant_id
     AND c.cache_version = v.version
 GROUP BY v.domain, v.version, v.modified_at, v.modified_by, v.change_summary
 ORDER BY v.modified_at DESC;
@@ -357,7 +357,7 @@ RETURNS TABLE(
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         cache_version as version,
         response_json as data,
         created_at as captured_at
@@ -379,7 +379,7 @@ $$ LANGUAGE plpgsql;
 -- Analyze storage usage and value
 CREATE VIEW v_cache_storage_analysis AS
 WITH storage_stats AS (
-    SELECT 
+    SELECT
         query_type as bounded_context,
         COUNT(*) FILTER (WHERE is_current) as current_entries,
         COUNT(*) FILTER (WHERE NOT is_current) as historical_entries,
@@ -395,7 +395,7 @@ WITH storage_stats AS (
     GROUP BY query_type
 ),
 value_stats AS (
-    SELECT 
+    SELECT
         query_type,
         COUNT(*) as access_count,
         AVG(execution_time_ms) as avg_access_time_ms
@@ -403,13 +403,13 @@ value_stats AS (
     WHERE created_at > NOW() - INTERVAL '30 days'
     GROUP BY query_type
 )
-SELECT 
+SELECT
     s.*,
     v.access_count as monthly_accesses,
     v.avg_access_time_ms,
     -- Calculate value: faster access * frequency
     ROUND(
-        (v.access_count * v.avg_access_time_ms / 1000.0)::numeric, 
+        (v.access_count * v.avg_access_time_ms / 1000.0)::numeric,
         2
     ) as time_saved_seconds
 FROM storage_stats s
@@ -428,7 +428,7 @@ ORDER BY s.total_storage DESC;
 ```sql
 -- Example: Analyze business metrics evolution
 CREATE VIEW v_business_metrics_timeline AS
-SELECT 
+SELECT
     DATE_TRUNC('day', created_at) as date,
     (response_json->'data'->'dashboard'->'metrics'->>'revenue')::numeric as daily_revenue,
     (response_json->'data'->'dashboard'->'metrics'->>'user_count')::int as active_users,
@@ -463,11 +463,11 @@ EXECUTE FUNCTION turbo.fn_increment_context_version('contract');
 
 -- 3. Register queries that depend on this context
 INSERT INTO graphql.tb_turbo_query (operation_name, sql_template)
-VALUES 
-    ('GetContract', 
+VALUES
+    ('GetContract',
      'SELECT turbo.fn_get_cached_response(
-         ''contract'', $1, ''contract'', 
-         ''contract.fn_build'', 
+         ''contract'', $1, ''contract'',
+         ''contract.fn_build'',
          jsonb_build_object(''id'', $1)
      )'),
     ('ListContracts',
@@ -510,7 +510,7 @@ BEGIN
     FROM turbo.tb_domain_version
     WHERE tenant_id = current_setting('app.tenant_id')::uuid
       AND domain = ANY(p_contexts);
-    
+
     -- Rest follows standard pattern...
 END;
 $$ LANGUAGE plpgsql;
@@ -523,7 +523,7 @@ For expensive aggregations, combine with materialized views:
 ```sql
 -- Materialized view refreshed by trigger
 CREATE MATERIALIZED VIEW mv_allocation_summary AS
-SELECT 
+SELECT
     tenant_id,
     COUNT(*) as total_allocations,
     COUNT(DISTINCT machine_id) as unique_machines,
@@ -580,7 +580,7 @@ BEGIN
         (NOT cfg.preserve_history) OR
         (c.created_at < NOW() - (cfg.history_retention_days || ' days')::interval)
       );
-    
+
     -- Delete stale current cache
     DELETE FROM turbo.tb_graphql_cache c
     USING turbo.tb_cache_config cfg
@@ -595,7 +595,7 @@ $$ LANGUAGE plpgsql;
 
 ```sql
 -- Enable TOAST compression
-ALTER TABLE turbo.tb_graphql_cache 
+ALTER TABLE turbo.tb_graphql_cache
 SET (
     toast_compression = lz4,
     fillfactor = 90
@@ -607,7 +607,7 @@ RETURNS void AS $$
 BEGIN
     -- Move old entries to compressed storage
     INSERT INTO turbo.tb_graphql_cache_compressed
-    SELECT 
+    SELECT
         tenant_id,
         query_type,
         query_key,
@@ -617,7 +617,7 @@ BEGIN
     FROM turbo.tb_graphql_cache
     WHERE NOT is_current
       AND created_at < NOW() - INTERVAL '30 days';
-    
+
     -- Delete from main table
     DELETE FROM turbo.tb_graphql_cache
     WHERE NOT is_current
@@ -633,7 +633,7 @@ $$ LANGUAGE plpgsql;
 ```sql
 CREATE VIEW v_cache_dashboard AS
 WITH context_stats AS (
-    SELECT 
+    SELECT
         domain as bounded_context,
         version as current_version,
         last_modified,
@@ -641,7 +641,7 @@ WITH context_stats AS (
     FROM turbo.tb_domain_version
 ),
 cache_stats AS (
-    SELECT 
+    SELECT
         query_type,
         COUNT(*) FILTER (WHERE is_current) as active_caches,
         COUNT(*) FILTER (WHERE NOT is_current) as historical_entries,
@@ -651,7 +651,7 @@ cache_stats AS (
     GROUP BY query_type
 ),
 performance_stats AS (
-    SELECT 
+    SELECT
         query_type,
         COUNT(*) as requests_24h,
         AVG(CASE WHEN cache_hit THEN execution_time_ms END) as avg_hit_time_ms,
@@ -661,7 +661,7 @@ performance_stats AS (
     WHERE created_at > NOW() - INTERVAL '24 hours'
     GROUP BY query_type
 )
-SELECT 
+SELECT
     ctx.bounded_context,
     ctx.current_version,
     ctx.last_modified,

@@ -84,7 +84,7 @@ class CreateUserSuccess(CreateUserResult):
     message: str = "User created successfully"
 
 @failure
-@fraise_type  
+@fraise_type
 class CreateUserError(CreateUserResult):
     code: str
     message: str
@@ -97,7 +97,7 @@ async def create_user(
 ) -> CreateUserResult:
     """Create a new user."""
     db = info.context["db"]
-    
+
     try:
         user = await db.create("users", {
             "name": name,
@@ -136,11 +136,11 @@ import asyncio
 async def on_user_created(info):
     """Subscribe to new user creation events."""
     pubsub = info.context["pubsub"]
-    
+
     async for event in pubsub.subscribe("user.created"):
         yield event["user"]
 
-@subscription  
+@subscription
 async def countdown(info, from_number: int = 10):
     """Countdown subscription example."""
     for i in range(from_number, 0, -1):
@@ -183,12 +183,12 @@ class User:
     email: str
     created_at: datetime
     bio: str | None = None
-    
+
     @field
     def display_name(self) -> str:
         """Computed display name."""
         return f"@{self.username}"
-    
+
     @field
     async def post_count(self, info) -> int:
         """Count user's posts."""
@@ -283,7 +283,7 @@ class User(Node):
     username: str
     email: str
 
-@fraise_type  
+@fraise_type
 class Post(Node):
     title: str
     content: str
@@ -313,12 +313,12 @@ Defines a computed field on a type.
 class User:
     first_name: str
     last_name: str
-    
+
     @field
     def full_name(self) -> str:
         """Computed full name field."""
         return f"{self.first_name} {self.last_name}"
-    
+
     @field
     async def recent_posts(self, info, limit: int = 5) -> list[Post]:
         """Fetch user's recent posts."""
@@ -357,7 +357,7 @@ Implements DataLoader-based field resolution for specific N+1 prevention cases.
 ```sql
 -- Composable view with nested data
 CREATE VIEW v_user_with_posts AS
-SELECT 
+SELECT
     u.*,
     jsonb_build_object(
         'posts', (
@@ -400,7 +400,7 @@ class Post:
     id: UUID
     title: str
     author_id: UUID
-    
+
     @dataloader_field(UserLoader, key_field="author_id")
     async def author(self, info) -> User | None:
         """Load post author - implementation auto-generated."""
@@ -542,21 +542,21 @@ async def login(
 ) -> LoginResult:
     """Authenticate user and return token."""
     db = info.context["db"]
-    
+
     user = await db.find_one("users", {"email": email})
     if not user or not verify_password(password, user.password_hash):
         return LoginError(
             code="INVALID_CREDENTIALS",
             message="Invalid email or password"
         )
-    
+
     if user.locked_until and user.locked_until > datetime.now():
         return LoginError(
             code="ACCOUNT_LOCKED",
             message="Account temporarily locked",
             retry_after=user.locked_until
         )
-    
+
     token = generate_jwt_token(user)
     return LoginSuccess(
         token=token,
@@ -601,17 +601,17 @@ class Post:
     id: UUID
     title: str
     content: str
-    
+
     created_at: datetime = fraise_field(
         default_factory=datetime.now,
         description="Post creation timestamp"
     )
-    
+
     view_count: int = fraise_field(
         default=0,
         description="Number of times post has been viewed"
     )
-    
+
     internal_id: str = fraise_field(
         graphql_name="internalId",
         description="Internal tracking ID"
@@ -705,7 +705,7 @@ async def search_users(
 ) -> list[User]:
     db = info.context["db"]
     where = {}
-    
+
     if filters:
         if filters.name_contains:
             where["name__icontains"] = filters.name_contains
@@ -715,7 +715,7 @@ async def search_users(
             where["role"] = filters.role.value
         if filters.created_after:
             where["created_at__gt"] = filters.created_after
-    
+
     return await db.find("users", where)
 ```
 
@@ -725,7 +725,7 @@ async def search_users(
 # Define views in PostgreSQL that compose data
 """
 CREATE VIEW v_user_full AS
-SELECT 
+SELECT
     u.id,
     u.name,
     u.email,

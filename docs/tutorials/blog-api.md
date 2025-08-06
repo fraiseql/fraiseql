@@ -263,14 +263,14 @@ from fraiseql.auth import requires_auth
 async def get_post(info, id: UUID) -> Post | None:
     """Get a post by ID."""
     db: BlogRepository = info.context["db"]
-    
+
     post_data = await db.get_post_by_id(id)
     if not post_data:
         return None
-    
+
     # Increment view count asynchronously
     await db.increment_view_count(id)
-    
+
     return Post.from_dict(post_data)
 
 @fraiseql.query
@@ -283,7 +283,7 @@ async def get_posts(
 ) -> list[Post]:
     """Get posts with filtering and pagination."""
     db: BlogRepository = info.context["db"]
-    
+
     # Convert filters to WHERE clause
     filter_dict = {}
     if filters:
@@ -293,7 +293,7 @@ async def get_posts(
             filter_dict["author_id"] = filters.author_id
         if filters.tags_contain:
             filter_dict["tags"] = filters.tags_contain
-    
+
     # Get posts from view
     posts_data = await db.get_posts(
         filters=filter_dict,
@@ -301,7 +301,7 @@ async def get_posts(
         limit=limit,
         offset=offset
     )
-    
+
     return [Post.from_dict(data) for data in posts_data]
 
 @fraiseql.query
@@ -327,29 +327,29 @@ DECLARE
     generated_slug VARCHAR(500);
 BEGIN
     -- Validate required fields
-    IF input_data->>'author_id' IS NULL 
-    OR input_data->>'title' IS NULL 
+    IF input_data->>'author_id' IS NULL
+    OR input_data->>'title' IS NULL
     OR input_data->>'content' IS NULL THEN
         RETURN json_build_object(
             'success', false,
             'error', 'Required fields missing'
         );
     END IF;
-    
+
     -- Generate unique slug
     generated_slug := LOWER(
         REGEXP_REPLACE(input_data->>'title', '[^a-zA-Z0-9]+', '-', 'g')
     );
-    
+
     -- Ensure uniqueness
     WHILE EXISTS (SELECT 1 FROM tb_posts WHERE slug = generated_slug) LOOP
-        generated_slug := generated_slug || '-' || 
+        generated_slug := generated_slug || '-' ||
                          EXTRACT(EPOCH FROM NOW())::INTEGER;
     END LOOP;
-    
+
     -- Insert post
     INSERT INTO tb_posts (
-        author_id, title, slug, content, excerpt, tags, 
+        author_id, title, slug, content, excerpt, tags,
         is_published, published_at
     )
     VALUES (
@@ -370,13 +370,13 @@ BEGIN
         END
     )
     RETURNING id INTO new_post_id;
-    
+
     RETURN json_build_object(
         'success', true,
         'post_id', new_post_id,
         'slug', generated_slug
     );
-    
+
 EXCEPTION
     WHEN OTHERS THEN
         RETURN json_build_object(
@@ -398,13 +398,13 @@ async def create_post(
     """Create a new blog post."""
     db: BlogRepository = info.context["db"]
     user = info.context.get("user")
-    
+
     if not user:
         return CreatePostError(
             message="Authentication required",
             code="UNAUTHENTICATED"
         )
-    
+
     try:
         result = await db.create_post({
             "author_id": user.user_id,
@@ -414,7 +414,7 @@ async def create_post(
             "tags": input.tags or [],
             "is_published": input.is_published
         })
-        
+
         if result["success"]:
             post_data = await db.get_post_by_id(result["post_id"])
             return CreatePostSuccess(
@@ -571,7 +571,7 @@ SELECT
             'viewCount', p.view_count,
             'commentCount', COUNT(DISTINCT c.id),
             'engagementScore', (
-                p.view_count + 
+                p.view_count +
                 (COUNT(DISTINCT c.id) * 10)
             )
         )
@@ -600,7 +600,7 @@ from fraiseql import dataloader_field
 @fraiseql.type
 class Post:
     # ... other fields ...
-    
+
     @dataloader_field
     async def related_posts(self, info) -> list["Post"]:
         """Get related posts by tags."""
@@ -648,7 +648,7 @@ async def test_create_and_get_post():
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -662,11 +662,11 @@ async def test_create_and_get_post():
                 }
             }
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         post_id = data["data"]["createPost"]["post"]["id"]
-        
+
         # Get post
         query = """
             query GetPost($id: UUID!) {
@@ -676,7 +676,7 @@ async def test_create_and_get_post():
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -684,7 +684,7 @@ async def test_create_and_get_post():
                 "variables": {"id": post_id}
             }
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["getPost"]["title"] == "Test Post"

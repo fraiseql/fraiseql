@@ -138,7 +138,7 @@ Use composed views to fetch related data in one query:
 ```sql
 -- Instead of separate queries for posts and authors
 CREATE VIEW v_post_with_author AS
-SELECT 
+SELECT
     p.id,
     jsonb_build_object(
         '__typename', 'Post',
@@ -181,11 +181,11 @@ from your_app import app
 @pytest.mark.asyncio
 async def test_query():
     query = """
-        query { 
-            getItems { 
-                id 
-                name 
-            } 
+        query {
+            getItems {
+                id
+                name
+            }
         }
     """
     response = await app.execute_query(query)

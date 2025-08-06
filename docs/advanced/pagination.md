@@ -49,7 +49,7 @@ result = await app.repository.query(
 
 **When to use**: Small datasets, simple UIs, prototyping
 
-**Pros**: 
+**Pros**:
 - Dead simple to implement
 - Works with any ordering
 - Easy to jump to specific pages
@@ -83,8 +83,8 @@ SELECT jsonb_build_object(
         'page', ($2 / $1) + 1,
         'pageSize', $1,
         'total', (
-            SELECT COUNT(*) 
-            FROM products 
+            SELECT COUNT(*)
+            FROM products
             WHERE ($3::text IS NULL OR category = $3)
         ),
         'totalPages', CEILING(
@@ -102,11 +102,11 @@ from dataclasses import dataclass
 class OffsetPagination:
     page: int = 1
     page_size: int = 20
-    
+
     @property
     def offset(self) -> int:
         return (self.page - 1) * self.page_size
-    
+
     @property
     def limit(self) -> int:
         return self.page_size
@@ -137,7 +137,7 @@ async def get_products(pagination: OffsetPagination, category: str | None = None
 -- Cursor-based pagination view (Relay-compatible)
 CREATE VIEW v_post_cursor AS
 WITH paginated AS (
-    SELECT 
+    SELECT
         p.id,
         p.title,
         p.content,
@@ -145,18 +145,18 @@ WITH paginated AS (
         p.author_id,
         -- Generate cursor from timestamp + id for uniqueness
         encode(
-            (p.created_at::text || ':' || p.id::text)::bytea, 
+            (p.created_at::text || ':' || p.id::text)::bytea,
             'base64'
         ) as cursor
     FROM posts p
-    WHERE 
+    WHERE
         -- After cursor filter
-        ($1::text IS NULL OR 
+        ($1::text IS NULL OR
          (p.created_at, p.id) > (
             split_part(decode($1, 'base64')::text, ':', 1)::timestamp,
             split_part(decode($1, 'base64')::text, ':', 2)::uuid
          ))
-        -- Before cursor filter  
+        -- Before cursor filter
         AND ($2::text IS NULL OR
          (p.created_at, p.id) < (
             split_part(decode($2, 'base64')::text, ':', 1)::timestamp,
@@ -186,9 +186,9 @@ SELECT jsonb_build_object(
             SELECT EXISTS(
                 SELECT 1 FROM posts p2
                 WHERE (p2.created_at, p2.id) < (
-                    SELECT (created_at, id) 
-                    FROM paginated 
-                    ORDER BY created_at DESC, id DESC 
+                    SELECT (created_at, id)
+                    FROM paginated
+                    ORDER BY created_at DESC, id DESC
                     LIMIT 1
                 )
             )
@@ -197,9 +197,9 @@ SELECT jsonb_build_object(
             SELECT EXISTS(
                 SELECT 1 FROM posts p2
                 WHERE (p2.created_at, p2.id) > (
-                    SELECT (created_at, id) 
-                    FROM paginated 
-                    ORDER BY created_at ASC, id ASC 
+                    SELECT (created_at, id)
+                    FROM paginated
+                    ORDER BY created_at ASC, id ASC
                     LIMIT 1
                 )
             )
@@ -230,7 +230,7 @@ async def get_posts_relay(
         order_by="created_at",
         order_direction="DESC"
     )
-    
+
     return await paginator.paginate(
         view_name="v_post",
         params=params,
@@ -292,7 +292,7 @@ SELECT jsonb_build_object(
         )
         FROM (
             SELECT * FROM events
-            WHERE 
+            WHERE
                 -- Keyset condition: events after the given timestamp/id
                 (created_at, id) > (
                     COALESCE($1::timestamp, '1970-01-01'::timestamp),
@@ -306,7 +306,7 @@ SELECT jsonb_build_object(
         SELECT EXISTS(
             SELECT 1 FROM events
             WHERE (created_at, id) > (
-                SELECT (created_at, id) 
+                SELECT (created_at, id)
                 FROM events
                 WHERE (created_at, id) > (
                     COALESCE($1::timestamp, '1970-01-01'::timestamp),
@@ -329,7 +329,7 @@ from uuid import UUID
 class KeysetPaginator:
     def __init__(self, page_size: int = 100):
         self.page_size = page_size
-    
+
     async def get_page(
         self,
         after_timestamp: datetime | None = None,
@@ -339,7 +339,7 @@ class KeysetPaginator:
             "v_events_keyset",
             params=[after_timestamp, after_id, self.page_size]
         )
-        
+
         # Extract last item's keys for next page
         events = result['data']['events']
         if events and result['data']['hasMore']:
@@ -349,7 +349,7 @@ class KeysetPaginator:
                 'after_timestamp': next_key['timestamp'],
                 'after_id': next_key['id']
             }
-        
+
         return result
 
 # Usage for streaming large datasets
@@ -359,7 +359,7 @@ page = await paginator.get_page()
 while page['data']['hasMore']:
     # Process current page
     process_events(page['data']['events'])
-    
+
     # Get next page using keyset
     next_params = page['data']['nextPageParams']
     page = await paginator.get_page(
@@ -390,8 +390,8 @@ SELECT jsonb_build_object(
     'posts', (SELECT jsonb_agg(data) FROM ...),
     -- Use estimate for large tables
     'totalEstimate', (
-        SELECT reltuples::bigint 
-        FROM pg_class 
+        SELECT reltuples::bigint
+        FROM pg_class
         WHERE relname = 'posts'
     )
 ) as data;
@@ -411,18 +411,18 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_post_count;
 CREATE VIEW v_feed_infinite AS
 WITH RECURSIVE pages AS (
     -- First page
-    SELECT 
+    SELECT
         1 as page_num,
         ARRAY(
-            SELECT id FROM posts 
-            ORDER BY created_at DESC 
+            SELECT id FROM posts
+            ORDER BY created_at DESC
             LIMIT 20
         ) as ids
-    
+
     UNION ALL
-    
+
     -- Subsequent pages
-    SELECT 
+    SELECT
         p.page_num + 1,
         ARRAY(
             SELECT id FROM posts
@@ -478,7 +478,7 @@ class Query:
             "v_post_cursor",
             params=[after, before, first or 20]
         )
-        
+
         return PostConnection.from_dict(result['data'])
 ```
 
@@ -495,7 +495,7 @@ class PaginatedResponse(Generic[T]):
         self.items = items
         self.has_more = has_more
         self.cursor = cursor
-    
+
     def to_graphql(self) -> dict:
         return {
             'nodes': self.items,
@@ -515,15 +515,15 @@ async def paginated_query(
         view_name,
         params=[cursor, limit + 1]  # Fetch one extra to check hasMore
     )
-    
+
     items = result['data']['items']
     has_more = len(items) > limit
-    
+
     if has_more:
         items = items[:limit]
-    
+
     last_cursor = items[-1].get('cursor') if items else None
-    
+
     return PaginatedResponse(items, has_more, last_cursor)
 ```
 
@@ -548,7 +548,7 @@ async def paginated_query(
 SELECT * FROM posts ORDER BY created_at OFFSET 10000 LIMIT 20;
 
 -- ✅ Good: Keyset pagination jumps directly
-SELECT * FROM posts 
+SELECT * FROM posts
 WHERE (created_at, id) > ('2024-01-01', 'uuid-here')
 ORDER BY created_at, id
 LIMIT 20;
@@ -592,27 +592,27 @@ async def test_pagination_consistency():
     """Ensure no items are missed or duplicated."""
     all_items = set()
     cursor = None
-    
+
     while True:
         page = await app.repository.query(
             "v_post_cursor",
             params=[cursor, None, 10, None]  # first=10
         )
-        
+
         edges = page['data']['edges']
         if not edges:
             break
-            
+
         for edge in edges:
             # Check for duplicates
             assert edge['node']['id'] not in all_items
             all_items.add(edge['node']['id'])
-        
+
         if not page['data']['pageInfo']['hasNextPage']:
             break
-            
+
         cursor = page['data']['pageInfo']['endCursor']
-    
+
     # Verify we got all items
     total = await app.repository.query("v_post_count")
     assert len(all_items) == total['data']['count']

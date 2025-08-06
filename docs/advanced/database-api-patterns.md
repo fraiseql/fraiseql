@@ -42,7 +42,7 @@ SELECT
 FROM tb_users;
 
 -- Version 2: Add new columns (backward compatible)
-ALTER TABLE tb_users 
+ALTER TABLE tb_users
 ADD COLUMN IF NOT EXISTS avatar_url TEXT,
 ADD COLUMN IF NOT EXISTS bio TEXT,
 ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}';
@@ -90,7 +90,7 @@ SELECT
 FROM tb_users;
 
 -- Add deprecation notice
-COMMENT ON COLUMN v_user.data IS 
+COMMENT ON COLUMN v_user.data IS
 'User data. Note: username field is deprecated, use name instead';
 ```
 
@@ -237,7 +237,7 @@ BEGIN
     RETURN QUERY
     SELECT
         u.id,
-        CASE 
+        CASE
             WHEN p_viewer_role IN ('admin', 'moderator') THEN u.email
             WHEN u.id = p_viewer_id THEN u.email
             ELSE NULL
@@ -246,7 +246,7 @@ BEGIN
             '__typename', 'User',
             'id', u.id,
             'name', u.name,
-            'email', CASE 
+            'email', CASE
                 WHEN p_viewer_role IN ('admin', 'moderator') THEN u.email
                 WHEN u.id = p_viewer_id THEN u.email
                 ELSE '[hidden]'
@@ -266,7 +266,7 @@ BEGIN
                     SELECT jsonb_build_object(
                         'post_count', COUNT(*),
                         'follower_count', (
-                            SELECT COUNT(*) FROM tb_follows 
+                            SELECT COUNT(*) FROM tb_follows
                             WHERE followed_id = u.id
                         )
                     )
@@ -320,7 +320,7 @@ CREATE POLICY admin_access ON tb_projects
     FOR ALL
     USING (
         EXISTS (
-            SELECT 1 FROM tb_users 
+            SELECT 1 FROM tb_users
             WHERE id = current_setting('app.current_user_id')::UUID
             AND role = 'super_admin'
         )
@@ -380,10 +380,10 @@ DECLARE
     v_schema_name TEXT;
 BEGIN
     v_schema_name := 'tenant_' || p_tenant_slug;
-    
+
     -- Create schema
     EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', v_schema_name);
-    
+
     -- Create tables in tenant schema
     EXECUTE format('
         CREATE TABLE %I.projects (
@@ -391,7 +391,7 @@ BEGIN
             name VARCHAR(200) NOT NULL,
             created_at TIMESTAMPTZ DEFAULT NOW()
         )', v_schema_name);
-    
+
     -- Create views in tenant schema
     EXECUTE format('
         CREATE OR REPLACE VIEW %I.v_projects AS
@@ -417,13 +417,13 @@ DECLARE
     v_schema_name TEXT;
 BEGIN
     v_schema_name := 'tenant_' || p_tenant_slug;
-    
+
     -- Set search path to tenant schema
     EXECUTE format('SET search_path TO %I, public', v_schema_name);
-    
+
     -- Execute query in tenant context
     RETURN QUERY EXECUTE p_query;
-    
+
     -- Reset search path
     SET search_path TO public;
 END;
@@ -509,7 +509,7 @@ BEGIN
     SET tx_to = NOW()
     WHERE product_id = p_product_id
         AND tx_to = 'infinity';
-    
+
     -- Insert new price record
     INSERT INTO tb_prices (product_id, price, valid_from)
     VALUES (p_product_id, p_new_price, p_valid_from);
@@ -536,7 +536,7 @@ CREATE TABLE tb_events (
 );
 
 -- Ensure event ordering
-CREATE UNIQUE INDEX idx_event_ordering 
+CREATE UNIQUE INDEX idx_event_ordering
 ON tb_events(stream_id, event_version);
 
 CREATE INDEX idx_stream ON tb_events(stream_id, event_version);
@@ -578,7 +578,7 @@ DECLARE
     v_state JSONB := '{}'::jsonb;
     v_event RECORD;
 BEGIN
-    FOR v_event IN 
+    FOR v_event IN
         SELECT event_type, event_data
         FROM tb_events
         WHERE stream_id = p_order_id
@@ -593,11 +593,11 @@ BEGIN
                 v_state := jsonb_set(
                     v_state,
                     '{items}',
-                    COALESCE(v_state->'items', '[]'::jsonb) || 
+                    COALESCE(v_state->'items', '[]'::jsonb) ||
                     jsonb_build_array(v_event.event_data)
                 );
             WHEN 'OrderShipped' THEN
-                v_state := v_state || 
+                v_state := v_state ||
                     jsonb_build_object(
                         'status', 'shipped',
                         'shipped_at', v_event.event_data->>'shipped_at'
@@ -606,7 +606,7 @@ BEGIN
                 v_state := v_state || v_event.event_data;
         END CASE;
     END LOOP;
-    
+
     RETURN v_state;
 END;
 $$ LANGUAGE plpgsql;
@@ -644,9 +644,9 @@ WITH RECURSIVE category_tree AS (
         ARRAY[name] AS breadcrumb
     FROM tb_categories
     WHERE parent_id IS NULL
-    
+
     UNION ALL
-    
+
     -- Child categories
     SELECT
         c.id,
@@ -697,17 +697,17 @@ CREATE OR REPLACE FUNCTION get_category_ancestors(
     level INT
 ) AS $$
 WITH RECURSIVE ancestors AS (
-    SELECT 
-        id, 
-        parent_id, 
+    SELECT
+        id,
+        parent_id,
         name,
         0 AS level
     FROM tb_categories
     WHERE id = p_category_id
-    
+
     UNION ALL
-    
-    SELECT 
+
+    SELECT
         c.id,
         c.parent_id,
         c.name,
@@ -795,7 +795,7 @@ CREATE TABLE tb_notifications (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_user_notifications 
+CREATE INDEX idx_user_notifications
 ON tb_notifications(user_id, read_at, created_at DESC);
 
 -- Type-specific views
@@ -848,7 +848,7 @@ SELECT
         END,
         -- Type-specific data
         'details', CASE n.type
-            WHEN 'post_liked' THEN 
+            WHEN 'post_liked' THEN
                 n.data || jsonb_build_object(
                     'message', n.data->>'liker_name' || ' liked your post'
                 )
@@ -900,7 +900,7 @@ CREATE TABLE tb_form_submissions (
 
 -- Unified activity view
 CREATE OR REPLACE VIEW v_user_activities AS
-SELECT 
+SELECT
     id,
     user_id,
     activity_type,
@@ -916,7 +916,7 @@ SELECT
         'created_at', created_at
     ) AS data
 FROM (
-    SELECT 
+    SELECT
         id,
         user_id,
         'page_view' AS activity_type,
@@ -927,9 +927,9 @@ FROM (
         ) AS details,
         created_at
     FROM tb_page_views
-    
+
     UNION ALL
-    
+
     SELECT
         id,
         user_id,
@@ -940,9 +940,9 @@ FROM (
         ) AS details,
         created_at
     FROM tb_button_clicks
-    
+
     UNION ALL
-    
+
     SELECT
         id,
         user_id,
@@ -990,8 +990,8 @@ BEGIN
         COALESCE(fr.follower_count, 0),
         COALESCE(fg.following_count, 0),
         -- Calculate engagement score
-        (COALESCE(p.post_count, 0) * 10 + 
-         COALESCE(c.comment_count, 0) * 2 + 
+        (COALESCE(p.post_count, 0) * 10 +
+         COALESCE(c.comment_count, 0) * 2 +
          COALESCE(fr.follower_count, 0) * 5)::NUMERIC(10,2),
         NOW(),
         jsonb_build_object(
@@ -1002,8 +1002,8 @@ BEGIN
             'follower_count', COALESCE(fr.follower_count, 0),
             'following_count', COALESCE(fg.following_count, 0),
             'engagement_score', (
-                COALESCE(p.post_count, 0) * 10 + 
-                COALESCE(c.comment_count, 0) * 2 + 
+                COALESCE(p.post_count, 0) * 10 +
+                COALESCE(c.comment_count, 0) * 2 +
                 COALESCE(fr.follower_count, 0) * 5
             ),
             'last_activity', GREATEST(
@@ -1014,7 +1014,7 @@ BEGIN
         )
     FROM tb_users u
     LEFT JOIN (
-        SELECT author_id, 
+        SELECT author_id,
                COUNT(*) AS post_count,
                MAX(created_at) AS last_post_at
         FROM tb_posts
@@ -1022,7 +1022,7 @@ BEGIN
         GROUP BY author_id
     ) p ON p.author_id = u.id
     LEFT JOIN (
-        SELECT author_id, 
+        SELECT author_id,
                COUNT(*) AS comment_count,
                MAX(created_at) AS last_comment_at
         FROM tb_comments
@@ -1030,7 +1030,7 @@ BEGIN
         GROUP BY author_id
     ) c ON c.author_id = u.id
     LEFT JOIN (
-        SELECT followed_id, 
+        SELECT followed_id,
                COUNT(*) AS follower_count,
                MAX(created_at) AS last_follow_at
         FROM tb_follows
@@ -1038,7 +1038,7 @@ BEGIN
         GROUP BY followed_id
     ) fr ON fr.followed_id = u.id
     LEFT JOIN (
-        SELECT follower_id, 
+        SELECT follower_id,
                COUNT(*) AS following_count
         FROM tb_follows
         WHERE follower_id = p_user_id
@@ -1065,7 +1065,7 @@ DECLARE
 BEGIN
     -- Extract author ID
     v_author_id := (input_data->>'author_id')::UUID;
-    
+
     -- Create post
     INSERT INTO tb_posts (
         author_id,
@@ -1078,13 +1078,13 @@ BEGIN
         input_data->>'content',
         COALESCE(input_data->>'status', 'draft')
     ) RETURNING id INTO v_post_id;
-    
+
     -- Explicitly sync user statistics
     PERFORM sync_user_statistics(v_author_id);
-    
+
     -- Sync any other affected projections
     PERFORM sync_category_post_counts((input_data->>'category_id')::UUID);
-    
+
     RETURN ROW(
         true,
         'Post created successfully',
@@ -1100,7 +1100,7 @@ from fraiseql import mutation
 async def create_post(input: CreatePostInput, context) -> CreatePostSuccess | CreatePostError:
     """Create post with automatic projection sync."""
     result = await context.db.execute_function('fn_create_post', input)
-    
+
     if result['success']:
         # The function already synced projections
         post_data = await context.db.query_one(
@@ -1114,7 +1114,7 @@ async def create_post(input: CreatePostInput, context) -> CreatePostSuccess | Cr
 
 This sync pattern approach has several advantages:
 1. **Explicit control** - You know exactly when projections are updated
-2. **Better debugging** - Easier to trace when and why projections change  
+2. **Better debugging** - Easier to trace when and why projections change
 3. **Selective updates** - Only sync what's actually affected
 4. **Transaction safety** - Sync happens within the mutation transaction
 5. **Performance predictable** - No surprise trigger overhead
@@ -1149,8 +1149,8 @@ BEGIN
             COUNT(DISTINCT c.id) as comment_count,
             COUNT(DISTINCT fr.follower_id) as follower_count,
             COUNT(DISTINCT fg.followed_id) as following_count,
-            (COUNT(DISTINCT p.id) * 10 + 
-             COUNT(DISTINCT c.id) * 2 + 
+            (COUNT(DISTINCT p.id) * 10 +
+             COUNT(DISTINCT c.id) * 2 +
              COUNT(DISTINCT fr.follower_id) * 5)::NUMERIC(10,2) as engagement_score,
             jsonb_build_object(
                 '__typename', 'UserStatistics',
@@ -1211,28 +1211,28 @@ DECLARE
 BEGIN
     -- Generate query hash
     v_query_hash := encode(digest(p_query, 'sha256'), 'hex');
-    
+
     -- Check cache
     SELECT result_data INTO v_result
     FROM tb_query_cache
     WHERE cache_key = p_cache_key
         AND query_hash = v_query_hash
         AND expires_at > NOW();
-    
+
     IF v_result IS NOT NULL THEN
         -- Update hit count
         UPDATE tb_query_cache
-        SET 
+        SET
             hit_count = hit_count + 1,
             last_accessed = NOW()
         WHERE cache_key = p_cache_key;
-        
+
         RETURN v_result;
     END IF;
-    
+
     -- Execute query
     EXECUTE p_query INTO v_result;
-    
+
     -- Store in cache
     INSERT INTO tb_query_cache (
         cache_key,
@@ -1251,11 +1251,11 @@ BEGIN
         expires_at = EXCLUDED.expires_at,
         created_at = NOW(),
         hit_count = 0;
-    
+
     -- Clean expired entries
     DELETE FROM tb_query_cache
     WHERE expires_at < NOW() - INTERVAL '1 day';
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql;
@@ -1293,7 +1293,7 @@ BEGIN
     -- Build query based on direction
     IF p_direction = 'next' THEN
         v_query := format(
-            'SELECT jsonb_agg(sub.data) 
+            'SELECT jsonb_agg(sub.data)
              FROM (
                 SELECT data, %I as cursor_field
                 FROM %I
@@ -1318,20 +1318,20 @@ BEGIN
             p_cursor_field, p_cursor_field, p_limit + 1
         );
     END IF;
-    
+
     -- Execute query
     EXECUTE v_query INTO v_result USING p_cursor_value;
-    
+
     -- Check if there are more results
     v_count := jsonb_array_length(COALESCE(v_result, '[]'::jsonb));
-    
+
     RETURN QUERY SELECT
-        CASE 
-            WHEN v_count > p_limit 
+        CASE
+            WHEN v_count > p_limit
             THEN v_result #- array[v_count - 1]::text[]
             ELSE v_result
         END AS data,
-        CASE 
+        CASE
             WHEN v_count > p_limit
             THEN (v_result->>(v_count - 2))::jsonb->>'id'
             ELSE NULL
@@ -1380,7 +1380,7 @@ SELECT /* view definition */ FROM tb_users;
 -- Step 2: Gradually move queries to views
 -- Step 3: Add functions for mutations with sync
 CREATE OR REPLACE FUNCTION fn_create_user(input_data JSONB)
-RETURNS mutation_result AS $$ 
+RETURNS mutation_result AS $$
     -- mutation logic
     PERFORM sync_user_projections(NEW.id);
 $$ LANGUAGE plpgsql;
@@ -1394,7 +1394,7 @@ $$ LANGUAGE plpgsql;
 -- Non-invasive approach
 -- 1. Create views over existing tables
 CREATE OR REPLACE VIEW v_existing_table AS
-SELECT 
+SELECT
     id,
     jsonb_build_object(/* map columns */) AS data
 FROM existing_table;

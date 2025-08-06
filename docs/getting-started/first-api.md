@@ -60,7 +60,7 @@ Design views that shape your API responses:
 ```sql
 -- User view with proper structure
 CREATE VIEW v_user AS
-SELECT 
+SELECT
     id,  -- Filter column for WHERE clauses
     email,  -- Another filter column
     role,  -- Filter column
@@ -78,7 +78,7 @@ FROM users;
 
 -- User with roles view (demonstrates joins)
 CREATE VIEW v_user_detail AS
-SELECT 
+SELECT
     u.id,
     u.email,
     jsonb_build_object(
@@ -106,7 +106,7 @@ GROUP BY u.id, u.email, u.name, u.role, u.created_at;
 
 -- Active sessions view
 CREATE VIEW v_active_session AS
-SELECT 
+SELECT
     s.id,
     s.user_id,
     s.expires_at,
@@ -210,11 +210,11 @@ async def users(
 ) -> list[User]:
     """Get users with optional filtering"""
     repo: Repository = info.context["repo"]
-    
+
     where = {}
     if role:
         where["role"] = role
-    
+
     results = await repo.find(
         "v_users",
         where=where,
@@ -222,14 +222,14 @@ async def users(
         offset=offset,
         order_by=[("created_at", "DESC")]
     )
-    
+
     return [User(**result["data"]) for result in results]
 
 @fraiseql.query
 async def user(info, id: ID) -> User | None:
     """Get a single user by ID"""
     repo: Repository = info.context["repo"]
-    
+
     result = await repo.find_one("v_users", where={"id": id})
     return User(**result["data"]) if result else None
 
@@ -237,7 +237,7 @@ async def user(info, id: ID) -> User | None:
 async def user_detail(info, id: ID) -> UserDetail | None:
     """Get detailed user information with roles"""
     repo: Repository = info.context["repo"]
-    
+
     result = await repo.find_one("v_user_details", where={"id": id})
     return UserDetail(**result["data"]) if result else None
 
@@ -247,7 +247,7 @@ async def me(info) -> User | None:
     user_id = info.context.get("user_id")
     if not user_id:
         return None
-    
+
     repo: Repository = info.context["repo"]
     result = await repo.find_one("v_users", where={"id": user_id})
     return User(**result["data"]) if result else None
@@ -276,12 +276,12 @@ BEGIN
             'error', 'Email already exists'
         );
     END IF;
-    
+
     -- Insert user
     INSERT INTO users (email, name, password_hash, role)
     VALUES (p_email, p_name, p_password_hash, p_role)
     RETURNING id INTO v_user_id;
-    
+
     -- Return success with user data
     SELECT jsonb_build_object(
         'success', true,
@@ -295,7 +295,7 @@ BEGIN
         )
     ) INTO v_result
     FROM users WHERE id = v_user_id;
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql;
@@ -314,20 +314,20 @@ BEGIN
     SELECT id INTO v_user_id
     FROM users
     WHERE email = p_email AND password_hash = p_password_hash;
-    
+
     IF v_user_id IS NULL THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'Invalid credentials'
         );
     END IF;
-    
+
     -- Create session token
     v_token := encode(gen_random_bytes(32), 'hex');
-    
+
     INSERT INTO sessions (user_id, token, expires_at)
     VALUES (v_user_id, v_token, NOW() + INTERVAL '7 days');
-    
+
     -- Return success with user and token
     SELECT jsonb_build_object(
         'success', true,
@@ -342,7 +342,7 @@ BEGIN
         )
     ) INTO v_result
     FROM users WHERE id = v_user_id;
-    
+
     RETURN v_result;
 END;
 $$ LANGUAGE plpgsql;
@@ -358,10 +358,10 @@ from fraiseql import fraiseql
 async def create_user(info, input: CreateUserInput) -> UserResponse:
     """Create a new user"""
     repo: Repository = info.context["repo"]
-    
+
     # Hash password (use bcrypt in production)
     password_hash = hashlib.sha256(input.password.encode()).hexdigest()
-    
+
     result = await repo.call_function(
         "fn_create_user",
         p_email=input.email,
@@ -369,7 +369,7 @@ async def create_user(info, input: CreateUserInput) -> UserResponse:
         p_password_hash=password_hash,
         p_role=input.role
     )
-    
+
     if result["success"]:
         return UserResponse(
             success=True,
@@ -385,16 +385,16 @@ async def create_user(info, input: CreateUserInput) -> UserResponse:
 async def login(info, input: LoginInput) -> dict:
     """Authenticate user and create session"""
     repo: Repository = info.context["repo"]
-    
+
     # Hash password for comparison
     password_hash = hashlib.sha256(input.password.encode()).hexdigest()
-    
+
     result = await repo.call_function(
         "fn_login",
         p_email=input.email,
         p_password_hash=password_hash
     )
-    
+
     return result  # Contains success, token, user, or error
 ```
 
@@ -409,25 +409,25 @@ from fastapi import Request, HTTPException
 async def get_context(request: Request) -> dict:
     """Extract user context from request"""
     context = {"request": request}
-    
+
     # Get token from Authorization header
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        
+
         # Get repository from app state
         repo = request.app.state.repo
-        
+
         # Verify session
         session = await repo.find_one(
             "v_active_sessions",
             where={"token": token}
         )
-        
+
         if session:
             context["user_id"] = session["user_id"]
             context["authenticated"] = True
-    
+
     return context
 
 # Create app with authentication
@@ -462,38 +462,38 @@ async def update_user(
     email: str | None = None
 ) -> UserResponse:
     """Update user with authentication check"""
-    
+
     # Check authentication
     if not info.context.get("authenticated"):
         raise AuthenticationError("Authentication required")
-    
+
     # Check authorization
     current_user_id = info.context.get("user_id")
     if str(current_user_id) != str(id):
         raise AuthenticationError("Can only update your own profile")
-    
+
     # Validate input
     if email and "@" not in email:
         raise ValidationError("Invalid email format")
-    
+
     repo: Repository = info.context["repo"]
-    
+
     # Build update query
     updates = {}
     if name:
         updates["name"] = name
     if email:
         updates["email"] = email
-    
+
     if not updates:
         return UserResponse(success=False, error="No updates provided")
-    
+
     # Update user
     await repo.update("users", where={"id": id}, data=updates)
-    
+
     # Fetch updated user
     result = await repo.find_one("v_users", where={"id": id})
-    
+
     return UserResponse(
         success=True,
         user=User(**result["data"]) if result else None
@@ -622,7 +622,7 @@ For expensive queries, use materialized views:
 ```sql
 -- Materialized view for user statistics
 CREATE MATERIALIZED VIEW tv_user_stats AS
-SELECT 
+SELECT
     role,
     COUNT(*) as user_count,
     MAX(created_at) as last_signup

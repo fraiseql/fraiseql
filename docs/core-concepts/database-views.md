@@ -188,19 +188,19 @@ SELECT
         '__typename', 'UserProfile',
         'id', id,
         'name', name,
-        'email', CASE 
-            WHEN is_email_public THEN email 
-            ELSE null 
+        'email', CASE
+            WHEN is_email_public THEN email
+            ELSE null
         END,
         'stats', jsonb_build_object(
             'post_count', (
-                SELECT COUNT(*) 
-                FROM tb_posts 
+                SELECT COUNT(*)
+                FROM tb_posts
                 WHERE author_id = u.id AND is_published = true
             ),
             'follower_count', (
-                SELECT COUNT(*) 
-                FROM tb_user_follows 
+                SELECT COUNT(*)
+                FROM tb_user_follows
                 WHERE followed_id = u.id
             )
         )
@@ -235,7 +235,7 @@ SELECT
 FROM tb_users u
 LEFT JOIN LATERAL (
     SELECT jsonb_agg(
-        v.data 
+        v.data
         ORDER BY v.published_at DESC
     ) AS posts
     FROM v_post v
@@ -260,8 +260,8 @@ SELECT
         'unique_commenters', COUNT(DISTINCT c.user_id),
         'avg_rating', AVG(r.rating),
         'engagement', (
-            p.view_count + 
-            COUNT(DISTINCT c.id) * 10 + 
+            p.view_count +
+            COUNT(DISTINCT c.id) * 10 +
             COUNT(DISTINCT l.user_id) * 5
         )
     ) AS data
@@ -280,7 +280,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Schedule refresh (using pg_cron or similar)
-SELECT cron.schedule('refresh-analytics', '*/15 * * * *', 
+SELECT cron.schedule('refresh-analytics', '*/15 * * * *',
     'SELECT refresh_post_analytics()');
 ```
 
@@ -302,9 +302,9 @@ WITH RECURSIVE comment_tree AS (
         ARRAY[id] as path
     FROM tb_comments
     WHERE parent_id IS NULL
-    
+
     UNION ALL
-    
+
     -- Recursive case: replies
     SELECT
         c.id,
@@ -330,8 +330,8 @@ SELECT
             'path', path,
             'created_at', created_at,
             'author', (
-                SELECT data 
-                FROM v_user 
+                SELECT data
+                FROM v_user
                 WHERE id = comment_tree.user_id
             )
         )
@@ -395,7 +395,7 @@ FROM tb_posts
 WHERE is_published = true;
 
 -- Index for full-text search
-CREATE INDEX idx_posts_search ON tb_posts 
+CREATE INDEX idx_posts_search ON tb_posts
 USING gin(to_tsvector('english', title || ' ' || content));
 ```
 
@@ -434,10 +434,10 @@ Prevent performance issues with deep nesting:
 ```sql
 -- Limit related data
 'recent_posts', (
-    SELECT jsonb_agg(data) 
+    SELECT jsonb_agg(data)
     FROM (
-        SELECT data FROM v_posts 
-        WHERE author_id = u.id 
+        SELECT data FROM v_posts
+        WHERE author_id = u.id
         ORDER BY published_at DESC  -- Use actual column for ordering
         LIMIT 10  -- Always limit aggregations
     ) p
@@ -509,7 +509,7 @@ LEFT JOIN v_user a ON a.id = p.author_id;
 ### Verify Structure
 ```sql
 -- Test view returns expected structure
-SELECT 
+SELECT
     data->>'__typename' as type,
     jsonb_typeof(data->'posts') as posts_type,
     jsonb_array_length(data->'posts') as post_count
@@ -598,7 +598,7 @@ SELECT ... FROM tb_users;
 CREATE OR REPLACE VIEW v_user_v2 AS ...
 
 -- Deprecation notice in old view
-COMMENT ON VIEW v_user IS 
+COMMENT ON VIEW v_user IS
     'DEPRECATED: Use v_user_v2. Will be removed in version 2.0';
 ```
 

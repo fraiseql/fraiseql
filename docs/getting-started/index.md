@@ -49,7 +49,7 @@ CREATE TABLE users (
 
 ```sql
 CREATE VIEW v_user AS
-SELECT 
+SELECT
     id,  -- Separate column for filtering
     jsonb_build_object(
         'id', id,

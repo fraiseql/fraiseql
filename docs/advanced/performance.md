@@ -24,7 +24,7 @@ The most impactful optimization is using composable SQL views to eliminate N+1 q
 
 -- Good: Single query with composed view
 CREATE VIEW v_user_with_posts AS
-SELECT 
+SELECT
     u.id,
     u.name,
     u.email,
@@ -77,15 +77,15 @@ CREATE INDEX idx_users_id ON users(id);
 CREATE INDEX idx_posts_author_id ON posts(author_id);
 
 -- Composite index for filtered queries
-CREATE INDEX idx_posts_author_created 
+CREATE INDEX idx_posts_author_created
     ON posts(author_id, created_at DESC);
 
 -- GIN index for JSONB searches
 CREATE INDEX idx_users_data_gin ON users USING gin(data);
 
 -- Partial index for common filters
-CREATE INDEX idx_posts_published 
-    ON posts(author_id) 
+CREATE INDEX idx_posts_published
+    ON posts(author_id)
     WHERE status = 'published';
 ```
 
@@ -169,7 +169,7 @@ user_by_id = TurboQuery(
         }
     """,
     sql_template="""
-        SELECT 
+        SELECT
             id::text,
             name,
             email
@@ -218,7 +218,7 @@ Design views with JSONB data columns for optimal passthrough:
 
 ```sql
 CREATE VIEW v_product_catalog AS
-SELECT 
+SELECT
     p.id,
     jsonb_build_object(
         'id', p.id,
@@ -263,12 +263,12 @@ config = FraiseQLConfig(
 @query
 async def get_popular_posts(info, limit: int = 10) -> list[Post]:
     cache_key = f"popular_posts:{limit}"
-    
+
     # Check cache
     cached = await info.context["cache"].get(cache_key)
     if cached:
         return cached
-    
+
     # Fetch from database
     db = info.context["db"]
     posts = await db.find(
@@ -276,14 +276,14 @@ async def get_popular_posts(info, limit: int = 10) -> list[Post]:
         order_by="view_count DESC",
         limit=limit
     )
-    
+
     # Cache results
     await info.context["cache"].set(
-        cache_key, 
-        posts, 
+        cache_key,
+        posts,
         ttl=300
     )
-    
+
     return posts
 ```
 
@@ -293,7 +293,7 @@ For expensive aggregations, use materialized views:
 
 ```sql
 CREATE MATERIALIZED VIEW mv_user_stats AS
-SELECT 
+SELECT
     u.id,
     u.name,
     COUNT(DISTINCT p.id) as post_count,
@@ -344,7 +344,7 @@ Monitor slow queries with PostgreSQL extensions:
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
 -- Find slow queries
-SELECT 
+SELECT
     query,
     mean_exec_time,
     calls,
@@ -355,7 +355,7 @@ ORDER BY mean_exec_time DESC
 LIMIT 20;
 
 -- Analyze specific query plan
-EXPLAIN (ANALYZE, BUFFERS) 
+EXPLAIN (ANALYZE, BUFFERS)
 SELECT * FROM v_user_with_posts WHERE id = '...';
 ```
 
@@ -402,13 +402,13 @@ async def list_posts(
     pagination: CursorPaginationInput
 ) -> PaginatedPosts:
     db = info.context["db"]
-    
+
     # Decode cursor
     where = {}
     if pagination.after:
         cursor_data = decode_cursor(pagination.after)
         where[f"{pagination.order_by}__gt"] = cursor_data
-    
+
     # Fetch one extra to determine hasNextPage
     posts = await db.find(
         "v_post",
@@ -416,11 +416,11 @@ async def list_posts(
         order_by=pagination.order_by,
         limit=pagination.first + 1
     )
-    
+
     has_next = len(posts) > pagination.first
     if has_next:
         posts = posts[:-1]
-    
+
     edges = [
         Edge(
             node=post,
@@ -428,7 +428,7 @@ async def list_posts(
         )
         for post in posts
     ]
-    
+
     return PaginatedPosts(
         edges=edges,
         page_info=PageInfo(
@@ -449,7 +449,7 @@ async def bulk_create_users(
     users: list[CreateUserInput]
 ) -> BulkCreateResult:
     db = info.context["db"]
-    
+
     # Use COPY for large batches
     if len(users) > 100:
         async with db.pool.connection() as conn:
@@ -467,7 +467,7 @@ async def bulk_create_users(
             for u in users
         ]
         await db.insert_many("users", values)
-    
+
     return BulkCreateResult(count=len(users))
 ```
 
@@ -529,7 +529,7 @@ async def bulk_create_users(
 ```sql
 -- Instead of nested resolvers, compose in view
 CREATE VIEW v_order_complete AS
-SELECT 
+SELECT
     o.*,
     jsonb_build_object(
         'customer', (SELECT data FROM v_customer WHERE id = o.customer_id),

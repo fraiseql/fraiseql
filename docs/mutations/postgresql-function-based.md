@@ -82,7 +82,7 @@ BEGIN
     -- Extract and validate input
     v_email := input_data->>'email';
     v_name := input_data->>'name';
-    
+
     -- Validate required fields
     IF v_email IS NULL OR v_name IS NULL THEN
         RETURN jsonb_build_object(
@@ -95,7 +95,7 @@ BEGIN
             )
         );
     END IF;
-    
+
     -- Check for existing user
     IF EXISTS (SELECT 1 FROM tb_users WHERE email = v_email) THEN
         RETURN jsonb_build_object(
@@ -105,7 +105,7 @@ BEGIN
             'field_errors', jsonb_build_object('email', 'This email is already in use')
         );
     END IF;
-    
+
     -- Insert new user
     INSERT INTO tb_users (email, name, bio, avatar_url, created_at)
     VALUES (
@@ -116,7 +116,7 @@ BEGIN
         CURRENT_TIMESTAMP
     )
     RETURNING id INTO v_user_id;
-    
+
     -- Return success with created user data from view
     RETURN jsonb_build_object(
         'success', true,
@@ -126,7 +126,7 @@ BEGIN
             WHERE u.id = v_user_id
         )
     );
-    
+
 EXCEPTION
     WHEN unique_violation THEN
         RETURN jsonb_build_object(
@@ -161,12 +161,12 @@ DECLARE
 BEGIN
     -- Extract context
     v_user_id := (p_context->>'user_id')::UUID;
-    
+
     -- Create order record
     INSERT INTO tb_orders (user_id, status, created_at)
     VALUES (v_user_id, 'pending', CURRENT_TIMESTAMP)
     RETURNING id INTO v_order_id;
-    
+
     -- Process each order item
     FOR v_item IN SELECT * FROM jsonb_array_elements(p_input->'items') AS item
     LOOP
@@ -175,56 +175,56 @@ BEGIN
             (v_item->>'product_id')::UUID,
             (v_item->>'quantity')::INT
         );
-        
+
         IF NOT (v_inventory_check->>'available')::BOOLEAN THEN
             -- Rollback will happen automatically
-            RAISE EXCEPTION 'Insufficient inventory for product %', 
+            RAISE EXCEPTION 'Insufficient inventory for product %',
                 v_item->>'product_id';
         END IF;
-        
+
         -- Add order item
         INSERT INTO tb_order_items (
-            order_id, 
-            product_id, 
-            quantity, 
+            order_id,
+            product_id,
+            quantity,
             price_at_time
         )
-        SELECT 
+        SELECT
             v_order_id,
             (v_item->>'product_id')::UUID,
             (v_item->>'quantity')::INT,
             p.price
         FROM tb_products p
         WHERE p.id = (v_item->>'product_id')::UUID;
-        
+
         -- Update running total
         v_total_amount := v_total_amount + (
             SELECT p.price * (v_item->>'quantity')::INT
             FROM tb_products p
             WHERE p.id = (v_item->>'product_id')::UUID
         );
-        
+
         -- Reserve inventory
         UPDATE tb_inventory
         SET reserved_quantity = reserved_quantity + (v_item->>'quantity')::INT
         WHERE product_id = (v_item->>'product_id')::UUID;
     END LOOP;
-    
+
     -- Process payment
     PERFORM fn_process_payment(
         v_order_id,
         v_total_amount,
         p_input->'payment_method'
     );
-    
+
     -- Update order status
     UPDATE tb_orders
-    SET 
+    SET
         status = 'confirmed',
         total_amount = v_total_amount,
         confirmed_at = CURRENT_TIMESTAMP
     WHERE id = v_order_id;
-    
+
     -- Return order details from view
     RETURN jsonb_build_object(
         'success', true,
@@ -234,7 +234,7 @@ BEGIN
             WHERE o.id = v_order_id
         )
     );
-    
+
 EXCEPTION
     WHEN OTHERS THEN
         -- Log error for debugging
@@ -253,7 +253,7 @@ EXCEPTION
             ),
             CURRENT_TIMESTAMP
         );
-        
+
         RETURN jsonb_build_object(
             'success', false,
             'error', 'Failed to process order',
@@ -283,29 +283,29 @@ BEGIN
         BEGIN
             -- Create savepoint for this update
             EXECUTE 'SAVEPOINT sp_' || v_update->>'id';
-            
+
             -- Perform update
             UPDATE tb_items
-            SET 
+            SET
                 data = v_update->'data',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = (v_update->>'id')::UUID;
-            
+
             -- Record success
             v_results := array_append(v_results, jsonb_build_object(
                 'id', v_update->>'id',
                 'success', true
             ));
             v_success_count := v_success_count + 1;
-            
+
             -- Release savepoint
             EXECUTE 'RELEASE SAVEPOINT sp_' || v_update->>'id';
-            
+
         EXCEPTION
             WHEN OTHERS THEN
                 -- Rollback to savepoint
                 EXECUTE 'ROLLBACK TO SAVEPOINT sp_' || v_update->>'id';
-                
+
                 -- Record error
                 v_results := array_append(v_results, jsonb_build_object(
                     'id', v_update->>'id',
@@ -315,7 +315,7 @@ BEGIN
                 v_error_count := v_error_count + 1;
         END;
     END LOOP;
-    
+
     RETURN jsonb_build_object(
         'success', v_error_count = 0,
         'results', array_to_json(v_results),
@@ -342,9 +342,9 @@ DECLARE
 BEGIN
     -- Log transaction start
     INSERT INTO tb_distributed_transactions (
-        id, 
-        operation, 
-        status, 
+        id,
+        operation,
+        status,
         started_at
     ) VALUES (
         v_transaction_id,
@@ -352,17 +352,17 @@ BEGIN
         'started',
         CURRENT_TIMESTAMP
     );
-    
+
     -- Phase 1: Prepare local changes
     BEGIN
         v_local_result := fn_prepare_local_changes(p_input);
-        
+
         IF NOT (v_local_result->>'success')::BOOLEAN THEN
-            RAISE EXCEPTION 'Local preparation failed: %', 
+            RAISE EXCEPTION 'Local preparation failed: %',
                 v_local_result->>'error';
         END IF;
     END;
-    
+
     -- Phase 2: Call external service (using pg_net or similar)
     SELECT content::JSONB INTO v_remote_result
     FROM http_post(
@@ -373,22 +373,22 @@ BEGIN
         )::TEXT,
         'application/json'
     );
-    
+
     -- Phase 3: Commit or rollback based on remote result
     IF (v_remote_result->>'success')::BOOLEAN THEN
         -- Commit local changes
         PERFORM fn_commit_local_changes(v_transaction_id);
-        
+
         -- Notify remote to commit
         PERFORM http_post(
             'https://api.external.com/commit',
             jsonb_build_object('transaction_id', v_transaction_id)::TEXT
         );
-        
+
         UPDATE tb_distributed_transactions
         SET status = 'committed', completed_at = CURRENT_TIMESTAMP
         WHERE id = v_transaction_id;
-        
+
         RETURN jsonb_build_object(
             'success', true,
             'transaction_id', v_transaction_id
@@ -397,7 +397,7 @@ BEGIN
         -- Rollback everything
         RAISE EXCEPTION 'Remote operation failed';
     END IF;
-    
+
 EXCEPTION
     WHEN OTHERS THEN
         -- Ensure remote rollback
@@ -405,14 +405,14 @@ EXCEPTION
             'https://api.external.com/rollback',
             jsonb_build_object('transaction_id', v_transaction_id)::TEXT
         );
-        
+
         UPDATE tb_distributed_transactions
-        SET 
+        SET
             status = 'rolled_back',
             error = SQLERRM,
             completed_at = CURRENT_TIMESTAMP
         WHERE id = v_transaction_id;
-        
+
         RETURN jsonb_build_object(
             'success', false,
             'error', SQLERRM,
@@ -442,7 +442,7 @@ BEGIN
                 'code', 'UNIQUE_VIOLATION',
                 'field_errors', fn_extract_unique_fields(p_sqlerrm)
             );
-        
+
         WHEN '23503' THEN  -- foreign_key_violation
             RETURN jsonb_build_object(
                 'success', false,
@@ -450,7 +450,7 @@ BEGIN
                 'code', 'FOREIGN_KEY_VIOLATION',
                 'details', fn_extract_fk_details(p_sqlerrm)
             );
-        
+
         WHEN '23502' THEN  -- not_null_violation
             RETURN jsonb_build_object(
                 'success', false,
@@ -458,7 +458,7 @@ BEGIN
                 'code', 'NOT_NULL_VIOLATION',
                 'field', fn_extract_column_name(p_sqlerrm)
             );
-        
+
         WHEN '23514' THEN  -- check_violation
             RETURN jsonb_build_object(
                 'success', false,
@@ -466,14 +466,14 @@ BEGIN
                 'code', 'CHECK_VIOLATION',
                 'constraint', fn_extract_constraint_name(p_sqlerrm)
             );
-        
+
         WHEN 'P0001' THEN  -- raise_exception
             RETURN jsonb_build_object(
                 'success', false,
                 'error', p_sqlerrm,
                 'code', 'BUSINESS_RULE_VIOLATION'
             );
-        
+
         ELSE
             -- Log unexpected errors
             INSERT INTO tb_error_log (
@@ -487,7 +487,7 @@ BEGIN
                 p_context,
                 CURRENT_TIMESTAMP
             );
-            
+
             RETURN jsonb_build_object(
                 'success', false,
                 'error', 'An unexpected error occurred',
@@ -514,14 +514,14 @@ BEGIN
     v_name := p_input->>'name';
     v_price := (p_input->>'price')::DECIMAL;
     v_sku := p_input->>'sku';
-    
+
     -- Validate name
     IF v_name IS NULL OR length(trim(v_name)) = 0 THEN
         v_errors := v_errors || jsonb_build_object('name', 'Product name is required');
     ELSIF length(v_name) > 255 THEN
         v_errors := v_errors || jsonb_build_object('name', 'Name must be 255 characters or less');
     END IF;
-    
+
     -- Validate price
     IF v_price IS NULL THEN
         v_errors := v_errors || jsonb_build_object('price', 'Price is required');
@@ -530,17 +530,17 @@ BEGIN
     ELSIF v_price > 999999.99 THEN
         v_errors := v_errors || jsonb_build_object('price', 'Price exceeds maximum allowed');
     END IF;
-    
+
     -- Validate SKU format
     IF v_sku IS NOT NULL AND NOT v_sku ~ '^[A-Z0-9\-]+$' THEN
         v_errors := v_errors || jsonb_build_object('sku', 'SKU must contain only uppercase letters, numbers, and hyphens');
     END IF;
-    
+
     -- Check for duplicate SKU
     IF EXISTS (SELECT 1 FROM tb_products WHERE sku = v_sku) THEN
         v_errors := v_errors || jsonb_build_object('sku', 'This SKU is already in use');
     END IF;
-    
+
     -- Return errors if any
     IF jsonb_object_keys(v_errors) IS NOT NULL THEN
         RETURN jsonb_build_object(
@@ -550,7 +550,7 @@ BEGIN
             'field_errors', v_errors
         );
     END IF;
-    
+
     -- Proceed with creation...
 END;
 $$ LANGUAGE plpgsql;
@@ -575,21 +575,21 @@ BEGIN
     FOR v_field IN SELECT * FROM jsonb_each(p_schema)
     LOOP
         v_value := p_input->v_field.key;
-        
+
         -- Check required fields
         IF (v_field.value->>'required')::BOOLEAN AND v_value IS NULL THEN
             v_errors := v_errors || jsonb_build_object(
-                v_field.key, 
+                v_field.key,
                 format('%s is required', v_field.value->>'label')
             );
             CONTINUE;
         END IF;
-        
+
         -- Parse by type
         CASE v_field.value->>'type'
             WHEN 'string' THEN
                 v_parsed := jsonb_set(v_parsed, ARRAY[v_field.key], to_jsonb(v_value#>>'{}'));
-                
+
             WHEN 'integer' THEN
                 BEGIN
                     v_parsed := jsonb_set(v_parsed, ARRAY[v_field.key], to_jsonb((v_value#>>'{}')::INT));
@@ -597,7 +597,7 @@ BEGIN
                     WHEN OTHERS THEN
                         v_errors := v_errors || jsonb_build_object(v_field.key, 'Must be a valid integer');
                 END;
-                
+
             WHEN 'decimal' THEN
                 BEGIN
                     v_parsed := jsonb_set(v_parsed, ARRAY[v_field.key], to_jsonb((v_value#>>'{}')::DECIMAL));
@@ -605,7 +605,7 @@ BEGIN
                     WHEN OTHERS THEN
                         v_errors := v_errors || jsonb_build_object(v_field.key, 'Must be a valid decimal number');
                 END;
-                
+
             WHEN 'uuid' THEN
                 BEGIN
                     v_parsed := jsonb_set(v_parsed, ARRAY[v_field.key], to_jsonb((v_value#>>'{}')::UUID));
@@ -613,14 +613,14 @@ BEGIN
                     WHEN OTHERS THEN
                         v_errors := v_errors || jsonb_build_object(v_field.key, 'Must be a valid UUID');
                 END;
-                
+
             WHEN 'email' THEN
                 IF NOT (v_value#>>'{}') ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$' THEN
                     v_errors := v_errors || jsonb_build_object(v_field.key, 'Must be a valid email address');
                 ELSE
                     v_parsed := jsonb_set(v_parsed, ARRAY[v_field.key], v_value);
                 END IF;
-                
+
             WHEN 'array' THEN
                 IF jsonb_typeof(v_value) != 'array' THEN
                     v_errors := v_errors || jsonb_build_object(v_field.key, 'Must be an array');
@@ -629,14 +629,14 @@ BEGIN
                 END IF;
         END CASE;
     END LOOP;
-    
+
     IF jsonb_object_keys(v_errors) IS NOT NULL THEN
         RETURN jsonb_build_object(
             'success', false,
             'errors', v_errors
         );
     END IF;
-    
+
     RETURN jsonb_build_object(
         'success', true,
         'data', v_parsed
@@ -668,14 +668,14 @@ BEGIN
         current_setting('app.user_id', true)::UUID,
         CASE TG_OP WHEN 'DELETE' THEN row_to_json(OLD) ELSE NULL END,
         CASE TG_OP WHEN 'INSERT' THEN row_to_json(NEW) WHEN 'UPDATE' THEN row_to_json(NEW) ELSE NULL END,
-        CASE TG_OP WHEN 'UPDATE' THEN 
-            (SELECT jsonb_object_agg(key, value) 
+        CASE TG_OP WHEN 'UPDATE' THEN
+            (SELECT jsonb_object_agg(key, value)
              FROM jsonb_each(row_to_json(NEW)::JSONB)
              WHERE row_to_json(OLD)::JSONB->key IS DISTINCT FROM value)
         ELSE NULL END,
         CURRENT_TIMESTAMP
     );
-    
+
     RETURN CASE TG_OP WHEN 'DELETE' THEN OLD ELSE NEW END;
 END;
 $$ LANGUAGE plpgsql;
@@ -695,13 +695,13 @@ RETURNS TRIGGER AS $$
 BEGIN
     -- Update inventory
     UPDATE tb_inventory i
-    SET 
+    SET
         available_quantity = available_quantity - oi.quantity,
         reserved_quantity = reserved_quantity - oi.quantity
     FROM tb_order_items oi
     WHERE oi.order_id = NEW.id
         AND i.product_id = oi.product_id;
-    
+
     -- Send notification
     INSERT INTO tb_notifications (
         user_id,
@@ -718,7 +718,7 @@ BEGIN
         jsonb_build_object('order_id', NEW.id),
         CURRENT_TIMESTAMP
     );
-    
+
     -- Queue email
     PERFORM pg_notify(
         'email_queue',
@@ -728,14 +728,14 @@ BEGIN
             'order_id', NEW.id
         )::TEXT
     );
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER after_order_confirmed
     AFTER UPDATE OF status ON tb_orders
-    FOR EACH ROW 
+    FOR EACH ROW
     WHEN (OLD.status != 'confirmed' AND NEW.status = 'confirmed')
     EXECUTE FUNCTION fn_after_order_confirmed();
 ```
@@ -751,7 +751,7 @@ class CreateUserSuccess:
     user: User
     message: str = "User created successfully"
 
-@fraiseql.failure  
+@fraiseql.failure
 class CreateUserError:
     message: str
     code: str
@@ -778,7 +778,7 @@ BEGIN
     FOR v_item IN SELECT * FROM jsonb_array_elements(p_updates)
     LOOP
         v_results := array_append(v_results,
-            CASE 
+            CASE
                 WHEN fn_update_single_status(v_item)->>'success' = 'true' THEN
                     jsonb_build_object(
                         'id', v_item->>'id',
@@ -794,15 +794,15 @@ BEGIN
             END
         );
     END LOOP;
-    
+
     RETURN jsonb_build_object(
         'success', true,
         'results', array_to_json(v_results),
         'summary', jsonb_build_object(
             'total', array_length(v_results, 1),
             'succeeded', (
-                SELECT count(*) 
-                FROM unnest(v_results) r 
+                SELECT count(*)
+                FROM unnest(v_results) r
                 WHERE (r->>'success')::BOOLEAN
             )
         )
@@ -833,7 +833,7 @@ BEGIN
         'VALIDATION_ERROR',
         'Should return validation error code'
     );
-    
+
     -- Test: Duplicate email
     INSERT INTO tb_users (email, name) VALUES ('existing@example.com', 'Existing');
     v_result := fn_create_user(jsonb_build_object(
@@ -844,7 +844,7 @@ BEGIN
         NOT (v_result->>'success')::BOOLEAN,
         'Should fail with duplicate email'
     );
-    
+
     -- Test: Successful creation
     v_result := fn_create_user(jsonb_build_object(
         'email', 'new@example.com',
@@ -859,7 +859,7 @@ BEGIN
         v_result->'user' IS NOT NULL,
         'Should return user data'
     );
-    
+
     -- Cleanup
     DELETE FROM tb_users WHERE email IN ('existing@example.com', 'new@example.com');
 END;
@@ -878,7 +878,7 @@ from fraiseql.testing import FraiseQLTestClient
 @pytest.mark.asyncio
 async def test_create_user_mutation(test_client: FraiseQLTestClient):
     """Test complete mutation flow."""
-    
+
     # Execute GraphQL mutation
     result = await test_client.execute(
         """
@@ -908,10 +908,10 @@ async def test_create_user_mutation(test_client: FraiseQLTestClient):
             }
         }
     )
-    
+
     assert result["data"]["createUser"]["__typename"] == "CreateUserSuccess"
     assert result["data"]["createUser"]["user"]["email"] == "test@example.com"
-    
+
     # Verify database state
     user = await test_client.db.fetchrow(
         "SELECT * FROM tb_users WHERE email = $1",
@@ -989,15 +989,15 @@ BEGIN
     IF NOT p_table = ANY(v_allowed_tables) THEN
         RAISE EXCEPTION 'Invalid table name';
     END IF;
-    
+
     -- Safe query construction
     v_query := format(
         'UPDATE %I SET data = $1 WHERE id = $2',
         p_table
     );
-    
+
     EXECUTE v_query USING p_data, p_id;
-    
+
     RETURN jsonb_build_object('success', true);
 END;
 $$ LANGUAGE plpgsql;
@@ -1083,7 +1083,7 @@ EXCEPTION
 RETURN (
     SELECT row_to_json(sub)
     FROM (
-        SELECT u.*, 
+        SELECT u.*,
                array_agg(p.*) as posts,
                array_agg(c.*) as comments
         FROM tb_users u

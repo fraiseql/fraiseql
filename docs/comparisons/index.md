@@ -6,7 +6,7 @@ FraiseQL offers a unique approach to GraphQL APIs by leveraging PostgreSQL as th
 
 ### Choose FraiseQL when you:
 - ✅ Have an existing PostgreSQL database
-- ✅ Want sub-millisecond query performance  
+- ✅ Want sub-millisecond query performance
 - ✅ Need type-safe APIs without manual schema writing
 - ✅ Prefer SQL views over ORM abstractions
 - ✅ Value simplicity and maintainability
@@ -49,7 +49,7 @@ FraiseQL offers a unique approach to GraphQL APIs by leveraging PostgreSQL as th
 
 ### 3. Simplicity at Scale
 
-**FraiseQL**: 
+**FraiseQL**:
 ```python
 # Complete API in minutes
 from fraiseql import FraiseQL
@@ -88,7 +88,7 @@ app = FraiseQL(database_url="postgresql://...")
 ```sql
 -- Tenant-aware view with proper structure
 CREATE VIEW v_tenant_post AS
-SELECT 
+SELECT
     p.tenant_id,
     jsonb_build_object(
         'id', p.id,
@@ -96,14 +96,14 @@ SELECT
         'content', p.content,
         'author', (
             SELECT jsonb_build_object('id', u.id, 'name', u.name)
-            FROM tb_users u 
+            FROM tb_users u
             WHERE u.id = p.author_id
         ),
         'comments', (
             SELECT jsonb_agg(
                 jsonb_build_object('id', c.id, 'text', c.text)
             )
-            FROM tb_comments c 
+            FROM tb_comments c
             WHERE c.post_id = p.id
         )
     ) as data
@@ -118,10 +118,10 @@ SELECT jsonb_build_object(
     'total_revenue', (SELECT SUM(amount) FROM tb_orders WHERE created_at > NOW() - '30 days'::interval),
     'active_users', (SELECT COUNT(DISTINCT user_id) FROM tb_sessions WHERE last_seen > NOW() - '7 days'::interval),
     'top_products', (SELECT jsonb_agg(p.*) FROM (
-        SELECT product_id, COUNT(*) as sales 
-        FROM tb_order_items 
-        GROUP BY product_id 
-        ORDER BY sales DESC 
+        SELECT product_id, COUNT(*) as sales
+        FROM tb_order_items
+        GROUP BY product_id
+        ORDER BY sales DESC
         LIMIT 10
     ) p)
 ) as data;

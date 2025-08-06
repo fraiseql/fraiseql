@@ -392,15 +392,15 @@ config = FraiseQLConfig(
     enable_turbo_router=True,
     turbo_router_cache_size=5000,
     turbo_max_complexity=200,
-    
+
     # JSON passthrough for simple queries
     json_passthrough_enabled=True,
     passthrough_complexity_limit=100,
-    
+
     # JSONB extraction for large objects
     jsonb_extraction_enabled=True,
     jsonb_field_limit_threshold=15,
-    
+
     # General caching
     enable_query_caching=True,
     cache_ttl=600,  # 10 minutes
@@ -435,7 +435,7 @@ try:
     )
 except ValidationError as e:
     print(f"Configuration error: {e}")
-    # Configuration error: 
+    # Configuration error:
     # - database_url: Invalid PostgreSQL URL
     # - auth0_domain: Required when using Auth0 provider
 ```

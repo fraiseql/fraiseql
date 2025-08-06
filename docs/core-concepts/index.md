@@ -84,7 +84,7 @@ query {
 Becomes:
 
 ```sql
-SELECT data FROM v_user 
+SELECT data FROM v_user
 WHERE role = 'admin'
 -- data already contains nested posts!
 ```
@@ -117,7 +117,7 @@ Your database view IS your API:
 
 ```sql
 CREATE VIEW v_post AS
-SELECT 
+SELECT
     id,  -- For filtering
     user_id,  -- For relationships
     published,  -- For filtering
@@ -222,7 +222,7 @@ Request → FraiseQL → PostgreSQL → Response
 ### Separation of Concerns
 
 - **Tables**: Store normalized data
-- **Views**: Shape API responses  
+- **Views**: Shape API responses
 - **Functions**: Implement business logic
 - **Types**: Define contracts
 

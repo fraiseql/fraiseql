@@ -91,14 +91,14 @@ services:
     image: existing-graphql-api
     ports:
       - "4000:4000"
-  
+
   analytics-api:
     image: fraiseql-analytics
     environment:
       DATABASE_URL: "postgresql://..."
     ports:
       - "4001:4001"
-  
+
   api-gateway:
     image: apollo-gateway
     environment:
@@ -138,7 +138,7 @@ const resolvers = {
 ```sql
 -- Single view with all data
 CREATE VIEW v_user AS
-SELECT 
+SELECT
     id,
     email,
     name,
@@ -198,7 +198,7 @@ class UserType:
 ```sql
 -- True view composition pattern
 CREATE VIEW v_user_with_stats AS
-SELECT 
+SELECT
     u.id,
     u.email,
     u.name,
@@ -211,18 +211,18 @@ SELECT
         'posts', (u.data->'posts'),
         'stats', json_build_object(
             'postCount', (
-                SELECT COUNT(*) 
-                FROM tb_posts 
+                SELECT COUNT(*)
+                FROM tb_posts
                 WHERE author_id = u.id
             ),
             'commentCount', (
-                SELECT COUNT(*) 
-                FROM tb_comments 
+                SELECT COUNT(*)
+                FROM tb_comments
                 WHERE author_id = u.id
             ),
             'totalViews', (
                 SELECT COALESCE(SUM(view_count), 0)
-                FROM tb_posts 
+                FROM tb_posts
                 WHERE author_id = u.id
             )
         )
@@ -257,7 +257,7 @@ class Post:
     id: UUID
     title: str
     author_id: UUID
-    
+
     @dataloader_field
     async def author(self, info) -> User:
         """Automatically batched by FraiseQL."""
@@ -277,7 +277,7 @@ class User:
     email: str
     name: str
     created_at: datetime
-    
+
     @strawberry.field
     async def full_name(self) -> str:
         return f"{self.name} ({self.email})"
@@ -295,7 +295,7 @@ CREATE TABLE tb_users (
 
 -- Computed fields in views
 CREATE VIEW v_user AS
-SELECT 
+SELECT
     id,
     email,
     name,
@@ -446,27 +446,27 @@ def analyze_resolvers(schema_file, resolver_module):
     """Analyze existing schema for migration."""
     with open(schema_file) as f:
         schema = build_schema(f.read())
-    
+
     migration_plan = {
         "queries": [],
         "mutations": [],
         "types": []
     }
-    
+
     # Analyze queries
     for field in schema.query_type.fields:
         migration_plan["queries"].append({
             "name": field,
             "suggestion": f"CREATE VIEW v_{to_snake_case(field)} AS ..."
         })
-    
+
     # Analyze mutations
     for field in schema.mutation_type.fields:
         migration_plan["mutations"].append({
             "name": field,
             "suggestion": f"CREATE FUNCTION fn_{to_snake_case(field)}(...)"
         })
-    
+
     return migration_plan
 ```
 
@@ -478,7 +478,7 @@ def generate_view_from_type(type_def):
     """Generate FraiseQL view from GraphQL type."""
     return f"""
 CREATE VIEW v_{to_snake_case(type_def.name)} AS
-SELECT 
+SELECT
     {generate_columns(type_def.fields)},
     json_build_object(
         '__typename', '{type_def.name}',
@@ -501,18 +501,18 @@ async def test_migration_compatibility(query):
     """Ensure FraiseQL returns same data as old API."""
     # Run on old API
     old_result = await old_client.execute(query)
-    
+
     # Run on FraiseQL
     new_result = await fraiseql_client.execute(query)
-    
+
     # Compare results (ignoring order)
     diff = DeepDiff(
-        old_result, 
-        new_result, 
+        old_result,
+        new_result,
         ignore_order=True,
         exclude_regex_paths=[r".*__typename.*"]
     )
-    
+
     assert not diff, f"Results differ: {diff}"
 ```
 
@@ -523,18 +523,18 @@ async def test_migration_compatibility(query):
 async def benchmark_endpoints():
     """Compare performance of old vs new."""
     queries = load_production_queries()
-    
+
     for query in queries:
         # Old API
         old_start = time.time()
         await old_client.execute(query)
         old_time = time.time() - old_start
-        
+
         # FraiseQL
         new_start = time.time()
         await fraiseql_client.execute(query)
         new_time = time.time() - new_start
-        
+
         print(f"{query.name}: {old_time:.2f}s -> {new_time:.2f}s "
               f"({old_time/new_time:.1f}x faster)")
 ```
@@ -558,13 +558,13 @@ BEGIN
     -- Complex scoring logic in one place
     SELECT COUNT(*) * 10 INTO post_score
     FROM tb_posts WHERE author_id = user_id;
-    
+
     SELECT COUNT(*) * 2 INTO comment_score
     FROM tb_comments WHERE author_id = user_id;
-    
+
     SELECT COUNT(*) * 5 INTO engagement_score
     FROM tb_likes WHERE user_id = user_id;
-    
+
     RETURN post_score + comment_score + engagement_score;
 END;
 $$ LANGUAGE plpgsql;
@@ -581,7 +581,7 @@ $$ LANGUAGE plpgsql;
 class User:
     id: UUID
     email: str
-    
+
     @dataloader_field
     async def external_profile(self, info) -> ExternalProfile:
         """Fetch from external service."""

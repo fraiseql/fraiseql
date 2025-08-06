@@ -145,15 +145,15 @@ from decimal import Decimal
 # Define a custom Decimal scalar
 class DecimalScalar(Scalar):
     """Decimal number with arbitrary precision."""
-    
+
     @staticmethod
     def serialize(value: Decimal) -> str:
         return str(value)
-    
+
     @staticmethod
     def parse_value(value: str) -> Decimal:
         return Decimal(value)
-    
+
     @staticmethod
     def parse_literal(ast) -> Decimal:
         return Decimal(ast.value)
@@ -263,21 +263,21 @@ from fraiseql import fraise_field
 @fraiseql.type
 class User:
     id: UUID
-    
+
     # Add descriptions
     email: str = fraise_field(description="User's email address")
-    
+
     # Deprecation
     old_field: str = fraise_field(
         deprecation_reason="Use newField instead"
     )
-    
+
     # Default values
     is_active: bool = fraise_field(default=True)
-    
+
     # Default factories for mutable types
     roles: list[str] = fraise_field(default_factory=list)
-    
+
     # Permissions
     sensitive_data: str = fraise_field(
         permissions=["admin:read"]
@@ -291,12 +291,12 @@ class Post:
     id: UUID
     title: str
     content: str
-    
+
     @property
     def word_count(self) -> int:
         """Computed field for word count."""
         return len(self.content.split())
-    
+
     @property
     def reading_time(self) -> int:
         """Estimated reading time in minutes."""
@@ -324,7 +324,7 @@ class CreatePostInput:
         max_items=10,
         default_factory=list
     )
-    
+
     @validate
     def validate_tags(self):
         """Custom validation logic."""
@@ -354,17 +354,17 @@ class User:
     # Required fields (non-nullable)
     id: UUID  # ID!
     email: str  # String!
-    
+
     # Optional fields (nullable)
     bio: str | None  # String
     avatar_url: str | None  # String
-    
+
     # Required list of required items
     roles: list[str]  # [String!]!
-    
+
     # Required list of optional items
     tags: list[str | None]  # [String]!
-    
+
     # Optional list of required items
     posts: list[Post] | None  # [Post!]
 ```
@@ -376,11 +376,11 @@ class Settings:
     # Simple defaults
     theme: str = "light"
     notifications: bool = True
-    
+
     # Default factory for mutable types
     blocked_users: list[str] = field(default_factory=list)
     preferences: dict[str, Any] = field(default_factory=dict)
-    
+
     # Computed default
     created_at: datetime = field(default_factory=datetime.now)
 ```
@@ -465,7 +465,7 @@ class Timestamped:
     created_at: datetime
     updated_at: datetime
 
-@fraiseql.interface  
+@fraiseql.interface
 class Authored:
     """Interface for authored content."""
     author_id: UUID
@@ -508,7 +508,7 @@ bio: Optional[str]  # Less preferred - use bio: str | None instead
 @fraiseql.type
 class User:
     """User account in the system."""
-    
+
     id: UUID
     email: str = fraise_field(
         description="Primary email address"
@@ -557,7 +557,7 @@ def test_user_type_registration():
     """Test that User type is properly registered."""
     schema = get_schema()
     user_type = schema.type_map.get("User")
-    
+
     assert user_type is not None
     assert "id" in user_type.fields
     assert "email" in user_type.fields
@@ -566,11 +566,11 @@ def test_type_field_nullability():
     """Test field nullability."""
     schema = get_schema()
     user_type = schema.type_map["User"]
-    
+
     # Required field
     assert user_type.fields["id"].type.of_type is None
-    
-    # Optional field  
+
+    # Optional field
     bio_field = user_type.fields["bio"]
     assert bio_field.type.of_type is not None
 ```
