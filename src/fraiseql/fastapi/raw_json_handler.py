@@ -6,11 +6,9 @@ without going through GraphQL validation and serialization.
 
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from graphql import GraphQLSchema
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fraiseql.analysis.query_analyzer import QueryAnalyzer
