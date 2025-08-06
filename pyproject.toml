@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fraiseql"
-version = "0.1.0"
+version = "0.1.1"
 description = "Lightweight GraphQL-to-PostgreSQL query builder using jsonb"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
