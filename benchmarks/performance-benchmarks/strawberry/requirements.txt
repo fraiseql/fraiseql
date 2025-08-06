@@ -1,7 +1,0 @@
-strawberry-graphql[fastapi]>=0.250.0
-fastapi>=0.115.12
-uvicorn[standard]>=0.34.3
-asyncpg>=0.30.0
-redis>=5.2.0
-python-dotenv>=1.1.0
-pydantic>=2.10.0
