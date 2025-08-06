@@ -56,7 +56,7 @@ jobs:
         pytest --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v
 
     - name: Upload coverage
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         file: ./coverage.xml
         flags: unittests
