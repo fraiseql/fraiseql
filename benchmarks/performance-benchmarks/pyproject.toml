@@ -1,0 +1,154 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fraiseql-performance-benchmarks"
+version = "0.1.0"
+description = "Performance benchmarks comparing FraiseQL with other GraphQL frameworks"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    { name = "FraiseQL Team" },
+]
+keywords = ["graphql", "benchmarks", "performance", "postgresql", "database"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Database",
+]
+
+dependencies = [
+    # Core dependencies
+    "httpx>=0.28.1",
+    "aiohttp>=3.11.0",
+    "asyncpg>=0.30.0",
+    "psycopg[binary]>=3.2.6",
+
+    # GraphQL
+    "graphql-core>=3.2.6",
+    "gql[aiohttp]>=3.5.0",
+
+    # Benchmarking tools
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-benchmark>=5.1.0",
+    "locust>=2.32.0",
+
+    # Metrics and monitoring
+    "prometheus-client>=0.21.0",
+    "psutil>=6.1.0",
+
+    # Configuration
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "python-dotenv>=1.1.0",
+
+    # CLI and output
+    "rich>=13.9.0",
+    "click>=8.1.0",
+    "tabulate>=0.9.0",
+
+    # Data analysis
+    "pandas>=2.2.0",
+    "numpy>=2.2.0",
+]
+
+[project.optional-dependencies]
+# Container orchestration
+docker = [
+    "docker>=6.1.0",
+    "docker-compose>=1.29.0",
+]
+
+# Visualization
+viz = [
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "plotly>=5.18.0",
+    "dash>=2.14.0",
+]
+
+# Framework-specific clients
+frameworks = [
+    "strawberry-graphql>=0.250.0",
+    "ariadne>=0.23.0",
+    "graphene>=3.4.0",
+]
+
+# Development
+dev = [
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "types-psutil",
+    "types-tabulate",
+]
+
+# Full installation
+all = ["fraiseql-performance-benchmarks[docker,viz,frameworks,dev]"]
+
+[project.scripts]
+fraiseql-perf = "fraiseql_performance_benchmarks.cli:main"
+fraiseql-perf-run = "fraiseql_performance_benchmarks.runner:main"
+fraiseql-perf-analyze = "fraiseql_performance_benchmarks.analyzer:main"
+fraiseql-perf-report = "fraiseql_performance_benchmarks.reporter:main"
+fraiseql-perf-server = "fraiseql_performance_benchmarks.dashboard:main"
+
+[project.urls]
+Homepage = "https://github.com/fraiseql/fraiseql"
+Documentation = "https://fraiseql.readthedocs.io"
+Repository = "https://github.com/fraiseql/fraiseql"
+Issues = "https://github.com/fraiseql/fraiseql/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["fraiseql_performance_benchmarks"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+benchmark_disable_gc = true
+benchmark_sort = "mean"
+
+[tool.locust]
+host = "http://localhost:8000"
+users = 100
+spawn-rate = 10
+run-time = "5m"
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "PERF", # performance
+]
+ignore = [
+    "E501",  # line too long
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

@@ -1,0 +1,136 @@
+version: '3.8'
+
+services:
+  # Primary PostgreSQL instance
+  postgres-primary:
+    image: postgres:16
+    container_name: postgres-primary
+    environment:
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+      POSTGRES_DB: benchmark_db
+      POSTGRES_REPLICATION_MODE: master
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+    volumes:
+      - ./init-db-ultra.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgresql-primary.conf:/etc/postgresql/postgresql.conf
+      - postgres_primary_data:/var/lib/postgresql/data
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    ports:
+      - "5432:5432"
+    networks:
+      - benchmark-net
+
+  # Read Replica 1
+  postgres-replica1:
+    image: postgres:16
+    container_name: postgres-replica1
+    environment:
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+      POSTGRES_DB: benchmark_db
+      POSTGRES_REPLICATION_MODE: slave
+      POSTGRES_MASTER_SERVICE: postgres-primary
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+    volumes:
+      - postgres_replica1_data:/var/lib/postgresql/data
+    depends_on:
+      - postgres-primary
+    networks:
+      - benchmark-net
+
+  # Read Replica 2
+  postgres-replica2:
+    image: postgres:16
+    container_name: postgres-replica2
+    environment:
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+      POSTGRES_DB: benchmark_db
+      POSTGRES_REPLICATION_MODE: slave
+      POSTGRES_MASTER_SERVICE: postgres-primary
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+    volumes:
+      - postgres_replica2_data:/var/lib/postgresql/data
+    depends_on:
+      - postgres-primary
+    networks:
+      - benchmark-net
+
+  # PgPool for read replica load balancing
+  pgpool:
+    image: bitnami/pgpool:4
+    container_name: pgpool
+    environment:
+      - PGPOOL_BACKEND_NODES=0:postgres-primary:5432,1:postgres-replica1:5432:2:9:ALLOW_TO_FAILOVER,2:postgres-replica2:5432:2:9:ALLOW_TO_FAILOVER
+      - PGPOOL_SR_CHECK_USER=benchmark
+      - PGPOOL_SR_CHECK_PASSWORD=benchmark
+      - PGPOOL_ENABLE_LOAD_BALANCING=yes
+      - PGPOOL_POSTGRES_USERNAME=benchmark
+      - PGPOOL_POSTGRES_PASSWORD=benchmark
+      - PGPOOL_ADMIN_USERNAME=admin
+      - PGPOOL_ADMIN_PASSWORD=adminpassword
+      - PGPOOL_NUM_INIT_CHILDREN=32
+      - PGPOOL_MAX_POOL=10
+      - PGPOOL_CONNECTION_CACHE=on
+      - PGPOOL_MEMORY_CACHE_ENABLED=on
+    ports:
+      - "5433:5432"
+    depends_on:
+      - postgres-primary
+      - postgres-replica1
+      - postgres-replica2
+    networks:
+      - benchmark-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-bench
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - benchmark-net
+
+  # Ultra-optimized FraiseQL with read replicas
+  fraiseql-ultra-replicas:
+    build:
+      context: .
+      dockerfile: Dockerfile.ultra.replicas
+    container_name: fraiseql-ultra-replicas
+    environment:
+      DATABASE_URL_PRIMARY: postgresql://benchmark:benchmark@postgres-primary:5432/benchmark_db
+      DATABASE_URL_REPLICAS: postgresql://benchmark:benchmark@pgpool:5432/benchmark_db
+      REDIS_HOST: redis-bench
+      REDIS_PORT: 6379
+      ENABLE_READ_REPLICAS: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - pgpool
+      - redis
+    networks:
+      - benchmark-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+volumes:
+  postgres_primary_data:
+  postgres_replica1_data:
+  postgres_replica2_data:
+  redis_data:
+
+networks:
+  benchmark-net:
+    driver: bridge

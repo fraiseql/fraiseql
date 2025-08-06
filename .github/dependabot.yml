@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # Python dependencies - main project only
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Ignore benchmark and example directories
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    open-pull-requests-limit: 10
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+# Note: We intentionally do not scan benchmark directories as they:
+# - Are not part of the distributed package
+# - Contain outdated dependencies for comparison purposes
+# - Are only used in isolated development environments

@@ -1,0 +1,116 @@
+site_name: FraiseQL Documentation
+site_url: https://fraiseql.dev/docs
+site_description: Lightweight GraphQL-to-PostgreSQL query builder using JSONB
+site_author: Lionel Hamayon
+
+repo_name: fraiseql/fraiseql
+repo_url: https://github.com/fraiseql/fraiseql
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  language: en
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+      primary: indigo
+      accent: indigo
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+      primary: indigo
+      accent: indigo
+
+plugins:
+  - search
+  - mermaid2
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+  - pymdownx.mark
+  - attr_list
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/index.md
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - GraphQL Playground: getting-started/graphql-playground.md
+    - First API: getting-started/first-api.md
+  - Core Concepts:
+    - core-concepts/index.md
+    - Architecture: core-concepts/architecture.md
+    - Type System: core-concepts/type-system.md
+    - Database Views: core-concepts/database-views.md
+    - Query Translation: core-concepts/query-translation.md
+  - API Reference:
+    - api-reference/index.md
+    - Application: api-reference/application.md
+    - Decorators: api-reference/decorators.md
+  - Advanced Topics:
+    - advanced/index.md
+    - Configuration: advanced/configuration.md
+    - Authentication: advanced/authentication.md
+    - Performance: advanced/performance.md
+    - TurboRouter: advanced/turbo-router.md
+    - Pagination: advanced/pagination.md
+    - Security: advanced/security.md
+    - Domain-Driven Database: advanced/domain-driven-database.md
+    - Database API Patterns: advanced/database-api-patterns.md
+    - Eliminating N+1: advanced/eliminating-n-plus-one.md
+    - Performance Comparison: advanced/performance-comparison.md
+    - LLM-Native Architecture: advanced/llm-native-architecture.md
+  - Tutorials:
+    - tutorials/index.md
+    - Blog API: tutorials/blog-api.md
+  - Mutations:
+    - mutations/index.md
+    - Migration Guide: mutations/migration-guide.md
+    - PostgreSQL Functions: mutations/postgresql-function-based.md
+  - Migration:
+    - migration/index.md
+    - From Strawberry: migration/from-strawberry.md
+  - Comparisons:
+    - comparisons/index.md
+    - Alternatives: comparisons/alternatives.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/fraiseql/fraiseql
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/fraiseql/
+
+copyright: |
+  &copy; 2025 <a href="https://github.com/fraiseql"  target="_blank" rel="noopener">FraiseQL Project</a>

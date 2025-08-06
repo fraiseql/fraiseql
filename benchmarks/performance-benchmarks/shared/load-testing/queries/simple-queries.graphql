@@ -1,0 +1,82 @@
+# Simple queries for baseline performance testing
+
+# Get users with basic fields
+query GetUsers($limit: Int!, $offset: Int!) {
+  users(limit: $limit, offset: $offset) {
+    id
+    email
+    username
+    fullName
+    createdAt
+    isActive
+  }
+}
+
+# Get single user by ID
+query GetUser($id: ID!) {
+  user(id: $id) {
+    id
+    email
+    username
+    fullName
+    createdAt
+    isActive
+    orderCount
+    totalSpent
+    reviewCount
+    averageRating
+  }
+}
+
+# Get products with basic filtering
+query GetProducts($limit: Int!, $offset: Int!) {
+  products(
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    id
+    sku
+    name
+    description
+    price
+    stockQuantity
+  }
+}
+
+# Get single product by ID
+query GetProduct($id: ID!) {
+  product(id: $id) {
+    id
+    sku
+    name
+    description
+    price
+    stockQuantity
+    averageRating
+    reviewCount
+  }
+}
+
+# Search products
+query SearchProducts($query: String!, $limit: Int!) {
+  searchProducts(query: $query, limit: $limit) {
+    id
+    sku
+    name
+    price
+    stockQuantity
+  }
+}
+
+# Get orders with pagination
+query GetOrders($limit: Int!, $offset: Int!) {
+  orders(
+    pagination: { limit: $limit, offset: $offset }
+  ) {
+    id
+    orderNumber
+    status
+    totalAmount
+    createdAt
+    itemCount
+  }
+}

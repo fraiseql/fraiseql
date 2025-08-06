@@ -1,0 +1,11 @@
+strawberry-graphql[fastapi]>=0.250.0
+sqlalchemy>=2.0.36
+asyncpg>=0.30.0
+fastapi>=0.115.12
+uvicorn[standard]>=0.34.3
+python-dotenv>=1.1.0
+prometheus-client>=0.21.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+httpx>=0.28.1
+aiodataloader>=0.4.0

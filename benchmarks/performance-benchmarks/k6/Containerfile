@@ -1,0 +1,19 @@
+FROM docker.io/grafana/k6:latest
+
+USER root
+
+# Install Python and required packages for analysis
+RUN apk add --no-cache python3 py3-pip py3-numpy py3-matplotlib
+
+# Create a Python virtual environment for additional packages
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python packages
+RUN pip install --no-cache-dir tabulate
+
+# Create results directory
+RUN mkdir -p /results && chmod 777 /results
+
+# Stay as root to allow sleep command
+# USER k6

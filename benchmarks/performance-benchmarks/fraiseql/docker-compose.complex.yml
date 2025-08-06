@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  postgres-bench:
+    image: postgres:16
+    container_name: postgres-complex-bench
+    environment:
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+      POSTGRES_DB: benchmark_db
+      POSTGRES_INITDB_ARGS: "-c shared_buffers=2GB -c effective_cache_size=6GB"
+    volumes:
+      - ./init-db-complex.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./postgresql-benchmark.conf:/etc/postgresql/postgresql.conf
+      - postgres_complex_data:/var/lib/postgresql/data
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    ports:
+      - "5432:5432"
+    networks:
+      - benchmark-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-complex-bench
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy lru
+    volumes:
+      - redis_complex_data:/data
+    networks:
+      - benchmark-net
+
+  fraiseql-complex:
+    build:
+      context: .
+      dockerfile: Dockerfile.complex
+    container_name: fraiseql-complex-bench
+    environment:
+      DATABASE_URL: postgresql://benchmark:benchmark@postgres-bench:5432/benchmark_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres-bench
+      - redis
+    networks:
+      - benchmark-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  strawberry:
+    build:
+      context: ../strawberry
+      dockerfile: Dockerfile
+    container_name: strawberry-complex-bench
+    environment:
+      DATABASE_URL: postgresql://benchmark:benchmark@postgres-bench:5432/benchmark_db
+    ports:
+      - "8001:8001"
+    depends_on:
+      - postgres-bench
+    networks:
+      - benchmark-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+volumes:
+  postgres_complex_data:
+  redis_complex_data:
+
+networks:
+  benchmark-net:
+    driver: bridge

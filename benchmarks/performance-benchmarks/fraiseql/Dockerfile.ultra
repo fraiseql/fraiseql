@@ -1,0 +1,54 @@
+# Ultra-optimized Dockerfile with Lisa Kumar's container optimizations
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Performance-optimized packages (Lisa Kumar's recommendations)
+RUN apk add --no-cache \
+    postgresql-client \
+    gcc \
+    musl-dev \
+    curl \
+    supervisor \
+    libpq-dev \
+    python3-dev
+
+# Note: Alpine uses musl libc which has efficient memory allocation
+
+# Container-optimized environment variables
+ENV MALLOC_ARENA_MAX=2
+ENV MALLOC_MMAP_THRESHOLD=131072
+ENV MALLOC_TRIM_THRESHOLD=131072
+ENV MALLOC_TOP_PAD=131072
+
+# Python optimizations
+ENV PYTHONMALLOC=malloc
+ENV PYTHONMALLOCSTATS=1
+ENV PYTHONASYNCIODEBUG=0
+ENV PYTHONUNBUFFERED=1
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create supervisor configuration for multi-worker setup
+RUN mkdir -p /etc/supervisor/conf.d
+COPY supervisord.ultra.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Database URL
+ENV DATABASE_URL=postgresql://benchmark:benchmark@postgres:5432/benchmark_db
+
+# Container resource labels for optimal performance
+LABEL container.memory="4g"
+LABEL container.cpu="2"
+LABEL container.swap="1g"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start supervisor to manage multiple workers
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

@@ -1,0 +1,16 @@
+{
+  "profile": "medium",
+  "cpu_info": {
+    "cores": 4,
+    "model": "Intel(R) Core(TM) i5-6300U CPU @ 2.40GHz",
+    "frequency_mhz": 3000,
+    "cache_size": 3,
+    "memory_gb": 31.1
+  },
+  "score": 210.018310546875,
+  "data_scale": {
+    "users": 10000,
+    "products": 50000,
+    "orders": 20000
+  }
+}

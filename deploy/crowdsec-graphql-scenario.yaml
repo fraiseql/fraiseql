@@ -1,0 +1,17 @@
+# CrowdSec scenario for GraphQL protection
+# Place in: /etc/crowdsec/scenarios/graphql-protection.yaml
+
+type: leaky
+name: fraiseql/graphql-abuse
+description: "Detect GraphQL query abuse and complexity attacks"
+filter: |
+  evt.Meta.log_type == 'nginx' &&
+  evt.Parsed.request contains '/graphql' &&
+  evt.Meta.http_status == '200'
+capacity: 100
+leakspeed: 10s
+blackhole: 5m
+labels:
+  service: graphql
+  type: rate_limit
+  remediation: true

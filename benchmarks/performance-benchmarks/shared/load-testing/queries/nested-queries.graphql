@@ -1,0 +1,196 @@
+# Complex nested queries to test N+1 query handling
+
+# Get product with nested reviews and users
+query GetProductWithReviews($id: ID!) {
+  product(id: $id) {
+    id
+    sku
+    name
+    description
+    price
+    stockQuantity
+    category {
+      id
+      name
+      slug
+    }
+    averageRating
+    reviewCount
+    reviews {
+      id
+      rating
+      title
+      comment
+      createdAt
+      user {
+        id
+        username
+        fullName
+      }
+    }
+  }
+}
+
+# Get order with nested items and products
+query GetOrderWithItems($id: ID!) {
+  order(id: $id) {
+    id
+    orderNumber
+    status
+    totalAmount
+    createdAt
+    user {
+      id
+      email
+      username
+      fullName
+    }
+    items {
+      id
+      quantity
+      unitPrice
+      totalPrice
+      product {
+        id
+        sku
+        name
+        price
+      }
+    }
+    itemCount
+  }
+}
+
+# Get user with all orders and items (very nested)
+query GetUserOrderHistory($userId: ID!, $limit: Int!) {
+  userOrders(userId: $userId, limit: $limit) {
+    id
+    orderNumber
+    status
+    totalAmount
+    createdAt
+    user {
+      id
+      email
+      username
+      fullName
+      orderCount
+      totalSpent
+    }
+    items {
+      id
+      quantity
+      unitPrice
+      totalPrice
+      product {
+        id
+        sku
+        name
+        price
+        category {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+
+# Complex product search with all relations
+query ComplexProductSearch($categoryId: ID, $minPrice: Decimal, $maxPrice: Decimal) {
+  products(
+    filter: {
+      categoryId: $categoryId
+      minPrice: $minPrice
+      maxPrice: $maxPrice
+      inStock: true
+    }
+    pagination: { limit: 20, offset: 0 }
+    orderBy: { field: "price", direction: "ASC" }
+  ) {
+    id
+    sku
+    name
+    description
+    price
+    stockQuantity
+    category {
+      id
+      name
+      slug
+      parentId
+    }
+    averageRating
+    reviewCount
+    reviews {
+      id
+      rating
+      title
+      comment
+      createdAt
+      user {
+        id
+        username
+        fullName
+        reviewCount
+        averageRating
+      }
+    }
+  }
+}
+
+# Deep nesting stress test - orders with full product details
+query DeepNestedOrderQuery($status: String!) {
+  orders(
+    filter: { status: $status }
+    pagination: { limit: 10, offset: 0 }
+  ) {
+    id
+    orderNumber
+    status
+    totalAmount
+    createdAt
+    user {
+      id
+      email
+      username
+      fullName
+      orderCount
+      totalSpent
+      reviewCount
+      averageRating
+    }
+    items {
+      id
+      quantity
+      unitPrice
+      totalPrice
+      product {
+        id
+        sku
+        name
+        description
+        price
+        stockQuantity
+        category {
+          id
+          name
+          slug
+          description
+        }
+        averageRating
+        reviewCount
+        reviews {
+          id
+          rating
+          title
+          comment
+          user {
+            id
+            username
+          }
+        }
+      }
+    }
+  }
+}

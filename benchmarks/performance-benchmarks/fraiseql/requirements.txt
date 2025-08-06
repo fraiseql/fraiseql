@@ -1,0 +1,11 @@
+fraiseql>=0.1.0a19
+fastapi>=0.115.12
+uvicorn[standard]>=0.34.3
+psycopg[binary,pool]>=3.2.6
+asyncpg>=0.30.0
+python-dotenv>=1.1.0
+httpx>=0.28.1
+prometheus-client>=0.21.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+redis>=5.2.0

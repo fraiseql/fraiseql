@@ -1,0 +1,62 @@
+FROM python:3.11-alpine
+
+# Install PostgreSQL and system dependencies
+RUN apk add --no-cache \
+    postgresql15 \
+    postgresql15-client \
+    postgresql15-contrib \
+    gcc \
+    musl-dev \
+    curl \
+    supervisor \
+    libpq-dev \
+    python3-dev
+
+# Set up PostgreSQL environment
+ENV PGDATA=/var/lib/postgresql/data
+ENV POSTGRES_USER=benchmark
+ENV POSTGRES_PASSWORD=benchmark
+ENV POSTGRES_DB=benchmark_db
+
+# Create directories for our custom PostgreSQL setup
+RUN mkdir -p /var/lib/postgresql/data && \
+    mkdir -p /var/run/postgresql && \
+    chown -R postgres:postgres /var/lib/postgresql && \
+    chown -R postgres:postgres /var/run/postgresql
+
+# Set up app directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY fraiseql/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY fraiseql/ /app/
+COPY shared/database/schema.sql /docker-entrypoint-initdb.d/01-schema.sql
+COPY shared/database/fraiseql-views.sql /docker-entrypoint-initdb.d/02-views.sql
+
+# Copy adaptive seed generator
+COPY create_adaptive_seed.sh /docker-entrypoint-initdb.d/
+RUN chmod +x /docker-entrypoint-initdb.d/create_adaptive_seed.sh
+
+# Create supervisor configuration
+RUN mkdir -p /etc/supervisor/conf.d
+COPY unified-socket/supervisord-fraiseql.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create startup script
+COPY unified-socket/start-unified.sh /start.sh
+RUN chmod +x /start.sh
+
+# Environment variables for socket connection
+ENV DATABASE_URL=postgresql://benchmark:benchmark@/benchmark_db?host=/var/run/postgresql
+ENV PYTHONUNBUFFERED=1
+
+# Expose port for the app
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["/start.sh"]

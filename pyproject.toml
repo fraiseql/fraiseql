@@ -1,0 +1,337 @@
+[build-system]
+requires = ["hatchling", "setuptools_scm"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fraiseql"
+version = "0.1.0"
+description = "Lightweight GraphQL-to-PostgreSQL query builder using jsonb"
+authors = [
+  { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["graphql", "postgresql", "api", "database", "jsonb", "fastapi", "async", "orm"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+    "Topic :: Database",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Typing :: Typed",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+  "fastapi>=0.115.12",
+  "graphql-core>=3.2.6",
+  "psycopg[pool]>=3.2.6",
+  "psycopg-pool>=3.2.6",
+  "uvicorn>=0.34.3",
+  "pydantic>=2.0.0",
+  "pydantic-settings>=2.0.0",
+  "httpx>=0.25.0",
+  "pyjwt[crypto]>=2.8.0",
+  "python-dateutil>=2.8.0",
+  "click>=8.1.0",
+  "python-dotenv>=1.0.0",
+  "structlog>=23.0.0",
+  "passlib[argon2]>=1.7.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/fraiseql/fraiseql"
+Documentation = "https://fraiseql.readthedocs.io"
+Repository = "https://github.com/fraiseql/fraiseql"
+Issues = "https://github.com/fraiseql/fraiseql/issues"
+Changelog = "https://github.com/fraiseql/fraiseql/blob/main/CHANGELOG.md"
+
+[project.scripts]
+fraiseql = "fraiseql.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "black>=25.0.1",
+  "pre-commit>=4.2.0",
+  "pytest>=8.3.5",
+  "pytest-asyncio>=0.21.0",
+  "testcontainers[postgres]>=4.0.0",
+  "docker>=7.0.0",
+  "pytest-xdist>=3.5.0",
+  "pytest-watch>=1.0.0",
+  "pytest-cov>=4.0.0",
+  "pytest-mock>=3.11.0",
+  "tox>=4.0.0",
+  "ruff>=0.8.4",
+  "pyright>=1.1.401",
+  "build>=1.0.0",
+  "twine>=5.0.0",
+  "pyyaml>=6.0.0",
+  "prometheus-client>=0.20.0",
+  "redis>=5.0.0",
+  "email-validator>=2.0.0",
+]
+auth0 = [
+  "pyjwt[crypto]>=2.8.0",
+  "httpx>=0.25.0",
+]
+docs = [
+  "mkdocs>=1.5.0",
+  "mkdocs-material>=9.0.0",
+  "mkdocs-mermaid2-plugin>=1.0.0",
+  "pymdown-extensions>=10.0",
+]
+tracing = [
+  "wrapt>=1.16.0",  # Minimum version for Python 3.11+ compatibility
+  "opentelemetry-api>=1.20.0",
+  "opentelemetry-sdk>=1.20.0",
+  "opentelemetry-instrumentation-psycopg>=0.40b0",
+  "opentelemetry-exporter-otlp>=1.20.0",
+  "opentelemetry-exporter-jaeger>=1.20.0",
+  "opentelemetry-exporter-zipkin>=1.20.0",
+]
+redis = [
+  "redis>=5.0.0",
+]
+all = [
+  "redis>=5.0.0",
+  "wrapt>=1.16.0",
+  "opentelemetry-api>=1.20.0",
+  "opentelemetry-sdk>=1.20.0",
+  "opentelemetry-instrumentation-psycopg>=0.40b0",
+  "opentelemetry-exporter-otlp>=1.20.0",
+  "opentelemetry-exporter-jaeger>=1.20.0",
+  "opentelemetry-exporter-zipkin>=1.20.0",
+  "pyjwt[crypto]>=2.8.0",
+  "httpx>=0.25.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+    "database: marks tests as requiring database (deselect with '-m \"not database\"')",
+]
+minversion = "8.0"
+addopts = "-ra -q"
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.ruff]
+src = ["src"]
+target-version = "py313"
+line-length = 100
+exclude = ["tests", "benchmarks", "java-benchmark", "examples", "tools", "scripts", "conftest.py"]
+fix = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  # Previously ignored rules
+  "D203",    # One-blank-line-before-class
+  "D213",    # Multi-line-summary-second-line
+  "TC006",   # Unquoted cast
+  "UP035",   # typing.Type is deprecated - conflicts with pyright
+  "UP006",   # Use type instead of Type - conflicts with pyright
+  "PLW0603", # Using global statement - needed for singleton pattern
+  "FURB162", # Unnecessary timezone replacement - false positive for ISO format parsing
+  "FIX002",  # TODO comments are fine in development
+  "N818",    # Exception naming - would require breaking changes
+  "A003",    # Builtins shadowing - needed for 'list' method in repository
+
+  # Documentation - enable for public APIs only
+  "D105",    # Missing docstring in magic method
+  "D107",    # Missing docstring in __init__
+  "D415",    # First line should end with a period
+
+  # Type annotations - too many to fix
+  "ANN001",  # Missing type annotation for function argument
+  "ANN002",  # Missing type annotation for *args
+  "ANN003",  # Missing type annotation for **kwargs
+  "ANN201",  # Missing return type annotation for public function
+  "ANN202",  # Missing return type annotation for private function
+  "ANN204",  # Missing return type annotation for special method
+  "ANN401",  # Dynamically typed expressions (Any) are disallowed
+
+  # Too strict or pedantic
+  "INP001",  # Implicit namespace package
+  "PLC0415", # Import should be at top-level (sometimes conditional imports make sense)
+  "TRY003",  # Avoid specifying long messages outside exception class
+  "TRY301",  # Abstract raise to inner function
+  "TRY400",  # Use logging.exception instead of logging.error
+  "EM101",   # Exception must not use string literal
+  "EM102",   # Exception must not use f-string literal
+  "FBT001",  # Boolean positional arg in function definition
+  "FBT002",  # Boolean default value in function definition
+  "FBT003",  # Boolean positional value in function call
+  "PLR2004", # Magic value used in comparison
+  "S101",    # Use of assert detected (needed for tests)
+  "BLE001",  # Do not catch blind exception
+  "A002",    # Argument name shadowing builtin
+  "ARG001",  # Unused function argument
+  "ARG002",  # Unused method argument
+
+  # Style preferences - these are suggestions not requirements
+  "G004",    # Logging statement uses f-string - performance impact minimal
+  "TRY300",  # Consider moving statement to else block - style preference
+  "RET504",  # Unnecessary assignment before return - sometimes clearer
+  "TRY203",  # Use raise from to specify exception cause - not always needed
+  "SIM105",  # Use contextlib.suppress - style preference
+  "SIM103",  # Return condition directly - sometimes less readable
+  "SIM108",  # Use ternary operator - sometimes less readable
+  "S324",    # MD5 hash usage - acceptable for cache keys, not cryptographic
+  "ERA001",  # Commented out code - sometimes useful for reference
+  "B904",    # Use raise from within except - not always appropriate
+  "COM812",  # Trailing comma - conflicts with formatter
+  "ARG004",  # Unused static method argument
+  "ARG005",  # Unused lambda argument
+  "PLR0913", # Too many arguments to function call
+  "PLR0915", # Too many statements
+  "C901",    # Function is too complex
+  "PLR0912", # Too many branches
+  "PLR0911", # Too many return statements
+  "UP007",   # Use X | Y for type unions (not compatible with older Python)
+  "UP045",   # Use X | None instead of Optional[X] (we support Python 3.11+)
+  "UP046",   # Generic class should use type parameters (Python 3.12+ syntax)
+  "UP047",   # Generic function should use type parameters (Python 3.12+ syntax)
+  "N802",    # Function name should be lowercase
+  "N806",    # Variable in function should be lowercase
+  "SLF001",  # Private member accessed
+  "PERF401", # Use list comprehension
+  "RUF012",  # Mutable class attributes should be annotated
+
+  # Security warnings that are often false positives
+  "S105",    # Possible hardcoded password
+  "S106",    # Possible hardcoded password
+  "S107",    # Possible hardcoded password
+  "S108",    # Probable insecure usage of temp file/directory
+  "S110",    # Try-except-pass without logging
+  "S603",    # Subprocess without shell equals true
+  "S607",    # Starting process with partial executable path
+  "S608",    # Possible SQL injection (often false positive with query builders)
+
+  # Import organization - let black/isort handle this
+  "E402",    # Module level import not at top of file
+
+  # Overly specific exception handling
+  "PT011",   # pytest.raises() is too broad
+]
+[tool.ruff.lint.per-file-ignores]
+"**/*.pyi" = [
+  "ANN401",
+  "PYI020",
+  "UP037",
+  "UP007",
+]
+"tests/**/*.py" = [
+  "S101",    # Use of assert
+  "DTZ011",  # Use of datetime.date.today() in tests is acceptable
+  "PLR2004", # Magic values are OK in tests
+  "S105",    # Hardcoded passwords OK in tests
+  "S106",    # Hardcoded passwords OK in tests
+  "ARG001",  # Unused arguments OK in test fixtures
+  "ARG002",  # Unused arguments OK in test fixtures
+  "D100",    # Missing module docstrings in tests
+  "D101",    # Missing class docstrings in tests
+  "D102",    # Missing method docstrings in tests
+  "D103",    # Missing function docstrings in tests
+]
+"tests/types/test_json_type_support.py" = [
+  "E501",    # Long JSON string in test
+]
+"src/fraiseql/cli/commands/*.py" = [
+  "T201",    # Print statements OK in CLI commands
+]
+"examples/**/*.py" = [
+  "E402",    # Module level import not at top of file
+  "F401",    # Unused imports OK in examples
+  "F841",    # Unused variables OK in examples
+  "ERA001",  # Commented-out code OK in examples
+  "T201",    # Print statements OK in examples
+  "S101",    # Assert OK in examples
+  "PLR2004", # Magic values OK in examples
+  "S311",    # Random OK for demo purposes
+  "RUF001",  # Ambiguous characters OK
+  "RUF002",  # Ambiguous characters OK
+  "RUF003",  # Ambiguous characters OK
+  "E741",    # Ambiguous variable names OK in examples
+  "B008",    # Function calls in arguments OK
+  "UP032",   # f-string usage OK
+  "B018",    # Useless expressions OK in examples
+  "PLR0913", # Too many arguments OK in examples
+  "N802",    # Function names OK in examples
+  "N806",    # Variable names OK in examples
+  "ASYNC110", # asyncio.sleep in while loop OK in examples
+  "FAST002", # FastAPI deps without Annotated OK in examples
+  "FAST003", # FastAPI deps OK in examples
+  "S603",    # Subprocess OK in examples
+  "S607",    # Subprocess OK in examples
+  "DTZ005",  # Datetime OK in examples
+  "DTZ007",  # Datetime OK in examples
+  "SIM118",  # Dictionary keys OK in examples
+  "C901",    # Complex functions OK in examples
+  "PLR0912", # Too many branches OK in examples
+  "PLR0915", # Too many statements OK in examples
+  "PLW1508", # Invalid env var default OK in examples
+]
+"benchmarks/**/*.py" = [
+  "ALL",     # Ignore all rules for benchmarks - they're not production code
+]
+"marketing/**/*.py" = [
+  "ALL",     # Marketing visualizations - not production code
+]
+"scripts/**/*.py" = [
+  "ALL",     # Utility scripts - not production code
+]
+"simple_benchmark.py" = [
+  "ALL",     # Single file benchmark
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+max-args = 8  # Increased from default 5
+
+[tool.setuptools_scm]
+version_scheme = "python-simplified-semver"
+local_scheme = "node-and-date"
+
+[tool.hatch.build]
+include = [
+    "src/fraiseql/**/*.py",
+    "src/fraiseql/**/*.pyi",
+    "src/fraiseql/py.typed"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fraiseql"]
+include = [
+    "src/fraiseql/**/*.py",
+    "src/fraiseql/**/*.pyi",
+    "src/fraiseql/py.typed"
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/fraiseql/**/*.py",
+    "src/fraiseql/**/*.pyi",
+    "src/fraiseql/py.typed"
+]
+
+[dependency-groups]
+dev = [
+    "twine>=6.1.0",
+]

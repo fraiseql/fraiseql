@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  fraiseql:
+    image: fraiseql:latest  # Or your registry URL
+    restart: unless-stopped
+    environment:
+      # Database (external)
+      DATABASE_URL: ${DATABASE_URL}
+
+      # Production settings
+      FRAISEQL_PRODUCTION: "true"
+      FRAISEQL_AUTO_CAMEL_CASE: ${FRAISEQL_AUTO_CAMEL_CASE:-true}
+
+      # Security
+      FRAISEQL_AUTH_PROVIDER: ${FRAISEQL_AUTH_PROVIDER:-auth0}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN}
+      AUTH0_API_IDENTIFIER: ${AUTH0_API_IDENTIFIER}
+
+      # Performance
+      FRAISEQL_ENABLE_TURBO_ROUTER: "true"
+      FRAISEQL_TURBO_ROUTER_CACHE_SIZE: "2000"
+
+      # Monitoring
+      FRAISEQL_ENABLE_METRICS: "true"
+      FRAISEQL_ENABLE_TRACING: "true"
+      FRAISEQL_TRACING_ENDPOINT: ${TRACING_ENDPOINT:-http://jaeger:4317}
+      FRAISEQL_TRACING_SAMPLE_RATE: ${TRACING_SAMPLE_RATE:-0.1}
+
+      # Application
+      FRAISEQL_APP_NAME: ${APP_NAME:-FraiseQL}
+      FRAISEQL_APP_VERSION: ${APP_VERSION:-0.1.0}
+
+    ports:
+      - "${PORT:-8000}:8000"
+
+    # Production health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+      # Scaling configuration
+      replicas: ${REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  # Load balancer (production)
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - fraiseql
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring sidecar
+  prometheus-exporter:
+    image: prom/node-exporter:latest
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /:/host:ro,rslave
+
+volumes:
+  nginx_cache:
