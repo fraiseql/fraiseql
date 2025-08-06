@@ -6,6 +6,42 @@ A high-performance GraphQL-to-PostgreSQL framework with automatic type generatio
 
 FraiseQL is a Python framework that automatically generates GraphQL APIs from PostgreSQL database views and functions. It leverages PostgreSQL's JSONB capabilities for flexible schema evolution while providing complete type safety through Python's type system.
 
+## Architecture Philosophy: Database Domain-Driven Design
+
+FraiseQL embraces **CQRS (Command Query Responsibility Segregation)** with PostgreSQL at its core:
+
+- **Commands**: Mutations call PostgreSQL functions that encapsulate business logic
+- **Queries**: PostgreSQL views expose denormalized, query-optimized projections as JSONB
+- **Separation**: Your storage model (tables) evolves independently from your API model (views)
+
+This means PostgreSQL handles all the heavy lifting - joins, aggregations, and transformations - not your application layer. Your Python code just defines types and coordinates:
+
+```python
+from fraiseql import ID
+
+@fraiseql.type
+class User:
+    id: ID  # UUID in PostgreSQL, ID in GraphQL
+    name: str
+    email: str
+
+@fraiseql.query
+async def users(info) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user")  # Reads from PostgreSQL view
+
+@fraiseql.mutation
+async def create_user(info, name: str, email: str) -> User:
+    repo = info.context["repo"]
+    # Calls PostgreSQL function that handles business logic
+    result = await repo.execute_function("fn_create_user", name=name, email=email)
+    return User(**result)
+```
+
+The framework supports both regular views (`v_` prefix) for real-time data and table views (`tv_` prefix) for materialized projections with incremental updates.
+
+→ [Learn more about view patterns in our documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)
+
 ### Key Features
 
 - **Automatic GraphQL Schema Generation**: Define Python types, get a complete GraphQL API
@@ -47,17 +83,16 @@ cd my-api
 ```python
 # src/types.py
 import fraiseql
-from typing import Optional
 from datetime import datetime
-from fraiseql import EmailAddress
+from fraiseql import ID, EmailAddress
 
 @fraiseql.type
 class User:
-    id: int
+    id: ID  # UUID in PostgreSQL, ID in GraphQL
     email: EmailAddress
     name: str
     created_at: datetime
-    avatar_url: Optional[str] = None
+    avatar_url: str | None = None
 ```
 
 ### 3. Create Database Views
@@ -66,9 +101,9 @@ All views must return data in a JSONB column:
 
 ```sql
 -- migrations/001_create_user_view.sql
-CREATE VIEW user_view AS
+CREATE VIEW v_user AS
 SELECT jsonb_build_object(
-    'id', id,
+    'id', id,  -- UUID, framework handles ID conversion
     'email', email,
     'name', name,
     'created_at', created_at,
@@ -82,20 +117,20 @@ FROM users;
 ```python
 # src/queries.py
 import fraiseql
-from typing import List, Optional
+from fraiseql import ID
 from .types import User
 
 @fraiseql.query
-async def users(info) -> List[User]:
+async def users(info) -> list[User]:
     """Fetch all users"""
     repo = info.context["repo"]
-    return await repo.find("user_view")
+    return await repo.find("v_user")
 
 @fraiseql.query
-async def user(info, id: int) -> Optional[User]:
+async def user(info, id: ID) -> User | None:
     """Fetch a single user by ID"""
     repo = info.context["repo"]
-    return await repo.find_one("user_view", id=id)
+    return await repo.find_one("v_user", id=id)
 ```
 
 ### 5. Define Mutations
@@ -103,19 +138,19 @@ async def user(info, id: int) -> Optional[User]:
 ```python
 # src/mutations.py
 import fraiseql
-from typing import Union
+from fraiseql import EmailAddress
 from .types import User
 
 @fraiseql.mutation
 @fraiseql.success(User)
 @fraiseql.failure(code="VALIDATION_ERROR")
-async def create_user(info, email: EmailAddress, name: str) -> Union[fraiseql.Success[User], fraiseql.Failure]:
+async def create_user(info, email: EmailAddress, name: str) -> fraiseql.Success[User] | fraiseql.Failure:
     """Create a new user"""
     repo = info.context["repo"]
 
     # Call PostgreSQL function
     result = await repo.execute_function(
-        "create_user",
+        "fn_create_user",
         email=email,
         name=name
     )
