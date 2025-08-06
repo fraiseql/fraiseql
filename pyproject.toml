@@ -86,7 +86,6 @@ auth0 = [
 docs = [
   "mkdocs>=1.5.0",
   "mkdocs-material>=9.0.0",
-  "mkdocs-mermaid2-plugin>=1.0.0",
   "pymdown-extensions>=10.0",
 ]
 tracing = [
@@ -133,7 +132,7 @@ target-version = ["py313"]
 src = ["src"]
 target-version = "py313"
 line-length = 100
-exclude = ["tests", "benchmarks", "java-benchmark", "examples", "tools", "scripts", "conftest.py"]
+exclude = ["tests", "examples", "tools", "scripts", "conftest.py"]
 fix = true
 
 [tool.ruff.lint]
@@ -286,17 +285,11 @@ ignore = [
   "PLR0915", # Too many statements OK in examples
   "PLW1508", # Invalid env var default OK in examples
 ]
-"benchmarks/**/*.py" = [
-  "ALL",     # Ignore all rules for benchmarks - they're not production code
-]
 "marketing/**/*.py" = [
   "ALL",     # Marketing visualizations - not production code
 ]
 "scripts/**/*.py" = [
   "ALL",     # Utility scripts - not production code
-]
-"simple_benchmark.py" = [
-  "ALL",     # Single file benchmark
 ]
 
 [tool.ruff.lint.pydocstyle]

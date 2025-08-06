@@ -1,0 +1,609 @@
+# Database Views
+
+Database views are the cornerstone of FraiseQL's query system. They define how your data is exposed through the GraphQL API, implementing the read side of the CQRS pattern.
+
+## View Design Principles
+
+### 1. JSONB-First Design
+Every view returns a JSONB `data` column containing the complete object structure:
+
+```sql
+CREATE OR REPLACE VIEW v_user AS
+SELECT
+    id,                    -- For filtering and joins
+    email,                 -- For filtering
+    is_active,            -- For filtering
+    jsonb_build_object(
+        '__typename', 'User',  -- GraphQL type identifier
+        'id', id,
+        'email', email,
+        'name', name,
+        'bio', bio,
+        'is_active', is_active,  -- snake_case in database
+        'created_at', created_at -- snake_case in database
+    ) AS data
+FROM tb_users;
+```
+
+**Note**: Fields are stored in snake_case in the database. FraiseQL automatically converts to camelCase when serving GraphQL responses.
+
+### 2. Filter Columns
+Include columns outside the JSONB for efficient filtering:
+
+```sql
+-- Good: Separate filter columns for WHERE clauses
+CREATE OR REPLACE VIEW v_post AS
+SELECT
+    id,
+    author_id,        -- For filtering by author
+    is_published,     -- For filtering published posts
+    published_at,     -- For date range queries
+    data
+FROM (
+    SELECT
+        id,
+        author_id,
+        is_published,
+        published_at,
+        jsonb_build_object(...) AS data
+    FROM tb_posts
+) AS posts_data;
+```
+
+### 3. Composed Views
+Composed views reuse existing views to build complex structures, eliminating N+1 queries:
+
+```sql
+-- First, define base views
+CREATE OR REPLACE VIEW v_author AS
+SELECT
+    id,
+    jsonb_build_object(
+        '__typename', 'Author',
+        'id', id,
+        'email', email,
+        'name', name,
+        'bio', bio
+    ) AS data
+FROM tb_users;
+
+CREATE OR REPLACE VIEW v_comment AS
+SELECT
+    id,
+    post_id,
+    user_id,
+    created_at,  -- For sorting
+    jsonb_build_object(
+        '__typename', 'Comment',
+        'id', id,
+        'content', content,
+        'created_at', created_at
+    ) AS data
+FROM tb_comments;
+
+-- Then compose them together
+CREATE OR REPLACE VIEW v_post_with_author AS
+SELECT
+    p.id,
+    p.author_id,
+    p.is_published,
+    jsonb_build_object(
+        '__typename', 'Post',
+        'id', p.id,
+        'title', p.title,
+        'content', p.content,
+        -- Reuse v_author view
+        'author', a.data,
+        -- Aggregate comments using v_comment
+        'comments', (
+            SELECT jsonb_agg(c.data ORDER BY c.created_at DESC)
+            FROM v_comment c
+            WHERE c.post_id = p.id
+        )
+    ) AS data
+FROM tb_posts p
+LEFT JOIN v_author a ON a.id = p.author_id;
+```
+
+## Naming Conventions
+
+FraiseQL uses strict naming conventions for database objects:
+
+### View Prefixes
+
+| Prefix | Type | Description | Performance |
+|--------|------|-------------|-------------|
+| `v_` | Regular View | Computed on-demand | Fast for simple queries |
+| `tv_` | Table View | Materialized as table | Fastest for complex aggregations |
+| `mv_` | Materialized View | PostgreSQL materialized view | Fast with periodic refresh |
+
+### Examples
+
+```sql
+-- Regular view (computed on each query)
+CREATE OR REPLACE VIEW v_active_user AS
+SELECT * FROM tb_users WHERE is_active = true;
+
+-- Table view (physically stored, manually refreshed)
+CREATE TABLE tv_user_statistics AS
+SELECT
+    user_id,
+    COUNT(DISTINCT post_id) as post_count,
+    SUM(view_count) as total_views
+FROM tb_posts
+GROUP BY user_id;
+
+-- Function for mutations
+CREATE OR REPLACE FUNCTION fn_create_post(
+    p_title text,
+    p_content text
+) RETURNS jsonb AS $$
+-- Implementation
+$$ LANGUAGE plpgsql;
+```
+
+## JSONB Aggregation Patterns
+
+### Basic Aggregation
+```sql
+-- Aggregate array of objects
+SELECT jsonb_agg(
+    jsonb_build_object(
+        'id', id,
+        'name', name,
+        'created_at', created_at
+    )
+    ORDER BY created_at DESC
+) AS users
+FROM tb_users;
+```
+
+### Reusing Views in Aggregation
+```sql
+-- Compose using existing views for consistency
+CREATE OR REPLACE VIEW v_user_with_post AS
+SELECT
+    u.id,
+    jsonb_build_object(
+        '__typename', 'User',
+        'id', u.id,
+        'name', u.name,
+        'posts', COALESCE(
+            (SELECT jsonb_agg(p.data ORDER BY p.published_at DESC)
+             FROM v_post p
+             WHERE p.author_id = u.id),
+            '[]'::jsonb
+        )
+    ) AS data
+FROM tb_users u;
+```
+
+### Conditional Aggregation
+```sql
+-- Include different fields based on conditions
+CREATE OR REPLACE VIEW v_user_profile AS
+SELECT
+    id,
+    jsonb_build_object(
+        '__typename', 'UserProfile',
+        'id', id,
+        'name', name,
+        'email', CASE
+            WHEN is_email_public THEN email
+            ELSE null
+        END,
+        'stats', jsonb_build_object(
+            'post_count', (
+                SELECT COUNT(*)
+                FROM tb_posts
+                WHERE author_id = u.id AND is_published = true
+            ),
+            'follower_count', (
+                SELECT COUNT(*)
+                FROM tb_user_follows
+                WHERE followed_id = u.id
+            )
+        )
+    ) AS data
+FROM tb_users u;
+```
+
+## Performance Optimization Strategies
+
+### 1. Use Indexes on Filter Columns
+```sql
+-- Index columns used in WHERE clauses
+CREATE INDEX idx_posts_author_id ON tb_posts(author_id);
+CREATE INDEX idx_posts_published ON tb_posts(is_published, published_at DESC);
+
+-- GIN index for JSONB data
+CREATE INDEX idx_posts_data_gin ON tb_posts USING gin(data);
+```
+
+### 2. Optimize Composed Views with Lateral Joins
+```sql
+-- Efficient composition using LATERAL
+CREATE OR REPLACE VIEW v_user_with_recent_post AS
+SELECT
+    u.id,
+    jsonb_build_object(
+        '__typename', 'User',
+        'id', u.id,
+        'name', u.name,
+        'recent_posts', COALESCE(p.posts, '[]'::jsonb)
+    ) AS data
+FROM tb_users u
+LEFT JOIN LATERAL (
+    SELECT jsonb_agg(
+        v.data
+        ORDER BY v.published_at DESC
+    ) AS posts
+    FROM v_post v
+    WHERE v.author_id = u.id
+        AND v.is_published = true
+    LIMIT 5
+) p ON true;
+```
+
+### 3. Materialized Views for Expensive Computations
+```sql
+-- Materialized view for analytics
+CREATE MATERIALIZED VIEW mv_post_analytics AS
+SELECT
+    p.id,
+    jsonb_build_object(
+        '__typename', 'PostAnalytics',
+        'id', p.id,
+        'title', p.title,
+        'view_count', p.view_count,
+        'comment_count', COUNT(DISTINCT c.id),
+        'unique_commenters', COUNT(DISTINCT c.user_id),
+        'avg_rating', AVG(r.rating),
+        'engagement', (
+            p.view_count +
+            COUNT(DISTINCT c.id) * 10 +
+            COUNT(DISTINCT l.user_id) * 5
+        )
+    ) AS data
+FROM tb_posts p
+LEFT JOIN tb_comments c ON c.post_id = p.id
+LEFT JOIN tb_post_likes l ON l.post_id = p.id
+LEFT JOIN tb_post_ratings r ON r.post_id = p.id
+GROUP BY p.id, p.title, p.view_count;
+
+-- Refresh strategy
+CREATE OR REPLACE FUNCTION refresh_post_analytics()
+RETURNS void AS $$
+BEGIN
+    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_post_analytics;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Schedule refresh (using pg_cron or similar)
+SELECT cron.schedule('refresh-analytics', '*/15 * * * *',
+    'SELECT refresh_post_analytics()');
+```
+
+## Complex View Examples
+
+### Hierarchical Data (Comments with Replies)
+```sql
+CREATE OR REPLACE VIEW v_comment_tree AS
+WITH RECURSIVE comment_tree AS (
+    -- Base case: top-level comments
+    SELECT
+        id,
+        post_id,
+        parent_id,
+        content,
+        user_id,
+        created_at,
+        0 as depth,
+        ARRAY[id] as path
+    FROM tb_comments
+    WHERE parent_id IS NULL
+
+    UNION ALL
+
+    -- Recursive case: replies
+    SELECT
+        c.id,
+        c.post_id,
+        c.parent_id,
+        c.content,
+        c.user_id,
+        c.created_at,
+        ct.depth + 1,
+        ct.path || c.id
+    FROM tb_comments c
+    JOIN comment_tree ct ON c.parent_id = ct.id
+    WHERE ct.depth < 5  -- Limit depth
+)
+SELECT
+    post_id,
+    jsonb_agg(
+        jsonb_build_object(
+            '__typename', 'Comment',
+            'id', id,
+            'content', content,
+            'depth', depth,
+            'path', path,
+            'created_at', created_at,
+            'author', (
+                SELECT data
+                FROM v_user
+                WHERE id = comment_tree.user_id
+            )
+        )
+        ORDER BY path
+    ) AS comments
+FROM comment_tree
+GROUP BY post_id;
+```
+
+### Time-Series Data
+```sql
+CREATE OR REPLACE VIEW v_user_activity_timeline AS
+SELECT
+    user_id,
+    jsonb_build_object(
+        '__typename', 'ActivityTimeline',
+        'user_id', user_id,
+        'daily', (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'date', date,
+                    'post_count', post_count,
+                    'comment_count', comment_count,
+                    'like_count', like_count
+                )
+                ORDER BY date DESC
+            )
+            FROM (
+                SELECT
+                    DATE(created_at) as date,
+                    COUNT(DISTINCT CASE WHEN type = 'post' THEN id END) as post_count,
+                    COUNT(DISTINCT CASE WHEN type = 'comment' THEN id END) as comment_count,
+                    COUNT(DISTINCT CASE WHEN type = 'like' THEN id END) as like_count
+                FROM tb_user_activities
+                WHERE user_id = u.id
+                    AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY DATE(created_at)
+            ) daily_stats
+        )
+    ) AS data
+FROM tb_users u;
+```
+
+### Full-Text Search View
+```sql
+CREATE OR REPLACE VIEW v_post_search AS
+SELECT
+    id,
+    published_at,
+    -- Create search vector
+    to_tsvector('english', title || ' ' || content) as search_vector,
+    jsonb_build_object(
+        '__typename', 'SearchResult',
+        'id', id,
+        'title', title,
+        'excerpt', LEFT(content, 200),
+        'highlights', null,  -- Populated by search function
+        'score', null        -- Populated by search function
+    ) AS data
+FROM tb_posts
+WHERE is_published = true;
+
+-- Index for full-text search
+CREATE INDEX idx_posts_search ON tb_posts
+USING gin(to_tsvector('english', title || ' ' || content));
+```
+
+## Best Practices
+
+### 1. Always Include `__typename`
+This helps with GraphQL type resolution and client-side caching:
+```sql
+jsonb_build_object(
+    '__typename', 'User',  -- Always first
+    'id', id,
+    -- other fields...
+)
+```
+
+### 2. Use COALESCE for Nullable Aggregations
+```sql
+'posts', COALESCE(
+    (SELECT jsonb_agg(...) FROM tb_posts WHERE ...),
+    '[]'::jsonb  -- Empty array instead of null
+)
+```
+
+### 3. Consistent Field Naming
+- Use snake_case throughout the database
+- FraiseQL handles conversion to camelCase for GraphQL
+```sql
+jsonb_build_object(
+    'created_at', created_at,  -- snake_case in DB
+    'is_active', is_active     -- converts to camelCase in API
+)
+```
+
+### 4. Limit Aggregation Depth
+Prevent performance issues with deep nesting:
+```sql
+-- Limit related data
+'recent_posts', (
+    SELECT jsonb_agg(data)
+    FROM (
+        SELECT data FROM v_posts
+        WHERE author_id = u.id
+        ORDER BY published_at DESC  -- Use actual column for ordering
+        LIMIT 10  -- Always limit aggregations
+    ) p
+)
+```
+
+### 5. Document View Purpose
+```sql
+-- View: v_dashboard_stats
+-- Purpose: Provides aggregated statistics for user dashboard
+-- Performance: Uses mv_user_statistics for fast aggregation
+-- Refresh: Every 15 minutes via pg_cron
+CREATE OR REPLACE VIEW v_dashboard_stats AS ...
+```
+
+## View Composition Patterns
+
+### Layer Your Views
+Build complex views by composing simpler ones:
+
+```sql
+-- Level 1: Base entity views
+CREATE OR REPLACE VIEW v_user AS ...
+CREATE OR REPLACE VIEW v_post AS ...
+
+-- Level 2: Views with single relationships
+CREATE OR REPLACE VIEW v_post_with_author AS
+SELECT
+    p.id,
+    p.author_id,
+    p.published_at,  -- Keep for sorting
+    jsonb_build_object(
+        '__typename', 'Post',
+        'id', p.id,
+        'title', p.title,
+        'published_at', p.published_at,
+        'author', a.data  -- Reuse v_users data
+    ) AS data
+FROM tb_posts p
+LEFT JOIN v_user a ON a.id = p.author_id;
+
+-- Level 3: Views with multiple relationships
+CREATE OR REPLACE VIEW v_post_full AS
+SELECT
+    p.id,
+    jsonb_build_object(
+        '__typename', 'Post',
+        'id', p.id,
+        'title', p.title,
+        'author', a.data,
+        'comments', (
+            SELECT jsonb_agg(c.data ORDER BY c.created_at DESC)
+            FROM v_comment c
+            WHERE c.post_id = p.id
+        ),
+        'tags', (
+            SELECT jsonb_agg(t.data)
+            FROM v_tag t
+            JOIN tb_post_tags pt ON pt.tag_id = t.id
+            WHERE pt.post_id = p.id
+        )
+    ) AS data
+FROM tb_posts p
+LEFT JOIN v_user a ON a.id = p.author_id;
+```
+
+## Testing Views
+
+### Verify Structure
+```sql
+-- Test view returns expected structure
+SELECT
+    data->>'__typename' as type,
+    jsonb_typeof(data->'posts') as posts_type,
+    jsonb_array_length(data->'posts') as post_count
+FROM v_user_with_post
+WHERE id = 'test-user-id';
+```
+
+### Performance Testing
+```sql
+-- Analyze query performance
+EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+SELECT * FROM v_post_with_author
+WHERE is_published = true
+ORDER BY published_at DESC
+LIMIT 20;
+```
+
+### Data Integrity
+```sql
+-- Ensure all relationships resolve
+SELECT COUNT(*) AS orphaned_posts
+FROM v_post_with_author
+WHERE data->'author' IS NULL;
+```
+
+## Case Conversion in FraiseQL
+
+FraiseQL automatically handles case conversion between PostgreSQL (snake_case) and GraphQL (camelCase):
+
+### Database Layer (snake_case)
+```sql
+-- Views store data in snake_case
+CREATE OR REPLACE VIEW v_user AS
+SELECT
+    id,
+    jsonb_build_object(
+        'id', id,
+        'created_at', created_at,
+        'is_active', is_active,
+        'email_verified', email_verified
+    ) AS data
+FROM tb_users;
+```
+
+### GraphQL Response (camelCase)
+```graphql
+# Automatically converted by FraiseQL
+{
+  user {
+    id
+    createdAt      # created_at → createdAt
+    isActive       # is_active → isActive
+    emailVerified  # email_verified → emailVerified
+  }
+}
+```
+
+### Python Models
+```python
+@fraiseql.type
+class User:
+    id: str
+    created_at: datetime  # Snake case in Python
+    is_active: bool
+    email_verified: bool
+
+# GraphQL schema automatically uses camelCase
+```
+
+## Migration Strategies
+
+### From ORM to Views
+```sql
+-- Step 1: Create view alongside ORM
+CREATE OR REPLACE VIEW v_user AS
+SELECT ... FROM tb_users;
+
+-- Step 2: Test view performance
+-- Step 3: Migrate queries gradually
+-- Step 4: Remove ORM queries
+```
+
+### View Versioning
+```sql
+-- Maintain backward compatibility
+CREATE OR REPLACE VIEW v_user_v2 AS ...
+
+-- Deprecation notice in old view
+COMMENT ON VIEW v_user IS
+    'DEPRECATED: Use v_user_v2. Will be removed in version 2.0';
+```
+
+## Next Steps
+
+- Explore the [Type System](./type-system.md) for defining GraphQL types
+- Learn about [Query Translation](./query-translation.md) to understand how views are queried
+- See practical examples in the [Blog API Tutorial](../tutorials/blog-api.md)
