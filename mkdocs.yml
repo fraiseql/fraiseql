@@ -37,7 +37,6 @@ theme:
 
 plugins:
   - search
-  - mermaid2
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -49,10 +48,7 @@ markdown_extensions:
       generic: true
   - footnotes
   - pymdownx.details
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
+  - pymdownx.superfences
   - pymdownx.mark
   - attr_list
   - pymdownx.tabbed:
@@ -89,8 +85,9 @@ nav:
     - Domain-Driven Database: advanced/domain-driven-database.md
     - Database API Patterns: advanced/database-api-patterns.md
     - Eliminating N+1: advanced/eliminating-n-plus-one.md
-    - Performance Comparison: advanced/performance-comparison.md
     - LLM-Native Architecture: advanced/llm-native-architecture.md
+    - Execution Modes: advanced/execution-modes.md
+    - Lazy Caching: advanced/lazy-caching.md
   - Tutorials:
     - tutorials/index.md
     - Blog API: tutorials/blog-api.md
@@ -100,7 +97,6 @@ nav:
     - PostgreSQL Functions: mutations/postgresql-function-based.md
   - Migration:
     - migration/index.md
-    - From Strawberry: migration/from-strawberry.md
   - Comparisons:
     - comparisons/index.md
     - Alternatives: comparisons/alternatives.md
