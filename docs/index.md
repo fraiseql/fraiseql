@@ -159,6 +159,98 @@ FraiseQL is perfect for teams who:
 - Are building multi-tenant SaaS applications
 - Want to reduce infrastructure complexity
 
+## Quick Navigation
+
+### 🚀 Get Started
+- [**5-Minute Quickstart**](getting-started/quickstart.md) - Your first API in minutes
+- [**Installation Guide**](getting-started/installation.md) - Setup instructions
+- [**GraphQL Playground**](getting-started/graphql-playground.md) - Interactive testing
+- [**First API Tutorial**](getting-started/first-api.md) - Step-by-step guide
+
+### 📚 Essential Documentation
+- [**Core Concepts**](core-concepts/index.md) - Understand FraiseQL philosophy
+- [**API Reference**](api-reference/index.md) - Complete API documentation
+- [**Error Handling**](errors/index.md) - Troubleshooting guide
+- [**Tutorials**](tutorials/index.md) - Hands-on examples
+
+### 🎯 Learning Paths
+
+<div class="grid cards" markdown>
+
+-   :material-baby-carriage:{ .lg .middle } **For Beginners**
+
+    ---
+
+    New to GraphQL or FraiseQL? Start here:
+
+    1. [5-Minute Quickstart](getting-started/quickstart.md) *(5 min)*
+    2. [Core Concepts](core-concepts/index.md) *(10 min)*
+    3. [Your First API](getting-started/first-api.md) *(15 min)*
+    4. [Blog Tutorial](tutorials/blog-api.md) *(30 min)*
+
+    **Next:** [Type System](core-concepts/type-system.md)
+
+-   :material-database:{ .lg .middle } **For Backend Developers**
+
+    ---
+
+    PostgreSQL experts? Fast track:
+
+    1. [Architecture Overview](core-concepts/architecture.md) *(5 min)*
+    2. [Database Views](core-concepts/database-views.md) *(10 min)*
+    3. [Query Translation](core-concepts/query-translation.md) *(10 min)*
+    4. [Performance Tuning](advanced/performance.md) *(15 min)*
+
+    **Next:** [Advanced Patterns](advanced/database-api-patterns.md)
+
+-   :material-web:{ .lg .middle } **For Frontend Developers**
+
+    ---
+
+    Consuming GraphQL APIs:
+
+    1. [GraphQL Playground](getting-started/graphql-playground.md) *(5 min)*
+    2. [Query Examples](tutorials/index.md#common-queries) *(10 min)*
+    3. [Error Handling](errors/handling-patterns.md) *(10 min)*
+    4. [Authentication](advanced/authentication.md) *(15 min)*
+
+    **Next:** [API Reference](api-reference/index.md)
+
+-   :material-rocket-launch:{ .lg .middle } **For Production**
+
+    ---
+
+    Ready to deploy:
+
+    1. [Security Guide](advanced/security.md) *(10 min)*
+    2. [Performance & Caching](advanced/lazy-caching.md) *(15 min)*
+    3. [TurboRouter Setup](advanced/turbo-router.md) *(10 min)*
+    4. [Monitoring](advanced/monitoring.md) *(10 min)*
+
+    **Next:** [Production Checklist](advanced/production-readiness.md)
+
+</div>
+
+## Feature Deep Dives
+
+### ⚡ Performance Features
+- [**Lazy Caching**](advanced/lazy-caching.md) - Database-native response caching
+- [**TurboRouter**](advanced/turbo-router.md) - Bypass GraphQL parsing overhead
+- [**Query Optimization**](advanced/performance.md) - PostgreSQL view best practices
+- [**N+1 Prevention**](core-concepts/query-translation.md#n1-prevention) - Automatic query batching
+
+### 🔒 Security Features
+- [**Field Authorization**](advanced/security.md#field-level-authorization) - Fine-grained access control
+- [**Rate Limiting**](advanced/security.md#rate-limiting) - Built-in request throttling
+- [**SQL Injection Prevention**](advanced/security.md#sql-injection) - Automatic query sanitization
+- [**CSRF Protection**](advanced/security.md#csrf-protection) - Cross-site request forgery prevention
+
+### 🏗️ Architecture Patterns
+- [**CQRS Implementation**](advanced/cqrs.md) - Command Query Responsibility Segregation
+- [**Event Sourcing**](advanced/event-sourcing.md) - Audit trail and time-travel queries
+- [**Multi-tenancy**](advanced/multi-tenancy.md) - Isolated data per tenant
+- [**Bounded Contexts**](advanced/bounded-contexts.md) - Domain-driven design
+
 ## Ready to Start?
 
 <div class="grid cards" markdown>
@@ -187,15 +279,43 @@ FraiseQL is perfect for teams who:
 
     [:octicons-arrow-right-24: Tutorial](tutorials/blog-api.md)
 
--   :material-rocket:{ .lg .middle } **Deploy to Production**
+-   :material-api:{ .lg .middle } **API Reference**
 
     ---
 
-    Best practices for production deployment
+    Complete API documentation
 
-    [:octicons-arrow-right-24: Deployment](deployment/index.md)
+    [:octicons-arrow-right-24: API Docs](api-reference/index.md)
 
 </div>
+
+## Documentation Map
+
+```
+docs/
+├── getting-started/         # Start here
+│   ├── quickstart          # 5-minute setup
+│   ├── installation        # Detailed setup
+│   └── first-api          # Build your first API
+├── core-concepts/          # Essential knowledge
+│   ├── architecture       # How FraiseQL works
+│   ├── type-system        # GraphQL types
+│   └── query-translation  # Query to SQL
+├── api-reference/          # Complete API docs
+│   ├── decorators         # All decorators
+│   └── application-api    # FraiseQL class
+├── tutorials/              # Hands-on learning
+│   └── blog-api          # Complete example
+├── advanced/               # Production topics
+│   ├── performance        # Optimization
+│   ├── security          # Best practices
+│   └── turbo-router      # Speed boost
+├── errors/                 # Troubleshooting
+│   ├── error-types       # Error reference
+│   └── troubleshooting   # Common issues
+└── mutations/              # Write operations
+    └── postgresql-functions # Function-based mutations
+```
 
 ## Community & Support
 

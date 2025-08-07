@@ -1,4 +1,12 @@
+---
+← [Performance](./performance.md) | [Advanced Index](./index.md) | [Authentication →](./authentication.md)
+---
+
 # Security Guide
+
+> **In this section:** Implement comprehensive security features and best practices
+> **Prerequisites:** Understanding of web security concepts and GraphQL security
+> **Time to complete:** 40 minutes
 
 Comprehensive security features and best practices for FraiseQL applications.
 
@@ -722,8 +730,8 @@ config = FraiseQLConfig(
 config = FraiseQLConfig(
     # Cache authorization results
     auth_cache_ttl=300,
-    # Use Redis for rate limiting
-    rate_limit_store_type="redis",
+    # Consider rate limiting at the reverse proxy level (nginx, Cloudflare)
+    # to avoid additional infrastructure dependencies
     # Async validation
     validation_async=True,
 )

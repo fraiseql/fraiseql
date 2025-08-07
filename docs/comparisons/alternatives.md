@@ -147,12 +147,12 @@ graph TD
 ### Traditional Caching (Other Frameworks)
 
 ```python
-# Redis/Memory cache - application manages cache
+# External cache (Redis/Memcached) - application manages cache
 cache_key = f"user:{user_id}"
-cached = redis.get(cache_key)
+cached = cache.get(cache_key)  # Network call to cache service
 if not cached:
     user = db.query("SELECT * FROM users WHERE id = ?", user_id)
-    redis.set(cache_key, user, ttl=300)
+    cache.set(cache_key, user, ttl=300)  # Another network call
 return cached
 
 # Problems:
@@ -283,7 +283,7 @@ ORDER BY COUNT(*) DESC;
 | **Storage Used** | 100GB | 700GB |
 | **Storage Cost** | $15/month | $105/month |
 | **Average Query Time** | 50-500ms | 1-5ms (cached) |
-| **Cache Infrastructure** | Redis cluster ($200/mo) | None (in PostgreSQL) |
+| **Cache Infrastructure** | External cache service | None (in PostgreSQL) |
 | **Application Servers** | 10 instances | 3 instances |
 | **Total Monthly Cost** | ~$2,215 | ~$705 |
 

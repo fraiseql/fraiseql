@@ -1,4 +1,12 @@
+---
+← [Tutorials](index.md) | [Home](../index.md) | [Next: Advanced Topics](../advanced/index.md) →
+---
+
 # Building a Blog API with FraiseQL
+
+> **In this tutorial:** Build a complete blog API with posts, comments, and users
+> **Prerequisites:** Completed [quickstart](../getting-started/quickstart.md) and [first API](../getting-started/first-api.md)
+> **Time to complete:** 30-45 minutes
 
 This tutorial walks through building a complete blog API using FraiseQL's CQRS architecture. We'll create a production-ready API with posts, comments, and user management.
 
@@ -739,3 +747,33 @@ The complete example is available in `/home/lionel/code/fraiseql/examples/blog_a
 - Add analytics and metrics collection
 
 See the [Mutations Guide](../mutations/index.md) for more complex mutation patterns.
+
+## See Also
+
+### Core Concepts
+- [**Architecture Overview**](../core-concepts/architecture.md) - Understand CQRS and DDD
+- [**Database Views**](../core-concepts/database-views.md) - View design patterns
+- [**Type System**](../core-concepts/type-system.md) - GraphQL type definitions
+- [**Query Translation**](../core-concepts/query-translation.md) - How queries work
+
+### Related Guides
+- [**Mutations Guide**](../mutations/index.md) - Advanced mutation patterns
+- [**Authentication**](../advanced/authentication.md) - User authentication
+- [**Performance**](../advanced/performance.md) - Optimization techniques
+- [**Security**](../advanced/security.md) - Production security
+
+### Advanced Features
+- [**Lazy Caching**](../advanced/lazy-caching.md) - Database-native caching
+- [**TurboRouter**](../advanced/turbo-router.md) - Skip GraphQL parsing
+- [**Event Sourcing**](../advanced/event-sourcing.md) - Event-driven patterns
+- [**Multi-tenancy**](../advanced/multi-tenancy.md) - Tenant isolation
+
+### API Reference
+- [**Decorators**](../api-reference/decorators.md) - All decorators reference
+- [**Repository Methods**](../api-reference/application-api.md#repository) - Database access
+- [**Built-in Types**](../api-reference/decorators.md#scalar-types) - Available types
+
+### Troubleshooting
+- [**Error Types**](../errors/error-types.md) - Common errors
+- [**Debugging Guide**](../errors/debugging.md) - Debug strategies
+- [**FAQ**](../errors/troubleshooting.md) - Common issues

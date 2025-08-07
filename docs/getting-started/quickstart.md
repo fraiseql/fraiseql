@@ -1,31 +1,36 @@
+---
+← [Home](../index.md) | [Getting Started](index.md) | [Next: GraphQL Playground](graphql-playground.md) →
+---
+
 # 5-Minute Quickstart
 
-Build your first GraphQL API with FraiseQL in just 5 minutes! We'll create a simple task management API to demonstrate the core concepts.
+> **In this section:** Build a working GraphQL API in 5 minutes with copy-paste examples
+> **Prerequisites:** Python 3.10+, PostgreSQL installed
+> **Time to complete:** 5 minutes
 
-## What We'll Build
+Get a working GraphQL API in 5 minutes! No complex setup, just copy-paste and run.
 
-A GraphQL API that can:
-- Query tasks from a PostgreSQL view
-- Create new tasks using a PostgreSQL function
-- Mark tasks as complete
-
-## Step 1: Database Setup
-
-First, let's create our database and table:
+## Prerequisites ✅
 
 ```bash
-# Create database
-createdb todo_app
+# Check you have these installed:
+python --version  # 3.10 or higher
+psql --version    # PostgreSQL client
+pip --version     # Python package manager
 
-# Connect to it
-psql -d todo_app
+# Install FraiseQL (30 seconds):
+pip install fraiseql fastapi uvicorn
 ```
 
-Create the tasks table:
+## Step 1: Quick Database Setup (1 minute)
 
-```sql
--- Create tasks table
-CREATE TABLE tasks (
+Copy and paste this entire block into your terminal:
+
+```bash
+# Create database and add sample data in one go
+createdb todo_app && psql -d todo_app << 'EOF'
+-- Create table with sample data
+CREATE TABLE tb_task (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     description TEXT,
@@ -33,22 +38,15 @@ CREATE TABLE tasks (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Insert sample data
-INSERT INTO tasks (title, description) VALUES
+INSERT INTO tb_task (title, description) VALUES
     ('Learn FraiseQL', 'Complete the quickstart tutorial'),
     ('Build an API', 'Create my first GraphQL API'),
     ('Deploy to production', 'Ship it!');
-```
 
-## Step 2: Create a PostgreSQL View
-
-FraiseQL reads from views that return JSONB data. Create a view for tasks:
-
-```sql
--- Create a view with id column for filtering and data column with JSONB
+-- Create the view that FraiseQL will read
 CREATE VIEW v_task AS
 SELECT
-    id,  -- Keep id as separate column for efficient filtering
+    id,
     jsonb_build_object(
         'id', id,
         'title', title,
@@ -56,22 +54,16 @@ SELECT
         'completed', completed,
         'created_at', created_at
     ) AS data
-FROM tasks
-ORDER BY created_at DESC;
+FROM tb_task;
+
+-- Verify it works
+SELECT data FROM v_task LIMIT 1;
+EOF
 ```
 
-Test the view:
-```sql
-SELECT * FROM v_task LIMIT 1;
--- Returns: id column + data column with JSONB
+## Step 2: Create Your API (2 minutes)
 
--- You can filter efficiently:
-SELECT data FROM v_task WHERE id = 'some-uuid';
-```
-
-## Step 3: Create Your FraiseQL App
-
-Create a new file `app.py`:
+Save this as `app.py`:
 
 ```python
 from dataclasses import dataclass
@@ -86,8 +78,8 @@ app = FraiseQL(
     database_url=os.getenv("DATABASE_URL", "postgresql://localhost/todo_app")
 )
 
-# Define your GraphQL type
-@fraiseql.type
+# Define your GraphQL type (both syntaxes work)
+@fraiseql.type  # or @fraiseql.fraise_type
 class Task:
     id: ID
     title: str
@@ -107,7 +99,7 @@ async def tasks(info, completed: bool | None = None) -> list[Task]:
         where["completed"] = completed
 
     # Fetch from our view - FraiseQL uses the separate columns for filtering
-    results = await repo.find("v_tasks", where=where)
+    results = await repo.find("v_task", where=where)
     return [Task(**result) for result in results]
 
 @app.query
@@ -115,7 +107,7 @@ async def task(info, id: ID) -> Task | None:
     """Get a single task by ID"""
     repo = info.context["repo"]
     # This efficiently uses WHERE id = ? on the view
-    result = await repo.find_one("v_tasks", where={"id": id})
+    result = await repo.find_one("v_task", where={"id": id})
     return Task(**result) if result else None
 
 # For testing without a web server
@@ -147,15 +139,15 @@ if __name__ == "__main__":
     asyncio.run(test_queries())
 ```
 
-## Step 4: Run Your API
+## Step 3: Run Your API (1 minute)
 
-### Option A: Test Directly
+### Quick Test First:
 
 ```bash
 python app.py
 ```
 
-You should see:
+Expected output:
 ```
 Found 3 tasks:
   - Learn FraiseQL (completed: False)
@@ -165,7 +157,7 @@ Found 3 tasks:
 3 incomplete tasks
 ```
 
-### Option B: Run with FastAPI
+## Step 4: Launch GraphQL Server (30 seconds)
 
 Create `server.py`:
 
@@ -197,9 +189,9 @@ pip install fastapi uvicorn
 python server.py
 ```
 
-## Step 5: Test with GraphQL Playground
+## Step 5: Test with GraphQL Playground (30 seconds)
 
-Open http://localhost:8000/graphql in your browser and try these queries:
+Open http://localhost:8000/graphql in your browser and try this query:
 
 ### Query All Tasks
 ```graphql
@@ -238,9 +230,9 @@ query GetTask($id: ID!) {
 }
 ```
 
-## Step 6: Add Mutations (Bonus)
+## Next: Add Mutations (Optional - 2 minutes)
 
-Let's add the ability to create and update tasks. First, create PostgreSQL functions:
+Want to create and update tasks? Add these PostgreSQL functions:
 
 ```sql
 -- Function to create a task
@@ -276,7 +268,7 @@ Add mutations to your `app.py`:
 
 ```python
 # Add these imports at the top
-@fraiseql.input
+@fraiseql.input  # or @fraiseql.fraise_input
 class CreateTaskInput:
     title: str
     description: str | None = None
@@ -295,7 +287,7 @@ async def create_task(info, input: CreateTaskInput) -> Task:
     )
 
     # Fetch the created task
-    result = await repo.find_one("v_tasks", where={"id": task_id})
+    result = await repo.find_one("v_task", where={"id": task_id})
     return Task(**result)
 
 @app.mutation
@@ -308,7 +300,7 @@ async def complete_task(info, id: ID) -> Task | None:
 
     if success:
         # Fetch the updated task
-        result = await repo.find_one("v_tasks", where={"id": id})
+        result = await repo.find_one("v_task", where={"id": id})
         return Task(**result) if result else None
     return None
 ```
@@ -353,18 +345,60 @@ mutation MarkComplete($id: ID!) {
         completed,  -- Another column for filtering
         user_id,    -- And another
         jsonb_build_object(...) AS data
-    FROM tasks;
+    FROM tb_task;
     ```
 
-## 🎉 Congratulations!
+## 🎉 Success! You Have a Working API!
 
-You've just built your first GraphQL API with FraiseQL! You've learned how to:
+In just 5 minutes, you've:
+- ✅ Set up a PostgreSQL database with the `tb_task` table
+- ✅ Created a `v_task` view for FraiseQL to read
+- ✅ Built a complete GraphQL API with queries
+- ✅ Tested it in GraphQL Playground
 
-- ✅ Create PostgreSQL views with separate columns for filtering
-- ✅ Define GraphQL types with Python dataclasses
-- ✅ Write queries that efficiently filter using view columns
-- ✅ Add mutations using PostgreSQL functions
-- ✅ Test your API with GraphQL Playground
+## Troubleshooting Common Issues
+
+<details>
+<summary>🔧 "psql: command not found"</summary>
+
+Install PostgreSQL:
+- Mac: `brew install postgresql`
+- Ubuntu/Debian: `sudo apt install postgresql`
+- Windows: Download from postgresql.org
+</details>
+
+<details>
+<summary>🔧 "createdb: command not found"</summary>
+
+PostgreSQL tools aren't in your PATH. Find them:
+```bash
+# Mac/Linux
+find / -name createdb 2>/dev/null
+# Add the directory to PATH
+export PATH="/usr/local/pgsql/bin:$PATH"
+```
+</details>
+
+<details>
+<summary>🔧 "ModuleNotFoundError: No module named 'fraiseql'"</summary>
+
+```bash
+pip install fraiseql
+# Or if you have multiple Python versions:
+python3 -m pip install fraiseql
+```
+</details>
+
+<details>
+<summary>🔧 Database connection errors</summary>
+
+Check your connection string:
+```bash
+# Default assumes local PostgreSQL with your username
+export DATABASE_URL="postgresql://username:password@localhost/todo_app"
+# Or modify in app.py directly
+```
+</details>
 
 ## What's Next?
 
@@ -383,8 +417,8 @@ You've just built your first GraphQL API with FraiseQL! You've learned how to:
 ### Build Something Real
 
 - **[Blog API Tutorial](../tutorials/blog-api.md)** - Complete production-ready example
-- **[Authentication](../guides/authentication.md)** - Add user authentication
-- **[Deployment](../deployment/index.md)** - Deploy to production
+- **[Authentication](../advanced/authentication.md)** - Add user authentication
+- **[Docker Deployment](../advanced/docker.md)** - Deploy with Docker
 
 ## Tips for Success
 
@@ -400,3 +434,26 @@ You've just built your first GraphQL API with FraiseQL! You've learned how to:
     - Missing type hints on function parameters
     - Not handling NULL values (use `| None` syntax)
     - Forgetting to handle empty arrays in JSONB aggregations
+
+## See Also
+
+### Related Concepts
+- [**Core Concepts**](../core-concepts/index.md) - Understand FraiseQL's philosophy
+- [**Type System**](../core-concepts/type-system.md) - Deep dive into GraphQL types
+- [**Database Views**](../core-concepts/database-views.md) - View patterns and optimization
+- [**Query Translation**](../core-concepts/query-translation.md) - How queries become SQL
+
+### Next Steps
+- [**GraphQL Playground**](graphql-playground.md) - Master the interactive testing tool
+- [**Your First API**](first-api.md) - Build a more complex application
+- [**Blog Tutorial**](../tutorials/blog-api.md) - Complete production example
+
+### Reference
+- [**API Documentation**](../api-reference/index.md) - Complete API reference
+- [**Decorators Reference**](../api-reference/decorators.md) - All available decorators
+- [**Error Codes**](../errors/error-types.md) - Troubleshooting guide
+
+### Advanced Topics
+- [**Mutations Guide**](../mutations/index.md) - Advanced mutation patterns
+- [**Performance Tuning**](../advanced/performance.md) - Optimization techniques
+- [**Authentication**](../advanced/authentication.md) - Add user authentication

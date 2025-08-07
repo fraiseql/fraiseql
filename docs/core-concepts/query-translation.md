@@ -1,4 +1,12 @@
+---
+← [Type System](./type-system.md) | [Core Concepts Index](./index.md) | [Database Views →](./database-views.md)
+---
+
 # Query Translation
+
+> **In this section:** Understand how FraiseQL converts GraphQL queries to efficient SQL
+> **Prerequisites:** Understanding of GraphQL queries and SQL basics
+> **Time to complete:** 20 minutes
 
 FraiseQL's query translation engine converts GraphQL queries directly to SQL in sub-millisecond time, eliminating the N+1 query problem by design.
 

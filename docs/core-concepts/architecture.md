@@ -1,4 +1,12 @@
+---
+← [Core Concepts](index.md) | [Home](../index.md) | [Next: Type System](type-system.md) →
+---
+
 # Architecture
+
+> **In this section:** FraiseQL's architecture combining DDD, CQRS, and PostgreSQL
+> **Prerequisites:** Basic understanding of GraphQL and PostgreSQL
+> **Time to complete:** 10 minutes
 
 FraiseQL implements a unique architecture that combines Domain-Driven Design (DDD) principles with the Command Query Responsibility Segregation (CQRS) pattern, all built on top of PostgreSQL's powerful features.
 
@@ -322,3 +330,26 @@ services:
 - Understand the [Type System](./type-system.md) for schema definition
 - Explore [Query Translation](./query-translation.md) mechanics
 - Review the [Blog API Tutorial](../tutorials/blog-api.md) for a complete example
+
+## See Also
+
+### Core Concepts
+- [**Type System**](type-system.md) - GraphQL type definitions
+- [**Database Views**](database-views.md) - Database view patterns
+- [**Query Translation**](query-translation.md) - How GraphQL becomes SQL
+
+### Implementation Guides
+- [**Getting Started**](../getting-started/index.md) - Begin with FraiseQL
+- [**Your First API**](../getting-started/first-api.md) - Build something real
+- [**Blog Tutorial**](../tutorials/blog-api.md) - Complete example
+
+### Advanced Topics
+- [**CQRS Patterns**](../advanced/cqrs.md) - Deep dive into CQRS
+- [**Event Sourcing**](../advanced/event-sourcing.md) - Event-driven architecture
+- [**Domain-Driven Design**](../advanced/database-api-patterns.md) - DDD with FraiseQL
+- [**Performance**](../advanced/performance.md) - Optimization techniques
+
+### Related Technologies
+- [**PostgreSQL Views**](database-views.md) - View design patterns
+- [**GraphQL Schema**](type-system.md) - Schema definition
+- [**SQL Generation**](query-translation.md) - Query building

@@ -1,4 +1,12 @@
+---
+← [Troubleshooting](../errors/troubleshooting.md) | [Mutations Index](./index.md) | [Getting Started →](../getting-started/index.md)
+---
+
 # PostgreSQL Function-Based Mutations
+
+> **In this section:** Master complex mutation patterns using PostgreSQL functions for maximum performance and data consistency
+> **Prerequisites:** Advanced PostgreSQL knowledge, understanding of ACID transactions
+> **Time to complete:** 50 minutes
 
 Complete guide to implementing mutations via PostgreSQL functions with transaction management, error handling, and type-safe return patterns.
 
@@ -1142,7 +1150,7 @@ SET max_stack_depth = '4MB';
 
 ## See Also
 
-- [Table Views](../core-concepts/table-views.md) - Understanding tb_/v_/tv_ naming conventions
+- [Database Views](../core-concepts/database-views.md) - Understanding tb_/v_/tv_ naming conventions
 - [Authentication Patterns](../advanced/authentication.md) - Context parameter security
 - [Error Handling](../api-reference/error-handling.md) - Structured error responses
 - [Testing Guide](../testing/mutation-testing.md) - Testing mutation functions

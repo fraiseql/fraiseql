@@ -1,4 +1,12 @@
+---
+← [Authentication](./authentication.md) | [Advanced Index](./index.md) | [TurboRouter →](./turbo-router.md)
+---
+
 # Lazy Caching with TurboRouter
+
+> **In this section:** Master database-native caching for sub-millisecond GraphQL responses
+> **Prerequisites:** Understanding of caching strategies and PostgreSQL advanced features
+> **Time to complete:** 35 minutes
 
 Deep dive into FraiseQL's database-native lazy caching system that delivers sub-millisecond response times through pre-computed GraphQL responses stored directly in PostgreSQL.
 

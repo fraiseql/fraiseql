@@ -605,4 +605,4 @@ config = FraiseQLConfig(
 - [Authentication Patterns](./authentication.md) - Auth provider configuration
 - [Performance Guide](./performance.md) - Performance tuning parameters
 - [TurboRouter](./turbo-router.md) - Query caching configuration
-- [Database Views](../core-concepts/table-views.md) - Database setup requirements
+- [Database Views](../core-concepts/database-views.md) - Database setup requirements

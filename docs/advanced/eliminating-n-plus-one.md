@@ -1008,6 +1008,6 @@ class MonitoredDataLoader(DataLoader):
 
 - [Performance Optimization](./performance.md) - General performance best practices
 - [DataLoader API](../api-reference/dataloader.md) - Complete DataLoader reference
-- [Table Views](../core-concepts/table-views.md) - View composition strategies
+- [Database Views](../core-concepts/database-views.md) - View composition strategies
 - [Monitoring Guide](../operations/monitoring.md) - Production monitoring setup
 - [Testing DataLoaders](../testing/dataloader-testing.md) - Testing strategies for N+1 prevention

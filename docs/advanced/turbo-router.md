@@ -1,4 +1,12 @@
+---
+← [Lazy Caching](./lazy-caching.md) | [Advanced Index](./index.md) | [Error Types →](../errors/error-types.md)
+---
+
 # TurboRouter Deep Dive
+
+> **In this section:** Master high-performance query execution with pre-compiled GraphQL queries
+> **Prerequisites:** Understanding of query optimization and caching strategies
+> **Time to complete:** 30 minutes
 
 Technical documentation for FraiseQL's TurboRouter - a high-performance query execution engine that bypasses GraphQL parsing for pre-registered queries.
 
@@ -687,7 +695,7 @@ graph LR
     A[GraphQL Query] --> B{TurboRouter}
     B --> C[SQL Template]
     C --> D{Lazy Cache}
-    D -->|Hit| E[Return Cached JSON < 1ms]
+    D -->|Hit| E["Return Cached JSON (< 1ms)"]
     D -->|Miss| F[Build from tv_ tables]
     F --> G[Store in Cache]
     G --> E

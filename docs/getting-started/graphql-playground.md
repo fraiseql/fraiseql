@@ -395,4 +395,4 @@ Verify headers are being sent:
 
 - [First API](first-api.md): Build a complete user management API
 - [Type System](../core-concepts/type-system.md): Understanding FraiseQL's type system
-- [Queries Guide](../guides/queries.md): Advanced query patterns
+- [Turbo Router](../advanced/turbo-router.md): High-performance query execution
