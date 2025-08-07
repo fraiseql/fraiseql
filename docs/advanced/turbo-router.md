@@ -687,7 +687,7 @@ graph LR
     A[GraphQL Query] --> B{TurboRouter}
     B --> C[SQL Template]
     C --> D{Lazy Cache}
-    D -->|Hit| E[Return Cached JSON < 1ms]
+    D -->|Hit| E["Return Cached JSON (< 1ms)"]
     D -->|Miss| F[Build from tv_ tables]
     F --> G[Store in Cache]
     G --> E
