@@ -4,6 +4,7 @@ This module provides distributed tracing capabilities using OpenTelemetry,
 enabling visibility into GraphQL operations across the entire request lifecycle.
 """
 
+import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -12,6 +13,8 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, Request, Response
 
+logger = logging.getLogger(__name__)
+
 try:
     from opentelemetry import context as otel_context  # type: ignore[import-untyped]
     from opentelemetry import trace  # type: ignore[import-untyped]
@@ -19,7 +22,13 @@ try:
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore[import-not-found,import-untyped]
         OTLPSpanExporter,
     )
-    from opentelemetry.exporter.zipkin.json import ZipkinExporter  # type: ignore[import-untyped]
+
+    try:
+        from opentelemetry.exporter.zipkin.json import (
+            ZipkinExporter,  # type: ignore[import-untyped]
+        )
+    except ImportError:
+        ZipkinExporter = None  # type: ignore[assignment]
     from opentelemetry.instrumentation.psycopg import (  # type: ignore[import-not-found,import-untyped]
         PsycopgInstrumentor,
     )
@@ -215,8 +224,15 @@ class FraiseQLTracer:
                     agent_port=int(port),
                 )
             return JaegerExporter(agent_host_name=self.config.export_endpoint)
-        if self.config.export_format == "zipkin" and ZipkinExporter:
-            return ZipkinExporter(endpoint=self.config.export_endpoint)
+        if self.config.export_format == "zipkin":
+            if ZipkinExporter:
+                return ZipkinExporter(endpoint=self.config.export_endpoint)
+            logger.warning(
+                "Zipkin exporter requested but not available. "
+                "Install opentelemetry-exporter-zipkin<1.20.0 for protobuf<4.0 compatibility. "
+                "Falling back to console exporter."
+            )
+            return None
         # Return None for console exporter
         return None
 
