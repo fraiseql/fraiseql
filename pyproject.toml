@@ -90,13 +90,13 @@ docs = [
   "pymdown-extensions>=10.0",
 ]
 tracing = [
+  "protobuf>=4.25.8,<5.0",
   "wrapt>=1.16.0",
   "opentelemetry-api>=1.20.0",
   "opentelemetry-sdk>=1.20.0",
   "opentelemetry-instrumentation-psycopg>=0.40b0",
   "opentelemetry-exporter-otlp>=1.20.0",
   "opentelemetry-exporter-jaeger>=1.20.0",
-  "opentelemetry-exporter-zipkin>=1.20.0",
 ]
 redis = [
   "redis>=5.0.0",
