@@ -2,146 +2,146 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://fraiseql.dev/docs/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/authentication/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/configuration/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/database-api-patterns/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/domain-driven-database/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/eliminating-n-plus-one/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/execution-modes/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/lazy-caching/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/llm-native-architecture/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/pagination/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/performance/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/security/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/turbo-router/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/api-reference/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/api-reference/application/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/api-reference/decorators/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/architecture/decisions/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/comparisons/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/comparisons/alternatives/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/core-concepts/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/core-concepts/architecture/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/core-concepts/database-views/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/core-concepts/query-translation/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/core-concepts/type-system/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/getting-started/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/getting-started/first-api/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/getting-started/graphql-playground/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/getting-started/installation/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/getting-started/quickstart/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/migration/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/mutations/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/mutations/migration-guide/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/mutations/postgresql-function-based/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/tutorials/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/tutorials/blog-api/</loc>
-         <lastmod>2025-08-06</lastmod>
+         <lastmod>2025-08-07</lastmod>
     </url>
 </urlset>
