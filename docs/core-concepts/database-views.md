@@ -1,4 +1,12 @@
+---
+← [Query Translation](./query-translation.md) | [Core Concepts Index](./index.md) | [Advanced Topics →](../advanced/index.md)
+---
+
 # Database Views
+
+> **In this section:** Master the art of designing efficient database views for GraphQL APIs
+> **Prerequisites:** SQL knowledge and understanding of database design patterns
+> **Time to complete:** 25 minutes
 
 Database views are the cornerstone of FraiseQL's query system. They define how your data is exposed through the GraphQL API, implementing the read side of the CQRS pattern.
 

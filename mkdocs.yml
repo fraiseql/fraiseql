@@ -51,10 +51,12 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.mark
   - attr_list
+  - pymdownx.emoji
   - pymdownx.tabbed:
       alternate_style: true
   - toc:
       permalink: true
+  - md_in_html
 
 nav:
   - Home: index.md
@@ -82,6 +84,11 @@ nav:
     - TurboRouter: advanced/turbo-router.md
     - Pagination: advanced/pagination.md
     - Security: advanced/security.md
+    - CQRS Implementation: advanced/cqrs.md
+    - Event Sourcing: advanced/event-sourcing.md
+    - Multi-tenancy: advanced/multi-tenancy.md
+    - Bounded Contexts: advanced/bounded-contexts.md
+    - Production Readiness: advanced/production-readiness.md
     - Domain-Driven Database: advanced/domain-driven-database.md
     - Database API Patterns: advanced/database-api-patterns.md
     - Eliminating N+1: advanced/eliminating-n-plus-one.md
@@ -95,6 +102,36 @@ nav:
     - mutations/index.md
     - Migration Guide: mutations/migration-guide.md
     - PostgreSQL Functions: mutations/postgresql-function-based.md
+  - Deployment:
+    - deployment/index.md
+    - Docker: deployment/docker.md
+    - Kubernetes: deployment/kubernetes.md
+    - AWS: deployment/aws.md
+    - GCP: deployment/gcp.md
+    - Heroku: deployment/heroku.md
+    - Production Checklist: deployment/production-checklist.md
+    - Monitoring: deployment/monitoring.md
+    - Scaling: deployment/scaling.md
+  - Testing:
+    - testing/index.md
+    - Unit Testing: testing/unit-testing.md
+    - Integration Testing: testing/integration-testing.md
+    - GraphQL Testing: testing/graphql-testing.md
+    - Performance Testing: testing/performance-testing.md
+    - Best Practices: testing/best-practices.md
+  - Error Handling:
+    - errors/index.md
+    - Error Types: errors/error-types.md
+    - Error Codes: errors/error-codes.md
+    - Handling Patterns: errors/handling-patterns.md
+    - Debugging: errors/debugging.md
+    - Troubleshooting: errors/troubleshooting.md
+  - Learning Paths:
+    - learning-paths/index.md
+    - Beginner: learning-paths/beginner.md
+    - Backend Developer: learning-paths/backend-developer.md
+    - Frontend Developer: learning-paths/frontend-developer.md
+    - Migrating: learning-paths/migrating.md
   - Migration:
     - migration/index.md
   - Comparisons:

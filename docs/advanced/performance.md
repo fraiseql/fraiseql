@@ -1,4 +1,12 @@
+---
+← [Advanced Topics](./index.md) | [Advanced Index](./index.md) | [Security →](./security.md)
+---
+
 # Performance Optimization Guide
+
+> **In this section:** Master production performance optimization techniques
+> **Prerequisites:** Understanding of database optimization and system architecture
+> **Time to complete:** 30 minutes
 
 Comprehensive guide to optimizing FraiseQL applications for maximum performance in production environments.
 

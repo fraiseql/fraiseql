@@ -1,4 +1,12 @@
+---
+← [Security](./security.md) | [Advanced Index](./index.md) | [Lazy Caching →](./lazy-caching.md)
+---
+
 # Authentication Patterns
+
+> **In this section:** Implement secure authentication patterns including JWT, OAuth2, and multi-tenant auth
+> **Prerequisites:** Understanding of authentication protocols and security principles
+> **Time to complete:** 45 minutes
 
 Comprehensive authentication patterns and implementations for securing FraiseQL APIs with JWT, session-based auth, and database-level authorization.
 

@@ -1,0 +1,72 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for git info in docs
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -e .[docs]
+          pip install mkdocs-material pymdownx-extensions
+
+      - name: Build documentation
+        run: mkdocs build --strict
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy-pages:
+    if: github.ref == 'refs/heads/main'
+    needs: build-docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy-readthedocs:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger ReadTheDocs build
+        env:
+          RTD_TOKEN: ${{ secrets.READTHEDOCS_TOKEN }}
+        run: |
+          if [ -n "$RTD_TOKEN" ]; then
+            curl -X POST \
+              -H "Authorization: Token $RTD_TOKEN" \
+              https://readthedocs.org/api/v3/projects/fraiseql/versions/latest/builds/
+          else
+            echo "ReadTheDocs token not configured - skipping"
+          fi
+        continue-on-error: true

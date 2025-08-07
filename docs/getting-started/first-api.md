@@ -1,4 +1,12 @@
+---
+← [Quickstart](quickstart.md) | [Getting Started](index.md) | [Next: Core Concepts](../core-concepts/index.md) →
+---
+
 # Your First API
+
+> **In this section:** Build a complete user management API with authentication
+> **Prerequisites:** Completed [quickstart](quickstart.md), basic SQL knowledge
+> **Time to complete:** 15 minutes
 
 Build a complete user management API with FraiseQL in 15 minutes. This guide demonstrates FraiseQL's database-first approach, CQRS pattern, and type safety.
 
@@ -658,7 +666,26 @@ You've built a complete user management API with:
 - ✅ Error handling
 - ✅ Performance optimization
 
-Explore more:
-- [Core Concepts](../core-concepts/): Understand FraiseQL's architecture
-- [Blog API Tutorial](../tutorials/blog-api.md): Build a more complex application
-- [Advanced Features](../advanced/): Caching, subscriptions, and more
+## See Also
+
+### Related Concepts
+- [**Authentication Guide**](../advanced/authentication.md) - Complete auth implementation
+- [**Database Views**](../core-concepts/database-views.md) - View design patterns
+- [**Type System**](../core-concepts/type-system.md) - Advanced type features
+- [**CQRS Pattern**](../core-concepts/architecture.md#cqrs) - Command Query Responsibility Segregation
+
+### Next Steps
+- [**Core Concepts**](../core-concepts/index.md) - Understand FraiseQL philosophy
+- [**Blog Tutorial**](../tutorials/blog-api.md) - Complete production example
+- [**API Reference**](../api-reference/index.md) - Complete API documentation
+
+### Advanced Topics
+- [**Security Best Practices**](../advanced/security.md) - Production security
+- [**Performance Optimization**](../advanced/performance.md) - Query optimization
+- [**Multi-tenancy**](../advanced/multi-tenancy.md) - Isolate tenant data
+- [**Lazy Caching**](../advanced/lazy-caching.md) - Database-native caching
+
+### Troubleshooting
+- [**Error Types**](../errors/error-types.md) - Common error reference
+- [**Debugging Guide**](../errors/debugging.md) - Debug strategies
+- [**FAQ**](../errors/troubleshooting.md) - Common issues

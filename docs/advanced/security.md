@@ -1,4 +1,12 @@
+---
+← [Performance](./performance.md) | [Advanced Index](./index.md) | [Authentication →](./authentication.md)
+---
+
 # Security Guide
+
+> **In this section:** Implement comprehensive security features and best practices
+> **Prerequisites:** Understanding of web security concepts and GraphQL security
+> **Time to complete:** 40 minutes
 
 Comprehensive security features and best practices for FraiseQL applications.
 

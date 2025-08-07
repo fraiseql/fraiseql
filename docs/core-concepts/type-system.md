@@ -1,4 +1,12 @@
+---
+← [Core Concepts](./index.md) | [Core Concepts Index](./index.md) | [Query Translation →](./query-translation.md)
+---
+
 # Type System
+
+> **In this section:** Learn how to define type-safe GraphQL schemas using Python type hints
+> **Prerequisites:** Basic understanding of Python type hints and GraphQL concepts
+> **Time to complete:** 15 minutes
 
 FraiseQL's type system provides seamless mapping between Python types and GraphQL schema, with full type safety from database to API.
 

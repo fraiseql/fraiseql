@@ -12,7 +12,21 @@ A high-performance GraphQL-to-PostgreSQL framework with automatic type generatio
 
 ## What is FraiseQL?
 
-FraiseQL is a Python framework that automatically generates GraphQL APIs from PostgreSQL database views and functions. It leverages PostgreSQL's JSONB capabilities for flexible schema evolution while providing complete type safety through Python's type system.
+FraiseQL is a Python framework that generates GraphQL APIs by connecting Python type definitions to PostgreSQL database views and functions. It leverages PostgreSQL's JSONB capabilities for flexible schema evolution while providing complete type safety through Python's type system.
+
+## Origin of the Name
+
+FraiseQL (pronounced "fraise-QL") is a French homage to [Strawberry GraphQL](https://strawberry.rocks/), the excellent Python GraphQL library that inspired this project. "Fraise" is the French word for strawberry, reflecting both our inspiration and our goal to bring a fresh, performant approach to GraphQL in Python.
+
+### Special Acknowledgments
+
+A special tribute goes to **Harry Percival**, author of *Architecture Patterns with Python*. Reading his book sent me down the rabbit hole of software architecture, and everything good in FraiseQL owes much to his insights on clean architecture, domain-driven design, and the repository pattern. His work fundamentally shaped how FraiseQL approaches the separation of concerns between business logic and infrastructure.
+
+Through Harry's book, I discovered the foundational texts that influenced FraiseQL's design:
+- **Eric Evans' "Domain-Driven Design"** (the Blue Book) - which inspired our database-centric domain model
+- **Vaughn Vernon's "Implementing Domain-Driven Design"** (the Red Book) - which guided our CQRS implementation and bounded contexts approach
+
+These works collectively shaped FraiseQL's philosophy: that the database can be a powerful domain layer when properly abstracted through views and functions.
 
 ## Architecture Philosophy: Database Domain-Driven Design
 

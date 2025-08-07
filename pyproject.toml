@@ -32,6 +32,8 @@ classifiers = [
 
 dependencies = [
   "fastapi>=0.115.12",
+  "starlette>=0.47.2",  # Security fix for CVE-2025-54121
+  # Note: protobuf security fix (CVE-2025-4565) requires 4.25.8, but OpenTelemetry deps limit to <4.0
   "graphql-core>=3.2.6",
   "psycopg[pool]>=3.2.6",
   "psycopg-pool>=3.2.6",
