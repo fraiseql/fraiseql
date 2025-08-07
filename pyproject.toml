@@ -32,8 +32,7 @@ classifiers = [
 
 dependencies = [
   "fastapi>=0.115.12",
-  "starlette>=0.47.2",  # Security fix for CVE-2025-54121
-  # Note: protobuf security fix (CVE-2025-4565) requires 4.25.8, but OpenTelemetry deps limit to <4.0
+  "starlette>=0.47.2",
   "graphql-core>=3.2.6",
   "psycopg[pool]>=3.2.6",
   "psycopg-pool>=3.2.6",
@@ -91,7 +90,7 @@ docs = [
   "pymdown-extensions>=10.0",
 ]
 tracing = [
-  "wrapt>=1.16.0",  # Minimum version for Python 3.11+ compatibility
+  "wrapt>=1.16.0",
   "opentelemetry-api>=1.20.0",
   "opentelemetry-sdk>=1.20.0",
   "opentelemetry-instrumentation-psycopg>=0.40b0",
