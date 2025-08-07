@@ -137,12 +137,12 @@ class UpdateUserProfile:
 #### Token Validation and Management
 
 ```python
-from fraiseql.auth.token_revocation import TokenRevocationService, RedisRevocationStore
-import redis.asyncio as redis
+from fraiseql.auth.token_revocation import TokenRevocationService, InMemoryRevocationStore
 
 # Setup token revocation for logout functionality
-redis_client = redis.from_url("redis://localhost:6379")
-revocation_store = RedisRevocationStore(redis_client)
+# For production with multiple instances, consider implementing PostgreSQL-based store
+# or use Redis if you already have it for other purposes
+revocation_store = InMemoryRevocationStore()  # Simple in-memory store
 revocation_service = TokenRevocationService(revocation_store)
 
 # Custom auth provider with revocation support
@@ -520,12 +520,10 @@ class InviteUser:
 ### Token Validation Caching
 
 ```python
-from fraiseql.auth.caching import TokenCache
-import redis.asyncio as redis
-
-# Redis-backed token cache
-redis_client = redis.from_url("redis://localhost:6379")
-token_cache = TokenCache(redis_client, ttl=300)  # 5 minute cache
+# Token validation caching
+# Note: Currently only Redis-backed cache is implemented
+# For most use cases, JWT validation is fast enough without caching
+# Consider implementing PostgreSQL-based cache if needed
 
 class CachedAuthProvider(Auth0Provider):
     def __init__(self, *args, token_cache: TokenCache, **kwargs):

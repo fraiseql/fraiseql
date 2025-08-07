@@ -147,6 +147,8 @@ default_statistics_target = 100
 
 ## TurboRouter Optimization
 
+TurboRouter works seamlessly with lazy caching to provide maximum performance by bypassing GraphQL parsing entirely.
+
 ### Registering Hot Queries
 
 Identify and register frequently used queries:
@@ -251,41 +253,38 @@ LEFT JOIN warehouses w ON w.id = i.warehouse_id;
 
 ## Caching Strategies
 
-### Query Result Caching
+### Built-in Lazy Caching (Recommended)
+
+FraiseQL's lazy caching system provides database-native caching with automatic invalidation:
 
 ```python
+# Enable lazy caching for your queries
 config = FraiseQLConfig(
-    enable_query_caching=True,
-    cache_ttl=300,  # 5 minutes
+    enable_lazy_caching=True,
+    cache_version_tracking=True,
 )
 
-# Custom cache key for specific queries
+# Queries automatically use lazy caching
 @query
 async def get_popular_posts(info, limit: int = 10) -> list[Post]:
-    cache_key = f"popular_posts:{limit}"
-
-    # Check cache
-    cached = await info.context["cache"].get(cache_key)
-    if cached:
-        return cached
-
-    # Fetch from database
     db = info.context["db"]
-    posts = await db.find(
+    # This query is automatically cached in PostgreSQL
+    # with version-based invalidation
+    return await db.find(
         "v_post",
         order_by="view_count DESC",
         limit=limit
     )
-
-    # Cache results
-    await info.context["cache"].set(
-        cache_key,
-        posts,
-        ttl=300
-    )
-
-    return posts
 ```
+
+Benefits over external caching:
+- **No network overhead** - Cache lives in PostgreSQL
+- **Automatic invalidation** - Version tracking by bounded contexts
+- **Sub-millisecond response** - Direct database access
+- **Historical data** - Cache becomes audit trail
+- **No Redis/Memcached needed** - Simplified infrastructure
+
+See [Lazy Caching Guide](lazy-caching.md) for complete documentation.
 
 ### View Materialization
 

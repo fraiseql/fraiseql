@@ -722,8 +722,8 @@ config = FraiseQLConfig(
 config = FraiseQLConfig(
     # Cache authorization results
     auth_cache_ttl=300,
-    # Use Redis for rate limiting
-    rate_limit_store_type="redis",
+    # Consider rate limiting at the reverse proxy level (nginx, Cloudflare)
+    # to avoid additional infrastructure dependencies
     # Async validation
     validation_async=True,
 )

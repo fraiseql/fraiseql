@@ -31,7 +31,7 @@ FraiseQL provides powerful decorators for GraphQL schema definition:
 
 - [`CQRSRepository`](./repository.md) - Database access layer
 - [`CQRSExecutor`](./repository.md#cqrsexecutor) - Query execution engine
-- [`TurboRouter`](./turbo-router.md) - High-performance direct SQL router
+- [`TurboRouter`](../advanced/turbo-router.md) - High-performance direct SQL router
 
 ## Configuration Reference
 

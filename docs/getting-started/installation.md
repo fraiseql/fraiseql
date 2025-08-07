@@ -241,7 +241,7 @@ DATABASE_URL=postgresql://fraiseql:secret@localhost:5432/my_app_db
 
 If you encounter issues:
 
-1. Check the [FAQ section](../faq.md)
+1. Check the documentation and examples
 2. Search [existing issues](https://github.com/fraiseql/fraiseql/issues)
 3. Ask in [discussions](https://github.com/fraiseql/fraiseql/discussions)
 4. Report a [new issue](https://github.com/fraiseql/fraiseql/issues/new)

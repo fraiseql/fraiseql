@@ -383,8 +383,8 @@ You've just built your first GraphQL API with FraiseQL! You've learned how to:
 ### Build Something Real
 
 - **[Blog API Tutorial](../tutorials/blog-api.md)** - Complete production-ready example
-- **[Authentication](../guides/authentication.md)** - Add user authentication
-- **[Deployment](../deployment/index.md)** - Deploy to production
+- **[Authentication](../advanced/authentication.md)** - Add user authentication
+- **[Docker Deployment](../advanced/docker.md)** - Deploy with Docker
 
 ## Tips for Success
 
