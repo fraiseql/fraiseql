@@ -13,7 +13,15 @@
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
+         <loc>https://fraiseql.dev/docs/advanced/bounded-contexts/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
          <loc>https://fraiseql.dev/docs/advanced/configuration/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/advanced/cqrs/</loc>
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
@@ -29,6 +37,10 @@
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
+         <loc>https://fraiseql.dev/docs/advanced/event-sourcing/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
          <loc>https://fraiseql.dev/docs/advanced/execution-modes/</loc>
          <lastmod>2025-08-07</lastmod>
     </url>
@@ -41,11 +53,19 @@
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
+         <loc>https://fraiseql.dev/docs/advanced/multi-tenancy/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
          <loc>https://fraiseql.dev/docs/advanced/pagination/</loc>
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/advanced/performance/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/advanced/production-readiness/</loc>
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
@@ -101,6 +121,66 @@
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
+         <loc>https://fraiseql.dev/docs/deployment/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/deployment/aws/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/deployment/docker/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/deployment/gcp/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/deployment/heroku/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/deployment/kubernetes/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/deployment/monitoring/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/deployment/production-checklist/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/deployment/scaling/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/errors/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/errors/debugging/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/errors/error-codes/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/errors/error-types/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/errors/handling-patterns/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/errors/troubleshooting/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
          <loc>https://fraiseql.dev/docs/getting-started/</loc>
          <lastmod>2025-08-07</lastmod>
     </url>
@@ -121,6 +201,26 @@
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
+         <loc>https://fraiseql.dev/docs/learning-paths/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/learning-paths/backend-developer/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/learning-paths/beginner/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/learning-paths/frontend-developer/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/learning-paths/migrating/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
          <loc>https://fraiseql.dev/docs/migration/</loc>
          <lastmod>2025-08-07</lastmod>
     </url>
@@ -134,6 +234,30 @@
     </url>
     <url>
          <loc>https://fraiseql.dev/docs/mutations/postgresql-function-based/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/testing/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/testing/best-practices/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/testing/graphql-testing/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/testing/integration-testing/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/testing/performance-testing/</loc>
+         <lastmod>2025-08-07</lastmod>
+    </url>
+    <url>
+         <loc>https://fraiseql.dev/docs/testing/unit-testing/</loc>
          <lastmod>2025-08-07</lastmod>
     </url>
     <url>
