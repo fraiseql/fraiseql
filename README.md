@@ -1,5 +1,13 @@
 # FraiseQL
 
+[![Test](https://github.com/fraiseql/fraiseql/actions/workflows/test.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/test.yml)
+[![Lint](https://github.com/fraiseql/fraiseql/actions/workflows/lint.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/lint.yml)
+[![Security](https://github.com/fraiseql/fraiseql/actions/workflows/security.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/security.yml)
+[![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
+[![PyPI version](https://badge.fury.io/py/fraiseql.svg)](https://pypi.org/project/fraiseql/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/fraiseql.svg)](https://pypi.org/project/fraiseql/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A high-performance GraphQL-to-PostgreSQL framework with automatic type generation, built-in caching, and comprehensive security features.
 
 ## What is FraiseQL?
