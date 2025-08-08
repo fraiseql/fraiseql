@@ -135,6 +135,99 @@ config = FraiseQLConfig(
 )
 ```
 
+## Field-Level Authorization
+
+FraiseQL provides fine-grained access control at the field level:
+
+```python
+from fraiseql import fraise_type, authorize_field
+
+@fraise_type
+class User:
+    id: UUID
+    public_name: str
+
+    @authorize_field(permission="read:email")
+    def email(self, info) -> str:
+        """Only users with read:email permission can see this"""
+        return self._email
+
+    @authorize_field(roles=["admin"])
+    def admin_notes(self, info) -> str | None:
+        """Only admins can access this field"""
+        return self._admin_notes
+```
+
+### Dynamic Authorization
+
+```python
+@authorize_field(
+    check_func=lambda obj, info: obj.owner_id == info.context.user.id
+)
+def private_data(self, info) -> dict:
+    """Only the owner can see this data"""
+    return self._private_data
+```
+
+## CSRF Protection
+
+Cross-Site Request Forgery protection is built into FraiseQL:
+
+```python
+from fraiseql.security import CSRFMiddleware
+
+app.add_middleware(
+    CSRFMiddleware,
+    secret_key=settings.SECRET_KEY,
+    cookie_name="csrf_token",
+    header_name="X-CSRF-Token"
+)
+```
+
+### CSRF Token Management
+
+```javascript
+// Client-side token handling
+const csrfToken = getCookie('csrf_token');
+
+fetch('/graphql', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+    },
+    body: JSON.stringify({ query, variables })
+});
+```
+
+## Audit Logging
+
+Track all security-relevant events:
+
+```python
+from fraiseql.audit import AuditLogger
+
+audit = AuditLogger()
+
+@fraiseql.mutation
+async def sensitive_operation(info, data: str) -> Result:
+    audit.log(
+        event_type="SENSITIVE_OPERATION",
+        user_id=info.context.user.id,
+        details={"operation": "update", "resource": "sensitive_data"}
+    )
+    # ... perform operation
+```
+
+### Audit Events
+
+Common events to track:
+- Authentication attempts (success/failure)
+- Authorization denials
+- Data modifications
+- Admin actions
+- Security configuration changes
+
 ## Rate Limiting
 
 Protect against abuse and DoS attacks:

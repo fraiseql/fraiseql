@@ -30,8 +30,18 @@ psql --version  # Should show 13 or higher
 ### Using pip (Recommended)
 
 ```bash
+# Core installation
 pip install fraiseql
+
+# With optional dependencies
+pip install fraiseql[redis]        # Redis caching support
+pip install fraiseql[tracing]      # OpenTelemetry tracing
+pip install fraiseql[auth0]        # Auth0 integration
+pip install fraiseql[all]          # All optional dependencies
 ```
+
+!!! info "Package Availability"
+    FraiseQL is available on [PyPI](https://pypi.org/project/fraiseql/) and can be installed directly using pip.
 
 ### Using Poetry
 
