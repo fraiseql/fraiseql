@@ -257,6 +257,46 @@ class PostStatus(Enum):
     ARCHIVED = "archived"
 ```
 
+## Authorization Decorators
+
+### @authorize_field
+
+```python
+@fraiseql.authorize_field(permission="read:sensitive")
+def field_name(self, info) -> type:
+    pass
+```
+
+Adds field-level authorization to GraphQL fields.
+
+#### Parameters
+- `permission` (str): Required permission to access this field
+- `roles` (list[str], optional): List of roles allowed to access
+- `check_func` (callable, optional): Custom authorization function
+
+#### Example
+
+```python
+from fraiseql import fraise_type, authorize_field
+
+@fraise_type
+class User:
+    id: UUID
+    username: str
+
+    @authorize_field(permission="read:email")
+    def email(self, info) -> str:
+        return self._email
+
+    @authorize_field(roles=["admin", "moderator"])
+    def admin_notes(self, info) -> str | None:
+        return self._admin_notes
+
+    @authorize_field(check_func=lambda user, info: user.id == info.context.user.id)
+    def private_data(self, info) -> dict:
+        return self._private_data
+```
+
 ### @fraise_interface
 
 ```python

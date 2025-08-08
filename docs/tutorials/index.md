@@ -46,6 +46,64 @@ Build a complete blog API with posts, comments, and user management. Learn:
 3. [Migration Guide](../migration/index.md) - Step-by-step migration from existing GraphQL frameworks
 4. [Performance Tuning](./blog-api.md#performance-optimization) - Optimize for production
 
+## Common Queries
+
+### Basic Query Examples
+
+Here are common GraphQL query patterns used throughout the tutorials:
+
+```graphql
+# Simple query with fields
+query GetUser {
+  user(id: "123") {
+    id
+    name
+    email
+  }
+}
+
+# Query with pagination
+query GetPosts {
+  posts(limit: 10, offset: 0) {
+    id
+    title
+    author {
+      name
+    }
+  }
+}
+
+# Query with filtering
+query SearchPosts {
+  posts(where: { status: { eq: "published" } }) {
+    id
+    title
+    publishedAt
+  }
+}
+
+# Query with nested relationships
+query GetPostWithComments {
+  post(id: "456") {
+    id
+    title
+    content
+    author {
+      id
+      name
+    }
+    comments {
+      id
+      content
+      createdAt
+      author {
+        name
+      }
+    }
+  }
+}
+```
+
 ## Tutorial Prerequisites
 
 ### System Requirements
