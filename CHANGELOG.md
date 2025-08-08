@@ -5,6 +5,43 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-01-08
+
+### Security
+- Fixed CVE-2025-4565 by pinning `protobuf>=4.25.8,<5.0`
+- Fixed CVE-2025-54121 by updating `starlette>=0.47.2`
+- Removed `opentelemetry-exporter-zipkin` due to incompatibility with secure protobuf versions
+
+### Documentation
+- **Major documentation overhaul** - quality score improved from 7.8/10 to 9+/10
+- Fixed 15 broken internal links across documentation
+- Added comprehensive guides for CQRS, Event Sourcing, Multi-tenancy, and Bounded Contexts
+- Added production readiness checklist with security, performance, and deployment guidance
+- Created complete deployment documentation (Docker, Kubernetes, AWS, GCP, Heroku)
+- Added testing documentation covering unit, integration, GraphQL, and performance testing
+- Created error handling guides with codes, patterns, and debugging strategies
+- Added learning paths for different developer backgrounds
+- Added acknowledgments to Harry Percival and DDD influences in README
+- Fixed all table-views to database-views references for consistency
+- Added missing anchor targets for deep links
+- Clarified package installation instructions with optional dependencies
+
+### Changed
+- Made Redis an optional dependency (moved from core to `[redis]` extra)
+- Made Zipkin exporter optional with graceful fallback and warning messages
+- Fixed pyproject.toml inline comments that caused ReadTheDocs build failures
+
+### Fixed
+- Removed unnecessary docs-deploy workflow that caused CI failures
+- Fixed TOML parsing issues in dependency declarations
+- Added proper error handling for missing Zipkin exporter
+
+## [0.1.1] - 2025-01-06
+
+### Added
+- Initial stable release with all beta features consolidated
+- Comprehensive documentation and examples
+
 ## [0.1.0] - 2025-08-06
 
 ### Initial Public Release
@@ -54,4 +91,6 @@ For migration from beta versions, please refer to the documentation.
 
 ---
 
-[0.1.0]: https://github.com/yourusername/fraiseql/releases/tag/v0.1.0
+[0.1.2]: https://github.com/fraiseql/fraiseql/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/fraiseql/fraiseql/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/fraiseql/fraiseql/releases/tag/v0.1.0
