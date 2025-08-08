@@ -46,7 +46,8 @@ jobs:
     - name: Install dependencies
       run: |
         # Use uv for faster and more reliable dependency resolution
-        uv pip install --system -e ".[dev,tracing]"
+        # Install all optional dependencies for comprehensive testing
+        uv pip install --system -e ".[dev,all]"
 
     - name: Run tests with coverage
       env:
