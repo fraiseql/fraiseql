@@ -3431,8 +3431,19 @@
 </div>
 <h2 id="install-fraiseql">Install FraiseQL<a class="headerlink" href="#install-fraiseql" title="Permanent link">&para;</a></h2>
 <h3 id="using-pip-recommended">Using pip (Recommended)<a class="headerlink" href="#using-pip-recommended" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Core installation</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># With optional dependencies</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>redis<span class="o">]</span><span class="w">        </span><span class="c1"># Redis caching support</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>tracing<span class="o">]</span><span class="w">      </span><span class="c1"># OpenTelemetry tracing</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>auth0<span class="o">]</span><span class="w">        </span><span class="c1"># Auth0 integration</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>all<span class="o">]</span><span class="w">          </span><span class="c1"># All optional dependencies</span>
 </code></pre></div>
+<div class="admonition info">
+<p class="admonition-title">Package Availability</p>
+<p>FraiseQL is available on <a href="https://pypi.org/project/fraiseql/">PyPI</a> and can be installed directly using pip.</p>
+</div>
 <h3 id="using-poetry">Using Poetry<a class="headerlink" href="#using-poetry" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>add<span class="w"> </span>fraiseql
 </code></pre></div>
