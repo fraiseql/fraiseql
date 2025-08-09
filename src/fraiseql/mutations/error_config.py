@@ -116,8 +116,8 @@ class MutationErrorConfig:
 # Default configuration
 DEFAULT_ERROR_CONFIG = MutationErrorConfig()
 
-# PrintOptim-compatible configuration
-PRINTOPTIM_ERROR_CONFIG = MutationErrorConfig(
+# Strict status-based configuration with prefix patterns
+STRICT_STATUS_CONFIG = MutationErrorConfig(
     success_keywords={
         "success",
         "completed",

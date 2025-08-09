@@ -191,7 +191,7 @@ def build_fraiseql_schema(
 # Error configurations
 ALWAYS_DATA_CONFIG: MutationErrorConfig
 DEFAULT_ERROR_CONFIG: MutationErrorConfig
-PRINTOPTIM_ERROR_CONFIG: MutationErrorConfig
+STRICT_STATUS_CONFIG: MutationErrorConfig
 
 # Constants
 UNSET: Any
@@ -252,7 +252,7 @@ __all__ = [
     "ALWAYS_DATA_CONFIG",
     "DEFAULT_ERROR_CONFIG",
     "JSON",
-    "PRINTOPTIM_ERROR_CONFIG",
+    "STRICT_STATUS_CONFIG",
     # Constants
     "UNSET",
     "Auth0Config",

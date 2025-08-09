@@ -3,7 +3,7 @@
 from fraiseql.mutations.error_config import (
     ALWAYS_DATA_CONFIG,
     DEFAULT_ERROR_CONFIG,
-    PRINTOPTIM_ERROR_CONFIG,
+    STRICT_STATUS_CONFIG,
     MutationErrorConfig,
 )
 
@@ -39,9 +39,9 @@ class TestMutationErrorConfig:
         assert not config.is_error_status("noop:invalid_contract_id")
         assert not config.is_error_status("blocked:children")
 
-    def test_printoptim_config(self) -> None:
-        """Test PrintOptim-compatible configuration."""
-        config = PRINTOPTIM_ERROR_CONFIG
+    def test_strict_status_config(self) -> None:
+        """Test strict status-based configuration."""
+        config = STRICT_STATUS_CONFIG
 
         # Success statuses
         assert not config.is_error_status("success")
