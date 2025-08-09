@@ -262,7 +262,7 @@ def fraise_enum(_cls: T | None = None) -> T | Callable[[T], T]:
             # Use the enum member name as the GraphQL value name
             # Store the actual enum value for database compatibility
             enum_values[member.name] = GraphQLEnumValue(
-                value=member,  # Store the actual enum member
+                value=member.value,  # Store the primitive value for JSON serialization
                 description=getattr(member, "_description", None),
             )
 

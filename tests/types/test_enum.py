@@ -33,10 +33,10 @@ class TestFraiseEnum:
         assert "INACTIVE" in graphql_enum.values
         assert "PENDING" in graphql_enum.values
 
-        # Check internal values (stores enum members)
-        assert graphql_enum.values["ACTIVE"].value == Status.ACTIVE
-        assert graphql_enum.values["INACTIVE"].value == Status.INACTIVE
-        assert graphql_enum.values["PENDING"].value == Status.PENDING
+        # Check internal values (stores primitive values for JSON serialization)
+        assert graphql_enum.values["ACTIVE"].value == Status.ACTIVE.value
+        assert graphql_enum.values["INACTIVE"].value == Status.INACTIVE.value
+        assert graphql_enum.values["PENDING"].value == Status.PENDING.value
 
     def test_enum_with_integer_values(self, clear_registry) -> None:
         """Test enum with integer values."""
@@ -49,8 +49,8 @@ class TestFraiseEnum:
             CRITICAL = 4
 
         graphql_enum = Priority.__graphql_type__
-        assert graphql_enum.values["LOW"].value == Priority.LOW
-        assert graphql_enum.values["HIGH"].value == Priority.HIGH
+        assert graphql_enum.values["LOW"].value == Priority.LOW.value
+        assert graphql_enum.values["HIGH"].value == Priority.HIGH.value
 
     def test_enum_in_type_definition(self, clear_registry) -> None:
         """Test using enum in a type definition."""

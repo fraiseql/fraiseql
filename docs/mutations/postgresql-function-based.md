@@ -653,99 +653,158 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-### Trigger Integration
+### FraiseQL Trigger Philosophy: NO Triggers on tb_ Tables
 
-#### Audit Trail with Triggers
+**CRITICAL RULE: FraiseQL NEVER uses triggers on tb_ base tables.**
+
+Instead of triggers on tb_ tables, use explicit operations within mutation functions:
 
 ```sql
--- Audit trigger for mutations
-CREATE OR REPLACE FUNCTION fn_audit_mutation()
-RETURNS TRIGGER AS $$
+-- WRONG: Do NOT create triggers on tb_ tables
+-- CREATE TRIGGER update_comment_count
+--     AFTER INSERT OR UPDATE OR DELETE ON tb_comment  -- NEVER DO THIS
+--     FOR EACH ROW EXECUTE FUNCTION fn_update_post_comment_count();
+
+-- CORRECT: Explicit operations within mutation functions
+CREATE OR REPLACE FUNCTION fn_create_comment_with_stats(input_data JSONB)
+RETURNS JSONB AS $$
+DECLARE
+    v_comment_id INTEGER;
+    v_post_id INTEGER;
+    v_comment_data JSONB;
 BEGIN
-    INSERT INTO tb_audit_log (
-        table_name,
-        operation,
-        user_id,
-        old_data,
-        new_data,
-        changed_fields,
+    v_post_id := (input_data->>'post_id')::INTEGER;
+
+    -- Create comment (NO triggers will fire on tb_comment)
+    INSERT INTO tb_comment (fk_post, fk_author, content)
+    VALUES (
+        v_post_id,
+        (input_data->>'author_id')::INTEGER,
+        input_data->>'content'
+    ) RETURNING id INTO v_comment_id;
+
+    -- Explicit stats update (NOT via trigger)
+    PERFORM sync_post_stats(v_post_id);
+
+    -- Explicit activity logging
+    INSERT INTO tb_user_activity (
+        fk_user,
+        activity_type,
+        entity_type,
+        entity_id,
         occurred_at
     ) VALUES (
-        TG_TABLE_NAME,
-        TG_OP,
-        current_setting('app.user_id', true)::UUID,
-        CASE TG_OP WHEN 'DELETE' THEN row_to_json(OLD) ELSE NULL END,
-        CASE TG_OP WHEN 'INSERT' THEN row_to_json(NEW) WHEN 'UPDATE' THEN row_to_json(NEW) ELSE NULL END,
-        CASE TG_OP WHEN 'UPDATE' THEN
-            (SELECT jsonb_object_agg(key, value)
-             FROM jsonb_each(row_to_json(NEW)::JSONB)
-             WHERE row_to_json(OLD)::JSONB->key IS DISTINCT FROM value)
-        ELSE NULL END,
+        (input_data->>'author_id')::INTEGER,
+        'comment_created',
+        'comment',
+        v_comment_id,
         CURRENT_TIMESTAMP
     );
 
-    RETURN CASE TG_OP WHEN 'DELETE' THEN OLD ELSE NEW END;
+    -- Get result from view
+    SELECT data INTO v_comment_data
+    FROM v_comment
+    WHERE id = v_comment_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'comment', v_comment_data
+    );
 END;
 $$ LANGUAGE plpgsql;
-
--- Apply to tables
-CREATE TRIGGER audit_users
-    AFTER INSERT OR UPDATE OR DELETE ON tb_users
-    FOR EACH ROW EXECUTE FUNCTION fn_audit_mutation();
 ```
 
-#### Side Effects via Triggers
+#### Correct Pattern: Explicit Side Effects in Functions
+
+**WRONG: Do NOT use triggers on tb_ tables for side effects.**
 
 ```sql
--- Trigger for cascading updates
-CREATE OR REPLACE FUNCTION fn_after_order_confirmed()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Update inventory
-    UPDATE tb_inventory i
-    SET
-        available_quantity = available_quantity - oi.quantity,
-        reserved_quantity = reserved_quantity - oi.quantity
-    FROM tb_order_items oi
-    WHERE oi.order_id = NEW.id
-        AND i.product_id = oi.product_id;
+-- WRONG: Do NOT create triggers on tb_ tables for business logic
+-- CREATE TRIGGER after_post_published
+--     AFTER UPDATE OF is_published ON tb_post  -- NEVER DO THIS
+--     FOR EACH ROW EXECUTE FUNCTION fn_after_post_published();
 
-    -- Send notification
-    INSERT INTO tb_notifications (
-        user_id,
+-- CORRECT: Handle side effects explicitly in mutation functions
+CREATE OR REPLACE FUNCTION fn_publish_post(p_post_id INTEGER)
+RETURNS JSONB AS $$
+DECLARE
+    v_post RECORD;
+    v_author_id INTEGER;
+BEGIN
+    -- Update post status (NO triggers will fire)
+    UPDATE tb_post
+    SET is_published = true, published_at = NOW()
+    WHERE id = p_post_id
+    RETURNING *, fk_author INTO v_post, v_author_id;
+
+    -- Explicit stats updates (no hidden triggers)
+    PERFORM sync_post_stats(p_post_id);
+
+    -- Update user stats
+    PERFORM sync_user_stats(v_author_id);
+
+    -- Explicit notification creation
+    INSERT INTO tb_notification (
+        fk_user,
         type,
         title,
         message,
         data,
         created_at
     ) VALUES (
-        NEW.user_id,
-        'order_confirmed',
-        'Order Confirmed',
-        format('Your order #%s has been confirmed', NEW.order_number),
-        jsonb_build_object('order_id', NEW.id),
+        v_author_id,
+        'post_published',
+        'Post Published',
+        format('Your post "%s" has been published', v_post.title),
+        jsonb_build_object('post_id', v_post.id),
         CURRENT_TIMESTAMP
     );
 
-    -- Queue email
+    -- Explicit search index update
     PERFORM pg_notify(
-        'email_queue',
+        'search_index_queue',
         jsonb_build_object(
-            'type', 'order_confirmation',
-            'to', (SELECT email FROM tb_users WHERE id = NEW.user_id),
-            'order_id', NEW.id
+            'type', 'post_published',
+            'post_id', v_post.id,
+            'action', 'index'
         )::TEXT
     );
 
-    RETURN NEW;
+    -- Sync any affected tv_ tables
+    PERFORM sync_category_post_counts(v_post.fk_category);
+    PERFORM sync_tag_usage_stats(v_post.tags);
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'post', (SELECT data FROM v_post WHERE id = p_post_id)
+    );
 END;
 $$ LANGUAGE plpgsql;
+```
 
-CREATE TRIGGER after_order_confirmed
-    AFTER UPDATE OF status ON tb_orders
-    FOR EACH ROW
-    WHEN (OLD.status != 'confirmed' AND NEW.status = 'confirmed')
-    EXECUTE FUNCTION fn_after_order_confirmed();
+### Correct Use of Triggers: ONLY on tv_ Tables
+
+The ONLY acceptable triggers in FraiseQL are cache invalidation triggers on tv_ tables:
+
+```sql
+-- Acceptable: Cache invalidation trigger on tv_ table
+CREATE TABLE tv_post_stats (
+    id INTEGER GENERATED BY DEFAULT AS IDENTITY,
+    pk_post_stats UUID DEFAULT gen_random_uuid() NOT NULL,
+    fk_post INTEGER NOT NULL,
+    data JSONB NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+    CONSTRAINT pk_tv_post_stats PRIMARY KEY (id),
+    CONSTRAINT fk_tv_post_stats_post FOREIGN KEY (fk_post) REFERENCES tb_post(id)
+);
+
+-- ONLY acceptable trigger: cache invalidation on tv_ table
+CREATE TRIGGER trg_tv_post_stats_version
+AFTER INSERT OR UPDATE OR DELETE ON tv_post_stats
+FOR EACH STATEMENT
+EXECUTE FUNCTION fn_increment_version('post_stats');
 ```
 
 ### Return Type Patterns

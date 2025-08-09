@@ -43,7 +43,8 @@ from fraiseql import ID
 
 @fraiseql.type
 class User:
-    id: ID  # UUID in PostgreSQL, ID in GraphQL
+    id: ID  # Maps to pk_user in PostgreSQL
+    identifier: str | None = None
     name: str
     email: str
 
@@ -110,7 +111,8 @@ from fraiseql import ID, EmailAddress
 
 @fraiseql.type
 class User:
-    id: ID  # UUID in PostgreSQL, ID in GraphQL
+    id: ID  # Maps to pk_user in PostgreSQL
+    identifier: str | None = None
     email: EmailAddress
     name: str
     created_at: datetime
@@ -125,13 +127,13 @@ All views must return data in a JSONB column:
 -- migrations/001_create_user_view.sql
 CREATE VIEW v_user AS
 SELECT jsonb_build_object(
-    'id', id,  -- UUID, framework handles ID conversion
+    'id', pk_user,  -- UUID, framework handles ID conversion
     'email', email,
     'name', name,
     'created_at', created_at,
     'avatar_url', avatar_url
 ) AS data
-FROM users;
+FROM tb_users;
 ```
 
 ### 4. Define Queries

@@ -72,7 +72,7 @@ def test_unset_type_annotations():
 
 
 @fraise_input
-class TestInput:
+class SampleInput:
     """Test input type with UNSET defaults."""
 
     required_field: str
@@ -86,7 +86,7 @@ class TestInput:
 def test_input_class_with_unset_defaults():
     """Test that input classes work with UNSET defaults."""
     # Create instance with only required field
-    obj = TestInput(required_field="test")
+    obj = SampleInput(required_field="test")
 
     # All optional fields should be UNSET
     assert obj.optional_uuid is UNSET
@@ -96,7 +96,7 @@ def test_input_class_with_unset_defaults():
     assert obj.optional_dict is UNSET
 
     # Create instance with some fields set
-    obj2 = TestInput(
+    obj2 = SampleInput(
         required_field="test",
         optional_uuid=uuid.uuid4(),
         optional_str=None,  # Explicitly None
