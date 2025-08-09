@@ -465,10 +465,17 @@ def convert_type_to_graphql_output(
                                 snake_to_camel(name) if config.camel_case_fields else name
                             )
 
+                        # Wrap field resolver with enum serialization
+                        from fraiseql.gql.enum_serializer import (
+                            wrap_resolver_with_enum_serialization,
+                        )
+
                         gql_fields[graphql_field_name] = GraphQLField(
                             type_=convert_type_to_graphql_output(field_type),
                             description=field.description,
-                            resolve=make_field_resolver(name, field_type),
+                            resolve=wrap_resolver_with_enum_serialization(
+                                make_field_resolver(name, field_type)
+                            ),
                         )
 
                 # Check for custom field methods (@dataloader_field, @field, etc.)
