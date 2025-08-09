@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 logger = logging.getLogger("fraiseql.security")
 
@@ -70,6 +70,8 @@ class SecurityEventSeverity(str, Enum):
 class SecurityEvent(BaseModel):
     """Structured security event."""
 
+    model_config = ConfigDict()
+
     event_type: SecurityEventType
     severity: SecurityEventSeverity
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -84,10 +86,10 @@ class SecurityEvent(BaseModel):
     reason: Optional[str] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        """Pydantic config."""
-
-        json_encoders = {datetime: lambda v: v.isoformat()}
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, timestamp: datetime) -> str:
+        """Serialize datetime to ISO format."""
+        return timestamp.isoformat()
 
 
 class SecurityLogger:

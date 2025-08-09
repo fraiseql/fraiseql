@@ -53,11 +53,16 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
         conn.adapters.register_loader("timetz", TextLoader)
 
     # Create pool with the configure callback
+    # Use open=False to avoid deprecation warning in psycopg 3.2+
     pool = psycopg_pool.AsyncConnectionPool(
         database_url,
         configure=configure_types,
+        open=False,  # Don't open in constructor to avoid deprecation warning
         **pool_kwargs,
     )
+
+    # Open the pool explicitly as recommended
+    await pool.open()
 
     return pool
 
