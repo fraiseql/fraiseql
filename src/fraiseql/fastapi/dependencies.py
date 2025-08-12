@@ -50,6 +50,12 @@ def set_fraiseql_config(config) -> None:
     global _fraiseql_config
     _fraiseql_config = config
 
+    # Also set config in the schema registry for decorators to use
+    from fraiseql.gql.builders.registry import SchemaRegistry
+
+    registry = SchemaRegistry.get_instance()
+    registry.config = config
+
 
 # FastAPI dependencies
 security = HTTPBearer(auto_error=False)

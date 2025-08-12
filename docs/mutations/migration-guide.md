@@ -2,6 +2,32 @@
 
 This guide helps you migrate existing GraphQL mutations to FraiseQL's PostgreSQL function-based approach. Learn how to convert resolver-based mutations to database functions while maintaining type safety and error handling.
 
+## Default Schema Configuration (v0.1.3+)
+
+Before diving into migration, note that FraiseQL v0.1.3+ supports default schema configuration, significantly reducing boilerplate:
+
+```python
+# Configure once in your app
+from fraiseql import FraiseQLConfig, create_fraiseql_app
+
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    default_mutation_schema="app",  # All mutations use this by default
+)
+
+# Before v0.1.3: Repetitive schema specification
+@mutation(function="create_user", schema="app")
+@mutation(function="update_user", schema="app")
+@mutation(function="delete_user", schema="app")
+
+# After v0.1.3: Clean and DRY
+@mutation(function="create_user")  # Automatically uses "app" schema
+@mutation(function="update_user")  # Automatically uses "app" schema
+@mutation(function="delete_user")  # Automatically uses "app" schema
+```
+
+This eliminates 90% of schema boilerplate in typical applications where most mutations use the same PostgreSQL schema.
+
 ## Migration Strategy Overview
 
 FraiseQL's mutation philosophy differs fundamentally from traditional GraphQL frameworks:

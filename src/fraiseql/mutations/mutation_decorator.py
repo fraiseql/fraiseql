@@ -19,13 +19,16 @@ class MutationDefinition:
         self,
         mutation_class: type,
         function_name: str | None = None,
-        schema: str = "graphql",
+        schema: str | None = None,
         context_params: dict[str, str] | None = None,
         error_config: MutationErrorConfig | None = None,
     ) -> None:
         self.mutation_class = mutation_class
         self.name = mutation_class.__name__
-        self.schema = schema
+
+        # Use default schema from config if available and schema was not explicitly provided
+        self.schema = self._resolve_schema(schema)
+
         self.context_params = context_params or {}
         self.error_config = error_config
 
@@ -59,6 +62,26 @@ class MutationDefinition:
             # Convert CamelCase to snake_case
             # CreateUser -> create_user
             self.function_name = _camel_to_snake(self.name)
+
+    def _resolve_schema(self, provided_schema: str | None) -> str:
+        """Resolve the schema to use, considering defaults from config."""
+        # If schema was explicitly provided, use it
+        if provided_schema is not None:
+            return provided_schema
+
+        # Try to get default from registry config
+        try:
+            from fraiseql.gql.builders.registry import SchemaRegistry
+
+            registry = SchemaRegistry.get_instance()
+
+            if registry.config and hasattr(registry.config, "default_mutation_schema"):
+                return registry.config.default_mutation_schema
+        except ImportError:
+            pass
+
+        # Fall back to "public" as per feature requirements
+        return "public"
 
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
@@ -137,7 +160,7 @@ def mutation(
     _cls: type[T] | Callable[..., Any] | None = None,
     *,
     function: str | None = None,
-    schema: str = "graphql",
+    schema: str | None = None,
     context_params: dict[str, str] | None = None,
     error_config: MutationErrorConfig | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]] | Callable[..., Any]:

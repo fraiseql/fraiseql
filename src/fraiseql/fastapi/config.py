@@ -241,6 +241,10 @@ class FraiseQLConfig(BaseSettings):
     passthrough_cache_view_metadata: bool = True
     passthrough_view_metadata_ttl: int = 3600  # 1 hour
 
+    # Default schema settings
+    default_mutation_schema: str = "public"  # Default schema for mutations when not specified
+    default_query_schema: str = "public"  # Default schema for queries when not specified
+
     @field_validator("enable_introspection")
     @classmethod
     def introspection_for_dev_only(cls, v: bool, info) -> bool:

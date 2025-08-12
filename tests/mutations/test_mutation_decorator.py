@@ -52,7 +52,7 @@ class TestMutationDefinition:
         assert isinstance(definition, MutationDefinition)
         assert definition.name == "CreateUser"
         assert definition.function_name == "create_user"
-        assert definition.schema == "graphql"
+        assert definition.schema == "public"
         assert definition.input_type == SampleInput
         assert definition.success_type == SampleSuccess
         assert definition.error_type == SampleError
@@ -174,7 +174,7 @@ class TestMutationResolver:
 
         # Verify database function was called
         mock_db.execute_function.assert_called_once_with(
-            """graphql.create_user""", {"name": "John Doe", "email": "john@example.com"}
+            """public.create_user""", {"name": "John Doe", "email": "john@example.com"}
         )
 
         # Verify result type

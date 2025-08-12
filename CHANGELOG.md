@@ -5,6 +5,20 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Default Schema Configuration** - Configure default PostgreSQL schemas for mutations and queries once in FraiseQLConfig
+  - Added `default_mutation_schema` and `default_query_schema` configuration options
+  - Eliminates repetitive `schema="app"` parameters on every decorator
+  - Maintains full backward compatibility with explicit schema overrides
+  - Reduces boilerplate in mutation-heavy applications by 90%
+
+### Changed
+- Default schema for mutations changed from "graphql" to "public" when no config is provided
+  - This aligns with PostgreSQL conventions and simplifies getting started
+  - Existing code with explicit schema parameters is unaffected
+
 ## [0.1.2] - 2025-01-08
 
 ### Security

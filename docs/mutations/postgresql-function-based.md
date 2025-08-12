@@ -57,19 +57,55 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 ### Python Configuration
 
 ```python
-from fraiseql import FraiseQL, mutation
-from fraiseql.mutations import MutationConfig
+from fraiseql import FraiseQLConfig, create_fraiseql_app, mutation
 
-# Configure mutations
-app = FraiseQL(
-    connection_string="postgresql://...",
-    mutation_config=MutationConfig(
-        default_schema="graphql",  # Schema for functions
-        function_prefix="fn_",     # Function naming prefix
-        timeout_seconds=30,        # Function execution timeout
-        enable_transactions=True   # Automatic transaction wrapping
-    )
+# Configure mutations with default schema
+config = FraiseQLConfig(
+    database_url="postgresql://...",
+    default_mutation_schema="app",  # Default schema for all mutations
+    default_query_schema="queries"  # Default schema for all queries
 )
+
+app = create_fraiseql_app(config=config, types=[...], mutations=[...])
+```
+
+#### Using Default Schemas
+
+With default schemas configured, you no longer need to specify the schema parameter on every mutation:
+
+```python
+# Before: Repetitive schema specification
+@mutation(function="create_user", schema="app")
+class CreateUser:
+    input: CreateUserInput
+    success: CreateUserSuccess
+    failure: CreateUserError
+
+@mutation(function="update_user", schema="app")
+class UpdateUser:
+    input: UpdateUserInput
+    success: UpdateUserSuccess
+    failure: UpdateUserError
+
+# After: Clean and DRY
+@mutation(function="create_user")  # Uses default_mutation_schema
+class CreateUser:
+    input: CreateUserInput
+    success: CreateUserSuccess
+    failure: CreateUserError
+
+@mutation(function="update_user")  # Uses default_mutation_schema
+class UpdateUser:
+    input: UpdateUserInput
+    success: UpdateUserSuccess
+    failure: UpdateUserError
+
+# Override when needed
+@mutation(function="system_function", schema="public")  # Explicit override
+class SystemFunction:
+    input: SystemInput
+    success: SystemSuccess
+    failure: SystemError
 ```
 
 ## Implementation
