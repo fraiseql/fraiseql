@@ -1288,6 +1288,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#default-schema-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      Default Schema Settings
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#performance-settings" class="md-nav__link">
     <span class="md-ellipsis">
       Performance Settings
@@ -3398,6 +3407,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#default-schema-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      Default Schema Settings
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#performance-settings" class="md-nav__link">
     <span class="md-ellipsis">
       Performance Settings
@@ -3869,10 +3887,13 @@
 <a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">auth_enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">auth_provider</span><span class="o">=</span><span class="s2">&quot;auth0&quot;</span><span class="p">,</span>
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">auth0_domain</span><span class="o">=</span><span class="s2">&quot;myapp.auth0.com&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">auth0_api_identifier</span><span class="o">=</span><span class="s2">&quot;https://api.myapp.com&quot;</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="p">)</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="n">app</span> <span class="o">=</span> <span class="n">create_fraiseql_app</span><span class="p">(</span><span class="n">types</span><span class="o">=</span><span class="p">[</span><span class="n">User</span><span class="p">,</span> <span class="n">Post</span><span class="p">],</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">auth0_api_identifier</span><span class="o">=</span><span class="s2">&quot;https://api.myapp.com&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="c1"># Set default schemas for mutations and queries</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="n">default_mutation_schema</span><span class="o">=</span><span class="s2">&quot;app&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>    <span class="n">default_query_schema</span><span class="o">=</span><span class="s2">&quot;queries&quot;</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="p">)</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="n">app</span> <span class="o">=</span> <span class="n">create_fraiseql_app</span><span class="p">(</span><span class="n">types</span><span class="o">=</span><span class="p">[</span><span class="n">User</span><span class="p">,</span> <span class="n">Post</span><span class="p">],</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="complete-configuration-reference">Complete Configuration Reference<a class="headerlink" href="#complete-configuration-reference" title="Permanent link">&para;</a></h2>
 <h3 id="database-settings">Database Settings<a class="headerlink" href="#database-settings" title="Permanent link">&para;</a></h3>
@@ -4028,6 +4049,35 @@
 </tbody>
 </table>
 <p>*Automatically disabled in production unless explicitly enabled</p>
+<h3 id="default-schema-settings">Default Schema Settings<a class="headerlink" href="#default-schema-settings" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Environment Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>default_mutation_schema</code></td>
+<td>str</td>
+<td>"public"</td>
+<td><code>FRAISEQL_DEFAULT_MUTATION_SCHEMA</code></td>
+<td>Default PostgreSQL schema for mutations when not explicitly specified</td>
+</tr>
+<tr>
+<td><code>default_query_schema</code></td>
+<td>str</td>
+<td>"public"</td>
+<td><code>FRAISEQL_DEFAULT_QUERY_SCHEMA</code></td>
+<td>Default PostgreSQL schema for queries when not explicitly specified</td>
+</tr>
+</tbody>
+</table>
+<p>These settings eliminate the need to specify <code>schema="app"</code> on every mutation and query decorator. Configure once, use everywhere:</p>
 <h3 id="performance-settings">Performance Settings<a class="headerlink" href="#performance-settings" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
