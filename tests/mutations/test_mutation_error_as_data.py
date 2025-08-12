@@ -2,7 +2,7 @@
 
 import fraiseql
 from fraiseql.mutations.decorators import failure, success
-from fraiseql.mutations.error_config import PRINTOPTIM_ERROR_CONFIG
+from fraiseql.mutations.error_config import STRICT_STATUS_CONFIG
 from fraiseql.mutations.mutation_decorator import mutation
 from fraiseql.mutations.parser import parse_mutation_result
 from fraiseql.types.errors import Error
@@ -40,7 +40,7 @@ class TestMutationErrorAsData:
     """Test mutations that return errors as data."""
 
     def test_noop_status_returned_as_data(self) -> None:
-        """Test that noop: statuses are returned as data with PrintOptim config."""
+        """Test that noop: statuses are returned as data with strict status config."""
         # Simulate PostgreSQL result with noop status
         result = {
             "id": None,
@@ -51,9 +51,9 @@ class TestMutationErrorAsData:
             "extra_metadata": {"code": "noop:invalid_input", "reason": "missing_required_field"},
         }
 
-        # Parse with PrintOptim config - should return error type as data
+        # Parse with strict status config - should return error type as data
         parsed = parse_mutation_result(
-            result, MutationTestSuccess, MutationTestError, PRINTOPTIM_ERROR_CONFIG
+            result, MutationTestSuccess, MutationTestError, STRICT_STATUS_CONFIG
         )
 
         # Should be MutationTestError instance (not raised as GraphQL error)
@@ -63,7 +63,7 @@ class TestMutationErrorAsData:
         assert parsed.code == "noop:invalid_input"
 
     def test_failed_status_triggers_error(self) -> None:
-        """Test that failed: statuses still trigger errors with PrintOptim config."""
+        """Test that failed: statuses still trigger errors with strict status config."""
         # Simulate PostgreSQL result with failed status
         result = {
             "id": None,
@@ -74,9 +74,9 @@ class TestMutationErrorAsData:
             "extra_metadata": {"code": "failed:database_error", "error": "connection timeout"},
         }
 
-        # Parse with PrintOptim config - should return error type
+        # Parse with strict status config - should return error type
         parsed = parse_mutation_result(
-            result, MutationTestSuccess, MutationTestError, PRINTOPTIM_ERROR_CONFIG
+            result, MutationTestSuccess, MutationTestError, STRICT_STATUS_CONFIG
         )
 
         # Should be MutationTestError instance
@@ -90,15 +90,15 @@ class TestMutationErrorAsData:
         result = {
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "updated_fields": ["name"],
-            "status": "new",  # PrintOptim success status
+            "status": "new",  # strict status success status
             "message": "Entity created successfully",
             "object_data": {"id": "123e4567-e89b-12d3-a456-426614174000", "name": "Test Entity"},
             "extra_metadata": None,
         }
 
-        # Parse with PrintOptim config
+        # Parse with strict status config
         parsed = parse_mutation_result(
-            result, MutationTestSuccess, MutationTestError, PRINTOPTIM_ERROR_CONFIG
+            result, MutationTestSuccess, MutationTestError, STRICT_STATUS_CONFIG
         )
 
         # Should be MutationTestSuccess instance
@@ -109,16 +109,16 @@ class TestMutationErrorAsData:
         assert parsed.entity.name == "Test Entity"
 
     def test_mutation_with_printoptim_config(self) -> None:
-        """Test mutation decorator with PrintOptim error config."""
+        """Test mutation decorator with strict status error config."""
 
-        @mutation(function="test_mutation", schema="test", error_config=PRINTOPTIM_ERROR_CONFIG)
+        @mutation(function="test_mutation", schema="test", error_config=STRICT_STATUS_CONFIG)
         class TestMutation:
             input: MutationTestInput
             success: MutationTestSuccess
             failure: MutationTestError
 
         definition = TestMutation.__fraiseql_mutation__
-        assert definition.error_config == PRINTOPTIM_ERROR_CONFIG
+        assert definition.error_config == STRICT_STATUS_CONFIG
         assert definition.function_name == "test_mutation"
         assert definition.schema == "test"
 
@@ -134,7 +134,7 @@ class TestMutationErrorAsData:
         }
 
         parsed = parse_mutation_result(
-            result, MutationTestSuccess, MutationTestError, PRINTOPTIM_ERROR_CONFIG
+            result, MutationTestSuccess, MutationTestError, STRICT_STATUS_CONFIG
         )
 
         assert isinstance(parsed, MutationTestError)

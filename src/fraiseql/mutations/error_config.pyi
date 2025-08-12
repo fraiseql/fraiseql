@@ -20,11 +20,11 @@ class MutationErrorConfig:
 # Pre-configured error configurations
 ALWAYS_DATA_CONFIG: MutationErrorConfig
 DEFAULT_ERROR_CONFIG: MutationErrorConfig
-PRINTOPTIM_ERROR_CONFIG: MutationErrorConfig
+STRICT_STATUS_CONFIG: MutationErrorConfig
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",
     "DEFAULT_ERROR_CONFIG",
-    "PRINTOPTIM_ERROR_CONFIG",
+    "STRICT_STATUS_CONFIG",
     "MutationErrorConfig",
 ]

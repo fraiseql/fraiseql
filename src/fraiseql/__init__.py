@@ -12,7 +12,7 @@ from .mutations.decorators import failure, result, success
 from .mutations.error_config import (
     ALWAYS_DATA_CONFIG,
     DEFAULT_ERROR_CONFIG,
-    PRINTOPTIM_ERROR_CONFIG,
+    STRICT_STATUS_CONFIG,
     MutationErrorConfig,
 )
 from .mutations.mutation_decorator import mutation
@@ -71,13 +71,13 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",
     "DEFAULT_ERROR_CONFIG",
     "JSON",
-    "PRINTOPTIM_ERROR_CONFIG",
+    "STRICT_STATUS_CONFIG",
     "UNSET",
     "Auth0Config",
     "Auth0Provider",
