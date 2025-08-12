@@ -73,6 +73,7 @@ The framework supports both regular views (`v_` prefix) for real-time data and t
 - **High Performance**: Built-in query optimization, caching, and N+1 query detection
 - **Security**: Field-level authorization, rate limiting, CSRF protection
 - **Developer Experience**: Hot reload, GraphQL playground, comprehensive error messages
+- **Default Schema Configuration**: Configure default PostgreSQL schemas once, eliminate repetitive boilerplate
 
 ### Why FraiseQL?
 

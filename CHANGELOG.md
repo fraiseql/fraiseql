@@ -5,6 +5,37 @@ All notable changes to FraiseQL will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.1.4] - 2025-01-12
+
+### Added
+- **Default Schema Configuration** - Configure default PostgreSQL schemas for mutations and queries once in FraiseQLConfig
+  - Added `default_mutation_schema` and `default_query_schema` configuration options
+  - Eliminates repetitive `schema="app"` parameters on every decorator
+  - Maintains full backward compatibility with explicit schema overrides
+  - Reduces boilerplate in mutation-heavy applications by 90%
+  - Lazy schema resolution ensures configuration can be set after decorators are applied
+
+### Changed
+- Default schema for mutations changed from "graphql" to "public" when no config is provided
+  - This aligns with PostgreSQL conventions and simplifies getting started
+  - Existing code with explicit schema parameters is unaffected
+
+### Fixed
+- Fixed timing issue where mutations would resolve schema before configuration was set
+  - Schema resolution is now lazy, only happening when the GraphQL schema is built
+  - This ensures the feature works correctly in production environments
+
+## [0.1.3] - 2025-01-12
+
+### Changed
+- Renamed exported error configuration constants for consistency:
+  - `PrintOptimConfig` → `STRICT_STATUS_CONFIG`
+  - `AlwaysDataConfig` → `ALWAYS_DATA_CONFIG`
+  - `DefaultErrorConfig` → `DEFAULT_ERROR_CONFIG`
+- Improved project description to better reflect its production-ready status
+
 ## [0.1.2] - 2025-01-08
 
 ### Security

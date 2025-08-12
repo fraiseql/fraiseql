@@ -62,7 +62,10 @@ config = FraiseQLConfig(
     auth_enabled=True,
     auth_provider="auth0",
     auth0_domain="myapp.auth0.com",
-    auth0_api_identifier="https://api.myapp.com"
+    auth0_api_identifier="https://api.myapp.com",
+    # Set default schemas for mutations and queries
+    default_mutation_schema="app",
+    default_query_schema="queries"
 )
 
 app = create_fraiseql_app(types=[User, Post], config=config)
@@ -116,6 +119,15 @@ config = FraiseQLConfig(
 | `auto_camel_case` | bool | True | `FRAISEQL_AUTO_CAMEL_CASE` | Convert snake_case to camelCase in GraphQL |
 
 *Automatically disabled in production unless explicitly enabled
+
+### Default Schema Settings
+
+| Parameter | Type | Default | Environment Variable | Description |
+|-----------|------|---------|---------------------|-------------|
+| `default_mutation_schema` | str | "public" | `FRAISEQL_DEFAULT_MUTATION_SCHEMA` | Default PostgreSQL schema for mutations when not explicitly specified |
+| `default_query_schema` | str | "public" | `FRAISEQL_DEFAULT_QUERY_SCHEMA` | Default PostgreSQL schema for queries when not explicitly specified |
+
+These settings eliminate the need to specify `schema="app"` on every mutation and query decorator. Configure once, use everywhere:
 
 ### Performance Settings
 

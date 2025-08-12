@@ -51,7 +51,11 @@ async def search_users(
 ### @mutation
 
 ```python
-@fraiseql.mutation
+@fraiseql.mutation(
+    function: str | None = None,
+    schema: str | None = None,
+    context_params: dict[str, str] | None = None
+)
 def mutation_function(info, *args, **kwargs) -> MutationResult
 ```
 
@@ -59,12 +63,42 @@ Defines a GraphQL mutation with automatic error handling and result typing.
 
 #### Parameters
 
+- `function`: PostgreSQL function name (defaults to snake_case of class name)
+- `schema`: PostgreSQL schema containing the function (defaults to `default_mutation_schema` from config, or "public")
+- `context_params`: Maps GraphQL context keys to PostgreSQL function parameter names
 - `info`: GraphQL resolver info
 - `*args, **kwargs`: Mutation input parameters
 
 #### Returns
 
 Mutation result object with success/error states.
+
+#### Default Schema Configuration
+
+As of v0.1.3, you can configure a default schema for all mutations in your FraiseQLConfig:
+
+```python
+from fraiseql import FraiseQLConfig, create_fraiseql_app
+
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    default_mutation_schema="app",  # All mutations use this schema by default
+)
+
+# Now mutations don't need to specify schema repeatedly
+@mutation(function="create_user")  # Uses "app" schema
+class CreateUser:
+    input: CreateUserInput
+    success: CreateUserSuccess
+    failure: CreateUserError
+
+# Override when needed
+@mutation(function="system_function", schema="public")  # Explicit override
+class SystemFunction:
+    input: SystemInput
+    success: SystemSuccess
+    failure: SystemError
+```
 
 #### Configuration
 
