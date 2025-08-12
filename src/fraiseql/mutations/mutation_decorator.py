@@ -26,8 +26,9 @@ class MutationDefinition:
         self.mutation_class = mutation_class
         self.name = mutation_class.__name__
 
-        # Use default schema from config if available and schema was not explicitly provided
-        self.schema = self._resolve_schema(schema)
+        # Store the provided schema for lazy resolution
+        self._provided_schema = schema
+        self._resolved_schema = None  # Will be resolved lazily
 
         self.context_params = context_params or {}
         self.error_config = error_config
@@ -62,6 +63,18 @@ class MutationDefinition:
             # Convert CamelCase to snake_case
             # CreateUser -> create_user
             self.function_name = _camel_to_snake(self.name)
+
+    @property
+    def schema(self) -> str:
+        """Get the schema, resolving it lazily if needed."""
+        if self._resolved_schema is None:
+            self._resolved_schema = self._resolve_schema(self._provided_schema)
+        return self._resolved_schema
+
+    @schema.setter
+    def schema(self, value: str) -> None:
+        """Allow setting the schema directly for testing."""
+        self._resolved_schema = value
 
     def _resolve_schema(self, provided_schema: str | None) -> str:
         """Resolve the schema to use, considering defaults from config."""
