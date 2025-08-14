@@ -236,11 +236,250 @@ $$ LANGUAGE plpgsql;
 
 ### Python Resolver Patterns
 
-[Content placeholder - How to parse mutation_result in resolvers]
+FraiseQL's Python resolvers automatically handle `app.mutation_result` responses and convert them into GraphQL union types. The resolver pattern follows a consistent structure that parses the mutation result and maps it to appropriate success or error types.
+
+```python
+import fraiseql
+from fraiseql import mutation, input, success, failure
+from uuid import UUID
+from graphql import GraphQLResolveInfo
+
+# Define input type
+@input
+class CreateUserInput:
+    email: str
+    name: str
+    roles: list[str] | None = None
+
+# Define success response
+@success
+class CreateUserSuccess:
+    user: User
+    message: str = "User created successfully"
+
+# Define error response
+@failure
+class CreateUserError:
+    message: str
+    error_code: str
+    validation_errors: dict[str, str] | None = None
+
+# Mutation resolver
+@mutation
+async def create_user(
+    info: GraphQLResolveInfo,
+    input: CreateUserInput
+) -> CreateUserSuccess | CreateUserError:
+    """Create a new user account."""
+    db = info.context["db"]
+    tenant_id = info.context["tenant_id"]
+    user_id = info.context.get("user_id")
+
+    # Call PostgreSQL function that returns app.mutation_result
+    result = await db.call_function(
+        "app.create_user",
+        input_pk_organization=tenant_id,
+        input_created_by=user_id,
+        input_payload=input.to_dict()
+    )
+
+    # Parse mutation result
+    return _parse_user_mutation_result(result, CreateUserSuccess, CreateUserError)
+
+def _parse_user_mutation_result(
+    result: dict,
+    success_type,
+    error_type
+):
+    """Helper to parse mutation result into GraphQL types."""
+    status = result["status"]
+
+    # Handle success cases
+    if status in ["new", "updated"]:
+        user_data = result["object_data"]
+        return success_type(
+            user=User.from_dict(user_data),
+            message=result["message"]
+        )
+
+    # Handle NOOP cases as errors
+    elif status.startswith("noop:"):
+        error_code = status.replace("noop:", "").upper()
+        return error_type(
+            message=result["message"],
+            error_code=error_code,
+            validation_errors=_extract_validation_errors(result)
+        )
+
+    # Handle unexpected status
+    else:
+        return error_type(
+            message=f"Unexpected mutation status: {status}",
+            error_code="INTERNAL_ERROR"
+        )
+
+def _extract_validation_errors(result: dict) -> dict[str, str] | None:
+    """Extract validation errors from mutation result metadata."""
+    extra_metadata = result.get("extra_metadata", {})
+    return extra_metadata.get("validation_errors")
+```
 
 ### Success/Error Type Mapping
 
-[Content placeholder - Converting mutation_result to GraphQL union types]
+The mutation result status codes map directly to GraphQL response types:
+
+| Status Pattern | GraphQL Type | Description |
+|----------------|--------------|-------------|
+| `new` | Success | Entity created successfully |
+| `updated` | Success | Entity modified successfully |
+| `deleted` | Success | Entity removed successfully |
+| `noop:*` | Error | Operation failed, return reason |
+
+### Advanced Resolver Pattern
+
+For more complex scenarios, you can access all mutation result fields:
+
+```python
+@mutation
+async def update_user_profile(
+    info: GraphQLResolveInfo,
+    id: UUID,
+    input: UpdateUserInput
+) -> UpdateUserSuccess | UpdateUserError:
+    """Update user profile with detailed change tracking."""
+    db = info.context["db"]
+    tenant_id = info.context["tenant_id"]
+
+    result = await db.call_function(
+        "app.update_user",
+        input_pk_organization=tenant_id,
+        input_pk_user=id,  # Note: Use pk_ for function parameters
+        input_updated_by=info.context["user_id"],
+        input_payload=input.to_dict()
+    )
+
+    status = result["status"]
+
+    if status == "updated":
+        return UpdateUserSuccess(
+            user=User.from_dict(result["object_data"]),
+            message=result["message"],
+            changed_fields=result["updated_fields"],  # Field-level tracking
+            audit_id=result["extra_metadata"]["audit_id"]
+        )
+    elif status == "noop:no_changes":
+        return UpdateUserSuccess(
+            user=User.from_dict(result["object_data"]),
+            message="No changes were needed",
+            changed_fields=[]  # Empty array for no changes
+        )
+    elif status.startswith("noop:"):
+        error_code = status.replace("noop:", "").upper()
+        return UpdateUserError(
+            message=result["message"],
+            error_code=error_code,
+            entity_id=result["id"]
+        )
+    else:
+        return UpdateUserError(
+            message=f"Unexpected status: {status}",
+            error_code="INTERNAL_ERROR"
+        )
+```
+
+### Batch Mutation Handling
+
+For batch operations, parse each mutation result individually:
+
+```python
+@mutation
+async def batch_update_users(
+    info: GraphQLResolveInfo,
+    updates: list[BatchUserUpdate]
+) -> BatchUpdateUsersResult:
+    """Update multiple users in a batch operation."""
+    db = info.context["db"]
+    tenant_id = info.context["tenant_id"]
+
+    # Call batch function that returns array of mutation_result
+    results = await db.call_function(
+        "app.batch_update_users",
+        input_pk_organization=tenant_id,
+        input_updates=[update.to_dict() for update in updates]
+    )
+
+    successful_updates = []
+    failed_updates = []
+
+    for result in results:
+        if result["status"] in ["updated", "noop:no_changes"]:
+            successful_updates.append(
+                UserUpdateResult(
+                    user=User.from_dict(result["object_data"]),
+                    changed_fields=result["updated_fields"],
+                    status=result["status"]
+                )
+            )
+        else:
+            failed_updates.append(
+                UserUpdateError(
+                    entity_id=result["id"],
+                    error_code=result["status"].replace("noop:", "").upper(),
+                    message=result["message"]
+                )
+            )
+
+    return BatchUpdateUsersResult(
+        successful=successful_updates,
+        failed=failed_updates,
+        total_processed=len(results)
+    )
+```
+
+### Context Integration
+
+Mutation resolvers automatically receive context from FraiseQL:
+
+```python
+@mutation
+async def delete_user(
+    info: GraphQLResolveInfo,
+    id: UUID
+) -> DeleteUserSuccess | DeleteUserError:
+    """Delete a user with proper authorization."""
+
+    # Context automatically provided by FraiseQL
+    db = info.context["db"]              # Database connection
+    tenant_id = info.context["tenant_id"] # Multi-tenant context
+    current_user = info.context.get("user_id")  # Authenticated user
+    permissions = info.context.get("permissions", [])
+
+    # Authorization check
+    if "delete_user" not in permissions:
+        return DeleteUserError(
+            message="Insufficient permissions to delete users",
+            error_code="INSUFFICIENT_PERMISSIONS"
+        )
+
+    result = await db.call_function(
+        "app.delete_user",
+        input_pk_organization=tenant_id,
+        input_pk_user=id,
+        input_deleted_by=current_user
+    )
+
+    if result["status"] == "deleted":
+        return DeleteUserSuccess(
+            deleted_id=result["id"],
+            message=result["message"]
+        )
+    else:
+        error_code = result["status"].replace("noop:", "").upper()
+        return DeleteUserError(
+            message=result["message"],
+            error_code=error_code
+        )
+```
 
 ## Metadata Patterns
 
