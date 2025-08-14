@@ -1259,55 +1259,884 @@ $$ LANGUAGE plpgsql;
 
 ### Validation Failures
 
-[Content placeholder - Handling validation errors]
+Validation errors should be handled consistently using NOOP status codes:
+
+```sql
+-- Multi-field validation example
+CREATE OR REPLACE FUNCTION app.validate_user_data(
+    input_data JSONB
+) RETURNS JSONB AS $$
+DECLARE
+    validation_errors JSONB := '{}'::JSONB;
+BEGIN
+    -- Email validation
+    IF input_data ? 'email' THEN
+        IF input_data->>'email' !~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' THEN
+            validation_errors := validation_errors ||
+                jsonb_build_object('email', 'Invalid email format');
+        END IF;
+    END IF;
+
+    -- Age validation
+    IF input_data ? 'age' THEN
+        IF (input_data->>'age')::INT < 18 OR (input_data->>'age')::INT > 120 THEN
+            validation_errors := validation_errors ||
+                jsonb_build_object('age', 'Age must be between 18 and 120');
+        END IF;
+    END IF;
+
+    -- Phone validation
+    IF input_data ? 'phone' THEN
+        IF input_data->>'phone' !~ '^\+?[1-9]\d{1,14}$' THEN
+            validation_errors := validation_errors ||
+                jsonb_build_object('phone', 'Invalid phone number format');
+        END IF;
+    END IF;
+
+    RETURN validation_errors;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Usage in mutation functions
+CREATE OR REPLACE FUNCTION app.create_user_with_validation(
+    input_pk_organization UUID,
+    input_created_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_validation_errors JSONB;
+BEGIN
+    -- Validate input data
+    v_validation_errors := app.validate_user_data(input_payload);
+
+    IF v_validation_errors != '{}'::JSONB THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_created_by,
+            input_entity_type := 'user',
+            input_entity_id := NULL,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:validation_failed',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Validation failed for multiple fields',
+            input_payload_before := NULL,
+            input_payload_after := NULL,
+            input_extra_metadata := jsonb_build_object(
+                'validation_errors', v_validation_errors
+            )
+        );
+    END IF;
+
+    -- Continue with creation...
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ### Business Rule Violations
 
-[Content placeholder - Business logic error patterns]
+Business rule violations should use descriptive NOOP status codes:
+
+```sql
+-- Business rule validation example
+CREATE OR REPLACE FUNCTION app.transfer_project_ownership(
+    input_pk_organization UUID,
+    input_pk_project UUID,
+    input_new_owner_id UUID,
+    input_transferred_by UUID
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_project_data JSONB;
+    v_new_owner_data JSONB;
+    v_active_tasks_count INTEGER;
+BEGIN
+    -- Get project data
+    SELECT to_jsonb(p.*) INTO v_project_data
+    FROM public.v_project p
+    WHERE p.id = input_pk_project;
+
+    -- Business Rule 1: Project must exist
+    IF v_project_data IS NULL THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_transferred_by,
+            input_entity_type := 'project',
+            input_entity_id := input_pk_project,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:not_found',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Project not found',
+            input_payload_before := NULL,
+            input_payload_after := NULL
+        );
+    END IF;
+
+    -- Business Rule 2: Cannot transfer to same owner
+    IF v_project_data->>'owner_id' = input_new_owner_id::TEXT THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_transferred_by,
+            input_entity_type := 'project',
+            input_entity_id := input_pk_project,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:same_owner',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Project is already owned by this user',
+            input_payload_before := v_project_data,
+            input_payload_after := v_project_data
+        );
+    END IF;
+
+    -- Business Rule 3: New owner must exist and be active
+    SELECT to_jsonb(u.*) INTO v_new_owner_data
+    FROM public.v_user u
+    WHERE u.id = input_new_owner_id
+      AND u.tenant_id = input_pk_organization
+      AND u.status = 'active';
+
+    IF v_new_owner_data IS NULL THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_transferred_by,
+            input_entity_type := 'project',
+            input_entity_id := input_pk_project,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:invalid_new_owner',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'New owner must be an active user in this organization',
+            input_payload_before := v_project_data,
+            input_payload_after := v_project_data,
+            input_extra_metadata := jsonb_build_object(
+                'attempted_new_owner_id', input_new_owner_id
+            )
+        );
+    END IF;
+
+    -- Business Rule 4: Cannot transfer project with active critical tasks
+    SELECT COUNT(*) INTO v_active_tasks_count
+    FROM tenant.tb_task
+    WHERE pk_project = input_pk_project
+      AND data->>'status' IN ('in_progress', 'blocked')
+      AND data->>'priority' = 'critical';
+
+    IF v_active_tasks_count > 0 THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_transferred_by,
+            input_entity_type := 'project',
+            input_entity_id := input_pk_project,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:has_critical_tasks',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := format('Cannot transfer project with %s active critical tasks', v_active_tasks_count),
+            input_payload_before := v_project_data,
+            input_payload_after := v_project_data,
+            input_extra_metadata := jsonb_build_object(
+                'critical_tasks_count', v_active_tasks_count,
+                'suggested_action', 'complete_or_reassign_critical_tasks'
+            )
+        );
+    END IF;
+
+    -- All business rules passed, perform the transfer
+    UPDATE tenant.tb_project
+    SET
+        data = data || jsonb_build_object(
+            'owner_id', input_new_owner_id,
+            'previous_owner_id', v_project_data->>'owner_id',
+            'transferred_at', NOW()
+        ),
+        updated_by = input_transferred_by,
+        updated_at = NOW()
+    WHERE pk_project = input_pk_project;
+
+    -- Return success
+    RETURN core.log_and_return_mutation(
+        input_pk_organization := input_pk_organization,
+        input_actor := input_transferred_by,
+        input_entity_type := 'project',
+        input_entity_id := input_pk_project,
+        input_modification_type := 'UPDATE',
+        input_change_status := 'updated',
+        input_fields := ARRAY['owner_id', 'previous_owner_id', 'transferred_at']::TEXT[],
+        input_message := 'Project ownership transferred successfully',
+        input_payload_before := v_project_data,
+        input_payload_after := (SELECT to_jsonb(p.*) FROM public.v_project p WHERE p.id = input_pk_project),
+        input_extra_metadata := jsonb_build_object(
+            'transfer_type', 'ownership_change',
+            'new_owner_email', v_new_owner_data->>'email'
+        )
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ## Migration Guide
 
 ### Converting Existing Mutations
 
-[Content placeholder - How to migrate from ad-hoc returns]
+**Step 1: Identify Current Return Pattern**
+
+First, catalog your existing mutation return formats:
+
+```sql
+-- OLD: Ad-hoc return format
+CREATE FUNCTION fn_old_create_user(input_data JSON)
+RETURNS JSON AS $$
+BEGIN
+    -- ... logic
+    RETURN json_build_object(
+        'success', true,
+        'user_id', new_user_id,
+        'message', 'User created'
+    );
+EXCEPTION
+    WHEN unique_violation THEN
+        RETURN json_build_object(
+            'success', false,
+            'error', 'Email already exists'
+        );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Step 2: Create New Function with Mutation Result Pattern**
+
+```sql
+-- NEW: Mutation result pattern
+CREATE FUNCTION app.create_user(
+    input_pk_organization UUID,
+    input_created_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_new_user_id UUID;
+    v_user_data JSONB;
+BEGIN
+    -- Check for duplicate email
+    IF EXISTS (
+        SELECT 1 FROM tenant.tb_user
+        WHERE pk_organization = input_pk_organization
+          AND data->>'email' = input_payload->>'email'
+    ) THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_created_by,
+            input_entity_type := 'user',
+            input_entity_id := NULL,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:already_exists',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Email already exists',
+            input_payload_before := NULL,
+            input_payload_after := NULL,
+            input_extra_metadata := jsonb_build_object(
+                'conflict_field', 'email',
+                'conflict_value', input_payload->>'email'
+            )
+        );
+    END IF;
+
+    -- Create user
+    v_new_user_id := gen_random_uuid();
+    INSERT INTO tenant.tb_user (pk_user, pk_organization, data, created_by)
+    VALUES (v_new_user_id, input_pk_organization, input_payload, input_created_by);
+
+    -- Get complete user data
+    SELECT to_jsonb(u.*) INTO v_user_data
+    FROM public.v_user u WHERE u.id = v_new_user_id;
+
+    RETURN core.log_and_return_mutation(
+        input_pk_organization := input_pk_organization,
+        input_actor := input_created_by,
+        input_entity_type := 'user',
+        input_entity_id := v_new_user_id,
+        input_modification_type := 'INSERT',
+        input_change_status := 'new',
+        input_fields := ARRAY[]::TEXT[],
+        input_message := 'User created successfully',
+        input_payload_before := NULL,
+        input_payload_after := v_user_data
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Step 3: Update Python Resolvers**
+
+```python
+# OLD: Direct JSON handling
+@mutation
+async def create_user_old(info, input: CreateUserInput):
+    result = await info.context["db"].execute_function(
+        "fn_old_create_user", input.to_dict()
+    )
+
+    if result["success"]:
+        user = await get_user_by_id(result["user_id"])
+        return CreateUserSuccess(user=user)
+    else:
+        return CreateUserError(message=result["error"])
+
+# NEW: Mutation result pattern
+@mutation
+async def create_user(
+    info: GraphQLResolveInfo,
+    input: CreateUserInput
+) -> CreateUserSuccess | CreateUserError:
+    result = await info.context["db"].call_function(
+        "app.create_user",
+        input_pk_organization=info.context["tenant_id"],
+        input_created_by=info.context["user_id"],
+        input_payload=input.to_dict()
+    )
+
+    if result["status"] == "new":
+        return CreateUserSuccess(
+            user=User.from_dict(result["object_data"]),
+            message=result["message"]
+        )
+    else:
+        error_code = result["status"].replace("noop:", "").upper()
+        return CreateUserError(
+            message=result["message"],
+            error_code=error_code
+        )
+```
 
 ### Backward Compatibility
 
-[Content placeholder - Maintaining compatibility during migration]
+**Option 1: Wrapper Functions**
+
+Create wrapper functions that convert mutation results back to old format:
+
+```sql
+-- Compatibility wrapper
+CREATE FUNCTION fn_create_user_compat(input_data JSON)
+RETURNS JSON AS $$
+DECLARE
+    v_result app.mutation_result;
+BEGIN
+    -- Call new function
+    v_result := app.create_user(
+        (input_data->>'tenant_id')::UUID,
+        (input_data->>'user_id')::UUID,
+        input_data
+    );
+
+    -- Convert to old format
+    IF v_result.status IN ('new', 'updated') THEN
+        RETURN json_build_object(
+            'success', true,
+            'user_id', v_result.id,
+            'message', v_result.message
+        );
+    ELSE
+        RETURN json_build_object(
+            'success', false,
+            'error', v_result.message,
+            'code', v_result.status
+        );
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Option 2: Gradual Migration**
+
+1. Deploy new functions alongside old ones
+2. Update resolvers one by one
+3. Migrate client code gradually
+4. Remove old functions when migration is complete
 
 ## Best Practices
 
 ### Do's and Don'ts
 
-[Content placeholder - Best practices for using mutation result pattern]
+**✅ DO:**
+
+- **Always use core.log_and_return_mutation** for consistent results
+- **Use descriptive NOOP status codes** like `noop:invalid_email` instead of generic `noop:validation_failed`
+- **Include meaningful metadata** in the `extra_metadata` field for debugging
+- **Calculate changed fields accurately** using proper before/after comparison
+- **Validate input early** and return NOOP status for validation failures
+- **Use consistent field naming** across all mutation functions
+- **Log audit information** for all mutation attempts, even NOOPs
+- **Return complete object data** from views, not internal table data
+
+**❌ DON'T:**
+
+- **Don't throw exceptions** for business logic failures - use NOOP status codes
+- **Don't return inconsistent message formats** - stick to the mutation result pattern
+- **Don't skip audit logging** - every mutation should be logged
+- **Don't expose internal IDs** - use the proper UUID mapping from command to query side
+- **Don't forget tenant context** - always validate pk_organization
+- **Don't return sensitive data** in error messages or metadata
+- **Don't perform mutations without proper authorization checks**
 
 ### Performance Considerations
 
-[Content placeholder - Performance implications and optimizations]
+**1. Minimize View Queries**
+```sql
+-- GOOD: Get view data once at the end
+DECLARE
+    v_user_data JSONB;
+BEGIN
+    -- ... do all mutations first
+
+    -- Get final state once
+    SELECT to_jsonb(u.*) INTO v_user_data
+    FROM public.v_user u WHERE u.id = v_user_id;
+
+    RETURN core.log_and_return_mutation(...);
+END;
+
+-- BAD: Multiple view queries
+BEGIN
+    SELECT to_jsonb(u.*) INTO v_before FROM public.v_user u WHERE u.id = v_user_id;
+    -- ... mutations
+    SELECT to_jsonb(u.*) INTO v_after FROM public.v_user u WHERE u.id = v_user_id;
+    -- ... more queries
+END;
+```
+
+**2. Use Efficient Change Detection**
+```sql
+-- GOOD: Smart field comparison
+v_changed_fields := core.calculate_changed_fields(v_before_data, v_after_data);
+
+-- BAD: Manual field-by-field comparison
+IF v_before_data->>'email' != v_after_data->>'email' THEN
+    v_changed_fields := array_append(v_changed_fields, 'email');
+END IF;
+-- ... repeat for every field
+```
+
+**3. Batch Audit Logging**
+```sql
+-- For batch operations, consider batched audit inserts
+INSERT INTO audit.tb_mutation_log (...)
+SELECT ... FROM unnest($1::UUID[], $2::TEXT[], ...) AS batch_data;
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-[Content placeholder - Common problems and solutions]
+**1. "Function does not exist" Error**
+```
+ERROR: function app.create_user(uuid, uuid, jsonb) does not exist
+```
+
+**Solution:**
+- Verify function exists in the correct schema
+- Check parameter types match exactly
+- Ensure migrations have been applied
+
+**2. "Column 'id' does not exist" Error**
+```
+ERROR: column "id" does not exist in relation "tb_user"
+```
+
+**Solution:**
+- Use `pk_[entity]` for command-side tables
+- Use `id` only when querying views
+- Check your table structure
+
+**3. Empty `object_data` Field**
+```json
+{
+  "status": "new",
+  "object_data": null
+}
+```
+
+**Solution:**
+- Ensure the view query returns data
+- Check tenant isolation - entity may not be visible
+- Verify the view includes the new entity
+
+**4. Audit Log Not Created**
+
+**Solution:**
+- Check if `audit` schema exists
+- Verify permissions for audit table
+- Ensure `core.log_and_return_mutation` is being called
+
+**5. NOOP Status Not Handled in Client**
+```
+GraphQL Error: Cannot return null for non-nullable field
+```
+
+**Solution:**
+- Ensure all NOOP statuses are mapped to error types in resolver
+- Add proper error handling for unexpected status codes
 
 ### Debugging Techniques
 
-[Content placeholder - How to debug mutation result issues]
+**1. Add Debug Metadata**
+```sql
+input_extra_metadata := jsonb_build_object(
+    'debug_info', jsonb_build_object(
+        'function_name', 'app.create_user',
+        'input_size_bytes', octet_length(input_payload::text),
+        'execution_time_ms', EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_time),
+        'checks_performed', ARRAY['email_unique', 'org_valid', 'permissions']
+    )
+);
+```
+
+**2. Enable SQL Logging**
+```sql
+-- Temporarily log intermediate states
+RAISE NOTICE 'Before state: %', v_before_data;
+RAISE NOTICE 'After state: %', v_after_data;
+RAISE NOTICE 'Changed fields: %', v_changed_fields;
+```
+
+**3. Query Audit Logs**
+```sql
+-- Find recent mutations for debugging
+SELECT
+    created_at,
+    entity_type,
+    change_status,
+    message,
+    extra_metadata
+FROM audit.tb_mutation_log
+WHERE entity_id = 'your-entity-uuid'
+ORDER BY created_at DESC
+LIMIT 10;
+```
+
+**4. Validate Mutation Result Structure**
+```python
+# In your resolver
+result = await db.call_function(...)
+
+# Add validation
+required_fields = ['id', 'status', 'message', 'object_data', 'updated_fields', 'extra_metadata']
+for field in required_fields:
+    if field not in result:
+        logger.error(f"Missing required field '{field}' in mutation result")
+        raise ValueError(f"Invalid mutation result structure")
+```
 
 ## Integration Points
 
 ### Authentication and Authorization
 
-[Content placeholder - How mutation results work with auth]
+The mutation result pattern integrates seamlessly with FraiseQL's authentication and authorization systems:
+
+```python
+@mutation
+async def secure_mutation(
+    info: GraphQLResolveInfo,
+    input: SecureMutationInput
+) -> SecureMutationSuccess | SecureMutationError:
+    """Mutation with integrated auth checks."""
+
+    # Authentication check
+    user_id = info.context.get("user_id")
+    if not user_id:
+        return SecureMutationError(
+            message="Authentication required",
+            error_code="UNAUTHENTICATED"
+        )
+
+    # Authorization check
+    permissions = info.context.get("permissions", [])
+    if "manage_users" not in permissions:
+        return SecureMutationError(
+            message="Insufficient permissions",
+            error_code="INSUFFICIENT_PERMISSIONS"
+        )
+
+    # Call mutation function with authenticated context
+    result = await info.context["db"].call_function(
+        "app.secure_mutation",
+        input_pk_organization=info.context["tenant_id"],
+        input_actor=user_id,
+        input_payload=input.to_dict()
+    )
+
+    # Authorization failures are handled as NOOPs in the database
+    if result["status"] == "noop:insufficient_permissions":
+        return SecureMutationError(
+            message=result["message"],
+            error_code="INSUFFICIENT_PERMISSIONS"
+        )
+
+    # Handle success cases
+    if result["status"] in ["new", "updated"]:
+        return SecureMutationSuccess(
+            entity=Entity.from_dict(result["object_data"]),
+            message=result["message"]
+        )
+```
+
+**Database-Level Authorization:**
+```sql
+CREATE OR REPLACE FUNCTION app.secure_user_update(
+    input_pk_organization UUID,
+    input_pk_user UUID,
+    input_actor UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+BEGIN
+    -- Check if actor has permission to modify this user
+    IF NOT EXISTS (
+        SELECT 1 FROM public.v_user_permissions up
+        WHERE up.user_id = input_actor
+          AND up.permission = 'manage_users'
+          AND up.tenant_id = input_pk_organization
+    ) THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_actor,
+            input_entity_type := 'user',
+            input_entity_id := input_pk_user,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:insufficient_permissions',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'User lacks permission to modify users',
+            input_payload_before := NULL,
+            input_payload_after := NULL,
+            input_extra_metadata := jsonb_build_object(
+                'required_permission', 'manage_users',
+                'actor_permissions', (
+                    SELECT array_agg(permission)
+                    FROM public.v_user_permissions
+                    WHERE user_id = input_actor
+                )
+            )
+        );
+    END IF;
+
+    -- Continue with authorized mutation...
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ### Multi-Tenant Patterns
 
-[Content placeholder - Tenant context in mutation results]
+Tenant isolation is enforced at every level of the mutation result pattern:
+
+```sql
+-- Tenant-aware mutation function
+CREATE OR REPLACE FUNCTION app.create_document(
+    input_pk_organization UUID,  -- Always first parameter
+    input_created_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_document_id UUID;
+    v_document_data JSONB;
+BEGIN
+    -- Verify user belongs to the organization
+    IF NOT EXISTS (
+        SELECT 1 FROM public.v_user u
+        WHERE u.id = input_created_by
+          AND u.tenant_id = input_pk_organization
+          AND u.status = 'active'
+    ) THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_created_by,
+            input_entity_type := 'document',
+            input_entity_id := NULL,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:tenant_mismatch',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'User does not belong to this organization',
+            input_payload_before := NULL,
+            input_payload_after := NULL
+        );
+    END IF;
+
+    -- Check for duplicate title within tenant
+    IF EXISTS (
+        SELECT 1 FROM tenant.tb_document
+        WHERE pk_organization = input_pk_organization  -- Tenant isolation
+          AND data->>'title' = input_payload->>'title'
+    ) THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_created_by,
+            input_entity_type := 'document',
+            input_entity_id := NULL,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:already_exists',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Document with this title already exists',
+            input_payload_before := NULL,
+            input_payload_after := NULL
+        );
+    END IF;
+
+    -- Create document with tenant context
+    v_document_id := gen_random_uuid();
+    INSERT INTO tenant.tb_document (
+        pk_document,
+        pk_organization,  -- Tenant foreign key
+        data,
+        created_by
+    ) VALUES (
+        v_document_id,
+        input_pk_organization,
+        input_payload,
+        input_created_by
+    );
+
+    -- Get document data (view automatically filters by tenant)
+    SELECT to_jsonb(d.*) INTO v_document_data
+    FROM public.v_document d
+    WHERE d.id = v_document_id
+      AND d.tenant_id = input_pk_organization;  -- Explicit tenant check
+
+    RETURN core.log_and_return_mutation(
+        input_pk_organization := input_pk_organization,
+        input_actor := input_created_by,
+        input_entity_type := 'document',
+        input_entity_id := v_document_id,
+        input_modification_type := 'INSERT',
+        input_change_status := 'new',
+        input_fields := ARRAY[]::TEXT[],
+        input_message := 'Document created successfully',
+        input_payload_before := NULL,
+        input_payload_after := v_document_data
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ### Cache Invalidation
 
-[Content placeholder - Cache invalidation with mutation results]
+Mutation results can trigger cache invalidation automatically:
+
+```python
+@mutation
+async def update_user_with_cache(
+    info: GraphQLResolveInfo,
+    id: UUID,
+    input: UpdateUserInput
+) -> UpdateUserSuccess | UpdateUserError:
+    """Update user with automatic cache invalidation."""
+
+    result = await info.context["db"].call_function(
+        "app.update_user",
+        input_pk_organization=info.context["tenant_id"],
+        input_pk_user=id,
+        input_updated_by=info.context["user_id"],
+        input_payload=input.to_dict()
+    )
+
+    # Handle successful updates with cache invalidation
+    if result["status"] == "updated":
+        # Get the list of changed fields from mutation result
+        changed_fields = result["updated_fields"]
+
+        # Invalidate specific caches based on what changed
+        cache = info.context["cache"]
+
+        if "email" in changed_fields:
+            await cache.invalidate(f"user:email:{result['object_data']['email']}")
+            await cache.invalidate(f"user:old_email:{result['extra_metadata'].get('previous_email')}")
+
+        if "name" in changed_fields:
+            await cache.invalidate(f"user:search:*")  # Invalidate name-based searches
+
+        if "status" in changed_fields:
+            await cache.invalidate(f"users:active:tenant:{info.context['tenant_id']}")
+
+        # Always invalidate the specific user cache
+        await cache.invalidate(f"user:{id}")
+
+        return UpdateUserSuccess(
+            user=User.from_dict(result["object_data"]),
+            message=result["message"],
+            changed_fields=changed_fields
+        )
+    elif result["status"] == "noop:no_changes":
+        # No cache invalidation needed for no-op
+        return UpdateUserSuccess(
+            user=User.from_dict(result["object_data"]),
+            message="No changes were needed",
+            changed_fields=[]
+        )
+    else:
+        error_code = result["status"].replace("noop:", "").upper()
+        return UpdateUserError(
+            message=result["message"],
+            error_code=error_code
+        )
+```
+
+**Cache Invalidation Patterns:**
+```python
+class CacheInvalidationService:
+    def __init__(self, cache_client):
+        self.cache = cache_client
+
+    async def invalidate_for_mutation_result(
+        self,
+        entity_type: str,
+        entity_id: UUID,
+        result: dict
+    ):
+        """Automatically invalidate caches based on mutation result."""
+
+        if result["status"] in ["new", "updated", "deleted"]:
+            # Always invalidate the specific entity
+            await self.cache.invalidate(f"{entity_type}:{entity_id}")
+
+            # Invalidate list caches that might include this entity
+            tenant_id = result["extra_metadata"].get("tenant_id")
+            if tenant_id:
+                await self.cache.invalidate(f"{entity_type}:list:tenant:{tenant_id}")
+
+            # Field-specific invalidations
+            if "updated_fields" in result and result["updated_fields"]:
+                for field in result["updated_fields"]:
+                    if field in ["name", "title", "slug"]:
+                        # Invalidate search caches
+                        await self.cache.invalidate(f"{entity_type}:search:*")
+                    elif field == "status":
+                        # Invalidate status-filtered lists
+                        await self.cache.invalidate(f"{entity_type}:status:*")
+
+            # Handle relationships
+            if entity_type == "user" and "department_id" in result.get("updated_fields", []):
+                # User changed departments, invalidate department user lists
+                old_dept = result["payload_before"].get("department_id")
+                new_dept = result["object_data"].get("department_id")
+
+                if old_dept:
+                    await self.cache.invalidate(f"department:{old_dept}:users")
+                if new_dept:
+                    await self.cache.invalidate(f"department:{new_dept}:users")
+```
+
+## Summary
+
+The Mutation Result Pattern establishes a standardized foundation for all mutations in FraiseQL applications. By using the `app.mutation_result` type and `core.log_and_return_mutation` function, you gain:
+
+**✅ Benefits Achieved:**
+- **Consistent API** - All mutations return the same structured response
+- **Complete Audit Trail** - Every mutation is logged with full context
+- **Field-Level Change Tracking** - Know exactly what changed
+- **Graceful Error Handling** - NOOP patterns eliminate exceptions
+- **Enterprise Compliance** - Built-in audit logging and metadata
+- **Debugging Support** - Rich metadata for troubleshooting
+- **Performance Optimization** - Efficient change detection and caching hooks
+
+**🚀 Next Steps:**
+1. Implement the `app.mutation_result` type in your database
+2. Create the `core.log_and_return_mutation` helper function
+3. Migrate one mutation at a time using the patterns shown
+4. Update your GraphQL resolvers to handle the new result structure
+5. Add comprehensive audit logging to your application
+
+This pattern scales from simple CRUD operations to complex business workflows while maintaining consistency and providing the metadata needed for enterprise applications.
 
 ## See Also
 
@@ -1315,3 +2144,5 @@ $$ LANGUAGE plpgsql;
 - [Migration Guide](./migration-guide.md) - Converting existing mutations
 - [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant context patterns
 - [CQRS](../advanced/cqrs.md) - Command-query separation principles
+- [Audit System](../advanced/audit-system.md) - Enterprise audit logging
+- [Cache Invalidation](../advanced/mutation-cache-patterns.md) - Cache management with mutations
