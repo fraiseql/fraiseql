@@ -1112,4 +1112,556 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
+## View Patterns with Audit Field Exposure
+
+FraiseQL views must expose audit information in a consistent, queryable format that supports GraphQL requirements while maintaining performance.
+
+### Standard Audit-Enabled Views
+
+Views should expose audit fields with proper naming conventions and user-friendly formats:
+
+```sql
+-- Standard entity view with comprehensive audit information
+CREATE OR REPLACE VIEW public.v_entity AS
+SELECT
+    e.pk_entity AS id,
+    e.pk_organization AS tenant_id,
+
+    -- Entity data fields
+    e.data->>'name' AS name,
+    e.data->>'description' AS description,
+    e.data->>'status' AS status,
+
+    -- Core audit fields (always present)
+    e.created_at,
+    e.created_by,
+    cu.data->>'name' AS created_by_name,
+    cu.data->>'email' AS created_by_email,
+
+    e.updated_at,
+    e.updated_by,
+    uu.data->>'name' AS updated_by_name,
+    uu.data->>'email' AS updated_by_email,
+
+    -- Soft delete audit fields
+    e.deleted_at,
+    e.deleted_by,
+    du.data->>'name' AS deleted_by_name,
+    du.data->>'email' AS deleted_by_email,
+
+    -- Version and change tracking
+    e.version,
+    e.change_reason,
+    e.change_source,
+
+    -- Computed audit fields
+    e.deleted_at IS NOT NULL AS is_deleted,
+    EXTRACT(EPOCH FROM (NOW() - e.created_at)) / 86400 AS age_days,
+    EXTRACT(EPOCH FROM (NOW() - e.updated_at)) / 86400 AS days_since_update,
+    CASE
+        WHEN e.updated_at > e.created_at + INTERVAL '1 minute' THEN true
+        ELSE false
+    END AS has_been_modified,
+
+    -- Complete audit trail as structured JSONB
+    jsonb_build_object(
+        'created', jsonb_build_object(
+            'timestamp', e.created_at,
+            'by_id', e.created_by,
+            'by_name', cu.data->>'name',
+            'by_email', cu.data->>'email'
+        ),
+        'last_updated', CASE WHEN e.updated_at > e.created_at THEN
+            jsonb_build_object(
+                'timestamp', e.updated_at,
+                'by_id', e.updated_by,
+                'by_name', uu.data->>'name',
+                'by_email', uu.data->>'email',
+                'reason', e.change_reason,
+                'source', e.change_source,
+                'version', e.version
+            ) END,
+        'deleted', CASE WHEN e.deleted_at IS NOT NULL THEN
+            jsonb_build_object(
+                'timestamp', e.deleted_at,
+                'by_id', e.deleted_by,
+                'by_name', du.data->>'name',
+                'by_email', du.data->>'email'
+            ) END,
+        'lifecycle', jsonb_build_object(
+            'current_version', e.version,
+            'age_days', ROUND(EXTRACT(EPOCH FROM (NOW() - e.created_at)) / 86400, 2),
+            'days_since_update', ROUND(EXTRACT(EPOCH FROM (NOW() - e.updated_at)) / 86400, 2),
+            'is_active', e.deleted_at IS NULL,
+            'modification_count', GREATEST(e.version - 1, 0)
+        )
+    ) AS audit_trail
+
+FROM tenant.tb_entity e
+-- Left joins for user information (handle deleted users gracefully)
+LEFT JOIN tenant.tb_user cu ON cu.pk_user = e.created_by
+LEFT JOIN tenant.tb_user uu ON uu.pk_user = e.updated_by
+LEFT JOIN tenant.tb_user du ON du.pk_user = e.deleted_by
+WHERE e.deleted_at IS NULL;  -- Standard view excludes soft-deleted records
+```
+
+### Comprehensive Audit View (Including Deleted Records)
+
+For admin interfaces and audit reporting, include soft-deleted entities:
+
+```sql
+-- Administrative view including all entities (active and deleted)
+CREATE OR REPLACE VIEW public.v_entity_audit AS
+SELECT
+    *,
+    -- Additional admin audit fields
+    CASE
+        WHEN deleted_at IS NOT NULL THEN 'deleted'
+        WHEN version > 1 THEN 'modified'
+        ELSE 'original'
+    END AS lifecycle_status,
+
+    -- Deletion audit information
+    CASE WHEN deleted_at IS NOT NULL THEN
+        ROUND(EXTRACT(EPOCH FROM (deleted_at - created_at)) / 86400, 2)
+    END AS lifespan_days,
+
+    CASE WHEN deleted_at IS NOT NULL THEN
+        ROUND(EXTRACT(EPOCH FROM (NOW() - deleted_at)) / 86400, 2)
+    END AS days_since_deletion,
+
+    -- Change frequency analysis
+    CASE
+        WHEN version = 1 THEN 'never_modified'
+        WHEN version <= 3 THEN 'low_activity'
+        WHEN version <= 10 THEN 'moderate_activity'
+        ELSE 'high_activity'
+    END AS modification_pattern
+
+FROM public.v_entity
+UNION ALL
+SELECT
+    e.pk_entity AS id,
+    e.pk_organization AS tenant_id,
+    e.data->>'name' AS name,
+    e.data->>'description' AS description,
+    e.data->>'status' AS status,
+    e.created_at,
+    e.created_by,
+    cu.data->>'name' AS created_by_name,
+    cu.data->>'email' AS created_by_email,
+    e.updated_at,
+    e.updated_by,
+    uu.data->>'name' AS updated_by_name,
+    uu.data->>'email' AS updated_by_email,
+    e.deleted_at,
+    e.deleted_by,
+    du.data->>'name' AS deleted_by_name,
+    du.data->>'email' AS deleted_by_email,
+    e.version,
+    e.change_reason,
+    e.change_source,
+    true AS is_deleted,  -- All records in this UNION are deleted
+    EXTRACT(EPOCH FROM (NOW() - e.created_at)) / 86400 AS age_days,
+    EXTRACT(EPOCH FROM (NOW() - e.updated_at)) / 86400 AS days_since_update,
+    true AS has_been_modified,  -- Deletion counts as modification
+
+    -- Audit trail for deleted entities
+    jsonb_build_object(
+        'created', jsonb_build_object(
+            'timestamp', e.created_at,
+            'by_id', e.created_by,
+            'by_name', cu.data->>'name'
+        ),
+        'deleted', jsonb_build_object(
+            'timestamp', e.deleted_at,
+            'by_id', e.deleted_by,
+            'by_name', du.data->>'name',
+            'reason', e.change_reason
+        ),
+        'lifecycle', jsonb_build_object(
+            'final_version', e.version,
+            'lifespan_days', ROUND(EXTRACT(EPOCH FROM (e.deleted_at - e.created_at)) / 86400, 2),
+            'days_since_deletion', ROUND(EXTRACT(EPOCH FROM (NOW() - e.deleted_at)) / 86400, 2)
+        )
+    ) AS audit_trail,
+
+    'deleted' AS lifecycle_status,
+    ROUND(EXTRACT(EPOCH FROM (e.deleted_at - e.created_at)) / 86400, 2) AS lifespan_days,
+    ROUND(EXTRACT(EPOCH FROM (NOW() - e.deleted_at)) / 86400, 2) AS days_since_deletion,
+
+    CASE
+        WHEN e.version = 1 THEN 'never_modified'
+        WHEN e.version <= 3 THEN 'low_activity'
+        WHEN e.version <= 10 THEN 'moderate_activity'
+        ELSE 'high_activity'
+    END AS modification_pattern
+
+FROM tenant.tb_entity e
+LEFT JOIN tenant.tb_user cu ON cu.pk_user = e.created_by
+LEFT JOIN tenant.tb_user uu ON uu.pk_user = e.updated_by
+LEFT JOIN tenant.tb_user du ON du.pk_user = e.deleted_by
+WHERE e.deleted_at IS NOT NULL;  -- Only soft-deleted records
+```
+
+### Performance-Optimized Cached Views
+
+For frequently accessed audit data, use TurboRouter cached views:
+
+```sql
+-- Cached view for high-performance audit queries
+CREATE OR REPLACE VIEW public.tv_entity_audit AS
+SELECT
+    id,
+    tenant_id,
+    name,
+    status,
+
+    -- Essential audit fields only (for performance)
+    created_at,
+    created_by_name,
+    updated_at,
+    updated_by_name,
+    version,
+    is_deleted,
+    days_since_update,
+
+    -- Simplified audit metadata
+    jsonb_build_object(
+        'version', version,
+        'last_update', updated_at,
+        'is_active', NOT is_deleted,
+        'age_category', CASE
+            WHEN days_since_update < 1 THEN 'recent'
+            WHEN days_since_update < 7 THEN 'current'
+            WHEN days_since_update < 30 THEN 'aging'
+            ELSE 'stale'
+        END
+    ) AS audit_summary,
+
+    -- TurboRouter cache timestamp
+    NOW() AS cached_at
+
+FROM public.v_entity;
+```
+
+## Change Tracking Utility Functions
+
+Comprehensive utilities for detecting, analyzing, and reporting data changes:
+
+### Field Change Detection
+
+```sql
+-- Enhanced change detection with field-level analysis
+CREATE OR REPLACE FUNCTION core.calculate_changed_fields(
+    p_before JSONB,
+    p_after JSONB
+) RETURNS TEXT[] AS $$
+DECLARE
+    v_changed_fields TEXT[] := ARRAY[]::TEXT[];
+    v_key TEXT;
+    v_before_value JSONB;
+    v_after_value JSONB;
+BEGIN
+    -- Check each key in the new data
+    FOR v_key IN SELECT jsonb_object_keys(p_after)
+    LOOP
+        -- Skip private audit fields (starting with _)
+        CONTINUE WHEN v_key LIKE '\_%';
+
+        -- Get values for comparison
+        v_before_value := COALESCE(p_before->v_key, 'null'::jsonb);
+        v_after_value := p_after->v_key;
+
+        -- Check if value actually changed (handles JSON null vs SQL NULL)
+        IF v_after_value IS DISTINCT FROM v_before_value THEN
+            v_changed_fields := array_append(v_changed_fields, v_key);
+        END IF;
+    END LOOP;
+
+    -- Check for removed keys (fields that existed before but not after)
+    FOR v_key IN SELECT jsonb_object_keys(p_before)
+    LOOP
+        CONTINUE WHEN v_key LIKE '\_%';
+
+        IF NOT (p_after ? v_key) THEN
+            v_changed_fields := array_append(v_changed_fields, v_key || '_REMOVED');
+        END IF;
+    END LOOP;
+
+    RETURN v_changed_fields;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Generate detailed change report with before/after values
+CREATE OR REPLACE FUNCTION core.generate_change_report(
+    p_before JSONB,
+    p_after JSONB,
+    p_changed_fields TEXT[]
+) RETURNS JSONB AS $$
+DECLARE
+    v_changes JSONB := '[]'::jsonb;
+    v_field TEXT;
+    v_change_detail JSONB;
+BEGIN
+    FOREACH v_field IN ARRAY p_changed_fields
+    LOOP
+        -- Handle removed fields
+        IF v_field LIKE '%_REMOVED' THEN
+            v_field := replace(v_field, '_REMOVED', '');
+            v_change_detail := jsonb_build_object(
+                'field', v_field,
+                'change_type', 'removed',
+                'old_value', p_before->v_field,
+                'new_value', null
+            );
+        ELSE
+            v_change_detail := jsonb_build_object(
+                'field', v_field,
+                'change_type', CASE
+                    WHEN p_before ? v_field THEN 'modified'
+                    ELSE 'added'
+                END,
+                'old_value', p_before->v_field,
+                'new_value', p_after->v_field
+            );
+        END IF;
+
+        v_changes := v_changes || jsonb_build_array(v_change_detail);
+    END LOOP;
+
+    RETURN jsonb_build_object(
+        'total_changes', array_length(p_changed_fields, 1),
+        'changes', v_changes,
+        'generated_at', NOW()
+    );
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+```
+
+### Audit Metadata Generation
+
+```sql
+-- Build comprehensive audit metadata for mutation results
+CREATE OR REPLACE FUNCTION core.build_audit_metadata(
+    p_entity_type TEXT,
+    p_operation_type TEXT,
+    p_entity_id UUID,
+    p_version_before INTEGER DEFAULT NULL,
+    p_version_after INTEGER DEFAULT NULL,
+    p_changed_fields TEXT[] DEFAULT ARRAY[]::TEXT[],
+    p_change_reason TEXT DEFAULT NULL,
+    p_change_source TEXT DEFAULT 'api',
+    p_before_data JSONB DEFAULT NULL,
+    p_after_data JSONB DEFAULT NULL
+) RETURNS JSONB AS $$
+DECLARE
+    v_metadata JSONB;
+    v_change_report JSONB;
+BEGIN
+    -- Generate detailed change report if data provided
+    IF p_before_data IS NOT NULL AND p_after_data IS NOT NULL THEN
+        v_change_report := core.generate_change_report(
+            p_before_data,
+            p_after_data,
+            p_changed_fields
+        );
+    END IF;
+
+    -- Build comprehensive metadata
+    v_metadata := jsonb_build_object(
+        'audit', jsonb_build_object(
+            'entity_type', p_entity_type,
+            'entity_id', p_entity_id,
+            'operation', p_operation_type,
+            'timestamp', NOW(),
+            'change_source', p_change_source,
+            'change_reason', p_change_reason
+        ),
+        'versioning', CASE WHEN p_version_before IS NOT NULL OR p_version_after IS NOT NULL THEN
+            jsonb_build_object(
+                'version_before', p_version_before,
+                'version_after', p_version_after,
+                'version_increment', CASE
+                    WHEN p_version_before IS NOT NULL AND p_version_after IS NOT NULL
+                    THEN p_version_after - p_version_before
+                    ELSE NULL
+                END,
+                'optimistic_locking', true
+            ) END,
+        'field_changes', CASE WHEN array_length(p_changed_fields, 1) > 0 THEN
+            jsonb_build_object(
+                'fields_modified', p_changed_fields,
+                'field_count', array_length(p_changed_fields, 1),
+                'detailed_report', v_change_report
+            ) END
+    );
+
+    -- Remove null values for cleaner metadata
+    RETURN core.sanitize_jsonb_nulls(v_metadata);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Remove null values from JSONB (cleanup utility)
+CREATE OR REPLACE FUNCTION core.sanitize_jsonb_nulls(p_input JSONB)
+RETURNS JSONB AS $$
+DECLARE
+    v_key TEXT;
+    v_result JSONB := '{}'::jsonb;
+BEGIN
+    FOR v_key IN SELECT jsonb_object_keys(p_input)
+    LOOP
+        IF p_input->v_key IS NOT NULL AND p_input->v_key != 'null'::jsonb THEN
+            v_result := v_result || jsonb_build_object(v_key, p_input->v_key);
+        END IF;
+    END LOOP;
+
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+```
+
+### Audit Query Patterns
+
+Common query patterns for audit trail analysis:
+
+```sql
+-- User activity analysis
+CREATE OR REPLACE VIEW public.v_user_activity_audit AS
+SELECT
+    u.pk_user AS user_id,
+    u.data->>'name' AS user_name,
+    u.data->>'email' AS user_email,
+
+    -- Creation activity
+    COUNT(CASE WHEN e.created_by = u.pk_user THEN 1 END) AS entities_created,
+    MIN(CASE WHEN e.created_by = u.pk_user THEN e.created_at END) AS first_creation,
+    MAX(CASE WHEN e.created_by = u.pk_user THEN e.created_at END) AS last_creation,
+
+    -- Update activity
+    COUNT(CASE WHEN e.updated_by = u.pk_user AND e.version > 1 THEN 1 END) AS entities_updated,
+    MAX(CASE WHEN e.updated_by = u.pk_user THEN e.updated_at END) AS last_update,
+
+    -- Deletion activity
+    COUNT(CASE WHEN e.deleted_by = u.pk_user THEN 1 END) AS entities_deleted,
+    MAX(CASE WHEN e.deleted_by = u.pk_user THEN e.deleted_at END) AS last_deletion,
+
+    -- Activity summary
+    COUNT(CASE WHEN e.created_by = u.pk_user OR e.updated_by = u.pk_user OR e.deleted_by = u.pk_user THEN 1 END) AS total_activity,
+
+    -- Recent activity (last 30 days)
+    COUNT(CASE
+        WHEN (e.created_by = u.pk_user AND e.created_at > NOW() - INTERVAL '30 days')
+          OR (e.updated_by = u.pk_user AND e.updated_at > NOW() - INTERVAL '30 days')
+          OR (e.deleted_by = u.pk_user AND e.deleted_at > NOW() - INTERVAL '30 days')
+        THEN 1 END) AS recent_activity_30d
+
+FROM tenant.tb_user u
+LEFT JOIN tenant.tb_entity e ON (
+    e.created_by = u.pk_user
+    OR e.updated_by = u.pk_user
+    OR e.deleted_by = u.pk_user
+)
+WHERE u.deleted_at IS NULL  -- Only active users
+GROUP BY u.pk_user, u.data->>'name', u.data->>'email';
+
+-- Entity lifecycle analysis
+CREATE OR REPLACE VIEW public.v_entity_lifecycle_audit AS
+SELECT
+    e.pk_entity AS entity_id,
+    e.data->>'name' AS entity_name,
+    e.pk_organization AS tenant_id,
+
+    -- Lifecycle timestamps
+    e.created_at,
+    e.updated_at,
+    e.deleted_at,
+
+    -- Lifecycle metrics
+    e.version,
+    EXTRACT(EPOCH FROM (e.updated_at - e.created_at)) / 86400 AS active_lifespan_days,
+    CASE WHEN e.deleted_at IS NOT NULL THEN
+        EXTRACT(EPOCH FROM (e.deleted_at - e.created_at)) / 86400
+    END AS total_lifespan_days,
+
+    -- Modification patterns
+    CASE
+        WHEN e.version = 1 THEN 'never_modified'
+        WHEN e.version <= 3 THEN 'lightly_modified'
+        WHEN e.version <= 10 THEN 'moderately_modified'
+        WHEN e.version <= 50 THEN 'heavily_modified'
+        ELSE 'extremely_modified'
+    END AS modification_category,
+
+    -- Status classification
+    CASE
+        WHEN e.deleted_at IS NOT NULL THEN 'deleted'
+        WHEN e.updated_at < NOW() - INTERVAL '90 days' THEN 'stale'
+        WHEN e.updated_at < NOW() - INTERVAL '30 days' THEN 'aging'
+        WHEN e.updated_at < NOW() - INTERVAL '7 days' THEN 'recent'
+        ELSE 'current'
+    END AS activity_status,
+
+    -- Change frequency (changes per day)
+    CASE WHEN e.updated_at > e.created_at THEN
+        ROUND((e.version - 1) / GREATEST(EXTRACT(EPOCH FROM (e.updated_at - e.created_at)) / 86400, 1), 3)
+    ELSE 0
+    END AS avg_changes_per_day
+
+FROM tenant.tb_entity e;
+
+-- Audit trail search function
+CREATE OR REPLACE FUNCTION audit.search_entity_changes(
+    p_entity_type TEXT DEFAULT NULL,
+    p_user_id UUID DEFAULT NULL,
+    p_date_from TIMESTAMPTZ DEFAULT NULL,
+    p_date_to TIMESTAMPTZ DEFAULT NOW(),
+    p_operation_types TEXT[] DEFAULT ARRAY['INSERT', 'UPDATE', 'DELETE'],
+    p_limit INTEGER DEFAULT 100
+) RETURNS TABLE (
+    entity_id UUID,
+    entity_type TEXT,
+    operation_type TEXT,
+    changed_by UUID,
+    changed_by_name TEXT,
+    changed_at TIMESTAMPTZ,
+    version_change TEXT,
+    fields_changed TEXT[],
+    change_reason TEXT,
+    change_source TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        e.pk_entity,
+        'entity'::TEXT,  -- Would be dynamic in real implementation
+        CASE
+            WHEN e.version = 1 AND e.deleted_at IS NULL THEN 'INSERT'
+            WHEN e.deleted_at IS NOT NULL THEN 'DELETE'
+            ELSE 'UPDATE'
+        END,
+        COALESCE(e.updated_by, e.created_by),
+        COALESCE(uu.data->>'name', cu.data->>'name'),
+        GREATEST(e.created_at, COALESCE(e.updated_at, e.created_at)),
+        CASE
+            WHEN e.version = 1 THEN 'initial'
+            ELSE (e.version - 1)::TEXT || ' → ' || e.version::TEXT
+        END,
+        ARRAY[]::TEXT[],  -- Would need change log table for historical field changes
+        e.change_reason,
+        e.change_source
+    FROM tenant.tb_entity e
+    LEFT JOIN tenant.tb_user cu ON cu.pk_user = e.created_by
+    LEFT JOIN tenant.tb_user uu ON uu.pk_user = e.updated_by
+    WHERE
+        (p_entity_type IS NULL OR 'entity' = p_entity_type)
+        AND (p_user_id IS NULL OR e.created_by = p_user_id OR e.updated_by = p_user_id)
+        AND (p_date_from IS NULL OR GREATEST(e.created_at, COALESCE(e.updated_at, e.created_at)) >= p_date_from)
+        AND GREATEST(e.created_at, COALESCE(e.updated_at, e.created_at)) <= p_date_to
+    ORDER BY GREATEST(e.created_at, COALESCE(e.updated_at, e.created_at)) DESC
+    LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql;
+```
+
 ---
