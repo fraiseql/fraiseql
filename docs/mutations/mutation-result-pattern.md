@@ -20,21 +20,217 @@ The Mutation Result Pattern establishes a standardized structure for all mutatio
 
 ### The app.mutation_result Type
 
-[Content placeholder - SQL type structure will be documented here]
+The `app.mutation_result` type is the foundation of FraiseQL's mutation response system. Every mutation function returns this structured type, ensuring consistency across all database operations:
+
+```sql
+CREATE TYPE app.mutation_result AS (
+    id UUID,                    -- Entity primary key (pk_[entity])
+    updated_fields TEXT[],      -- Array of field names that were changed
+    status TEXT,                -- Status code indicating operation outcome
+    message TEXT,               -- Human-readable message for debugging/UI
+    object_data JSONB,          -- Complete entity data from view (v_* or tv_*)
+    extra_metadata JSONB        -- Debug context, validation info, audit data
+);
+```
+
+**Field Descriptions:**
+
+- **`id`** - The UUID primary key of the affected entity. For create operations, this is the newly generated ID. For updates/deletes, it's the existing entity ID.
+- **`updated_fields`** - String array listing exactly which fields changed during the operation. Empty array for create operations, populated array for updates.
+- **`status`** - Standardized status code indicating the operation outcome (see Status Code Semantics below).
+- **`message`** - Human-readable description of what happened. Used for debugging and can be displayed to end users.
+- **`object_data`** - Complete entity data as returned by the corresponding view (`v_[entity]` or `tv_[entity]`). Contains the final state after the operation.
+- **`extra_metadata`** - JSON object containing additional context like validation details, debug information, and audit metadata.
 
 ### Status Code Semantics
 
-[Content placeholder - All status codes and their meanings]
+Status codes follow a structured pattern that enables consistent handling across all mutations:
+
+#### Success Status Codes
+
+- **`new`** - Entity was successfully created
+- **`updated`** - Entity was successfully modified (one or more fields changed)
+- **`deleted`** - Entity was successfully removed or soft-deleted
+
+#### NOOP Status Codes (No Operation Performed)
+
+NOOP statuses use the prefix `noop:` followed by a specific reason:
+
+**Creation NOOPs:**
+- **`noop:already_exists`** - Attempted to create entity with duplicate unique constraint
+- **`noop:invalid_parent`** - Referenced parent entity doesn't exist or isn't accessible
+
+**Update NOOPs:**
+- **`noop:not_found`** - Entity with specified ID doesn't exist
+- **`noop:no_changes`** - Update attempted but all provided values match current values
+- **`noop:invalid_status`** - Status transition not allowed by business rules
+- **`noop:invalid_[field]`** - Specific field validation failed (e.g., `noop:invalid_email`)
+
+**Delete NOOPs:**
+- **`noop:not_found`** - Entity doesn't exist or already deleted
+- **`noop:cannot_delete_has_children`** - Entity has dependent child records
+- **`noop:cannot_delete_referenced`** - Entity is referenced by other entities
+- **`noop:cannot_delete_protected`** - Entity is marked as protected/system entity
+
+**Authorization NOOPs:**
+- **`noop:insufficient_permissions`** - User lacks required permissions for this operation
+- **`noop:tenant_mismatch`** - Entity belongs to different tenant context
+
+#### Error Handling Philosophy
+
+The NOOP pattern eliminates the need for exceptions in most business logic scenarios. Instead of throwing errors, mutations return structured information about why an operation couldn't be completed. This approach:
+
+- Maintains transaction consistency (no rollbacks needed)
+- Provides clear feedback for API consumers
+- Enables graceful degradation in batch operations
+- Simplifies error handling in GraphQL resolvers
 
 ## Logging Function
 
 ### Core Logging Mechanism
 
-[Content placeholder - core.log_and_return_mutation function documentation]
+The `core.log_and_return_mutation` function is the central mechanism for creating standardized mutation results. This function handles three critical responsibilities:
+
+1. **Audit Logging** - Records the complete mutation in the audit log
+2. **Change Tracking** - Calculates which fields were modified
+3. **Result Construction** - Builds the standardized `app.mutation_result` response
+
+All mutation functions should use this helper to ensure consistent logging and response structure.
 
 ### Function Signature
 
-[Content placeholder - Complete function signature and parameters]
+```sql
+CREATE OR REPLACE FUNCTION core.log_and_return_mutation(
+    input_pk_organization UUID,        -- Tenant context
+    input_actor UUID,                  -- User performing the action
+    input_entity_type TEXT,            -- Entity type (e.g., 'user', 'contract')
+    input_entity_id UUID,              -- Entity primary key
+    input_modification_type TEXT,       -- Operation type: INSERT, UPDATE, DELETE, NOOP
+    input_change_status TEXT,          -- Status code: new, updated, deleted, noop:*
+    input_fields TEXT[],               -- Array of changed field names
+    input_message TEXT,                -- Human-readable message
+    input_payload_before JSONB,        -- Entity state before change (NULL for creates)
+    input_payload_after JSONB,         -- Entity state after change (NULL for deletes)
+    input_extra_metadata JSONB DEFAULT '{}'::JSONB  -- Additional debug/audit metadata
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_result app.mutation_result;
+    v_audit_id UUID;
+BEGIN
+    -- Log the mutation for audit purposes
+    INSERT INTO audit.tb_mutation_log (
+        pk_organization,
+        actor_id,
+        entity_type,
+        entity_id,
+        modification_type,
+        change_status,
+        changed_fields,
+        payload_before,
+        payload_after,
+        extra_metadata,
+        created_at
+    ) VALUES (
+        input_pk_organization,
+        input_actor,
+        input_entity_type,
+        input_entity_id,
+        input_modification_type,
+        input_change_status,
+        input_fields,
+        input_payload_before,
+        input_payload_after,
+        input_extra_metadata,
+        NOW()
+    ) RETURNING pk_mutation_log INTO v_audit_id;
+
+    -- Construct the mutation result
+    v_result.id := input_entity_id;
+    v_result.updated_fields := input_fields;
+    v_result.status := input_change_status;
+    v_result.message := input_message;
+    v_result.object_data := input_payload_after;
+    v_result.extra_metadata := input_extra_metadata ||
+                              jsonb_build_object('audit_id', v_audit_id);
+
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Parameter Details
+
+**Context Parameters:**
+- **`input_pk_organization`** - UUID of the tenant/organization for multi-tenant isolation
+- **`input_actor`** - UUID of the user performing the mutation (for audit trails)
+
+**Entity Parameters:**
+- **`input_entity_type`** - String identifying the entity type (matches table name without prefix)
+- **`input_entity_id`** - UUID primary key of the affected entity
+
+**Operation Parameters:**
+- **`input_modification_type`** - Database operation type:
+  - `INSERT` - New record created
+  - `UPDATE` - Existing record modified
+  - `DELETE` - Record deleted/soft-deleted
+  - `NOOP` - No database changes made
+- **`input_change_status`** - Semantic status code for the operation outcome
+
+**Change Tracking:**
+- **`input_fields`** - Array of field names that were modified (empty for creates, populated for updates)
+- **`input_payload_before`** - Complete entity state before modification (NULL for creates)
+- **`input_payload_after`** - Complete entity state after modification (NULL for deletes)
+
+**Metadata:**
+- **`input_message`** - Human-readable description of what happened
+- **`input_extra_metadata`** - Additional context like validation details, debug info, or business metadata
+
+### Usage Pattern in Mutations
+
+Every mutation function should end by calling this logging function:
+
+```sql
+CREATE OR REPLACE FUNCTION app.create_user(
+    input_pk_organization UUID,
+    input_created_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_new_user_id UUID;
+    v_user_data JSONB;
+BEGIN
+    -- Validation and business logic here...
+
+    -- Create the user
+    INSERT INTO tenant.tb_user (pk_user, pk_organization, data, created_by)
+    VALUES (gen_random_uuid(), input_pk_organization, input_payload, input_created_by)
+    RETURNING pk_user INTO v_new_user_id;
+
+    -- Get the complete user data from view
+    SELECT to_jsonb(u.*) INTO v_user_data
+    FROM public.v_user u
+    WHERE u.id = v_new_user_id;
+
+    -- Log and return standardized result
+    RETURN core.log_and_return_mutation(
+        input_pk_organization := input_pk_organization,
+        input_actor := input_created_by,
+        input_entity_type := 'user',
+        input_entity_id := v_new_user_id,
+        input_modification_type := 'INSERT',
+        input_change_status := 'new',
+        input_fields := ARRAY[]::TEXT[],  -- Empty for creates
+        input_message := 'User created successfully',
+        input_payload_before := NULL,     -- No previous state
+        input_payload_after := v_user_data,
+        input_extra_metadata := jsonb_build_object(
+            'input_validation', 'passed',
+            'created_via', 'api'
+        )
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ## GraphQL Integration
 
