@@ -2,6 +2,18 @@
 
 FraiseQL implements mutations through PostgreSQL functions, maintaining a clean CQRS separation between reads (views) and writes (functions). This approach leverages database transactions, constraints, and business logic where it belongs.
 
+## Enterprise Patterns
+
+For production applications requiring audit trails, field-level change tracking, and consistent error handling:
+
+**[Mutation Result Pattern](./mutation-result-pattern.md)** - Standardized mutation response structure with comprehensive metadata, NOOP handling, and enterprise audit support. This pattern is **recommended for all production applications** as it provides:
+
+- Complete audit trails for compliance
+- Field-level change tracking
+- Structured NOOP handling without exceptions
+- Rich debugging metadata
+- Consistent error handling across all mutations
+
 ## Philosophy
 
 In FraiseQL's CQRS architecture:
