@@ -485,39 +485,775 @@ async def delete_user(
 
 ### Extra Metadata Structure
 
-[Content placeholder - What goes in extra_metadata field]
+The `extra_metadata` field provides a structured way to include additional context with mutation results. This JSONB field supports debugging, validation details, and business-specific metadata:
+
+```json
+{
+  "audit_id": "550e8400-e29b-41d4-a716-446655440001",
+  "validation_errors": {
+    "email": "Invalid email format",
+    "age": "Must be between 18 and 120"
+  },
+  "debug_context": {
+    "function_duration_ms": 45,
+    "rows_scanned": 1,
+    "constraints_checked": ["users_email_unique", "users_age_check"]
+  },
+  "business_metadata": {
+    "workflow_stage": "approval_pending",
+    "notification_sent": true,
+    "integration_sync_queued": false
+  },
+  "request_context": {
+    "ip_address": "192.168.1.100",
+    "user_agent": "FraiseQL-Client/1.0",
+    "api_version": "v1"
+  }
+}
+```
 
 ### Debugging Information
 
-[Content placeholder - Debug context patterns]
+Include debugging context to help with troubleshooting:
+
+```sql
+-- In your mutation function
+DECLARE
+    v_start_time TIMESTAMP := clock_timestamp();
+    v_debug_metadata JSONB := '{}'::JSONB;
+BEGIN
+    -- Your business logic here...
+
+    -- Add debug metadata
+    v_debug_metadata := jsonb_build_object(
+        'function_duration_ms', EXTRACT(MILLISECONDS FROM clock_timestamp() - v_start_time),
+        'query_plan_cost', 1.23,
+        'cache_hit', false,
+        'validation_steps', ARRAY['email_format', 'uniqueness', 'business_rules']
+    );
+
+    RETURN core.log_and_return_mutation(
+        -- ... other parameters
+        input_extra_metadata := v_debug_metadata
+    );
+END;
+```
 
 ## Change Tracking
 
 ### Updated Fields Array
 
-[Content placeholder - How updated_fields array works]
+The `updated_fields` array provides precise field-level change tracking:
+
+```sql
+-- Function to calculate changed fields
+CREATE OR REPLACE FUNCTION core.calculate_changed_fields(
+    before_data JSONB,
+    after_data JSONB
+) RETURNS TEXT[] AS $$
+DECLARE
+    changed_fields TEXT[] := ARRAY[]::TEXT[];
+    field_name TEXT;
+    before_value JSONB;
+    after_value JSONB;
+BEGIN
+    -- Compare each field in the after_data
+    FOR field_name IN SELECT jsonb_object_keys(after_data) LOOP
+        before_value := before_data -> field_name;
+        after_value := after_data -> field_name;
+
+        -- Check if field changed (handles NULL comparisons)
+        IF (before_value IS NULL AND after_value IS NOT NULL) OR
+           (before_value IS NOT NULL AND after_value IS NULL) OR
+           (before_value != after_value) THEN
+            changed_fields := array_append(changed_fields, field_name);
+        END IF;
+    END LOOP;
+
+    RETURN changed_fields;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+Usage in update mutations:
+
+```sql
+CREATE OR REPLACE FUNCTION app.update_user(
+    input_pk_organization UUID,
+    input_pk_user UUID,
+    input_updated_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_before_data JSONB;
+    v_after_data JSONB;
+    v_changed_fields TEXT[];
+BEGIN
+    -- Get current state
+    SELECT to_jsonb(u.*) INTO v_before_data
+    FROM public.v_user u
+    WHERE u.id = input_pk_user;
+
+    IF v_before_data IS NULL THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_updated_by,
+            input_entity_type := 'user',
+            input_entity_id := input_pk_user,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:not_found',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'User not found',
+            input_payload_before := NULL,
+            input_payload_after := NULL
+        );
+    END IF;
+
+    -- Update the record
+    UPDATE tenant.tb_user
+    SET
+        data = data || input_payload,
+        updated_at = NOW(),
+        updated_by = input_updated_by
+    WHERE pk_user = input_pk_user
+      AND pk_organization = input_pk_organization;
+
+    -- Get updated state
+    SELECT to_jsonb(u.*) INTO v_after_data
+    FROM public.v_user u
+    WHERE u.id = input_pk_user;
+
+    -- Calculate changed fields
+    v_changed_fields := core.calculate_changed_fields(v_before_data, v_after_data);
+
+    -- Determine status
+    IF array_length(v_changed_fields, 1) = 0 THEN
+        -- No changes made
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_updated_by,
+            input_entity_type := 'user',
+            input_entity_id := input_pk_user,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:no_changes',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'No changes were made',
+            input_payload_before := v_before_data,
+            input_payload_after := v_after_data
+        );
+    ELSE
+        -- Changes made
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_updated_by,
+            input_entity_type := 'user',
+            input_entity_id := input_pk_user,
+            input_modification_type := 'UPDATE',
+            input_change_status := 'updated',
+            input_fields := v_changed_fields,
+            input_message := format('Updated %s field(s)', array_length(v_changed_fields, 1)),
+            input_payload_before := v_before_data,
+            input_payload_after := v_after_data,
+            input_extra_metadata := jsonb_build_object(
+                'changed_field_count', array_length(v_changed_fields, 1)
+            )
+        );
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ### Field-Level Auditing
 
-[Content placeholder - Tracking specific field changes]
+With precise change tracking, you can implement field-level audit trails:
+
+```sql
+-- Audit table for field-level changes
+CRETE TABLE audit.tb_field_changes (
+    pk_field_change UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pk_organization UUID NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id UUID NOT NULL,
+    field_name TEXT NOT NULL,
+    old_value JSONB,
+    new_value JSONB,
+    changed_by UUID NOT NULL,
+    changed_at TIMESTAMP DEFAULT NOW(),
+    mutation_audit_id UUID REFERENCES audit.tb_mutation_log(pk_mutation_log)
+);
+
+-- Enhanced logging function with field-level audit
+CREATE OR REPLACE FUNCTION core.log_field_level_changes(
+    input_pk_organization UUID,
+    input_entity_type TEXT,
+    input_entity_id UUID,
+    input_changed_by UUID,
+    input_before_data JSONB,
+    input_after_data JSONB,
+    input_changed_fields TEXT[],
+    input_mutation_audit_id UUID
+) RETURNS VOID AS $$
+DECLARE
+    field_name TEXT;
+BEGIN
+    -- Log each changed field
+    FOREACH field_name IN ARRAY input_changed_fields LOOP
+        INSERT INTO audit.tb_field_changes (
+            pk_organization,
+            entity_type,
+            entity_id,
+            field_name,
+            old_value,
+            new_value,
+            changed_by,
+            mutation_audit_id
+        ) VALUES (
+            input_pk_organization,
+            input_entity_type,
+            input_entity_id,
+            field_name,
+            input_before_data -> field_name,
+            input_after_data -> field_name,
+            input_changed_by,
+            input_mutation_audit_id
+        );
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ## Examples
 
 ### Simple Create Mutation
 
-[Content placeholder - Complete create example]
+Complete example of a create mutation using the mutation result pattern:
+
+**PostgreSQL Function:**
+```sql
+CREATE OR REPLACE FUNCTION app.create_blog_post(
+    input_pk_organization UUID,
+    input_created_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_new_post_id UUID;
+    v_post_data JSONB;
+    v_slug TEXT;
+BEGIN
+    -- Extract and validate required fields
+    IF input_payload->>'title' IS NULL OR trim(input_payload->>'title') = '' THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_created_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := NULL,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:invalid_title',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Title is required and cannot be empty',
+            input_payload_before := NULL,
+            input_payload_after := NULL,
+            input_extra_metadata := jsonb_build_object(
+                'validation_errors', jsonb_build_object('title', 'Required field')
+            )
+        );
+    END IF;
+
+    -- Generate slug
+    v_slug := lower(regexp_replace(input_payload->>'title', '[^a-zA-Z0-9]+', '-', 'g'));
+
+    -- Check for duplicate slug
+    IF EXISTS (
+        SELECT 1 FROM tenant.tb_blog_post
+        WHERE pk_organization = input_pk_organization
+          AND data->>'slug' = v_slug
+    ) THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_created_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := NULL,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:already_exists',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'A post with this title already exists',
+            input_payload_before := NULL,
+            input_payload_after := NULL,
+            input_extra_metadata := jsonb_build_object(
+                'conflict_field', 'slug',
+                'conflict_value', v_slug
+            )
+        );
+    END IF;
+
+    -- Create the blog post
+    v_new_post_id := gen_random_uuid();
+    INSERT INTO tenant.tb_blog_post (
+        pk_blog_post,
+        pk_organization,
+        data,
+        created_by,
+        created_at
+    ) VALUES (
+        v_new_post_id,
+        input_pk_organization,
+        input_payload || jsonb_build_object(
+            'slug', v_slug,
+            'status', 'draft',
+            'view_count', 0
+        ),
+        input_created_by,
+        NOW()
+    );
+
+    -- Get the complete post data from view
+    SELECT to_jsonb(p.*) INTO v_post_data
+    FROM public.v_blog_post p
+    WHERE p.id = v_new_post_id;
+
+    -- Return success result
+    RETURN core.log_and_return_mutation(
+        input_pk_organization := input_pk_organization,
+        input_actor := input_created_by,
+        input_entity_type := 'blog_post',
+        input_entity_id := v_new_post_id,
+        input_modification_type := 'INSERT',
+        input_change_status := 'new',
+        input_fields := ARRAY[]::TEXT[], -- Empty for creates
+        input_message := 'Blog post created successfully',
+        input_payload_before := NULL,
+        input_payload_after := v_post_data,
+        input_extra_metadata := jsonb_build_object(
+            'generated_slug', v_slug,
+            'word_count', array_length(string_to_array(input_payload->>'content', ' '), 1)
+        )
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Python Resolver:**
+```python
+@mutation
+async def create_blog_post(
+    info: GraphQLResolveInfo,
+    input: CreateBlogPostInput
+) -> CreateBlogPostSuccess | CreateBlogPostError:
+    """Create a new blog post."""
+    result = await info.context["db"].call_function(
+        "app.create_blog_post",
+        input_pk_organization=info.context["tenant_id"],
+        input_created_by=info.context["user_id"],
+        input_payload=input.to_dict()
+    )
+
+    if result["status"] == "new":
+        return CreateBlogPostSuccess(
+            blog_post=BlogPost.from_dict(result["object_data"]),
+            message=result["message"],
+            generated_slug=result["extra_metadata"]["generated_slug"]
+        )
+    else:
+        error_code = result["status"].replace("noop:", "").upper()
+        return CreateBlogPostError(
+            message=result["message"],
+            error_code=error_code
+        )
+```
 
 ### Update with Change Tracking
 
-[Content placeholder - Update example with field tracking]
+Update mutation that tracks precisely which fields changed:
+
+**PostgreSQL Function:**
+```sql
+CREATE OR REPLACE FUNCTION app.update_blog_post(
+    input_pk_organization UUID,
+    input_pk_blog_post UUID,
+    input_updated_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_before_data JSONB;
+    v_after_data JSONB;
+    v_changed_fields TEXT[];
+    v_should_update_slug BOOLEAN := false;
+    v_new_slug TEXT;
+BEGIN
+    -- Get current state
+    SELECT to_jsonb(p.*) INTO v_before_data
+    FROM public.v_blog_post p
+    WHERE p.id = input_pk_blog_post
+      AND p.tenant_id = input_pk_organization;
+
+    IF v_before_data IS NULL THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_updated_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := input_pk_blog_post,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:not_found',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Blog post not found',
+            input_payload_before := NULL,
+            input_payload_after := NULL
+        );
+    END IF;
+
+    -- Check if title changed (requires slug regeneration)
+    IF input_payload ? 'title' AND
+       input_payload->>'title' != v_before_data->>'title' THEN
+        v_should_update_slug := true;
+        v_new_slug := lower(regexp_replace(input_payload->>'title', '[^a-zA-Z0-9]+', '-', 'g'));
+
+        -- Check for slug conflicts
+        IF EXISTS (
+            SELECT 1 FROM tenant.tb_blog_post
+            WHERE pk_organization = input_pk_organization
+              AND data->>'slug' = v_new_slug
+              AND pk_blog_post != input_pk_blog_post
+        ) THEN
+            RETURN core.log_and_return_mutation(
+                input_pk_organization := input_pk_organization,
+                input_actor := input_updated_by,
+                input_entity_type := 'blog_post',
+                input_entity_id := input_pk_blog_post,
+                input_modification_type := 'NOOP',
+                input_change_status := 'noop:slug_conflict',
+                input_fields := ARRAY[]::TEXT[],
+                input_message := 'Title change would create conflicting slug',
+                input_payload_before := v_before_data,
+                input_payload_after := v_before_data,
+                input_extra_metadata := jsonb_build_object(
+                    'conflicting_slug', v_new_slug
+                )
+            );
+        END IF;
+    END IF;
+
+    -- Prepare update payload with slug if needed
+    IF v_should_update_slug THEN
+        input_payload := input_payload || jsonb_build_object('slug', v_new_slug);
+    END IF;
+
+    -- Update the record
+    UPDATE tenant.tb_blog_post
+    SET
+        data = data || input_payload,
+        updated_at = NOW(),
+        updated_by = input_updated_by
+    WHERE pk_blog_post = input_pk_blog_post
+      AND pk_organization = input_pk_organization;
+
+    -- Get updated state
+    SELECT to_jsonb(p.*) INTO v_after_data
+    FROM public.v_blog_post p
+    WHERE p.id = input_pk_blog_post;
+
+    -- Calculate changed fields
+    v_changed_fields := core.calculate_changed_fields(v_before_data, v_after_data);
+
+    IF array_length(v_changed_fields, 1) = 0 THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_updated_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := input_pk_blog_post,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:no_changes',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'No changes were made',
+            input_payload_before := v_before_data,
+            input_payload_after := v_after_data
+        );
+    ELSE
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_updated_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := input_pk_blog_post,
+            input_modification_type := 'UPDATE',
+            input_change_status := 'updated',
+            input_fields := v_changed_fields,
+            input_message := format('Updated %s field(s): %s',
+                array_length(v_changed_fields, 1),
+                array_to_string(v_changed_fields, ', ')
+            ),
+            input_payload_before := v_before_data,
+            input_payload_after := v_after_data,
+            input_extra_metadata := jsonb_build_object(
+                'regenerated_slug', v_should_update_slug,
+                'field_count', array_length(v_changed_fields, 1)
+            )
+        );
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ### NOOP Handling Scenario
 
-[Content placeholder - NOOP example with proper status codes]
+Example showing comprehensive NOOP handling:
+
+**Delete with Dependencies:**
+```sql
+CREATE OR REPLACE FUNCTION app.delete_blog_post(
+    input_pk_organization UUID,
+    input_pk_blog_post UUID,
+    input_deleted_by UUID
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_post_data JSONB;
+    v_comment_count INTEGER;
+BEGIN
+    -- Check if post exists
+    SELECT to_jsonb(p.*) INTO v_post_data
+    FROM public.v_blog_post p
+    WHERE p.id = input_pk_blog_post
+      AND p.tenant_id = input_pk_organization;
+
+    IF v_post_data IS NULL THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_deleted_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := input_pk_blog_post,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:not_found',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Blog post not found or already deleted',
+            input_payload_before := NULL,
+            input_payload_after := NULL
+        );
+    END IF;
+
+    -- Check if post is published and has comments
+    SELECT COUNT(*) INTO v_comment_count
+    FROM tenant.tb_blog_comment
+    WHERE pk_blog_post = input_pk_blog_post
+      AND deleted_at IS NULL;
+
+    IF v_post_data->>'status' = 'published' AND v_comment_count > 0 THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_deleted_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := input_pk_blog_post,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:cannot_delete_has_children',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := format('Cannot delete published post with %s comments', v_comment_count),
+            input_payload_before := v_post_data,
+            input_payload_after := v_post_data,
+            input_extra_metadata := jsonb_build_object(
+                'comment_count', v_comment_count,
+                'post_status', v_post_data->>'status',
+                'suggested_action', 'unpublish_first'
+            )
+        );
+    END IF;
+
+    -- Soft delete the post
+    UPDATE tenant.tb_blog_post
+    SET
+        deleted_at = NOW(),
+        deleted_by = input_deleted_by,
+        data = data || jsonb_build_object('status', 'deleted')
+    WHERE pk_blog_post = input_pk_blog_post
+      AND pk_organization = input_pk_organization;
+
+    RETURN core.log_and_return_mutation(
+        input_pk_organization := input_pk_organization,
+        input_actor := input_deleted_by,
+        input_entity_type := 'blog_post',
+        input_entity_id := input_pk_blog_post,
+        input_modification_type := 'DELETE',
+        input_change_status := 'deleted',
+        input_fields := ARRAY['status']::TEXT[], -- Status changed to deleted
+        input_message := 'Blog post deleted successfully',
+        input_payload_before := v_post_data,
+        input_payload_after := NULL, -- NULL for soft deletes
+        input_extra_metadata := jsonb_build_object(
+            'deletion_type', 'soft_delete',
+            'had_comments', v_comment_count > 0
+        )
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ### Complex Business Logic
 
-[Content placeholder - Advanced mutation example]
+Advanced mutation with multiple business rules and state transitions:
+
+**Publish Blog Post with Workflow:**
+```sql
+CREATE OR REPLACE FUNCTION app.publish_blog_post(
+    input_pk_organization UUID,
+    input_pk_blog_post UUID,
+    input_published_by UUID,
+    input_publish_options JSONB DEFAULT '{}'::JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_post_data JSONB;
+    v_before_data JSONB;
+    v_after_data JSONB;
+    v_user_permissions TEXT[];
+    v_scheduled_date TIMESTAMP;
+    v_notification_sent BOOLEAN := false;
+BEGIN
+    -- Get current post state
+    SELECT to_jsonb(p.*) INTO v_post_data
+    FROM public.v_blog_post p
+    WHERE p.id = input_pk_blog_post
+      AND p.tenant_id = input_pk_organization;
+
+    v_before_data := v_post_data;
+
+    -- Validation checks
+    IF v_post_data IS NULL THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_published_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := input_pk_blog_post,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:not_found',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Blog post not found',
+            input_payload_before := NULL,
+            input_payload_after := NULL
+        );
+    END IF;
+
+    -- Check current status
+    IF v_post_data->>'status' = 'published' THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_published_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := input_pk_blog_post,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:already_published',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Blog post is already published',
+            input_payload_before := v_post_data,
+            input_payload_after := v_post_data,
+            input_extra_metadata := jsonb_build_object(
+                'current_status', v_post_data->>'status',
+                'published_at', v_post_data->>'published_at'
+            )
+        );
+    END IF;
+
+    -- Validate required content
+    IF v_post_data->>'title' IS NULL OR trim(v_post_data->>'title') = '' OR
+       v_post_data->>'content' IS NULL OR length(trim(v_post_data->>'content')) < 100 THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization := input_pk_organization,
+            input_actor := input_published_by,
+            input_entity_type := 'blog_post',
+            input_entity_id := input_pk_blog_post,
+            input_modification_type := 'NOOP',
+            input_change_status := 'noop:invalid_content',
+            input_fields := ARRAY[]::TEXT[],
+            input_message := 'Post requires title and at least 100 characters of content',
+            input_payload_before := v_post_data,
+            input_payload_after := v_post_data,
+            input_extra_metadata := jsonb_build_object(
+                'content_length', length(coalesce(v_post_data->>'content', '')),
+                'min_required', 100
+            )
+        );
+    END IF;
+
+    -- Handle scheduled publishing
+    v_scheduled_date := COALESCE(
+        (input_publish_options->>'scheduled_for')::TIMESTAMP,
+        NOW()
+    );
+
+    -- Check user permissions for future scheduling
+    IF v_scheduled_date > NOW() THEN
+        SELECT array_agg(permission) INTO v_user_permissions
+        FROM user_permissions
+        WHERE user_id = input_published_by;
+
+        IF NOT 'schedule_posts' = ANY(v_user_permissions) THEN
+            RETURN core.log_and_return_mutation(
+                input_pk_organization := input_pk_organization,
+                input_actor := input_published_by,
+                input_entity_type := 'blog_post',
+                input_entity_id := input_pk_blog_post,
+                input_modification_type := 'NOOP',
+                input_change_status := 'noop:insufficient_permissions',
+                input_fields := ARRAY[]::TEXT[],
+                input_message := 'User lacks permission to schedule posts',
+                input_payload_before := v_post_data,
+                input_payload_after := v_post_data,
+                input_extra_metadata := jsonb_build_object(
+                    'required_permission', 'schedule_posts',
+                    'scheduled_for', v_scheduled_date
+                )
+            );
+        END IF;
+    END IF;
+
+    -- Update post status
+    UPDATE tenant.tb_blog_post
+    SET
+        data = data || jsonb_build_object(
+            'status', CASE
+                WHEN v_scheduled_date > NOW() THEN 'scheduled'
+                ELSE 'published'
+            END,
+            'published_at', v_scheduled_date,
+            'published_by', input_published_by
+        ),
+        updated_at = NOW(),
+        updated_by = input_published_by
+    WHERE pk_blog_post = input_pk_blog_post
+      AND pk_organization = input_pk_organization;
+
+    -- Send notification if published immediately
+    IF v_scheduled_date <= NOW() THEN
+        PERFORM pg_notify('blog_post_published', json_build_object(
+            'post_id', input_pk_blog_post,
+            'title', v_post_data->>'title'
+        )::text);
+        v_notification_sent := true;
+    END IF;
+
+    -- Get updated state
+    SELECT to_jsonb(p.*) INTO v_after_data
+    FROM public.v_blog_post p
+    WHERE p.id = input_pk_blog_post;
+
+    RETURN core.log_and_return_mutation(
+        input_pk_organization := input_pk_organization,
+        input_actor := input_published_by,
+        input_entity_type := 'blog_post',
+        input_entity_id := input_pk_blog_post,
+        input_modification_type := 'UPDATE',
+        input_change_status := 'updated',
+        input_fields := ARRAY['status', 'published_at', 'published_by']::TEXT[],
+        input_message := CASE
+            WHEN v_scheduled_date > NOW() THEN format('Post scheduled for publishing at %s', v_scheduled_date)
+            ELSE 'Post published successfully'
+        END,
+        input_payload_before := v_before_data,
+        input_payload_after := v_after_data,
+        input_extra_metadata := jsonb_build_object(
+            'scheduled', v_scheduled_date > NOW(),
+            'publish_date', v_scheduled_date,
+            'notification_sent', v_notification_sent,
+            'workflow_step', 'publish_complete'
+        )
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
 
 ## Error Handling Patterns
 
