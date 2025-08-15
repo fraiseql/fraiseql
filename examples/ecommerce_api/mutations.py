@@ -1,8 +1,17 @@
-"""E-commerce API Mutations
+"""E-commerce mutations demonstrating complex validation patterns.
 
-Demonstrates FraiseQL's mutation system with complex business logic
+This example showcases enterprise-grade patterns:
+- Cross-entity validation (inventory, pricing, customer eligibility)
+- Multi-layer validation (GraphQL, app, core, business rules)
+- NOOP handling for business rule violations
+- Comprehensive audit trails for financial data
+- Transaction patterns with rollback handling
+
+For simpler patterns, see ../blog_api/
+For complete enterprise example, see ../enterprise_patterns/
 """
 
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -15,6 +24,11 @@ from .models import (
     OrderMutationResult,
     ReviewMutationResult,
 )
+
+# Import enterprise pattern types (would be defined in models.py)
+from fraiseql import input, success, failure
+from typing import Any
+from decimal import Decimal
 
 
 # Cart Mutations
@@ -225,3 +239,252 @@ async def mark_review_helpful(
     session_id: Optional[str] = None,
 ) -> dict:
     """Mark review helpfulness"""
+
+
+# Enterprise Pattern Examples
+# These demonstrate complex validation and cross-entity patterns
+
+@mutation(function="app.process_order")
+class ProcessOrderEnterprise:
+    """Process order with comprehensive validation.
+
+    Enterprise features demonstrated:
+    - Cross-entity validation (inventory, customer credit, pricing)
+    - Multi-step transaction with rollback handling
+    - NOOP for business rule violations (insufficient inventory, credit limits)
+    - Financial audit trails with precise change tracking
+    - Real-time inventory reservation and payment processing
+    """
+    input: ProcessOrderInput
+    success: ProcessOrderSuccess
+    error: ProcessOrderError
+    noop: ProcessOrderNoop  # For inventory/business rule issues
+
+
+@mutation(function="app.update_inventory")
+class UpdateInventoryEnterprise:
+    """Update inventory with business rules.
+
+    Validation layers:
+    1. GraphQL: Type validation, required fields
+    2. App layer: Basic bounds checking, format validation
+    3. Core layer: Business rules, cross-entity consistency
+    4. Database: Constraint validation, transaction integrity
+
+    NOOP scenarios:
+    - No actual quantity changes detected
+    - Inventory levels would violate business rules
+    - Concurrent modification conflicts (optimistic locking)
+    """
+    input: UpdateInventoryInput
+    success: UpdateInventorySuccess
+    error: UpdateInventoryError
+    noop: UpdateInventoryNoop  # For no-change scenarios
+
+
+@mutation(function="app.apply_discount")
+class ApplyDiscountEnterprise:
+    """Apply discount with eligibility validation.
+
+    Complex validation example:
+    - Customer eligibility (membership tier, purchase history)
+    - Product eligibility (category restrictions, brand exclusions)
+    - Temporal validation (valid date ranges, usage limits)
+    - Quantity validation (minimum purchase requirements)
+    - Cross-promotion conflicts (stackable vs exclusive discounts)
+    """
+    input: ApplyDiscountInput
+    success: ApplyDiscountSuccess
+    error: ApplyDiscountError
+    noop: ApplyDiscountNoop  # For ineligible customers/products
+
+
+# Legacy Pattern Examples (for comparison)
+# Note: These show the old way. Use Enterprise classes above for new code.
+
+async def process_order_legacy(
+    info,
+    cart_id: UUID,
+    customer_id: UUID,
+    payment_details: dict
+) -> OrderMutationResult:
+    """Legacy pattern - for comparison only.
+
+    This shows the old resolver-based approach without:
+    - Structured NOOP handling
+    - Multi-layer validation
+    - Comprehensive audit trails
+    - Cross-entity validation patterns
+
+    Compare with ProcessOrderEnterprise above to see the difference.
+    """
+    # Implementation would be similar to create_order function above
+    pass
+
+
+# Enterprise Pattern Type Definitions
+# These would typically be in models.py but shown here for demonstration
+
+@input
+class ProcessOrderInput:
+    """Order processing with comprehensive validation."""
+    cart_id: UUID
+    customer_id: UUID
+    shipping_address_id: UUID
+    billing_address_id: Optional[UUID] = None
+    payment_details: dict[str, Any]
+    coupon_codes: Optional[list[str]] = None
+    special_instructions: Optional[str] = None
+
+    # Enterprise validation metadata
+    _expected_total: Optional[Decimal] = None  # For price validation
+    _inventory_reserved_until: Optional[datetime] = None  # For inventory checks
+
+
+@success
+class ProcessOrderSuccess:
+    """Order processed successfully."""
+    order_id: UUID
+    order_number: str
+    total_amount: Decimal
+    payment_status: str
+    estimated_delivery: Optional[datetime] = None
+
+    # Enterprise audit information
+    inventory_adjustments: list[dict[str, Any]]
+    payment_transaction_id: str
+    applied_discounts: list[dict[str, Any]]
+    audit_trail: dict[str, Any]
+
+
+@success
+class ProcessOrderNoop:
+    """Order processing was a no-op."""
+    reason: str
+    order_id: Optional[UUID] = None
+    blocking_issues: list[dict[str, Any]]
+
+    # Context for NOOP scenarios
+    inventory_shortfalls: Optional[list[dict[str, Any]]] = None
+    credit_limit_exceeded: Optional[dict[str, Any]] = None
+    pricing_discrepancies: Optional[list[dict[str, Any]]] = None
+
+
+@failure
+class ProcessOrderError:
+    """Order processing failed."""
+    message: str
+    error_code: str
+    field_errors: Optional[dict[str, str]] = None
+
+    # Enterprise error context
+    validation_failures: list[dict[str, Any]]
+    transaction_rollback_info: dict[str, Any]
+    affected_entities: list[dict[str, Any]]
+
+
+@input
+class UpdateInventoryInput:
+    """Inventory update with business rules."""
+    product_variant_id: UUID
+    quantity_change: int  # Can be negative
+    reason_code: str  # 'restock', 'sale', 'damage', 'adjustment'
+    reference_id: Optional[UUID] = None  # Order ID, return ID, etc.
+    notes: Optional[str] = None
+
+    # Enterprise validation
+    _expected_current_quantity: Optional[int] = None  # For optimistic locking
+    _force_negative: bool = False  # Allow negative inventory
+
+
+@success
+class UpdateInventorySuccess:
+    """Inventory updated successfully."""
+    product_variant_id: UUID
+    previous_quantity: int
+    new_quantity: int
+    quantity_change: int
+
+    # Business context
+    reorder_point_triggered: bool = False
+    low_stock_alert_sent: bool = False
+    audit_trail: dict[str, Any]
+
+
+@success
+class UpdateInventoryNoop:
+    """Inventory update was a no-op."""
+    reason: str
+    product_variant_id: UUID
+    current_quantity: int
+    attempted_change: int
+
+    # NOOP context
+    business_rule_violation: Optional[str] = None
+    concurrent_modification: Optional[dict[str, Any]] = None
+
+
+@failure
+class UpdateInventoryError:
+    """Inventory update failed."""
+    message: str
+    error_code: str
+    product_variant_id: UUID
+
+    # Detailed error context
+    validation_failures: list[str]
+    business_rule_violations: list[str]
+    system_constraints: list[str]
+
+
+@input
+class ApplyDiscountInput:
+    """Discount application with eligibility rules."""
+    cart_id: UUID
+    discount_code: Optional[str] = None
+    discount_id: Optional[UUID] = None
+    customer_id: UUID
+
+    # Validation context
+    _cart_total_for_validation: Optional[Decimal] = None
+    _customer_tier: Optional[str] = None
+
+
+@success
+class ApplyDiscountSuccess:
+    """Discount applied successfully."""
+    discount_id: UUID
+    discount_amount: Decimal
+    discount_percentage: Optional[Decimal] = None
+    cart_total_before: Decimal
+    cart_total_after: Decimal
+
+    # Discount details
+    discount_rules_applied: list[dict[str, Any]]
+    expiry_info: dict[str, Any]
+
+
+@success
+class ApplyDiscountNoop:
+    """Discount application was a no-op."""
+    reason: str
+    discount_code: Optional[str] = None
+    customer_id: UUID
+
+    # Eligibility context
+    customer_ineligible_reasons: list[str]
+    product_restrictions: list[dict[str, Any]]
+    temporal_restrictions: Optional[dict[str, Any]] = None
+
+
+@failure
+class ApplyDiscountError:
+    """Discount application failed."""
+    message: str
+    error_code: str
+    discount_code: Optional[str] = None
+
+    # Error details
+    eligibility_failures: list[str]
+    system_errors: list[str]
+    validation_context: dict[str, Any]

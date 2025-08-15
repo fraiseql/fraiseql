@@ -1,4 +1,14 @@
-"""Example blog API mutations using FraiseQL with CQRS."""
+"""Blog API mutations demonstrating PrintOptim patterns.
+
+This example showcases enterprise-grade patterns:
+- Mutation Result Pattern for standardized responses
+- NOOP Handling for idempotent operations
+- App/Core Function Split for clean architecture
+- Comprehensive validation and error handling
+
+For simpler patterns, see ../quickstart.py
+For complete enterprise example, see ../enterprise_patterns/
+"""
 
 import hashlib
 from typing import TYPE_CHECKING
@@ -10,16 +20,21 @@ from models import (
     CreatePostError,
     CreatePostInput,
     CreatePostSuccess,
+    CreatePostNoop,
     CreateUserError,
     CreateUserInput,
     CreateUserSuccess,
+    CreateUserNoop,
     Post,
     UpdatePostError,
     UpdatePostInput,
     UpdatePostSuccess,
+    UpdatePostNoop,
     User,
+    AuditTrail,
 )
 
+from fraiseql import mutation
 from fraiseql.auth import requires_auth, requires_permission
 
 if TYPE_CHECKING:
@@ -241,3 +256,72 @@ async def delete_post(info, id: UUID) -> bool:
     result = await db.delete_post(id)
 
     return result["success"]
+
+
+# Enterprise Pattern Examples
+# These demonstrate the new PrintOptim mutation patterns
+
+@mutation(function="app.create_post")  # Uses app/core split
+class CreatePostEnterprise:
+    """Create blog post with enterprise patterns.
+
+    This shows the new mutation result pattern with:
+    - Standardized success/error/noop responses
+    - App/core function split architecture
+    - Comprehensive audit information
+    - NOOP handling for duplicate slugs
+    """
+    input: CreatePostInput
+    success: CreatePostSuccess
+    error: CreatePostError
+    noop: CreatePostNoop  # For duplicate handling
+
+
+@mutation(function="app.update_post")
+class UpdatePostEnterprise:
+    """Update blog post with change tracking.
+
+    Enterprise features:
+    - Field-level change detection
+    - Optimistic locking with version checks
+    - NOOP for no-changes scenarios
+    - Complete audit trail
+    """
+    input: UpdatePostInput
+    success: UpdatePostSuccess
+    error: UpdatePostError
+    noop: UpdatePostNoop  # For no-changes scenarios
+
+
+@mutation(function="app.create_user")
+class CreateUserEnterprise:
+    """Create user with validation and NOOP handling.
+
+    Demonstrates:
+    - Multi-layer validation (GraphQL + app + core)
+    - NOOP for duplicate emails
+    - Structured error responses with field context
+    - Audit trail creation
+    """
+    input: CreateUserInput
+    success: CreateUserSuccess
+    error: CreateUserError
+    noop: CreateUserNoop  # For duplicate emails
+
+
+# Legacy Pattern Examples (for comparison)
+# Note: These show the old way. Use Enterprise classes above for new code.
+
+async def create_post_legacy(
+    info,
+    input: CreatePostInput,
+) -> CreatePostSuccess | CreatePostError:
+    """Legacy pattern - for comparison only.
+
+    This shows the old resolver-based approach.
+    Compare with CreatePostEnterprise above to see the difference.
+
+    New code should use the @mutation class decorators instead.
+    """
+    # Implementation remains the same as create_post function above
+    pass

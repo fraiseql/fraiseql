@@ -43,6 +43,9 @@ Production security guide covering SQL injection prevention, rate limiting, quer
 
 ## Advanced Features
 
+### [Identifier Management](./identifier-management.md)
+Comprehensive guide to the Triple ID Pattern (internal ID, UUID primary key, business identifier) including generation strategies, recalculation patterns, lookup optimization, and migration techniques for enterprise-grade identifier management.
+
 ### [Pagination Patterns](./pagination.md)
 Implementing efficient cursor-based and offset pagination with proper index usage and performance optimization.
 

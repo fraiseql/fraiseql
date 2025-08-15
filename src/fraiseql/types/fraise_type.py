@@ -22,6 +22,7 @@ def fraise_type(
     sql_source: str | None = None,
     jsonb_column: str | None = None,
     implements: list[type] | None = None,
+    resolve_nested: bool = False,
 ) -> Callable[[T], T]: ...
 
 
@@ -35,6 +36,7 @@ def fraise_type(
     sql_source: str | None = None,
     jsonb_column: str | None = None,
     implements: list[type] | None = None,
+    resolve_nested: bool = False,
 ) -> T | Callable[[T], T]:
     """Decorator to define a FraiseQL GraphQL output type.
 
@@ -50,6 +52,10 @@ def fraise_type(
             Defaults to "data" if not specified. Used in production mode to
             extract JSONB content instead of returning full database rows.
         implements: Optional list of GraphQL interface types that this type implements.
+        resolve_nested: If True, when this type appears as a nested field in another
+            type, FraiseQL will attempt to resolve it via a separate query to its
+            sql_source. If False (default), assumes the data is embedded in the
+            parent's JSONB and won't create a separate resolver.
 
     Returns:
         The decorated class enhanced with FraiseQL capabilities.
@@ -94,6 +100,43 @@ def fraise_type(
             name: str
             created_at: datetime
         ```
+
+        Type with nested object resolution (for relational data):
+        ```python
+        # Department will be resolved via separate query when nested
+        @fraise_type(sql_source="departments", resolve_nested=True)
+        @dataclass
+        class Department:
+            id: UUID
+            name: str
+
+        # Employee with department as a relation (not embedded)
+        @fraise_type(sql_source="employees")
+        @dataclass
+        class Employee:
+            id: UUID
+            name: str
+            department_id: UUID  # Foreign key
+            department: Department | None  # Will query departments table
+        ```
+
+        Type with embedded nested objects (default behavior):
+        ```python
+        # Department data is embedded in parent's JSONB (default)
+        @fraise_type(sql_source="departments")
+        @dataclass
+        class Department:
+            id: UUID
+            name: str
+
+        # Employee view includes embedded department in JSONB
+        @fraise_type(sql_source="v_employees_with_dept")
+        @dataclass
+        class Employee:
+            id: UUID
+            name: str
+            department: Department | None  # Uses embedded JSONB data
+        ```
     """
 
     def wrapper(cls: T) -> T:
@@ -113,6 +156,8 @@ def fraise_type(
             cls.__fraiseql_definition__.sql_source = sql_source
             # Store JSONB column information for production mode extraction
             cls.__fraiseql_definition__.jsonb_column = jsonb_column or "data"
+            # Store whether nested instances should be resolved separately
+            cls.__fraiseql_definition__.resolve_nested = resolve_nested
             cls.__gql_where_type__ = safe_create_where_type(cls)
 
         # Store interfaces this type implements

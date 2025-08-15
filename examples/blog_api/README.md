@@ -1,16 +1,42 @@
-# Blog API Example
+# Blog API Example - Enterprise Patterns Showcase
 
-This example demonstrates how to build a complete GraphQL API using FraiseQL with FastAPI, PostgreSQL, CQRS architecture, and optional Auth0 authentication.
+This example demonstrates how to build a complete GraphQL API using FraiseQL with enterprise-grade patterns for production systems.
+
+## Patterns Demonstrated
+
+### ✅ Mutation Result Pattern
+- Standardized success/error responses with metadata
+- Field-level change tracking
+- Comprehensive audit information
+- See: `mutations.py` enterprise classes and `test_mutation_results.py`
+
+### ✅ NOOP Handling Pattern
+- Idempotent operations with graceful edge case handling
+- Multiple NOOP scenarios (duplicate slugs, no changes detected)
+- See: Enterprise mutation classes with `noop` result types
+
+### ✅ App/Core Function Split
+- Clean separation of input handling and business logic
+- Type-safe core functions with JSONB app wrappers
+- See: `db/functions/app_functions.sql` and `core_functions.sql`
+
+### ✅ Basic Audit Trails
+- Created/updated tracking with user attribution
+- Version management for optimistic locking
+- See: `AuditTrail` type and audit field usage throughout
+
+### ❌ Advanced Features
+For complete enterprise patterns (identifier management, multi-layer validation), see `../enterprise_patterns/`
 
 ## Features
 
-- User management with authentication
-- Blog posts with CRUD operations
+- User management with comprehensive audit trails
+- Blog posts with enterprise-grade change tracking
 - Comments system with nested replies
 - Role-based permissions (user, admin)
 - Production-ready with optimized queries
-- CQRS architecture with write-side tables and read-side views
-- SQL functions for all mutations
+- CQRS architecture with enterprise patterns
+- App/core function split for clean architecture
 
 ## Setup
 

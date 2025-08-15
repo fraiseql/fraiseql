@@ -1,18 +1,50 @@
-# E-commerce API Example
+# E-commerce API Example - Complex Validation Patterns
 
-A comprehensive e-commerce API built with FraiseQL, demonstrating advanced features and best practices for building production-ready GraphQL APIs.
+A comprehensive e-commerce API demonstrating advanced validation patterns and cross-entity business rules with FraiseQL.
+
+## Patterns Demonstrated
+
+### ✅ Cross-Entity Validation
+- Inventory availability checking across product variants
+- Customer credit limit validation during checkout
+- Price consistency validation across order items
+- See: Enterprise mutation classes with complex validation logic
+
+### ✅ Multi-Layer Validation
+- GraphQL: Type validation, required fields
+- App layer: Basic bounds checking, format validation
+- Core layer: Business rules, cross-entity consistency
+- Database: Constraint validation, transaction integrity
+- See: `ProcessOrderEnterprise` and validation examples
+
+### ✅ Enterprise Error Handling
+- Structured error responses with field-level context
+- Business rule violation details
+- System constraint information
+- Actionable suggestions for resolution
+- See: Enhanced error types with detailed context
+
+### ✅ NOOP Handling for Business Rules
+- Inventory shortfall scenarios
+- Credit limit exceeded cases
+- Pricing discrepancy detection
+- Concurrent modification conflicts
+- See: NOOP result types with business context
+
+### ❌ Complete Audit Trails
+For full audit trail implementation, see `../enterprise_patterns/`
 
 ## Features
 
-- **Product Catalog**: Categories, products with variants, image management
-- **Shopping Cart**: Session and user-based carts with inventory checking
-- **Order Management**: Complete order lifecycle with status tracking
-- **Customer Accounts**: Registration, profiles, addresses, order history
-- **Reviews & Ratings**: Product reviews with verified purchase tracking
-- **Wishlist**: Save products for later
-- **Inventory Management**: Real-time inventory tracking with alerts
-- **Search & Filtering**: Full-text search with faceted filtering
-- **Coupons & Discounts**: Flexible discount system
+- **Product Catalog**: Categories, products with variants, validation patterns
+- **Shopping Cart**: Multi-layer validation with inventory checking
+- **Order Management**: Cross-entity validation and business rule enforcement
+- **Customer Accounts**: Comprehensive validation and eligibility checking
+- **Reviews & Ratings**: Verified purchase validation
+- **Wishlist**: User eligibility and product availability validation
+- **Inventory Management**: Real-time validation with business rule enforcement
+- **Search & Filtering**: Validated filtering with business logic
+- **Coupons & Discounts**: Complex eligibility validation patterns
 
 ## Architecture
 

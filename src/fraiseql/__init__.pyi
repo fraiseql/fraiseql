@@ -14,6 +14,7 @@ def fraise_type_decorator(
     sql_source: str | None = None,
     jsonb_column: str | None = None,
     implements: List[Type[Any]] | None = None,
+    resolve_nested: bool = False,
 ) -> Callable[[Type[_T]], Type[_T]]: ...
 def fraise_type_decorator(
     cls: Type[_T] | None = None,
@@ -21,6 +22,7 @@ def fraise_type_decorator(
     sql_source: str | None = None,
     jsonb_column: str | None = None,
     implements: List[Type[Any]] | None = None,
+    resolve_nested: bool = False,
 ) -> Type[_T] | Callable[[Type[_T]], Type[_T]]: ...
 @overload
 def fraise_input_decorator(cls: Type[_T]) -> Type[_T]: ...
