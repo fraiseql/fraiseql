@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 
 @type(sql_source="organizations")
-class Organization:
+class Organization1:
     """Organization type with sql_source."""
     id: UUID
     name: str
@@ -20,25 +20,25 @@ class Organization:
 
 
 @type(sql_source="users")
-class User:
+class User1:
     """User type with embedded organization in JSONB data."""
     id: UUID
     first_name: str
     last_name: str
     email_address: str
-    organization: Optional[Organization] = None  # This is embedded in data column
+    organization: Optional[Organization1] = None  # This is embedded in data column
 
 
 @query
-async def user(info: GraphQLResolveInfo) -> Optional[User]:
+async def user1(info: GraphQLResolveInfo) -> Optional[User1]:
     """Query to get the current user."""
     # Return a mock user with embedded organization data
-    return User(
+    return User1(
         id=UUID("75736572-0000-0000-0000-000000000000"),
         first_name="Alice",
         last_name="Cooper",
         email_address="alice@example.com",
-        organization=Organization(
+        organization=Organization1(
             id=UUID("6f726700-0000-0000-0000-000000000000"),
             name="Test Org",
             identifier="TEST-ORG",
@@ -53,13 +53,13 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
 
     # Create schema
     schema = build_fraiseql_schema(
-        query_types=[user, User, Organization]
+        query_types=[user1, User1, Organization1]
     )
 
     # GraphQL query requesting nested organization
     query_str = """
     query GetUser {
-      user {
+      user1 {
         id
         firstName
         lastName
@@ -100,10 +100,10 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
 
     # Verify the data was returned correctly
     assert result.data is not None
-    assert result.data["user"] is not None
-    assert result.data["user"]["organization"] is not None
-    assert result.data["user"]["organization"]["name"] == "Test Org"
-    assert result.data["user"]["organization"]["identifier"] == "TEST-ORG"
+    assert result.data["user1"] is not None
+    assert result.data["user1"]["organization"] is not None
+    assert result.data["user1"]["organization"]["name"] == "Test Org"
+    assert result.data["user1"]["organization"]["identifier"] == "TEST-ORG"
 
     # Verify that find_one was NOT called (data was embedded, not queried)
     mock_db.find_one.assert_not_called()
