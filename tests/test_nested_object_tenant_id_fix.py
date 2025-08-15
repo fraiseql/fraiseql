@@ -116,24 +116,24 @@ async def test_smart_resolver_prefers_embedded_data():
     """Test that the smart resolver uses embedded data when available."""
 
     @type(sql_source="departments")
-    class Department:
+    class Department2:
         id: UUID
         name: str
         code: str
 
     @type(sql_source="employees")
-    class Employee:
+    class Employee2:
         id: UUID
         name: str
-        department: Optional[Department] = None
+        department: Optional[Department2] = None
 
     @query
-    async def employee(info: GraphQLResolveInfo) -> Optional[Employee]:
+    async def employee2(info: GraphQLResolveInfo) -> Optional[Employee2]:
         # Return employee with embedded department
-        return Employee(
+        return Employee2(
             id=UUID("11111111-1111-1111-1111-111111111111"),
             name="Bob Smith",
-            department=Department(
+            department=Department2(
                 id=UUID("22222222-2222-2222-2222-222222222222"),
                 name="Engineering",
                 code="ENG"
@@ -141,12 +141,12 @@ async def test_smart_resolver_prefers_embedded_data():
         )
 
     schema = build_fraiseql_schema(
-        query_types=[employee, Employee, Department]
+        query_types=[employee2, Employee2, Department2]
     )
 
     query_str = """
     query GetEmployee {
-      employee {
+      employee2 {
         id
         name
         department {
@@ -172,7 +172,7 @@ async def test_smart_resolver_prefers_embedded_data():
 
     # Should succeed without errors
     assert result.errors is None or len(result.errors) == 0
-    assert result.data["employee"]["department"]["name"] == "Engineering"
+    assert result.data["employee2"]["department"]["name"] == "Engineering"
 
     # Database should not be queried for embedded data
     mock_db.find_one.assert_not_called()
@@ -185,22 +185,22 @@ async def test_smart_resolver_queries_when_no_embedded_data():
     """Test that the smart resolver queries sql_source when data is not embedded."""
 
     @type(sql_source="departments", resolve_nested=True)
-    class Department:
+    class Department3:
         id: UUID
         name: str
         code: str
 
     @type(sql_source="employees")
-    class Employee:
+    class Employee3:
         id: UUID
         name: str
-        department: Optional[Department] = None
+        department: Optional[Department3] = None
         department_id: Optional[UUID] = None  # Foreign key field
 
     @query
-    async def employee(info: GraphQLResolveInfo) -> Optional[Employee]:
+    async def employee3(info: GraphQLResolveInfo) -> Optional[Employee3]:
         # Return employee WITHOUT embedded department, but with FK
-        return Employee(
+        return Employee3(
             id=UUID("11111111-1111-1111-1111-111111111111"),
             name="Bob Smith",
             department=None,  # No embedded data
@@ -208,12 +208,12 @@ async def test_smart_resolver_queries_when_no_embedded_data():
         )
 
     schema = build_fraiseql_schema(
-        query_types=[employee, Employee, Department]
+        query_types=[employee3, Employee3, Department3]
     )
 
     query_str = """
     query GetEmployee {
-      employee {
+      employee3 {
         id
         name
         department {
@@ -250,8 +250,8 @@ async def test_smart_resolver_queries_when_no_embedded_data():
 
     # Data should be fetched from database
     assert result.data is not None
-    assert result.data["employee"]["department"] is not None
-    assert result.data["employee"]["department"]["name"] == "Engineering"
+    assert result.data["employee3"]["department"] is not None
+    assert result.data["employee3"]["department"]["name"] == "Engineering"
 
     # Verify database was queried
     mock_db.find_one.assert_called_once()
