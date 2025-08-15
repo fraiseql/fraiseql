@@ -6,7 +6,7 @@ from typing import Any, Optional
 import fraiseql
 from fraiseql import type, query
 from graphql import GraphQLResolveInfo, graphql
-from fraiseql import create_schema
+from fraiseql import build_fraiseql_schema
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -52,9 +52,8 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
     """Test that nested objects with sql_source don't require tenant_id when data is embedded."""
 
     # Create schema
-    schema = create_schema(
-        queries=[user],
-        types=[User, Organization]
+    schema = build_fraiseql_schema(
+        query_types=[user, User, Organization]
     )
 
     # GraphQL query requesting nested organization
@@ -141,9 +140,8 @@ async def test_smart_resolver_prefers_embedded_data():
             )
         )
 
-    schema = create_schema(
-        queries=[employee],
-        types=[Employee, Department]
+    schema = build_fraiseql_schema(
+        query_types=[employee, Employee, Department]
     )
 
     query_str = """
@@ -209,9 +207,8 @@ async def test_smart_resolver_queries_when_no_embedded_data():
             department_id=UUID("22222222-2222-2222-2222-222222222222")  # But has FK
         )
 
-    schema = create_schema(
-        queries=[employee],
-        types=[Employee, Department]
+    schema = build_fraiseql_schema(
+        query_types=[employee, Employee, Department]
     )
 
     query_str = """
