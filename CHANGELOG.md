@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2025-01-15
+
+### Added
+- **Nested Object Resolution Control** - Added `resolve_nested` parameter to `@type` decorator for explicit control over nested field resolution behavior
+  - `resolve_nested=False` (default): Assumes embedded data in parent object, optimal for PostgreSQL JSONB queries
+  - `resolve_nested=True`: Makes separate queries to nested type's sql_source, useful for truly relational data
+  - Replaces previous automatic "smart resolver" behavior with explicit developer control
+  - Improves performance by avoiding N+1 queries when data is pre-embedded
+  - Maintains full backward compatibility
+
+### Changed
+- **Breaking Change**: Default nested object resolution behavior now assumes embedded data
+  - Previous versions automatically queried nested objects from their sql_source
+  - New default behavior assumes nested data is embedded in parent JSONB for better performance
+  - Use `resolve_nested=True` to restore previous automatic querying behavior
+  - This change aligns with PostgreSQL-first design and JSONB optimization patterns
+
+### Fixed
+- Fixed test import errors that were causing CI failures
+- Fixed duplicate GraphQL type name conflicts in test suite
+- Updated schema building API usage throughout codebase
+
+### Documentation
+- Added comprehensive guide to nested object resolution patterns
+- Updated examples to demonstrate both embedded and relational approaches
+- Added migration guide for developers upgrading from v0.1.4
+
 ## [0.1.4] - 2025-01-12
 
 ### Added
