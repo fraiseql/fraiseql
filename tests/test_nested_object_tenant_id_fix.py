@@ -184,7 +184,7 @@ async def test_smart_resolver_prefers_embedded_data():
 async def test_smart_resolver_queries_when_no_embedded_data():
     """Test that the smart resolver queries sql_source when data is not embedded."""
 
-    @type(sql_source="departments")
+    @type(sql_source="departments", resolve_nested=True)
     class Department:
         id: UUID
         name: str
