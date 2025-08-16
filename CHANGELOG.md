@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-01-16
+
+### Changed
+- **Breaking Change**: CORS is now disabled by default to prevent conflicts with reverse proxies
+  - `cors_enabled` now defaults to `False` instead of `True`
+  - `cors_origins` now defaults to `[]` (empty list) instead of `["*"]`
+  - This prevents duplicate CORS headers when using reverse proxies like Nginx, Apache, or Cloudflare
+  - Applications serving browsers directly must explicitly enable CORS with `cors_enabled=True`
+  - Production deployments should configure CORS at the reverse proxy level for better security
+
+### Added
+- Production warning when wildcard CORS origins are used in production environment
+- Comprehensive CORS configuration examples for both reverse proxy and application-level setups
+- Detailed migration guidance in documentation for existing applications
+
+### Fixed
+- Eliminated CORS header conflicts in reverse proxy environments
+- Improved security by requiring explicit CORS configuration
+
+### Documentation
+- Complete rewrite of CORS documentation across all guides
+- Added reverse proxy configuration examples (Nginx, Apache)
+- Updated security documentation with CORS best practices
+- Updated all tutorials and examples to reflect new CORS defaults
+- Added migration guide for upgrading from v0.1.x
+
 ## [0.1.5] - 2025-01-15
 
 ### Added
