@@ -269,10 +269,20 @@ Complete configuration class for FraiseQL applications.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `cors_enabled` | `bool` | True | Enable CORS |
-| `cors_origins` | `list[str]` | ["*"] | Allowed origins |
+| `cors_enabled` | `bool` | False | Enable CORS middleware |
+| `cors_origins` | `list[str]` | [] | Allowed origins (empty by default) |
 | `cors_methods` | `list[str]` | ["GET", "POST"] | Allowed methods |
 | `cors_headers` | `list[str]` | ["*"] | Allowed headers |
+
+!!! warning "CORS Configuration Required"
+    CORS is disabled by default to prevent conflicts with reverse proxies like Nginx, Apache, or Cloudflare that handle CORS at the infrastructure level. You must explicitly enable and configure CORS if your application needs it:
+
+    ```python
+    config = FraiseQLConfig(
+        cors_enabled=True,
+        cors_origins=["https://yourdomain.com", "https://app.yourdomain.com"]
+    )
+    ```
 
 ### Environment Variables
 

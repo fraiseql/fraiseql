@@ -61,13 +61,28 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **CORS properly configured**
+  !!! note "CORS is disabled by default"
+      Configure CORS at the reverse proxy level, or enable only if serving browsers directly:
+
+  **Option 1: Reverse Proxy CORS (Recommended)**
+  ```nginx
+  # Nginx configuration
+  add_header Access-Control-Allow-Origin "https://app.example.com";
+  add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+  add_header Access-Control-Allow-Headers "Content-Type, Authorization";
+  ```
+
+  **Option 2: Application-level CORS (Only if needed)**
   ```python
-  CORS_ORIGINS = [
-      "https://app.example.com",
-      "https://www.example.com"
-  ]
-  CORS_METHODS = ["GET", "POST"]
-  CORS_HEADERS = ["Content-Type", "Authorization"]
+  config = FraiseQLConfig(
+      cors_enabled=True,  # Explicitly enable
+      cors_origins=[
+          "https://app.example.com",
+          "https://www.example.com"
+      ],
+      cors_methods=["GET", "POST"],
+      cors_headers=["Content-Type", "Authorization"]
+  )
   ```
 
 - [ ] **Rate limiting enabled**
