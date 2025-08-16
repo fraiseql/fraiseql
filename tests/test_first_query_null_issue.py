@@ -84,6 +84,7 @@ def test_first_query_returns_null_simple():
     app = create_fraiseql_app(
         database_url="postgresql://test/test",  # Dummy URL since we're mocking
         types=[User],
+        queries=[user, users],  # Include the query resolvers
         production=False
     )
 

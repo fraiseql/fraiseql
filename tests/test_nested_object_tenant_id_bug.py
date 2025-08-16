@@ -47,6 +47,12 @@ async def user(info: GraphQLResolveInfo) -> Optional[User]:
 async def test_user_with_embedded_organization_tenant_id_bug(db_connection):
     """Test that querying user with organization incorrectly requires tenant_id."""
 
+    # Check if required tables exist
+    try:
+        await db_connection.execute("SELECT 1 FROM tenant.tb_organization LIMIT 1")
+    except Exception:
+        pytest.skip("Required tenant schema tables not available in test environment")
+
     # First, set up test data
     async with db_connection.transaction():
         # Create test organization
@@ -187,6 +193,12 @@ async def test_user_with_embedded_organization_tenant_id_bug(db_connection):
 @pytest.mark.asyncio
 async def test_workaround_with_duplicate_type(db_connection):
     """Test workaround using a duplicate type without sql_source."""
+
+    # Check if required tables exist
+    try:
+        await db_connection.execute("SELECT 1 FROM tenant.tb_organization LIMIT 1")
+    except Exception:
+        pytest.skip("Required tenant schema tables not available in test environment")
 
     # Define Organization without sql_source for embedded use
     @type  # No sql_source

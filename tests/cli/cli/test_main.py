@@ -13,7 +13,7 @@ class TestCLIMain:
         result = cli_runner.invoke(cli, ["--version"])
 
         assert result.exit_code == 0
-        assert "fraiseql, version 0.1.0" in result.output
+        assert "fraiseql, version 0.2.1" in result.output
 
     def test_cli_help(self, cli_runner) -> None:
         """Test --help shows help text."""

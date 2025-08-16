@@ -18,9 +18,18 @@ from graphql import GraphQLResolveInfo
 
 async def setup_test_database():
     """Create a test database with the necessary schema."""
+    # Get database connection details from environment
+    import os
+
+    # Use environment variables that match GitHub Actions setup
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = os.environ.get("DB_PORT", "5432")
+    db_user = os.environ.get("DB_USER", "fraiseql")
+    db_password = os.environ.get("DB_PASSWORD", "fraiseql")
+
     # Connect to PostgreSQL to create test database
     conn = await psycopg.AsyncConnection.connect(
-        "host=localhost port=5432 user=postgres dbname=postgres",
+        f"host={db_host} port={db_port} user={db_user} password={db_password} dbname=postgres",
         autocommit=True
     )
 
@@ -33,7 +42,7 @@ async def setup_test_database():
 
     # Connect to the new test database
     conn = await psycopg.AsyncConnection.connect(
-        "host=localhost port=5432 user=postgres dbname=fraiseql_nested_test"
+        f"host={db_host} port={db_port} user={db_user} password={db_password} dbname=fraiseql_nested_test"
     )
 
     try:

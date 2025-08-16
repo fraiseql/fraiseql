@@ -124,7 +124,7 @@ class CreateUserInput:
 @fraiseql.input
 class CreateUserInputEnterprise:
     """Post creation input with validation - enterprise pattern example."""
-    email: Annotated[str, Field(regex=r"^[^@]+@[^@]+\.[^@]+$")]
+    email: Annotated[str, Field(pattern=r"^[^@]+@[^@]+\.[^@]+$")]
     name: Annotated[str, Field(min_length=2, max_length=100)]
     password: Annotated[str, Field(min_length=8)]
     bio: Annotated[Optional[str], Field(max_length=500)] = None
