@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-01-16
+
+### Fixed
+- Fixed version synchronization across all Python modules
+- Updated CLI version numbers to match package version
+- Updated generated project dependencies to use correct version range
+
 ## [0.2.0] - 2025-01-16
 
 ### Changed
