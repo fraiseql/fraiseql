@@ -118,7 +118,7 @@ version = "0.1.0"
 description = "A FraiseQL GraphQL API"
 requires-python = ">=3.10"
 dependencies = [
-    "fraiseql>=0.1.0",
+    "fraiseql>=0.2.0",
     "uvicorn>=0.34.3",
     "python-dotenv>=1.0.0",
 ]
