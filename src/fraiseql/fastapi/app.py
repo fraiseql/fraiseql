@@ -248,6 +248,14 @@ def create_fraiseql_app(
 
     # Setup CORS if enabled
     if config.cors_enabled:
+        # Log warning if using wildcard in production
+        if production and "*" in config.cors_origins:
+            logger.warning(
+                "CORS enabled with wildcard origin (*) in production. "
+                "This may cause conflicts with reverse proxies that handle CORS. "
+                "Consider disabling CORS in FraiseQL when using a reverse proxy."
+            )
+
         app.add_middleware(
             CORSMiddleware,
             allow_origins=config.cors_origins,
@@ -260,7 +268,6 @@ def create_fraiseql_app(
     if not production and config.dev_auth_password:
         from fraiseql.fastapi.dev_auth import DevAuthMiddleware
 
-        logger = logging.getLogger(__name__)
         logger.warning(
             "Development authentication enabled with username: %s. "
             "This should NEVER be used in production!",
