@@ -164,7 +164,7 @@ class TestValidateWhereInput:
         errors = validate_where_input(where, SampleUser)
         assert errors == []
 
-    def test_operator_type_validation(self):
+    def test_operator_type_validation(self, clear_registry):
         """Test operator validation against field types."""
         # String operator on non-string field should be caught
         where = {"age": {"_like": "25%"}}

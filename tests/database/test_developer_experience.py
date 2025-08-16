@@ -164,7 +164,7 @@ class TestValidationUtilities:
         assert len(errors) == 1
         assert "Unknown operator '_invalid'" in errors[0]
 
-    def test_validate_where_input_type_mismatch(self):
+    def test_validate_where_input_type_mismatch(self, clear_registry):
         """Test validation with operator type mismatch."""
         # String operator on non-string field
         where_input = {"age": {"_like": "%25%"}}

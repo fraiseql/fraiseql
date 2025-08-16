@@ -10,7 +10,7 @@ from tests.database_conftest import *  # noqa: F403
 from tests.conftest_auth import *  # noqa: F403
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def clear_registry():
     # Clear the registry before and after each test
     SchemaRegistry.get_instance().clear()
