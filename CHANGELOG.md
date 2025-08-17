@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-01-17
+
+### Security
+- **Breaking Change**: Authentication is now properly enforced when an auth provider is configured
+  - Previously, configuring `auth_enabled=True` did not block unauthenticated requests (vulnerability)
+  - Now, when an auth provider is passed to `create_fraiseql_app()`, authentication is automatically enforced
+  - All GraphQL requests require valid authentication tokens (401 returned for unauthenticated requests)
+  - Exception: Introspection queries (`__schema`) are still allowed without auth in development mode
+  - This fixes a critical security vulnerability where sensitive data could be accessed without authentication
+
+### Changed
+- Passing an `auth` parameter to `create_fraiseql_app()` now automatically sets `auth_enabled=True`
+- Authentication enforcement is now consistent across all GraphQL endpoints
+
+### Fixed
+- Fixed authentication bypass vulnerability where `auth_enabled=True` didn't actually enforce authentication
+- Fixed inconsistent authentication behavior between different query types
+
+### Documentation
+- Added comprehensive Authentication Enforcement section to authentication guide
+- Updated API reference to clarify auth parameter behavior
+- Added security notices about authentication enforcement
+
+## [0.2.1] - 2025-01-16
+
+### Fixed
+- Fixed version synchronization across all Python modules
+- Updated CLI version numbers to match package version
+- Updated generated project dependencies to use correct version range
+
+## [0.2.0] - 2025-01-16
+
+### Changed
+- **Breaking Change**: CORS is now disabled by default to prevent conflicts with reverse proxies
+  - `cors_enabled` now defaults to `False` instead of `True`
+  - `cors_origins` now defaults to `[]` (empty list) instead of `["*"]`
+  - This prevents duplicate CORS headers when using reverse proxies like Nginx, Apache, or Cloudflare
+  - Applications serving browsers directly must explicitly enable CORS with `cors_enabled=True`
+  - Production deployments should configure CORS at the reverse proxy level for better security
+
+### Added
+- Production warning when wildcard CORS origins are used in production environment
+- Comprehensive CORS configuration examples for both reverse proxy and application-level setups
+- Detailed migration guidance in documentation for existing applications
+
+### Fixed
+- Eliminated CORS header conflicts in reverse proxy environments
+- Improved security by requiring explicit CORS configuration
+
+### Documentation
+- Complete rewrite of CORS documentation across all guides
+- Added reverse proxy configuration examples (Nginx, Apache)
+- Updated security documentation with CORS best practices
+- Updated all tutorials and examples to reflect new CORS defaults
+- Added migration guide for upgrading from v0.1.x
+
+## [0.1.5] - 2025-01-15
+
+### Added
+- **Nested Object Resolution Control** - Added `resolve_nested` parameter to `@type` decorator for explicit control over nested field resolution behavior
+  - `resolve_nested=False` (default): Assumes embedded data in parent object, optimal for PostgreSQL JSONB queries
+  - `resolve_nested=True`: Makes separate queries to nested type's sql_source, useful for truly relational data
+  - Replaces previous automatic "smart resolver" behavior with explicit developer control
+  - Improves performance by avoiding N+1 queries when data is pre-embedded
+  - Maintains full backward compatibility
+
+### Changed
+- **Breaking Change**: Default nested object resolution behavior now assumes embedded data
+  - Previous versions automatically queried nested objects from their sql_source
+  - New default behavior assumes nested data is embedded in parent JSONB for better performance
+  - Use `resolve_nested=True` to restore previous automatic querying behavior
+  - This change aligns with PostgreSQL-first design and JSONB optimization patterns
+
+### Fixed
+- Fixed test import errors that were causing CI failures
+- Fixed duplicate GraphQL type name conflicts in test suite
+- Updated schema building API usage throughout codebase
+
+### Documentation
+- Added comprehensive guide to nested object resolution patterns
+- Updated examples to demonstrate both embedded and relational approaches
+- Added migration guide for developers upgrading from v0.1.4
+
 ## [0.1.4] - 2025-01-12
 
 ### Added

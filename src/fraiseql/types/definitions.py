@@ -21,6 +21,7 @@ class FraiseQLTypeDefinition:
         kind (str): 'input', 'type', 'success', or 'failure'.
         sql_source (str | None): Optional SQL table/view this type is bound to.
         jsonb_column (str | None): Optional JSONB column name for data extraction.
+        resolve_nested (bool): If True, resolve nested instances via separate queries.
         fields (dict[str, FraiseQLField]): Ordered field name → metadata.
         type_hints (dict[str, type]): Field name → resolved Python type hints.
         is_frozen (bool): Whether the type is immutable.
@@ -38,6 +39,7 @@ class FraiseQLTypeDefinition:
         "kind",
         "kw_only",
         "python_type",
+        "resolve_nested",
         "sql_source",
         "type",
         "type_hints",
@@ -51,6 +53,7 @@ class FraiseQLTypeDefinition:
         kind: str,
         sql_source: str | None,
         jsonb_column: str | None = None,
+        resolve_nested: bool = False,
         fields: dict[str, FraiseQLField],
         type_hints: dict[str, type],
         is_frozen: bool = False,
@@ -61,6 +64,7 @@ class FraiseQLTypeDefinition:
         self.kind = kind
         self.sql_source = sql_source
         self.jsonb_column = jsonb_column
+        self.resolve_nested = resolve_nested
         self.fields = fields
         self.type_hints = type_hints
         self.is_frozen = is_frozen

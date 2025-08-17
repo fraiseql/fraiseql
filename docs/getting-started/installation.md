@@ -187,7 +187,10 @@ GRAPHQL_PLAYGROUND_ENABLED=true  # Disable in production
 
 # Security (production)
 SECRET_KEY=your-secret-key-here
-CORS_ORIGINS=https://yourdomain.com
+
+# CORS (only if serving browsers directly)
+# FRAISEQL_CORS_ENABLED=true
+# FRAISEQL_CORS_ORIGINS=https://yourdomain.com
 ```
 
 ## Docker Setup (Optional)

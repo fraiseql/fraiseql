@@ -209,10 +209,22 @@ These settings eliminate the need to specify `schema="app"` on every mutation an
 
 | Parameter | Type | Default | Environment Variable | Description |
 |-----------|------|---------|---------------------|-------------|
-| `cors_enabled` | bool | True | `FRAISEQL_CORS_ENABLED` | Enable CORS middleware |
-| `cors_origins` | list | ["*"] | `FRAISEQL_CORS_ORIGINS` | Allowed origins |
+| `cors_enabled` | bool | False | `FRAISEQL_CORS_ENABLED` | Enable CORS middleware |
+| `cors_origins` | list | [] | `FRAISEQL_CORS_ORIGINS` | Allowed origins (empty by default) |
 | `cors_methods` | list | ["GET", "POST"] | `FRAISEQL_CORS_METHODS` | Allowed HTTP methods |
 | `cors_headers` | list | ["*"] | `FRAISEQL_CORS_HEADERS` | Allowed headers |
+
+!!! warning "CORS Disabled by Default"
+    CORS is disabled by default to prevent conflicts with reverse proxies (Nginx, Apache, Cloudflare) that handle CORS at the infrastructure level. If your application serves browser clients directly, you must explicitly enable CORS:
+
+    ```python
+    config = FraiseQLConfig(
+        cors_enabled=True,
+        cors_origins=["https://yourdomain.com", "https://app.yourdomain.com"]
+    )
+    ```
+
+    Production environments using reverse proxies should leave CORS disabled and configure CORS headers at the proxy level.
 
 ### Execution Mode
 
@@ -261,6 +273,9 @@ config = FraiseQLConfig(
     rate_limit_requests_per_minute=100,
     complexity_max_score=500,
     turbo_router_cache_size=5000,
+    # CORS is disabled by default - configure at reverse proxy level
+    # cors_enabled=True,  # Only if serving browsers directly
+    # cors_origins=["https://yourdomain.com"],
 )
 ```
 

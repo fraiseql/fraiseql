@@ -338,6 +338,42 @@ def convert_type_to_graphql_output(
                 for name, field in fields.items():
                     field_type = field.field_type or type_hints.get(name)
                     if field_type is not None:
+                        # Check if we should use nested resolver (only if explicitly requested)
+                        # By default (resolve_nested=False), nested objects are assumed to be
+                        # embedded in the parent's JSONB data and use the standard resolver.
+                        # Only when resolve_nested=True do we create a special resolver that
+                        # can query the nested type's sql_source separately.
+                        from fraiseql.core.nested_field_resolver import (
+                            create_smart_nested_field_resolver,
+                            should_use_nested_resolver,
+                        )
+
+                        if should_use_nested_resolver(field_type):
+                            # Use smart resolver for resolve_nested=True types
+                            smart_resolver = create_smart_nested_field_resolver(name, field_type)
+
+                            # Wrap with enum serialization
+                            from fraiseql.gql.enum_serializer import (
+                                wrap_resolver_with_enum_serialization,
+                            )
+
+                            # Use explicit graphql_name if provided, otherwise convert to
+                            # camelCase if configured
+                            config = SchemaConfig.get_instance()
+                            if field.graphql_name:
+                                graphql_field_name = field.graphql_name
+                            else:
+                                graphql_field_name = (
+                                    snake_to_camel(name) if config.camel_case_fields else name
+                                )
+
+                            gql_fields[graphql_field_name] = GraphQLField(
+                                type_=convert_type_to_graphql_output(field_type),
+                                description=field.description,
+                                resolve=wrap_resolver_with_enum_serialization(smart_resolver),
+                            )
+                            continue  # Skip the regular resolver creation
+
                         # Create resolver for enum serialization and nested object conversion
                         def make_field_resolver(field_name: str, field_type: Any):
                             def resolve_field(obj: Any, info: Any) -> Any:

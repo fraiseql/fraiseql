@@ -982,13 +982,21 @@ async def test_create_and_get_post():
 
 ```python
 # Production settings
-app = create_fraiseql_app(
+config = FraiseQLConfig(
     database_url=os.getenv("DATABASE_URL"),
-    production=True,  # Disables playground, enables security
-    cors_origins=["https://yourdomain.com"],
+    environment="production",  # Disables playground, enables security
+    # cors_enabled=True,  # Only enable if serving browsers directly
+    # cors_origins=["https://yourdomain.com"],  # Configure at reverse proxy instead
     max_query_depth=7,
-    query_complexity_limit=5000,
-    rate_limit="100/minute",
+    complexity_max_score=5000,
+    rate_limit_enabled=True,
+    rate_limit_requests_per_minute=100,
+)
+
+app = create_fraiseql_app(
+    types=[User, Post, Comment],
+    mutations=[create_post, create_comment, update_post],
+    config=config
 )
 ```
 

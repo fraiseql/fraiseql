@@ -62,7 +62,7 @@ from fraiseql import FraiseQLConfig, create_fraiseql_app, mutation
 # Configure mutations with default schema
 config = FraiseQLConfig(
     database_url="postgresql://...",
-    default_mutation_schema="app",  # Default schema for all mutations
+    default_mutation_schema="app",  # Default schema for all mutations (app/core pattern)
     default_query_schema="queries"  # Default schema for all queries
 )
 
@@ -113,6 +113,8 @@ class SystemFunction:
 ### Function Design Patterns
 
 #### Basic CRUD Operation
+
+> **Note**: This example shows a monolithic function approach. For enterprise applications, consider the [App/Core Split Pattern](#enterprise-function-architecture-appcore-split-pattern) which provides better maintainability and testability.
 
 ```sql
 -- Create user with validation
@@ -1209,6 +1211,402 @@ RETURN (
 );
 ```
 
+## Enterprise Function Architecture: App/Core Split Pattern
+
+> **Advanced Pattern:** Master the two-layer function architecture that separates input handling from business logic for maximum maintainability, testability, and modularity.
+
+The app/core split pattern is the **foundation** of enterprise-grade PostgreSQL function architecture in FraiseQL. This architectural pattern separates concerns between input handling (app schema) and business logic (core schema), enabling better testing, modularity, and maintainability for complex applications.
+
+### Architecture Overview
+
+The app/core split creates a clear two-layer architecture:
+
+```mermaid
+graph TD
+    A[GraphQL Mutation] --> B[Python Resolver]
+    B --> C[app.* Function]
+    C --> D{JSONB Input Handling}
+    D --> E[Type Conversion]
+    E --> F[core.* Function]
+    F --> G{Business Logic}
+    G --> H[Validation]
+    G --> I[Data Operations]
+    G --> J[Side Effects]
+    H --> K[Error Response]
+    I --> L[Success Response]
+    J --> L
+    K --> M[app.mutation_result]
+    L --> M
+    M --> N[Return to GraphQL]
+```
+
+**Two-layer function architecture:**
+```
+GraphQL → app.* functions → core.* functions → Database
+          ↓                 ↓
+          JSONB input       Typed input
+          Thin wrapper      Business logic
+          Type conversion   Validation & processing
+```
+
+**Separation of concerns:**
+- **app.* schema**: Thin wrapper functions handling JSONB input from GraphQL
+- **core.* schema**: Pure business logic with typed parameters
+- **Clear boundaries**: No business logic in app, no JSONB handling in core
+
+### Why Split Functions Into Layers?
+
+**Benefits:**
+1. **Testability**: Core functions can be tested with typed parameters
+2. **Reusability**: Core functions can be called by different app functions
+3. **Maintainability**: Business logic centralized in core schema
+4. **Type Safety**: Core functions work with PostgreSQL types, not JSONB
+5. **Modularity**: Clear separation between input handling and business logic
+6. **Performance**: Reduced JSONB parsing in business logic layer
+
+**Testing benefits:**
+```sql
+-- Easy to test core function with typed parameters
+SELECT * FROM core.create_user(
+    '11111111-1111-1111-1111-111111111111'::UUID,
+    '22222222-2222-2222-2222-222222222222'::UUID,
+    ROW('test@example.com', 'Test User', 'Bio text', NULL, 'member')::app.type_user_input,
+    '{"email": "test@example.com", "name": "Test User"}'::JSONB
+);
+```
+
+### App Schema Functions: Input Handling Layer
+
+The app schema contains thin wrapper functions that handle JSONB input from GraphQL resolvers and delegate to core functions.
+
+**Purpose of app.* functions:**
+- Accept JSONB input from GraphQL resolvers
+- Convert JSONB to typed PostgreSQL records
+- Call corresponding core.* function
+- Return app.mutation_result
+
+**Standard app function pattern:**
+```sql
+-- App layer: Thin wrapper for JSONB input
+CREATE OR REPLACE FUNCTION app.create_user(
+    input_pk_organization UUID,
+    input_created_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_input app.type_user_input;
+BEGIN
+    -- Convert JSONB to typed input
+    v_input := jsonb_populate_record(NULL::app.type_user_input, input_payload);
+
+    -- Validate required fields (minimal validation only)
+    IF v_input.email IS NULL OR v_input.name IS NULL THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization,
+            input_created_by,
+            'user',
+            NULL,
+            'NOOP',
+            'noop:invalid_input',
+            ARRAY[]::TEXT[],
+            'Email and name are required',
+            NULL,
+            NULL,
+            jsonb_build_object('trigger', 'api_create', 'validation_layer', 'app')
+        );
+    END IF;
+
+    -- Delegate to core function
+    RETURN core.create_user(
+        input_pk_organization,
+        input_created_by,
+        v_input,
+        input_payload  -- Pass original for logging
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**Key app function characteristics:**
+- **Thin wrapper**: No business logic, only input handling
+- **Type conversion**: JSONB → PostgreSQL composite types
+- **Minimal validation**: Only check for required fields
+- **Security definer**: Elevated privileges when needed
+- **Delegate immediately**: Call core function with typed parameters
+
+### Core Schema Functions: Business Logic Layer
+
+The core schema contains the actual business logic, working with typed parameters instead of JSONB.
+
+**Purpose of core.* functions:**
+- Contain ALL business logic
+- Work with typed parameters (not JSONB)
+- Perform complex validation
+- Handle transaction logic
+- Call other core functions
+- Return via core.log_and_return_mutation
+
+**Standard core function pattern:**
+```sql
+-- Core layer: All business logic
+CREATE OR REPLACE FUNCTION core.create_user(
+    input_pk_organization UUID,
+    input_created_by UUID,
+    input_data app.type_user_input,
+    input_payload JSONB  -- For logging only
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_user_id UUID;
+    v_existing_user RECORD;
+    v_payload_after JSONB;
+BEGIN
+    -- Business logic: Check for duplicates
+    SELECT pk_user, data INTO v_existing_user
+    FROM tenant.tb_user
+    WHERE pk_organization = input_pk_organization
+    AND data->>'email' = input_data.email;
+
+    -- Business rule: Handle duplicate
+    IF v_existing_user.pk_user IS NOT NULL THEN
+        RETURN core.log_and_return_mutation(
+            input_pk_organization,
+            input_created_by,
+            'user',
+            v_existing_user.pk_user,
+            'NOOP',
+            'noop:already_exists',
+            ARRAY[]::TEXT[],
+            'User with this email already exists',
+            v_existing_user.data,
+            v_existing_user.data,
+            jsonb_build_object(
+                'trigger', 'api_create',
+                'business_rule', 'unique_email',
+                'existing_email', input_data.email
+            )
+        );
+    END IF;
+
+    -- Business logic: Create user with role assignment
+    INSERT INTO tenant.tb_user (pk_organization, data, created_by)
+    VALUES (
+        input_pk_organization,
+        jsonb_build_object(
+            'email', input_data.email,
+            'name', input_data.name,
+            'role', core.assign_default_user_role(input_data.email, input_pk_organization),
+            'profile_status', 'pending_verification'
+        ),
+        input_created_by
+    ) RETURNING pk_user INTO v_user_id;
+
+    -- Business logic: Send welcome email
+    PERFORM core.queue_welcome_email(v_user_id, input_data.email);
+
+    -- Business logic: Update organization stats
+    PERFORM core.increment_organization_user_count(input_pk_organization);
+
+    -- Get complete user data from view
+    SELECT data INTO v_payload_after
+    FROM public.tv_user
+    WHERE id = v_user_id;
+
+    -- Return success via centralized logging
+    RETURN core.log_and_return_mutation(
+        input_pk_organization,
+        input_created_by,
+        'user',
+        v_user_id,
+        'INSERT',
+        'new',
+        ARRAY['email', 'name', 'role', 'profile_status'],
+        'User created successfully',
+        NULL,
+        v_payload_after,
+        jsonb_build_object(
+            'trigger', 'api_create',
+            'business_actions', ARRAY[
+                'role_assigned',
+                'welcome_email_queued',
+                'org_stats_updated'
+            ]
+        )
+    );
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Key core function characteristics:**
+- **All business logic**: Complex validation, rules, side effects
+- **Typed parameters**: Work with PostgreSQL composite types
+- **Call other core functions**: Build complex operations from smaller ones
+- **Centralized logging**: Always use core.log_and_return_mutation
+- **Transaction-aware**: Handle rollbacks and savepoints
+
+### Type Definitions
+
+App schema type definitions enable type-safe input handling:
+
+```sql
+-- Input type for app functions
+CREATE TYPE app.type_user_input AS (
+    email TEXT,
+    name TEXT,
+    bio TEXT,
+    avatar_url TEXT,
+    role TEXT
+);
+
+-- Complex input with nested data
+CREATE TYPE app.type_contract_input AS (
+    identifier TEXT,
+    name TEXT,
+    start_date DATE,
+    end_date DATE,
+    terms JSONB,
+    items JSONB[]  -- Array of contract items
+);
+```
+
+### Core-to-Core Function Interactions
+
+Core functions can call other core functions to build complex business operations:
+
+```sql
+CREATE OR REPLACE FUNCTION core.publish_post(
+    input_pk_organization UUID,
+    input_published_by UUID,
+    input_data app.type_publish_post_input,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_post_data JSONB;
+    v_author_id UUID;
+BEGIN
+    -- Get post data
+    SELECT data, (data->>'author_id')::UUID
+    INTO v_post_data, v_author_id
+    FROM public.tv_post
+    WHERE id = input_data.post_id;
+
+    -- Business validation
+    IF v_post_data IS NULL THEN
+        RETURN core.log_and_return_mutation(..., 'noop:not_found', ...);
+    END IF;
+
+    -- Update post status
+    UPDATE tenant.tb_post
+    SET data = data || jsonb_build_object('is_published', true, 'published_at', NOW())
+    WHERE pk_post = input_data.post_id;
+
+    -- Call other core functions for side effects
+    PERFORM core.update_author_published_count(v_author_id);
+    PERFORM core.send_publication_notifications(input_data.post_id, v_author_id);
+    PERFORM core.update_tag_usage_stats(v_post_data->'tags');
+
+    -- Return success
+    RETURN core.log_and_return_mutation(...);
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Migration from Monolithic Functions
+
+**Before (monolithic):**
+```sql
+CREATE OR REPLACE FUNCTION fn_create_user(input_data JSONB)
+RETURNS JSONB AS $$
+DECLARE
+    v_email TEXT;
+    v_name TEXT;
+    v_user_id UUID;
+BEGIN
+    -- Mixed input handling and business logic
+    v_email := input_data->>'email';
+    v_name := input_data->>'name';
+
+    IF v_email IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Email required');
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM users WHERE email = v_email) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Email exists');
+    END IF;
+
+    INSERT INTO users (email, name) VALUES (v_email, v_name)
+    RETURNING id INTO v_user_id;
+
+    RETURN jsonb_build_object('success', true, 'user_id', v_user_id);
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**After (app/core split):**
+```sql
+-- App function: Input handling only
+CREATE OR REPLACE FUNCTION app.create_user(
+    input_pk_organization UUID,
+    input_created_by UUID,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+DECLARE
+    v_input app.type_user_input;
+BEGIN
+    v_input := jsonb_populate_record(NULL::app.type_user_input, input_payload);
+    RETURN core.create_user(input_pk_organization, input_created_by, v_input, input_payload);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Core function: Business logic only
+CREATE OR REPLACE FUNCTION core.create_user(
+    input_pk_organization UUID,
+    input_created_by UUID,
+    input_data app.type_user_input,
+    input_payload JSONB
+) RETURNS app.mutation_result AS $$
+-- Business logic implementation here
+$$ LANGUAGE plpgsql;
+```
+
+### Best Practices for App/Core Split
+
+**Do's:**
+- Keep app functions as thin wrappers only
+- Put ALL business logic in core functions
+- Use typed parameters in core functions
+- Test core functions with direct SQL calls
+- Use consistent naming: `app.action_entity` → `core.action_entity`
+
+**Don'ts:**
+- Don't put business logic in app functions
+- Don't parse JSONB in core functions (except for logging)
+- Don't call app functions from core functions
+- Don't skip the app layer for GraphQL mutations
+- Don't mix input validation with business validation
+
+### Testing Patterns for Split Architecture
+
+**Testing app functions (integration-style):**
+```sql
+-- Test JSONB input conversion
+SELECT * FROM app.create_user(
+    '11111111-1111-1111-1111-111111111111'::UUID,
+    '22222222-2222-2222-2222-222222222222'::UUID,
+    '{"email": "test@example.com", "name": "Test User"}'::JSONB
+);
+```
+
+**Testing core functions (unit-style):**
+```sql
+-- Test business logic with typed parameters
+SELECT * FROM core.create_user(
+    '11111111-1111-1111-1111-111111111111'::UUID,
+    '22222222-2222-2222-2222-222222222222'::UUID,
+    ROW('test@example.com', 'Test User', NULL, NULL, 'member')::app.type_user_input,
+    '{"original": "input"}'::JSONB
+);
+```
+
 ## Troubleshooting
 
 ### Error: "function does not exist"
@@ -1250,3 +1648,6 @@ SET max_stack_depth = '4MB';
 - [Error Handling](../api-reference/error-handling.md) - Structured error responses
 - [Testing Guide](../testing/mutation-testing.md) - Testing mutation functions
 - [Performance Optimization](../advanced/performance.md) - Optimizing function execution
+- **[Mutation Result Pattern](./mutation-result-pattern.md)** - Standard return structure for app/core functions
+- **[NOOP Handling Pattern](./noop-handling-pattern.md)** - How to handle no-operation cases in both layers
+- **[Multi-tenancy](../advanced/multi-tenancy.md)** - Tenant context in app/core architecture
