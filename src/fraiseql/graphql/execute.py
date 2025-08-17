@@ -158,11 +158,14 @@ class PassthroughResolver:
 
     async def __call__(self, source, info, **kwargs):
         """Execute resolver and handle raw JSON results."""
-        # Check if passthrough is enabled
+        # Check if passthrough is enabled - respect configuration
         use_passthrough = (
             info.context.get("json_passthrough", False)
             or info.context.get("execution_mode") == "passthrough"
-            or info.context.get("mode") == "production"
+            or (
+                info.context.get("mode") in ("production", "staging")
+                and info.context.get("json_passthrough_in_production", False)
+            )
         )
 
         # Execute the original resolver
