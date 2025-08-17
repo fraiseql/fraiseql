@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-01-17
+
 ### Security
 - **Breaking Change**: Authentication is now properly enforced when an auth provider is configured
   - Previously, configuring `auth_enabled=True` did not block unauthenticated requests (vulnerability)
@@ -22,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed authentication bypass vulnerability where `auth_enabled=True` didn't actually enforce authentication
 - Fixed inconsistent authentication behavior between different query types
+
+### Documentation
+- Added comprehensive Authentication Enforcement section to authentication guide
+- Updated API reference to clarify auth parameter behavior
+- Added security notices about authentication enforcement
 
 ## [0.2.1] - 2025-01-16
 
