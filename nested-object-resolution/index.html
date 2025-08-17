@@ -12,13 +12,9 @@
         <meta name="author" content="Lionel Hamayon">
       
       
-        <link rel="canonical" href="https://fraiseql.dev/docs/deployment/">
+        <link rel="canonical" href="https://fraiseql.dev/docs/nested-object-resolution/">
       
       
-        <link rel="prev" href="../mutations/postgresql-function-based/">
-      
-      
-        <link rel="next" href="docker/">
       
       
       <link rel="icon" href="../assets/images/favicon.png">
@@ -26,7 +22,7 @@
     
     
       
-        <title>Deployment Guide - FraiseQL Documentation</title>
+        <title>Nested Object Resolution in FraiseQL - FraiseQL Documentation</title>
       
     
     
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#deployment-guide" class="md-skip">
+        <a href="#nested-object-resolution-in-fraiseql" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Deployment Guide
+              Nested Object Resolution in FraiseQL
             
           </span>
         </div>
@@ -374,13 +370,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../deployment/" class="md-tabs__link">
           
   
   
@@ -1727,8 +1721,6 @@
       
   
   
-    
-  
   
   
     
@@ -1758,23 +1750,22 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="./" class="md-nav__link md-nav__link--active">
+            <a href="../deployment/" class="md-nav__link ">
               
   
   
@@ -1787,13 +1778,13 @@
             </a>
             
               
-              <label class="md-nav__link md-nav__link--active" for="__nav_8" id="__nav_8_label" tabindex="">
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             Deployment
@@ -1809,7 +1800,7 @@
   
   
     <li class="md-nav__item">
-      <a href="docker/" class="md-nav__link">
+      <a href="../deployment/docker/" class="md-nav__link">
         
   
   
@@ -1832,7 +1823,7 @@
   
   
     <li class="md-nav__item">
-      <a href="kubernetes/" class="md-nav__link">
+      <a href="../deployment/kubernetes/" class="md-nav__link">
         
   
   
@@ -1855,7 +1846,7 @@
   
   
     <li class="md-nav__item">
-      <a href="aws/" class="md-nav__link">
+      <a href="../deployment/aws/" class="md-nav__link">
         
   
   
@@ -1878,7 +1869,7 @@
   
   
     <li class="md-nav__item">
-      <a href="gcp/" class="md-nav__link">
+      <a href="../deployment/gcp/" class="md-nav__link">
         
   
   
@@ -1901,7 +1892,7 @@
   
   
     <li class="md-nav__item">
-      <a href="heroku/" class="md-nav__link">
+      <a href="../deployment/heroku/" class="md-nav__link">
         
   
   
@@ -1924,7 +1915,7 @@
   
   
     <li class="md-nav__item">
-      <a href="production-checklist/" class="md-nav__link">
+      <a href="../deployment/production-checklist/" class="md-nav__link">
         
   
   
@@ -1947,7 +1938,7 @@
   
   
     <li class="md-nav__item">
-      <a href="monitoring/" class="md-nav__link">
+      <a href="../deployment/monitoring/" class="md-nav__link">
         
   
   
@@ -1970,7 +1961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="scaling/" class="md-nav__link">
+      <a href="../deployment/scaling/" class="md-nav__link">
         
   
   
@@ -2725,6 +2716,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      Table of Contents
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
       Overview
@@ -2734,94 +2734,46 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#deployment-options" class="md-nav__link">
+  <a href="#default-behavior-embedded-data" class="md-nav__link">
     <span class="md-ellipsis">
-      Deployment Options
+      Default Behavior: Embedded Data
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Deployment Options">
+    <nav class="md-nav" aria-label="Default Behavior: Embedded Data">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#docker-deployment" class="md-nav__link">
+  <a href="#example-embedded-organization-in-user" class="md-nav__link">
     <span class="md-ellipsis">
-      🐳 Docker Deployment
+      Example: Embedded Organization in User
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#kubernetes-deployment" class="md-nav__link">
+  <a href="#database-view-structure" class="md-nav__link">
     <span class="md-ellipsis">
-      ☸️ Kubernetes Deployment
+      Database View Structure
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#cloud-platform-deployments" class="md-nav__link">
+  <a href="#graphql-query" class="md-nav__link">
     <span class="md-ellipsis">
-      ☁️ Cloud Platform Deployments
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="☁️ Cloud Platform Deployments">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#aws-deployment" class="md-nav__link">
-    <span class="md-ellipsis">
-      AWS Deployment
+      GraphQL Query
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#google-cloud-platform" class="md-nav__link">
+  <a href="#benefits" class="md-nav__link">
     <span class="md-ellipsis">
-      Google Cloud Platform
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#heroku" class="md-nav__link">
-    <span class="md-ellipsis">
-      Heroku
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      Quick Start
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Quick Start">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#minimal-production-setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      Minimal Production Setup
+      Benefits
     </span>
   </a>
   
@@ -2833,37 +2785,46 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#architecture-overview" class="md-nav__link">
+  <a href="#explicit-nested-resolution" class="md-nav__link">
     <span class="md-ellipsis">
-      Architecture Overview
+      Explicit Nested Resolution
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#system-requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      System Requirements
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="System Requirements">
+    <nav class="md-nav" aria-label="Explicit Nested Resolution">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#minimum-requirements" class="md-nav__link">
+  <a href="#example-department-as-a-relation" class="md-nav__link">
     <span class="md-ellipsis">
-      Minimum Requirements
+      Example: Department as a Relation
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#recommended-production-setup" class="md-nav__link">
+  <a href="#database-view-structure_1" class="md-nav__link">
     <span class="md-ellipsis">
-      Recommended Production Setup
+      Database View Structure
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#graphql-query_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      GraphQL Query
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      Requirements
     </span>
   </a>
   
@@ -2875,28 +2836,28 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#environment-variables" class="md-nav__link">
+  <a href="#when-to-use-each-approach" class="md-nav__link">
     <span class="md-ellipsis">
-      Environment Variables
+      When to Use Each Approach
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Environment Variables">
+    <nav class="md-nav" aria-label="When to Use Each Approach">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#required-variables" class="md-nav__link">
+  <a href="#use-default-embedded-data-when" class="md-nav__link">
     <span class="md-ellipsis">
-      Required Variables
+      Use Default (Embedded Data) When:
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#optional-variables" class="md-nav__link">
+  <a href="#use-resolve_nestedtrue-when" class="md-nav__link">
     <span class="md-ellipsis">
-      Optional Variables
+      Use resolve_nested=True When:
     </span>
   </a>
   
@@ -2908,28 +2869,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#postgresql-configuration" class="md-nav__link">
+  <a href="#common-patterns" class="md-nav__link">
     <span class="md-ellipsis">
-      PostgreSQL Configuration
+      Common Patterns
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="PostgreSQL Configuration">
+    <nav class="md-nav" aria-label="Common Patterns">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#recommended-settings" class="md-nav__link">
+  <a href="#pattern-1-multi-tenant-application-with-embedded-data" class="md-nav__link">
     <span class="md-ellipsis">
-      Recommended Settings
+      Pattern 1: Multi-Tenant Application with Embedded Data
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#required-extensions" class="md-nav__link">
+  <a href="#pattern-2-large-related-data-use-separate-queries" class="md-nav__link">
     <span class="md-ellipsis">
-      Required Extensions
+      Pattern 2: Large Related Data (Use Separate Queries)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattern-3-mixed-approach" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pattern 3: Mixed Approach
     </span>
   </a>
   
@@ -2941,28 +2911,28 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#security-considerations" class="md-nav__link">
+  <a href="#performance-considerations" class="md-nav__link">
     <span class="md-ellipsis">
-      Security Considerations
+      Performance Considerations
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Security Considerations">
+    <nav class="md-nav" aria-label="Performance Considerations">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#essential-security-measures" class="md-nav__link">
+  <a href="#embedded-data-default" class="md-nav__link">
     <span class="md-ellipsis">
-      Essential Security Measures
+      Embedded Data (Default)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#network-security" class="md-nav__link">
+  <a href="#nested-resolution-resolve_nestedtrue" class="md-nav__link">
     <span class="md-ellipsis">
-      Network Security
+      Nested Resolution (resolve_nested=True)
     </span>
   </a>
   
@@ -2974,28 +2944,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#monitoring-observability" class="md-nav__link">
+  <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
-      Monitoring &amp; Observability
+      Troubleshooting
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Monitoring &amp; Observability">
+    <nav class="md-nav" aria-label="Troubleshooting">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#key-metrics-to-monitor" class="md-nav__link">
+  <a href="#error-missing-a-required-argument-tenant_id" class="md-nav__link">
     <span class="md-ellipsis">
-      Key Metrics to Monitor
+      Error: "missing a required argument: 'tenant_id'"
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#recommended-stack" class="md-nav__link">
+  <a href="#error-cannot-read-property-name-of-null" class="md-nav__link">
     <span class="md-ellipsis">
-      Recommended Stack
+      Error: "Cannot read property 'name' of null"
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#n1-query-problems" class="md-nav__link">
+    <span class="md-ellipsis">
+      N+1 Query Problems
     </span>
   </a>
   
@@ -3007,28 +2986,19 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scaling-strategies" class="md-nav__link">
+  <a href="#migration-guide" class="md-nav__link">
     <span class="md-ellipsis">
-      Scaling Strategies
+      Migration Guide
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Scaling Strategies">
+    <nav class="md-nav" aria-label="Migration Guide">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#horizontal-scaling" class="md-nav__link">
+  <a href="#from-traditional-orm-to-fraiseql" class="md-nav__link">
     <span class="md-ellipsis">
-      Horizontal Scaling
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#vertical-scaling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Vertical Scaling
+      From Traditional ORM to FraiseQL
     </span>
   </a>
   
@@ -3040,27 +3010,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#deployment-checklist" class="md-nav__link">
+  <a href="#best-practices" class="md-nav__link">
     <span class="md-ellipsis">
-      Deployment Checklist
+      Best Practices
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
+  <a href="#summary" class="md-nav__link">
     <span class="md-ellipsis">
-      Next Steps
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#support" class="md-nav__link">
-    <span class="md-ellipsis">
-      Support
+      Summary
     </span>
   </a>
   
@@ -3085,273 +3046,285 @@
   
 
 
-<h1 id="deployment-guide">Deployment Guide<a class="headerlink" href="#deployment-guide" title="Permanent link">&para;</a></h1>
+<h1 id="nested-object-resolution-in-fraiseql">Nested Object Resolution in FraiseQL<a class="headerlink" href="#nested-object-resolution-in-fraiseql" title="Permanent link">&para;</a></h1>
+<p>This guide explains how FraiseQL handles nested objects that have their own <code>sql_source</code>, and how to control whether they should be resolved via separate queries or use embedded data from the parent's JSONB column.</p>
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#default-behavior-embedded-data">Default Behavior: Embedded Data</a></li>
+<li><a href="#explicit-nested-resolution">Explicit Nested Resolution</a></li>
+<li><a href="#when-to-use-each-approach">When to Use Each Approach</a></li>
+<li><a href="#common-patterns">Common Patterns</a></li>
+<li><a href="#performance-considerations">Performance Considerations</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+</ul>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>FraiseQL is designed to be deployed in various environments, from simple Docker containers to complex Kubernetes clusters. This guide covers all deployment options with production-ready configurations.</p>
-<h2 id="deployment-options">Deployment Options<a class="headerlink" href="#deployment-options" title="Permanent link">&para;</a></h2>
-<h3 id="docker-deployment">🐳 <a href="docker/">Docker Deployment</a><a class="headerlink" href="#docker-deployment" title="Permanent link">&para;</a></h3>
-<p>Simple containerized deployment with Docker and Docker Compose. Perfect for:
-- Development environments
-- Small to medium production workloads
-- Single-server deployments
-- Quick prototyping</p>
-<p><strong>Estimated Cost</strong>: $50-200/month</p>
-<h3 id="kubernetes-deployment">☸️ <a href="kubernetes/">Kubernetes Deployment</a><a class="headerlink" href="#kubernetes-deployment" title="Permanent link">&para;</a></h3>
-<p>Scalable orchestration with Kubernetes and Helm charts. Ideal for:
-- Large-scale production deployments
-- Multi-region setups
-- Auto-scaling requirements
-- Enterprise environments</p>
-<p><strong>Estimated Cost</strong>: $500-2000+/month</p>
-<h3 id="cloud-platform-deployments">☁️ Cloud Platform Deployments<a class="headerlink" href="#cloud-platform-deployments" title="Permanent link">&para;</a></h3>
-<h4 id="aws-deployment"><a href="aws/">AWS Deployment</a><a class="headerlink" href="#aws-deployment" title="Permanent link">&para;</a></h4>
-<ul>
-<li>ECS Fargate for serverless containers</li>
-<li>RDS PostgreSQL for managed database</li>
-<li>Application Load Balancer</li>
-<li>CloudWatch monitoring</li>
-</ul>
-<p><strong>Estimated Cost</strong>: $200-1000/month</p>
-<h4 id="google-cloud-platform"><a href="gcp/">Google Cloud Platform</a><a class="headerlink" href="#google-cloud-platform" title="Permanent link">&para;</a></h4>
-<ul>
-<li>Cloud Run for serverless deployment</li>
-<li>Cloud SQL for PostgreSQL</li>
-<li>Load Balancing</li>
-<li>Cloud Monitoring</li>
-</ul>
-<p><strong>Estimated Cost</strong>: $150-800/month</p>
-<h4 id="heroku"><a href="heroku/">Heroku</a><a class="headerlink" href="#heroku" title="Permanent link">&para;</a></h4>
-<ul>
-<li>One-click deployment</li>
-<li>Managed PostgreSQL</li>
-<li>Automatic SSL</li>
-<li>Simple scaling</li>
-</ul>
-<p><strong>Estimated Cost</strong>: $50-500/month</p>
-<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
-<h3 id="minimal-production-setup">Minimal Production Setup<a class="headerlink" href="#minimal-production-setup" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Clone the repository</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/your-org/fraiseql.git
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nb">cd</span><span class="w"> </span>fraiseql
+<p>When a GraphQL type with <code>sql_source</code> appears as a field in another type, FraiseQL needs to know whether to:
+1. <strong>Use embedded data</strong> from the parent's JSONB column (default)
+2. <strong>Make a separate query</strong> to the nested type's sql_source table</p>
+<p>This behavior is controlled by the <code>resolve_nested</code> parameter in the <code>@type</code> decorator.</p>
+<h2 id="default-behavior-embedded-data">Default Behavior: Embedded Data<a class="headerlink" href="#default-behavior-embedded-data" title="Permanent link">&para;</a></h2>
+<p>By default (<code>resolve_nested=False</code>), FraiseQL assumes nested objects are embedded in the parent's JSONB data column. This is the most common pattern when using PostgreSQL views that pre-join related data.</p>
+<h3 id="example-embedded-organization-in-user">Example: Embedded Organization in User<a class="headerlink" href="#example-embedded-organization-in-user" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql</span><span class="w"> </span><span class="kn">import</span> <span class="nb">type</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Create environment file</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>.env<span class="w"> </span><span class="s">&lt;&lt; EOF</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="s">DATABASE_URL=postgresql://user:pass@localhost:5432/fraiseql</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="s">SECRET_KEY=$(openssl rand -hex 32)</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="s">FRAISEQL_MODE=production</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s">EOF</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># Build and run with Docker</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>docker-compose<span class="w"> </span>up<span class="w"> </span>-d
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Organization type - data will be embedded when nested</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_organizations&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">Organization</span><span class="p">:</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">identifier</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># User type with embedded organization</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_users&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">:</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">first_name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">last_name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">organization</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Organization</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Uses embedded data</span>
 </code></pre></div>
-<h2 id="architecture-overview">Architecture Overview<a class="headerlink" href="#architecture-overview" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>graph TB
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    subgraph &quot;Client Layer&quot;
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        WEB[Web App]
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        MOB[Mobile App]
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        API[API Client]
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    end
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    subgraph &quot;Load Balancer&quot;
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        LB[Nginx/ALB/Cloud LB]
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    end
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    subgraph &quot;Application Layer&quot;
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        APP1[FraiseQL Instance 1]
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>        APP2[FraiseQL Instance 2]
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>        APP3[FraiseQL Instance N]
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    end
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    subgraph &quot;Cache Layer&quot;
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>        REDIS[Redis Cache]
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    end
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>    subgraph &quot;Database Layer&quot;
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>        PRIMARY[PostgreSQL Primary]
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>        REPLICA[PostgreSQL Replica]
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>    end
-<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>
-<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>    WEB --&gt; LB
-<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>    MOB --&gt; LB
-<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>    API --&gt; LB
-<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>
-<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>    LB --&gt; APP1
-<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>    LB --&gt; APP2
-<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>    LB --&gt; APP3
-<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>
-<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a>    APP1 --&gt; REDIS
-<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a>    APP2 --&gt; REDIS
-<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a>    APP3 --&gt; REDIS
-<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a>
-<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a>    APP1 --&gt; PRIMARY
-<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a>    APP2 --&gt; PRIMARY
-<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a>    APP3 --&gt; PRIMARY
-<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a>
-<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a>    PRIMARY --&gt; REPLICA
+<h3 id="database-view-structure">Database View Structure<a class="headerlink" href="#database-view-structure" title="Permanent link">&para;</a></h3>
+<p>The view should include the nested object's data in the JSONB column:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">v_users</span><span class="w"> </span><span class="k">AS</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">SELECT</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="n">u</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="n">jsonb_build_object</span><span class="p">(</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">        </span><span class="s1">&#39;id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="s1">&#39;first_name&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">first_name</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span><span class="s1">&#39;last_name&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">last_name</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">        </span><span class="s1">&#39;email&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">email</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">        </span><span class="s1">&#39;organization&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">jsonb_build_object</span><span class="p">(</span><span class="w">  </span><span class="c1">-- Embedded organization</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">            </span><span class="s1">&#39;id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">            </span><span class="s1">&#39;name&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">            </span><span class="s1">&#39;identifier&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">identifier</span><span class="p">,</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">            </span><span class="s1">&#39;status&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">status</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">        </span><span class="p">)</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">data</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="k">FROM</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="n">u</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">organizations</span><span class="w"> </span><span class="n">o</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">u</span><span class="p">.</span><span class="n">organization_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">id</span><span class="p">;</span>
 </code></pre></div>
-<h2 id="system-requirements">System Requirements<a class="headerlink" href="#system-requirements" title="Permanent link">&para;</a></h2>
-<h3 id="minimum-requirements">Minimum Requirements<a class="headerlink" href="#minimum-requirements" title="Permanent link">&para;</a></h3>
+<h3 id="graphql-query">GraphQL Query<a class="headerlink" href="#graphql-query" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">query</span><span class="w"> </span><span class="nf">GetUser</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="n">user</span><span class="p">(</span><span class="n">id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;123&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="n">firstName</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="n">lastName</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="n">organization</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c"># No separate query - uses embedded data</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="n">name</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="n">identifier</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="benefits">Benefits<a class="headerlink" href="#benefits" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>CPU</strong>: 2 cores</li>
-<li><strong>RAM</strong>: 2GB</li>
-<li><strong>Storage</strong>: 10GB SSD</li>
-<li><strong>PostgreSQL</strong>: 14+</li>
-<li><strong>Python</strong>: 3.11+</li>
+<li>✅ <strong>No N+1 queries</strong> - All data fetched in one query</li>
+<li>✅ <strong>No tenant_id required</strong> for nested objects</li>
+<li>✅ <strong>Better performance</strong> - Single database roundtrip</li>
+<li>✅ <strong>Simpler context</strong> - No need to pass additional parameters</li>
 </ul>
-<h3 id="recommended-production-setup">Recommended Production Setup<a class="headerlink" href="#recommended-production-setup" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>CPU</strong>: 4+ cores</li>
-<li><strong>RAM</strong>: 8GB+</li>
-<li><strong>Storage</strong>: 100GB+ SSD</li>
-<li><strong>PostgreSQL</strong>: 15+ with replication</li>
-<li><strong>Redis</strong>: For caching</li>
-<li><strong>Load Balancer</strong>: For high availability</li>
-</ul>
-<h2 id="environment-variables">Environment Variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
-<h3 id="required-variables">Required Variables<a class="headerlink" href="#required-variables" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">DATABASE_URL</span><span class="o">=</span>postgresql://user:password@host:5432/database
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">SECRET_KEY</span><span class="o">=</span>your-secret-key-here
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nv">FRAISEQL_MODE</span><span class="o">=</span>production
+<h2 id="explicit-nested-resolution">Explicit Nested Resolution<a class="headerlink" href="#explicit-nested-resolution" title="Permanent link">&para;</a></h2>
+<p>When you need FraiseQL to make separate queries for nested objects (true relational data), set <code>resolve_nested=True</code>.</p>
+<h3 id="example-department-as-a-relation">Example: Department as a Relation<a class="headerlink" href="#example-department-as-a-relation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Department will be queried separately when nested</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_departments&quot;</span><span class="p">,</span> <span class="n">resolve_nested</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">Department</span><span class="p">:</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># Employee with department as a foreign key relation</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_employees&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">Employee</span><span class="p">:</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">department_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Foreign key</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="n">department</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Department</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Will query v_departments</span>
 </code></pre></div>
-<h3 id="optional-variables">Optional Variables<a class="headerlink" href="#optional-variables" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Redis for caching</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">REDIS_URL</span><span class="o">=</span>redis://localhost:6379/0
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Performance</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nv">MAX_CONNECTIONS</span><span class="o">=</span><span class="m">100</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nv">STATEMENT_TIMEOUT</span><span class="o">=</span><span class="m">30000</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nv">QUERY_COMPLEXITY_LIMIT</span><span class="o">=</span><span class="m">1000</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># Security</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># FRAISEQL_CORS_ENABLED=true  # Only if serving browsers directly</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># FRAISEQL_CORS_ORIGINS=https://example.com</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="nv">RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">100</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="nv">JWT_EXPIRATION</span><span class="o">=</span><span class="m">3600</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="c1"># Monitoring</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="nv">PROMETHEUS_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="nv">METRICS_PORT</span><span class="o">=</span><span class="m">9090</span>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="nv">LOG_LEVEL</span><span class="o">=</span>INFO
-</code></pre></div>
-<h2 id="postgresql-configuration">PostgreSQL Configuration<a class="headerlink" href="#postgresql-configuration" title="Permanent link">&para;</a></h2>
-<h3 id="recommended-settings">Recommended Settings<a class="headerlink" href="#recommended-settings" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">-- Connection pooling</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">max_connections</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">200</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">shared_buffers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">256</span><span class="n">MB</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1">-- Performance</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">effective_cache_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="n">GB</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">maintenance_work_mem</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">128</span><span class="n">MB</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">checkpoint_completion_target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="mi">9</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">wal_buffers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">16</span><span class="n">MB</span>
+<h3 id="database-view-structure_1">Database View Structure<a class="headerlink" href="#database-view-structure_1" title="Permanent link">&para;</a></h3>
+<p>The parent view only includes the foreign key, not the full nested data:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">v_employees</span><span class="w"> </span><span class="k">AS</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">SELECT</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="n">e</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="n">jsonb_build_object</span><span class="p">(</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">        </span><span class="s1">&#39;id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">        </span><span class="s1">&#39;name&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">        </span><span class="s1">&#39;department_id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">department_id</span><span class="w">  </span><span class="c1">-- Only the FK, not full data</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">data</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="k">FROM</span><span class="w"> </span><span class="n">employees</span><span class="w"> </span><span class="n">e</span><span class="p">;</span>
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="c1">-- Query optimization</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="n">default_statistics_target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="n">random_page_cost</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">.</span><span class="mi">1</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="n">effective_io_concurrency</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">200</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="c1">-- Separate view for departments</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">v_departments</span><span class="w"> </span><span class="k">AS</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="k">SELECT</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">    </span><span class="n">d</span><span class="p">.</span><span class="n">tenant_id</span><span class="p">,</span><span class="w">  </span><span class="c1">-- May require tenant_id for multi-tenant apps</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">    </span><span class="n">jsonb_build_object</span><span class="p">(</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">        </span><span class="s1">&#39;id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">        </span><span class="s1">&#39;name&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">        </span><span class="s1">&#39;code&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">code</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="k">data</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="k">FROM</span><span class="w"> </span><span class="n">departments</span><span class="w"> </span><span class="n">d</span><span class="p">;</span>
 </code></pre></div>
-<h3 id="required-extensions">Required Extensions<a class="headerlink" href="#required-extensions" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="n">EXTENSION</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="ss">&quot;uuid-ossp&quot;</span><span class="p">;</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="n">EXTENSION</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="ss">&quot;pg_trgm&quot;</span><span class="p">;</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">CREATE</span><span class="w"> </span><span class="n">EXTENSION</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="ss">&quot;btree_gist&quot;</span><span class="p">;</span>
+<h3 id="graphql-query_1">GraphQL Query<a class="headerlink" href="#graphql-query_1" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">query</span><span class="w"> </span><span class="nf">GetEmployee</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="n">employee</span><span class="p">(</span><span class="n">id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;456&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="n">name</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="n">department</span><span class="w"> </span><span class="p">{</span><span class="w">  </span><span class="c"># Triggers separate query to v_departments</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">      </span><span class="n">name</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="n">code</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">}</span>
 </code></pre></div>
-<h2 id="security-considerations">Security Considerations<a class="headerlink" href="#security-considerations" title="Permanent link">&para;</a></h2>
-<h3 id="essential-security-measures">Essential Security Measures<a class="headerlink" href="#essential-security-measures" title="Permanent link">&para;</a></h3>
+<h3 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Context must include necessary parameters (e.g., <code>tenant_id</code>)</li>
+<li>Parent must have the foreign key field (e.g., <code>department_id</code>)</li>
+<li>Nested type's sql_source must be queryable with available context</li>
+</ul>
+<h2 id="when-to-use-each-approach">When to Use Each Approach<a class="headerlink" href="#when-to-use-each-approach" title="Permanent link">&para;</a></h2>
+<h3 id="use-default-embedded-data-when">Use Default (Embedded Data) When:<a class="headerlink" href="#use-default-embedded-data-when" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ Your views pre-join and embed related data</li>
+<li>✅ You want optimal performance (single query)</li>
+<li>✅ The nested data is relatively small</li>
+<li>✅ You're using JSONB columns for denormalization</li>
+<li>✅ You want to avoid N+1 query problems</li>
+</ul>
+<h3 id="use-resolve_nestedtrue-when">Use <code>resolve_nested=True</code> When:<a class="headerlink" href="#use-resolve_nestedtrue-when" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ Nested data is truly relational (not embedded)</li>
+<li>✅ You need fresh data from the source table</li>
+<li>✅ The nested data is large and rarely accessed</li>
+<li>✅ You have complex authorization rules per table</li>
+<li>✅ You're migrating from a traditional ORM pattern</li>
+</ul>
+<h2 id="common-patterns">Common Patterns<a class="headerlink" href="#common-patterns" title="Permanent link">&para;</a></h2>
+<h3 id="pattern-1-multi-tenant-application-with-embedded-data">Pattern 1: Multi-Tenant Application with Embedded Data<a class="headerlink" href="#pattern-1-multi-tenant-application-with-embedded-data" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_tenants&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">Tenant</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">plan</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_users_with_tenant&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="k">class</span><span class="w"> </span><span class="nc">User</span><span class="p">:</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="n">tenant</span><span class="p">:</span> <span class="n">Tenant</span>  <span class="c1"># Embedded - no tenant_id issues</span>
+</code></pre></div>
+<h3 id="pattern-2-large-related-data-use-separate-queries">Pattern 2: Large Related Data (Use Separate Queries)<a class="headerlink" href="#pattern-2-large-related-data-use-separate-queries" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_documents&quot;</span><span class="p">,</span> <span class="n">resolve_nested</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">Document</span><span class="p">:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># Large text field</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">size_bytes</span><span class="p">:</span> <span class="nb">int</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_projects&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">Project</span><span class="p">:</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="n">document_ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">UUID</span><span class="p">]</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    <span class="n">documents</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Document</span><span class="p">]</span>  <span class="c1"># Resolved separately to avoid bloat</span>
+</code></pre></div>
+<h3 id="pattern-3-mixed-approach">Pattern 3: Mixed Approach<a class="headerlink" href="#pattern-3-mixed-approach" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Frequently accessed, small data - embedded by default</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_categories&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">Category</span><span class="p">:</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">color</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1"># Large, rarely accessed data - resolved separately</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_images&quot;</span><span class="p">,</span> <span class="n">resolve_nested</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">Image</span><span class="p">:</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="n">url</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span>  <span class="c1"># Large binary data</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_products&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="k">class</span><span class="w"> </span><span class="nc">Product</span><span class="p">:</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>    <span class="n">category</span><span class="p">:</span> <span class="n">Category</span>  <span class="c1"># Embedded (small, frequent)</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>    <span class="n">images</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Image</span><span class="p">]</span>  <span class="c1"># Separate queries (large, infrequent)</span>
+</code></pre></div>
+<h2 id="performance-considerations">Performance Considerations<a class="headerlink" href="#performance-considerations" title="Permanent link">&para;</a></h2>
+<h3 id="embedded-data-default">Embedded Data (Default)<a class="headerlink" href="#embedded-data-default" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Query: { user { organization { name } } }
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>Execution:
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>1. SELECT data FROM v_users WHERE id = ?
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>   ↓
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>   Returns: { user: { organization: { name: &quot;Acme Corp&quot; } } }
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>Total queries: 1
+</code></pre></div>
+<h3 id="nested-resolution-resolve_nestedtrue">Nested Resolution (<code>resolve_nested=True</code>)<a class="headerlink" href="#nested-resolution-resolve_nestedtrue" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Query: { employees { department { name } } }  # N employees
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>Execution:
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>1. SELECT data FROM v_employees
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>   ↓
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>2. SELECT data FROM v_departments WHERE id = ? (for each unique dept)
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>   ↓
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>   Returns merged data
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>Total queries: 1 + number of unique departments
+</code></pre></div>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="error-missing-a-required-argument-tenant_id">Error: "missing a required argument: 'tenant_id'"<a class="headerlink" href="#error-missing-a-required-argument-tenant_id" title="Permanent link">&para;</a></h3>
+<p><strong>Cause</strong>: A nested type with <code>sql_source</code> is trying to resolve separately but lacks required context.</p>
+<p><strong>Solutions</strong>:
+1. Remove <code>resolve_nested=True</code> if data should be embedded
+2. Ensure the view includes embedded data in JSONB
+3. If separate resolution is needed, provide <code>tenant_id</code> in context</p>
+<h3 id="error-cannot-read-property-name-of-null">Error: "Cannot read property 'name' of null"<a class="headerlink" href="#error-cannot-read-property-name-of-null" title="Permanent link">&para;</a></h3>
+<p><strong>Cause</strong>: Expected embedded data is missing from parent's JSONB.</p>
+<p><strong>Solutions</strong>:
+1. Update view to include nested object in JSONB
+2. Use LEFT JOIN to handle optional relationships
+3. Set field as <code>Optional[Type]</code> in Python</p>
+<h3 id="n1-query-problems">N+1 Query Problems<a class="headerlink" href="#n1-query-problems" title="Permanent link">&para;</a></h3>
+<p><strong>Symptom</strong>: Many queries executed for a list with nested objects.</p>
+<p><strong>Solution</strong>:
+- Remove <code>resolve_nested=True</code> unless absolutely necessary
+- Ensure views embed frequently accessed nested data
+- Consider using DataLoader pattern for <code>resolve_nested=True</code> cases</p>
+<h2 id="migration-guide">Migration Guide<a class="headerlink" href="#migration-guide" title="Permanent link">&para;</a></h2>
+<h3 id="from-traditional-orm-to-fraiseql">From Traditional ORM to FraiseQL<a class="headerlink" href="#from-traditional-orm-to-fraiseql" title="Permanent link">&para;</a></h3>
+<p>If migrating from an ORM that always does separate queries:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Step 1: Start with resolve_nested=True (matches ORM behavior)</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;departments&quot;</span><span class="p">,</span> <span class="n">resolve_nested</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">Department</span><span class="p">:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="o">...</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="c1"># Step 2: Create views with embedded data</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="n">CREATE</span> <span class="n">VIEW</span> <span class="n">v_employees_with_dept</span> <span class="n">AS</span> <span class="o">...</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="c1"># Step 3: Remove resolve_nested=True after views are ready</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;departments&quot;</span><span class="p">)</span>  <span class="c1"># Now uses embedded data</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">Department</span><span class="p">:</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>    <span class="o">...</span>
+</code></pre></div>
+<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Use HTTPS/TLS</strong> for all connections</li>
-<li><strong>Enable rate limiting</strong> to prevent abuse</li>
-<li><strong>Implement authentication</strong> (JWT, OAuth2)</li>
-<li><strong>Use secrets management</strong> (never hardcode)</li>
-<li><strong>Regular security updates</strong></li>
-<li><strong>Database connection encryption</strong></li>
-<li><strong>Input validation and sanitization</strong></li>
+<li><strong>Default to embedded data</strong> - Better performance, simpler code</li>
+<li><strong>Document your choice</strong> - Add comments explaining why <code>resolve_nested=True</code> is used</li>
+<li><strong>Monitor query performance</strong> - Use query logging to detect N+1 problems</li>
+<li><strong>Design views thoughtfully</strong> - Include commonly accessed nested data</li>
+<li><strong>Use resolve_nested sparingly</strong> - Only when truly necessary</li>
 </ol>
-<h3 id="network-security">Network Security<a class="headerlink" href="#network-security" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Example network policy</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">networking.k8s.io/v1</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NetworkPolicy</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nt">metadata</span><span class="p">:</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fraiseql-network-policy</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="nt">spec</span><span class="p">:</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="nt">podSelector</span><span class="p">:</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fraiseql</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="nt">ingress</span><span class="p">:</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">from</span><span class="p">:</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">podSelector</span><span class="p">:</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">        </span><span class="nt">matchLabels</span><span class="p">:</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">          </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TCP</span>
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">      </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
-</code></pre></div>
-<h2 id="monitoring-observability">Monitoring &amp; Observability<a class="headerlink" href="#monitoring-observability" title="Permanent link">&para;</a></h2>
-<h3 id="key-metrics-to-monitor">Key Metrics to Monitor<a class="headerlink" href="#key-metrics-to-monitor" title="Permanent link">&para;</a></h3>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Query response time</strong> (P50, P95, P99)</li>
-<li><strong>Database connection pool usage</strong></li>
-<li><strong>Cache hit rate</strong></li>
-<li><strong>Error rate</strong></li>
-<li><strong>CPU and memory usage</strong></li>
-<li><strong>Request throughput</strong></li>
-</ul>
-<h3 id="recommended-stack">Recommended Stack<a class="headerlink" href="#recommended-stack" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Metrics</strong>: Prometheus + Grafana</li>
-<li><strong>Logging</strong>: ELK Stack or Loki</li>
-<li><strong>Tracing</strong>: Jaeger or Zipkin</li>
-<li><strong>Error Tracking</strong>: Sentry</li>
-<li><strong>Uptime</strong>: Pingdom or UptimeRobot</li>
-</ul>
-<h2 id="scaling-strategies">Scaling Strategies<a class="headerlink" href="#scaling-strategies" title="Permanent link">&para;</a></h2>
-<h3 id="horizontal-scaling">Horizontal Scaling<a class="headerlink" href="#horizontal-scaling" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Add more application instances</li>
-<li>Use load balancing</li>
-<li>Implement connection pooling</li>
-<li>Cache frequently accessed data</li>
-</ul>
-<h3 id="vertical-scaling">Vertical Scaling<a class="headerlink" href="#vertical-scaling" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Increase CPU/RAM for instances</li>
-<li>Optimize database queries</li>
-<li>Use read replicas</li>
-<li>Implement query complexity limits</li>
-</ul>
-<h2 id="deployment-checklist">Deployment Checklist<a class="headerlink" href="#deployment-checklist" title="Permanent link">&para;</a></h2>
-<p>Before going to production, ensure:</p>
-<ul>
-<li>[ ] Production mode enabled</li>
-<li>[ ] SSL/TLS configured</li>
-<li>[ ] Database backups scheduled</li>
-<li>[ ] Monitoring configured</li>
-<li>[ ] Health checks implemented</li>
-<li>[ ] Rate limiting enabled</li>
-<li>[ ] Error handling tested</li>
-<li>[ ] Load testing completed</li>
-<li>[ ] Security scan passed</li>
-<li>[ ] Documentation updated</li>
-</ul>
-<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Choose your deployment platform:</li>
-<li><a href="docker/">Docker</a> for simplicity</li>
-<li><a href="kubernetes/">Kubernetes</a> for scale</li>
-<li>
-<p><a href="aws/">Cloud platforms</a> for managed services</p>
-</li>
-<li>
-<p>Review the <a href="production-checklist/">Production Checklist</a></p>
-</li>
-<li>
-<p>Set up <a href="monitoring/">Monitoring</a> and <a href="scaling/">Scaling</a></p>
-</li>
-</ol>
-<h2 id="support">Support<a class="headerlink" href="#support" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Documentation</strong>: <a href="https://fraiseql.dev/docs">https://fraiseql.dev/docs</a></li>
-<li><strong>GitHub Issues</strong>: <a href="https://github.com/your-org/fraiseql/issues">https://github.com/your-org/fraiseql/issues</a></li>
-<li><strong>Community Forum</strong>: <a href="https://forum.fraiseql.dev">https://forum.fraiseql.dev</a></li>
+<li><strong>Default behavior</strong> (<code>resolve_nested=False</code>): Uses embedded JSONB data</li>
+<li><strong>Explicit resolution</strong> (<code>resolve_nested=True</code>): Makes separate queries</li>
+<li><strong>Choose based on</strong>: Data size, access patterns, and performance needs</li>
+<li><strong>Best practice</strong>: Use embedded data unless you have a specific reason not to</li>
 </ul>
 
 
