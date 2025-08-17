@@ -171,14 +171,22 @@ def create_graphql_router(
                 mode = http_request.headers["x-mode"].lower()
                 context["mode"] = mode
 
-                # Enable passthrough for production/staging modes
-                if mode in ("production", "staging"):
-                    json_passthrough = True
+                # Enable passthrough for production/staging modes if configured
+                if mode in ("production", "staging"):  # noqa: SIM102
+                    # Respect json_passthrough configuration settings
+                    if config.json_passthrough_enabled and getattr(
+                        config, "json_passthrough_in_production", True
+                    ):
+                        json_passthrough = True
             else:
                 # Use environment as default mode
                 context["mode"] = mode
-                if is_production_env:
-                    json_passthrough = True
+                if is_production_env:  # noqa: SIM102
+                    # Respect json_passthrough configuration settings
+                    if config.json_passthrough_enabled and getattr(
+                        config, "json_passthrough_in_production", True
+                    ):
+                        json_passthrough = True
 
             # Check for explicit passthrough header
             if "x-json-passthrough" in http_request.headers:

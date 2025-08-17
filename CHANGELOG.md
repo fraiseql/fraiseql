@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-01-17
+
+### Fixed
+- **Critical**: Fixed JSON passthrough being forced in production environments
+  - FraiseQL v0.3.0 was ignoring the `json_passthrough_in_production=False` configuration
+  - Production and staging modes were unconditionally enabling passthrough, causing APIs to return snake_case field names instead of camelCase
+  - The router now properly respects both `json_passthrough_enabled` and `json_passthrough_in_production` configuration settings
+  - This fixes breaking API compatibility issues where frontend applications expected camelCase fields but received snake_case
+  - Added comprehensive tests to prevent regression
+
 ## [0.3.0] - 2025-01-17
 
 ### Security
