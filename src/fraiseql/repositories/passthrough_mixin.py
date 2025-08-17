@@ -24,9 +24,10 @@ class PassthroughMixin:
             return False
 
         context = self.context
+        # Only enable passthrough if explicitly set in context
+        # Do NOT enable just because mode is production/staging
         result = (
-            context.get("mode") in ("production", "staging")
-            or context.get("json_passthrough", False)
+            context.get("json_passthrough", False)
             or context.get("execution_mode") == "passthrough"
             or context.get("_passthrough_enabled", False)
         )

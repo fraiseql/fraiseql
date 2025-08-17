@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-01-17
+
+### Fixed
+- **Critical**: Fixed PassthroughMixin forcing JSON passthrough in production mode
+  - The PassthroughMixin was enabling passthrough just because mode was "production" or "staging"
+  - Now properly respects the `json_passthrough` context flag set by the router
+  - This completes the fix started in v0.3.1 for the JSON passthrough configuration issue
+
 ## [0.3.1] - 2025-01-17
 
 ### Fixed
