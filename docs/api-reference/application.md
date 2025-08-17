@@ -36,7 +36,7 @@ Creates a FastAPI application with FraiseQL GraphQL endpoint.
 | `mutations` | `Sequence[Callable]` | No | Mutation resolver functions |
 | `queries` | `Sequence[type]` | No | Query types (if not using @query decorator) |
 | `config` | `FraiseQLConfig` | No | Full configuration object (overrides other params) |
-| `auth` | `Auth0Config \| AuthProvider` | No | Authentication configuration |
+| `auth` | `Auth0Config \| AuthProvider` | No | Authentication configuration (enables auth enforcement when provided) |
 | `context_getter` | `Callable` | No | Async function to build GraphQL context |
 | `lifespan` | `Callable` | No | Custom lifespan context manager |
 | `title` | `str` | No | API title for documentation |
@@ -110,8 +110,11 @@ auth_config = Auth0Config(
 app = create_fraiseql_app(
     database_url="postgresql://localhost/db",
     types=[User],
-    auth=auth_config
+    auth=auth_config  # Automatically enables authentication enforcement
 )
+
+# Note: When auth is provided, all GraphQL requests require authentication
+# except introspection queries in development mode
 ```
 
 #### With Custom Context
@@ -245,13 +248,15 @@ Complete configuration class for FraiseQL applications.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `auth_enabled` | `bool` | True | Enable authentication |
+| `auth_enabled` | `bool` | True* | Enable authentication enforcement |
 | `auth_provider` | `str` | "none" | Provider (auth0/custom/none) |
 | `auth0_domain` | `str \| None` | None | Auth0 domain |
 | `auth0_api_identifier` | `str \| None` | None | Auth0 API identifier |
 | `auth0_algorithms` | `list[str]` | ["RS256"] | JWT algorithms |
 | `dev_auth_username` | `str \| None` | "admin" | Dev auth username |
 | `dev_auth_password` | `str \| None` | None | Dev auth password |
+
+*Automatically set to `True` when an auth provider is configured via the `auth` parameter
 
 ### Security Settings
 

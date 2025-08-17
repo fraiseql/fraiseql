@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Breaking Change**: Authentication is now properly enforced when an auth provider is configured
+  - Previously, configuring `auth_enabled=True` did not block unauthenticated requests (vulnerability)
+  - Now, when an auth provider is passed to `create_fraiseql_app()`, authentication is automatically enforced
+  - All GraphQL requests require valid authentication tokens (401 returned for unauthenticated requests)
+  - Exception: Introspection queries (`__schema`) are still allowed without auth in development mode
+  - This fixes a critical security vulnerability where sensitive data could be accessed without authentication
+
+### Changed
+- Passing an `auth` parameter to `create_fraiseql_app()` now automatically sets `auth_enabled=True`
+- Authentication enforcement is now consistent across all GraphQL endpoints
+
+### Fixed
+- Fixed authentication bypass vulnerability where `auth_enabled=True` didn't actually enforce authentication
+- Fixed inconsistent authentication behavior between different query types
+
 ## [0.2.1] - 2025-01-16
 
 ### Fixed
