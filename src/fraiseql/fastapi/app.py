@@ -166,6 +166,8 @@ def create_fraiseql_app(
         else:
             msg = "auth must be Auth0Config or AuthProvider instance"
             raise ValueError(msg)
+        # If auth is provided, enable authentication
+        config.auth_enabled = True
     elif config.auth_enabled and config.auth_provider == "auth0":
         # Auto-create Auth0 provider from config if not explicitly provided
         if not config.auth0_domain or not config.auth0_api_identifier:

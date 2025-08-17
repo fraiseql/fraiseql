@@ -151,6 +151,16 @@ def create_graphql_router(
         context: dict[str, Any] = context_dependency,
     ):
         """Execute GraphQL query with adaptive behavior."""
+        # Check authentication if required
+        if (
+            config.auth_enabled
+            and auth_provider
+            and not context.get("authenticated", False)
+            and not (config.environment == "development" and "__schema" in request.query)
+        ):
+            # Return 401 for unauthenticated requests when auth is required
+            raise HTTPException(status_code=401, detail="Authentication required")
+
         try:
             # Determine execution mode from headers and config
             mode = config.environment
