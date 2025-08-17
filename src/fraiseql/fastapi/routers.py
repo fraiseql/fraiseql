@@ -239,6 +239,7 @@ def create_graphql_router(
                         context_value=context,
                         variable_values=request.variables,
                         operation_name=request.operationName,
+                        enable_introspection=config.enable_introspection,
                     )
             else:
                 result = await execute_with_passthrough_check(
@@ -247,6 +248,7 @@ def create_graphql_router(
                     context_value=context,
                     variable_values=request.variables,
                     operation_name=request.operationName,
+                    enable_introspection=config.enable_introspection,
                 )
 
             # Check if result contains RawJSONResult
