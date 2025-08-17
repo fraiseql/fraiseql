@@ -1,7 +1,8 @@
 """Test to verify that JSON passthrough respects configuration settings."""
 
-import pytest
 from contextlib import asynccontextmanager
+
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -19,6 +20,7 @@ def clear_registry():
 
     # Also clear the GraphQL type cache
     from fraiseql.core.graphql_type import _graphql_type_cache
+
     _graphql_type_cache.clear()
 
     yield
@@ -33,26 +35,27 @@ async def noop_lifespan(app: FastAPI):
     yield
 
 
+# Define test types and queries at module level to avoid scoping issues
+# Use names that don't start with Test to avoid pytest collection
+@fraiseql.type
+class DataType:
+    """Test type for JSON passthrough testing."""
+
+    snake_case_field: str
+    another_snake_field: str
+
+
+@fraiseql.query
+async def data_query(info) -> DataType:
+    """Query that returns snake_case fields."""
+    return DataType(snake_case_field="test_value", another_snake_field="another_value")
+
+
 class TestJSONPassthroughConfigFix:
     """Test that JSON passthrough configuration is properly respected."""
 
     def test_json_passthrough_disabled_in_production(self):
         """Test that JSON passthrough is disabled when explicitly configured as False."""
-
-        @fraiseql.type
-        class TestDataType:
-            """Test type for JSON passthrough testing."""
-            snake_case_field: str
-            another_snake_field: str
-
-        @fraiseql.query
-        async def test_data_query(info) -> TestDataType:
-            """Query that returns snake_case fields."""
-            return TestDataType(
-                snake_case_field="test_value",
-                another_snake_field="another_value"
-            )
-
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
             environment="production",
@@ -63,8 +66,8 @@ class TestJSONPassthroughConfigFix:
 
         app = create_fraiseql_app(
             config=config,
-            types=[TestDataType],
-            queries=[test_data_query],
+            types=[DataType],
+            queries=[data_query],
             lifespan=noop_lifespan,
         )
 
@@ -74,13 +77,13 @@ class TestJSONPassthroughConfigFix:
                 json={
                     "query": """
                         query {
-                            testDataQuery {
+                            dataQuery {
                                 snakeCaseField
                                 anotherSnakeField
                             }
                         }
                     """
-                }
+                },
             )
 
             assert response.status_code == 200
@@ -89,9 +92,9 @@ class TestJSONPassthroughConfigFix:
             # Should have camelCase fields (NOT snake_case)
             # This means GraphQL transformation is working, passthrough is disabled
             assert "data" in data
-            assert "testDataQuery" in data["data"]
+            assert "dataQuery" in data["data"]
 
-            test_data = data["data"]["testDataQuery"]
+            test_data = data["data"]["dataQuery"]
 
             # These should be in camelCase because passthrough is disabled
             assert "snakeCaseField" in test_data
@@ -113,8 +116,8 @@ class TestJSONPassthroughConfigFix:
 
         app = create_fraiseql_app(
             config=config,
-            types=[TestDataType],
-            queries=[test_data_query],
+            types=[DataType],
+            queries=[data_query],
             lifespan=noop_lifespan,
         )
 
@@ -124,13 +127,13 @@ class TestJSONPassthroughConfigFix:
                 json={
                     "query": """
                         query {
-                            testDataQuery {
+                            dataQuery {
                                 snakeCaseField
                                 anotherSnakeField
                             }
                         }
                     """
-                }
+                },
             )
 
             assert response.status_code == 200
@@ -147,8 +150,8 @@ class TestJSONPassthroughConfigFix:
 
         app = create_fraiseql_app(
             config=config,
-            types=[TestDataType],
-            queries=[test_data_query],
+            types=[DataType],
+            queries=[data_query],
             lifespan=noop_lifespan,
         )
 
@@ -158,13 +161,13 @@ class TestJSONPassthroughConfigFix:
                 json={
                     "query": """
                         query {
-                            testDataQuery {
+                            dataQuery {
                                 snakeCaseField
                                 anotherSnakeField
                             }
                         }
                     """
-                }
+                },
             )
 
             assert response.status_code == 200
@@ -172,7 +175,7 @@ class TestJSONPassthroughConfigFix:
 
             # Should have camelCase fields because passthrough defaults to disabled
             assert "data" in data
-            test_data = data["data"]["testDataQuery"]
+            test_data = data["data"]["dataQuery"]
 
             # Should be transformed to camelCase
             assert "snakeCaseField" in test_data
@@ -189,8 +192,8 @@ class TestJSONPassthroughConfigFix:
 
         app = create_fraiseql_app(
             config=config,
-            types=[TestDataType],
-            queries=[test_data_query],
+            types=[DataType],
+            queries=[data_query],
             lifespan=noop_lifespan,
         )
 
@@ -200,19 +203,19 @@ class TestJSONPassthroughConfigFix:
                 json={
                     "query": """
                         query {
-                            testDataQuery {
+                            dataQuery {
                                 snakeCaseField
                                 anotherSnakeField
                             }
                         }
                     """
-                }
+                },
             )
 
             assert response.status_code == 200
             data = response.json()
 
             # Should respect config and provide camelCase
-            test_data = data["data"]["testDataQuery"]
+            test_data = data["data"]["dataQuery"]
             assert "snakeCaseField" in test_data
             assert "anotherSnakeField" in test_data
