@@ -210,6 +210,7 @@ class UnifiedExecutor:
             context_value=context,
             variable_values=variables,
             operation_name=operation_name,
+            enable_introspection=getattr(self.mode_selector.config, "enable_introspection", True),
         )
 
         # Check if the entire result.data is RawJSONResult

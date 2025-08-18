@@ -6,7 +6,7 @@ from typing import Optional
 
 import pytest
 
-import fraiseql
+from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.debug import debug_partial_instance
 from fraiseql.errors.exceptions import (
     DatabaseQueryError,
@@ -20,6 +20,22 @@ from fraiseql.validation import (
     validate_query_complexity,
     validate_where_input,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_registry():
+    """Clear registry before each test to avoid type conflicts."""
+    registry = SchemaRegistry.get_instance()
+    registry.clear()
+
+    # Also clear the GraphQL type cache
+    from fraiseql.core.graphql_type import _graphql_type_cache
+    _graphql_type_cache.clear()
+
+    yield
+
+    registry.clear()
+    _graphql_type_cache.clear()
 
 
 # Define User at module level but not decorated
@@ -167,7 +183,7 @@ class TestValidationUtilities:
 
     @pytest.mark.xfail(condition=os.environ.get("GITHUB_ACTIONS") == "true",
                        reason="Validation type checking inconsistent in CI environment")
-    def test_validate_where_input_type_mismatch(self, clear_registry):
+    def test_validate_where_input_type_mismatch(self):
         """Test validation with operator type mismatch."""
         # String operator on non-string field
         where_input = {"age": {"_like": "%25%"}}

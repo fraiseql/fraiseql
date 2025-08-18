@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 from graphql import GraphQLResolveInfo
 
+from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.errors.exceptions import QueryValidationError, WhereClauseError
 from fraiseql.validation import (
     _calculate_query_depth,
@@ -19,6 +20,22 @@ from fraiseql.validation import (
     validate_selection_set,
     validate_where_input,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_registry():
+    """Clear registry before each test to avoid type conflicts."""
+    registry = SchemaRegistry.get_instance()
+    registry.clear()
+
+    # Also clear the GraphQL type cache
+    from fraiseql.core.graphql_type import _graphql_type_cache
+    _graphql_type_cache.clear()
+
+    yield
+
+    registry.clear()
+    _graphql_type_cache.clear()
 
 
 @dataclass
@@ -167,7 +184,7 @@ class TestValidateWhereInput:
 
     @pytest.mark.xfail(condition=os.environ.get("GITHUB_ACTIONS") == "true",
                        reason="Validation type checking inconsistent in CI environment")
-    def test_operator_type_validation(self, clear_registry):
+    def test_operator_type_validation(self):
         """Test operator validation against field types."""
         # String operator on non-string field should be caught
         where = {"age": {"_like": "25%"}}
