@@ -79,14 +79,34 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
         instructions.append(OrderBy(field=order_by_input.field, direction=direction))
         return OrderBySet(instructions=instructions)
 
-    # Handle list of OrderByItem
+    # Handle list of OrderByItem or list of dicts
     if isinstance(order_by_input, list):
         for item in order_by_input:
+            # Handle OrderByItem objects
             if hasattr(item, "field") and hasattr(item, "direction"):
                 direction = (
                     item.direction.value if hasattr(item.direction, "value") else item.direction
                 )
                 instructions.append(OrderBy(field=item.field, direction=direction))
+            # Handle dictionary items like {'ipAddress': 'asc'}
+            elif isinstance(item, dict):
+                for field_name, value in item.items():
+                    if value is not None:
+                        # Convert camelCase field names to snake_case for database fields
+                        from fraiseql.utils.casing import to_snake_case
+
+                        snake_field_name = to_snake_case(field_name)
+
+                        # Handle OrderDirection enum
+                        if isinstance(value, OrderDirection):
+                            instructions.append(
+                                OrderBy(field=snake_field_name, direction=value.value)
+                            )
+                        # Handle string direction (GraphQL might pass "ASC" or "DESC" as strings)
+                        elif isinstance(value, str) and value.upper() in ["ASC", "DESC"]:
+                            instructions.append(
+                                OrderBy(field=snake_field_name, direction=value.lower())
+                            )
         return OrderBySet(instructions=instructions) if instructions else None
 
     # Handle object with field-specific order directions
@@ -114,7 +134,12 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
             """Process dictionary-style order by input."""
             for field_name, value in obj_dict.items():
                 if value is not None:
-                    field_path = f"{prefix}.{field_name}" if prefix else field_name
+                    # Convert camelCase field names to snake_case for database fields
+                    from fraiseql.utils.casing import to_snake_case
+
+                    snake_field_name = to_snake_case(field_name)
+                    field_path = f"{prefix}.{snake_field_name}" if prefix else snake_field_name
+
                     # Handle OrderDirection enum
                     if isinstance(value, OrderDirection):
                         instructions.append(OrderBy(field=field_path, direction=value.value))

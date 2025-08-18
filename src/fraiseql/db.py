@@ -1005,6 +1005,14 @@ class FraiseQLRepository(PassthroughMixin):
                 order_by_set = _convert_order_by_input_to_sql(order_by)
                 if order_by_set:
                     query_parts.append(SQL(" ") + order_by_set.to_sql())
+            # Check if it's a list representing GraphQL OrderBy input (e.g., [{'ipAddress': 'asc'}])
+            elif isinstance(order_by, list):
+                # Convert list to SQL ORDER BY
+                from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+                order_by_set = _convert_order_by_input_to_sql(order_by)
+                if order_by_set:
+                    query_parts.append(SQL(" ") + order_by_set.to_sql())
             # Otherwise treat as a simple string
             else:
                 query_parts.append(SQL(" ORDER BY ") + SQL(order_by))
