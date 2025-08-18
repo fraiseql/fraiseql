@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2025-01-18
+
+### Fixed
+- **Critical**: Fixed OrderBy list of dictionaries support with camelCase field mapping
+  - GraphQL OrderBy inputs like `[{'ipAddress': 'asc'}]` were failing with "SQL values must be strings" error in v0.3.5
+  - Enhanced OrderBy conversion to handle list of dictionaries format with proper field name mapping
+  - Added proper camelCase to snake_case conversion for OrderBy field names (e.g., `ipAddress` → `ip_address`)
+  - Improved handling of case variations in sort directions (`ASC`/`DESC` → `asc`/`desc`)
+
+### Added
+- Comprehensive regression tests for OrderBy functionality (13 test cases)
+- Support for complex field names in OrderBy: `dnsServerType` → `dns_server_type`
+
+### Details
+- Now supports all OrderBy formats:
+  - `[{'ipAddress': 'asc'}]` → `ORDER BY data ->> 'ip_address' ASC`
+  - `[{'field1': 'asc'}, {'field2': 'DESC'}]` → Multiple field ordering
+  - `{'ipAddress': 'asc'}` → Single dict (backward compatible)
+- This release is fully backward compatible - no code changes required for existing OrderBy usage
+
 ## [0.3.2] - 2025-01-17
 
 ### Fixed
