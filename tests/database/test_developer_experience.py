@@ -6,7 +6,6 @@ from typing import Optional
 
 import pytest
 
-from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.debug import debug_partial_instance
 from fraiseql.errors.exceptions import (
     DatabaseQueryError,
@@ -14,6 +13,7 @@ from fraiseql.errors.exceptions import (
     QueryValidationError,
     WhereClauseError,
 )
+from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.partial_instantiation import create_partial_instance
 from fraiseql.validation import (
     _get_type_fields,

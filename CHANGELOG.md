@@ -15,10 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced OrderBy conversion to handle list of dictionaries format with proper field name mapping
   - Added proper camelCase to snake_case conversion for OrderBy field names (e.g., `ipAddress` → `ip_address`)
   - Improved handling of case variations in sort directions (`ASC`/`DESC` → `asc`/`desc`)
+- **Critical**: Fixed test validation isolation issue affecting WHERE input validation
+  - Fixed test isolation bug where `test_json_field.py` was modifying global state and affecting validation tests
+  - Improved type detection in validation to properly distinguish between real nested objects and typing constructs
+  - Fixed spurious `__annotations__` attribute being added to `typing.Optional[int]` constructs
+  - Ensures operator type validation always runs correctly regardless of test execution order
 
 ### Added
 - Comprehensive regression tests for OrderBy functionality (13 test cases)
 - Support for complex field names in OrderBy: `dnsServerType` → `dns_server_type`
+- Robust type detection function (`_is_nested_object_type`) for validation logic
+- Pre-commit hook requiring 100% test pass rate before commits
 
 ### Details
 - Now supports all OrderBy formats:

@@ -8,8 +8,8 @@ from unittest.mock import Mock
 import pytest
 from graphql import GraphQLResolveInfo
 
-from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.errors.exceptions import QueryValidationError, WhereClauseError
+from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.validation import (
     _calculate_query_depth,
     _extract_selected_fields,
