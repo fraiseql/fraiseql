@@ -69,9 +69,8 @@ class TestNestedObjectInstantiation:
         # Create instance using from_dict
         config = NetworkConfiguration.from_dict(data)
 
-        # Debug: print what we got
-        print(f"config.gateway type: {type(config.gateway)}")
-        print(f"config.gateway value: {config.gateway}")
+        # Debug: verify types
+        # config.gateway type and value will be checked by assertions below
 
         # Basic fields should work (camelCase to snake_case conversion)
         assert str(config.id) == "550e8400-e29b-41d4-a716-446655440001"

@@ -1,16 +1,18 @@
 """Test case to reproduce the nested object tenant_id bug."""
 
-import pytest
+from typing import Optional
 from uuid import UUID
-from typing import Any, Optional
-import fraiseql
-from fraiseql import type, query
+
+import pytest
 from graphql import GraphQLResolveInfo
+
+from fraiseql import query, type
 
 
 @type(sql_source="mv_organization")
 class Organization:
     """Organization type with sql_source."""
+
     id: UUID
     name: str
     identifier: str
@@ -20,6 +22,7 @@ class Organization:
 @type(sql_source="v_user")
 class User:
     """User type with embedded organization in JSONB data."""
+
     id: UUID
     first_name: str
     last_name: str
@@ -35,10 +38,7 @@ async def user(info: GraphQLResolveInfo) -> Optional[User]:
     # For testing, we'll use a known test user ID
     test_user_id = UUID("75736572-0000-0000-0000-000000000000")
 
-    result = await db.find_one(
-        "v_user",
-        id=test_user_id
-    )
+    result = await db.find_one("v_user", id=test_user_id)
 
     return User(**result) if result else None
 
@@ -46,7 +46,6 @@ async def user(info: GraphQLResolveInfo) -> Optional[User]:
 @pytest.mark.asyncio
 async def test_user_with_embedded_organization_tenant_id_bug(db_connection):
     """Test that querying user with organization incorrectly requires tenant_id."""
-
     # Check if required tables exist
     try:
         await db_connection.execute("SELECT 1 FROM tenant.tb_organization LIMIT 1")
@@ -135,13 +134,11 @@ async def test_user_with_embedded_organization_tenant_id_bug(db_connection):
         """)
 
     # Now test the GraphQL query
-    from fraiseql import create_schema
     from graphql import graphql
 
-    schema = create_schema(
-        queries=[user],
-        types=[User, Organization]
-    )
+    from fraiseql import create_schema
+
+    schema = create_schema(queries=[user], types=[User, Organization])
 
     query = """
     query GetUser {
@@ -165,11 +162,7 @@ async def test_user_with_embedded_organization_tenant_id_bug(db_connection):
         # Note: NOT providing tenant_id in context
     }
 
-    result = await graphql(
-        schema,
-        query,
-        context_value=context
-    )
+    result = await graphql(schema, query, context_value=context)
 
     # The bug: This will fail with "missing a required argument: 'tenant_id'"
     # because FraiseQL tries to query mv_organization separately
@@ -179,8 +172,9 @@ async def test_user_with_embedded_organization_tenant_id_bug(db_connection):
         print(f"Errors: {result.errors}")
         # Check if the error is about missing tenant_id
         error_messages = [str(e) for e in result.errors]
-        assert any("tenant_id" in msg for msg in error_messages), \
+        assert any("tenant_id" in msg for msg in error_messages), (
             "Expected tenant_id error, but got different errors"
+        )
 
         print("✓ Bug reproduced: FraiseQL incorrectly requires tenant_id for embedded organization")
     else:
@@ -193,7 +187,6 @@ async def test_user_with_embedded_organization_tenant_id_bug(db_connection):
 @pytest.mark.asyncio
 async def test_workaround_with_duplicate_type(db_connection):
     """Test workaround using a duplicate type without sql_source."""
-
     # Check if required tables exist
     try:
         await db_connection.execute("SELECT 1 FROM tenant.tb_organization LIMIT 1")
@@ -221,19 +214,16 @@ async def test_workaround_with_duplicate_type(db_connection):
         db = info.context["db"]
         test_user_id = UUID("75736572-0000-0000-0000-000000000000")
 
-        result = await db.find_one(
-            "v_user",
-            id=test_user_id
-        )
+        result = await db.find_one("v_user", id=test_user_id)
 
         return UserWithEmbedded(**result) if result else None
 
-    from fraiseql import create_schema
     from graphql import graphql
 
+    from fraiseql import create_schema
+
     schema = create_schema(
-        queries=[userWithEmbedded],
-        types=[UserWithEmbedded, EmbeddedOrganization]
+        queries=[userWithEmbedded], types=[UserWithEmbedded, EmbeddedOrganization]
     )
 
     query = """
@@ -255,11 +245,7 @@ async def test_workaround_with_duplicate_type(db_connection):
         "db": db_connection,
     }
 
-    result = await graphql(
-        schema,
-        query,
-        context_value=context
-    )
+    result = await graphql(schema, query, context_value=context)
 
     # This workaround should work without tenant_id errors
     assert result.errors is None or len(result.errors) == 0

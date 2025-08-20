@@ -168,7 +168,11 @@ class TestTurboRouter:
         # The turbo router wraps the result in a GraphQL response format
         assert "data" in result
         assert "user" in result["data"]
-        assert result["data"]["user"] == {"id": "123", "name": "Test User", "email": "test@example.com"}
+        assert result["data"]["user"] == {
+            "id": "123",
+            "name": "Test User",
+            "email": "test@example.com",
+        }
 
     @pytest.mark.asyncio
     async def test_turbo_router_execution_unregistered_query(self, turbo_registry) -> None:

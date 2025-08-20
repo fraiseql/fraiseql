@@ -2,15 +2,14 @@
 
 import uuid
 from typing import Optional
-import pytest
-from httpx import ASGITransport, AsyncClient
-from fastapi.testclient import TestClient
 
-import fraiseql
-from fraiseql import query
-from fraiseql.types import fraise_type
-from fraiseql.fastapi import create_fraiseql_app
+import pytest
+from fastapi.testclient import TestClient
 from graphql import GraphQLResolveInfo
+
+from fraiseql import query
+from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.types import fraise_type
 
 
 # Define the User type
@@ -40,10 +39,7 @@ MOCK_USERS = {
 
 # Define query resolver
 @query
-async def user(
-    info: GraphQLResolveInfo,
-    id: uuid.UUID
-) -> Optional[User]:
+async def user(info: GraphQLResolveInfo, id: uuid.UUID) -> Optional[User]:
     """Get a user by ID."""
     print(f"DEBUG: user resolver called with id={id} (type: {type(id)})")
 
@@ -61,10 +57,7 @@ async def user(
 
 
 @query
-async def users(
-    info: GraphQLResolveInfo,
-    limit: int = 10
-) -> list[User]:
+async def users(info: GraphQLResolveInfo, limit: int = 10) -> list[User]:
     """Get list of users."""
     print(f"DEBUG: users resolver called with limit={limit}")
 
@@ -79,13 +72,12 @@ async def users(
 
 def test_first_query_returns_null_simple():
     """Test that demonstrates the first query returning null issue using simple mocked queries."""
-
     # Create the app without database
     app = create_fraiseql_app(
         database_url="postgresql://test/test",  # Dummy URL since we're mocking
         types=[User],
         queries=[user, users],  # Include the query resolvers
-        production=False
+        production=False,
     )
 
     # Use TestClient for simpler testing
@@ -142,9 +134,9 @@ def test_first_query_returns_null_simple():
         print(f"Third query result: {result3}")
 
         # Assertions
-        first_query_user = result1.get('data', {}).get('user')
-        second_query_user = result2.get('data', {}).get('user')
-        users_list = result3.get('data', {}).get('users', [])
+        first_query_user = result1.get("data", {}).get("user")
+        second_query_user = result2.get("data", {}).get("user")
+        users_list = result3.get("data", {}).get("users", [])
 
         print("\n" + "=" * 60)
         print("ANALYSIS")
@@ -158,11 +150,12 @@ def test_first_query_returns_null_simple():
             print("\n❌ BUG CONFIRMED: First query returned null, second query worked!")
             print("This confirms the FraiseQL first query initialization issue.")
             # Make test fail to highlight the issue
-            pytest.fail("First query returned null while second query worked - initialization bug confirmed")
+            pytest.fail(
+                "First query returned null while second query worked - initialization bug confirmed"
+            )
         elif first_query_user is not None:
             print("\n✅ Bug not reproduced - first query returned data correctly")
             # This would mean the bug is fixed or not present
-            pass
         else:
             print("\n⚠️ Both queries returned null - different issue")
             pytest.fail("Both queries returned null - this is a different issue")

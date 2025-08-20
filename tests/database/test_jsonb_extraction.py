@@ -1,12 +1,10 @@
 """Tests for JSONB extraction functionality in production mode."""
 
-import json
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
 import fraiseql
-from fraiseql.core.raw_json_executor import RawJSONResult
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.fastapi.config import FraiseQLConfig
 
@@ -18,8 +16,6 @@ class SampleType:
     id: str
     name: str
     value: int
-
-
 
 
 @fraiseql.type(sql_source="auto_detect_view")
@@ -448,10 +444,7 @@ class TestJSONBExtraction:
             # it should return the full row
             assert results[0] == {
                 "id": "123",
-                "strange_column": {
-                    "id": "123",
-                    "auto_data": "Should not be extracted"
-                },
+                "strange_column": {"id": "123", "auto_data": "Should not be extracted"},
                 "regular_field": "Normal text",
             }
         finally:

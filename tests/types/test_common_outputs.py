@@ -40,7 +40,7 @@ class TestMutationResultRow:
             "updated_fields",
             "message",
             "object_data",
-            "extra_metadata"
+            "extra_metadata",
         }
         assert set(field_names) == expected_fields
 
@@ -169,7 +169,7 @@ class TestMutationStatusMap:
         blocked_statuses = [
             "blocked:children",
             "blocked:allocations",
-            "blocked:children_and_allocations"
+            "blocked:children_and_allocations",
         ]
 
         for status in blocked_statuses:

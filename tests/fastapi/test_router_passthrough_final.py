@@ -1,14 +1,9 @@
 """Final verification test for the JSON passthrough router fix."""
 
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from fastapi import FastAPI, Request
-from fastapi.testclient import TestClient
-from graphql import GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLString
+from graphql import GraphQLField, GraphQLObjectType, GraphQLSchema, GraphQLString
 
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.fastapi.routers import create_graphql_router
-from fraiseql.fastapi import dependencies
 
 
 class TestRouterPassthroughFix:
@@ -21,11 +16,8 @@ class TestRouterPassthroughFix:
             query=GraphQLObjectType(
                 "Query",
                 lambda: {
-                    "test": GraphQLField(
-                        GraphQLString,
-                        resolve=lambda obj, info: "value"
-                    ),
-                }
+                    "test": GraphQLField(GraphQLString, resolve=lambda obj, info: "value"),
+                },
             )
         )
 
@@ -45,13 +37,19 @@ class TestRouterPassthroughFix:
 
         # This is the FIXED logic (not the buggy version)
         if is_production_env:
-            if config.json_passthrough_enabled and getattr(config, 'json_passthrough_in_production', True):
+            if config.json_passthrough_enabled and getattr(
+                config, "json_passthrough_in_production", True
+            ):
                 json_passthrough = True
 
         # With the fix, passthrough should be False
-        assert json_passthrough is False, "Passthrough should be disabled when json_passthrough_in_production=False"
+        assert json_passthrough is False, (
+            "Passthrough should be disabled when json_passthrough_in_production=False"
+        )
 
-        print(f"✓ Fixed logic: Production with in_production=False -> passthrough={json_passthrough}")
+        print(
+            f"✓ Fixed logic: Production with in_production=False -> passthrough={json_passthrough}"
+        )
 
     def test_production_enabled_passthrough(self, schema):
         """Test that production enables passthrough when both flags are true."""
@@ -69,7 +67,9 @@ class TestRouterPassthroughFix:
 
         # Fixed logic
         if is_production_env:
-            if config.json_passthrough_enabled and getattr(config, 'json_passthrough_in_production', True):
+            if config.json_passthrough_enabled and getattr(
+                config, "json_passthrough_in_production", True
+            ):
                 json_passthrough = True
 
         # With both flags true, passthrough should be True
@@ -93,11 +93,15 @@ class TestRouterPassthroughFix:
 
         # Fixed logic for mode headers
         if mode in ("production", "staging"):
-            if config.json_passthrough_enabled and getattr(config, 'json_passthrough_in_production', True):
+            if config.json_passthrough_enabled and getattr(
+                config, "json_passthrough_in_production", True
+            ):
                 json_passthrough = True
 
         # Should be False
-        assert json_passthrough is False, "Staging mode should respect json_passthrough_in_production=False"
+        assert json_passthrough is False, (
+            "Staging mode should respect json_passthrough_in_production=False"
+        )
 
         print(f"✓ Fixed logic: Staging with in_production=False -> passthrough={json_passthrough}")
 
@@ -121,22 +125,29 @@ class TestRouterPassthroughFix:
         # FIXED LOGIC (what it should be)
         fixed_passthrough = False
         if is_production_env:
-            if config.json_passthrough_enabled and getattr(config, 'json_passthrough_in_production', True):
+            if config.json_passthrough_enabled and getattr(
+                config, "json_passthrough_in_production", True
+            ):
                 fixed_passthrough = True
 
-        print(f"Configuration: enabled={config.json_passthrough_enabled}, in_production={config.json_passthrough_in_production}")
+        print(
+            f"Configuration: enabled={config.json_passthrough_enabled}, in_production={config.json_passthrough_in_production}"
+        )
         print(f"Buggy logic result: {buggy_passthrough} (WRONG - ignores config)")
         print(f"Fixed logic result: {fixed_passthrough} (CORRECT - respects config)")
 
         assert buggy_passthrough != fixed_passthrough, "Bug demonstration"
         assert fixed_passthrough is False, "Fixed logic should disable passthrough"
 
-    @pytest.mark.parametrize("enabled,in_prod,expected", [
-        (False, False, False),
-        (False, True, False),
-        (True, False, False),  # Critical case
-        (True, True, True),
-    ])
+    @pytest.mark.parametrize(
+        "enabled,in_prod,expected",
+        [
+            (False, False, False),
+            (False, True, False),
+            (True, False, False),  # Critical case
+            (True, True, True),
+        ],
+    )
     def test_all_configurations(self, enabled, in_prod, expected):
         """Test all configuration combinations."""
         config = FraiseQLConfig(
@@ -152,7 +163,9 @@ class TestRouterPassthroughFix:
 
         # Apply fixed logic
         if is_production_env:
-            if config.json_passthrough_enabled and getattr(config, 'json_passthrough_in_production', True):
+            if config.json_passthrough_enabled and getattr(
+                config, "json_passthrough_in_production", True
+            ):
                 json_passthrough = True
 
         assert json_passthrough == expected, (

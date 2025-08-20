@@ -4,7 +4,6 @@ This module tests that GraphQL schema introspection is properly controlled
 based on environment and configuration settings.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from graphql import GraphQLResolveInfo
 
@@ -30,17 +29,13 @@ class TestSchemaIntrospectionSecurity:
             enable_introspection=True,
         )
 
-        app = create_fraiseql_app(
-            config=config,
-            queries=[simple_test_query],
-            production=False
-        )
+        app = create_fraiseql_app(config=config, queries=[simple_test_query], production=False)
 
         with TestClient(app) as client:
             # Basic introspection query
-            response = client.post("/graphql", json={
-                "query": "{ __schema { queryType { name } } }"
-            })
+            response = client.post(
+                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
+            )
 
             # This should work in development
             assert response.status_code == 200
@@ -57,17 +52,13 @@ class TestSchemaIntrospectionSecurity:
             # Note: enable_introspection should be False due to validator
         )
 
-        app = create_fraiseql_app(
-            config=config,
-            queries=[simple_test_query],
-            production=True
-        )
+        app = create_fraiseql_app(config=config, queries=[simple_test_query], production=True)
 
         with TestClient(app) as client:
             # Basic introspection query
-            response = client.post("/graphql", json={
-                "query": "{ __schema { queryType { name } } }"
-            })
+            response = client.post(
+                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
+            )
 
             # This should be blocked in production, but currently isn't
             # This is the bug we need to fix
@@ -91,17 +82,18 @@ class TestSchemaIntrospectionSecurity:
 
         with TestClient(app) as client:
             # Introspection query should be blocked
-            response = client.post("/graphql", json={
-                "query": "{ __schema { queryType { name } } }"
-            })
+            response = client.post(
+                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
+            )
 
             # Should return an error, not the schema
             assert response.status_code == 200  # GraphQL always returns 200
             data = response.json()
             assert "errors" in data
             assert "data" not in data or data["data"] is None
-            assert any("introspection" in error.get("message", "").lower()
-                     for error in data["errors"])
+            assert any(
+                "introspection" in error.get("message", "").lower() for error in data["errors"]
+            )
 
     def test_introspection_enabled_in_development(self):
         """RED: Introspection should work in development mode."""
@@ -119,9 +111,9 @@ class TestSchemaIntrospectionSecurity:
 
         with TestClient(app) as client:
             # Introspection query should work
-            response = client.post("/graphql", json={
-                "query": "{ __schema { queryType { name } } }"
-            })
+            response = client.post(
+                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -147,9 +139,9 @@ class TestSchemaIntrospectionSecurity:
 
         with TestClient(app) as client:
             # Should work when explicitly enabled
-            response = client.post("/graphql", json={
-                "query": "{ __schema { queryType { name } } }"
-            })
+            response = client.post(
+                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -171,15 +163,16 @@ class TestSchemaIntrospectionSecurity:
 
         with TestClient(app) as client:
             # Type introspection query
-            response = client.post("/graphql", json={
-                "query": "{ __type(name: \"Query\") { name fields { name } } }"
-            })
+            response = client.post(
+                "/graphql", json={"query": '{ __type(name: "Query") { name fields { name } } }'}
+            )
 
             assert response.status_code == 200
             data = response.json()
             assert "errors" in data
-            assert any("introspection" in error.get("message", "").lower()
-                     for error in data["errors"])
+            assert any(
+                "introspection" in error.get("message", "").lower() for error in data["errors"]
+            )
 
     def test_mixed_introspection_and_normal_query(self):
         """RED: Mixed queries with introspection should be blocked in production."""
@@ -196,20 +189,24 @@ class TestSchemaIntrospectionSecurity:
 
         with TestClient(app) as client:
             # Query that mixes normal query with introspection
-            response = client.post("/graphql", json={
-                "query": """
+            response = client.post(
+                "/graphql",
+                json={
+                    "query": """
                 {
                     testQuery
                     __schema { queryType { name } }
                 }
                 """
-            })
+                },
+            )
 
             assert response.status_code == 200
             data = response.json()
             assert "errors" in data
-            assert any("introspection" in error.get("message", "").lower()
-                     for error in data["errors"])
+            assert any(
+                "introspection" in error.get("message", "").lower() for error in data["errors"]
+            )
 
     def test_regular_queries_work_in_production(self):
         """Regular queries should still work in production when introspection is disabled."""
@@ -226,9 +223,7 @@ class TestSchemaIntrospectionSecurity:
 
         with TestClient(app) as client:
             # Regular query should work
-            response = client.post("/graphql", json={
-                "query": "{ simpleTestQuery }"
-            })
+            response = client.post("/graphql", json={"query": "{ simpleTestQuery }"})
 
             assert response.status_code == 200
             data = response.json()
@@ -250,9 +245,9 @@ class TestSchemaIntrospectionSecurity:
         )
 
         with TestClient(app) as client:
-            response = client.post("/graphql", json={
-                "query": "{ __schema { queryType { name } } }"
-            })
+            response = client.post(
+                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
+            )
 
             assert response.status_code == 200
             data = response.json()

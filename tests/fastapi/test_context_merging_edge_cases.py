@@ -62,6 +62,7 @@ async def get_current_user(info) -> Optional[User]:
 @fraiseql.type
 class MergedData:
     """Type to expose merged context data."""
+
     source: str
     priority: int
     request_id: Optional[str]
@@ -98,8 +99,9 @@ async def get_merged_data(info) -> MergedData:
         medium_only=ctx.get("medium_only"),
         high_only=ctx.get("high_only"),
         shared=ctx.get("shared"),
-        features=ctx.get("features") or (ctx.get("custom_data", {}).get("feature_flags") if ctx.get("custom_data") else None),
-        user_id=ctx.get("user_id") or (ctx.get("user", {}).get("id") if ctx.get("user") else None)
+        features=ctx.get("features")
+        or (ctx.get("custom_data", {}).get("feature_flags") if ctx.get("custom_data") else None),
+        user_id=ctx.get("user_id") or (ctx.get("user", {}).get("id") if ctx.get("user") else None),
     )
 
 
@@ -255,7 +257,10 @@ class TestMultipleContextSources:
 
         client = TestClient(app)
 
-        response = client.post("/graphql", json={"query": "{ getMergedData { level value shared lowOnly mediumOnly highOnly } }"})
+        response = client.post(
+            "/graphql",
+            json={"query": "{ getMergedData { level value shared lowOnly mediumOnly highOnly } }"},
+        )
 
         result = response.json()
         assert response.status_code == 200, f"Response: {result}"
@@ -351,7 +356,9 @@ class TestMultipleContextSources:
 
         # Test with beta features
         response = client.post(
-            "/graphql", json={"query": "{ getMergedData { features } }"}, headers={"X-Beta-User": "true"}
+            "/graphql",
+            json={"query": "{ getMergedData { features } }"},
+            headers={"X-Beta-User": "true"},
         )
 
         result = response.json()
@@ -675,24 +682,30 @@ class TestContextMergingEdgeCases:
             # Only pass the level1 data that NestedMergedData expects
             if "level1" in ctx:
                 return NestedMergedData(level1=ctx["level1"])
-            else:
-                return None
+            return None
 
         app = create_fraiseql_app_with_db(
             types=[Level3Data, Level2Data, Level1Data, NestedMergedData],
             queries=[get_nested_merged_data],
             context_getter=deep_merge_context,
-            production=False
+            production=False,
         )
 
         client = TestClient(app)
 
-        response = client.post("/graphql", json={"query": "{ getNestedMergedData { level1 { level2 { level3 { valueA valueB shared } level2A level2B } arrays } } }"})
+        response = client.post(
+            "/graphql",
+            json={
+                "query": "{ getNestedMergedData { level1 { level2 { level3 { valueA valueB shared } level2A level2B } arrays } } }"
+            },
+        )
 
         result = response.json()
         assert response.status_code == 200, f"Response: {result}"
         assert result.get("data") is not None, f"No data in response: {result}"
-        assert result["data"].get("getNestedMergedData") is not None, f"getNestedMergedData is None: {result}"
+        assert result["data"].get("getNestedMergedData") is not None, (
+            f"getNestedMergedData is None: {result}"
+        )
         data = result["data"]["getNestedMergedData"]
 
         # Check deep merge results

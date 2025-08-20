@@ -1,7 +1,5 @@
 """Tests for field-level authorization in FraiseQL."""
 
-import pytest
-
 import fraiseql
 from fraiseql import query
 from fraiseql.decorators import field
@@ -14,7 +12,6 @@ class TestFieldAuthorization:
 
     def test_field_auth_basic_error_handling(self):
         """Test that FieldAuthorizationError can be raised and handled."""
-
         # Test that the error can be instantiated
         error = FieldAuthorizationError("Test error message")
         assert str(error) == "Test error message"

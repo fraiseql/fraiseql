@@ -103,6 +103,7 @@ class TestFieldAuthE2E:
     @pytest.fixture
     def app(self, create_fraiseql_app_with_db):
         """Create test application with field auth."""
+
         # Create a custom context getter that adds auth data
         async def auth_context_getter(request):
             """Context getter that adds auth data from headers."""
@@ -125,7 +126,7 @@ class TestFieldAuthE2E:
         app = create_fraiseql_app_with_db(
             types=[User, PublicProfile, PrivateProfile],
             queries=[me, get_user],
-            context_getter=auth_context_getter
+            context_getter=auth_context_getter,
         )
 
         return app

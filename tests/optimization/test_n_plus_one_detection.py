@@ -4,7 +4,6 @@ These tests use mocked data to test N+1 detection functionality
 without requiring database connections.
 """
 
-import logging
 from uuid import UUID, uuid4
 
 import pytest
@@ -13,7 +12,6 @@ from fastapi.testclient import TestClient
 import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.gql.schema_builder import SchemaRegistry
-from fraiseql.optimization import configure_detector
 
 
 @pytest.fixture(autouse=True)
@@ -238,7 +236,9 @@ def test_dataloader_field_with_custom_resolver() -> None:
         return []
 
     # Test that custom logic works
-    create_fraiseql_app(database_url="postgresql://test/test", types=[Author, CustomPost], queries=[get_posts])
+    create_fraiseql_app(
+        database_url="postgresql://test/test", types=[Author, CustomPost], queries=[get_posts]
+    )
 
     # This test verifies the decorator doesn't interfere with custom logic
     assert True  # Would need actual query test when implemented

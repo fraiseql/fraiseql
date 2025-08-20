@@ -1,13 +1,13 @@
 """Test that authentication is properly enforced when configured."""
 
-import pytest
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from fastapi.testclient import TestClient
 from graphql import GraphQLResolveInfo
 
 from fraiseql import query
-from fraiseql.fastapi import create_fraiseql_app, FraiseQLConfig
 from fraiseql.auth.base import AuthProvider, UserContext
+from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 
 class TestAuthProvider(AuthProvider):
@@ -44,9 +44,9 @@ async def user_info(info: GraphQLResolveInfo) -> Dict[str, Any]:
     if not user:
         return {"id": None, "email": None, "authenticated": False}
     return {
-        "id": user.user_id if hasattr(user, 'user_id') else user.get("id"),
-        "email": user.email if hasattr(user, 'email') else user.get("email"),
-        "authenticated": True
+        "id": user.user_id if hasattr(user, "user_id") else user.get("id"),
+        "email": user.email if hasattr(user, "email") else user.get("email"),
+        "authenticated": True,
     }
 
 
@@ -58,29 +58,21 @@ class TestAuthenticationEnforcement:
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
             environment="development",
-            auth_enabled=False  # Explicitly disable auth
+            auth_enabled=False,  # Explicitly disable auth
         )
 
         app = create_fraiseql_app(
-            config=config,
-            queries=[public_data, sensitive_data, user_info],
-            production=False
+            config=config, queries=[public_data, sensitive_data, user_info], production=False
         )
 
         with TestClient(app) as client:
             # Without auth header - should succeed
-            response = client.post(
-                "/graphql",
-                json={"query": "{ publicData }"}
-            )
+            response = client.post("/graphql", json={"query": "{ publicData }"})
             assert response.status_code == 200
             assert response.json()["data"]["publicData"] == "Public information"
 
             # Sensitive data also accessible without auth when auth is disabled
-            response = client.post(
-                "/graphql",
-                json={"query": "{ sensitiveData }"}
-            )
+            response = client.post("/graphql", json={"query": "{ sensitiveData }"})
             assert response.status_code == 200
             assert response.json()["data"]["sensitiveData"] == "Sensitive information"
 
@@ -89,30 +81,24 @@ class TestAuthenticationEnforcement:
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
             environment="production",
-            auth_enabled=True
+            auth_enabled=True,
         )
 
         app = create_fraiseql_app(
             config=config,
             queries=[public_data, sensitive_data, user_info],
             auth=TestAuthProvider(),
-            production=True
+            production=True,
         )
 
         with TestClient(app) as client:
             # Without auth header - should be blocked
-            response = client.post(
-                "/graphql",
-                json={"query": "{ sensitiveData }"}
-            )
+            response = client.post("/graphql", json={"query": "{ sensitiveData }"})
             assert response.status_code == 401
             assert "Authentication required" in response.json()["detail"]
 
             # Public data also requires auth when auth is enabled
-            response = client.post(
-                "/graphql",
-                json={"query": "{ publicData }"}
-            )
+            response = client.post("/graphql", json={"query": "{ publicData }"})
             assert response.status_code == 401
 
     def test_auth_enabled_accepts_valid_token(self):
@@ -121,7 +107,7 @@ class TestAuthenticationEnforcement:
             database_url="postgresql://test:test@localhost/test",
             queries=[public_data, sensitive_data, user_info],
             auth=TestAuthProvider(),
-            production=False
+            production=False,
         )
 
         with TestClient(app) as client:
@@ -129,7 +115,7 @@ class TestAuthenticationEnforcement:
             response = client.post(
                 "/graphql",
                 json={"query": "{ sensitiveData }"},
-                headers={"Authorization": "Bearer valid-token"}
+                headers={"Authorization": "Bearer valid-token"},
             )
             assert response.status_code == 200
             assert response.json()["data"]["sensitiveData"] == "Sensitive information"
@@ -138,7 +124,7 @@ class TestAuthenticationEnforcement:
             response = client.post(
                 "/graphql",
                 json={"query": "{ userInfo { id email authenticated } }"},
-                headers={"Authorization": "Bearer valid-token"}
+                headers={"Authorization": "Bearer valid-token"},
             )
             assert response.status_code == 200
             data = response.json()["data"]["userInfo"]
@@ -152,7 +138,7 @@ class TestAuthenticationEnforcement:
             database_url="postgresql://test:test@localhost/test",
             queries=[sensitive_data],
             auth=TestAuthProvider(),
-            production=False
+            production=False,
         )
 
         with TestClient(app) as client:
@@ -160,7 +146,7 @@ class TestAuthenticationEnforcement:
             response = client.post(
                 "/graphql",
                 json={"query": "{ sensitiveData }"},
-                headers={"Authorization": "Bearer invalid-token"}
+                headers={"Authorization": "Bearer invalid-token"},
             )
             assert response.status_code == 401
 
@@ -170,14 +156,13 @@ class TestAuthenticationEnforcement:
             database_url="postgresql://test:test@localhost/test",
             queries=[sensitive_data],
             auth=TestAuthProvider(),
-            production=False  # Development mode
+            production=False,  # Development mode
         )
 
         with TestClient(app) as client:
             # Introspection query without auth - should work in dev
             response = client.post(
-                "/graphql",
-                json={"query": "{ __schema { queryType { name } } }"}
+                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
             )
             assert response.status_code == 200
             assert response.json()["data"]["__schema"]["queryType"]["name"] == "Query"
@@ -188,14 +173,13 @@ class TestAuthenticationEnforcement:
             database_url="postgresql://test:test@localhost/test",
             queries=[sensitive_data],
             auth=TestAuthProvider(),
-            production=True  # Production mode
+            production=True,  # Production mode
         )
 
         with TestClient(app) as client:
             # Introspection query without auth - should be blocked in production
             response = client.post(
-                "/graphql",
-                json={"query": "{ __schema { queryType { name } } }"}
+                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
             )
             assert response.status_code == 401
             assert "Authentication required" in response.json()["detail"]
@@ -207,22 +191,19 @@ class TestAuthenticationEnforcement:
             database_url="postgresql://test:test@localhost/test",
             queries=[sensitive_data],
             auth=TestAuthProvider(),  # This should enable auth
-            production=False
+            production=False,
         )
 
         with TestClient(app) as client:
             # Without auth - should be blocked
-            response = client.post(
-                "/graphql",
-                json={"query": "{ sensitiveData }"}
-            )
+            response = client.post("/graphql", json={"query": "{ sensitiveData }"})
             assert response.status_code == 401
 
             # With valid auth - should work
             response = client.post(
                 "/graphql",
                 json={"query": "{ sensitiveData }"},
-                headers={"Authorization": "Bearer valid-token"}
+                headers={"Authorization": "Bearer valid-token"},
             )
             assert response.status_code == 200
 
@@ -239,14 +220,16 @@ class TestAuthContextPropagation:
             return {
                 "hasUser": "user" in info.context,
                 "authenticated": info.context.get("authenticated", False),
-                "userId": getattr(info.context.get("user"), "user_id", None) if info.context.get("user") else None
+                "userId": getattr(info.context.get("user"), "user_id", None)
+                if info.context.get("user")
+                else None,
             }
 
         app = create_fraiseql_app(
             database_url="postgresql://test:test@localhost/test",
             queries=[context_check],
             auth=TestAuthProvider(),
-            production=False
+            production=False,
         )
 
         with TestClient(app) as client:
@@ -254,7 +237,7 @@ class TestAuthContextPropagation:
             response = client.post(
                 "/graphql",
                 json={"query": "{ contextCheck { hasUser authenticated userId } }"},
-                headers={"Authorization": "Bearer valid-token"}
+                headers={"Authorization": "Bearer valid-token"},
             )
             assert response.status_code == 200
             data = response.json()["data"]["contextCheck"]
@@ -271,21 +254,20 @@ class TestAuthContextPropagation:
             return {
                 "hasUser": "user" in info.context,
                 "authenticated": info.context.get("authenticated", False),
-                "userId": None
+                "userId": None,
             }
 
         # Create app without auth provider (auth optional)
         app = create_fraiseql_app(
             database_url="postgresql://test:test@localhost/test",
             queries=[context_check],
-            production=False
+            production=False,
         )
 
         with TestClient(app) as client:
             # Without auth header
             response = client.post(
-                "/graphql",
-                json={"query": "{ contextCheck { hasUser authenticated userId } }"}
+                "/graphql", json={"query": "{ contextCheck { hasUser authenticated userId } }"}
             )
             assert response.status_code == 200
             data = response.json()["data"]["contextCheck"]

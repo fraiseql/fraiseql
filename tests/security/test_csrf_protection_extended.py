@@ -245,7 +245,7 @@ class TestGraphQLCSRFValidator:
         config = CSRFConfig(
             secret_key="test",
             check_referrer=True,
-            trusted_origins={"https://app.example.com", "http://localhost:3000"}
+            trusted_origins={"https://app.example.com", "http://localhost:3000"},
         )
         app = AsyncMock()
         middleware = CSRFProtectionMiddleware(app, config)

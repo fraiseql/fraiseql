@@ -127,15 +127,14 @@ class TestMutationObjectDataMapping:
     @pytest.fixture
     def graphql_schema(self, clear_registry):
         """Create GraphQL schema with the mutation."""
+
         # GraphQL requires a Query type with at least one field
         @fraiseql.type
         class QueryRoot:
             dummy: str = fraiseql.fraise_field(default="dummy")
 
         return build_fraiseql_schema(
-            query_types=[QueryRoot],
-            mutation_resolvers=[CreateLocation],
-            camel_case_fields=True
+            query_types=[QueryRoot], mutation_resolvers=[CreateLocation], camel_case_fields=True
         )
 
     @pytest.fixture

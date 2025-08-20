@@ -8,10 +8,10 @@ from uuid import uuid4
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.db import DatabaseQuery, FraiseQLRepository
-
 # Import database fixtures
 from tests.database_conftest import *  # noqa: F403
+
+from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 
 @pytest.fixture

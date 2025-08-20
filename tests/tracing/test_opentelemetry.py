@@ -33,8 +33,6 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not OPENTELEMETRY_AVAILABLE, reason="OpenTelemetry not installed")
 
 from typing import Never
-from unittest.mock import patch
-
 
 # Global test exporter and provider
 _test_exporter = None
@@ -55,6 +53,7 @@ def setup_tracing_provider():
 
         # Reset FraiseQL tracer
         import fraiseql.tracing.opentelemetry
+
         fraiseql.tracing.opentelemetry._tracer_instance = None
 
     yield
@@ -126,6 +125,7 @@ class TestFraiseQLTracer:
 
         # Reset the global FraiseQL tracer to ensure fresh instance
         import fraiseql.tracing.opentelemetry
+
         fraiseql.tracing.opentelemetry._tracer_instance = None
 
         self.tracer = FraiseQLTracer(self.config)
@@ -299,6 +299,7 @@ class TestTracingMiddleware:
 
         # Reset the global FraiseQL tracer to ensure fresh instance
         import fraiseql.tracing.opentelemetry
+
         fraiseql.tracing.opentelemetry._tracer_instance = None
 
         self.config = TracingConfig()

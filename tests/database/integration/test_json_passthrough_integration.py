@@ -5,16 +5,14 @@ for both development mode (object instantiation) and production mode (JSON passt
 """
 
 import json
-from decimal import Decimal
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
 import pytest
-from psycopg.sql import SQL
 
 import fraiseql
-from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.core.raw_json_executor import RawJSONResult
+from fraiseql.db import FraiseQLRepository, register_type_for_view
 
 
 # Test types for dual mode testing
@@ -121,7 +119,7 @@ class TestJSONPassthroughIntegration:
                 INSERT INTO test_authors (id, name, email, bio)
                 VALUES (%s, %s, %s, %s)
                 """,
-                (author_id, "Jane Doe", "jane@example.com", "Tech writer and developer")
+                (author_id, "Jane Doe", "jane@example.com", "Tech writer and developer"),
             )
 
             article_id = uuid4()
@@ -137,8 +135,8 @@ class TestJSONPassthroughIntegration:
                     True,
                     author_id,
                     ["graphql", "performance", "json"],
-                    json.dumps({"views": 1000, "likes": 50})
-                )
+                    json.dumps({"views": 1000, "likes": 50}),
+                ),
             )
 
             await conn.commit()
@@ -218,8 +216,8 @@ class TestJSONPassthroughIntegration:
             context={
                 "mode": "production",
                 "json_passthrough": True,
-                "graphql_info": None  # Simulate no GraphQL context
-            }
+                "graphql_info": None,  # Simulate no GraphQL context
+            },
         )
 
         # Use find_raw_json method with field name
@@ -250,7 +248,7 @@ class TestJSONPassthroughIntegration:
                     INSERT INTO test_authors (id, name, email, bio)
                     VALUES (%s, %s, %s, %s)
                     """,
-                    (author_id, f"Author {i}", f"author{i}@example.com", f"Bio {i}")
+                    (author_id, f"Author {i}", f"author{i}@example.com", f"Bio {i}"),
                 )
 
                 for j in range(10):
@@ -266,8 +264,8 @@ class TestJSONPassthroughIntegration:
                             j % 2 == 0,
                             author_id,
                             [f"tag{k}" for k in range(5)],
-                            json.dumps({"index": i * 10 + j})
-                        )
+                            json.dumps({"index": i * 10 + j}),
+                        ),
                     )
             await conn.commit()
 
@@ -285,8 +283,7 @@ class TestJSONPassthroughIntegration:
 
         # Measure JSON passthrough
         pass_repo = FraiseQLRepository(
-            db_pool,
-            context={"mode": "production", "json_passthrough": True}
+            db_pool, context={"mode": "production", "json_passthrough": True}
         )
         start = time.time()
         pass_result = await pass_repo.find_raw_json("test_articles_view", "articles")
@@ -299,7 +296,7 @@ class TestJSONPassthroughIntegration:
         assert len(pass_data["data"]["articles"]) == 1001
 
         # Log performance (passthrough should be fastest)
-        print(f"\nPerformance comparison:")
+        print("\nPerformance comparison:")
         print(f"Development mode: {dev_time:.3f}s")
         print(f"Production mode: {prod_time:.3f}s")
         print(f"JSON passthrough: {pass_time:.3f}s")
@@ -318,8 +315,8 @@ class TestJSONPassthroughIntegration:
             context={
                 "mode": "production",
                 "json_passthrough": True,
-                "graphql_info": None  # Placeholder - real GraphQL integration tested elsewhere
-            }
+                "graphql_info": None,  # Placeholder - real GraphQL integration tested elsewhere
+            },
         )
 
         # Should work normally
@@ -346,7 +343,7 @@ class TestJSONPassthroughIntegration:
                 INSERT INTO test_authors (id, name, email, bio)
                 VALUES (%s, %s, %s, NULL)
                 """,
-                (null_author_id, "No Bio Author", "nobio@example.com")
+                (null_author_id, "No Bio Author", "nobio@example.com"),
             )
             await conn.commit()
 
@@ -364,8 +361,7 @@ class TestJSONPassthroughIntegration:
 
         # Test JSON passthrough
         pass_repo = FraiseQLRepository(
-            db_pool,
-            context={"mode": "production", "json_passthrough": True}
+            db_pool, context={"mode": "production", "json_passthrough": True}
         )
         result = await pass_repo.find_raw_json("test_authors_view", "authors")
         data = json.loads(result.json_string)

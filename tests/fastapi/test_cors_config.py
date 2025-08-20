@@ -148,8 +148,7 @@ class TestCORSIntegration:
             # Check that CORSMiddleware is not in the middleware stack
             # FastAPI stores middleware in app.user_middleware
             cors_middleware_found = any(
-                middleware.cls.__name__ == "CORSMiddleware"
-                for middleware in app.user_middleware
+                middleware.cls.__name__ == "CORSMiddleware" for middleware in app.user_middleware
             )
             assert not cors_middleware_found
 
@@ -175,8 +174,7 @@ class TestCORSIntegration:
             # Check that CORSMiddleware is in the middleware stack
             # FastAPI stores middleware in app.user_middleware
             cors_middleware_found = any(
-                middleware.cls.__name__ == "CORSMiddleware"
-                for middleware in app.user_middleware
+                middleware.cls.__name__ == "CORSMiddleware" for middleware in app.user_middleware
             )
             assert cors_middleware_found
 

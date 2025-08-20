@@ -134,6 +134,69 @@ class DateTimeFilter:
     isnull: bool | None = None
 
 
+# Restricted filter types for exotic scalar types that have normalization issues
+@fraise_input
+class NetworkAddressFilter:
+    """Restricted filter for IP addresses and CIDR that only exposes working operators.
+
+    Excludes string pattern matching (contains, startswith, endswith) due to
+    PostgreSQL inet/cidr type normalization issues where values like '10.0.0.1'
+    become '10.0.0.1/32' when converted to text.
+    """
+
+    eq: str | None = None
+    neq: str | None = None
+    in_: list[str] | None = fraise_field(default=None, graphql_name="in")
+    nin: list[str] | None = None
+    isnull: bool | None = None
+    # Intentionally excludes: contains, startswith, endswith
+
+
+@fraise_input
+class MacAddressFilter:
+    """Restricted filter for MAC addresses that only exposes working operators.
+
+    Excludes string pattern matching due to PostgreSQL macaddr type normalization
+    where values are automatically formatted to canonical form.
+    """
+
+    eq: str | None = None
+    neq: str | None = None
+    in_: list[str] | None = fraise_field(default=None, graphql_name="in")
+    nin: list[str] | None = None
+    isnull: bool | None = None
+    # Intentionally excludes: contains, startswith, endswith
+
+
+@fraise_input
+class LTreeFilter:
+    """Restricted filter for LTree hierarchical paths.
+
+    Only exposes basic equality operations until proper ltree operators
+    (ancestor_of, descendant_of, matches_lquery) are implemented.
+    """
+
+    eq: str | None = None
+    neq: str | None = None
+    isnull: bool | None = None
+    # Intentionally excludes: contains, startswith, endswith, in_, nin
+    # TODO(fraiseql): Add ltree-specific operators: ancestor_of, descendant_of, matches_lquery - https://github.com/fraiseql/fraiseql/issues/ltree-operators
+
+
+@fraise_input
+class DateRangeFilter:
+    """Restricted filter for PostgreSQL date range types.
+
+    Only exposes basic operations until proper range operators are implemented.
+    """
+
+    eq: str | None = None
+    neq: str | None = None
+    isnull: bool | None = None
+    # Intentionally excludes string pattern matching
+    # TODO(fraiseql): Add range-specific operators: contains_date, overlaps, adjacent - https://github.com/fraiseql/fraiseql/issues/range-operators
+
+
 def _get_filter_type_for_field(field_type: type, parent_class: type | None = None) -> type:
     """Get the appropriate filter type for a field type."""
     # Handle Optional types FIRST before any other checks
@@ -173,6 +236,29 @@ def _get_filter_type_for_field(field_type: type, parent_class: type | None = Non
         # without circular import issues
         nested_where_input = create_graphql_where_input(field_type)
         return nested_where_input
+
+    # First check for FraiseQL scalar types that need restricted filters
+    # Import at runtime to avoid circular imports
+    try:
+        from fraiseql.types import CIDR, DateTime, IpAddress, LTree, MacAddress
+        from fraiseql.types.scalars.daterange import DateRangeField
+
+        exotic_type_mapping = {
+            IpAddress: NetworkAddressFilter,
+            CIDR: NetworkAddressFilter,
+            MacAddress: MacAddressFilter,
+            LTree: LTreeFilter,
+            DateTime: DateTimeFilter,  # Use existing DateTimeFilter for FraiseQL DateTime
+            DateRangeField: DateRangeFilter,
+        }
+
+        # Check if this is one of our exotic scalar types
+        if field_type in exotic_type_mapping:
+            return exotic_type_mapping[field_type]
+
+    except ImportError:
+        # FraiseQL scalar types not available, continue with standard mapping
+        pass
 
     # Map Python types to filter types
     type_mapping = {

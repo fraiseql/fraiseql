@@ -1,14 +1,14 @@
 """Test the resolve_nested parameter for controlling nested field resolution."""
 
 import asyncio
-import pytest
-from uuid import UUID
 from typing import Optional
+from uuid import UUID
+
 import psycopg
-from psycopg import AsyncConnection
-import fraiseql
-from fraiseql import type, query
+import pytest
 from graphql import GraphQLResolveInfo
+
+from fraiseql import query, type
 
 
 async def setup_test_database():
@@ -25,7 +25,7 @@ async def setup_test_database():
     # Connect to PostgreSQL to create test database
     conn = await psycopg.AsyncConnection.connect(
         f"host={db_host} port={db_port} user={db_user} password={db_password} dbname=postgres",
-        autocommit=True
+        autocommit=True,
     )
 
     try:
@@ -129,6 +129,7 @@ async def test_default_behavior_assumes_embedded():
     """Test that by default (resolve_nested=False), data is assumed to be embedded."""
     # Skip in CI environment where database setup may differ
     import os
+
     if os.environ.get("GITHUB_ACTIONS") == "true":
         pytest.skip("Test requires complex database setup not available in CI")
 
@@ -139,21 +140,19 @@ async def test_default_behavior_assumes_embedded():
         @type(sql_source="v_departments")
         class Department:
             """Department with default behavior (no nested resolution)."""
+
             id: UUID
             name: str
             code: str
 
             @classmethod
             def from_dict(cls, data: dict):
-                return cls(
-                    id=data["id"],
-                    name=data["name"],
-                    code=data["code"]
-                )
+                return cls(id=data["id"], name=data["name"], code=data["code"])
 
         @type(sql_source="v_employees_embedded")
         class Employee:
             """Employee with embedded department."""
+
             id: UUID
             name: str
             department: Optional[Department] = None
@@ -162,11 +161,7 @@ async def test_default_behavior_assumes_embedded():
             def from_dict(cls, data: dict):
                 dept_data = data.get("department")
                 dept = Department.from_dict(dept_data) if dept_data else None
-                return cls(
-                    id=data["id"],
-                    name=data["name"],
-                    department=dept
-                )
+                return cls(id=data["id"], name=data["name"], department=dept)
 
         from fraiseql.cqrs.repository import CQRSRepository
 
@@ -201,8 +196,8 @@ async def test_default_behavior_assumes_embedded():
             return Employee.from_dict(result) if result else None
 
         # Build schema
-        from fraiseql.gql.builders.schema_composer import SchemaComposer
         from fraiseql.gql.builders.registry import SchemaRegistry
+        from fraiseql.gql.builders.schema_composer import SchemaComposer
 
         registry = SchemaRegistry()
         registry.register_query(employee)
@@ -232,7 +227,7 @@ async def test_default_behavior_assumes_embedded():
             schema,
             query_str,
             context_value={"db": db},
-            variable_values={"id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}
+            variable_values={"id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
         )
 
         # Check for errors
@@ -254,8 +249,7 @@ async def test_default_behavior_assumes_embedded():
     finally:
         await conn.close()
         cleanup_conn = await psycopg.AsyncConnection.connect(
-            "host=localhost port=5432 user=postgres dbname=postgres",
-            autocommit=True
+            "host=localhost port=5432 user=postgres dbname=postgres", autocommit=True
         )
         await cleanup_conn.execute("DROP DATABASE IF EXISTS fraiseql_resolve_nested_test")
         await cleanup_conn.close()
@@ -266,6 +260,7 @@ async def test_explicit_nested_resolution():
     """Test that with resolve_nested=True, separate queries are made."""
     # Skip in CI environment where database setup may differ
     import os
+
     if os.environ.get("GITHUB_ACTIONS") == "true":
         pytest.skip("Test requires complex database setup not available in CI")
 
@@ -276,21 +271,19 @@ async def test_explicit_nested_resolution():
         @type(sql_source="v_departments", resolve_nested=True)
         class DepartmentWithResolver:
             """Department that should be resolved separately."""
+
             id: UUID
             name: str
             code: str
 
             @classmethod
             def from_dict(cls, data: dict):
-                return cls(
-                    id=data["id"],
-                    name=data["name"],
-                    code=data["code"]
-                )
+                return cls(id=data["id"], name=data["name"], code=data["code"])
 
         @type(sql_source="v_employees_relational")
         class EmployeeRelational:
             """Employee with department as a relation (not embedded)."""
+
             id: UUID
             name: str
             department_id: Optional[UUID] = None
@@ -302,7 +295,7 @@ async def test_explicit_nested_resolution():
                     id=data["id"],
                     name=data["name"],
                     department_id=data.get("department_id"),
-                    department=None  # Will be resolved separately
+                    department=None,  # Will be resolved separately
                 )
 
         from fraiseql.cqrs.repository import CQRSRepository
@@ -330,15 +323,17 @@ async def test_explicit_nested_resolution():
         db = TestRepository(conn)
 
         @query
-        async def employeeRelational(info: GraphQLResolveInfo, employee_id: str) -> Optional[EmployeeRelational]:
+        async def employeeRelational(
+            info: GraphQLResolveInfo, employee_id: str
+        ) -> Optional[EmployeeRelational]:
             db = info.context["db"]
             emp_id = UUID(employee_id)
             result = await db.find_one("v_employees_relational", id=emp_id)
             return EmployeeRelational.from_dict(result) if result else None
 
         # Build schema
-        from fraiseql.gql.builders.schema_composer import SchemaComposer
         from fraiseql.gql.builders.registry import SchemaRegistry
+        from fraiseql.gql.builders.schema_composer import SchemaComposer
 
         registry = SchemaRegistry()
         registry.register_query(employeeRelational)
@@ -368,7 +363,7 @@ async def test_explicit_nested_resolution():
             schema,
             query_str,
             context_value={"db": db, "tenant_id": UUID("11111111-1111-1111-1111-111111111111")},
-            variable_values={"id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}
+            variable_values={"id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
         )
 
         # With resolve_nested=True, it should make separate queries
@@ -386,8 +381,7 @@ async def test_explicit_nested_resolution():
     finally:
         await conn.close()
         cleanup_conn = await psycopg.AsyncConnection.connect(
-            "host=localhost port=5432 user=postgres dbname=postgres",
-            autocommit=True
+            "host=localhost port=5432 user=postgres dbname=postgres", autocommit=True
         )
         await cleanup_conn.execute("DROP DATABASE IF EXISTS fraiseql_resolve_nested_test")
         await cleanup_conn.close()

@@ -7,14 +7,14 @@ Bug: FraiseQL v0.3.0 ignores json_passthrough_in_production=False and forces
 passthrough in production, causing snake_case fields instead of camelCase.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
-from fastapi import Request
+from graphql import GraphQLField, GraphQLObjectType, GraphQLSchema, GraphQLString
 
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.fastapi.dependencies import build_graphql_context, set_fraiseql_config, set_db_pool
+from fraiseql.fastapi.dependencies import build_graphql_context, set_db_pool, set_fraiseql_config
 from fraiseql.fastapi.routers import create_graphql_router
-from graphql import GraphQLSchema, GraphQLObjectType, GraphQLField, GraphQLString
 
 
 class TestProductionPassthroughBug:
@@ -28,10 +28,9 @@ class TestProductionPassthroughBug:
                 "Query",
                 lambda: {
                     "test_field": GraphQLField(
-                        GraphQLString,
-                        resolve=lambda obj, info: "test_value"
+                        GraphQLString, resolve=lambda obj, info: "test_value"
                     ),
-                }
+                },
             )
         )
 
@@ -63,12 +62,9 @@ class TestProductionPassthroughBug:
         mock_user = None
         mock_db = MagicMock()
 
-        with patch('fraiseql.fastapi.dependencies.get_db', return_value=mock_db):
-            with patch('fraiseql.fastapi.dependencies.LoaderRegistry'):
-                context = await build_graphql_context(
-                    db=mock_db,
-                    user=mock_user
-                )
+        with patch("fraiseql.fastapi.dependencies.get_db", return_value=mock_db):
+            with patch("fraiseql.fastapi.dependencies.LoaderRegistry"):
+                context = await build_graphql_context(db=mock_db, user=mock_user)
 
         # CRITICAL ASSERTION: json_passthrough should NOT be in context
         # when json_passthrough_in_production=False
@@ -96,12 +92,9 @@ class TestProductionPassthroughBug:
         mock_user = None
         mock_db = MagicMock()
 
-        with patch('fraiseql.fastapi.dependencies.get_db', return_value=mock_db):
-            with patch('fraiseql.fastapi.dependencies.LoaderRegistry'):
-                context = await build_graphql_context(
-                    db=mock_db,
-                    user=mock_user
-                )
+        with patch("fraiseql.fastapi.dependencies.get_db", return_value=mock_db):
+            with patch("fraiseql.fastapi.dependencies.LoaderRegistry"):
+                context = await build_graphql_context(db=mock_db, user=mock_user)
 
         # When both flags are true, passthrough should be enabled
         assert context.get("json_passthrough") is True
@@ -128,19 +121,18 @@ class TestProductionPassthroughBug:
         mock_user = None
         mock_db = MagicMock()
 
-        with patch('fraiseql.fastapi.dependencies.get_db', return_value=mock_db):
-            with patch('fraiseql.fastapi.dependencies.LoaderRegistry'):
-                context = await build_graphql_context(
-                    db=mock_db,
-                    user=mock_user
-                )
+        with patch("fraiseql.fastapi.dependencies.get_db", return_value=mock_db):
+            with patch("fraiseql.fastapi.dependencies.LoaderRegistry"):
+                context = await build_graphql_context(db=mock_db, user=mock_user)
 
         # Development mode should not enable passthrough based on in_production flag
         assert "json_passthrough" not in context or context.get("json_passthrough") is False
         assert context["mode"] == "development"
 
     @pytest.mark.asyncio
-    async def test_router_respects_passthrough_config_in_production(self, mock_schema, mock_db_pool):
+    async def test_router_respects_passthrough_config_in_production(
+        self, mock_schema, mock_db_pool
+    ):
         """Test that the router correctly handles passthrough configuration in production.
 
         This tests the actual router logic where the bug occurs.
@@ -171,45 +163,48 @@ class TestProductionPassthroughBug:
         set_fraiseql_config(config)
         set_db_pool(mock_db_pool)
 
-        with patch('fraiseql.fastapi.dependencies.LoaderRegistry'):
-            with patch('fraiseql.fastapi.dependencies.FraiseQLRepository') as MockRepo:
+        with patch("fraiseql.fastapi.dependencies.LoaderRegistry"):
+            with patch("fraiseql.fastapi.dependencies.FraiseQLRepository") as MockRepo:
                 mock_repo = MockRepo.return_value
                 mock_repo.context = {}
 
                 client = TestClient(app)
 
                 # Make a GraphQL request
-                response = client.post(
-                    "/graphql",
-                    json={"query": "{ testField }"}
-                )
+                response = client.post("/graphql", json={"query": "{ testField }"})
 
                 assert response.status_code == 200
 
                 # Check that passthrough was NOT enabled in the repository context
                 # (The bug would set json_passthrough=True despite config)
-                if hasattr(mock_repo, 'context'):
+                if hasattr(mock_repo, "context"):
                     assert mock_repo.context.get("json_passthrough") is not True
 
-    @pytest.mark.parametrize("env,enabled,in_prod,should_passthrough", [
-        # Production environment - these are the critical cases
-        ("production", False, False, False),  # Both disabled
-        ("production", False, True, False),   # General disabled (takes precedence)
-        ("production", True, False, False),   # CRITICAL: Disabled for production
-        ("production", True, True, True),     # Both enabled
-
-        # Development environment - in_production doesn't apply
-        ("development", False, False, False),
-        ("development", False, True, False),
-        ("development", True, False, False),
-        ("development", True, True, False),
-
-        # Testing environment - treated as production in dependencies.py
-        ("testing", False, False, False),
-        ("testing", False, True, False),
-        ("testing", True, False, False),
-        ("testing", True, True, True),  # Testing is treated as production, so this enables passthrough
-    ])
+    @pytest.mark.parametrize(
+        "env,enabled,in_prod,should_passthrough",
+        [
+            # Production environment - these are the critical cases
+            ("production", False, False, False),  # Both disabled
+            ("production", False, True, False),  # General disabled (takes precedence)
+            ("production", True, False, False),  # CRITICAL: Disabled for production
+            ("production", True, True, True),  # Both enabled
+            # Development environment - in_production doesn't apply
+            ("development", False, False, False),
+            ("development", False, True, False),
+            ("development", True, False, False),
+            ("development", True, True, False),
+            # Testing environment - treated as production in dependencies.py
+            ("testing", False, False, False),
+            ("testing", False, True, False),
+            ("testing", True, False, False),
+            (
+                "testing",
+                True,
+                True,
+                True,
+            ),  # Testing is treated as production, so this enables passthrough
+        ],
+    )
     @pytest.mark.asyncio
     async def test_passthrough_configuration_matrix(
         self, mock_db_pool, env, enabled, in_prod, should_passthrough
@@ -231,17 +226,14 @@ class TestProductionPassthroughBug:
 
         mock_db = MagicMock()
 
-        with patch('fraiseql.fastapi.dependencies.get_db', return_value=mock_db):
-            with patch('fraiseql.fastapi.dependencies.LoaderRegistry'):
-                context = await build_graphql_context(
-                    db=mock_db,
-                    user=None
-                )
+        with patch("fraiseql.fastapi.dependencies.get_db", return_value=mock_db):
+            with patch("fraiseql.fastapi.dependencies.LoaderRegistry"):
+                context = await build_graphql_context(db=mock_db, user=None)
 
         # Check if passthrough is enabled in context
         is_passthrough_enabled = (
-            context.get("json_passthrough") is True and
-            context.get("execution_mode") == "passthrough"
+            context.get("json_passthrough") is True
+            and context.get("execution_mode") == "passthrough"
         )
 
         assert is_passthrough_enabled == should_passthrough, (

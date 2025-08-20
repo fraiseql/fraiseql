@@ -1,18 +1,19 @@
 """Test that the nested object tenant_id fix works correctly."""
 
-import pytest
+from typing import Optional
+from unittest.mock import AsyncMock
 from uuid import UUID
-from typing import Any, Optional
-import fraiseql
-from fraiseql import type, query
+
+import pytest
 from graphql import GraphQLResolveInfo, graphql
-from fraiseql import build_fraiseql_schema
-from unittest.mock import AsyncMock, MagicMock
+
+from fraiseql import build_fraiseql_schema, query, type
 
 
 @type(sql_source="organizations")
 class Organization1:
     """Organization type with sql_source."""
+
     id: UUID
     name: str
     identifier: str
@@ -22,6 +23,7 @@ class Organization1:
 @type(sql_source="users")
 class User1:
     """User type with embedded organization in JSONB data."""
+
     id: UUID
     first_name: str
     last_name: str
@@ -42,19 +44,16 @@ async def user1(info: GraphQLResolveInfo) -> Optional[User1]:
             id=UUID("6f726700-0000-0000-0000-000000000000"),
             name="Test Org",
             identifier="TEST-ORG",
-            status="active"
-        )
+            status="active",
+        ),
     )
 
 
 @pytest.mark.asyncio
 async def test_nested_object_with_sql_source_no_tenant_id_error():
     """Test that nested objects with sql_source don't require tenant_id when data is embedded."""
-
     # Create schema
-    schema = build_fraiseql_schema(
-        query_types=[user1, User1, Organization1]
-    )
+    schema = build_fraiseql_schema(query_types=[user1, User1, Organization1])
 
     # GraphQL query requesting nested organization
     query_str = """
@@ -84,19 +83,16 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
     }
 
     # Execute query
-    result = await graphql(
-        schema,
-        query_str,
-        context_value=context
-    )
+    result = await graphql(schema, query_str, context_value=context)
 
     # With the fix, there should be no errors about missing tenant_id
     if result.errors:
         error_messages = [str(e) for e in result.errors]
         print(f"Errors found: {error_messages}")
         # The bug would cause "missing a required argument: 'tenant_id'" error
-        assert not any("tenant_id" in msg for msg in error_messages), \
+        assert not any("tenant_id" in msg for msg in error_messages), (
             "Unexpected tenant_id error - the bug is still present!"
+        )
 
     # Verify the data was returned correctly
     assert result.data is not None
@@ -134,15 +130,11 @@ async def test_smart_resolver_prefers_embedded_data():
             id=UUID("11111111-1111-1111-1111-111111111111"),
             name="Bob Smith",
             department=Department2(
-                id=UUID("22222222-2222-2222-2222-222222222222"),
-                name="Engineering",
-                code="ENG"
-            )
+                id=UUID("22222222-2222-2222-2222-222222222222"), name="Engineering", code="ENG"
+            ),
         )
 
-    schema = build_fraiseql_schema(
-        query_types=[employee2, Employee2, Department2]
-    )
+    schema = build_fraiseql_schema(query_types=[employee2, Employee2, Department2])
 
     query_str = """
     query GetEmployee {
@@ -164,11 +156,7 @@ async def test_smart_resolver_prefers_embedded_data():
 
     context = {"db": mock_db}
 
-    result = await graphql(
-        schema,
-        query_str,
-        context_value=context
-    )
+    result = await graphql(schema, query_str, context_value=context)
 
     # Should succeed without errors
     assert result.errors is None or len(result.errors) == 0
@@ -204,12 +192,10 @@ async def test_smart_resolver_queries_when_no_embedded_data():
             id=UUID("11111111-1111-1111-1111-111111111111"),
             name="Bob Smith",
             department=None,  # No embedded data
-            department_id=UUID("22222222-2222-2222-2222-222222222222")  # But has FK
+            department_id=UUID("22222222-2222-2222-2222-222222222222"),  # But has FK
         )
 
-    schema = build_fraiseql_schema(
-        query_types=[employee3, Employee3, Department3]
-    )
+    schema = build_fraiseql_schema(query_types=[employee3, Employee3, Department3])
 
     query_str = """
     query GetEmployee {
@@ -227,22 +213,20 @@ async def test_smart_resolver_queries_when_no_embedded_data():
 
     # Mock database - should be called this time
     mock_db = AsyncMock()
-    mock_db.find_one = AsyncMock(return_value={
-        "id": UUID("22222222-2222-2222-2222-222222222222"),
-        "name": "Engineering",
-        "code": "ENG"
-    })
+    mock_db.find_one = AsyncMock(
+        return_value={
+            "id": UUID("22222222-2222-2222-2222-222222222222"),
+            "name": "Engineering",
+            "code": "ENG",
+        }
+    )
 
     context = {
         "db": mock_db,
-        "tenant_id": UUID("33333333-3333-3333-3333-333333333333")  # Provide tenant_id
+        "tenant_id": UUID("33333333-3333-3333-3333-333333333333"),  # Provide tenant_id
     }
 
-    result = await graphql(
-        schema,
-        query_str,
-        context_value=context
-    )
+    result = await graphql(schema, query_str, context_value=context)
 
     # Should succeed - smart resolver queries when no embedded data
     if result.errors:
@@ -264,6 +248,7 @@ async def test_smart_resolver_queries_when_no_embedded_data():
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(test_nested_object_with_sql_source_no_tenant_id_error())
     asyncio.run(test_smart_resolver_prefers_embedded_data())
     asyncio.run(test_smart_resolver_queries_when_no_embedded_data())

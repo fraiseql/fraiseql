@@ -1,10 +1,9 @@
 """Test that PassthroughMixin respects json_passthrough configuration."""
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
-from fraiseql.repositories.passthrough_mixin import PassthroughMixin
 from fraiseql.core.raw_json_executor import RawJSONResult
+from fraiseql.repositories.passthrough_mixin import PassthroughMixin
 
 
 class BaseRepository:
@@ -21,7 +20,6 @@ class BaseRepository:
 
 class MockRepository(PassthroughMixin, BaseRepository):
     """Mock repository with PassthroughMixin."""
-    pass
 
 
 class TestPassthroughMixinFix:
@@ -139,22 +137,31 @@ class TestPassthroughMixinFix:
 
         assert repo._should_use_passthrough() is True
 
-    @pytest.mark.parametrize("mode,json_pass,exec_mode,enabled_flag,expected", [
-        # Production mode tests
-        ("production", False, None, False, False),  # CRITICAL: Production doesn't force passthrough
-        ("production", True, None, False, True),    # json_passthrough enables it
-        ("production", False, "passthrough", False, True),  # execution_mode enables it
-        ("production", False, None, True, True),    # _passthrough_enabled enables it
-
-        # Staging mode tests
-        ("staging", False, None, False, False),     # CRITICAL: Staging doesn't force passthrough
-        ("staging", True, None, False, True),       # json_passthrough enables it
-
-        # Development mode tests
-        ("development", False, None, False, False), # Development doesn't enable
-        ("development", True, None, False, True),   # json_passthrough enables it
-    ])
-    def test_passthrough_configuration_matrix(self, mode, json_pass, exec_mode, enabled_flag, expected):
+    @pytest.mark.parametrize(
+        "mode,json_pass,exec_mode,enabled_flag,expected",
+        [
+            # Production mode tests
+            (
+                "production",
+                False,
+                None,
+                False,
+                False,
+            ),  # CRITICAL: Production doesn't force passthrough
+            ("production", True, None, False, True),  # json_passthrough enables it
+            ("production", False, "passthrough", False, True),  # execution_mode enables it
+            ("production", False, None, True, True),  # _passthrough_enabled enables it
+            # Staging mode tests
+            ("staging", False, None, False, False),  # CRITICAL: Staging doesn't force passthrough
+            ("staging", True, None, False, True),  # json_passthrough enables it
+            # Development mode tests
+            ("development", False, None, False, False),  # Development doesn't enable
+            ("development", True, None, False, True),  # json_passthrough enables it
+        ],
+    )
+    def test_passthrough_configuration_matrix(
+        self, mode, json_pass, exec_mode, enabled_flag, expected
+    ):
         """Test all combinations of passthrough configuration."""
         repo = MockRepository()
 

@@ -30,6 +30,7 @@ def clear_registry():
 
     # Also clear the GraphQL type cache
     from fraiseql.core.graphql_type import _graphql_type_cache
+
     _graphql_type_cache.clear()
 
     yield
@@ -42,6 +43,7 @@ def clear_registry():
 @dataclass
 class User:
     """Test user type."""
+
     id: int
     name: str
     email: str
@@ -181,8 +183,10 @@ class TestValidationUtilities:
         assert len(errors) == 1
         assert "Unknown operator '_invalid'" in errors[0]
 
-    @pytest.mark.xfail(condition=os.environ.get("GITHUB_ACTIONS") == "true",
-                       reason="Validation type checking inconsistent in CI environment")
+    @pytest.mark.xfail(
+        condition=os.environ.get("GITHUB_ACTIONS") == "true",
+        reason="Validation type checking inconsistent in CI environment",
+    )
     def test_validate_where_input_type_mismatch(self):
         """Test validation with operator type mismatch."""
         # String operator on non-string field

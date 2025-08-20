@@ -1,7 +1,5 @@
 """End-to-end tests for TurboRouter with query complexity analysis."""
 
-import asyncio
-
 import pytest
 from fastapi.testclient import TestClient
 
