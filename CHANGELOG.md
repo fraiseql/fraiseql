@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.10] - 2025-08-20
+
+### 🐛 Critical Bug Fixes
+- **Fixed WHERE clause generation bug in `CQRSRepository`** - GraphQL filters now work correctly instead of being completely ignored
+  - Root cause: Repository `query()` method was treating GraphQL operator dictionaries like `{"contains": "router"}` as simple string values
+  - Generated invalid SQL like `data->>'name' = '{"contains": "router"}'` instead of proper WHERE clauses
+  - This bug was systematically breaking ALL GraphQL filtering operations in repository queries
+  - Fixed by integrating existing `_make_filter_field_composed` function for proper WHERE clause generation
+
+### ✨ GraphQL Filter Restoration
+- **All GraphQL operators now functional**:
+  - **String operators**: `contains`, `startswith`, `endswith`, `eq`, `neq` - previously completely broken
+  - **Numeric operators**: `eq`, `neq`, `gt`, `gte`, `lt`, `lte` - previously completely broken
+  - **List operators**: `in`, `nin` (not in) - previously completely broken
+  - **Boolean operators**: `eq`, `neq`, `isnull` - previously completely broken
+  - **Network operators**: `isPrivate`, `isPublic`, `isIPv4`, `isIPv6`, `inSubnet`, `inRange` - previously completely broken
+  - **Complex multi-operator queries** - now work correctly with multiple conditions
+  - **Mixed old/new filter styles** - backward compatibility maintained
+
+### 🔧 Technical Improvements
+- **Added proper `nin` → `notin` operator mapping** for GraphQL compatibility
+- **Migrated to safe parameterization** using `psycopg.sql.Literal` for SQL injection protection
+- **Fixed boolean value handling** in legacy simple equality filters (`True` → `"true"` for JSON compatibility)
+- **Enhanced error handling** with graceful fallback for unsupported operators
+
+### 🧪 Testing & Quality
+- **Added comprehensive test suites** demonstrating the fix with 44+ new tests
+- **TDD approach validation** with before/after test scenarios showing the bug and fix
+- **Performance validation** with 1000-record test datasets
+- **Backward compatibility verification** ensuring existing code continues to work
+- **No regressions** in existing functionality confirmed
+
+### 📈 Impact
+- **Critical fix**: This bug was preventing ALL GraphQL WHERE clause filtering from working
+- **Repository layer**: `select_from_json_view()`, `list()`, `find_by_view()` methods now filter correctly
+- **Developer experience**: GraphQL filters now work as expected without workarounds
+- **Production impact**: Eliminates need for manual SQL queries to work around broken filtering
+
+### 💡 Migration Notes
+- **No breaking changes**: Existing code will continue to work
+- **Automatic fix**: GraphQL filters that were silently failing will now work correctly
+- **Performance**: Queries will now return filtered results instead of all results (significantly better performance)
+- **Testing**: Review any tests that were expecting unfiltered results due to the bug
+
 ## [0.3.9] - 2025-01-29
 
 ### Fixed

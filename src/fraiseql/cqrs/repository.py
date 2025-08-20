@@ -6,6 +6,8 @@ from uuid import UUID
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
+from fraiseql.sql.where_generator import _make_filter_field_composed
+
 from .executor import CQRSExecutor
 from .pagination import paginate_query as _paginate_query
 
@@ -167,17 +169,42 @@ class CQRSRepository:
         from psycopg.sql import Composed
 
         query_parts = [SQL("SELECT data FROM {} WHERE 1=1").format(SQL(view_name))]
-        params = []
 
-        # Apply filters (expecting camelCase keys)
+        # Apply filters using proper WHERE clause generation
         if filters:
             for key, value in filters.items():
-                if isinstance(value, list):
-                    query_parts.append(SQL(" AND data->{} ?| %s").format(SQL(f"'{key}'")))
-                    params.append(value)
+                if isinstance(value, dict):
+                    # Map GraphQL field names to operator strategy names
+                    # nin (GraphQL) -> notin (operator strategy)
+                    mapped_value = {}
+                    for op, val in value.items():
+                        if op == "nin":
+                            mapped_value["notin"] = val
+                        else:
+                            mapped_value[op] = val
+
+                    # Use proper WHERE clause generation for operator filters
+                    # e.g., {"name": {"contains": "router"}} -> data->>'name' LIKE '%router%'
+                    where_condition = _make_filter_field_composed(key, mapped_value, "data", None)
+                    if where_condition:
+                        query_parts.append(SQL(" AND "))
+                        query_parts.append(where_condition)
+                elif isinstance(value, list):
+                    # Handle array contains queries - use Literal for safety
+                    from psycopg.sql import Literal
+
+                    query_parts.append(SQL(" AND data->{} ?| ").format(SQL(f"'{key}'")))
+                    query_parts.append(Literal(value))
                 else:
-                    query_parts.append(SQL(" AND data->>{} = %s").format(SQL(f"'{key}'")))
-                    params.append(str(value))
+                    # Handle simple equality (backward compatibility) - use Literal for safety
+                    from psycopg.sql import Literal
+
+                    query_parts.append(SQL(" AND data->>{} = ").format(SQL(f"'{key}'")))
+                    # Convert booleans to lowercase strings to match JSON format
+                    if isinstance(value, bool):
+                        query_parts.append(Literal(str(value).lower()))
+                    else:
+                        query_parts.append(Literal(str(value)))
 
         # Apply ordering
         if order_by:
@@ -197,16 +224,20 @@ class CQRSRepository:
                 order_sql += SQL("ASC")
             query_parts.append(order_sql)
 
-        # Apply pagination
-        query_parts.append(SQL(" LIMIT %s OFFSET %s"))
-        params.extend([limit, offset])
+        # Apply pagination - use Literal for consistency
+        from psycopg.sql import Literal
+
+        query_parts.append(SQL(" LIMIT "))
+        query_parts.append(Literal(limit))
+        query_parts.append(SQL(" OFFSET "))
+        query_parts.append(Literal(offset))
 
         # Compose final query
         query = Composed(query_parts)
 
-        # Execute query
+        # Execute query (no params needed - everything is in Literals)
         async with self.connection.cursor() as cursor:
-            await cursor.execute(query, params)
+            await cursor.execute(query)
             results = await cursor.fetchall()
 
             return [row[0] for row in results]
