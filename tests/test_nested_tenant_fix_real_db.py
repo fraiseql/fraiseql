@@ -6,14 +6,14 @@ tenant_id when the data is embedded.
 """
 
 import asyncio
-import pytest
-from uuid import UUID
 from typing import Optional
+from uuid import UUID
+
 import psycopg
-from psycopg import AsyncConnection
-import fraiseql
-from fraiseql import type, query
+import pytest
 from graphql import GraphQLResolveInfo
+
+from fraiseql import query, type
 
 
 async def setup_test_database():
@@ -30,7 +30,7 @@ async def setup_test_database():
     # Connect to PostgreSQL to create test database
     conn = await psycopg.AsyncConnection.connect(
         f"host={db_host} port={db_port} user={db_user} password={db_password} dbname=postgres",
-        autocommit=True
+        autocommit=True,
     )
 
     try:
@@ -156,6 +156,7 @@ async def setup_test_database():
 @type(sql_source="mv_organization")
 class Organization:
     """Organization type with sql_source pointing to materialized view."""
+
     id: UUID
     name: str
     identifier: str
@@ -168,13 +169,14 @@ class Organization:
             id=data.get("id"),
             name=data.get("name"),
             identifier=data.get("identifier"),
-            status=data.get("status", "active")
+            status=data.get("status", "active"),
         )
 
 
 @type(sql_source="v_user")
 class User:
     """User type with embedded organization in JSONB data."""
+
     id: UUID
     first_name: str
     last_name: str
@@ -194,7 +196,7 @@ class User:
             first_name=data.get("first_name"),
             last_name=data.get("last_name"),
             email_address=data.get("email_address"),
-            organization=org
+            organization=org,
         )
 
 
@@ -203,8 +205,27 @@ async def test_nested_organization_without_tenant_id():
     """Test that querying user with nested organization works without tenant_id."""
     # Skip in CI environment where database setup may differ
     import os
+
     if os.environ.get("GITHUB_ACTIONS") == "true":
         pytest.skip("Test requires complex database setup not available in CI")
+
+    # Define database connection variables first
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = os.environ.get("DB_PORT", "5432")
+    db_user = os.environ.get("DB_USER", "fraiseql")
+    db_password = os.environ.get("DB_PASSWORD", "fraiseql")
+
+    # Skip if no local database available
+    try:
+        # Try a quick connection test first
+        test_conn = await psycopg.AsyncConnection.connect(
+            f"host={db_host} port={db_port} user={db_user} password={db_password} dbname=postgres",
+            autocommit=True,
+            connect_timeout=1,
+        )
+        await test_conn.close()
+    except Exception:
+        pytest.skip("Test requires PostgreSQL database connection")
 
     # Setup database
     conn = await setup_test_database()
@@ -254,8 +275,8 @@ async def test_nested_organization_without_tenant_id():
             return None
 
         # Build GraphQL schema
-        from fraiseql.gql.builders.schema_composer import SchemaComposer
         from fraiseql.gql.builders.registry import SchemaRegistry
+        from fraiseql.gql.builders.schema_composer import SchemaComposer
 
         registry = SchemaRegistry()
         registry.register_query(user)  # Just pass the function
@@ -291,11 +312,7 @@ async def test_nested_organization_without_tenant_id():
             # Note: NOT providing tenant_id
         }
 
-        result = await graphql(
-            schema,
-            query_str,
-            context_value=context
-        )
+        result = await graphql(schema, query_str, context_value=context)
 
         # Check results
         if result.errors:
@@ -321,7 +338,9 @@ async def test_nested_organization_without_tenant_id():
         assert user_data["emailAddress"] == "alice@example.com"
 
         # Most importantly, the organization should be returned
-        assert user_data["organization"] is not None, "Organization data is None (embedded data not returned)"
+        assert user_data["organization"] is not None, (
+            "Organization data is None (embedded data not returned)"
+        )
 
         org_data = user_data["organization"]
         assert org_data["name"] == "Test Organization"
@@ -338,7 +357,7 @@ async def test_nested_organization_without_tenant_id():
         # Drop test database
         cleanup_conn = await psycopg.AsyncConnection.connect(
             f"host={db_host} port={db_port} user={db_user} password={db_password} dbname=postgres",
-            autocommit=True
+            autocommit=True,
         )
         await cleanup_conn.execute("DROP DATABASE IF EXISTS fraiseql_nested_test")
         await cleanup_conn.close()
@@ -349,8 +368,27 @@ async def test_comparison_with_and_without_embedded():
     """Compare behavior with embedded vs non-embedded organization data."""
     # Skip in CI environment where database setup may differ
     import os
+
     if os.environ.get("GITHUB_ACTIONS") == "true":
         pytest.skip("Test requires complex database setup not available in CI")
+
+    # Define database connection variables first
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = os.environ.get("DB_PORT", "5432")
+    db_user = os.environ.get("DB_USER", "fraiseql")
+    db_password = os.environ.get("DB_PASSWORD", "fraiseql")
+
+    # Skip if no local database available
+    try:
+        # Try a quick connection test first
+        test_conn = await psycopg.AsyncConnection.connect(
+            f"host={db_host} port={db_port} user={db_user} password={db_password} dbname=postgres",
+            autocommit=True,
+            connect_timeout=1,
+        )
+        await test_conn.close()
+    except Exception:
+        pytest.skip("Test requires PostgreSQL database connection")
 
     # Setup database
     conn = await setup_test_database()
@@ -409,7 +447,9 @@ async def test_comparison_with_and_without_embedded():
 
         # Test 2: Without embedded data (would need separate query)
         print("\n--- Test 2: View WITHOUT embedded organization data ---")
-        result = await db.find_one("v_user_no_embed", id=UUID("75736572-0000-0000-0000-000000000000"))
+        result = await db.find_one(
+            "v_user_no_embed", id=UUID("75736572-0000-0000-0000-000000000000")
+        )
         assert result is not None
         assert "organization" not in result  # No embedded org
         assert "organization_id" in result  # Just the FK
@@ -423,8 +463,7 @@ async def test_comparison_with_and_without_embedded():
 
         # Cleanup
         cleanup_conn = await psycopg.AsyncConnection.connect(
-            "host=localhost port=5432 user=postgres dbname=postgres",
-            autocommit=True
+            "host=localhost port=5432 user=postgres dbname=postgres", autocommit=True
         )
         await cleanup_conn.execute("DROP DATABASE IF EXISTS fraiseql_nested_test")
         await cleanup_conn.close()
