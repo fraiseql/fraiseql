@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7] - 2025-01-20
+
+### Added
+- **Restricted Filter Types for Exotic Scalars** - Aligned GraphQL operator exposure with actual implementation capabilities
+  - Added `NetworkAddressFilter` for IpAddress and CIDR types - only exposes operators that work correctly (eq, neq, in_, nin, isnull)
+  - Added `MacAddressFilter` for MAC address types - excludes problematic string pattern matching
+  - Added `LTreeFilter` for hierarchical path types - conservative approach until proper ltree operators implemented
+  - Added `DateRangeFilter` for PostgreSQL date range types - basic operations until range-specific operators added
+  - Enhanced `_get_filter_type_for_field()` to detect FraiseQL scalar types and assign restricted filters
+  - Prevents users from accessing broken/misleading filter operations that don't work due to PostgreSQL type normalization
+
+### Fixed
+- **GraphQL Schema Integrity**: Fixed exotic scalar types exposing non-functional operators
+  - IpAddress/CIDR types no longer expose `contains`/`startswith`/`endswith` (broken due to CIDR notation like `/32`, `/128`)
+  - MacAddress types no longer expose string pattern matching (broken due to MAC normalization to canonical form)
+  - LTree types now use conservative operator set (eq, neq, isnull) until specialized ltree operators implemented
+  - Enhanced IP address filtering with PostgreSQL `host()` function to strip CIDR notation (from previous commits)
+
+### Changed
+- **Breaking Change**: Exotic scalar types now use restricted filter sets instead of generic `StringFilter`
+  - This only affects GraphQL schema generation - removes operators that were never working correctly
+  - Standard Python types (str, int, float, etc.) maintain full operator compatibility
+  - Foundation prepared for adding proper type-specific operators in future releases
+
+### Developer Experience
+- **Better Error Prevention**: Developers can no longer use filtering operators that produce incorrect results
+- **Clear Contracts**: GraphQL schema accurately reflects supported operations
+- **Future-Ready**: Architecture supports adding specialized operators (ltree ancestors, range overlaps, etc.)
+- **Comprehensive Testing**: Added 8 new tests plus verification that all 276 existing tests still pass
+
 ## [0.3.6] - 2025-01-18
 
 ### Fixed
