@@ -42,6 +42,24 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
         if obj is UNSET:
             return None
 
+        # Handle FraiseQL types (classes decorated with @fraiseql.type)
+        if hasattr(obj, "__fraiseql_definition__"):
+            # Convert FraiseQL type instance to dictionary using its __dict__
+            # This allows proper JSON serialization of @fraiseql.type decorated classes
+            obj_dict = {}
+            for attr_name in dir(obj):
+                # Skip private attributes, methods, and special FraiseQL attributes
+                if (
+                    not attr_name.startswith("_")
+                    and not attr_name.startswith("__gql_")
+                    and not attr_name.startswith("__fraiseql_")
+                    and not callable(getattr(obj, attr_name, None))
+                ):
+                    value = getattr(obj, attr_name, None)
+                    if value is not None:
+                        obj_dict[attr_name] = value
+            return obj_dict
+
         # Handle date and datetime
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()

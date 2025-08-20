@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.9] - 2025-01-29
+
+### Fixed
+- **Automatic JSON Serialization for @fraiseql.type** - FraiseQL types are now automatically JSON serializable in GraphQL responses
+  - Enhanced `FraiseQLJSONEncoder` to handle objects decorated with `@fraiseql.type`
+  - Eliminates the need to inherit from `BaseGQLType` for serialization support
+  - Fixes "Object of type [TypeName] is not JSON serializable" errors in production GraphQL APIs
+  - Maintains backward compatibility while providing consistent developer experience
+  - Added comprehensive test coverage for FraiseQL type serialization scenarios
+
+### Developer Experience
+- **Improved @fraiseql.type Decorator** - Types now work consistently without additional inheritance requirements
+  - `@fraiseql.type` decorator now sufficient for complete GraphQL type functionality
+  - Automatic JSON serialization in GraphQL responses
+  - Enhanced documentation with JSON serialization examples
+  - Better error messages for serialization issues
+
 ## [0.3.8] - 2025-08-20
 
 ### Added

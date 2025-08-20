@@ -2,6 +2,9 @@
 
 import ipaddress
 import json
+import uuid
+from dataclasses import dataclass
+from datetime import datetime
 
 import fraiseql
 from fraiseql.fastapi.json_encoder import (
@@ -307,6 +310,74 @@ def test_fraiseql_json_response_with_ipaddress():
     assert isinstance(result["data"]["createDnsServer"]["dnsServer"]["ipAddress"], str)
 
 
+def test_fraiseql_json_encoder_handles_fraiseql_types():
+    """Test that FraiseQLJSONEncoder properly serializes @fraiseql.type decorated objects."""
+
+    @fraiseql.type(sql_source="tv_user")
+    @dataclass
+    class User:
+        """Test user type."""
+        id: uuid.UUID
+        name: str
+        email: str | None
+        created_at: datetime
+
+    user = User(
+        id=uuid.UUID("12345678-1234-1234-1234-123456789abc"),
+        name="John Doe",
+        email="john@example.com",
+        created_at=datetime(2024, 1, 15, 10, 30, 0)
+    )
+
+    encoder = FraiseQLJSONEncoder()
+    result = json.loads(encoder.encode(user))
+
+    # Should serialize as dictionary with proper field values
+    assert result["id"] == "12345678-1234-1234-1234-123456789abc"
+    assert result["name"] == "John Doe"
+    assert result["email"] == "john@example.com"
+    assert result["created_at"] == "2024-01-15T10:30:00"
+
+
+def test_fraiseql_json_encoder_handles_nested_fraiseql_types():
+    """Test that FraiseQLJSONEncoder handles nested FraiseQL types."""
+
+    @fraiseql.type(sql_source="tv_department")
+    @dataclass
+    class Department:
+        """Test department type."""
+        id: uuid.UUID
+        name: str
+
+    @fraiseql.type(sql_source="tv_user")
+    @dataclass
+    class User:
+        """Test user type with nested department."""
+        id: uuid.UUID
+        name: str
+        department: Department
+
+    dept = Department(
+        id=uuid.UUID("87654321-4321-4321-4321-876543210def"),
+        name="Engineering"
+    )
+
+    user = User(
+        id=uuid.UUID("12345678-1234-1234-1234-123456789abc"),
+        name="John Doe",
+        department=dept
+    )
+
+    encoder = FraiseQLJSONEncoder()
+    result = json.loads(encoder.encode(user))
+
+    # Should serialize with nested object properly handled
+    assert result["name"] == "John Doe"
+    assert isinstance(result["department"], dict)
+    assert result["department"]["name"] == "Engineering"
+    assert result["department"]["id"] == "87654321-4321-4321-4321-876543210def"
+
+
 if __name__ == "__main__":
     test_fraiseql_json_encoder_handles_unset()
     print("✓ test_fraiseql_json_encoder_handles_unset passed")
@@ -334,5 +405,11 @@ if __name__ == "__main__":
 
     test_fraiseql_json_response_with_ipaddress()
     print("✓ test_fraiseql_json_response_with_ipaddress passed")
+
+    test_fraiseql_json_encoder_handles_fraiseql_types()
+    print("✓ test_fraiseql_json_encoder_handles_fraiseql_types passed")
+
+    test_fraiseql_json_encoder_handles_nested_fraiseql_types()
+    print("✓ test_fraiseql_json_encoder_handles_nested_fraiseql_types passed")
 
     print("\nAll tests passed!")
