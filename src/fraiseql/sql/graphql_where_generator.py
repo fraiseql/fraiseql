@@ -134,21 +134,40 @@ class DateTimeFilter:
     isnull: bool | None = None
 
 
+# IPRange input type for network range filtering
+@fraise_input
+class IPRange:
+    """IP address range input for network filtering operations."""
+
+    from_: str = fraise_field(graphql_name="from")
+    to: str
+
+
 # Restricted filter types for exotic scalar types that have normalization issues
 @fraise_input
 class NetworkAddressFilter:
-    """Restricted filter for IP addresses and CIDR that only exposes working operators.
+    """Enhanced filter for IP addresses and CIDR with network-specific operations.
 
-    Excludes string pattern matching (contains, startswith, endswith) due to
-    PostgreSQL inet/cidr type normalization issues where values like '10.0.0.1'
-    become '10.0.0.1/32' when converted to text.
+    Provides network-aware filtering operations like subnet matching, IP range queries,
+    and private/public network detection. Basic string operations are excluded due to
+    PostgreSQL inet/cidr type normalization issues.
     """
 
+    # Basic equality operations
     eq: str | None = None
     neq: str | None = None
     in_: list[str] | None = fraise_field(default=None, graphql_name="in")
     nin: list[str] | None = None
     isnull: bool | None = None
+
+    # Network-specific operations (v0.3.8+)
+    inSubnet: str | None = None  # IP is in CIDR subnet  # noqa: N815
+    inRange: IPRange | None = None  # IP is in range  # noqa: N815
+    isPrivate: bool | None = None  # RFC 1918 private address  # noqa: N815
+    isPublic: bool | None = None  # Non-private address  # noqa: N815
+    isIPv4: bool | None = None  # IPv4 address  # noqa: N815
+    isIPv6: bool | None = None  # IPv6 address  # noqa: N815
+
     # Intentionally excludes: contains, startswith, endswith
 
 

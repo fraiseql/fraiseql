@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.8] - 2025-08-20
+
+### Added
+- **Enhanced Network Address Filtering** - Network-specific operators for IP address filtering
+  - Added `inSubnet` operator for CIDR subnet matching using PostgreSQL `<<=` operator
+  - Added `inRange` operator for IP address range queries using PostgreSQL inet comparison
+  - Added `isPrivate` operator to detect RFC 1918 private network addresses
+  - Added `isPublic` operator to detect public (non-private) IP addresses
+  - Added `isIPv4` and `isIPv6` operators to filter by IP version using PostgreSQL `family()` function
+  - Added `IPRange` input type with `from` and `to` fields for range specifications
+  - Enhanced `NetworkAddressFilter` with network-specific operations while maintaining backward compatibility
+
+### Enhanced
+- **SQL Generation for Network Operations** - New NetworkOperatorStrategy for handling network-specific filtering
+  - Added `NetworkOperatorStrategy` to operator registry for network operators
+  - Implemented PostgreSQL-native SQL generation for all network operators
+  - Added comprehensive IP address validation utilities with IPv4/IPv6 support
+  - Added network utilities for subnet matching, range validation, and private/public detection
+  - Enhanced documentation with network filtering examples and migration guide
+
+### Developer Experience
+- **Comprehensive Testing**: Added 22 new tests covering all network filtering operations
+- **Documentation-First Development**: Complete documentation update with examples and migration patterns
+- **Type Safety**: Full type safety for network operations with proper validation
+- **Future-Ready**: Architecture supports additional network operators and protocol-specific filtering
+
 ## [0.3.7] - 2025-01-20
 
 ### Added

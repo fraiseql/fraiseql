@@ -4,20 +4,19 @@ This ensures that problematic operators are not exposed for types that have
 PostgreSQL normalization issues.
 """
 
-import pytest
 from dataclasses import dataclass
 from typing import get_type_hints
 
-from fraiseql.types import CIDR, DateTime, IpAddress, LTree, MacAddress
 from fraiseql.sql.graphql_where_generator import (
+    DateTimeFilter,
+    LTreeFilter,
+    MacAddressFilter,
+    NetworkAddressFilter,
+    StringFilter,
     _get_filter_type_for_field,
     create_graphql_where_input,
-    StringFilter,
-    NetworkAddressFilter,
-    MacAddressFilter,
-    LTreeFilter,
-    DateTimeFilter,
 )
+from fraiseql.types import CIDR, DateTime, IpAddress, LTree, MacAddress
 
 
 @dataclass
@@ -39,66 +38,66 @@ class TestRestrictedFilterTypes:
         type_hints = get_type_hints(NetworkDevice)
 
         # Test each exotic type gets the correct restricted filter
-        assert _get_filter_type_for_field(type_hints['ip_address']) == NetworkAddressFilter
-        assert _get_filter_type_for_field(type_hints['subnet']) == NetworkAddressFilter
-        assert _get_filter_type_for_field(type_hints['mac_address']) == MacAddressFilter
-        assert _get_filter_type_for_field(type_hints['path']) == LTreeFilter
-        assert _get_filter_type_for_field(type_hints['created_at']) == DateTimeFilter
+        assert _get_filter_type_for_field(type_hints["ip_address"]) == NetworkAddressFilter
+        assert _get_filter_type_for_field(type_hints["subnet"]) == NetworkAddressFilter
+        assert _get_filter_type_for_field(type_hints["mac_address"]) == MacAddressFilter
+        assert _get_filter_type_for_field(type_hints["path"]) == LTreeFilter
+        assert _get_filter_type_for_field(type_hints["created_at"]) == DateTimeFilter
 
         # Standard types should still use standard filters
-        assert _get_filter_type_for_field(type_hints['name']) == StringFilter
+        assert _get_filter_type_for_field(type_hints["name"]) == StringFilter
 
     def test_network_address_filter_restrictions(self):
         """Test that NetworkAddressFilter excludes problematic operators."""
         # Get available operators (exclude private/special attributes)
         operators = [attr for attr in dir(NetworkAddressFilter)
-                    if not attr.startswith('_') and not callable(getattr(NetworkAddressFilter, attr))]
+                    if not attr.startswith("_") and not callable(getattr(NetworkAddressFilter, attr))]
 
         # Should include basic operators
-        assert 'eq' in operators
-        assert 'neq' in operators
-        assert 'in_' in operators
-        assert 'nin' in operators
-        assert 'isnull' in operators
+        assert "eq" in operators
+        assert "neq" in operators
+        assert "in_" in operators
+        assert "nin" in operators
+        assert "isnull" in operators
 
         # Should NOT include problematic string operators
-        assert 'contains' not in operators
-        assert 'startswith' not in operators
-        assert 'endswith' not in operators
+        assert "contains" not in operators
+        assert "startswith" not in operators
+        assert "endswith" not in operators
 
     def test_mac_address_filter_restrictions(self):
         """Test that MacAddressFilter excludes problematic operators."""
         operators = [attr for attr in dir(MacAddressFilter)
-                    if not attr.startswith('_') and not callable(getattr(MacAddressFilter, attr))]
+                    if not attr.startswith("_") and not callable(getattr(MacAddressFilter, attr))]
 
         # Should include basic operators
-        assert 'eq' in operators
-        assert 'neq' in operators
-        assert 'in_' in operators
-        assert 'nin' in operators
-        assert 'isnull' in operators
+        assert "eq" in operators
+        assert "neq" in operators
+        assert "in_" in operators
+        assert "nin" in operators
+        assert "isnull" in operators
 
         # Should NOT include problematic string operators
-        assert 'contains' not in operators
-        assert 'startswith' not in operators
-        assert 'endswith' not in operators
+        assert "contains" not in operators
+        assert "startswith" not in operators
+        assert "endswith" not in operators
 
     def test_ltree_filter_restrictions(self):
         """Test that LTreeFilter has very conservative operator set."""
         operators = [attr for attr in dir(LTreeFilter)
-                    if not attr.startswith('_') and not callable(getattr(LTreeFilter, attr))]
+                    if not attr.startswith("_") and not callable(getattr(LTreeFilter, attr))]
 
         # Should only include most basic operators
-        assert 'eq' in operators
-        assert 'neq' in operators
-        assert 'isnull' in operators
+        assert "eq" in operators
+        assert "neq" in operators
+        assert "isnull" in operators
 
         # Should NOT include ANY problematic operators
-        assert 'contains' not in operators
-        assert 'startswith' not in operators
-        assert 'endswith' not in operators
-        assert 'in_' not in operators  # Even list operators excluded for LTree
-        assert 'nin' not in operators
+        assert "contains" not in operators
+        assert "startswith" not in operators
+        assert "endswith" not in operators
+        assert "in_" not in operators  # Even list operators excluded for LTree
+        assert "nin" not in operators
 
     def test_generated_where_input_uses_restricted_filters(self):
         """Test that generated GraphQL where input uses restricted filters."""
@@ -110,10 +109,10 @@ class TestRestrictedFilterTypes:
 
         # Check that the correct filter types are used
         # Extract actual filter type from Optional[FilterType]
-        ip_filter_type = type_hints['ip_address'].__args__[0]
-        subnet_filter_type = type_hints['subnet'].__args__[0]
-        mac_filter_type = type_hints['mac_address'].__args__[0]
-        path_filter_type = type_hints['path'].__args__[0]
+        ip_filter_type = type_hints["ip_address"].__args__[0]
+        subnet_filter_type = type_hints["subnet"].__args__[0]
+        mac_filter_type = type_hints["mac_address"].__args__[0]
+        path_filter_type = type_hints["path"].__args__[0]
 
         assert ip_filter_type == NetworkAddressFilter
         assert subnet_filter_type == NetworkAddressFilter
@@ -132,7 +131,7 @@ class TestRestrictedFilterTypes:
         type_hints = get_type_hints(StandardTypes)
 
         # Standard types should get their normal filters
-        assert _get_filter_type_for_field(type_hints['name']) == StringFilter
+        assert _get_filter_type_for_field(type_hints["name"]) == StringFilter
         # Note: We could test IntFilter, FloatFilter etc. but StringFilter test is sufficient
 
         # Generate where input to ensure it works
@@ -176,12 +175,12 @@ class TestRestrictedFilterTypes:
 
         # Standard string fields should still have all operators
         type_hints = get_type_hints(LegacyWhereInput)
-        name_filter_type = type_hints['name'].__args__[0]
+        name_filter_type = type_hints["name"].__args__[0]
         assert name_filter_type == StringFilter
 
         # StringFilter should still have contains, startswith, etc.
         string_ops = [attr for attr in dir(StringFilter)
-                     if not attr.startswith('_') and not callable(getattr(StringFilter, attr))]
-        assert 'contains' in string_ops
-        assert 'startswith' in string_ops
-        assert 'endswith' in string_ops
+                     if not attr.startswith("_") and not callable(getattr(StringFilter, attr))]
+        assert "contains" in string_ops
+        assert "startswith" in string_ops
+        assert "endswith" in string_ops
