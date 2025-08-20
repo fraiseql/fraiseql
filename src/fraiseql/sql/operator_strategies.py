@@ -51,8 +51,19 @@ class BaseOperatorStrategy(ABC):
     ) -> Composed:
         """Build the SQL for this operator."""
 
-    def _apply_type_cast(self, path_sql: SQL, val: Any, op: str) -> SQL | Composed:
+    def _apply_type_cast(
+        self, path_sql: SQL, val: Any, op: str, field_type: type | None = None
+    ) -> SQL | Composed:
         """Apply appropriate type casting to the JSONB path."""
+        # Handle IP address types specially
+        if (
+            field_type
+            and self._is_ip_address_type(field_type)
+            and op in ("eq", "neq", "contains", "startswith", "endswith", "in", "notin")
+        ):
+            # For IP addresses, use host() to strip CIDR notation
+            return Composed([SQL("host("), path_sql, SQL("::inet)")])
+
         # Handle booleans first
         if isinstance(val, bool):
             return Composed([path_sql, SQL("::boolean")])
@@ -67,6 +78,18 @@ class BaseOperatorStrategy(ABC):
                 return Composed([path_sql, SQL("::date")])
 
         return path_sql
+
+    def _is_ip_address_type(self, field_type: type) -> bool:
+        """Check if field_type is an IP address type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types.scalars.ip_address import IpAddressField
+
+            return field_type == IpAddressField or (
+                isinstance(field_type, type) and issubclass(field_type, IpAddressField)
+            )
+        except ImportError:
+            return False
 
 
 class NullOperatorStrategy(BaseOperatorStrategy):
@@ -110,7 +133,7 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for comparison operators."""
-        path_sql = self._apply_type_cast(path_sql, val, op)
+        path_sql = self._apply_type_cast(path_sql, val, op, field_type)
         sql_op = self.operator_map[op]
         return Composed([path_sql, SQL(sql_op), Literal(val)])
 
@@ -160,26 +183,29 @@ class PatternMatchingStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for pattern matching."""
+        # Apply type-specific casting (including IP address handling)
+        casted_path = self._apply_type_cast(path_sql, val, op, field_type)
+
         if op == "matches":
-            return Composed([path_sql, SQL(" ~ "), Literal(val)])
+            return Composed([casted_path, SQL(" ~ "), Literal(val)])
         if op == "startswith":
             if isinstance(val, str):
                 # Use LIKE for better performance
-                return Composed([path_sql, SQL(" LIKE "), Literal(val + "%")])
-            return Composed([path_sql, SQL(" ~ "), Literal(str(val) + ".*")])
+                return Composed([casted_path, SQL(" LIKE "), Literal(val + "%")])
+            return Composed([casted_path, SQL(" ~ "), Literal(str(val) + ".*")])
         if op == "contains":
             if isinstance(val, str):
                 # Use LIKE for substring matching
                 # Note: % is already properly handled by psycopg's Literal
                 like_val = f"%{val}%"
-                return Composed([path_sql, SQL(" LIKE "), Literal(like_val)])
-            return Composed([path_sql, SQL(" ~ "), Literal(f".*{val}.*")])
+                return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
+            return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}.*")])
         if op == "endswith":
             if isinstance(val, str):
                 # Use LIKE for suffix matching
                 like_val = f"%{val}"
-                return Composed([path_sql, SQL(" LIKE "), Literal(like_val)])
-            return Composed([path_sql, SQL(" ~ "), Literal(f".*{val}$")])
+                return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
+            return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}$")])
         raise ValueError(f"Unsupported pattern operator: {op}")
 
 
@@ -201,17 +227,24 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             msg = f"'{op}' operator requires a list, got {type(val)}"
             raise TypeError(msg)
 
-        # Check if we need numeric casting
-        if val and all(isinstance(v, (int, float, Decimal)) for v in val):
-            path_sql = Composed([path_sql, SQL("::numeric")])
-            literals = [Literal(v) for v in val]
+        # Apply type-specific casting (including IP address handling)
+        casted_path = self._apply_type_cast(path_sql, val[0] if val else None, op, field_type)
+
+        # Check if we need numeric casting (but not for IP addresses)
+        if not (field_type and self._is_ip_address_type(field_type)):
+            if val and all(isinstance(v, (int, float, Decimal)) for v in val):
+                casted_path = Composed([casted_path, SQL("::numeric")])
+                literals = [Literal(v) for v in val]
+            else:
+                # Convert booleans to strings for JSONB text comparison
+                converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
+                literals = [Literal(v) for v in converted_vals]
         else:
-            # Convert booleans to strings for JSONB text comparison
-            converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
-            literals = [Literal(v) for v in converted_vals]
+            # For IP addresses, use string literals
+            literals = [Literal(str(v)) for v in val]
 
         # Build the IN/NOT IN clause
-        parts = [path_sql]
+        parts = [casted_path]
         parts.append(SQL(" IN (" if op == "in" else " NOT IN ("))
 
         for i, lit in enumerate(literals):
