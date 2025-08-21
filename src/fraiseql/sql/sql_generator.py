@@ -13,6 +13,40 @@ from psycopg.sql import SQL, Composed, Identifier
 from fraiseql.core.ast_parser import FieldPath
 
 
+def _convert_order_by_to_tuples(order_by):
+    """Convert any OrderBy format to list of tuples.
+
+    Args:
+        order_by: OrderBy in any format (GraphQL dicts, tuples, OrderBySet)
+
+    Returns:
+        List of (field, direction) tuples or None
+    """
+    if not order_by:
+        return None
+
+    # Already a list of tuples
+    if isinstance(order_by, list) and order_by and isinstance(order_by[0], tuple):
+        return order_by
+
+    # GraphQL format - convert using FraiseQL
+    if isinstance(order_by, (list, dict)):
+        try:
+            from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+            order_by_set = _convert_order_by_input_to_sql(order_by)
+            if order_by_set:
+                return [(instr.field, instr.direction) for instr in order_by_set.instructions]
+        except (ImportError, AttributeError):
+            pass
+
+    # OrderBySet object
+    if hasattr(order_by, "instructions"):
+        return [(instr.field, instr.direction) for instr in order_by.instructions]
+
+    return None
+
+
 def build_sql_query(
     table: str,
     field_paths: Sequence[FieldPath],
@@ -159,7 +193,13 @@ def build_sql_query(
 
     if order_by:
         order_by_parts = []
-        for field_path, direction in order_by:
+        # Safety net: convert OrderBy to tuples if needed
+        order_by_tuples = _convert_order_by_to_tuples(order_by)
+        if not order_by_tuples:
+            # If conversion failed, assume it's already in correct format
+            order_by_tuples = order_by
+
+        for field_path, direction in order_by_tuples:
             # Convert field path to JSONB expression
             path_parts = field_path.split(".")
 

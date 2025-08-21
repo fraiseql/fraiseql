@@ -964,6 +964,54 @@ class FraiseQLRepository(PassthroughMixin):
                 if where_sql_parts:
                     where_composed = SQL(" AND ").join(where_sql_parts)
 
+            # Process order_by for SQL generator compatibility
+            order_by_tuples = None
+            if order_by:
+                # Check if this is a GraphQL order by input that needs conversion
+                if hasattr(order_by, "_to_sql_order_by"):
+                    order_by_set = order_by._to_sql_order_by()
+                    if order_by_set:
+                        # Convert OrderBySet to list of tuples for build_sql_query
+                        order_by_tuples = [
+                            (instr.field, instr.direction) for instr in order_by_set.instructions
+                        ]
+                # Check if it's already an OrderBySet
+                elif hasattr(order_by, "instructions"):
+                    # Convert OrderBySet to list of tuples for build_sql_query
+                    order_by_tuples = [
+                        (instr.field, instr.direction) for instr in order_by.instructions
+                    ]
+                # Check if it's a dict representing GraphQL OrderBy input
+                elif isinstance(order_by, dict):
+                    # Convert dict to SQL ORDER BY
+                    from fraiseql.sql.graphql_order_by_generator import (
+                        _convert_order_by_input_to_sql,
+                    )
+
+                    order_by_set = _convert_order_by_input_to_sql(order_by)
+                    if order_by_set:
+                        order_by_tuples = [
+                            (instr.field, instr.direction) for instr in order_by_set.instructions
+                        ]
+                # Check if it's a list representing GraphQL OrderBy input
+                elif isinstance(order_by, list):
+                    # Check if it's already a list of tuples
+                    if order_by and isinstance(order_by[0], tuple) and len(order_by[0]) == 2:
+                        # Already in the correct format
+                        order_by_tuples = order_by
+                    else:
+                        # Convert list to SQL ORDER BY
+                        from fraiseql.sql.graphql_order_by_generator import (
+                            _convert_order_by_input_to_sql,
+                        )
+
+                        order_by_set = _convert_order_by_input_to_sql(order_by)
+                        if order_by_set:
+                            order_by_tuples = [
+                                (instr.field, instr.direction)
+                                for instr in order_by_set.instructions
+                            ]
+
             # Use SQL generator with field paths
             statement = build_sql_query(
                 table=view_name,
@@ -973,7 +1021,7 @@ class FraiseQLRepository(PassthroughMixin):
                 typename=typename,
                 raw_json_output=True,
                 auto_camel_case=True,
-                order_by=order_by if isinstance(order_by, list) else None,
+                order_by=order_by_tuples,
                 field_limit_threshold=self.context.get("camelforge_field_threshold")
                 or self.context.get("jsonb_field_limit_threshold"),
                 camelforge_enabled=self.context.get("camelforge_enabled", False),

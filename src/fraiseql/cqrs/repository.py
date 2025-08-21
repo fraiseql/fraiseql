@@ -600,6 +600,39 @@ class CQRSRepository:
 
     # Utility methods
 
+    def _convert_order_by_to_tuples(self, order_by):
+        """Convert any OrderBy format to list of tuples.
+
+        Args:
+            order_by: OrderBy in any format (GraphQL dicts, tuples, OrderBySet)
+
+        Returns:
+            List of (field, direction) tuples or None
+        """
+        if not order_by:
+            return None
+
+        # Already a list of tuples
+        if isinstance(order_by, list) and order_by and isinstance(order_by[0], tuple):
+            return order_by
+
+        # GraphQL format - convert using FraiseQL
+        if isinstance(order_by, (list, dict)):
+            try:
+                from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+                order_by_set = _convert_order_by_input_to_sql(order_by)
+                if order_by_set:
+                    return [(instr.field, instr.direction) for instr in order_by_set.instructions]
+            except ImportError:
+                pass
+
+        # OrderBySet object
+        if hasattr(order_by, "instructions"):
+            return [(instr.field, instr.direction) for instr in order_by.instructions]
+
+        return None
+
     def _get_view_name(self, entity_class: type) -> str:
         """Get view name for an entity class.
 
@@ -685,13 +718,16 @@ class CQRSRepository:
         """
         view_name = self._get_view_name(entity_class)
 
-        # Convert order_by tuples to string format
+        # Convert order_by to tuples, then to string format
         order_by_str = None
         if order_by:
-            parts = []
-            for field, direction in order_by:
-                parts.append(f"{field} {direction}")
-            order_by_str = ", ".join(parts)
+            # First, ensure we have tuples regardless of input format
+            order_by_tuples = self._convert_order_by_to_tuples(order_by)
+            if order_by_tuples:
+                parts = []
+                for field, direction in order_by_tuples:
+                    parts.append(f"{field} {direction}")
+                order_by_str = ", ".join(parts)
 
         return await self.select_from_json_view(
             view_name,

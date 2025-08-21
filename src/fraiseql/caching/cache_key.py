@@ -56,8 +56,11 @@ class CacheKeyBuilder:
 
         # Add order by
         if order_by:
-            for field, direction in order_by:
-                parts.append(f"order:{field}:{direction}")
+            # Convert to tuples if needed to avoid unpacking errors
+            order_by_tuples = self._convert_order_by_to_tuples(order_by)
+            if order_by_tuples:
+                for field, direction in order_by_tuples:
+                    parts.append(f"order:{field}:{direction}")
 
         # Add pagination
         if limit is not None:
@@ -90,6 +93,39 @@ class CacheKeyBuilder:
             return ":".join(parts)
         # Simple equality
         return f"{field}:{self._serialize_value(value)}"
+
+    def _convert_order_by_to_tuples(self, order_by):
+        """Convert any OrderBy format to list of tuples.
+
+        Args:
+            order_by: OrderBy in any format (GraphQL dicts, tuples, OrderBySet)
+
+        Returns:
+            List of (field, direction) tuples or None
+        """
+        if not order_by:
+            return None
+
+        # Already a list of tuples
+        if isinstance(order_by, list) and order_by and isinstance(order_by[0], tuple):
+            return order_by
+
+        # GraphQL format - convert using FraiseQL
+        if isinstance(order_by, (list, dict)):
+            try:
+                from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+                order_by_set = _convert_order_by_input_to_sql(order_by)
+                if order_by_set:
+                    return [(instr.field, instr.direction) for instr in order_by_set.instructions]
+            except ImportError:
+                pass
+
+        # OrderBySet object
+        if hasattr(order_by, "instructions"):
+            return [(instr.field, instr.direction) for instr in order_by.instructions]
+
+        return None
 
     def _serialize_value(self, value: Any) -> str:
         """Serialize a value for use in cache key.
