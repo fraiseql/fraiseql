@@ -6,18 +6,15 @@ This test suite verifies that the fix correctly handles:
 3. Frontend TypeScript compatibility is maintained
 """
 
-import json
-import uuid
 import datetime
 import decimal
 import ipaddress
-from typing import Any, Dict
+import json
+import uuid
 
-import pytest
-
+from fraiseql.core.ast_parser import FieldPath
 from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 from fraiseql.sql.sql_generator import build_sql_query
-from fraiseql.core.ast_parser import FieldPath
 
 
 class TestJSONBFixVerification:
@@ -99,7 +96,6 @@ class TestJSONBFixVerification:
 
     def test_end_to_end_graphql_response_simulation(self):
         """Simulate a complete GraphQL response to verify end-to-end type preservation."""
-
         # Simulate data as it would come from PostgreSQL JSONB with mixed types
         server_data = {
             "__typename": "Server",
@@ -166,7 +162,6 @@ class TestJSONBFixVerification:
 
     def test_typescript_compatibility(self):
         """Verify that the response types are compatible with TypeScript expectations."""
-
         # Types that TypeScript can handle natively
         typescript_compatible_response = {
             "data": {

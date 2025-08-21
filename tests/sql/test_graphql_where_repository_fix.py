@@ -5,6 +5,7 @@ fixed and GraphQL-style filtering now works correctly in the repository.
 """
 
 import pytest
+
 from fraiseql.cqrs.repository import CQRSRepository
 
 

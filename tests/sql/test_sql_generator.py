@@ -17,9 +17,9 @@ def test_basic_select_flat_fields() -> None:
 
     assert "SELECT" in sql_str
     assert 'FROM "my_table"' in sql_str
-    # Updated to expect -> operator instead of ->> for type preservation
+    # Type-aware operator selection: -> for age (numeric), ->> for username (string)
     assert "data->'profile'->'age' AS \"age\"" in sql_str
-    assert "data->'profile'->'username' AS \"nickname\"" in sql_str
+    assert "data->'profile'->>'username' AS \"nickname\"" in sql_str
     assert "WHERE" not in sql_str
 
 
@@ -43,8 +43,8 @@ def test_nested_path_multiple_levels() -> None:
     )
 
     sql_str = query.as_string(None)
-    # Updated to expect -> operator instead of ->> for type preservation
-    assert "data->'location'->'address'->'city' AS \"city\"" in sql_str
+    # city is a string field, so uses ->> operator
+    assert "data->'location'->'address'->>'city' AS \"city\"" in sql_str
 
 
 def test_field_path_aliasing() -> None:
@@ -84,9 +84,9 @@ def test_json_output_with_typename() -> None:
     sql_str = query.as_string(None)
 
     assert sql_str.startswith("SELECT jsonb_build_object(")
-    # Updated to expect -> operator instead of ->> for type preservation
-    assert "'id', data->'meta'->'id'" in sql_str
-    assert "'role', data->'meta'->'role'" in sql_str
+    # ID and role are string fields, so use ->> operator
+    assert "'id', data->'meta'->>'id'" in sql_str
+    assert "'role', data->'meta'->>'role'" in sql_str
     assert "'__typename', 'Account'" in sql_str
     assert 'FROM "accounts"' in sql_str
     assert "WHERE data->>'deleted' IS NULL" in sql_str

@@ -5,6 +5,7 @@ generation bug in FraiseQL has been completely resolved.
 """
 
 import pytest
+
 from fraiseql.cqrs.repository import CQRSRepository
 
 

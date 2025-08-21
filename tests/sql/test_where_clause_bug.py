@@ -5,8 +5,9 @@ generation bug where GraphQL filters were ignored in SQL queries.
 The bug has been fixed by integrating proper WHERE clause generation.
 """
 
+
 import pytest
-from uuid import UUID
+
 from fraiseql.cqrs.repository import CQRSRepository
 
 

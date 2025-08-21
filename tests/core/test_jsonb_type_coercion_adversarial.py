@@ -5,20 +5,20 @@ edge cases, nested structures, and frontend compatibility scenarios.
 Similar to the order by adversarial test pattern.
 """
 
-import json
-import uuid
 import datetime
 import decimal
 import ipaddress
-from typing import Any, Dict, List, Optional, Union
+import json
+import uuid
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict
 
 import pytest
 
+from fraiseql.core.ast_parser import FieldPath
 from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 from fraiseql.sql.sql_generator import build_sql_query
-from fraiseql.core.ast_parser import FieldPath
 
 
 class ServerStatus(Enum):
@@ -182,26 +182,44 @@ class TestJSONBTypeCoercionAdversarial:
 
         sql_str = query.as_string(None)
 
-        # Verify ALL paths use -> operator for type preservation
+        # Verify type-aware operator selection
+        expected_operators = {
+            "serverId": "->>",  # id is string
+            "port": "->",  # port is numeric
+            "enabled": "->",  # enabled is boolean
+            "deepValue": "->",  # value could be numeric
+            "firstTag": "->>",  # array element, likely string
+            "nestedArrayValue": "->>",  # name is string
+            "userFirstName": "->>",  # firstName is string
+            "settingsTimeout": "->",  # timeout is numeric
+            "metricValue": "->>",  # percent as string (could be string representation)
+            "fieldWithDashes": "->>",  # generic field, default to string
+            "fieldWithNumbers": "->>",  # sub456 likely string
+            "camelCaseField": "->>",  # nestedCamelCase likely string
+            "snake_case_field": "->>",  # nested_snake_case likely string
+        }
+
         for field_path in complex_field_paths:
-            # Construct expected SQL path
-            expected_parts = []
+            alias = field_path.alias
+            expected_operator = expected_operators.get(alias, "->")
+
+            # Construct expected SQL path with correct operator for final field
+            path_parts = []
             for i, part in enumerate(field_path.path):
-                if i == 0:
-                    expected_parts.append(f"data->'{part}'")
-                else:
-                    expected_parts.append(f"->'{part}'")
-            expected_sql = "".join(expected_parts)
+                if i == 0 and len(field_path.path) == 1:  # Single element path
+                    path_parts.append(f"data{expected_operator}'{part}'")
+                elif i == 0:  # First element of multi-element path
+                    path_parts.append(f"data->'{part}'")
+                elif i == len(field_path.path) - 1:  # Last part uses type-aware operator
+                    path_parts.append(f"{expected_operator}'{part}'")
+                else:  # Intermediate parts use -> for navigation
+                    path_parts.append(f"->'{part}'")
+            expected_sql = "".join(path_parts)
 
             assert expected_sql in sql_str, (
-                f"Field path {field_path.path} should generate {expected_sql} "
+                f"Field path {field_path.path} (alias: {alias}) should generate {expected_sql} "
                 f"but not found in: {sql_str}"
             )
-
-            # Verify NO ->> operators (text conversion) are used
-            broken_sql = expected_sql.replace("->", "->>", 1)  # Only replace the last ->
-            if broken_sql != expected_sql:  # Only check if there was a replacement
-                assert broken_sql not in sql_str, f"Found broken ->> operator in SQL: {broken_sql}"
 
         # Verify typename is included
         assert "'__typename', 'ComplexType'" in sql_str
@@ -403,7 +421,7 @@ class TestJSONBTypeCoercionAdversarial:
 
         print("✅ Complex nested GraphQL response preserves all types correctly")
         print(f"   Verified {len(cluster['servers'])} servers with nested configs and metrics")
-        print(f"   All numeric fields preserved as numbers, not strings")
+        print("   All numeric fields preserved as numbers, not strings")
 
     def test_edge_case_json_structures(self):
         """Test edge cases that might break JSON serialization."""

@@ -280,10 +280,10 @@ class TestJSONBNumericCoercionBug:
 
     def test_postgresql_types_with_fraiseql_encoder(self):
         """Test that PostgreSQL-specific types are converted to frontend-compatible types."""
-        import uuid
         import datetime
         import decimal
         import ipaddress
+        import uuid
 
         postgresql_data = {
             # JSON-native types - should pass through unchanged

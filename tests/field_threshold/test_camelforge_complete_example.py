@@ -5,9 +5,8 @@ GraphQL queries with low field counts use CamelForge for database-native
 camelCase transformation, while high field counts fall back to standard processing.
 """
 
-import pytest
-from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.core.ast_parser import FieldPath
+from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.sql.sql_generator import build_sql_query
 
 
@@ -68,7 +67,7 @@ class TestCamelForgeCompleteExample:
         assert "'identifier'" in sql_str
         assert "'id'" in sql_str
 
-        print(f"Generated SQL for low field count (CamelForge enabled):")
+        print("Generated SQL for low field count (CamelForge enabled):")
         print(sql_str)
 
     def test_holy_grail_architecture_high_field_count(self):
@@ -109,7 +108,7 @@ class TestCamelForgeCompleteExample:
         assert "jsonb_build_object(" not in sql_str
         assert "SELECT data AS result" in sql_str
 
-        print(f"Generated SQL for high field count (fallback to standard):")
+        print("Generated SQL for high field count (fallback to standard):")
         print(sql_str)
 
     def test_performance_characteristics(self):
@@ -365,7 +364,7 @@ class TestCamelForgeCompleteExample:
         for expected in expected_structure:
             assert expected in sql_str, f"Missing expected SQL fragment: {expected}"
 
-        print(f"✅ Feature request example SQL generated successfully:")
+        print("✅ Feature request example SQL generated successfully:")
         print(sql_str)
 
         # This SQL would now return: {"id": "uuid", "identifier": "dns-01", "ipAddress": "192.168.1.1"}

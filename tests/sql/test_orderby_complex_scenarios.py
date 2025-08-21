@@ -9,6 +9,7 @@ requiring database connections.
 """
 
 import pytest
+
 from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
 from fraiseql.sql.sql_generator import build_sql_query

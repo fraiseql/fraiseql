@@ -5,9 +5,10 @@ through the repository layer.
 """
 
 import pytest
-from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.db import FraiseQLRepository
+
 from fraiseql.core.ast_parser import FieldPath
+from fraiseql.db import FraiseQLRepository
+from fraiseql.fastapi.config import FraiseQLConfig
 
 
 class TestCamelForgeIntegrationE2E:

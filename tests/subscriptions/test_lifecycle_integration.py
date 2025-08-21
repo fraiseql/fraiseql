@@ -37,7 +37,7 @@ async def health_check(info) -> str:
 
 # Define subscription with lifecycle hooks
 @subscription
-async def message_stream(info) -> AsyncGenerator[Message, None]:
+async def message_stream(info) -> AsyncGenerator[Message]:
     """Stream messages with lifecycle hooks."""
     # Manually implement lifecycle behavior for testing
     # This simulates what the lifecycle decorator would do
@@ -52,7 +52,7 @@ async def message_stream(info) -> AsyncGenerator[Message, None]:
 
 
 @subscription
-async def simple_counter(info, count: int = 5) -> AsyncGenerator[int, None]:
+async def simple_counter(info, count: int = 5) -> AsyncGenerator[int]:
     """Simple counter subscription."""
     for i in range(count):
         yield i
@@ -145,7 +145,7 @@ class TestSubscriptionLifecycle:
 
         @with_lifecycle(on_start=on_start_callback)
         @subscription
-        async def lifecycle_subscription(info) -> AsyncGenerator[dict, None]:
+        async def lifecycle_subscription(info) -> AsyncGenerator[dict]:
             """Subscription with automatic lifecycle management."""
             # Check that context has been set up
             assert "subscription_id" in info.context
@@ -230,7 +230,7 @@ class TestSubscriptionLifecycle:
         """Test subscription error handling."""
 
         @subscription
-        async def error_subscription(info) -> AsyncGenerator[Message, None]:
+        async def error_subscription(info) -> AsyncGenerator[Message]:
             """Subscription that raises an error."""
             yield Message(id=1, content="First", timestamp=datetime.now().timestamp())
             raise ValueError("Test error")
@@ -353,7 +353,7 @@ class TestEdgeCases:
         """Test that subscriptions work without lifecycle decorators."""
 
         @subscription
-        async def basic_subscription(info) -> AsyncGenerator[int, None]:
+        async def basic_subscription(info) -> AsyncGenerator[int]:
             """Basic subscription without lifecycle."""
             for i in range(3):
                 yield i

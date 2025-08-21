@@ -5,6 +5,7 @@ when field count is below threshold and CamelForge is enabled.
 """
 
 import pytest
+
 from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.sql_generator import build_sql_query
 

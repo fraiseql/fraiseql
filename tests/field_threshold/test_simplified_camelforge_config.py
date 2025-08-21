@@ -1,9 +1,9 @@
 """Test the simplified CamelForge configuration approach."""
 
 import os
-import pytest
-from fraiseql.fastapi.config import FraiseQLConfig
+
 from fraiseql.fastapi.camelforge_config import CamelForgeConfig
+from fraiseql.fastapi.config import FraiseQLConfig
 
 
 class TestSimplifiedCamelForgeConfig:
@@ -98,7 +98,6 @@ class TestSimplifiedCamelForgeConfig:
 
     def test_simple_usage_examples(self):
         """Test the simplified usage examples from the documentation."""
-
         # Example 1: Simple enable via config
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
