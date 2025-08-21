@@ -41,7 +41,7 @@ async def ping(info) -> str:
 @subscription
 @complexity(score=5)
 @sub_filter("channel in info.context.get('allowed_channels', [])")
-async def message_stream(info, channel: str) -> AsyncGenerator[Message]:
+async def message_stream(info, channel: str) -> AsyncGenerator[Message, None]:
     """Subscribe to messages in a channel."""
     # Simulate real-time messages
     for i in range(3):
@@ -56,7 +56,7 @@ async def message_stream(info, channel: str) -> AsyncGenerator[Message]:
 
 @subscription
 @cache(ttl=5.0)
-async def channel_stats(info, channelId: UUID) -> AsyncGenerator[Channel]:
+async def channel_stats(info, channelId: UUID) -> AsyncGenerator[Channel, None]:
     """Subscribe to channel statistics."""
     # Simulate periodic updates
     for i in range(2):
@@ -225,7 +225,7 @@ class TestSubscriptionIntegration:
         """Test subscription error handling."""
 
         @subscription
-        async def failing_subscription(info) -> AsyncGenerator[str]:
+        async def failing_subscription(info) -> AsyncGenerator[str, None]:
             """A subscription that fails."""
             yield "first"
             msg = "Subscription error!"

@@ -20,7 +20,7 @@ class TestSubscriptionDecorator:
         registry.clear()
 
         @subscription
-        async def test_subscription(info) -> AsyncGenerator[str]:
+        async def test_subscription(info) -> AsyncGenerator[str, None]:
             """Test subscription."""
             yield "test"
 
@@ -40,7 +40,7 @@ class TestSubscriptionDecorator:
         """Test subscription execution."""
 
         @subscription
-        async def countdown(info, start: int = 3) -> AsyncGenerator[int]:
+        async def countdown(info, start: int = 3) -> AsyncGenerator[int, None]:
             """Count down from start."""
             for i in range(start, 0, -1):
                 yield i
@@ -63,7 +63,7 @@ class TestSubscriptionComplexity:
 
         @subscription
         @complexity(score=10, max_depth=3)
-        async def limited_subscription(info) -> AsyncGenerator[str]:
+        async def limited_subscription(info) -> AsyncGenerator[str, None]:
             yield "allowed"
 
         # Should work within limits
@@ -98,7 +98,7 @@ class TestSubscriptionFiltering:
 
         @subscription
         @sub_filter("True")  # Always allow
-        async def filtered_sub(info) -> AsyncGenerator[str]:
+        async def filtered_sub(info) -> AsyncGenerator[str, None]:
             yield "allowed"
 
         # Should allow access
@@ -114,7 +114,7 @@ class TestSubscriptionFiltering:
 
         @subscription
         @sub_filter("False")  # Always deny
-        async def denied_sub(info) -> AsyncGenerator[str]:
+        async def denied_sub(info) -> AsyncGenerator[str, None]:
             yield "denied"
 
         # Should raise permission error
@@ -133,7 +133,7 @@ class TestSubscriptionCaching:
 
         @subscription
         @cache(ttl=1.0)
-        async def cached_sub(info) -> AsyncGenerator[int]:
+        async def cached_sub(info) -> AsyncGenerator[int, None]:
             nonlocal call_count
             call_count += 1
             yield call_count
