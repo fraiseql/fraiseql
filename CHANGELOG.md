@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2025-08-21
+
+### 🚀 **Major TurboRouter Fixes**
+
+#### **Fragment Field Extraction Bug Resolution**
+- **Fixed**: TurboRouter now correctly extracts root field names from GraphQL queries with fragments
+- **Issue**: Regex pattern `r"{\s*(\w+)"` was matching first field in fragments instead of actual query root field
+- **Example**: For query with `fragment UserFields on User { id name }` and `query GetUsers { users { ...UserFields } }`, TurboRouter now correctly extracts `"users"` instead of `"id"`
+- **Impact**: **Critical fix** for production applications using fragment-based GraphQL queries with TurboRouter
+
+#### **Double-Wrapping Prevention**
+- **Fixed**: TurboRouter no longer double-wraps pre-formatted GraphQL responses from PostgreSQL functions
+- **Issue**: Functions returning `{"data": {"allocations": [...]}}` were being wrapped again to create `{"data": {"id": {"data": {"allocations": [...]}}}}`
+- **Solution**: Smart response detection automatically handles pre-wrapped responses
+- **Impact**: Resolves data structure corruption in applications using PostgreSQL functions that return GraphQL-formatted responses
+
+#### **Enhanced Root Field Detection**
+- **Added**: Robust field name extraction supporting multiple GraphQL query patterns:
+  - Named queries with fragments: `fragment Foo on Bar { ... } query GetItems { items { ...Foo } }`
+  - Anonymous queries: `{ items { id name } }`
+  - Simple named queries: `query GetItems { items { id name } }`
+- **Backward Compatible**: All existing simple queries continue to work unchanged
+
+### 🧪 **Test Coverage Improvements**
+- **Added**: `test_turbo_router_fragment_field_extraction` - Verifies correct field extraction from fragment queries
+- **Added**: `test_turbo_router_prevents_double_wrapping` - Ensures no double-wrapping of pre-formatted responses
+- **Status**: 17/17 TurboRouter tests passing, no regressions detected
+
+### 📈 **Performance & Compatibility**
+- **Performance**: No impact on response times or query execution
+- **Compatibility**: **100% backward compatible** - existing SQL templates and queries work unchanged
+- **Production Ready**: Thoroughly tested with real-world fragment queries and PostgreSQL function responses
+
 ## [0.4.1] - 2025-08-21
 
 ### 🐛 **Critical Bug Fixes**

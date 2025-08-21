@@ -71,7 +71,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "0.3.10"
+__version__ = "0.4.4"
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",
