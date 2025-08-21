@@ -21,8 +21,8 @@ from fraiseql.core.raw_json_executor import (
     execute_raw_json_query,
 )
 from fraiseql.partial_instantiation import create_partial_instance
-from fraiseql.repositories.passthrough_mixin import PassthroughMixin
 from fraiseql.repositories.intelligent_passthrough import IntelligentPassthroughMixin
+from fraiseql.repositories.passthrough_mixin import PassthroughMixin
 from fraiseql.utils.casing import to_snake_case
 
 logger = logging.getLogger(__name__)

@@ -50,11 +50,11 @@ class PassthroughMixin:
 
     def _wrap_as_raw_json(self, result: Any) -> Any:
         """Wrap result as RawJSONResult if in passthrough mode.
-        
+
         WARNING: This method should generally NOT be used in production.
-        True passthrough should use find_raw_json() / find_one_raw_json() 
+        True passthrough should use find_raw_json() / find_one_raw_json()
         which return raw JSON strings from PostgreSQL without any Python processing.
-        
+
         This method exists only as a fallback for cases where raw JSON methods
         aren't available.
         """
@@ -67,6 +67,7 @@ class PassthroughMixin:
 
         # CRITICAL: Log when this fallback path is used
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(
             "PassthroughMixin fallback used - this should be avoided in production. "

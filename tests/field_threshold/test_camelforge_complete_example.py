@@ -25,9 +25,9 @@ class TestCamelForgeCompleteExample:
         """
         # Simulate GraphQL query: { dnsServers { id, identifier, ipAddress } }
         field_paths = [
-            FieldPath(alias="id", path=["id"]),                    # id (no transformation)
-            FieldPath(alias="identifier", path=["identifier"]),    # identifier (no transformation)
-            FieldPath(alias="ipAddress", path=["ip_address"]),     # ipAddress → ip_address
+            FieldPath(alias="id", path=["id"]),  # id (no transformation)
+            FieldPath(alias="identifier", path=["identifier"]),  # identifier (no transformation)
+            FieldPath(alias="ipAddress", path=["ip_address"]),  # ipAddress → ip_address
         ]
 
         # Configure CamelForge settings as described in feature request
@@ -37,7 +37,7 @@ class TestCamelForgeCompleteExample:
             camelforge_function="turbo.fn_camelforge",
             camelforge_field_threshold=32000,  # PostgreSQL parameter limit
             camelforge_entity_mapping=True,
-            jsonb_field_limit_threshold=20,    # Field threshold
+            jsonb_field_limit_threshold=20,  # Field threshold
         )
 
         # Generate SQL with CamelForge integration
@@ -242,57 +242,79 @@ class TestCamelForgeCompleteExample:
         # 1. Low field count uses CamelForge
         low_fields = [FieldPath(alias="ipAddress", path=["ip_address"])]
         low_query = build_sql_query(
-            table="v_dns_server", field_paths=low_fields, json_output=True,
-            field_limit_threshold=20, camelforge_enabled=True,
-            camelforge_function="turbo.fn_camelforge", entity_type="dns_server"
+            table="v_dns_server",
+            field_paths=low_fields,
+            json_output=True,
+            field_limit_threshold=20,
+            camelforge_enabled=True,
+            camelforge_function="turbo.fn_camelforge",
+            entity_type="dns_server",
         )
         assert "turbo.fn_camelforge(" in low_query.as_string(None)  # ✅ Criterion 1
 
         # 2. High field count uses standard processing
         high_fields = [FieldPath(alias=f"f{i}", path=[f"f{i}"]) for i in range(25)]
         high_query = build_sql_query(
-            table="v_dns_server", field_paths=high_fields, json_output=True,
-            field_limit_threshold=20, camelforge_enabled=True,
-            camelforge_function="turbo.fn_camelforge", entity_type="dns_server"
+            table="v_dns_server",
+            field_paths=high_fields,
+            json_output=True,
+            field_limit_threshold=20,
+            camelforge_enabled=True,
+            camelforge_function="turbo.fn_camelforge",
+            entity_type="dns_server",
         )
         assert "turbo.fn_camelforge(" not in high_query.as_string(None)  # ✅ Criterion 2
 
         # 3. Automatic field mapping camelCase → snake_case
         mapping_fields = [
-            FieldPath(alias="createdAt", path=["created_at"]),       # camelCase → snake_case
-            FieldPath(alias="ipAddress", path=["ip_address"]),       # camelCase → snake_case
+            FieldPath(alias="createdAt", path=["created_at"]),  # camelCase → snake_case
+            FieldPath(alias="ipAddress", path=["ip_address"]),  # camelCase → snake_case
             FieldPath(alias="nTotalItems", path=["n_total_items"]),  # Number prefix handling
         ]
         mapping_query = build_sql_query(
-            table="v_test", field_paths=mapping_fields, json_output=True,
-            field_limit_threshold=20, camelforge_enabled=True,
-            camelforge_function="turbo.fn_camelforge", entity_type="test"
+            table="v_test",
+            field_paths=mapping_fields,
+            json_output=True,
+            field_limit_threshold=20,
+            camelforge_enabled=True,
+            camelforge_function="turbo.fn_camelforge",
+            entity_type="test",
         )
         mapping_sql = mapping_query.as_string(None)
-        assert "data->>'created_at'" in mapping_sql      # Database uses snake_case
-        assert "data->>'ip_address'" in mapping_sql      # Database uses snake_case
-        assert "data->>'n_total_items'" in mapping_sql   # Database uses snake_case
-        assert "'createdAt'" in mapping_sql              # GraphQL preserves camelCase
-        assert "'ipAddress'" in mapping_sql              # GraphQL preserves camelCase
-        assert "'nTotalItems'" in mapping_sql            # GraphQL preserves camelCase
+        assert "data->>'created_at'" in mapping_sql  # Database uses snake_case
+        assert "data->>'ip_address'" in mapping_sql  # Database uses snake_case
+        assert "data->>'n_total_items'" in mapping_sql  # Database uses snake_case
+        assert "'createdAt'" in mapping_sql  # GraphQL preserves camelCase
+        assert "'ipAddress'" in mapping_sql  # GraphQL preserves camelCase
+        assert "'nTotalItems'" in mapping_sql  # GraphQL preserves camelCase
         # ✅ Criterion 3
 
         # 4. JSON passthrough with raw_json_output
         passthrough_query = build_sql_query(
-            table="v_dns_server", field_paths=low_fields, json_output=True,
-            raw_json_output=True, field_limit_threshold=20, camelforge_enabled=True,
-            camelforge_function="turbo.fn_camelforge", entity_type="dns_server"
+            table="v_dns_server",
+            field_paths=low_fields,
+            json_output=True,
+            raw_json_output=True,
+            field_limit_threshold=20,
+            camelforge_enabled=True,
+            camelforge_function="turbo.fn_camelforge",
+            entity_type="dns_server",
         )
         assert "::text AS result" in passthrough_query.as_string(None)  # ✅ Criterion 4
 
         # 5. TurboRouter compatibility (CamelForge works with any function name)
         turbo_query = build_sql_query(
-            table="v_dns_server", field_paths=low_fields, json_output=True,
-            field_limit_threshold=20, camelforge_enabled=True,
+            table="v_dns_server",
+            field_paths=low_fields,
+            json_output=True,
+            field_limit_threshold=20,
+            camelforge_enabled=True,
             camelforge_function="turbo.fn_build_dns_server_response",  # TurboRouter function
-            entity_type="dns_server"
+            entity_type="dns_server",
         )
-        assert "turbo.fn_build_dns_server_response(" in turbo_query.as_string(None)  # ✅ Criterion 5
+        assert "turbo.fn_build_dns_server_response(" in turbo_query.as_string(
+            None
+        )  # ✅ Criterion 5
 
         print("✅ All success criteria validated!")
 
@@ -332,12 +354,12 @@ class TestCamelForgeCompleteExample:
 
         # This should now generate the exact SQL structure described in the feature request
         expected_structure = [
-            "turbo.fn_camelforge(",           # CamelForge function call
-            "jsonb_build_object(",            # Selective field extraction
-            "'id', data->>'id'",              # ID field mapping
+            "turbo.fn_camelforge(",  # CamelForge function call
+            "jsonb_build_object(",  # Selective field extraction
+            "'id', data->>'id'",  # ID field mapping
             "'identifier', data->>'identifier'",  # Identifier field mapping
-            "'ipAddress', data->>'ip_address'",   # camelCase → snake_case mapping
-            "'dns_server'",                   # Entity type parameter
+            "'ipAddress', data->>'ip_address'",  # camelCase → snake_case mapping
+            "'dns_server'",  # Entity type parameter
         ]
 
         for expected in expected_structure:

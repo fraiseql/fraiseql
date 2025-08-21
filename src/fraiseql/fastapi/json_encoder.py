@@ -85,16 +85,18 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
             return obj.decode("utf-8", errors="replace")
 
         # Handle Python Enums (convert to their value)
-        if hasattr(obj, '__class__') and hasattr(obj.__class__, '__bases__'):
+        if hasattr(obj, "__class__") and hasattr(obj.__class__, "__bases__"):
             # Check if it's an Enum
             import enum
+
             if isinstance(obj, enum.Enum):
                 return obj.value
 
-        # Handle dataclasses 
-        if hasattr(obj, '__dataclass_fields__'):
+        # Handle dataclasses
+        if hasattr(obj, "__dataclass_fields__"):
             # Convert dataclass to dictionary
             import dataclasses
+
             return dataclasses.asdict(obj)
 
         # Handle sets (convert to list)
@@ -108,9 +110,10 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
         # Handle special float values that might break JSON
         if isinstance(obj, float):
             import math
+
             if math.isnan(obj):
                 return None  # Convert NaN to null
-            elif math.isinf(obj):
+            if math.isinf(obj):
                 return None  # Convert infinity to null for JSON safety
             # Regular floats pass through normally
 

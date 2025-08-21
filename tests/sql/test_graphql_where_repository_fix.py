@@ -36,24 +36,21 @@ class TestGraphQLWhereRepositoryFix:
 
         # Test contains operator
         results = await repo.select_from_json_view(
-            "v_test_devices",
-            where={"name": {"contains": "router"}}
+            "v_test_devices", where={"name": {"contains": "router"}}
         )
         assert len(results) == 2
         assert all("router" in r["name"] for r in results)
 
         # Test startswith operator
         results = await repo.select_from_json_view(
-            "v_test_devices",
-            where={"name": {"startswith": "server"}}
+            "v_test_devices", where={"name": {"startswith": "server"}}
         )
         assert len(results) == 1
         assert results[0]["name"] == "server-backup"
 
         # Test endswith operator
         results = await repo.select_from_json_view(
-            "v_test_devices",
-            where={"model": {"endswith": "2900"}}
+            "v_test_devices", where={"model": {"endswith": "2900"}}
         )
         assert len(results) == 1
         assert results[0]["name"] == "router-primary"
@@ -82,8 +79,7 @@ class TestGraphQLWhereRepositoryFix:
 
         # Test isPrivate operator - should return RFC 1918 addresses
         results = await repo.select_from_json_view(
-            "v_test_network_devices",
-            where={"ipAddress": {"isPrivate": True}}
+            "v_test_network_devices", where={"ipAddress": {"isPrivate": True}}
         )
         assert len(results) == 3  # 192.168.1.1, 10.0.0.1, 172.16.1.10
         private_ips = [r["ipAddress"] for r in results]
@@ -93,8 +89,7 @@ class TestGraphQLWhereRepositoryFix:
 
         # Test isPublic operator - should return public IPs
         results = await repo.select_from_json_view(
-            "v_test_network_devices",
-            where={"ipAddress": {"isPublic": True}}
+            "v_test_network_devices", where={"ipAddress": {"isPublic": True}}
         )
         assert len(results) == 2  # 8.8.8.8, 1.1.1.1
         public_ips = [r["ipAddress"] for r in results]
@@ -126,11 +121,7 @@ class TestGraphQLWhereRepositoryFix:
         # Test multiple string and numeric operators
         results = await repo.select_from_json_view(
             "v_test_complex",
-            where={
-                "name": {"startswith": "prod"},
-                "cpu": {"gte": 8},
-                "status": {"eq": "active"}
-            }
+            where={"name": {"startswith": "prod"}, "cpu": {"gte": 8}, "status": {"eq": "active"}},
         )
         assert len(results) == 2  # Both production servers
         assert all(r["name"].startswith("prod") for r in results)
@@ -139,11 +130,7 @@ class TestGraphQLWhereRepositoryFix:
 
         # Test contains with numeric greater than
         results = await repo.select_from_json_view(
-            "v_test_complex",
-            where={
-                "name": {"contains": "server"},
-                "cpu": {"gt": 10}
-            }
+            "v_test_complex", where={"name": {"contains": "server"}, "cpu": {"gt": 10}}
         )
         assert len(results) == 2  # prod-server-02 (16) and staging-server-01 (12)
         server_names = [r["name"] for r in results]
@@ -174,8 +161,7 @@ class TestGraphQLWhereRepositoryFix:
 
         # Test 'in' operator
         results = await repo.select_from_json_view(
-            "v_test_list_ops",
-            where={"environment": {"in": ["production", "staging"]}}
+            "v_test_list_ops", where={"environment": {"in": ["production", "staging"]}}
         )
         assert len(results) == 3  # 2 production + 1 staging
         environments = [r["environment"] for r in results]
@@ -184,8 +170,7 @@ class TestGraphQLWhereRepositoryFix:
 
         # Test 'nin' (not in) operator
         results = await repo.select_from_json_view(
-            "v_test_list_ops",
-            where={"environment": {"nin": ["development", "testing"]}}
+            "v_test_list_ops", where={"environment": {"nin": ["development", "testing"]}}
         )
         assert len(results) == 3  # Should exclude development and testing
         environments = [r["environment"] for r in results]
@@ -216,7 +201,7 @@ class TestGraphQLWhereRepositoryFix:
         # Test simple string equality (old style)
         results = await repo.select_from_json_view(
             "v_test_backward_compat",
-            where={"status": "active"}  # Simple key-value, no operators
+            where={"status": "active"},  # Simple key-value, no operators
         )
         assert len(results) == 2
         assert all(r["status"] == "active" for r in results)
@@ -226,8 +211,8 @@ class TestGraphQLWhereRepositoryFix:
             "v_test_backward_compat",
             where={
                 "status": "active",  # Old style
-                "type": {"in": ["server", "switch"]}  # New style
-            }
+                "type": {"in": ["server", "switch"]},  # New style
+            },
         )
         assert len(results) == 2
         assert all(r["status"] == "active" for r in results)

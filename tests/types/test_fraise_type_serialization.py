@@ -21,14 +21,13 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class Allocation:
             """Test allocation type."""
+
             id: uuid.UUID
             identifier: str
             start_date: date | None
 
         allocation = Allocation(
-            id=uuid.uuid4(),
-            identifier="TEST-001",
-            start_date=date(2024, 1, 15)
+            id=uuid.uuid4(), identifier="TEST-001", start_date=date(2024, 1, 15)
         )
 
         # This should fail with current implementation
@@ -42,22 +41,17 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class Allocation:
             """Test allocation type."""
+
             id: uuid.UUID
             identifier: str
             start_date: date | None
 
         allocation = Allocation(
-            id=uuid.uuid4(),
-            identifier="TEST-001",
-            start_date=date(2024, 1, 15)
+            id=uuid.uuid4(), identifier="TEST-001", start_date=date(2024, 1, 15)
         )
 
         # Simulate GraphQL response structure
-        response_data = {
-            "data": {
-                "allocations": [allocation]
-            }
-        }
+        response_data = {"data": {"allocations": [allocation]}}
 
         # This should fail with current implementation
         with pytest.raises(TypeError, match="Object of type Allocation is not JSON serializable"):
@@ -70,6 +64,7 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class User:
             """Test user type with various field types."""
+
             id: uuid.UUID
             name: str
             email: str | None
@@ -81,7 +76,7 @@ class TestFraiseTypeJSONSerialization:
             name="John Doe",
             email="john@example.com",
             created_at=datetime(2024, 1, 15, 10, 30, 0),
-            is_active=True
+            is_active=True,
         )
 
         encoder = FraiseQLJSONEncoder()
@@ -105,6 +100,7 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class Department:
             """Test department type."""
+
             id: uuid.UUID
             name: str
 
@@ -112,20 +108,14 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class User:
             """Test user type with nested department."""
+
             id: uuid.UUID
             name: str
             department: Department | None
 
-        dept = Department(
-            id=uuid.uuid4(),
-            name="Engineering"
-        )
+        dept = Department(id=uuid.uuid4(), name="Engineering")
 
-        user = User(
-            id=uuid.uuid4(),
-            name="John Doe",
-            department=dept
-        )
+        user = User(id=uuid.uuid4(), name="John Doe", department=dept)
 
         encoder = FraiseQLJSONEncoder()
 
@@ -145,20 +135,17 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class Product:
             """Test product type."""
+
             id: uuid.UUID
             name: str
             price: float
 
         products = [
             Product(id=uuid.uuid4(), name="Product 1", price=10.99),
-            Product(id=uuid.uuid4(), name="Product 2", price=25.50)
+            Product(id=uuid.uuid4(), name="Product 2", price=25.50),
         ]
 
-        response_data = {
-            "data": {
-                "products": products
-            }
-        }
+        response_data = {"data": {"products": products}}
 
         encoder = FraiseQLJSONEncoder()
 
@@ -179,22 +166,14 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class Order:
             """Test order type."""
+
             id: uuid.UUID
             total: float
             created_at: datetime
 
-        order = Order(
-            id=uuid.uuid4(),
-            total=99.99,
-            created_at=datetime(2024, 1, 15, 14, 30, 0)
-        )
+        order = Order(id=uuid.uuid4(), total=99.99, created_at=datetime(2024, 1, 15, 14, 30, 0))
 
-        content = {
-            "data": {
-                "order": order
-            },
-            "errors": None
-        }
+        content = {"data": {"order": order}, "errors": None}
 
         # This should work once we implement the fix
         response = FraiseQLJSONResponse(content=content)
@@ -212,14 +191,12 @@ class TestFraiseTypeJSONSerialization:
         @fraiseql.type(sql_source="tv_simple")
         class SimpleType:
             """Test type without @dataclass but with __init__ created by FraiseQL."""
+
             id: uuid.UUID
             name: str
 
         # The @fraiseql.type decorator should create __init__ for us
-        simple = SimpleType(
-            id=uuid.uuid4(),
-            name="Test"
-        )
+        simple = SimpleType(id=uuid.uuid4(), name="Test")
 
         encoder = FraiseQLJSONEncoder()
 
@@ -238,19 +215,20 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class TestType:
             """Test type for from_dict functionality."""
+
             id: uuid.UUID
             name: str
             created_at: datetime | None = None
 
         # Should have from_dict class method
-        assert hasattr(TestType, 'from_dict')
+        assert hasattr(TestType, "from_dict")
         assert callable(TestType.from_dict)
 
         # Test from_dict with camelCase data (as would come from GraphQL)
         data = {
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "name": "Test Name",
-            "createdAt": "2024-01-15T10:30:00"  # camelCase
+            "createdAt": "2024-01-15T10:30:00",  # camelCase
         }
 
         instance = TestType.from_dict(data)
@@ -267,17 +245,18 @@ class TestFraiseTypeJSONSerialization:
         @dataclass
         class TestType:
             """Test type for attribute checking."""
+
             id: uuid.UUID
             name: str
 
         # Should have FraiseQL definition
-        assert hasattr(TestType, '__fraiseql_definition__')
+        assert hasattr(TestType, "__fraiseql_definition__")
         assert TestType.__fraiseql_definition__ is not None
 
         # Should have SQL source
-        assert hasattr(TestType, '__gql_table__')
+        assert hasattr(TestType, "__gql_table__")
         assert TestType.__gql_table__ == "tv_test"
 
         # Should have type name
-        assert hasattr(TestType, '__gql_typename__')
+        assert hasattr(TestType, "__gql_typename__")
         assert TestType.__gql_typename__ == "TestType"

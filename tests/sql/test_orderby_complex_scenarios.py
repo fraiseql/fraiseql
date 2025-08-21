@@ -23,11 +23,7 @@ class TestComplexOrderByScenarios:
     def test_multiple_field_orderby_conversion(self):
         """Test conversion of multiple field OrderBy from GraphQL format."""
         # Typical multi-field sorting from GraphQL client
-        graphql_input = [
-            {"createdAt": "DESC"},
-            {"name": "ASC"},
-            {"status": "ASC"}
-        ]
+        graphql_input = [{"createdAt": "DESC"}, {"name": "ASC"}, {"status": "ASC"}]
 
         result = _convert_order_by_input_to_sql(graphql_input)
 
@@ -46,7 +42,7 @@ class TestComplexOrderByScenarios:
         graphql_input = [
             {"profile.firstName": "ASC"},
             {"profile.lastName": "ASC"},
-            {"createdAt": "DESC"}
+            {"createdAt": "DESC"},
         ]
 
         result = _convert_order_by_input_to_sql(graphql_input)
@@ -67,7 +63,7 @@ class TestComplexOrderByScenarios:
             {"ipAddress": "ASC"},
             {"lastConnectedAt": "DESC"},
             {"organizationName": "ASC"},
-            {"isActive": "DESC"}
+            {"isActive": "DESC"},
         ]
 
         result = _convert_order_by_input_to_sql(graphql_input)
@@ -88,8 +84,8 @@ class TestComplexOrderByScenarios:
         # Single dict with multiple fields + separate dicts
         graphql_input = [
             {"priority": "DESC", "urgency": "DESC"},  # Multiple in one dict
-            {"assignedTo": "ASC"},                    # Separate dict
-            {"dueDate": "ASC"}                        # Another separate dict
+            {"assignedTo": "ASC"},  # Separate dict
+            {"dueDate": "ASC"},  # Another separate dict
         ]
 
         result = _convert_order_by_input_to_sql(graphql_input)
@@ -124,7 +120,7 @@ class TestComplexOrderByScenarios:
             {"user.profile.address.city": "ASC"},
             {"user.profile.firstName": "ASC"},
             {"organization.settings.timezone": "ASC"},
-            {"createdAt": "DESC"}
+            {"createdAt": "DESC"},
         ]
 
         result = _convert_order_by_input_to_sql(graphql_input)
@@ -145,7 +141,7 @@ class TestComplexOrderByScenarios:
         field_paths = [
             FieldPath(path=["id"], alias="id"),
             FieldPath(path=["name"], alias="name"),
-            FieldPath(path=["created_at"], alias="createdAt")
+            FieldPath(path=["created_at"], alias="createdAt"),
         ]
 
         # Multiple field ordering
@@ -156,7 +152,7 @@ class TestComplexOrderByScenarios:
             field_paths=field_paths,
             order_by=order_by,
             json_output=True,
-            auto_camel_case=True
+            auto_camel_case=True,
         )
 
         # Convert to string for assertion - this doesn't execute SQL
@@ -171,7 +167,7 @@ class TestComplexOrderByScenarios:
         """Test SQL generation for nested field OrderBy with JSONB path operators."""
         field_paths = [
             FieldPath(path=["id"], alias="id"),
-            FieldPath(path=["profile", "first_name"], alias="profile.firstName")
+            FieldPath(path=["profile", "first_name"], alias="profile.firstName"),
         ]
 
         # Nested field ordering
@@ -182,7 +178,7 @@ class TestComplexOrderByScenarios:
             field_paths=field_paths,
             order_by=order_by,
             json_output=True,
-            auto_camel_case=True
+            auto_camel_case=True,
         )
 
         sql_str = str(sql_query)
@@ -193,9 +189,7 @@ class TestComplexOrderByScenarios:
 
     def test_deep_nested_sql_generation(self):
         """Test SQL generation for deeply nested fields with multiple path levels."""
-        field_paths = [
-            FieldPath(path=["id"], alias="id")
-        ]
+        field_paths = [FieldPath(path=["id"], alias="id")]
 
         # Deep nested field ordering
         order_by = [("user.profile.address.city", "asc")]
@@ -205,7 +199,7 @@ class TestComplexOrderByScenarios:
             field_paths=field_paths,
             order_by=order_by,
             json_output=True,
-            auto_camel_case=True
+            auto_camel_case=True,
         )
 
         sql_str = str(sql_query)
@@ -222,7 +216,7 @@ class TestComplexOrderByScenarios:
         graphql_input = [
             {"ipAddress": "ASC"},
             {"organizationName": "ASC"},
-            {"lastConnectedAt": "DESC"}
+            {"lastConnectedAt": "DESC"},
         ]
 
         result = _convert_order_by_input_to_sql(graphql_input)
@@ -255,7 +249,7 @@ class TestComplexOrderByScenarios:
             {"contract.client.organizationName": "ASC"},
             {"assignedTo.profile.lastName": "ASC"},
             {"dueDate": "ASC"},
-            {"createdAt": "DESC"}
+            {"createdAt": "DESC"},
         ]
 
         result = _convert_order_by_input_to_sql(graphql_input)
@@ -277,9 +271,9 @@ class TestComplexOrderByScenarios:
         # Real GraphQL clients might send mixed case
         graphql_input = [
             {"priority": "DESC"},
-            {"name": "asc"},          # lowercase
-            {"updatedAt": "DESC"},    # uppercase
-            {"status": "Asc"}         # mixed case - should be normalized
+            {"name": "asc"},  # lowercase
+            {"updatedAt": "DESC"},  # uppercase
+            {"status": "Asc"},  # mixed case - should be normalized
         ]
 
         result = _convert_order_by_input_to_sql(graphql_input)
@@ -291,9 +285,9 @@ class TestComplexOrderByScenarios:
         directions = [instr.direction for instr in result.instructions]
         assert all(d in ["asc", "desc"] for d in directions)
         assert directions[0] == "desc"  # DESC -> desc
-        assert directions[1] == "asc"   # asc -> asc
+        assert directions[1] == "asc"  # asc -> asc
         assert directions[2] == "desc"  # DESC -> desc
-        assert directions[3] == "asc"   # Asc -> asc (if handled)
+        assert directions[3] == "asc"  # Asc -> asc (if handled)
 
     def test_integration_graphql_to_sql_complex(self):
         """Integration test: Complete GraphQL OrderBy → SQL transformation for complex scenario."""
@@ -301,7 +295,7 @@ class TestComplexOrderByScenarios:
         graphql_input = [
             {"user.profile.firstName": "ASC"},
             {"organization.settings.priority": "DESC"},
-            {"lastModifiedAt": "DESC"}
+            {"lastModifiedAt": "DESC"},
         ]
 
         # Step 1: Convert GraphQL input
@@ -314,7 +308,7 @@ class TestComplexOrderByScenarios:
         # Step 3: Generate SQL
         field_paths = [
             FieldPath(path=["id"], alias="id"),
-            FieldPath(path=["user", "profile", "first_name"], alias="user.profile.firstName")
+            FieldPath(path=["user", "profile", "first_name"], alias="user.profile.firstName"),
         ]
 
         sql_query = build_sql_query(
@@ -322,7 +316,7 @@ class TestComplexOrderByScenarios:
             field_paths=field_paths,
             order_by=tuples,
             json_output=True,
-            auto_camel_case=True
+            auto_camel_case=True,
         )
 
         sql_str = str(sql_query)
@@ -345,7 +339,7 @@ class TestComplexOrderByScenarios:
             # Empty nested field
             [{"": "ASC"}],
             # None values in complex structure
-            [{"field1": "ASC"}, None, {"field2": "DESC"}]
+            [{"field1": "ASC"}, None, {"field2": "DESC"}],
         ]
 
         for case in error_cases:
@@ -354,8 +348,8 @@ class TestComplexOrderByScenarios:
             # Either returns valid partial result or None, but doesn't crash
             if result is not None:
                 # If we get a result, it should be valid
-                assert hasattr(result, 'instructions')
+                assert hasattr(result, "instructions")
                 for instr in result.instructions:
-                    assert hasattr(instr, 'field')
-                    assert hasattr(instr, 'direction')
-                    assert instr.direction in ['asc', 'desc']
+                    assert hasattr(instr, "field")
+                    assert hasattr(instr, "direction")
+                    assert instr.direction in ["asc", "desc"]

@@ -38,40 +38,35 @@ class TestWhereClauseBugFixSummary:
 
         # 1. Test string contains operator (was completely broken before fix)
         results = await repo.select_from_json_view(
-            "v_test_comprehensive",
-            where={"name": {"contains": "router"}}
+            "v_test_comprehensive", where={"name": {"contains": "router"}}
         )
         assert len(results) == 2, "String contains operator should work"
         assert all("router" in r["name"] for r in results)
 
         # 2. Test string startswith operator (was completely broken before fix)
         results = await repo.select_from_json_view(
-            "v_test_comprehensive",
-            where={"name": {"startswith": "server"}}
+            "v_test_comprehensive", where={"name": {"startswith": "server"}}
         )
         assert len(results) == 1, "String startswith operator should work"
         assert results[0]["name"] == "server-web-04"
 
         # 3. Test numeric comparison operators (was completely broken before fix)
         results = await repo.select_from_json_view(
-            "v_test_comprehensive",
-            where={"price": {"gte": 1500.00}}
+            "v_test_comprehensive", where={"price": {"gte": 1500.00}}
         )
         assert len(results) == 3, "Numeric gte operator should work"
         assert all(float(r["price"]) >= 1500.00 for r in results)
 
         # 4. Test boolean equality operator (was completely broken before fix)
         results = await repo.select_from_json_view(
-            "v_test_comprehensive",
-            where={"active": {"eq": True}}
+            "v_test_comprehensive", where={"active": {"eq": True}}
         )
         assert len(results) == 4, "Boolean eq operator should work"
         assert all(r["active"] is True for r in results)
 
         # 5. Test 'in' list operator (was completely broken before fix)
         results = await repo.select_from_json_view(
-            "v_test_comprehensive",
-            where={"type": {"in": ["router", "server"]}}
+            "v_test_comprehensive", where={"type": {"in": ["router", "server"]}}
         )
         assert len(results) == 3, "List 'in' operator should work"
         device_types = [r["type"] for r in results]
@@ -80,8 +75,7 @@ class TestWhereClauseBugFixSummary:
 
         # 6. Test 'nin' (not in) list operator (was completely broken before fix)
         results = await repo.select_from_json_view(
-            "v_test_comprehensive",
-            where={"type": {"nin": ["switch", "firewall"]}}
+            "v_test_comprehensive", where={"type": {"nin": ["switch", "firewall"]}}
         )
         assert len(results) == 3, "List 'nin' operator should work"
         device_types = [r["type"] for r in results]
@@ -91,35 +85,33 @@ class TestWhereClauseBugFixSummary:
 
         # 7. Test network address isPrivate operator (was completely broken before fix)
         results = await repo.select_from_json_view(
-            "v_test_comprehensive",
-            where={"ipAddress": {"isPrivate": True}}
+            "v_test_comprehensive", where={"ipAddress": {"isPrivate": True}}
         )
         assert len(results) == 4, "Network isPrivate operator should work"
         private_ips = [r["ipAddress"] for r in results]
-        assert "192.168.1.1" in private_ips    # RFC 1918 Class C
-        assert "10.0.0.100" in private_ips     # RFC 1918 Class A
-        assert "172.16.1.1" in private_ips    # RFC 1918 Class B
+        assert "192.168.1.1" in private_ips  # RFC 1918 Class C
+        assert "10.0.0.100" in private_ips  # RFC 1918 Class A
+        assert "172.16.1.1" in private_ips  # RFC 1918 Class B
         assert "192.168.10.1" in private_ips  # RFC 1918 Class C
 
         # 8. Test network address isPublic operator (was completely broken before fix)
         results = await repo.select_from_json_view(
-            "v_test_comprehensive",
-            where={"ipAddress": {"isPublic": True}}
+            "v_test_comprehensive", where={"ipAddress": {"isPublic": True}}
         )
         assert len(results) == 2, "Network isPublic operator should work"
         public_ips = [r["ipAddress"] for r in results]
-        assert "8.8.8.8" in public_ips    # Google DNS
-        assert "1.1.1.1" in public_ips    # Cloudflare DNS
+        assert "8.8.8.8" in public_ips  # Google DNS
+        assert "1.1.1.1" in public_ips  # Cloudflare DNS
 
         # 9. Test complex multi-operator queries (was completely broken before fix)
         results = await repo.select_from_json_view(
             "v_test_comprehensive",
             where={
-                "type": {"eq": "router"},           # String equality
-                "price": {"lt": 1400.00},           # Numeric less than
-                "active": {"eq": True},             # Boolean equality
-                "name": {"contains": "backup"}      # String contains
-            }
+                "type": {"eq": "router"},  # String equality
+                "price": {"lt": 1400.00},  # Numeric less than
+                "active": {"eq": True},  # Boolean equality
+                "name": {"contains": "backup"},  # String contains
+            },
         )
         assert len(results) == 1, "Complex multi-operator query should work"
         result = results[0]
@@ -131,7 +123,7 @@ class TestWhereClauseBugFixSummary:
         # 10. Test backward compatibility with simple key-value filters
         results = await repo.select_from_json_view(
             "v_test_comprehensive",
-            where={"type": "switch"}  # Old-style simple equality
+            where={"type": "switch"},  # Old-style simple equality
         )
         assert len(results) == 2, "Backward compatibility should be maintained"
         assert all(r["type"] == "switch" for r in results)
@@ -140,18 +132,20 @@ class TestWhereClauseBugFixSummary:
         # First test simple old style to make sure it works
         results = await repo.select_from_json_view(
             "v_test_comprehensive",
-            where={"active": True}  # Old style only
+            where={"active": True},  # Old style only
         )
         active_count = len(results)
-        assert active_count == 4, f"Old style boolean filter should work, got {active_count} results"
+        assert active_count == 4, (
+            f"Old style boolean filter should work, got {active_count} results"
+        )
 
         # Now test mixing styles with a simpler combination
         results = await repo.select_from_json_view(
             "v_test_comprehensive",
             where={
-                "type": "router",                   # Old style - simple equality
-                "price": {"gte": 1200.00}           # New style - operator dict
-            }
+                "type": "router",  # Old style - simple equality
+                "price": {"gte": 1200.00},  # New style - operator dict
+            },
         )
         assert len(results) == 2, "Mixed old/new filter styles should work"
         for result in results:
@@ -194,8 +188,8 @@ class TestWhereClauseBugFixSummary:
             where={
                 "type": {"in": ["router", "server"]},
                 "active": {"eq": True},
-                "price": {"gte": 100.00}
-            }
+                "price": {"gte": 100.00},
+            },
         )
 
         # Should return devices that match all criteria
@@ -206,6 +200,7 @@ class TestWhereClauseBugFixSummary:
             assert float(result["price"]) >= 100.00
 
         print(f"Performance test completed: {len(results)} results from 1000 records")
+
 
 # Final summary message in the test module docstring
 __doc__ += """

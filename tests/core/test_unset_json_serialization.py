@@ -317,6 +317,7 @@ def test_fraiseql_json_encoder_handles_fraiseql_types():
     @dataclass
     class User:
         """Test user type."""
+
         id: uuid.UUID
         name: str
         email: str | None
@@ -326,7 +327,7 @@ def test_fraiseql_json_encoder_handles_fraiseql_types():
         id=uuid.UUID("12345678-1234-1234-1234-123456789abc"),
         name="John Doe",
         email="john@example.com",
-        created_at=datetime(2024, 1, 15, 10, 30, 0)
+        created_at=datetime(2024, 1, 15, 10, 30, 0),
     )
 
     encoder = FraiseQLJSONEncoder()
@@ -346,6 +347,7 @@ def test_fraiseql_json_encoder_handles_nested_fraiseql_types():
     @dataclass
     class Department:
         """Test department type."""
+
         id: uuid.UUID
         name: str
 
@@ -353,19 +355,15 @@ def test_fraiseql_json_encoder_handles_nested_fraiseql_types():
     @dataclass
     class User:
         """Test user type with nested department."""
+
         id: uuid.UUID
         name: str
         department: Department
 
-    dept = Department(
-        id=uuid.UUID("87654321-4321-4321-4321-876543210def"),
-        name="Engineering"
-    )
+    dept = Department(id=uuid.UUID("87654321-4321-4321-4321-876543210def"), name="Engineering")
 
     user = User(
-        id=uuid.UUID("12345678-1234-1234-1234-123456789abc"),
-        name="John Doe",
-        department=dept
+        id=uuid.UUID("12345678-1234-1234-1234-123456789abc"), name="John Doe", department=dept
     )
 
     encoder = FraiseQLJSONEncoder()

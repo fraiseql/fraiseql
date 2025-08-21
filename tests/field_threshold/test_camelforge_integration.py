@@ -89,7 +89,9 @@ class TestCamelForgeIntegration:
             FieldPath(alias="name", path=["name"]),
         ]
 
-        with pytest.raises(ValueError, match="entity_type is required when camelforge_enabled=True"):
+        with pytest.raises(
+            ValueError, match="entity_type is required when camelforge_enabled=True"
+        ):
             build_sql_query(
                 table="v_dns_server",
                 field_paths=field_paths,

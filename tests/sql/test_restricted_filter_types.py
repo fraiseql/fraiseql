@@ -22,6 +22,7 @@ from fraiseql.types import CIDR, DateTime, IpAddress, LTree, MacAddress
 @dataclass
 class NetworkDevice:
     """Test device with exotic scalar types."""
+
     name: str
     ip_address: IpAddress
     subnet: CIDR
@@ -50,8 +51,11 @@ class TestRestrictedFilterTypes:
     def test_network_address_filter_restrictions(self):
         """Test that NetworkAddressFilter excludes problematic operators."""
         # Get available operators (exclude private/special attributes)
-        operators = [attr for attr in dir(NetworkAddressFilter)
-                    if not attr.startswith("_") and not callable(getattr(NetworkAddressFilter, attr))]
+        operators = [
+            attr
+            for attr in dir(NetworkAddressFilter)
+            if not attr.startswith("_") and not callable(getattr(NetworkAddressFilter, attr))
+        ]
 
         # Should include basic operators
         assert "eq" in operators
@@ -67,8 +71,11 @@ class TestRestrictedFilterTypes:
 
     def test_mac_address_filter_restrictions(self):
         """Test that MacAddressFilter excludes problematic operators."""
-        operators = [attr for attr in dir(MacAddressFilter)
-                    if not attr.startswith("_") and not callable(getattr(MacAddressFilter, attr))]
+        operators = [
+            attr
+            for attr in dir(MacAddressFilter)
+            if not attr.startswith("_") and not callable(getattr(MacAddressFilter, attr))
+        ]
 
         # Should include basic operators
         assert "eq" in operators
@@ -84,8 +91,11 @@ class TestRestrictedFilterTypes:
 
     def test_ltree_filter_restrictions(self):
         """Test that LTreeFilter has very conservative operator set."""
-        operators = [attr for attr in dir(LTreeFilter)
-                    if not attr.startswith("_") and not callable(getattr(LTreeFilter, attr))]
+        operators = [
+            attr
+            for attr in dir(LTreeFilter)
+            if not attr.startswith("_") and not callable(getattr(LTreeFilter, attr))
+        ]
 
         # Should only include most basic operators
         assert "eq" in operators
@@ -121,6 +131,7 @@ class TestRestrictedFilterTypes:
 
     def test_standard_types_unchanged(self):
         """Test that standard Python types are not affected by restrictions."""
+
         @dataclass
         class StandardTypes:
             name: str
@@ -161,6 +172,7 @@ class TestRestrictedFilterTypes:
 
     def test_backwards_compatibility(self):
         """Ensure existing code continues to work."""
+
         # Test that old usage patterns still work
         @dataclass
         class LegacyDevice:
@@ -179,8 +191,11 @@ class TestRestrictedFilterTypes:
         assert name_filter_type == StringFilter
 
         # StringFilter should still have contains, startswith, etc.
-        string_ops = [attr for attr in dir(StringFilter)
-                     if not attr.startswith("_") and not callable(getattr(StringFilter, attr))]
+        string_ops = [
+            attr
+            for attr in dir(StringFilter)
+            if not attr.startswith("_") and not callable(getattr(StringFilter, attr))
+        ]
         assert "contains" in string_ops
         assert "startswith" in string_ops
         assert "endswith" in string_ops

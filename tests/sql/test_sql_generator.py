@@ -17,7 +17,7 @@ def test_basic_select_flat_fields() -> None:
 
     assert "SELECT" in sql_str
     assert 'FROM "my_table"' in sql_str
-    # Updated to expect -> operator instead of ->> for type preservation  
+    # Updated to expect -> operator instead of ->> for type preservation
     assert "data->'profile'->'age' AS \"age\"" in sql_str
     assert "data->'profile'->'username' AS \"nickname\"" in sql_str
     assert "WHERE" not in sql_str

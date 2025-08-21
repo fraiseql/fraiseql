@@ -21,6 +21,7 @@ from fraiseql.types import CIDR, IpAddress
 @dataclass
 class NetworkDevice:
     """Test network device with IP address fields."""
+
     id: str
     name: str
     ip_address: IpAddress
@@ -43,7 +44,8 @@ class TestNetworkAddressFilter:
     def test_basic_operators_available(self):
         """Test that basic operators are still available."""
         operators = [
-            attr for attr in dir(NetworkAddressFilter)
+            attr
+            for attr in dir(NetworkAddressFilter)
             if not attr.startswith("_") and not callable(getattr(NetworkAddressFilter, attr))
         ]
 
@@ -55,7 +57,8 @@ class TestNetworkAddressFilter:
     def test_network_operators_available(self):
         """Test that network-specific operators are available."""
         operators = [
-            attr for attr in dir(NetworkAddressFilter)
+            attr
+            for attr in dir(NetworkAddressFilter)
             if not attr.startswith("_") and not callable(getattr(NetworkAddressFilter, attr))
         ]
 
@@ -67,7 +70,8 @@ class TestNetworkAddressFilter:
     def test_problematic_operators_excluded(self):
         """Test that problematic string operators are not present."""
         operators = [
-            attr for attr in dir(NetworkAddressFilter)
+            attr
+            for attr in dir(NetworkAddressFilter)
             if not attr.startswith("_") and not callable(getattr(NetworkAddressFilter, attr))
         ]
 
@@ -93,7 +97,7 @@ class TestIPAddressValidation:
             "8.8.8.8",
             "127.0.0.1",
             "0.0.0.0",
-            "255.255.255.255"
+            "255.255.255.255",
         ]
 
         for ip in valid_ipv4:
@@ -110,7 +114,7 @@ class TestIPAddressValidation:
             "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
             "2001:db8:85a3::8a2e:370:7334",
             "::ffff:192.0.2.1",  # IPv4-mapped IPv6
-            "fe80::1%lo0"  # Link-local with zone
+            "fe80::1%lo0",  # Link-local with zone
         ]
 
         for ip in valid_ipv6:
@@ -129,7 +133,7 @@ class TestIPAddressValidation:
             "",
             "192.168.1.-1",  # Negative octet
             "gggg::1",  # Invalid IPv6 hex
-            "2001:db8::1::2"  # Multiple :: in IPv6
+            "2001:db8::1::2",  # Multiple :: in IPv6
         ]
 
         for ip in invalid_ips:
@@ -140,26 +144,26 @@ class TestIPAddressValidation:
         from fraiseql.sql.network_utils import is_private_ip
 
         private_ips = [
-            "192.168.1.1",     # Class C private
-            "192.168.0.1",     # Class C private
-            "10.0.0.1",        # Class A private
+            "192.168.1.1",  # Class C private
+            "192.168.0.1",  # Class C private
+            "10.0.0.1",  # Class A private
             "10.255.255.254",  # Class A private
-            "172.16.0.1",      # Class B private
+            "172.16.0.1",  # Class B private
             "172.31.255.254",  # Class B private
-            "127.0.0.1",       # Loopback
-            "169.254.1.1",     # Link-local
+            "127.0.0.1",  # Loopback
+            "169.254.1.1",  # Link-local
         ]
 
         for ip in private_ips:
             assert is_private_ip(ip), f"Private IP {ip} not detected as private"
 
         public_ips = [
-            "8.8.8.8",         # Google DNS
-            "1.1.1.1",         # Cloudflare DNS
+            "8.8.8.8",  # Google DNS
+            "1.1.1.1",  # Cloudflare DNS
             "208.67.222.222",  # OpenDNS
-            "172.15.0.1",      # Just outside Class B private
-            "172.32.0.1",      # Just outside Class B private
-            "11.0.0.1",        # Just outside Class A private
+            "172.15.0.1",  # Just outside Class B private
+            "172.32.0.1",  # Just outside Class B private
+            "11.0.0.1",  # Just outside Class A private
         ]
 
         for ip in public_ips:
@@ -248,7 +252,7 @@ class TestNetworkFilterSQL:
         sql, params = generate_ipv4_sql("data->>'ip_address'", True)
 
         # Should check for IPv4 format (family = 4 or pattern matching)
-        assert ("family(" in sql.lower() or "inet" in sql.lower())
+        assert "family(" in sql.lower() or "inet" in sql.lower()
 
 
 class TestNetworkFilterIntegration:
@@ -334,9 +338,9 @@ class TestIPRangeInput:
 
         invalid_ranges = [
             ("192.168.1.100", "192.168.1.1"),  # Start > end
-            ("not.an.ip", "192.168.1.100"),    # Invalid start
-            ("192.168.1.1", "not.an.ip"),      # Invalid end
-            ("", "192.168.1.100"),             # Empty start
+            ("not.an.ip", "192.168.1.100"),  # Invalid start
+            ("192.168.1.1", "not.an.ip"),  # Invalid end
+            ("", "192.168.1.100"),  # Empty start
         ]
 
         for start, end in invalid_ranges:
@@ -402,8 +406,12 @@ class TestNetworkOperatorIntegration:
 
         # Should check RFC 1918 ranges
         sql_str = str(result)
-        assert ("10.0.0.0/8" in sql_str or "192.168.0.0/16" in sql_str or
-                "172.16.0.0/12" in sql_str or "private" in sql_str.lower())
+        assert (
+            "10.0.0.0/8" in sql_str
+            or "192.168.0.0/16" in sql_str
+            or "172.16.0.0/12" in sql_str
+            or "private" in sql_str.lower()
+        )
 
 
 # Additional test data for comprehensive testing

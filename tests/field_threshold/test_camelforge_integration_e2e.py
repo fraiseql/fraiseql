@@ -17,6 +17,7 @@ class TestCamelForgeIntegrationE2E:
     def mock_pool(self):
         """Mock database pool."""
         from unittest.mock import MagicMock
+
         return MagicMock()
 
     @pytest.fixture

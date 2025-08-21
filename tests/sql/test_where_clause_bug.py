@@ -36,8 +36,7 @@ class TestWhereClauseFix:
 
         # This should filter results but currently returns all 3
         results = await repo.select_from_json_view(
-            "v_test_entities",
-            where={"name": {"contains": "router"}}
+            "v_test_entities", where={"name": {"contains": "router"}}
         )
 
         # FIXED: This now works correctly with WHERE clause generation
@@ -66,8 +65,7 @@ class TestWhereClauseFix:
 
         # Test private IP filter - should return only private IPs
         results = await repo.select_from_json_view(
-            "v_test_network_devices",
-            where={"ipAddress": {"isPrivate": True}}
+            "v_test_network_devices", where={"ipAddress": {"isPrivate": True}}
         )
 
         # FIXED: This now works correctly with network address filtering
@@ -95,11 +93,7 @@ class TestWhereClauseFix:
 
         # Test multiple conditions - should return electronics items >= 150
         results = await repo.select_from_json_view(
-            "v_test_items",
-            where={
-                "category": {"eq": "electronics"},
-                "price": {"gte": 150}
-            }
+            "v_test_items", where={"category": {"eq": "electronics"}, "price": {"gte": 150}}
         )
 
         # FIXED: This now works correctly with multiple operator filtering
@@ -128,7 +122,7 @@ class TestWhereClauseFix:
         # Test simple string equality (current implementation)
         results = await repo.select_from_json_view(
             "v_test_simple",
-            where={"status": "active"}  # Simple key-value, not operator dict
+            where={"status": "active"},  # Simple key-value, not operator dict
         )
 
         # This should work with current implementation
@@ -144,23 +138,20 @@ class TestWhereClauseFix:
             {
                 "where": {"name": {"contains": "router"}},
                 "expected_sql": "data->>'name' ILIKE %s",
-                "expected_params": ["%router%"]
+                "expected_params": ["%router%"],
             },
             # Test case: network address isPrivate
             {
                 "where": {"ipAddress": {"isPrivate": True}},
                 "expected_sql": "inet(data->>'ipAddress') << '10.0.0.0/8'::inet OR inet(data->>'ipAddress') << '172.16.0.0/12'::inet OR inet(data->>'ipAddress') << '192.168.0.0/16'::inet",
-                "expected_params": []
+                "expected_params": [],
             },
             # Test case: multiple conditions
             {
-                "where": {
-                    "category": {"eq": "electronics"},
-                    "price": {"gte": 150}
-                },
+                "where": {"category": {"eq": "electronics"}, "price": {"gte": 150}},
                 "expected_sql": "data->>'category' = %s AND (data->>'price')::numeric >= %s",
-                "expected_params": ["electronics", 150]
-            }
+                "expected_params": ["electronics", 150],
+            },
         ]
 
         # This test will be implemented once we have the fix

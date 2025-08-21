@@ -125,7 +125,7 @@ def build_sql_query(
         # CRITICAL FIX: Selective type preservation for frontend compatibility
         # Use -> operator for JSON-native types (int, float, bool, null, arrays, objects)
         # Use ->> operator for PostgreSQL-specific types that need string conversion
-        # 
+        #
         # Frontend-compatible types: number, boolean, null, string, array, object
         # PostgreSQL types needing conversion: uuid, inet, cidr, ltree, daterange, etc.
         #
