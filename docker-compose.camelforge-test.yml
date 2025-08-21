@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Test PostgreSQL with CamelForge function
+  postgres-test:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: fraiseql_test
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: fraiseql
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./docker/init-camelforge.sql:/docker-entrypoint-initdb.d/init-camelforge.sql
+
+  # CamelForge testing environment
+  camelforge-test:
+    build:
+      context: .
+      dockerfile: docker/test-camelforge.dockerfile
+    depends_on:
+      - postgres-test
+    environment:
+      - DATABASE_URL=postgresql://fraiseql:fraiseql@postgres-test:5432/fraiseql_test
+      - FRAISEQL_CAMELFORGE_BETA=true
+      - FRAISEQL_CAMELFORGE_DEBUG=true
+    volumes:
+      - .:/app
+    command: bash
+
+  # Performance comparison environment
+  perf-test:
+    build:
+      context: .
+      dockerfile: docker/test-camelforge.dockerfile
+    depends_on:
+      - postgres-test
+    environment:
+      - DATABASE_URL=postgresql://fraiseql:fraiseql@postgres-test:5432/fraiseql_test
+      - FRAISEQL_CAMELFORGE_COMPARE=true
+      - FRAISEQL_CAMELFORGE_PERF=true
+    volumes:
+      - .:/app
+    command: test-perf

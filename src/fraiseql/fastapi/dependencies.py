@@ -76,6 +76,19 @@ async def get_db() -> FraiseQLRepository:
         if hasattr(config, "jsonb_field_limit_threshold"):
             context["jsonb_field_limit_threshold"] = config.jsonb_field_limit_threshold
 
+        # CamelForge configuration (with environment variable overrides)
+        if hasattr(config, "camelforge_enabled"):
+            from fraiseql.fastapi.camelforge_config import CamelForgeConfig
+
+            camelforge_config = CamelForgeConfig.create(
+                enabled=config.camelforge_enabled,
+                function=config.camelforge_function,
+                field_threshold=config.camelforge_field_threshold,
+            )
+            context["camelforge_enabled"] = camelforge_config.enabled
+            context["camelforge_function"] = camelforge_config.function
+            context["camelforge_field_threshold"] = camelforge_config.field_threshold
+
     return FraiseQLRepository(pool=pool, context=context)
 
 

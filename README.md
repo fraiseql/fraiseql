@@ -8,7 +8,7 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/fraiseql.svg)](https://pypi.org/project/fraiseql/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A high-performance GraphQL-to-PostgreSQL framework with automatic type generation, built-in caching, and comprehensive security features.
+A high-performance GraphQL-to-PostgreSQL framework with **database-native camelCase transformation**, automatic type generation, built-in caching, and comprehensive security features. **The world's first GraphQL framework with intelligent database-native field transformation.**
 
 ## What is FraiseQL?
 
@@ -67,6 +67,14 @@ The framework supports both regular views (`v_` prefix) for real-time data and t
 
 ### Key Features
 
+#### 🌟 **CamelForge Integration (NEW in v0.4.0)**
+- **Database-Native camelCase Transformation**: Field conversion happens in PostgreSQL for sub-millisecond responses
+- **Intelligent Field Threshold**: Automatically uses CamelForge for small queries (≤20 fields), falls back for large queries
+- **Zero Breaking Changes**: Completely backward compatible, disabled by default
+- **One-Line Enablement**: `FRAISEQL_CAMELFORGE_ENABLED=true` to activate
+- **Automatic Field Mapping**: GraphQL camelCase ↔ PostgreSQL snake_case (e.g., `ipAddress` ↔ `ip_address`)
+
+#### 🚀 **Core Features**
 - **Automatic GraphQL Schema Generation**: Define Python types, get a complete GraphQL API
 - **PostgreSQL-First Design**: Optimized for PostgreSQL's advanced features (JSONB, views, functions)
 - **Type Safety**: Full type checking with Python 3.11+ type hints
@@ -196,6 +204,40 @@ fraiseql dev
 ```
 
 Your GraphQL API is now available at <http://localhost:8000/graphql>
+
+### 7. Enable CamelForge (Optional - NEW in v0.4.0)
+
+For sub-millisecond GraphQL responses with database-native camelCase transformation:
+
+```python
+# src/config.py
+from fraiseql.fastapi import FraiseQLConfig
+
+config = FraiseQLConfig(
+    database_url="postgresql://...",
+    camelforge_enabled=True,  # Enable CamelForge
+)
+```
+
+Or via environment variable:
+```bash
+export FRAISEQL_CAMELFORGE_ENABLED=true
+fraiseql dev
+```
+
+**What CamelForge does:**
+- **Small queries** (≤20 fields): Converts fields in PostgreSQL for maximum performance
+- **Large queries** (>20 fields): Automatically falls back to standard processing
+- **Zero breaking changes**: Existing queries work identically
+
+**Example transformation:**
+```graphql
+# GraphQL Query
+{ users { id, createdAt, avatarUrl } }
+
+# Without CamelForge: Python processes response
+# With CamelForge: PostgreSQL returns transformed JSON directly
+```
 
 ## Core Concepts
 

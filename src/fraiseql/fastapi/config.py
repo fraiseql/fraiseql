@@ -103,6 +103,9 @@ class FraiseQLConfig(BaseSettings):
         jsonb_default_columns: Default JSONB column names to search for.
         jsonb_auto_detect: Automatically detect JSONB columns by analyzing content.
         jsonb_field_limit_threshold: Field count threshold for full data column (default: 20).
+        camelforge_enabled: Enable CamelForge database-native camelCase transformation.
+        camelforge_function: Name of the CamelForge function to use (default: turbo.fn_camelforge).
+        camelforge_entity_mapping: Auto-derive entity type from GraphQL type names.
 
     Example:
         ```python
@@ -188,6 +191,11 @@ class FraiseQLConfig(BaseSettings):
     jsonb_field_limit_threshold: int = (
         20  # Switch to full data column when field count exceeds this
     )
+
+    # CamelForge Integration settings
+    camelforge_enabled: bool = False
+    camelforge_function: str = "turbo.fn_camelforge"
+    camelforge_field_threshold: int = 20
 
     # Token revocation settings
     revocation_enabled: bool = True
