@@ -22,6 +22,7 @@ from fraiseql.core.raw_json_executor import (
 )
 from fraiseql.partial_instantiation import create_partial_instance
 from fraiseql.repositories.passthrough_mixin import PassthroughMixin
+from fraiseql.repositories.intelligent_passthrough import IntelligentPassthroughMixin
 from fraiseql.utils.casing import to_snake_case
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ def register_type_for_view(view_name: str, type_class: type) -> None:
     _type_registry[view_name] = type_class
 
 
-class FraiseQLRepository(PassthroughMixin):
+class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
     """Asynchronous repository for executing SQL queries via a pooled psycopg connection."""
 
     def __init__(self, pool: AsyncConnectionPool, context: Optional[dict[str, Any]] = None) -> None:

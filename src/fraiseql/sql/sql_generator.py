@@ -122,7 +122,16 @@ def build_sql_query(
         for key in json_path_parts:
             expr = sql.SQL("{}->{}").format(expr, key)
 
-        expr = sql.SQL("{}->>{}").format(expr, sql.Literal(last_part))
+        # CRITICAL FIX: Selective type preservation for frontend compatibility
+        # Use -> operator for JSON-native types (int, float, bool, null, arrays, objects)
+        # Use ->> operator for PostgreSQL-specific types that need string conversion
+        # 
+        # Frontend-compatible types: number, boolean, null, string, array, object
+        # PostgreSQL types needing conversion: uuid, inet, cidr, ltree, daterange, etc.
+        #
+        # Strategy: Use -> by default to preserve JSON types, let the serializer handle
+        # PostgreSQL-specific type conversion in the FraiseQLJSONEncoder
+        expr = sql.SQL("{}->{}").format(expr, sql.Literal(last_part))
         object_pairs.append(sql.Literal(field.alias))
         object_pairs.append(expr)
 
