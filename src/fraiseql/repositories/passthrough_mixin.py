@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from fraiseql.core.raw_json_executor import RawJSONResult
+from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +25,10 @@ class PassthroughMixin:
             return False
 
         context = self.context
+        # Only enable passthrough if explicitly set in context
+        # Do NOT enable just because mode is production/staging
         result = (
-            context.get("mode") in ("production", "staging")
-            or context.get("json_passthrough", False)
+            context.get("json_passthrough", False)
             or context.get("execution_mode") == "passthrough"
             or context.get("_passthrough_enabled", False)
         )
@@ -47,7 +49,15 @@ class PassthroughMixin:
         return "data"
 
     def _wrap_as_raw_json(self, result: Any) -> Any:
-        """Wrap result as RawJSONResult if in passthrough mode."""
+        """Wrap result as RawJSONResult if in passthrough mode.
+
+        WARNING: This method should generally NOT be used in production.
+        True passthrough should use find_raw_json() / find_one_raw_json()
+        which return raw JSON strings from PostgreSQL without any Python processing.
+
+        This method exists only as a fallback for cases where raw JSON methods
+        aren't available.
+        """
         if not self._should_use_passthrough():
             return result
 
@@ -55,14 +65,24 @@ class PassthroughMixin:
         if isinstance(result, RawJSONResult):
             return result
 
+        # CRITICAL: Log when this fallback path is used
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "PassthroughMixin fallback used - this should be avoided in production. "
+            "Use find_raw_json() / find_one_raw_json() for true passthrough."
+        )
+
         # Get field name
         field_name = self._get_field_name()
 
-        # For None, lists, and dicts, wrap as raw JSON
+        # For None, lists, and dicts, wrap as raw JSON using FraiseQLJSONEncoder
+        # This ensures PostgreSQL types are converted while preserving JSON-native types
         if result is None or isinstance(result, (list, dict)):
             # Create the GraphQL response structure
             graphql_response = {"data": {field_name: result}}
-            return RawJSONResult(json.dumps(graphql_response))
+            return RawJSONResult(json.dumps(graphql_response, cls=FraiseQLJSONEncoder))
 
         # For other types, return as-is
         return result

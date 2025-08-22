@@ -112,15 +112,15 @@ def test_sql_generation_excludes_unset_fields():
 
 if __name__ == "__main__":
     test_coerce_input_omitted_fields_use_default()
-    print("✓ test_coerce_input_omitted_fields_use_default passed")
+    # test_coerce_input_omitted_fields_use_default passed
 
     test_coerce_input_explicit_null_overrides_default()
-    print("✓ test_coerce_input_explicit_null_overrides_default passed")
+    # test_coerce_input_explicit_null_overrides_default passed
 
     test_coerce_input_arguments_preserves_omitted_fields()
-    print("✓ test_coerce_input_arguments_preserves_omitted_fields passed")
+    # test_coerce_input_arguments_preserves_omitted_fields passed
 
     test_sql_generation_excludes_unset_fields()
-    print("✓ test_sql_generation_excludes_unset_fields passed")
+    # test_sql_generation_excludes_unset_fields passed
 
-    print("\nAll tests passed!")
+    # All tests passed!

@@ -1,7 +1,8 @@
 """Common authentication fixtures for tests."""
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 
 @pytest.fixture
@@ -10,7 +11,7 @@ def mock_auth_context():
     return {
         "user": {"id": "123", "email": "test@example.com", "role": "admin"},
         "token": "test_token",
-        "permissions": ["read", "write", "delete"]
+        "permissions": ["read", "write", "delete"],
     }
 
 
@@ -47,7 +48,7 @@ def auth_context(authenticated_request):
     return {
         "request": authenticated_request,
         "user": authenticated_request.user,
-        "auth_token": "Bearer test_token_123"
+        "auth_token": "Bearer test_token_123",
     }
 
 
@@ -57,7 +58,7 @@ def admin_context():
     return {
         "user": {"id": "admin_123", "email": "admin@example.com", "role": "admin"},
         "is_admin": True,
-        "permissions": ["read", "write", "delete", "admin"]
+        "permissions": ["read", "write", "delete", "admin"],
     }
 
 
@@ -67,7 +68,7 @@ def user_context():
     return {
         "user": {"id": "user_456", "email": "user@example.com", "role": "user"},
         "is_admin": False,
-        "permissions": ["read"]
+        "permissions": ["read"],
     }
 
 

@@ -446,11 +446,12 @@ class TestUnifiedRouter:
         )
 
         with TestClient(app) as client:
-            # Without auth header
+            # Without auth header - should now return 401 when auth provider is configured
             response = client.post("/graphql", json={"query": "{ hello }"})
-            assert response.status_code == 200
+            assert response.status_code == 401
+            assert "Authentication required" in response.json()["detail"]
 
-            # With valid auth token
+            # With valid auth token - should succeed
             response = client.post(
                 """/graphql""",
                 json={"query": "{ hello }"},

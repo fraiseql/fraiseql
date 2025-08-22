@@ -4,7 +4,6 @@ from graphql import graphql_sync
 
 import fraiseql
 from fraiseql import query
-from fraiseql.decorators import field
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.security.field_auth import FieldAuthorizationError
 
@@ -22,12 +21,11 @@ def test_field_authorization_in_graphql():
         # Check authorization at query level
         if info.context.get("is_admin", False):
             return SimpleUser(name="John Doe", email="john@example.com")
-        else:
-            # Return user without email for non-admins
-            user = SimpleUser(name="John Doe", email="")
-            # Set email to None in the response
-            user.email = None
-            return user
+        # Return user without email for non-admins
+        user = SimpleUser(name="John Doe", email="")
+        # Set email to None in the response
+        user.email = None
+        return user
 
     schema = build_fraiseql_schema(query_types=[current_user])
 

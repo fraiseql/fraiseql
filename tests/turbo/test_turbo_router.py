@@ -168,7 +168,11 @@ class TestTurboRouter:
         # The turbo router wraps the result in a GraphQL response format
         assert "data" in result
         assert "user" in result["data"]
-        assert result["data"]["user"] == {"id": "123", "name": "Test User", "email": "test@example.com"}
+        assert result["data"]["user"] == {
+            "id": "123",
+            "name": "Test User",
+            "email": "test@example.com",
+        }
 
     @pytest.mark.asyncio
     async def test_turbo_router_execution_unregistered_query(self, turbo_registry) -> None:
@@ -385,3 +389,165 @@ class TestTurboRouter:
 
         # These will be different without AST normalization
         assert hash1 != hash2
+
+    @pytest.mark.asyncio
+    async def test_turbo_router_fragment_field_extraction(self, turbo_registry):
+        """Test that TurboRouter correctly extracts root field from fragment queries."""
+        fragment_query = """
+        fragment UserFields on User {
+            id
+            name
+            email
+        }
+
+        query GetUsers($filter: String) {
+            users(filter: $filter) {
+                ...UserFields
+            }
+        }
+        """
+
+        sql_template = """
+        SELECT jsonb_build_array(
+            jsonb_build_object('id', '1', 'name', 'Alice', 'email', 'alice@example.com'),
+            jsonb_build_object('id', '2', 'name', 'Bob', 'email', 'bob@example.com')
+        ) as result
+        """
+
+        # Register the fragment query
+        turbo_query = TurboQuery(
+            graphql_query=fragment_query,
+            sql_template=sql_template,
+            param_mapping={"filter": "filter"},
+            operation_name="GetUsers",
+        )
+        turbo_registry.register(turbo_query)
+
+        # Mock database
+        mock_db_result = [
+            {"result": [
+                {"id": "1", "name": "Alice", "email": "alice@example.com"},
+                {"id": "2", "name": "Bob", "email": "bob@example.com"}
+            ]}
+        ]
+
+        mock_db = AsyncMock()
+        async def mock_transaction(func):
+            mock_conn = AsyncMock()
+            mock_cursor = AsyncMock()
+            mock_cursor.execute = AsyncMock()
+            mock_cursor.fetchall = AsyncMock(return_value=mock_db_result)
+
+            cursor_cm = AsyncMock()
+            cursor_cm.__aenter__ = AsyncMock(return_value=mock_cursor)
+            cursor_cm.__aexit__ = AsyncMock(return_value=None)
+            mock_conn.cursor = MagicMock(return_value=cursor_cm)
+
+            return await func(mock_conn)
+
+        mock_db.run_in_transaction = AsyncMock(side_effect=mock_transaction)
+
+        context = {"db": mock_db}
+        variables = {"filter": "active"}
+
+        # Execute with TurboRouter
+        turbo_router = TurboRouter(turbo_registry)
+        result = await turbo_router.execute(
+            query=fragment_query, variables=variables, context=context
+        )
+
+        # Should extract "users" as root field, not "id" from fragment
+        assert result is not None
+        assert "data" in result
+        assert "users" in result["data"], f"Expected 'users' in result, got: {result}"
+        assert isinstance(result["data"]["users"], list)
+        assert len(result["data"]["users"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_turbo_router_prevents_double_wrapping(self, turbo_registry):
+        """Test that TurboRouter doesn't double-wrap pre-formatted GraphQL responses."""
+        fragment_query = """
+        fragment ProductFields on Product {
+            id
+            name
+            price
+        }
+
+        query GetProducts {
+            products {
+                ...ProductFields
+            }
+        }
+        """
+
+        # SQL that returns a pre-wrapped GraphQL response (like PrintOptim Backend does)
+        sql_template = """
+        SELECT jsonb_build_object(
+            'data', jsonb_build_object(
+                'products', jsonb_build_array(
+                    jsonb_build_object('id', '1', 'name', 'Product A', 'price', 100),
+                    jsonb_build_object('id', '2', 'name', 'Product B', 'price', 200)
+                )
+            )
+        ) as result
+        """
+
+        # Register the fragment query
+        turbo_query = TurboQuery(
+            graphql_query=fragment_query,
+            sql_template=sql_template,
+            param_mapping={},
+            operation_name="GetProducts",
+        )
+        turbo_registry.register(turbo_query)
+
+        # Mock database that returns pre-wrapped GraphQL response
+        mock_db_result = [
+            {"result": {
+                "data": {
+                    "products": [
+                        {"id": "1", "name": "Product A", "price": 100},
+                        {"id": "2", "name": "Product B", "price": 200}
+                    ]
+                }
+            }}
+        ]
+
+        mock_db = AsyncMock()
+        async def mock_transaction(func):
+            mock_conn = AsyncMock()
+            mock_cursor = AsyncMock()
+            mock_cursor.execute = AsyncMock()
+            mock_cursor.fetchall = AsyncMock(return_value=mock_db_result)
+
+            cursor_cm = AsyncMock()
+            cursor_cm.__aenter__ = AsyncMock(return_value=mock_cursor)
+            cursor_cm.__aexit__ = AsyncMock(return_value=None)
+            mock_conn.cursor = MagicMock(return_value=cursor_cm)
+
+            return await func(mock_conn)
+
+        mock_db.run_in_transaction = AsyncMock(side_effect=mock_transaction)
+
+        context = {"db": mock_db}
+        variables = {}
+
+        # Execute with TurboRouter
+        turbo_router = TurboRouter(turbo_registry)
+        result = await turbo_router.execute(
+            query=fragment_query, variables=variables, context=context
+        )
+
+        # Should NOT double-wrap: {"data": {"products": {"data": {"products": [...]}}}}
+        # Should return: {"data": {"products": [...]}}
+        assert result is not None
+        assert "data" in result
+        assert "products" in result["data"]
+
+        # Check that it's NOT double-wrapped
+        products = result["data"]["products"]
+        assert isinstance(products, list), f"Expected list, got: {type(products)}"
+        assert len(products) == 2
+
+        # Ensure we don't have nested data structure
+        assert "data" not in products[0], "Found double-wrapping - products contain 'data' field"

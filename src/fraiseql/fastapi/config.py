@@ -1,9 +1,12 @@
 """Configuration for FraiseQL FastAPI integration."""
 
+import logging
 from typing import Annotated, Any, Literal
 
 from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 def validate_postgres_url(v: Any) -> str:
@@ -100,6 +103,9 @@ class FraiseQLConfig(BaseSettings):
         jsonb_default_columns: Default JSONB column names to search for.
         jsonb_auto_detect: Automatically detect JSONB columns by analyzing content.
         jsonb_field_limit_threshold: Field count threshold for full data column (default: 20).
+        camelforge_enabled: Enable CamelForge database-native camelCase transformation.
+        camelforge_function: Name of the CamelForge function to use (default: turbo.fn_camelforge).
+        camelforge_entity_mapping: Auto-derive entity type from GraphQL type names.
 
     Example:
         ```python
@@ -186,6 +192,11 @@ class FraiseQLConfig(BaseSettings):
         20  # Switch to full data column when field count exceeds this
     )
 
+    # CamelForge Integration settings
+    camelforge_enabled: bool = False
+    camelforge_function: str = "turbo.fn_camelforge"
+    camelforge_field_threshold: int = 20
+
     # Token revocation settings
     revocation_enabled: bool = True
     revocation_check_enabled: bool = True
@@ -211,10 +222,11 @@ class FraiseQLConfig(BaseSettings):
     rate_limit_blacklist: list[str] = []
 
     # CORS settings
-    cors_enabled: bool = True
-    cors_origins: list[str] = ["*"]
+    cors_enabled: bool = False  # Disabled by default to avoid conflicts with reverse proxies
+    cors_origins: list[str] = []  # Empty by default, must be explicitly configured
     cors_methods: list[str] = ["GET", "POST"]
-    cors_headers: list[str] = ["*"]
+    # Sensible defaults instead of wildcard
+    cors_headers: list[str] = ["Content-Type", "Authorization"]
 
     # Execution mode settings
     execution_mode_priority: list[str] = ["turbo", "passthrough", "normal"]
@@ -268,6 +280,22 @@ class FraiseQLConfig(BaseSettings):
         if info.data.get("auth_provider") == "auth0" and not v:
             msg = "auth0_domain is required when using Auth0 provider"
             raise ValueError(msg)
+        return v
+
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_for_production(cls, v: list[str], info) -> list[str]:
+        """Warn about insecure CORS configurations in production."""
+        environment = info.data.get("environment", "development")
+        cors_enabled = info.data.get("cors_enabled", False)
+
+        if environment == "production" and cors_enabled and "*" in v:
+            logger.warning(
+                "⚠️  CORS is enabled with wildcard origin (*) in production environment. "
+                "This is a security risk and may cause conflicts with reverse proxies. "
+                "Consider disabling CORS or setting specific allowed origins."
+            )
+
         return v
 
     model_config = SettingsConfigDict(

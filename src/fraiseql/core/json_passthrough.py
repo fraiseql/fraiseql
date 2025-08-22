@@ -117,6 +117,12 @@ class JSONPassthrough:
                 if isinstance(value, dict):
                     # Determine nested type if available
                     nested_type_hint = self._get_nested_type_hint(name)
+
+                    # Check if this field is declared as a plain dict type
+                    if self._is_plain_dict_type(nested_type_hint):
+                        # Return the dict directly without wrapping
+                        return value
+
                     nested_type_name = self._get_nested_type_name(nested_type_hint, value)
 
                     wrapped = JSONPassthrough(value, nested_type_name, nested_type_hint)
@@ -154,6 +160,21 @@ class JSONPassthrough:
         raise AttributeError(
             f"'{self._type_name}' object has no attribute '{name}'. Available fields: {available}"
         )
+
+    def _is_plain_dict_type(self, type_hint: Optional[Type]) -> bool:
+        """Check if a type hint represents a plain dict type (e.g., dict[str, Any])."""
+        if not type_hint:
+            return False
+
+        origin = get_origin(type_hint)
+        if origin is dict:
+            return True
+
+        # Handle Dict (from typing module)
+        if hasattr(type_hint, "__origin__") and str(type_hint).startswith("typing.Dict"):
+            return True
+
+        return False
 
     def _get_nested_type_hint(self, field_name: str) -> Optional[Type]:
         """Get the type hint for a nested field."""

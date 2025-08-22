@@ -187,13 +187,18 @@ async def countdown(info, from_number: int = 10):
 ### @fraise_type
 
 ```python
-@fraiseql.fraise_type
+@fraiseql.fraise_type(
+    sql_source: str | None = None,
+    jsonb_column: str | None = None,
+    implements: list[type] | None = None,
+    resolve_nested: bool = False
+)
 class TypeName:
     field1: type
     field2: type
 ```
 
-Defines a GraphQL object type with automatic field inference.
+Defines a GraphQL object type with automatic field inference and JSON serialization support.
 
 #### Features
 
@@ -202,6 +207,15 @@ Defines a GraphQL object type with automatic field inference.
 - Optional fields with `| None`
 - Default values
 - Computed fields via `@field`
+- **Automatic JSON serialization** in GraphQL responses (v0.3.9+)
+- `from_dict()` class method for creating instances from dictionaries
+
+#### Parameters
+
+- `sql_source`: Optional table/view name for automatic SQL queries
+- `jsonb_column`: JSONB column name (defaults to "data")
+- `implements`: List of interfaces this type implements
+- `resolve_nested`: Whether nested instances should be resolved separately
 
 #### Example
 
@@ -210,7 +224,7 @@ from fraiseql import fraise_type, field
 from datetime import datetime
 from uuid import UUID
 
-@fraise_type
+@fraise_type(sql_source="v_user")
 class User:
     id: UUID
     username: str
@@ -228,6 +242,35 @@ class User:
         """Count user's posts."""
         db = info.context["db"]
         return await db.count("posts", {"author_id": self.id})
+
+# The decorator automatically provides JSON serialization support:
+user = User(
+    id=UUID("12345678-1234-1234-1234-123456789abc"),
+    username="johndoe",
+    email="john@example.com",
+    created_at=datetime.now()
+)
+
+# Works in GraphQL responses without additional configuration:
+# {
+#   "data": {
+#     "user": {
+#       "id": "12345678-1234-1234-1234-123456789abc",
+#       "username": "johndoe",
+#       "email": "john@example.com",
+#       "createdAt": "2024-01-15T10:30:00"
+#     }
+#   }
+# }
+
+# Also supports creating from dictionaries (e.g., from database):
+user_data = {
+    "id": "12345678-1234-1234-1234-123456789abc",
+    "username": "johndoe",
+    "email": "john@example.com",
+    "createdAt": "2024-01-15T10:30:00"  # camelCase automatically converted
+}
+user = User.from_dict(user_data)
 ```
 
 ### @fraise_input

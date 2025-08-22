@@ -4,6 +4,7 @@ This module provides validation functions to help developers catch errors
 early and ensure their queries are well-formed.
 """
 
+import typing
 from dataclasses import fields, is_dataclass
 from typing import Any, Optional, Type, cast, get_args, get_origin, get_type_hints
 
@@ -140,10 +141,8 @@ def validate_where_input(
                 # Get the field type to check if it's an object field
                 field_type = _get_field_type(type_class, key)
 
-                # Check if this is a nested object field (dataclass or has fields)
-                if field_type and (
-                    is_dataclass(field_type) or hasattr(field_type, "__annotations__")
-                ):
+                # Check if this is a nested object field (not a typing construct)
+                if field_type and _is_nested_object_type(field_type):
                     # This is a nested object - recursively validate against its type
                     sub_errors = validate_where_input(
                         value,
@@ -282,6 +281,38 @@ def _get_type_fields(type_class: Type[Any]) -> set[str]:
         fields_set.update(type_class.__annotations__.keys())
 
     return fields_set
+
+
+def _is_nested_object_type(field_type: Type[Any]) -> bool:
+    """Check if a type represents a nested object (not a typing construct)."""
+    # Don't treat typing constructs as nested objects
+    if hasattr(field_type, "__module__") and field_type.__module__ == "typing":
+        return False
+
+    # Check for typing generic aliases (Optional, Union, List, etc.)
+    if hasattr(typing, "_GenericAlias") and isinstance(field_type, typing._GenericAlias):
+        return False
+
+    # In Python 3.9+, check for types.GenericAlias
+    try:
+        import types
+
+        if hasattr(types, "GenericAlias") and isinstance(field_type, types.GenericAlias):
+            return False
+    except ImportError:
+        pass
+
+    # Check for typing special forms
+    if get_origin(field_type) is not None:
+        return False
+
+    # Only consider it a nested object if it's a dataclass or a regular class with annotations
+    # that is not a typing construct
+    return is_dataclass(field_type) or (
+        hasattr(field_type, "__annotations__")
+        and not hasattr(field_type, "__origin__")  # Not a typing generic
+        and isinstance(field_type, type)  # Must be an actual class
+    )
 
 
 def _get_field_type(type_class: Type[Any], field_name: str) -> Optional[Type]:

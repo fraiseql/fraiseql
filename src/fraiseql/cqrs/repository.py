@@ -6,6 +6,8 @@ from uuid import UUID
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
+from fraiseql.sql.where_generator import _make_filter_field_composed
+
 from .executor import CQRSExecutor
 from .pagination import paginate_query as _paginate_query
 
@@ -167,17 +169,42 @@ class CQRSRepository:
         from psycopg.sql import Composed
 
         query_parts = [SQL("SELECT data FROM {} WHERE 1=1").format(SQL(view_name))]
-        params = []
 
-        # Apply filters (expecting camelCase keys)
+        # Apply filters using proper WHERE clause generation
         if filters:
             for key, value in filters.items():
-                if isinstance(value, list):
-                    query_parts.append(SQL(" AND data->{} ?| %s").format(SQL(f"'{key}'")))
-                    params.append(value)
+                if isinstance(value, dict):
+                    # Map GraphQL field names to operator strategy names
+                    # nin (GraphQL) -> notin (operator strategy)
+                    mapped_value = {}
+                    for op, val in value.items():
+                        if op == "nin":
+                            mapped_value["notin"] = val
+                        else:
+                            mapped_value[op] = val
+
+                    # Use proper WHERE clause generation for operator filters
+                    # e.g., {"name": {"contains": "router"}} -> data->>'name' LIKE '%router%'
+                    where_condition = _make_filter_field_composed(key, mapped_value, "data", None)
+                    if where_condition:
+                        query_parts.append(SQL(" AND "))
+                        query_parts.append(where_condition)
+                elif isinstance(value, list):
+                    # Handle array contains queries - use Literal for safety
+                    from psycopg.sql import Literal
+
+                    query_parts.append(SQL(" AND data->{} ?| ").format(SQL(f"'{key}'")))
+                    query_parts.append(Literal(value))
                 else:
-                    query_parts.append(SQL(" AND data->>{} = %s").format(SQL(f"'{key}'")))
-                    params.append(str(value))
+                    # Handle simple equality (backward compatibility) - use Literal for safety
+                    from psycopg.sql import Literal
+
+                    query_parts.append(SQL(" AND data->>{} = ").format(SQL(f"'{key}'")))
+                    # Convert booleans to lowercase strings to match JSON format
+                    if isinstance(value, bool):
+                        query_parts.append(Literal(str(value).lower()))
+                    else:
+                        query_parts.append(Literal(str(value)))
 
         # Apply ordering
         if order_by:
@@ -197,16 +224,20 @@ class CQRSRepository:
                 order_sql += SQL("ASC")
             query_parts.append(order_sql)
 
-        # Apply pagination
-        query_parts.append(SQL(" LIMIT %s OFFSET %s"))
-        params.extend([limit, offset])
+        # Apply pagination - use Literal for consistency
+        from psycopg.sql import Literal
+
+        query_parts.append(SQL(" LIMIT "))
+        query_parts.append(Literal(limit))
+        query_parts.append(SQL(" OFFSET "))
+        query_parts.append(Literal(offset))
 
         # Compose final query
         query = Composed(query_parts)
 
-        # Execute query
+        # Execute query (no params needed - everything is in Literals)
         async with self.connection.cursor() as cursor:
-            await cursor.execute(query, params)
+            await cursor.execute(query)
             results = await cursor.fetchall()
 
             return [row[0] for row in results]
@@ -569,6 +600,39 @@ class CQRSRepository:
 
     # Utility methods
 
+    def _convert_order_by_to_tuples(self, order_by):
+        """Convert any OrderBy format to list of tuples.
+
+        Args:
+            order_by: OrderBy in any format (GraphQL dicts, tuples, OrderBySet)
+
+        Returns:
+            List of (field, direction) tuples or None
+        """
+        if not order_by:
+            return None
+
+        # Already a list of tuples
+        if isinstance(order_by, list) and order_by and isinstance(order_by[0], tuple):
+            return order_by
+
+        # GraphQL format - convert using FraiseQL
+        if isinstance(order_by, (list, dict)):
+            try:
+                from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+                order_by_set = _convert_order_by_input_to_sql(order_by)
+                if order_by_set:
+                    return [(instr.field, instr.direction) for instr in order_by_set.instructions]
+            except ImportError:
+                pass
+
+        # OrderBySet object
+        if hasattr(order_by, "instructions"):
+            return [(instr.field, instr.direction) for instr in order_by.instructions]
+
+        return None
+
     def _get_view_name(self, entity_class: type) -> str:
         """Get view name for an entity class.
 
@@ -654,13 +718,16 @@ class CQRSRepository:
         """
         view_name = self._get_view_name(entity_class)
 
-        # Convert order_by tuples to string format
+        # Convert order_by to tuples, then to string format
         order_by_str = None
         if order_by:
-            parts = []
-            for field, direction in order_by:
-                parts.append(f"{field} {direction}")
-            order_by_str = ", ".join(parts)
+            # First, ensure we have tuples regardless of input format
+            order_by_tuples = self._convert_order_by_to_tuples(order_by)
+            if order_by_tuples:
+                parts = []
+                for field, direction in order_by_tuples:
+                    parts.append(f"{field} {direction}")
+                order_by_str = ", ".join(parts)
 
         return await self.select_from_json_view(
             view_name,

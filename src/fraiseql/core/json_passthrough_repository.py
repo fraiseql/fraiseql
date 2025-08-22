@@ -4,6 +4,7 @@ import json
 from typing import Any, Dict, Optional
 
 from fraiseql.core.raw_json_executor import RawJSONResult
+from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 
 
 class JsonPassthroughRepositoryMixin:
@@ -46,16 +47,17 @@ class JsonPassthroughRepositoryMixin:
         if not field_name and hasattr(self, "context"):
             field_name = self.context.get("graphql_field_name", "data")
 
-        # For lists and dicts, wrap as raw JSON
+        # For lists and dicts, wrap as raw JSON using FraiseQLJSONEncoder
+        # This ensures PostgreSQL types are properly converted while preserving JSON types
         if isinstance(result, (list, dict)):
             # Create GraphQL response structure
             graphql_response = {"data": {field_name: result}}
-            return RawJSONResult(json.dumps(graphql_response))
+            return RawJSONResult(json.dumps(graphql_response, cls=FraiseQLJSONEncoder))
 
         # For None, also wrap
         if result is None:
             graphql_response = {"data": {field_name: None}}
-            return RawJSONResult(json.dumps(graphql_response))
+            return RawJSONResult(json.dumps(graphql_response, cls=FraiseQLJSONEncoder))
 
         # For other types, return as-is
         return result

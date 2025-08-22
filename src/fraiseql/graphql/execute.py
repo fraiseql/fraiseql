@@ -24,11 +24,33 @@ async def execute_with_passthrough_check(
     context_value: Any = None,
     variable_values: Optional[Dict[str, Any]] = None,
     operation_name: Optional[str] = None,
+    enable_introspection: bool = True,
 ) -> ExecutionResult:
-    """Execute GraphQL with early passthrough detection.
+    """Execute GraphQL with mutation-aware passthrough detection and introspection control.
 
-    This function checks if the query should use passthrough mode
-    and handles RawJSONResult properly.
+    This function automatically disables JSON passthrough for mutations and subscriptions
+    to ensure error auto-population and consistent behavior. Queries continue to use
+    passthrough when enabled for optimal performance.
+
+    Mutation Behavior:
+        - Mutations NEVER use JSON passthrough, regardless of context settings
+        - This ensures error auto-population (ALWAYS_DATA_CONFIG) works correctly
+        - Guarantees consistent error handling across all mutations
+
+    Args:
+        schema: GraphQL schema to execute against
+        source: GraphQL query string
+        root_value: Root value for execution
+        context_value: Context passed to resolvers (may be modified to disable passthrough)
+        variable_values: Query variables
+        operation_name: Operation name for multi-operation documents
+        enable_introspection: Whether to allow introspection queries (default: True)
+
+    Returns:
+        ExecutionResult containing the query result or validation errors
+
+    Note:
+        The context_value may be modified to disable JSON passthrough for mutations.
     """
     logger.info("execute_with_passthrough_check called")
     # Import our custom execution context
@@ -40,6 +62,34 @@ async def execute_with_passthrough_check(
         document = parse(source)
     except Exception as e:
         return ExecutionResult(data=None, errors=[e])
+
+    # Check if this is a mutation - mutations should NEVER use passthrough
+    # to ensure error auto-population and consistent behavior
+    from graphql import OperationType
+
+    operation_type = None
+    for definition in document.definitions:
+        if hasattr(definition, "operation"):
+            operation_type = definition.operation
+            break
+
+    # Disable passthrough for mutations and subscriptions regardless of context settings
+    if (
+        operation_type in (OperationType.MUTATION, OperationType.SUBSCRIPTION)
+        and context_value
+        and context_value.get("json_passthrough")
+    ):
+        logger.info(
+            "Disabling JSON passthrough for mutation - ensuring error auto-population works"
+        )
+        context_value["json_passthrough"] = False
+        if "execution_mode" in context_value:
+            context_value["execution_mode"] = "standard"
+        # Also disable it in db context if present
+        if "db" in context_value and hasattr(context_value["db"], "context"):
+            context_value["db"].context["json_passthrough"] = False
+            if hasattr(context_value["db"], "mode"):
+                context_value["db"].mode = "standard"
 
     # Check for passthrough mode hint
     use_passthrough = False
@@ -58,6 +108,21 @@ async def execute_with_passthrough_check(
     # Use custom execution with our PassthroughExecutionContext
     # This allows us to intercept before type validation
     from graphql.execution import execute
+    from graphql.validation import validate
+
+    # Add introspection validation rule if disabled
+    if not enable_introspection:
+        from graphql import NoSchemaIntrospectionCustomRule
+
+        logger.info("Introspection disabled - validating query for introspection fields")
+
+        # Validate the document with the introspection rule
+        validation_errors = validate(schema, document, [NoSchemaIntrospectionCustomRule])
+        if validation_errors:
+            logger.warning(
+                "Introspection query blocked: %s", [err.message for err in validation_errors]
+            )
+            return ExecutionResult(data=None, errors=validation_errors)
 
     result = execute(
         schema,
@@ -158,11 +223,14 @@ class PassthroughResolver:
 
     async def __call__(self, source, info, **kwargs):
         """Execute resolver and handle raw JSON results."""
-        # Check if passthrough is enabled
+        # Check if passthrough is enabled - respect configuration
         use_passthrough = (
             info.context.get("json_passthrough", False)
             or info.context.get("execution_mode") == "passthrough"
-            or info.context.get("mode") == "production"
+            or (
+                info.context.get("mode") in ("production", "staging")
+                and info.context.get("json_passthrough_in_production", False)
+            )
         )
 
         # Execute the original resolver

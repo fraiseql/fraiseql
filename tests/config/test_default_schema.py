@@ -1,8 +1,9 @@
 """Tests for default schema configuration in FraiseQLConfig."""
 
 import pytest
+
+from fraiseql import mutation
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql import mutation, query
 from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.mutations.mutation_decorator import MutationDefinition
 
@@ -38,7 +39,7 @@ class TestDefaultSchemaConfig:
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             default_mutation_schema="app",
-            default_query_schema="queries"
+            default_query_schema="queries",
         )
 
         assert config.default_mutation_schema == "app"
@@ -52,8 +53,7 @@ class TestMutationDefaultSchema:
         """Test that mutations use default_mutation_schema when schema is not provided."""
         # Set up config with default schema
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            default_mutation_schema="app"
+            database_url="postgresql://test@localhost/test", default_mutation_schema="app"
         )
         registry = SchemaRegistry.get_instance()
         registry.config = config
@@ -74,8 +74,7 @@ class TestMutationDefaultSchema:
         """Test that explicit schema parameter overrides default."""
         # Set up config with default schema
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            default_mutation_schema="app"
+            database_url="postgresql://test@localhost/test", default_mutation_schema="app"
         )
         registry = SchemaRegistry.get_instance()
         registry.config = config
@@ -115,6 +114,7 @@ class TestBackwardCompatibility:
 
     def test_existing_mutations_still_work(self, reset_registry):
         """Test that existing mutations with explicit schema still work."""
+
         # This should work exactly as before
         @mutation(function="create_user", schema="app")
         class CreateUser:

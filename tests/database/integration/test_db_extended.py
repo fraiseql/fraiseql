@@ -6,10 +6,10 @@ from unittest.mock import patch
 import pytest
 from psycopg.sql import SQL, Composed
 
-from fraiseql.db import DatabaseQuery, FraiseQLRepository, _type_registry, register_type_for_view
-
 # Import database fixtures for this database test
 from tests.database_conftest import *  # noqa: F403
+
+from fraiseql.db import DatabaseQuery, FraiseQLRepository, _type_registry, register_type_for_view
 
 
 @pytest.mark.database

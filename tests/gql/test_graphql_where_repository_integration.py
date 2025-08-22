@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-import pytest_asyncio
 
 from fraiseql import fraise_type
 from fraiseql.db import FraiseQLRepository, register_type_for_view

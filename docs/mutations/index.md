@@ -14,6 +14,13 @@ For production applications requiring audit trails, field-level change tracking,
 - Rich debugging metadata
 - Consistent error handling across all mutations
 
+**[Validation Patterns](./validation-patterns.md)** - Multi-layer validation strategies that ensure data integrity, business rule compliance, and user-friendly error handling. Essential for robust enterprise applications with:
+
+- Four-layer validation architecture (GraphQL, App, Core, Database)
+- Performance-optimized validation patterns
+- Cross-entity relationship validation
+- Comprehensive error handling and testing strategies
+
 ## Philosophy
 
 In FraiseQL's CQRS architecture:

@@ -93,9 +93,7 @@ class TestGraphQLFieldLimitE2E:
         # Set the pool in the global state
         set_db_pool(db_pool)
 
-        app = create_fraiseql_app(
-            types=[Product], queries=[products, product], config=config
-        )
+        app = create_fraiseql_app(types=[Product], queries=[products, product], config=config)
 
         # Also set on app state for consistency
         app.state.db_pool = db_pool
@@ -125,57 +123,57 @@ class TestGraphQLFieldLimitE2E:
             # Insert test product
             product_id = uuid4()
             product_data = {
-            # Basic info
-            "id": str(product_id),
-            "sku": "PROD-001",
-            "name": "Test Product",
-            "description": "A test product with many fields",
-            "short_description": "Test product",
-            "brand": "TestBrand",
-            "manufacturer": "TestCorp",
-            "model_number": "TC-001",
-            "upc": "123456789012",
-            "ean": "1234567890123",
-            # Pricing
-            "price": 99.99,
-            "sale_price": 79.99,
-            "cost": 50.00,
-            "msrp": 119.99,
-            "wholesale_price": 60.00,
-            "min_advertised_price": 89.99,
-            "currency": "USD",
-            "tax_rate": 0.08,
-            "tax_included": False,
-            "shipping_cost": 9.99,
-            # Inventory
-            "quantity_in_stock": 100,
-            "quantity_reserved": 10,
-            "quantity_available": 90,
-            "reorder_point": 20,
-            "reorder_quantity": 50,
-            "backorder_allowed": True,
-            "track_inventory": True,
-            "warehouse_location": "A1",
-            "bin_number": "B23",
-            "supplier_id": str(uuid4()),
-            # Attributes
-            "weight": 2.5,
-            "weight_unit": "kg",
-            "length": 30.0,
-            "width": 20.0,
-            "height": 10.0,
-            "dimension_unit": "cm",
-            "color": "Blue",
-            "size": "Large",
-            "material": "Cotton",
-            "country_of_origin": "USA",
-            # Status
-            "is_active": True,
-            "is_featured": True,
-            "is_digital": False,
-            "created_at": "2024-01-01T00:00:00Z",
-            "updated_at": "2024-01-01T00:00:00Z",
-        }
+                # Basic info
+                "id": str(product_id),
+                "sku": "PROD-001",
+                "name": "Test Product",
+                "description": "A test product with many fields",
+                "short_description": "Test product",
+                "brand": "TestBrand",
+                "manufacturer": "TestCorp",
+                "model_number": "TC-001",
+                "upc": "123456789012",
+                "ean": "1234567890123",
+                # Pricing
+                "price": 99.99,
+                "sale_price": 79.99,
+                "cost": 50.00,
+                "msrp": 119.99,
+                "wholesale_price": 60.00,
+                "min_advertised_price": 89.99,
+                "currency": "USD",
+                "tax_rate": 0.08,
+                "tax_included": False,
+                "shipping_cost": 9.99,
+                # Inventory
+                "quantity_in_stock": 100,
+                "quantity_reserved": 10,
+                "quantity_available": 90,
+                "reorder_point": 20,
+                "reorder_quantity": 50,
+                "backorder_allowed": True,
+                "track_inventory": True,
+                "warehouse_location": "A1",
+                "bin_number": "B23",
+                "supplier_id": str(uuid4()),
+                # Attributes
+                "weight": 2.5,
+                "weight_unit": "kg",
+                "length": 30.0,
+                "width": 20.0,
+                "height": 10.0,
+                "dimension_unit": "cm",
+                "color": "Blue",
+                "size": "Large",
+                "material": "Cotton",
+                "country_of_origin": "USA",
+                # Status
+                "is_active": True,
+                "is_featured": True,
+                "is_digital": False,
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
+            }
 
             await cursor.execute(
                 "INSERT INTO products (id, data) VALUES (%s, %s::jsonb)",
@@ -214,7 +212,9 @@ class TestGraphQLFieldLimitE2E:
         }
         """
 
-        async with AsyncClient(transport=ASGITransport(app=app_with_field_limit), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app_with_field_limit), base_url="http://test"
+        ) as client:
             simple_response = await client.post("/graphql", json={"query": simple_query})
 
         print(f"Simple query response: {simple_response.json()}")
@@ -271,7 +271,9 @@ class TestGraphQLFieldLimitE2E:
             }
         }
         """
-        async with AsyncClient(transport=ASGITransport(app=app_with_field_limit), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app_with_field_limit), base_url="http://test"
+        ) as client:
             response = await client.post("/graphql", json={"query": query})
 
         assert response.status_code == 200
@@ -284,7 +286,9 @@ class TestGraphQLFieldLimitE2E:
         # Should successfully return data despite exceeding field limit
         assert "data" in data
         assert "products" in data["data"]
-        assert data["data"]["products"] is not None, f"Products returned None. Full response: {data}"
+        assert data["data"]["products"] is not None, (
+            f"Products returned None. Full response: {data}"
+        )
         assert len(data["data"]["products"]) == 1
 
         product = data["data"]["products"][0]
@@ -315,7 +319,9 @@ class TestGraphQLFieldLimitE2E:
             }
         }
         """
-        async with AsyncClient(transport=ASGITransport(app=app_with_field_limit), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app_with_field_limit), base_url="http://test"
+        ) as client:
             response = await client.post("/graphql", json={"query": query})
 
         assert response.status_code == 200
@@ -365,7 +371,9 @@ class TestGraphQLFieldLimitE2E:
             }
         }
         """
-        async with AsyncClient(transport=ASGITransport(app=app_with_field_limit), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app_with_field_limit), base_url="http://test"
+        ) as client:
             response = await client.post("/graphql", json={"query": query})
 
         assert response.status_code == 200

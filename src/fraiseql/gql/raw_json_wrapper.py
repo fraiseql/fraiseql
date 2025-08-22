@@ -58,11 +58,15 @@ def create_raw_json_resolver(
             context = getattr(info, "context", {})
             mode = context.get("mode")
 
-            # Check multiple indicators for passthrough mode
+            # Check configuration first, then other indicators
+            # Only enable passthrough if explicitly configured or via query hints
             enable_passthrough = (
-                mode in ("production", "staging")
-                or context.get("json_passthrough", False)
+                context.get("json_passthrough", False)
                 or context.get("execution_mode") == "passthrough"
+                or (
+                    mode in ("production", "staging")
+                    and context.get("json_passthrough_in_production", False)
+                )
             )
 
             # Set passthrough hint in context for the resolver to use
@@ -144,10 +148,17 @@ def create_raw_json_resolver(
             # and be returned directly as HTTP JSON response
             return result
 
-        # Check if we're in production or staging mode
+        # Check if we're in production or staging mode with proper configuration check
         context = getattr(info, "context", {})
         mode = context.get("mode")
-        enable_passthrough = mode in ("production", "staging")
+        enable_passthrough = (
+            context.get("json_passthrough", False)
+            or context.get("execution_mode") == "passthrough"
+            or (
+                mode in ("production", "staging")
+                and context.get("json_passthrough_in_production", False)
+            )
+        )
 
         # In production/staging mode, convert dict to RawJSONResult for true passthrough
         if enable_passthrough and isinstance(result, dict):

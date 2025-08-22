@@ -64,7 +64,8 @@ def test_translate_query_with_nested_fields() -> None:
     sql = translate_query_from_type(gql_query, root_type=UserGraphqlType)
     sql_str = sql.as_string(None)
 
-    assert "data->'profile'->>'age'" in sql_str
+    # Type-aware operator selection: age (numeric) uses ->, city (string) uses ->>
+    assert "data->'profile'->'age'" in sql_str
     assert "data->'profile'->>'city'" in sql_str
     assert "'__typename', 'UserGraphqlType'" in sql_str
 

@@ -166,6 +166,8 @@ def create_fraiseql_app(
         else:
             msg = "auth must be Auth0Config or AuthProvider instance"
             raise ValueError(msg)
+        # If auth is provided, enable authentication
+        config.auth_enabled = True
     elif config.auth_enabled and config.auth_provider == "auth0":
         # Auto-create Auth0 provider from config if not explicitly provided
         if not config.auth0_domain or not config.auth0_api_identifier:
@@ -248,6 +250,14 @@ def create_fraiseql_app(
 
     # Setup CORS if enabled
     if config.cors_enabled:
+        # Log warning if using wildcard in production
+        if production and "*" in config.cors_origins:
+            logger.warning(
+                "CORS enabled with wildcard origin (*) in production. "
+                "This may cause conflicts with reverse proxies that handle CORS. "
+                "Consider disabling CORS in FraiseQL when using a reverse proxy."
+            )
+
         app.add_middleware(
             CORSMiddleware,
             allow_origins=config.cors_origins,
@@ -260,7 +270,6 @@ def create_fraiseql_app(
     if not production and config.dev_auth_password:
         from fraiseql.fastapi.dev_auth import DevAuthMiddleware
 
-        logger = logging.getLogger(__name__)
         logger.warning(
             "Development authentication enabled with username: %s. "
             "This should NEVER be used in production!",

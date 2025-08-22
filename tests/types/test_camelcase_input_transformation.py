@@ -52,6 +52,7 @@ class TestCamelCaseInputTransformation:
         SchemaConfig._instance = None
         # Also clear the GraphQL type cache
         from fraiseql.core.graphql_type import _graphql_type_cache
+
         _graphql_type_cache.clear()
 
     @pytest.mark.asyncio

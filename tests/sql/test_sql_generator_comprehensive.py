@@ -17,8 +17,8 @@ class TestBuildSqlQuery:
         sql_str = query.as_string(None)
 
         assert "SELECT" in sql_str
-        assert "data->>'name' AS \"name\"" in sql_str
-        assert "data->>'age' AS \"age\"" in sql_str
+        assert "data->>'name' AS \"name\"" in sql_str  # name is string
+        assert "data->'age' AS \"age\"" in sql_str  # age is numeric, uses -> for type preservation
         assert 'FROM "users"' in sql_str
 
     def test_basic_query_with_json_output(self):
@@ -241,7 +241,8 @@ class TestBuildSqlQuery:
         sql_str = query.as_string(None)
 
         # Should handle numeric indices and deep nesting
-        assert "data->'data'->'items'->'0'->>'value'" in sql_str
+        # value is detected as numeric by heuristics, primary as string
+        assert "data->'data'->'items'->'0'->'value'" in sql_str
         assert "data->'meta'->'tags'->>'primary'" in sql_str
 
     def test_table_name_escaping(self):
@@ -310,7 +311,8 @@ class TestEdgeCasesAndErrors:
         query = build_sql_query("deep_data", field_paths, json_output=True)
         sql_str = query.as_string(None)
 
-        expected = "data->'level1'->'level2'->'level3'->'level4'->'level5'->>'value'"
+        # value is detected as numeric by heuristics, so uses -> operator
+        expected = "data->'level1'->'level2'->'level3'->'level4'->'level5'->'value'"
         assert expected in sql_str
 
     def test_numeric_field_paths(self):

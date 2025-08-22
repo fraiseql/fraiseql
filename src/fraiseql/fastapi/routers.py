@@ -151,6 +151,16 @@ def create_graphql_router(
         context: dict[str, Any] = context_dependency,
     ):
         """Execute GraphQL query with adaptive behavior."""
+        # Check authentication if required
+        if (
+            config.auth_enabled
+            and auth_provider
+            and not context.get("authenticated", False)
+            and not (config.environment == "development" and "__schema" in request.query)
+        ):
+            # Return 401 for unauthenticated requests when auth is required
+            raise HTTPException(status_code=401, detail="Authentication required")
+
         try:
             # Determine execution mode from headers and config
             mode = config.environment
@@ -161,14 +171,22 @@ def create_graphql_router(
                 mode = http_request.headers["x-mode"].lower()
                 context["mode"] = mode
 
-                # Enable passthrough for production/staging modes
-                if mode in ("production", "staging"):
-                    json_passthrough = True
+                # Enable passthrough for production/staging modes if configured
+                if mode in ("production", "staging"):  # noqa: SIM102
+                    # Respect json_passthrough configuration settings
+                    if config.json_passthrough_enabled and getattr(
+                        config, "json_passthrough_in_production", True
+                    ):
+                        json_passthrough = True
             else:
                 # Use environment as default mode
                 context["mode"] = mode
-                if is_production_env:
-                    json_passthrough = True
+                if is_production_env:  # noqa: SIM102
+                    # Respect json_passthrough configuration settings
+                    if config.json_passthrough_enabled and getattr(
+                        config, "json_passthrough_in_production", True
+                    ):
+                        json_passthrough = True
 
             # Check for explicit passthrough header
             if "x-json-passthrough" in http_request.headers:
@@ -221,6 +239,7 @@ def create_graphql_router(
                         context_value=context,
                         variable_values=request.variables,
                         operation_name=request.operationName,
+                        enable_introspection=config.enable_introspection,
                     )
             else:
                 result = await execute_with_passthrough_check(
@@ -229,6 +248,7 @@ def create_graphql_router(
                     context_value=context,
                     variable_values=request.variables,
                     operation_name=request.operationName,
+                    enable_introspection=config.enable_introspection,
                 )
 
             # Check if result contains RawJSONResult

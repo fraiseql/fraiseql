@@ -101,7 +101,7 @@ class TestInitCommand:
 
         pyproject = (temp_project_dir / "testproject" / "pyproject.toml").read_text()
         assert 'name = "testproject"' in pyproject
-        assert "fraiseql>=0.1.0" in pyproject
+        assert "fraiseql>=0.2.1" in pyproject
         assert 'requires-python = ">=3.10"' in pyproject
         assert "[tool.ruff]" in pyproject
         assert "[tool.pyright]" in pyproject

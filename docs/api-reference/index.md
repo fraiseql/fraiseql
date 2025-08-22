@@ -19,6 +19,7 @@ Complete reference documentation for all FraiseQL APIs, decorators, types, and u
 | [**Decorators**](decorators.md) | Schema definition decorators | `@fraiseql.type`, `@fraiseql.query`, `@fraiseql.mutation` |
 | [**Repository**](repository.md) | Database access methods | `find()`, `find_one()`, `call_function()` |
 | [**Types**](types.md) | Built-in GraphQL types | `ID`, `EmailAddress`, `UUID`, `JSON` |
+| [**Filtering**](../core-concepts/filtering-and-where-clauses.md) | Where clauses and filtering | `StringFilter`, `NetworkAddressFilter`, `LTreeFilter` |
 | [**Context**](context.md) | Request context and info | `info.context`, resolver info |
 | [**Errors**](errors.md) | Error handling and codes | Exception types, error codes |
 | [**Utilities**](utilities.md) | CLI and helpers | `fraiseql init`, `fraiseql dev` |

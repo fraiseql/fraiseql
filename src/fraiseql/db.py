@@ -21,6 +21,7 @@ from fraiseql.core.raw_json_executor import (
     execute_raw_json_query,
 )
 from fraiseql.partial_instantiation import create_partial_instance
+from fraiseql.repositories.intelligent_passthrough import IntelligentPassthroughMixin
 from fraiseql.repositories.passthrough_mixin import PassthroughMixin
 from fraiseql.utils.casing import to_snake_case
 
@@ -53,7 +54,7 @@ def register_type_for_view(view_name: str, type_class: type) -> None:
     _type_registry[view_name] = type_class
 
 
-class FraiseQLRepository(PassthroughMixin):
+class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
     """Asynchronous repository for executing SQL queries via a pooled psycopg connection."""
 
     def __init__(self, pool: AsyncConnectionPool, context: Optional[dict[str, Any]] = None) -> None:
@@ -760,6 +761,28 @@ class FraiseQLRepository(PassthroughMixin):
                         return item_type
         return None
 
+    def _derive_entity_type(self, view_name: str, typename: str | None = None) -> str | None:
+        """Derive entity type for CamelForge from view name or GraphQL typename."""
+        # Only derive entity type if CamelForge is enabled
+        if not self.context.get("camelforge_enabled", False):
+            return None
+
+        # First try to use GraphQL typename
+        if typename:
+            # Convert PascalCase to snake_case (e.g., DnsServer -> dns_server)
+            from fraiseql.utils.casing import to_snake_case
+
+            return to_snake_case(typename)
+
+        # Fallback to view name (remove v_, tv_, mv_ prefixes)
+        if view_name:
+            for prefix in ["v_", "tv_", "mv_"]:
+                if view_name.startswith(prefix):
+                    return view_name[len(prefix) :]
+            return view_name
+
+        return None
+
     def _determine_jsonb_column(self, view_name: str, rows: list[dict[str, Any]]) -> str | None:
         """Determine which JSONB column to extract data from.
 
@@ -902,6 +925,12 @@ class FraiseQLRepository(PassthroughMixin):
                     # The where type returns a Composed object with JSONB paths
                     # We need to add it as a SQL fragment
                     where_parts.append(where_composed)
+            # **FIX: Handle plain dictionary where clauses**
+            elif isinstance(where_obj, dict):
+                # Convert dictionary where clause to SQL conditions
+                where_composed = self._convert_dict_where_to_sql(where_obj)
+                if where_composed:
+                    where_parts.append(where_composed)
 
         # Process remaining kwargs as simple equality filters
         for param_counter, (key, value) in enumerate(kwargs.items()):
@@ -936,6 +965,54 @@ class FraiseQLRepository(PassthroughMixin):
                 if where_sql_parts:
                     where_composed = SQL(" AND ").join(where_sql_parts)
 
+            # Process order_by for SQL generator compatibility
+            order_by_tuples = None
+            if order_by:
+                # Check if this is a GraphQL order by input that needs conversion
+                if hasattr(order_by, "_to_sql_order_by"):
+                    order_by_set = order_by._to_sql_order_by()
+                    if order_by_set:
+                        # Convert OrderBySet to list of tuples for build_sql_query
+                        order_by_tuples = [
+                            (instr.field, instr.direction) for instr in order_by_set.instructions
+                        ]
+                # Check if it's already an OrderBySet
+                elif hasattr(order_by, "instructions"):
+                    # Convert OrderBySet to list of tuples for build_sql_query
+                    order_by_tuples = [
+                        (instr.field, instr.direction) for instr in order_by.instructions
+                    ]
+                # Check if it's a dict representing GraphQL OrderBy input
+                elif isinstance(order_by, dict):
+                    # Convert dict to SQL ORDER BY
+                    from fraiseql.sql.graphql_order_by_generator import (
+                        _convert_order_by_input_to_sql,
+                    )
+
+                    order_by_set = _convert_order_by_input_to_sql(order_by)
+                    if order_by_set:
+                        order_by_tuples = [
+                            (instr.field, instr.direction) for instr in order_by_set.instructions
+                        ]
+                # Check if it's a list representing GraphQL OrderBy input
+                elif isinstance(order_by, list):
+                    # Check if it's already a list of tuples
+                    if order_by and isinstance(order_by[0], tuple) and len(order_by[0]) == 2:
+                        # Already in the correct format
+                        order_by_tuples = order_by
+                    else:
+                        # Convert list to SQL ORDER BY
+                        from fraiseql.sql.graphql_order_by_generator import (
+                            _convert_order_by_input_to_sql,
+                        )
+
+                        order_by_set = _convert_order_by_input_to_sql(order_by)
+                        if order_by_set:
+                            order_by_tuples = [
+                                (instr.field, instr.direction)
+                                for instr in order_by_set.instructions
+                            ]
+
             # Use SQL generator with field paths
             statement = build_sql_query(
                 table=view_name,
@@ -945,8 +1022,12 @@ class FraiseQLRepository(PassthroughMixin):
                 typename=typename,
                 raw_json_output=True,
                 auto_camel_case=True,
-                order_by=order_by if isinstance(order_by, list) else None,
-                field_limit_threshold=self.context.get("jsonb_field_limit_threshold"),
+                order_by=order_by_tuples,
+                field_limit_threshold=self.context.get("camelforge_field_threshold")
+                or self.context.get("jsonb_field_limit_threshold"),
+                camelforge_enabled=self.context.get("camelforge_enabled", False),
+                camelforge_function=self.context.get("camelforge_function", "turbo.fn_camelforge"),
+                entity_type=self._derive_entity_type(view_name, typename),
             )
 
             # Handle limit and offset
@@ -1005,6 +1086,14 @@ class FraiseQLRepository(PassthroughMixin):
                 order_by_set = _convert_order_by_input_to_sql(order_by)
                 if order_by_set:
                     query_parts.append(SQL(" ") + order_by_set.to_sql())
+            # Check if it's a list representing GraphQL OrderBy input (e.g., [{'ipAddress': 'asc'}])
+            elif isinstance(order_by, list):
+                # Convert list to SQL ORDER BY
+                from fraiseql.sql.graphql_order_by_generator import _convert_order_by_input_to_sql
+
+                order_by_set = _convert_order_by_input_to_sql(order_by)
+                if order_by_set:
+                    query_parts.append(SQL(" ") + order_by_set.to_sql())
             # Otherwise treat as a simple string
             else:
                 query_parts.append(SQL(" ORDER BY ") + SQL(order_by))
@@ -1038,3 +1127,206 @@ class FraiseQLRepository(PassthroughMixin):
             jsonb_column=jsonb_column,
             **kwargs,
         )
+
+    def _convert_dict_where_to_sql(self, where_dict: dict[str, Any]) -> Composed | None:
+        """Convert a dictionary WHERE clause to SQL conditions.
+
+        Args:
+            where_dict: Dictionary with field names as keys and operator dictionaries as values
+                       e.g., {'name': {'contains': 'router'}, 'port': {'gt': 20}}
+
+        Returns:
+            A Composed SQL object with parameterized conditions, or None if no valid conditions
+        """
+        from psycopg.sql import SQL, Composed
+
+        conditions = []
+
+        for field_name, field_filter in where_dict.items():
+            if field_filter is None:
+                continue
+
+            if isinstance(field_filter, dict):
+                # Handle operator-based filtering: {'contains': 'router', 'gt': 10}
+                field_conditions = []
+
+                for operator, value in field_filter.items():
+                    if value is None:
+                        continue
+
+                    # Build SQL condition using the same pattern as where_generator.py
+                    condition_sql = self._build_dict_where_condition(field_name, operator, value)
+                    if condition_sql:
+                        field_conditions.append(condition_sql)
+
+                # Combine multiple conditions for the same field with AND
+                if field_conditions:
+                    if len(field_conditions) == 1:
+                        conditions.append(field_conditions[0])
+                    else:
+                        # Multiple conditions for same field: (cond1 AND cond2 AND ...)
+                        combined_parts = []
+                        for i, cond in enumerate(field_conditions):
+                            if i > 0:
+                                combined_parts.append(SQL(" AND "))
+                            combined_parts.append(cond)
+                        conditions.append(Composed([SQL("("), *combined_parts, SQL(")")]))
+
+            else:
+                # Handle simple equality: {'status': 'active'}
+                condition_sql = self._build_dict_where_condition(field_name, "eq", field_filter)
+                if condition_sql:
+                    conditions.append(condition_sql)
+
+        # Combine all field conditions with AND
+        if not conditions:
+            return None
+
+        if len(conditions) == 1:
+            return conditions[0]
+
+        # Multiple field conditions: (field1_cond AND field2_cond AND ...)
+        result_parts = []
+        for i, condition in enumerate(conditions):
+            if i > 0:
+                result_parts.append(SQL(" AND "))
+            result_parts.append(condition)
+
+        return Composed(result_parts)
+
+    def _build_dict_where_condition(
+        self, field_name: str, operator: str, value: Any
+    ) -> Composed | None:
+        """Build a single WHERE condition from field, operator, and value.
+
+        Args:
+            field_name: Database field name
+            operator: Filter operator (eq, contains, gt, in, etc.)
+            value: Filter value
+
+        Returns:
+            Composed SQL condition or None if operator not supported
+        """
+        from psycopg.sql import SQL, Composed, Literal
+
+        # Map operators to SQL - using the same patterns from the existing codebase
+        operator_templates = {
+            # String operators
+            "eq": "({path}) = {value}",
+            "neq": "({path}) != {value}",
+            "contains": "({path}) ILIKE {value}",
+            "startswith": "({path}) ILIKE {value}",
+            "endswith": "({path}) ILIKE {value}",
+            "in": "({path}) = ANY({value})",
+            "nin": "({path}) != ALL({value})",
+            "isnull": "({path}) IS NULL",
+            # Numeric operators
+            "gt": "({path})::numeric > {value}",
+            "gte": "({path})::numeric >= {value}",
+            "lt": "({path})::numeric < {value}",
+            "lte": "({path})::numeric <= {value}",
+            # Network operators (basic support)
+            "isPrivate": (
+                "inet({path}) << '10.0.0.0/8'::inet OR "
+                "inet({path}) << '172.16.0.0/12'::inet OR "
+                "inet({path}) << '192.168.0.0/16'::inet"
+            ),
+            "isPublic": (
+                "NOT (inet({path}) << '10.0.0.0/8'::inet OR "
+                "inet({path}) << '172.16.0.0/12'::inet OR "
+                "inet({path}) << '192.168.0.0/16'::inet)"
+            ),
+        }
+
+        if operator not in operator_templates:
+            return None
+
+        # Build JSONB path expression: (data ->> 'field_name')
+        path_sql = Composed([SQL("(data ->> "), Literal(field_name), SQL(")")])
+
+        # Get template for reference (not used directly)
+        _ = operator_templates[operator]
+
+        # Handle special operators that don't need values
+        if operator == "isnull":
+            if value:  # IS NULL
+                return Composed([path_sql, SQL(" IS NULL")])
+            # IS NOT NULL
+            return Composed([path_sql, SQL(" IS NOT NULL")])
+
+        # Handle network operators that don't use parameterized values
+        if operator in ("isPrivate", "isPublic"):
+            if operator == "isPrivate" and value:
+                return Composed(
+                    [
+                        SQL("(inet("),
+                        path_sql,
+                        SQL(") << '10.0.0.0/8'::inet OR inet("),
+                        path_sql,
+                        SQL(") << '172.16.0.0/12'::inet OR inet("),
+                        path_sql,
+                        SQL(") << '192.168.0.0/16'::inet)"),
+                    ]
+                )
+            if operator == "isPublic" and value:
+                return Composed(
+                    [
+                        SQL("NOT (inet("),
+                        path_sql,
+                        SQL(") << '10.0.0.0/8'::inet OR inet("),
+                        path_sql,
+                        SQL(") << '172.16.0.0/12'::inet OR inet("),
+                        path_sql,
+                        SQL(") << '192.168.0.0/16'::inet)"),
+                    ]
+                )
+            return None
+
+        # Handle string pattern operators
+        if operator in ("contains", "startswith", "endswith"):
+            if operator == "contains":
+                pattern_value = f"%{value}%"
+            elif operator == "startswith":
+                pattern_value = f"{value}%"
+            elif operator == "endswith":
+                pattern_value = f"%{value}"
+
+            return Composed([path_sql, SQL(" ILIKE "), Literal(pattern_value)])
+
+        # Handle array operators
+        if operator in ("in", "nin"):
+            if not isinstance(value, (list, tuple)):
+                value = [value]  # Convert single value to list
+
+            if operator == "in":
+                return Composed([path_sql, SQL(" = ANY("), Literal(value), SQL(")")])
+            # nin
+            return Composed([path_sql, SQL(" != ALL("), Literal(value), SQL(")")])
+
+        # Handle standard operators with parameterized values
+        value_sql = Literal(value)
+
+        if operator in ("gt", "gte", "lt", "lte"):
+            # Numeric operators need casting
+            return Composed(
+                [
+                    SQL("("),
+                    path_sql,
+                    SQL(")::numeric "),
+                    SQL(
+                        " > "
+                        if operator == "gt"
+                        else " >= "
+                        if operator == "gte"
+                        else " < "
+                        if operator == "lt"
+                        else " <= "
+                    ),
+                    value_sql,
+                ]
+            )
+        # String equality operators
+        op_sql = SQL(" = " if operator == "eq" else " != ")
+        return Composed([path_sql, op_sql, value_sql])
+
+        return None

@@ -42,6 +42,24 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
         if obj is UNSET:
             return None
 
+        # Handle FraiseQL types (classes decorated with @fraiseql.type)
+        if hasattr(obj, "__fraiseql_definition__"):
+            # Convert FraiseQL type instance to dictionary using its __dict__
+            # This allows proper JSON serialization of @fraiseql.type decorated classes
+            obj_dict = {}
+            for attr_name in dir(obj):
+                # Skip private attributes, methods, and special FraiseQL attributes
+                if (
+                    not attr_name.startswith("_")
+                    and not attr_name.startswith("__gql_")
+                    and not attr_name.startswith("__fraiseql_")
+                    and not callable(getattr(obj, attr_name, None))
+                ):
+                    value = getattr(obj, attr_name, None)
+                    if value is not None:
+                        obj_dict[attr_name] = value
+            return obj_dict
+
         # Handle date and datetime
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()
@@ -65,6 +83,39 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
         # Handle bytes
         if isinstance(obj, bytes):
             return obj.decode("utf-8", errors="replace")
+
+        # Handle Python Enums (convert to their value)
+        if hasattr(obj, "__class__") and hasattr(obj.__class__, "__bases__"):
+            # Check if it's an Enum
+            import enum
+
+            if isinstance(obj, enum.Enum):
+                return obj.value
+
+        # Handle dataclasses
+        if hasattr(obj, "__dataclass_fields__"):
+            # Convert dataclass to dictionary
+            import dataclasses
+
+            return dataclasses.asdict(obj)
+
+        # Handle sets (convert to list)
+        if isinstance(obj, set):
+            return list(obj)
+
+        # Handle tuples (convert to list)
+        if isinstance(obj, tuple):
+            return list(obj)
+
+        # Handle special float values that might break JSON
+        if isinstance(obj, float):
+            import math
+
+            if math.isnan(obj):
+                return None  # Convert NaN to null
+            if math.isinf(obj):
+                return None  # Convert infinity to null for JSON safety
+            # Regular floats pass through normally
 
         # Fall back to default
         return super().default(obj)

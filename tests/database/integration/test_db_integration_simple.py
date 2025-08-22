@@ -9,11 +9,11 @@ import asyncio
 import pytest
 from psycopg.sql import SQL, Composed, Identifier
 
-from fraiseql.db import DatabaseQuery, FraiseQLRepository
-
 # Import database fixtures for this database test
 from tests.database_conftest import *  # noqa: F403
 from tests.utils import SchemaQualifiedQueryBuilder, build_select_query, get_current_schema
+
+from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 
 @pytest.mark.database

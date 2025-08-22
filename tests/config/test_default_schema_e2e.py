@@ -1,11 +1,10 @@
 """End-to-end tests for default schema configuration."""
 
 import pytest
-from fraiseql import mutation, fraise_type, fraise_input, query
+
+from fraiseql import fraise_input, fraise_type, mutation, query
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 from fraiseql.gql.builders.registry import SchemaRegistry
-from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock, patch
 
 
 @pytest.fixture
@@ -29,6 +28,7 @@ def clean_registry():
 @fraise_input
 class E2EInput:
     """Test input type."""
+
     name: str
     value: int
 
@@ -36,6 +36,7 @@ class E2EInput:
 @fraise_type
 class E2ESuccess:
     """Test success type."""
+
     message: str
     result: str
 
@@ -43,6 +44,7 @@ class E2ESuccess:
 @fraise_type
 class E2EError:
     """Test error type."""
+
     code: str
     message: str
 
@@ -64,11 +66,12 @@ class TestDefaultSchemaE2E:
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             default_mutation_schema="custom_app",
-            default_query_schema="custom_queries"
+            default_query_schema="custom_queries",
         )
 
         # Set config in registry BEFORE creating mutations
         from fraiseql.fastapi.dependencies import set_fraiseql_config
+
         set_fraiseql_config(config)
 
         # Create mutations without specifying schema
@@ -78,11 +81,11 @@ class TestDefaultSchemaE2E:
             success: E2ESuccess
             failure: E2EError
 
-        app = create_fraiseql_app(
+        create_fraiseql_app(
             config=config,
             mutations=[TestMutation],
             queries=[health_check],
-            types=[E2ESuccess, E2EError]
+            types=[E2ESuccess, E2EError],
         )
 
         # Verify the mutation uses the custom default schema
@@ -92,12 +95,12 @@ class TestDefaultSchemaE2E:
         """Test that multiple apps can have different default schemas."""
         # Create first app with one default
         config1 = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            default_mutation_schema="app1"
+            database_url="postgresql://test@localhost/test", default_mutation_schema="app1"
         )
 
         # Set config in registry BEFORE creating mutations
         from fraiseql.fastapi.dependencies import set_fraiseql_config
+
         set_fraiseql_config(config1)
 
         @mutation(function="mutation1")
@@ -106,11 +109,11 @@ class TestDefaultSchemaE2E:
             success: E2ESuccess
             failure: E2EError
 
-        app1 = create_fraiseql_app(
+        create_fraiseql_app(
             config=config1,
             mutations=[Mutation1],
             queries=[health_check],
-            types=[E2ESuccess, E2EError]
+            types=[E2ESuccess, E2EError],
         )
 
         # Verify first mutation uses app1 schema
@@ -118,14 +121,14 @@ class TestDefaultSchemaE2E:
 
         # Clean registry for second app
         from fraiseql.mutations.decorators import clear_mutation_registries
+
         registry = SchemaRegistry.get_instance()
         registry.clear()
         clear_mutation_registries()
 
         # Create second app with different default
         config2 = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            default_mutation_schema="app2"
+            database_url="postgresql://test@localhost/test", default_mutation_schema="app2"
         )
 
         # Set new config
@@ -137,11 +140,11 @@ class TestDefaultSchemaE2E:
             success: E2ESuccess
             failure: E2EError
 
-        app2 = create_fraiseql_app(
+        create_fraiseql_app(
             config=config2,
             mutations=[Mutation2],
             queries=[health_check],
-            types=[E2ESuccess, E2EError]
+            types=[E2ESuccess, E2EError],
         )
 
         # Verify second mutation uses app2 schema
@@ -152,11 +155,12 @@ class TestDefaultSchemaE2E:
         # Create app with default schema
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            default_mutation_schema="default_schema"
+            default_mutation_schema="default_schema",
         )
 
         # Set config in registry BEFORE creating mutations
         from fraiseql.fastapi.dependencies import set_fraiseql_config
+
         set_fraiseql_config(config)
 
         # Mutation with explicit schema override

@@ -345,9 +345,23 @@ async def users(info, email_contains: str = None) -> list[User]:
 
     where = {}
     if email_contains:
-        where["email__contains"] = email_contains
+        where["email__contains"] = email_contains  # ✅ Works for string fields
 
     return await repo.find("v_user", where=where)
+```
+
+**⚠️ Important for v0.3.7+**: If you're using exotic PostgreSQL types (IP addresses, MAC addresses, etc.), pattern matching operators like `contains` are no longer available. Use exact matching instead:
+
+```python
+# ❌ No longer available for exotic types (was never working correctly)
+servers = await repo.find("v_server", where={
+    "ip_address__contains": "192.168"  # Removed in v0.3.7
+})
+
+# ✅ Use exact matching or IN operators instead
+servers = await repo.find("v_server", where={
+    "ip_address__in": ["192.168.1.100", "192.168.1.101"]
+})
 ```
 
 ## Migration from Apollo Server

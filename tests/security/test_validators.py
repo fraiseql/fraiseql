@@ -32,7 +32,7 @@ class TestInputValidator:
             "<script>alert('xss')</script>",
             "javascript:alert(1)",
             "<img onerror=alert(1)>",
-            "<iframe src='evil.com'>"
+            "<iframe src='evil.com'>",
         ]
 
         for value in xss_attempts:
@@ -112,11 +112,7 @@ class TestInputValidator:
     def test_validate_email(self) -> None:
         """Test email validation."""
         # Valid emails
-        valid_emails = [
-            "user@example.com",
-            "test.user@domain.co.uk",
-            "admin+tag@company.org"
-        ]
+        valid_emails = ["user@example.com", "test.user@domain.co.uk", "admin+tag@company.org"]
 
         for email in valid_emails:
             result = InputValidator._validate_email(email)
@@ -124,13 +120,7 @@ class TestInputValidator:
             assert result.sanitized_value == email.lower().strip()
 
         # Invalid emails
-        invalid_emails = [
-            "not-an-email",
-            "@example.com",
-            "user@",
-            "user@.com",
-            "user@domain"
-        ]
+        invalid_emails = ["not-an-email", "@example.com", "user@", "user@.com", "user@domain"]
 
         for email in invalid_emails:
             result = InputValidator._validate_email(email)
@@ -160,7 +150,7 @@ class TestInputValidator:
             "../../../etc/passwd",
             "..\\..\\windows\\system32",
             "/etc/passwd",
-            "c:\\windows\\system32"
+            "c:\\windows\\system32",
         ]
 
         for path in path_traversal_attempts:
@@ -174,11 +164,7 @@ class TestInputValidator:
     def test_list_validation(self) -> None:
         """Test validation of list values."""
         # List with SQL injection attempts
-        malicious_list = [
-            "normal",
-            "'; DROP TABLE users; --",
-            "admin' OR '1'='1"
-        ]
+        malicious_list = ["normal", "'; DROP TABLE users; --", "admin' OR '1'='1"]
 
         result = InputValidator.validate_field_value("tags", malicious_list)
         assert result.is_valid  # Warnings only for SQL patterns

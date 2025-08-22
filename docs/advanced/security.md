@@ -449,11 +449,44 @@ async def context_getter(request: Request) -> dict:
 
 ## CORS Configuration
 
-Configure Cross-Origin Resource Sharing for browser security:
+!!! warning "CORS Disabled by Default"
+    CORS is disabled by default in FraiseQL to prevent conflicts with reverse proxies that handle CORS at the infrastructure level. Only enable CORS if your application serves browser clients directly.
+
+### Option 1: Reverse Proxy CORS (Recommended)
+
+Configure CORS at your reverse proxy instead of the application:
+
+```nginx
+# Nginx configuration
+location /graphql {
+    add_header Access-Control-Allow-Origin "https://app.example.com";
+    add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+    add_header Access-Control-Allow-Headers "Content-Type, Authorization";
+    add_header Access-Control-Allow-Credentials "true";
+
+    # Handle preflight requests
+    if ($request_method = 'OPTIONS') {
+        add_header Access-Control-Allow-Origin "https://app.example.com";
+        add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+        add_header Access-Control-Allow-Headers "Content-Type, Authorization";
+        add_header Access-Control-Max-Age 1728000;
+        add_header Content-Type "text/plain; charset=utf-8";
+        add_header Content-Length 0;
+        return 204;
+    }
+
+    proxy_pass http://fraiseql-backend;
+}
+```
+
+### Option 2: Application-Level CORS (Direct Browser Serving)
+
+Only enable if serving browsers directly without a reverse proxy:
 
 ```python
+# Production configuration
 config = FraiseQLConfig(
-    cors_enabled=True,
+    cors_enabled=True,  # Explicitly enable
     cors_origins=[
         "https://app.example.com",
         "https://staging.example.com",
@@ -462,13 +495,17 @@ config = FraiseQLConfig(
     cors_headers=["Content-Type", "Authorization"],
 )
 
-# Development configuration
+# Development configuration (more permissive)
 dev_config = FraiseQLConfig(
+    cors_enabled=True,  # Must be explicitly enabled
     cors_origins=["http://localhost:3000"],  # React dev server
-    cors_methods=["*"],
-    cors_headers=["*"],
+    cors_methods=["GET", "POST", "OPTIONS"],
+    cors_headers=["Content-Type", "Authorization"],
 )
 ```
+
+!!! danger "Production Warning"
+    Using wildcard (`*`) origins in production is a security risk. Always specify exact domains.
 
 ## Secret Management
 

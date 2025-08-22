@@ -246,6 +246,7 @@ Ready to dive deeper?
 
 - **[Architecture](architecture.md)**: Detailed system design
 - **[Type System](type-system.md)**: Python to GraphQL type mapping
+- **[Filtering & Where Clauses](filtering-and-where-clauses.md)**: Master GraphQL filtering and the v0.3.7 changes
 - **[Database Views](database-views.md)**: Designing effective views
 - **[Query Translation](query-translation.md)**: How FraiseQL generates SQL
 

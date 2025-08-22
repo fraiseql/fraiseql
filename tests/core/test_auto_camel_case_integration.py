@@ -48,8 +48,11 @@ class TestAutoCamelCaseIntegration:
         )
 
         sql_str_without = sql_without.as_string(None)
+        # String fields use ->> operator
         assert "'userId', data->>'userId'" in sql_str_without
         assert "'firstName', data->>'firstName'" in sql_str_without
+        # Boolean fields use -> operator for type preservation
+        assert "'isActive', data->'isActive'" in sql_str_without
 
         # With auto_camel_case, it should convert to snake_case for DB lookup
         sql_with = translate_query(
@@ -57,12 +60,14 @@ class TestAutoCamelCaseIntegration:
         )
 
         sql_str_with = sql_with.as_string(None)
+        # String fields use ->> operator
         assert "'userId', data->>'user_id'" in sql_str_with
         assert "'firstName', data->>'first_name'" in sql_str_with
         assert "'lastName', data->>'last_name'" in sql_str_with
         assert "'emailAddress', data->>'email_address'" in sql_str_with
-        assert "'isActive', data->>'is_active'" in sql_str_with
         assert "'createdAt', data->>'created_at'" in sql_str_with
+        # Boolean fields use -> operator for type preservation
+        assert "'isActive', data->'is_active'" in sql_str_with
 
     def test_nested_types_with_auto_camel_case(self, clear_registry) -> None:
         """Test nested types with auto camelCase conversion."""
@@ -230,11 +235,11 @@ class TestAutoCamelCaseIntegration:
         sql_str = sql.as_string(None)
 
         # Top-level fields
-        assert "'orderId', data->>'order_id'" in sql_str
-        assert "'orderNumber', data->>'order_number'" in sql_str
-        assert "'totalAmount', data->>'total_amount'" in sql_str
-        assert "'createdAt', data->>'created_at'" in sql_str
-        assert "'estimatedPickupTime', data->>'estimated_pickup_time'" in sql_str
+        assert "'orderId', data->>'order_id'" in sql_str  # string
+        assert "'orderNumber', data->>'order_number'" in sql_str  # string
+        assert "'totalAmount', data->'total_amount'" in sql_str  # float - type preservation
+        assert "'createdAt', data->>'created_at'" in sql_str  # string
+        assert "'estimatedPickupTime', data->>'estimated_pickup_time'" in sql_str  # string
 
         # Nested customer info fields
         assert "'customerId', data->'customer_info'->>'customer_id'" in sql_str
@@ -244,8 +249,14 @@ class TestAutoCamelCaseIntegration:
         assert "'deliveryAddress', data->'customer_info'->>'delivery_address'" in sql_str
 
         # Nested order items fields
-        assert "'itemId', data->'order_items'->>'item_id'" in sql_str
-        assert "'productName', data->'order_items'->>'product_name'" in sql_str
-        assert "'unitPrice', data->'order_items'->>'unit_price'" in sql_str
-        assert "'quantityOrdered', data->'order_items'->>'quantity_ordered'" in sql_str
-        assert "'specialInstructions', data->'order_items'->>'special_instructions'" in sql_str
+        assert "'itemId', data->'order_items'->>'item_id'" in sql_str  # string
+        assert "'productName', data->'order_items'->>'product_name'" in sql_str  # string
+        assert (
+            "'unitPrice', data->'order_items'->'unit_price'" in sql_str
+        )  # float - type preservation
+        assert (
+            "'quantityOrdered', data->'order_items'->'quantity_ordered'" in sql_str
+        )  # int - type preservation
+        assert (
+            "'specialInstructions', data->'order_items'->>'special_instructions'" in sql_str
+        )  # string

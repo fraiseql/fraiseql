@@ -1,13 +1,12 @@
 """Tests for field-level authorization in FraiseQL - Fixed version."""
 
-import pytest
 from graphql import graphql_sync
 
 import fraiseql
 from fraiseql import query
 from fraiseql.decorators import field
 from fraiseql.gql.schema_builder import build_fraiseql_schema
-from fraiseql.security.field_auth import FieldAuthorizationError, authorize_field
+from fraiseql.security.field_auth import authorize_field
 
 
 def test_field_authorization_basic():
@@ -60,7 +59,7 @@ def test_field_authorization_with_custom_message():
 
         @authorize_field(
             lambda info: info.context.get("is_admin", False),
-            error_message="Admin access required to view phone number"
+            error_message="Admin access required to view phone number",
         )
         @field
         def phone(self) -> str:
@@ -118,7 +117,7 @@ def test_field_authorization_multiple_fields():
             name="Bob Smith",
             email_value="bob@example.com",
             phone_value="+9876543210",
-            ssn_value="123-45-6789"
+            ssn_value="123-45-6789",
         )
 
     schema = build_fraiseql_schema(query_types=[get_user])
@@ -138,39 +137,27 @@ def test_field_authorization_multiple_fields():
     # 1. Unauthenticated - can only see name
     result = graphql_sync(schema, query_str, context_value={})
     assert result.data == {
-        "getUser": {
-            "name": "Bob Smith",
-            "email": None,
-            "phone": None,
-            "ssn": None
-        }
+        "getUser": {"name": "Bob Smith", "email": None, "phone": None, "ssn": None}
     }
     assert len(result.errors) == 3
 
     # 2. Authenticated - can see email
     result = graphql_sync(schema, query_str, context_value={"authenticated": True})
     assert result.data == {
-        "getUser": {
-            "name": "Bob Smith",
-            "email": "bob@example.com",
-            "phone": None,
-            "ssn": None
-        }
+        "getUser": {"name": "Bob Smith", "email": "bob@example.com", "phone": None, "ssn": None}
     }
     assert len(result.errors) == 2
 
     # 3. Admin - can see email and phone
     result = graphql_sync(
-        schema,
-        query_str,
-        context_value={"authenticated": True, "is_admin": True}
+        schema, query_str, context_value={"authenticated": True, "is_admin": True}
     )
     assert result.data == {
         "getUser": {
             "name": "Bob Smith",
             "email": "bob@example.com",
             "phone": "+9876543210",
-            "ssn": None
+            "ssn": None,
         }
     }
     assert len(result.errors) == 1
@@ -179,11 +166,7 @@ def test_field_authorization_multiple_fields():
     result = graphql_sync(
         schema,
         query_str,
-        context_value={
-            "authenticated": True,
-            "is_admin": True,
-            "is_superadmin": True
-        }
+        context_value={"authenticated": True, "is_admin": True, "is_superadmin": True},
     )
     assert result.errors is None
     assert result.data == {
@@ -191,7 +174,7 @@ def test_field_authorization_multiple_fields():
             "name": "Bob Smith",
             "email": "bob@example.com",
             "phone": "+9876543210",
-            "ssn": "123-45-6789"
+            "ssn": "123-45-6789",
         }
     }
 
@@ -207,8 +190,7 @@ def test_field_authorization_with_owner_check():
 
         @authorize_field(
             lambda info, root: (
-                info.context.get("user_id") == root.id or
-                info.context.get("is_admin", False)
+                info.context.get("user_id") == root.id or info.context.get("is_admin", False)
             )
         )
         @field
@@ -221,7 +203,7 @@ def test_field_authorization_with_owner_check():
         return UserProfile(
             id=user_id,
             name=f"User {user_id}",
-            private_notes_value=f"Private notes for user {user_id}"
+            private_notes_value=f"Private notes for user {user_id}",
         )
 
     schema = build_fraiseql_schema(query_types=[user_profile])
@@ -255,6 +237,7 @@ def test_field_authorization_with_owner_check():
 def test_field_authorization_async():
     """Test field authorization with async fields."""
     import asyncio
+
     from graphql import graphql
 
     @fraiseql.type

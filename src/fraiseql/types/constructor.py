@@ -125,6 +125,7 @@ def define_fraiseql_type(
         kind=kind,  # ✅ required by tests
         sql_source=None,
         jsonb_column=None,
+        resolve_nested=False,  # Default to not resolving nested
         fields=field_map,
         type_hints=patched_annotations,
     )

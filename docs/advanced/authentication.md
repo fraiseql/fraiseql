@@ -72,6 +72,9 @@ app = FraiseQL(
     connection_string="postgresql://...",
     auth_provider=auth0_provider  # or native_provider
 )
+# Note: Providing an auth_provider automatically enforces authentication
+# All GraphQL requests will require valid authentication
+# (except introspection queries in development mode)
 ```
 
 ### Environment Variables
@@ -94,6 +97,29 @@ JWT_ALGORITHM=HS256
 SECURITY_RATE_LIMIT_PER_MINUTE=60
 SECURITY_ENABLE_CSRF=true
 SECURITY_ENABLE_CORS=true
+```
+
+## Authentication Enforcement
+
+When an authentication provider is configured, FraiseQL automatically enforces authentication on all GraphQL requests:
+
+1. **Automatic Enforcement**: Providing an `auth` parameter to `create_fraiseql_app()` or setting an `auth_provider` automatically enables authentication enforcement
+2. **401 Unauthorized**: Unauthenticated requests receive a 401 response
+3. **Development Exception**: Introspection queries (`__schema`) are allowed without authentication in development mode only
+4. **No Optional Auth**: Once configured, authentication cannot be made optional for specific endpoints (use separate apps if needed)
+
+```python
+# Authentication is ENFORCED - all requests require valid tokens
+app = create_fraiseql_app(
+    database_url="postgresql://localhost/db",
+    auth=auth_provider  # This enables enforcement
+)
+
+# Authentication is OPTIONAL - requests work with or without tokens
+app = create_fraiseql_app(
+    database_url="postgresql://localhost/db"
+    # No auth parameter = optional authentication
+)
 ```
 
 ## Implementation

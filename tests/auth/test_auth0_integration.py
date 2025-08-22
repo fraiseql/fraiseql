@@ -110,7 +110,7 @@ class TestAuth0Integration:
             mock_pool.return_value = Mock()
 
             # Create app - this should set up Auth0 provider
-            app = create_fraiseql_app(config=config, types=[DummyType])
+            create_fraiseql_app(config=config, types=[DummyType])
 
             # Check that auth provider was created
             auth_provider = get_auth_provider()

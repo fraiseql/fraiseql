@@ -71,7 +71,7 @@ class TestDatabaseContextParameters:
 
         # Configure pool without connection() method (asyncpg style)
         # Create a pool mock that doesn't have a connection attribute
-        mock_pool = AsyncMock(spec=['acquire'])  # Only has acquire method
+        mock_pool = AsyncMock(spec=["acquire"])  # Only has acquire method
         mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
         mock_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
 

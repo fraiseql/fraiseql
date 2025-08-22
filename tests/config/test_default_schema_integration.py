@@ -1,12 +1,13 @@
 """Integration tests for default schema configuration."""
 
-import pytest
-from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
-from fraiseql import mutation, fraise_type, fraise_input
-from fraiseql.mutations.mutation_decorator import MutationDefinition
-from fraiseql.gql.builders.registry import SchemaRegistry
-from typing import Optional
 from unittest.mock import AsyncMock, Mock
+
+import pytest
+
+from fraiseql import fraise_input, fraise_type, mutation
+from fraiseql.fastapi import FraiseQLConfig
+from fraiseql.gql.builders.registry import SchemaRegistry
+from fraiseql.mutations.mutation_decorator import MutationDefinition
 
 
 @pytest.fixture
@@ -21,6 +22,7 @@ def clean_registry():
 @fraise_input
 class TestInput:
     """Test input type."""
+
     name: str
     value: int
 
@@ -28,6 +30,7 @@ class TestInput:
 @fraise_type
 class TestSuccess:
     """Test success type."""
+
     message: str
     id: str
 
@@ -35,6 +38,7 @@ class TestSuccess:
 @fraise_type
 class TestError:
     """Test error type."""
+
     code: str
     message: str
 
@@ -48,7 +52,7 @@ class TestDefaultSchemaIntegration:
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             default_mutation_schema="app",
-            default_query_schema="queries"
+            default_query_schema="queries",
         )
 
         # Set config in registry
@@ -72,8 +76,7 @@ class TestDefaultSchemaIntegration:
         """Test multiple mutations with different schema configurations."""
         # Set up config with default schema
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            default_mutation_schema="app"
+            database_url="postgresql://test@localhost/test", default_mutation_schema="app"
         )
         registry = SchemaRegistry.get_instance()
         registry.config = config
@@ -109,8 +112,7 @@ class TestDefaultSchemaIntegration:
         """Test that the resolver uses the correct schema when calling database functions."""
         # Set up config with custom default schema
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            default_mutation_schema="app"
+            database_url="postgresql://test@localhost/test", default_mutation_schema="app"
         )
         registry = SchemaRegistry.get_instance()
         registry.config = config
@@ -130,7 +132,7 @@ class TestDefaultSchemaIntegration:
         mock_db.execute_function.return_value = {
             "status": "success",
             "message": "Data processed",
-            "object_data": {"id": "123", "message": "Success"}
+            "object_data": {"id": "123", "message": "Success"},
         }
 
         info = Mock()
@@ -147,8 +149,7 @@ class TestDefaultSchemaIntegration:
 
         # Verify the correct schema was used in the function call
         mock_db.execute_function.assert_called_once_with(
-            "app.process_data",
-            {"name": "Test", "value": 42}
+            "app.process_data", {"name": "Test", "value": 42}
         )
 
         # Verify result
@@ -188,8 +189,7 @@ class TestDefaultSchemaIntegration:
 
         # Set config with custom default
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            default_mutation_schema="custom_schema"
+            database_url="postgresql://test@localhost/test", default_mutation_schema="custom_schema"
         )
         registry.config = config
 

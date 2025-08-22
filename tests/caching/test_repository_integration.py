@@ -61,7 +61,6 @@ class TestCachedRepository:
         mock_cache_backend.get.return_value = None
 
         # Mock database result
-        db_data = [{"id": 3, "name": "Charlie"}]
 
         # Create async context managers for connection and cursor
         mock_cursor = AsyncMock()

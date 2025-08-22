@@ -268,10 +268,58 @@ class EnhancedTurboRouter(TurboRouter):
                 # Extract root field name
                 import re
 
-                match = re.search(r"{\s*(\w+)", query)
-                if match:
-                    root_field = match.group(1)
+                def extract_root_field_name(query_str: str) -> str | None:
+                    """Extract the root field name from a GraphQL query, handling fragments."""
+                    # Remove comments and normalize whitespace
+                    clean_query = re.sub(r"#.*", "", query_str)
+                    clean_query = " ".join(clean_query.split())
+
+                    # Pattern 1: Named query (handles fragments before query)
+                    named_query_match = re.search(
+                        r"query\s+\w+[^{]*{\s*(\w+)", clean_query, re.DOTALL
+                    )
+                    if named_query_match:
+                        return named_query_match.group(1)
+
+                    # Pattern 2: Anonymous query starting with {
+                    anonymous_query_match = re.search(r"^\s*{\s*(\w+)", clean_query)
+                    if anonymous_query_match:
+                        return anonymous_query_match.group(1)
+
+                    # Pattern 3: Query keyword without name
+                    fallback_match = re.search(r"query\s*{\s*(\w+)", clean_query)
+                    if fallback_match:
+                        return fallback_match.group(1)
+
+                    return None
+
+                def process_turbo_result(data: any, root_field: str) -> dict[str, any]:
+                    """Process TurboRouter result with smart GraphQL response detection."""
+                    # Case 1: Data is already a complete GraphQL response
+                    if (
+                        isinstance(data, dict)
+                        and "data" in data
+                        and isinstance(data["data"], dict)
+                        and root_field in data["data"]
+                    ):
+                        return data
+
+                    # Case 2: Data contains the field data directly
+                    if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
+                        # Extract the actual data and wrap with correct field name
+                        field_data = data["data"]
+                        if len(field_data) == 1 and root_field not in field_data:
+                            # Single field with wrong name - use the data but correct field name
+                            actual_data = next(iter(field_data.values()))
+                            return {"data": {root_field: actual_data}}
+                        return {"data": {root_field: field_data}}
+
+                    # Case 3: Raw data - wrap normally
                     return {"data": {root_field: data}}
+
+                root_field = extract_root_field_name(query)
+                if root_field:
+                    return process_turbo_result(data, root_field)
 
                 return {"data": data}
 

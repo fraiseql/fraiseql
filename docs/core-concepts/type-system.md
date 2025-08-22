@@ -193,13 +193,15 @@ class Profile:
     website: URLScalar | None
 
 # PostgreSQL-specific types
-from fraiseql.scalars import JSONB, INET, CIDR
+from fraiseql.scalars import JSONB, INET, CIDR, MacAddress, LTree
 
 @fraiseql.type
 class ServerLog:
     data: JSONB  # PostgreSQL JSONB
     client_ip: INET  # IP address
     network: CIDR  # Network range
+    mac_address: MacAddress  # MAC address
+    path: LTree  # Hierarchical path
 ```
 
 ## Complex Types with Modern Syntax
@@ -555,6 +557,145 @@ class Post:
     status: PostStatus  # Type-safe status
 ```
 
+## GraphQL Filtering and Where Inputs
+
+FraiseQL automatically generates GraphQL `WhereInput` types for filtering based on your field types. The available filtering operators depend on the field's data type.
+
+### Automatic Where Input Generation
+
+For any type decorated with `@fraiseql.type`, FraiseQL automatically creates filtering inputs:
+
+```python
+@fraiseql.type
+class User:
+    id: UUID
+    name: str
+    email: str
+    created_at: datetime
+    is_active: bool
+
+# Automatically generates UserWhereInput with appropriate filters for each field
+```
+
+### Standard Filter Operations by Type
+
+| Python Type | Available Operators | Example |
+|------------|-------------------|---------|
+| `str` | `eq`, `neq`, `contains`, `startswith`, `endswith`, `in_`, `nin`, `isnull` | `name: {contains: "john"}` |
+| `int`, `float` | `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in_`, `nin`, `isnull` | `age: {gte: 18}` |
+| `bool` | `eq`, `neq`, `isnull` | `is_active: {eq: true}` |
+| `UUID` | `eq`, `neq`, `in_`, `nin`, `isnull` | `id: {eq: "123..."}` |
+| `datetime`, `date` | `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in_`, `nin`, `isnull` | `created_at: {gte: "2024-01-01"}` |
+
+### Restricted Filter Types for Exotic Scalars
+
+**⚠️ Breaking Change in v0.3.7**: Exotic scalar types now use restricted filter sets that only expose operators that work correctly with PostgreSQL type normalization.
+
+#### Network Address Types
+```python
+from fraiseql.types import IpAddress, CIDR
+
+@fraiseql.type
+class Server:
+    ip_address: IpAddress  # Uses NetworkAddressFilter
+    network: CIDR         # Uses NetworkAddressFilter
+```
+
+**NetworkAddressFilter** only exposes: `eq`, `neq`, `in_`, `nin`, `isnull`
+- ❌ **Removed**: `contains`, `startswith`, `endswith` (broken due to CIDR notation like `/32`)
+- ✅ **Working**: Exact matching and list operations
+
+```graphql
+# ✅ These work correctly
+servers(where: {
+  ip_address: {eq: "10.0.0.1"}
+  network: {in: ["192.168.1.0/24", "10.0.0.0/8"]}
+})
+
+# ❌ These were removed (never worked correctly)
+# servers(where: {ip_address: {contains: "10.0"}})  # No longer available
+```
+
+#### MAC Address Types
+```python
+from fraiseql.types import MacAddress
+
+@fraiseql.type
+class NetworkDevice:
+    mac_address: MacAddress  # Uses MacAddressFilter
+```
+
+**MacAddressFilter** only exposes: `eq`, `neq`, `in_`, `nin`, `isnull`
+- ❌ **Removed**: `contains`, `startswith`, `endswith` (broken due to MAC normalization)
+- ✅ **Working**: Exact matching and list operations
+
+#### Hierarchical Path Types
+```python
+from fraiseql.types import LTree
+
+@fraiseql.type
+class Category:
+    path: LTree  # Uses LTreeFilter
+```
+
+**LTreeFilter** only exposes: `eq`, `neq`, `isnull` (most conservative)
+- ❌ **Removed**: All pattern matching and list operations
+- 🔄 **Future**: Will add proper ltree operators (`ancestor_of`, `descendant_of`, `matches_lquery`)
+
+#### Date Range Types
+```python
+from fraiseql.types import DateRange
+
+@fraiseql.type
+class Event:
+    date_range: DateRange  # Uses DateRangeFilter
+```
+
+**DateRangeFilter** only exposes: `eq`, `neq`, `isnull`
+- 🔄 **Future**: Will add proper range operators (`contains_date`, `overlaps`, `adjacent`)
+
+### Migration Guide for v0.3.7
+
+If you were using pattern matching operators with exotic types:
+
+```python
+# Before v0.3.7 (this was broken but allowed)
+servers = await repo.find("v_server", where={
+    "ip_address__contains": "192.168"  # Never worked correctly
+})
+
+# v0.3.7+ (use exact matching instead)
+servers = await repo.find("v_server", where={
+    "ip_address": "192.168.1.100"  # Works correctly
+})
+
+# Or use IN operator for multiple IPs
+servers = await repo.find("v_server", where={
+    "ip_address__in": ["192.168.1.100", "192.168.1.101"]
+})
+```
+
+### Custom Filtering Logic
+
+For complex filtering needs with exotic types, implement custom resolvers:
+
+```python
+@fraiseql.query
+async def servers_in_network(
+    info,
+    network_prefix: str
+) -> list[Server]:
+    """Custom filtering for network ranges."""
+    repo = info.context["repo"]
+
+    # Use PostgreSQL network operators directly
+    return await repo.raw_query("""
+        SELECT jsonb_build_object('id', id, 'ip_address', ip_address)
+        FROM v_server
+        WHERE ip_address <<= %s::inet
+    """, [f"{network_prefix}/24"])
+```
+
 ## Testing Types
 
 ```python
@@ -581,6 +722,23 @@ def test_type_field_nullability():
     # Optional field
     bio_field = user_type.fields["bio"]
     assert bio_field.type.of_type is not None
+
+def test_restricted_filter_types():
+    """Test that exotic types use restricted filters."""
+    schema = get_schema()
+
+    # Check that NetworkDevice generates proper where input
+    where_input_type = schema.type_map.get("NetworkDeviceWhereInput")
+    assert where_input_type is not None
+
+    # MAC address field should use MacAddressFilter
+    mac_field = where_input_type.fields["mac_address"]
+    mac_filter_type = mac_field.type.of_type
+
+    # Should have eq, neq, but not contains
+    assert "eq" in mac_filter_type.fields
+    assert "neq" in mac_filter_type.fields
+    assert "contains" not in mac_filter_type.fields  # Removed in v0.3.7
 ```
 
 ## Next Steps

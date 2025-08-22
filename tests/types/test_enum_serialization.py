@@ -2,9 +2,9 @@
 
 import json
 from enum import Enum
-from graphql import GraphQLSchema, graphql_sync, GraphQLObjectType, GraphQLField
 
-import fraiseql
+from graphql import GraphQLField, GraphQLObjectType, GraphQLSchema, graphql_sync
+
 from fraiseql.types.enum import fraise_enum
 
 
@@ -28,9 +28,9 @@ def test_enum_serialization():
             fields={
                 "sourceType": GraphQLField(
                     graphql_enum,
-                    resolve=lambda obj, info: "Product"  # Return the primitive value
+                    resolve=lambda obj, info: "Product",  # Return the primitive value
                 )
-            }
+            },
         )
     )
 
@@ -48,7 +48,13 @@ def test_enum_serialization():
 
 def test_enum_with_mutation_return():
     """Test that enums work correctly when returned from mutations."""
-    from graphql import GraphQLInputObjectType, GraphQLString, GraphQLNonNull, GraphQLInputField, GraphQLArgument
+    from graphql import (
+        GraphQLArgument,
+        GraphQLInputField,
+        GraphQLInputObjectType,
+        GraphQLNonNull,
+        GraphQLString,
+    )
 
     @fraise_enum
     class StatusType(Enum):
@@ -61,16 +67,16 @@ def test_enum_with_mutation_return():
         "TestInput",
         fields={
             "status": GraphQLInputField(StatusType.__graphql_type__),
-            "name": GraphQLInputField(GraphQLNonNull(GraphQLString))
-        }
+            "name": GraphQLInputField(GraphQLNonNull(GraphQLString)),
+        },
     )
 
     output_type = GraphQLObjectType(
         "TestOutput",
         fields={
             "status": GraphQLField(StatusType.__graphql_type__),
-            "message": GraphQLField(GraphQLString)
-        }
+            "message": GraphQLField(GraphQLString),
+        },
     )
 
     # Create mutation
@@ -84,22 +90,22 @@ def test_enum_with_mutation_return():
                     args={"input": GraphQLArgument(input_type)},
                     resolve=lambda obj, info, input: {
                         "status": input["status"],  # This should be the primitive value
-                        "message": "Success"
-                    }
+                        "message": "Success",
+                    },
                 )
-            }
-        )
+            },
+        ),
     )
 
     # Execute mutation
-    query = '''
+    query = """
         mutation {
             testMutation(input: {status: PENDING, name: "test"}) {
                 status
                 message
             }
         }
-    '''
+    """
 
     result = graphql_sync(schema, query)
 
@@ -115,7 +121,6 @@ def test_enum_with_mutation_return():
 
 def test_enum_value_storage():
     """Test that GraphQLEnumValue stores primitive values, not enum members."""
-    from graphql import GraphQLEnumValue
 
     @fraise_enum
     class TestEnum(Enum):

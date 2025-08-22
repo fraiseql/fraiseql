@@ -23,13 +23,13 @@ repos:
       - id: ruff-format
         exclude: ^(examples|tools|conftest\.py)/
 
-  # - repo: local
-  #   hooks:
-  #     - id: pytest
-  #       name: pytest
-  #       entry: python -m pytest
-  #       language: system
-  #       types: [python]
-  #       pass_filenames: false
-  #       always_run: true
-  #       stages: [pre-commit]
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (100% tests must pass)
+        entry: bash -c 'TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true .venv/bin/pytest --tb=short -q && echo "✅ All tests passed - commit allowed"'
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

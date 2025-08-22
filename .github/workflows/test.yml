@@ -53,6 +53,10 @@ jobs:
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
       run: |
         pytest --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v
 
