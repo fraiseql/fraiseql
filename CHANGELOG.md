@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2025-08-22
+
+### 🚀 **Mutation-Aware JSON Passthrough**
+
+#### **Critical Fix: Mutations Never Use Passthrough**
+- **Fixed**: Mutations and subscriptions now automatically disable JSON passthrough regardless of configuration
+- **Issue**: When `json_passthrough_enabled=True`, mutations were bypassing the standard parser, preventing error auto-population (ALWAYS_DATA_CONFIG) from working
+- **Solution**: GraphQL execution pipeline now detects operation type and forces standard execution for mutations
+- **Impact**: **Fixes critical bug** where mutations returned `errors: null` instead of populated error arrays
+
+#### **Performance + Correctness**
+- **Queries**: Continue using passthrough for optimal performance (~2-5ms)
+- **Mutations**: Always use standard pipeline for reliable error handling (~10-20ms)
+- **Result**: Applications can safely enable JSON passthrough in production while maintaining consistent mutation error responses
+
+#### **Enhanced Status Code Mapping**
+- **Added**: Support for `skipped:` and `ignored:` status prefixes (both map to HTTP 422)
+- **Improved**: Better prefix handling while maintaining backward compatibility with existing keyword-based mappings
+- **Maintained**: Existing error code mappings unchanged (e.g., `noop:not_found` still returns 404)
+
+#### **Documentation & Testing**
+- **Enhanced**: Updated function documentation to explain mutation-aware passthrough behavior
+- **Added**: Comprehensive test coverage for mutation passthrough detection
+- **Verified**: All existing tests pass - no breaking changes
+
+### 🎯 **Migration Guide**
+Applications using `json_passthrough_enabled=True` can now safely enable it in production:
+```python
+config = FraiseQLConfig(
+    json_passthrough_enabled=True,         # ✅ Now safe with mutations
+    json_passthrough_in_production=True,   # ✅ Mutations work correctly
+    environment="production"
+)
+```
+
+Mutations will automatically get proper error arrays:
+```javascript
+mutation CreateItem($input: CreateItemInput!) {
+  createItem(input: $input) {
+    ... on CreateItemError {
+      errors {  // ✅ Now populated correctly (was null before)
+        message
+        code      // 422, 404, 409, etc.
+        identifier
+      }
+    }
+  }
+}
+```
+
 ## [0.4.4] - 2025-08-21
 
 ### 🚀 **Major TurboRouter Fixes**

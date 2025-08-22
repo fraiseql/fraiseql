@@ -24,7 +24,7 @@ def _status_to_error_code(status: str) -> int:
 
     status_lower = status.lower()
 
-    # Map common statuses to HTTP codes
+    # Map specific keyword patterns first (for backward compatibility)
     if "not_found" in status_lower:
         return 404
     if "unauthorized" in status_lower:
@@ -37,10 +37,16 @@ def _status_to_error_code(status: str) -> int:
         return 422
     if "timeout" in status_lower:
         return 408
+
+    # Check prefixes (for operations that don't match specific keywords)
     if status_lower.startswith("noop:"):
         return 422  # Unprocessable Entity for no-op operations
     if status_lower.startswith("blocked:"):
         return 422  # Unprocessable Entity for blocked operations
+    if status_lower.startswith("skipped:"):
+        return 422  # Unprocessable Entity for skipped operations
+    if status_lower.startswith("ignored:"):
+        return 422  # Unprocessable Entity for ignored operations
     if status_lower.startswith("failed:"):
         return 500  # Internal error for failures
     return 500  # Default to internal server error
