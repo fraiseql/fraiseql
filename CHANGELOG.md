@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2025-08-22
+
+### 🔧 **Version Consistency Fix**
+
+#### **Fixed Version Reporting**
+- **Fixed**: Corrected `__version__` string to properly report "0.4.6" instead of mismatched version
+- **Issue**: v0.4.5 on PyPI had incorrect `__version__ = "0.4.4"` causing version reporting inconsistency
+- **Solution**: Synchronized version strings across `pyproject.toml` and `__init__.py`
+
+#### **No Functional Changes**
+- **Mutation passthrough fix**: All functionality from v0.4.5 preserved unchanged
+- **Status code mapping**: All enhancements from v0.4.5 included
+- **Testing**: All tests continue to pass (196/196)
+
+#### **Migration from v0.4.5**
+- **Upgrade**: Simply update to v0.4.6 - no code changes required
+- **Verification**: `fraiseql.__version__` now correctly reports "0.4.6"
+
 ## [0.4.5] - 2025-08-22
 
 ### 🚀 **Mutation-Aware JSON Passthrough**
