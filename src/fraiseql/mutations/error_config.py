@@ -113,8 +113,39 @@ class MutationErrorConfig:
         return False
 
 
-# Default configuration
-DEFAULT_ERROR_CONFIG = MutationErrorConfig()
+# Default configuration - enhanced for common patterns
+DEFAULT_ERROR_CONFIG = MutationErrorConfig(
+    success_keywords={
+        "success",
+        "completed", 
+        "ok",
+        "done",
+        "new",
+        "existing", 
+        "updated",
+        "deleted",
+        "synced",
+        "created",  # Added for PrintOptim compatibility
+        "cancelled",  # Added for PrintOptim compatibility
+    },
+    error_prefixes={
+        "error:",
+        "failed:",
+        "validation_error:",
+        "unauthorized:", 
+        "forbidden:",
+        "not_found:",
+        "timeout:",
+        "conflict:",
+    },
+    error_as_data_prefixes={
+        "noop:",
+        "blocked:",
+        "skipped:",
+        "ignored:",
+        "duplicate:",  # Added for PrintOptim compatibility - duplicate entries
+    },
+)
 
 # Strict status-based configuration with prefix patterns
 STRICT_STATUS_CONFIG = MutationErrorConfig(
@@ -141,7 +172,8 @@ STRICT_STATUS_CONFIG = MutationErrorConfig(
     error_pattern=re.compile(r"^failed:[a-z_]+$"),
 )
 
-# Configuration for always returning errors as data
+# Legacy configuration for always returning errors as data (deprecated)
+# Use DEFAULT_ERROR_CONFIG instead which handles PrintOptim patterns better
 ALWAYS_DATA_CONFIG = MutationErrorConfig(
     always_return_as_data=True,
 )

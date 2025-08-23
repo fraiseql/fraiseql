@@ -19,8 +19,10 @@ from .mutations.mutation_decorator import mutation
 from .optimization.decorators import dataloader_field
 from .subscriptions import subscription
 from .types import fraise_input, fraise_type
+from .types.common import MutationResultBase
 from .types.definitions import UNSET
 from .types.enum import fraise_enum
+from .types.errors import Error
 from .types.generic import (
     Connection,
     Edge,
@@ -71,7 +73,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "0.4.6"
+__version__ = "0.5.0"
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",
@@ -88,8 +90,10 @@ __all__ = [
     "Date",
     "Edge",
     "EmailAddress",
+    "Error",
     "FraiseQLConfig",
     "MutationErrorConfig",
+    "MutationResultBase",
     "PageInfo",
     "PaginatedResponse",
     "UserContext",

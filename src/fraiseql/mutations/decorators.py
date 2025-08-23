@@ -80,6 +80,22 @@ def success(_cls: T | None = None) -> T | Callable[[T], T]:
     def wrap(cls: T) -> T:
         from fraiseql.gql.schema_builder import SchemaRegistry
         from fraiseql.types.constructor import define_fraiseql_type
+        from fraiseql.types.errors import Error
+
+        # Auto-inject standard mutation fields if not already present
+        annotations = getattr(cls, "__annotations__", {})
+        
+        if "status" not in annotations:
+            annotations["status"] = str
+            setattr(cls, "status", "success")  # Default value
+        if "message" not in annotations:
+            annotations["message"] = str | None
+            setattr(cls, "message", None)  # Default value
+        if "errors" not in annotations:
+            annotations["errors"] = list[Error] | None
+            setattr(cls, "errors", None)  # Default value
+            
+        cls.__annotations__ = annotations
 
         patch_missing_field_types(cls)
         cls = define_fraiseql_type(cls, kind="output")  # type: ignore[assignment]
@@ -106,6 +122,22 @@ def failure(_cls: T | None = None) -> T | Callable[[T], T]:
     def wrap(cls: T) -> T:
         from fraiseql.gql.schema_builder import SchemaRegistry
         from fraiseql.types.constructor import define_fraiseql_type
+        from fraiseql.types.errors import Error
+
+        # Auto-inject standard mutation fields if not already present
+        annotations = getattr(cls, "__annotations__", {})
+        
+        if "status" not in annotations:
+            annotations["status"] = str
+            setattr(cls, "status", "success")  # Default value
+        if "message" not in annotations:
+            annotations["message"] = str | None
+            setattr(cls, "message", None)  # Default value
+        if "errors" not in annotations:
+            annotations["errors"] = list[Error] | None
+            setattr(cls, "errors", None)  # Default value
+            
+        cls.__annotations__ = annotations
 
         patch_missing_field_types(cls)
         cls = define_fraiseql_type(cls, kind="output")  # type: ignore[assignment]

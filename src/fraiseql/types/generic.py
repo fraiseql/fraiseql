@@ -206,7 +206,7 @@ class Connection(Generic[T]):
     total_count: int | None = fraise_field(default=None, description="Total number of items")
 
 
-# Convenience alias for common usage (matches printoptim pattern)
+# Convenience alias for common usage
 PaginatedResponse = Connection
 
 
