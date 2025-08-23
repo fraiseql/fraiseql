@@ -218,45 +218,113 @@ def extract_raw_json_result(data: Any) -> Optional[RawJSONResult]:
 
 def _serialize_fraise_types_in_result(result: ExecutionResult) -> ExecutionResult:
     """Convert @fraise_type objects to dicts for JSON serialization.
-    
+
     This function processes the GraphQL ExecutionResult to convert any @fraise_type
     objects (those decorated with @fraiseql.type) into plain dictionaries that can
-    be safely serialized to JSON. This prevents "Object of type X is not JSON 
+    be safely serialized to JSON. This prevents "Object of type X is not JSON
     serializable" errors when the GraphQL library attempts to serialize the response.
-    
+
     Args:
         result: The ExecutionResult from GraphQL execution
-        
+
     Returns:
         A new ExecutionResult with all @fraise_type objects converted to dicts
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"_serialize_fraise_types_in_result called: has_data={result.data is not None}")
+
     if result.data:
+        logger.info(f"Cleaning data of type: {type(result.data)}")
         cleaned_data = _clean_fraise_types(result.data)
-        return ExecutionResult(data=cleaned_data, errors=result.errors, extensions=result.extensions)
+        logger.info(f"Cleaned data type: {type(cleaned_data)}")
+        return ExecutionResult(
+            data=cleaned_data, errors=result.errors, extensions=result.extensions
+        )
     return result
 
 
 def _clean_fraise_types(obj: Any, _seen: set | None = None) -> Any:
     """Recursively convert @fraise_type objects to dictionaries.
-    
+
     This function walks through a data structure and converts any objects that
     have the __fraiseql_definition__ attribute (indicating they are @fraise_type
     objects) into plain dictionaries using the same logic as FraiseQLJSONEncoder.
-    
+
     Args:
         obj: The object to clean (can be dict, list, @fraise_type object, or primitive)
         _seen: Internal parameter to track seen objects and prevent infinite recursion
-        
+
     Returns:
         The cleaned object with all @fraise_type objects converted to dicts
     """
     if _seen is None:
         _seen = set()
-    
+
+    # Debug logging at the start
+    import logging
+
+    logger = logging.getLogger(__name__)
+    if hasattr(obj, "__class__"):
+        logger.info(f"_clean_fraise_types called on: {obj.__class__.__name__}")
+
     # Handle FraiseQL types first (objects with __fraiseql_definition__)
-    if hasattr(obj, '__fraiseql_definition__'):
+    if hasattr(obj, "__fraiseql_definition__"):
         # Convert @fraise_type object to dictionary with recursive cleaning
         obj_dict = {}
+
+        # Add __typename field for GraphQL union type resolution
+        # This allows the GraphQL union resolver to identify the correct type
+        if hasattr(obj, "__class__") and hasattr(obj.__class__, "__name__"):
+            obj_dict["__typename"] = obj.__class__.__name__
+
+            # CRITICAL FIX: Force errors array population for frontend compatibility
+            # If this is an Error type with null errors field, auto-populate it
+            class_name = obj.__class__.__name__
+
+            # Debug logging
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info(f"Processing object: {class_name}")
+            logger.info(f"Has errors attr: {hasattr(obj, 'errors')}")
+            if hasattr(obj, "errors"):
+                logger.info(f"Errors value: {obj.errors}")
+            logger.info(f"Has status attr: {hasattr(obj, 'status')}")
+            logger.info(f"Has message attr: {hasattr(obj, 'message')}")
+
+            if (
+                class_name.endswith("Error")
+                and hasattr(obj, "errors")
+                and obj.errors is None
+                and hasattr(obj, "status")
+                and hasattr(obj, "message")
+            ):
+                # Create error structure from the status and message
+                status = getattr(obj, "status", "")
+                message = getattr(obj, "message", "Unknown error")
+
+                # Extract error code and identifier from status
+                if ":" in status:
+                    error_code = 422  # Unprocessable Entity for noop: statuses
+                    identifier = status.split(":", 1)[1] if ":" in status else "unknown_error"
+                else:
+                    error_code = 500  # Internal Server Error for other statuses
+                    identifier = "general_error"
+
+                # Create error object
+                error_obj = {
+                    "code": error_code,
+                    "identifier": identifier,
+                    "message": message,
+                    "details": {},
+                }
+
+                obj_dict["errors"] = [error_obj]
+                # Also force-set on the original object to ensure consistency
+                obj.errors = [error_obj]
+
         for attr_name in dir(obj):
             # Skip private attributes, methods, and special FraiseQL attributes
             if (
@@ -270,39 +338,42 @@ def _clean_fraise_types(obj: Any, _seen: set | None = None) -> Any:
                     # Recursively clean the value
                     obj_dict[attr_name] = _clean_fraise_types(value, _seen)
         return obj_dict
-    
+
     # Handle Python Enums (convert to their value)
-    elif hasattr(obj, "__class__") and hasattr(obj.__class__, "__bases__"):
+    if hasattr(obj, "__class__") and hasattr(obj.__class__, "__bases__"):
         import enum
+
         if isinstance(obj, enum.Enum):
             return obj.value
-    
+
     # Handle circular references for non-@fraise_type objects
     obj_id = id(obj)
-    is_complex = isinstance(obj, (dict, list)) or (hasattr(obj, '__dict__') and not isinstance(obj, (str, int, float, bool, type(None))))
-    
+    is_complex = isinstance(obj, (dict, list)) or (
+        hasattr(obj, "__dict__") and not isinstance(obj, (str, int, float, bool, type(None)))
+    )
+
     if is_complex and obj_id in _seen:
         return obj  # Return as-is to break circular reference
-    
+
     # Add complex objects to seen set
     if is_complex:
         _seen.add(obj_id)
-    
+
     try:
         # Handle lists - recursively clean each item
         if isinstance(obj, list):
             return [_clean_fraise_types(item, _seen) for item in obj]
-        
+
         # Handle dicts - recursively clean each value
-        elif isinstance(obj, dict):
+        if isinstance(obj, dict):
             return {k: _clean_fraise_types(v, _seen) for k, v in obj.items()}
-        
+
         # Handle objects with __dict__ that might contain @fraise_type objects
-        elif hasattr(obj, '__dict__') and not isinstance(obj, (str, int, float, bool, type(None))):
+        if hasattr(obj, "__dict__") and not isinstance(obj, (str, int, float, bool, type(None))):
             # For objects that aren't primitives, check their attributes
             cleaned_obj = obj
             for attr_name in dir(obj):
-                if not attr_name.startswith('_') and hasattr(obj, attr_name):
+                if not attr_name.startswith("_") and hasattr(obj, attr_name):
                     attr_value = getattr(obj, attr_name, None)
                     if attr_value is not None and not callable(attr_value):
                         cleaned_value = _clean_fraise_types(attr_value, _seen)
@@ -311,13 +382,14 @@ def _clean_fraise_types(obj: Any, _seen: set | None = None) -> Any:
                             # Create a copy to avoid modifying the original
                             if cleaned_obj is obj:
                                 import copy
+
                                 cleaned_obj = copy.copy(obj)
                             setattr(cleaned_obj, attr_name, cleaned_value)
             return cleaned_obj
-        
+
         # Return primitives and other objects as-is
         return obj
-        
+
     finally:
         # Remove from seen set when done processing
         if is_complex:

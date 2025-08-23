@@ -89,8 +89,42 @@ def _convert_fraise_union(
         gql_object_types.append(gql)
 
     def resolve_union_type(obj: Any, info: Any, type_: Any) -> str | None:
-        """Resolve the GraphQL type name from a Python object."""
-        return obj.__class__.__name__ if hasattr(obj, "__class__") else None
+        """Resolve the GraphQL type name from a Python object.
+
+        This resolver handles both FraiseQL objects and serialized dictionaries
+        created by the serialization fix (lines 151-153 in mutation_decorator.py).
+        """
+        # Handle FraiseQL objects (original behavior)
+        if hasattr(obj, "__class__") and obj.__class__.__name__ != "dict":
+            return obj.__class__.__name__
+
+        # Handle serialized dictionaries from _clean_fraise_types
+        if isinstance(obj, dict):
+            # Strategy 1: Look for __typename field (GraphQL standard)
+            if "__typename" in obj:
+                return obj["__typename"]
+
+            # Strategy 2: Infer type from dictionary structure
+            # Look for patterns that indicate Success vs Error types
+            if (
+                "errors" in obj
+                or "error_code" in obj
+                or obj.get("status", "").startswith(("noop:", "blocked:", "failed:", "error"))
+            ):
+                # This looks like an error response
+                # Find the Error type among union members
+                for gql_type in gql_object_types:
+                    if gql_type.name.endswith("Error"):
+                        return gql_type.name
+            else:
+                # This looks like a success response
+                # Find the Success type among union members
+                for gql_type in gql_object_types:
+                    if gql_type.name.endswith("Success"):
+                        return gql_type.name
+
+        # Fallback: return None and let GraphQL handle the error
+        return None
 
     union_type = GraphQLUnionType(
         name=annotation.name,

@@ -103,10 +103,22 @@ def parse_mutation_result(
     # With config, use more sophisticated logic
     status_lower = mutation_result.status.lower() if mutation_result.status else ""
 
+    # Debug logging
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Parsing mutation result: status='{mutation_result.status}', status_lower='{status_lower}'"
+    )
+    logger.info(f"success_keywords: {error_config.success_keywords}")
+    logger.info(f"In success_keywords: {status_lower in error_config.success_keywords}")
+
     # Use success type only for explicit success statuses
     if status_lower in error_config.success_keywords:
+        logger.info("Parsing as SUCCESS type")
         return _parse_success(mutation_result, success_cls)
     # Everything else uses error type (including noop:, blocked:, etc.)
+    logger.info("Parsing as ERROR type")
     return _parse_error(mutation_result, error_cls)
 
 
@@ -221,8 +233,15 @@ def _parse_error(
     error_cls: type[E],
 ) -> E:
     """Parse error mutation result."""
+    # Debug logging
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"_parse_error called: status={result.status}, class={error_cls.__name__}")
+
     fields = {}
     annotations = getattr(error_cls, "__annotations__", {})
+    logger.info(f"Error class annotations: {annotations}")
 
     # Always include message
     if "message" in annotations:
@@ -283,9 +302,43 @@ def _parse_error(
     # Create instance first
     instance = error_cls(**fields)
 
-    # Post-process to auto-populate errors field if it exists and is None
-    if hasattr(instance, "errors") and getattr(instance, "errors", "NOT_SET") is None:
+    # Post-process to auto-populate errors field if it exists and is empty or None
+    # FORCE POPULATE for frontend compatibility - PrintOptim needs errors array
+    errors_value = getattr(instance, "errors", "NOT_SET")
+    if hasattr(instance, "errors") and (errors_value is None or errors_value == []):
         # Auto-populate the errors field with structured error information
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"FORCE-populating errors for status: {result.status}, class: {error_cls.__name__}"
+        )
+
+        # Create error structure from the status and message - SIMPLIFIED
+        status = getattr(instance, "status", result.status or "unknown")
+        message = getattr(instance, "message", result.message or "Unknown error")
+
+        # Extract error code and identifier from status
+        if ":" in status:
+            error_code = 422  # Unprocessable Entity for noop: statuses
+            identifier = status.split(":", 1)[1] if ":" in status else "unknown_error"
+        else:
+            error_code = 500  # Internal Server Error for other statuses
+            identifier = "general_error"
+
+        # Create error object - FORCE POPULATE
+        error_obj = {
+            "code": error_code,
+            "identifier": identifier,
+            "message": message,
+            "details": {},
+        }
+
+        # FORCE set the errors array
+        instance.errors = [error_obj]
+        logger.info(f"FORCE-populated errors: {[error_obj]}")
+
+        # Also check if we can do the normal population
         error_list_type = annotations.get("errors")
         if error_list_type:
             # Handle Optional[list[Error]] or list[Error] | None

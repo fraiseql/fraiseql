@@ -147,10 +147,44 @@ class MutationDefinition:
                 self.error_type,
                 self.error_config,
             )
-            
-            # Serialize FraiseQL types (especially Error objects) to avoid JSON serialization issues
-            from fraiseql.graphql.execute import _serialize_fraise_types_in_result
-            return _serialize_fraise_types_in_result(parsed_result)
+
+            # Return the parsed result directly - let GraphQL handle object resolution
+            # Serialization will be handled at the JSON encoding stage
+
+            # DEBUG: Check if errors field is being set correctly for PrintOptim compatibility
+            if hasattr(parsed_result, "errors") and hasattr(parsed_result, "__class__"):
+                class_name = parsed_result.__class__.__name__
+                errors_value = parsed_result.errors
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.info(f"Mutation result: {class_name}, errors={errors_value}")
+
+                # CRITICAL FIX: Force populate errors for frontend compatibility
+                if class_name.endswith("Error") and errors_value is None:
+                    status = getattr(parsed_result, "status", "unknown")
+                    message = getattr(parsed_result, "message", "Unknown error")
+
+                    # Create error from status and message
+                    if ":" in status:
+                        error_code = 422
+                        identifier = status.split(":", 1)[1]
+                    else:
+                        error_code = 500
+                        identifier = "general_error"
+
+                    error_obj = {
+                        "code": error_code,
+                        "identifier": identifier,
+                        "message": message,
+                        "details": {},
+                    }
+
+                    # Force set errors array
+                    parsed_result.errors = [error_obj]
+                    logger.info(f"FORCED errors population: {[error_obj]}")
+
+            return parsed_result
 
         # Set metadata for GraphQL introspection
         resolver.__name__ = to_snake_case(self.name)

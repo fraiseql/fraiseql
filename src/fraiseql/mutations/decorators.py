@@ -84,17 +84,17 @@ def success(_cls: T | None = None) -> T | Callable[[T], T]:
 
         # Auto-inject standard mutation fields if not already present
         annotations = getattr(cls, "__annotations__", {})
-        
+
         if "status" not in annotations:
             annotations["status"] = str
-            setattr(cls, "status", "success")  # Default value
+            cls.status = "success"  # Default value
         if "message" not in annotations:
             annotations["message"] = str | None
-            setattr(cls, "message", None)  # Default value
+            cls.message = None  # Default value
         if "errors" not in annotations:
             annotations["errors"] = list[Error] | None
-            setattr(cls, "errors", None)  # Default value
-            
+            cls.errors = None  # Default value
+
         cls.__annotations__ = annotations
 
         patch_missing_field_types(cls)
@@ -126,17 +126,19 @@ def failure(_cls: T | None = None) -> T | Callable[[T], T]:
 
         # Auto-inject standard mutation fields if not already present
         annotations = getattr(cls, "__annotations__", {})
-        
+
         if "status" not in annotations:
             annotations["status"] = str
-            setattr(cls, "status", "success")  # Default value
+            cls.status = "success"  # Default value
         if "message" not in annotations:
             annotations["message"] = str | None
-            setattr(cls, "message", None)  # Default value
+            cls.message = None  # Default value
         if "errors" not in annotations:
             annotations["errors"] = list[Error] | None
-            setattr(cls, "errors", None)  # Default value
-            
+            # CRITICAL FIX: Don't set to None, create empty list that will be populated
+            # This ensures frontend compatibility by always having an errors array
+            cls.errors = []  # Empty list instead of None - populated at runtime
+
         cls.__annotations__ = annotations
 
         patch_missing_field_types(cls)
