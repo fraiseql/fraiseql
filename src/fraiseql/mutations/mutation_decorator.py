@@ -141,12 +141,16 @@ class MutationDefinition:
                 result = await db.execute_function(full_function_name, input_data)
 
             # Parse result into Success or Error type
-            return parse_mutation_result(
+            parsed_result = parse_mutation_result(
                 result,
                 self.success_type,
                 self.error_type,
                 self.error_config,
             )
+            
+            # Serialize FraiseQL types (especially Error objects) to avoid JSON serialization issues
+            from fraiseql.graphql.execute import _serialize_fraise_types_in_result
+            return _serialize_fraise_types_in_result(parsed_result)
 
         # Set metadata for GraphQL introspection
         resolver.__name__ = to_snake_case(self.name)
