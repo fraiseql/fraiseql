@@ -32,9 +32,25 @@ def test_blog_queries():
 
 if __name__ == "__main__":
     print("🧪 Testing individual type imports...")
-    results = []
-    results.append(test_blog_types())
-    results.append(test_blog_mutations())
-    results.append(test_blog_queries())
+    success_count = 0
+    total_count = 3
+    
+    try:
+        test_blog_types()
+        success_count += 1
+    except:
+        pass
+        
+    try:
+        test_blog_mutations()
+        success_count += 1
+    except:
+        pass
+        
+    try:
+        test_blog_queries()
+        success_count += 1
+    except:
+        pass
 
-    print(f"\n📊 Results: {sum(results)}/{len(results)} successful")
+    print(f"\n📊 Results: {success_count}/{total_count} successful")
