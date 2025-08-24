@@ -1,1 +1,0 @@
-# Enterprise blog demo integration tests

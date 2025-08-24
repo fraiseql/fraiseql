@@ -1,1 +1,0 @@
-# Enterprise blog demo test fixtures

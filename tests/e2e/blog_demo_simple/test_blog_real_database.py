@@ -10,9 +10,10 @@ from uuid import uuid4
 
 import pytest
 
-from tests_new.utilities.assertions.graphql import (
-    assert_no_graphql_errors,
-)
+# GraphQL assertion helper
+def assert_no_graphql_errors(result):
+    """Assert that a GraphQL result has no errors."""
+    assert "errors" not in result or not result["errors"], f"GraphQL errors: {result.get('errors', [])}"
 
 logger = logging.getLogger(__name__)
 
