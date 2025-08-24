@@ -476,6 +476,18 @@ wheels = [
 ]
 
 [[package]]
+name = "faker"
+version = "37.5.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/5d/7797a74e8e31fa227f0303239802c5f09b6722bdb6638359e7b6c8f30004/faker-37.5.3.tar.gz", hash = "sha256:8315d8ff4d6f4f588bd42ffe63abd599886c785073e26a44707e10eeba5713dc", size = 1907147, upload-time = "2025-07-30T15:52:19.528Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/bf/d06dd96e7afa72069dbdd26ed0853b5e8bd7941e2c0819a9b21d6e6fc052/faker-37.5.3-py3-none-any.whl", hash = "sha256:386fe9d5e6132a915984bf887fcebcc72d6366a25dd5952905b31b141a17016d", size = 1949261, upload-time = "2025-07-30T15:52:17.729Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.116.1"
 source = { registry = "https://pypi.org/simple" }
@@ -500,7 +512,7 @@ wheels = [
 
 [[package]]
 name = "fraiseql"
-version = "0.5.0"
+version = "0.5.0b1"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -577,6 +589,14 @@ tracing = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "docker" },
+    { name = "faker" },
+    { name = "fastapi" },
+    { name = "psycopg-pool" },
+    { name = "pyjwt" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-timeout" },
+    { name = "testcontainers" },
     { name = "twine" },
 ]
 
@@ -642,7 +662,17 @@ requires-dist = [
 provides-extras = ["dev", "auth0", "docs", "tracing", "redis", "all"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "twine", specifier = ">=6.1.0" }]
+dev = [
+    { name = "docker", specifier = ">=7.1.0" },
+    { name = "faker", specifier = ">=37.5.3" },
+    { name = "fastapi", specifier = ">=0.116.1" },
+    { name = "psycopg-pool", specifier = ">=3.2.6" },
+    { name = "pyjwt", specifier = ">=2.10.1" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
+    { name = "testcontainers", extras = ["postgres"], specifier = ">=4.10.0" },
+    { name = "twine", specifier = ">=6.1.0" },
+]
 
 [[package]]
 name = "ghp-import"
@@ -1643,6 +1673,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/71/28/67172c96ba684058a4d24ffe144d64783d2a270d0af0d9e792737bddc75c/pytest_mock-3.14.1.tar.gz", hash = "sha256:159e9edac4c451ce77a5cdb9fc5d1100708d2dd4ba3c3df572f14097351af80e", size = 33241, upload-time = "2025-05-26T13:58:45.167Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/05/77b60e520511c53d1c1ca75f1930c7dd8e971d0c4379b7f4b3f9644685ba/pytest_mock-3.14.1-py3-none-any.whl", hash = "sha256:178aefcd11307d874b4cd3100344e7e2d888d9791a6a1d9bfe90fbc1b74fd1d0", size = 9923, upload-time = "2025-05-26T13:58:43.487Z" },
+]
+
+[[package]]
+name = "pytest-timeout"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ac/82/4c9ecabab13363e72d880f2fb504c5f750433b2b6f16e99f4ec21ada284c/pytest_timeout-2.4.0.tar.gz", hash = "sha256:7e68e90b01f9eff71332b25001f85c75495fc4e3a836701876183c4bcfd0540a", size = 17973, upload-time = "2025-05-05T19:44:34.99Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/b6/3127540ecdf1464a00e5a01ee60a1b09175f6913f0644ac748494d9c4b21/pytest_timeout-2.4.0-py3-none-any.whl", hash = "sha256:c42667e5cdadb151aeb5b26d114aff6bdf5a907f176a007a30b940d3d865b5c2", size = 14382, upload-time = "2025-05-05T19:44:33.502Z" },
 ]
 
 [[package]]

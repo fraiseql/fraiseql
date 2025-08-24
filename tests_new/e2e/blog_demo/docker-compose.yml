@@ -1,0 +1,172 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: fraiseql_blog_db
+    environment:
+      POSTGRES_DB: fraiseql_blog
+      POSTGRES_USER: fraiseql_blog
+      POSTGRES_PASSWORD: fraiseql_blog_pass
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_blog -d fraiseql_blog"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql_blog_network
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: fraiseql_blog_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql_blog_network
+
+  # FraiseQL Blog API
+  blog-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraiseql_blog_api
+    environment:
+      # Database configuration
+      DATABASE_URL: "postgresql://fraiseql_blog:fraiseql_blog_pass@postgres:5432/fraiseql_blog"
+
+      # Redis configuration
+      REDIS_URL: "redis://redis:6379/0"
+
+      # Application configuration
+      ENV: "demo"
+      DEBUG: "true"
+      LOG_LEVEL: "DEBUG"
+
+      # Authentication
+      JWT_SECRET: "demo-jwt-secret-key-not-for-production"
+      JWT_ALGORITHM: "HS256"
+      JWT_EXPIRATION: "3600"  # 1 hour
+
+      # API configuration
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      API_CORS_ORIGINS: '["http://localhost:3000", "http://localhost:8080"]'
+
+      # GraphQL configuration
+      GRAPHQL_INTROSPECTION: "true"
+      GRAPHQL_PLAYGROUND: "true"
+      GRAPHQL_DEBUG: "true"
+
+      # Performance configuration
+      DB_POOL_SIZE: "10"
+      DB_MAX_OVERFLOW: "20"
+      QUERY_TIMEOUT: "30"
+
+      # Feature flags
+      ENABLE_SUBSCRIPTIONS: "true"
+      ENABLE_CACHING: "true"
+      ENABLE_METRICS: "true"
+
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./app.py:/app/app.py:ro
+      - ./models.py:/app/models.py:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - fraiseql_blog_network
+    restart: unless-stopped
+
+  # Nginx reverse proxy (optional, for production-like setup)
+  nginx:
+    image: nginx:alpine
+    container_name: fraiseql_blog_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - blog-api
+    networks:
+      - fraiseql_blog_network
+    restart: unless-stopped
+
+  # Prometheus for metrics (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fraiseql_blog_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - fraiseql_blog_network
+
+  # Grafana for monitoring dashboards (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fraiseql_blog_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - fraiseql_blog_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  fraiseql_blog_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

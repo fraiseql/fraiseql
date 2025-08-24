@@ -1,0 +1,38 @@
+# Core testing dependencies
+pytest>=8.3.5
+pytest-asyncio>=0.21.0
+pytest-xdist>=3.5.0  # For parallel test execution
+pytest-cov>=4.0.0    # Coverage reporting
+pytest-mock>=3.11.0  # Mock utilities
+pytest-timeout>=2.1.0  # Test timeouts
+
+# Database testing
+testcontainers[postgres]>=4.0.0
+docker>=7.0.0
+psycopg[pool]>=3.2.6
+psycopg-pool>=3.2.6
+
+# HTTP testing
+httpx>=0.25.0
+respx>=0.20.0  # HTTP mocking
+
+# Assertion and validation helpers
+jsonschema>=4.17.0  # JSON schema validation
+deepdiff>=6.2.0     # Deep object comparison
+
+# Performance testing
+pytest-benchmark>=4.0.0  # Performance benchmarking
+memory-profiler>=0.60.0   # Memory usage profiling
+
+# Test data generation
+faker>=24.0.0  # Fake data generation
+factory-boy>=3.2.1  # Test data factories
+
+# Development utilities
+pytest-watch>=4.2.0  # File watching for tests
+pytest-sugar>=0.9.6  # Better test output
+pytest-clarity>=1.0.1  # Better assertion output
+
+# Optional: Better test discovery
+pytest-testmon>=2.0.0  # Run only affected tests
+pytest-picked>=0.4.6   # Run tests from git changes
