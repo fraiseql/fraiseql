@@ -71,12 +71,12 @@ async def graphql_client(test_client):
             assert "errors" not in response, f"GraphQL errors: {response.get('errors')}"
             assert "data" in response
 
-        def assert_error(self, response, error_code: str = None):
-            """Assert GraphQL response has errors"""
+        def assert_error(self, response, expected_code: str = None):
+            """Assert GraphQL response has errors with native error arrays"""
             assert "errors" in response
-            if error_code:
+            if expected_code:
                 codes = [err.get("extensions", {}).get("code") for err in response["errors"]]
-                assert error_code in codes
+                assert expected_code in codes
 
     return GraphQLClient(test_client)
 ```

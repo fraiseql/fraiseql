@@ -14,12 +14,14 @@ async def create_user(info, input: CreateUserInput) -> User:
 
 **Enterprise Pattern (blog_api/):**
 ```python
-@mutation(function="app.create_user")
-class CreateUser:
+class CreateUser(
+    FraiseQLMutation,  # Clean default pattern
+    function="app.create_user"
+):
     input: CreateUserInput
-    success: CreateUserSuccess  # With metadata
-    error: CreateUserError      # With context
-    noop: CreateUserNoop       # For edge cases
+    success: CreateUserSuccess  # With metadata - auto-decorated
+    failure: CreateUserError    # With context - auto-decorated
+    noop: CreateUserNoop       # For edge cases - auto-decorated
 ```
 
 ### Function Architecture
@@ -71,11 +73,11 @@ CREATE FUNCTION core.create_user(...) RETURNS app.mutation_result;
 ### Stage 1: Basic CRUD
 ```python
 # Simple, direct approach
-@query
+@fraiseql.query
 async def users(info) -> list[User]:
     return await info.context["db"].find("users")
 
-@mutation
+@fraiseql.mutation
 async def create_user(info, input: CreateUserInput) -> User:
     result = await info.context["db"].call_function("create_user", input.dict())
     return User.from_dict(result)
@@ -84,33 +86,33 @@ async def create_user(info, input: CreateUserInput) -> User:
 ### Stage 2: Structured Responses
 ```python
 # Add success/error structure
-@mutation
-class CreateUser:
+class CreateUser(FraiseQLMutation):
     input: CreateUserInput
-    success: CreateUserSuccess
-    error: CreateUserError
+    success: CreateUserSuccess  # Auto-decorated
+    failure: CreateUserError    # Auto-decorated
 ```
 
 ### Stage 3: Business Logic Handling
 ```python
 # Add NOOP for business rules
-@mutation
-class CreateUser:
+class CreateUser(FraiseQLMutation):
     input: CreateUserInput
-    success: CreateUserSuccess
-    error: CreateUserError
-    noop: CreateUserNoop  # User already exists, etc.
+    success: CreateUserSuccess  # Auto-decorated
+    failure: CreateUserError    # Auto-decorated
+    noop: CreateUserNoop       # Auto-decorated
 ```
 
 ### Stage 4: Full Enterprise
 ```python
 # Complete audit, validation, and error handling
-@mutation(function="app.create_user")  # app/core split
-class CreateUser:
+class CreateUser(
+    FraiseQLMutation,  # Clean default pattern
+    function="app.create_user"  # app/core split
+):
     input: CreateUserInput            # With validation
-    success: CreateUserSuccess        # With audit trail
-    error: CreateUserError           # With field errors
-    noop: CreateUserNoop            # With business context
+    success: CreateUserSuccess        # With audit trail - auto-decorated
+    failure: CreateUserError          # With field errors - auto-decorated
+    noop: CreateUserNoop             # With business context - auto-decorated
 ```
 
 ## Code Comparison Examples
@@ -128,11 +130,11 @@ except Exception as e:
 
 **Enterprise:**
 ```python
-# Structured error with context
-@failure
+# Structured error with native error arrays
 class CreateUserError:
+    """Error response with clean patterns."""
     message: str
-    error_code: str
+    errors: list[FraiseQLError] = []  # Native error arrays
     field_errors: Optional[dict[str, str]] = None
     validation_context: Optional[dict[str, Any]] = None
 ```
@@ -141,7 +143,7 @@ class CreateUserError:
 
 **Basic:**
 ```python
-@input
+@fraiseql.input
 class CreateUserInput:
     email: str
     name: str
@@ -149,7 +151,7 @@ class CreateUserInput:
 
 **Enterprise:**
 ```python
-@input
+@fraiseql.input
 class CreateUserInput:
     email: Annotated[str, Field(regex=r"^[^@]+@[^@]+\.[^@]+$")]
     name: Annotated[str, Field(min_length=2, max_length=100)]

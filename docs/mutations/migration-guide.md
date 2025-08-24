@@ -16,14 +16,14 @@ config = FraiseQLConfig(
 )
 
 # Before v0.1.3: Repetitive schema specification
-@mutation(function="create_user", schema="app")
-@mutation(function="update_user", schema="app")
-@mutation(function="delete_user", schema="app")
+class CreateUser(FraiseQLMutation, function="create_user", schema="app")
+class UpdateUser(FraiseQLMutation, function="update_user", schema="app")
+class DeleteUser(FraiseQLMutation, function="delete_user", schema="app")
 
 # After v0.1.3: Clean and DRY
-@mutation(function="create_user")  # Automatically uses "app" schema
-@mutation(function="update_user")  # Automatically uses "app" schema
-@mutation(function="delete_user")  # Automatically uses "app" schema
+class CreateUser(FraiseQLMutation, function="create_user")  # Uses default schema
+class UpdateUser(FraiseQLMutation, function="update_user")  # Uses default schema
+class DeleteUser(FraiseQLMutation, function="delete_user")  # Uses default schema
 ```
 
 This eliminates 90% of schema boilerplate in typical applications where most mutations use the same PostgreSQL schema.

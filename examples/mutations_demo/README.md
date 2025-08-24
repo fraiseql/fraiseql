@@ -50,8 +50,8 @@ All mutations are implemented as PostgreSQL functions that:
 
 ### Type Safety
 
-The `@mutation` decorator ensures:
-- Input validation through `@fraise_input` types
+The FraiseQL mutation classes ensure:
+- Input validation through `@fraiseql.input` types
 - Success/Error discrimination through union types
 - Automatic JSONB to Python object conversion
 - Full GraphQL schema integration
@@ -85,7 +85,7 @@ To add your own mutations:
 
 1. Define input/success/error types
 2. Create a PostgreSQL function returning `mutation_result`
-3. Use `@mutation` decorator with matching names
+3. Use FraiseQLMutation class with matching function names
 4. Add to schema with `build_fraiseql_schema()`
 
 The system automatically handles the rest!
