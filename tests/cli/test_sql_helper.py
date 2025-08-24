@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for SQL helper tool for beginners."""
 
 from dataclasses import dataclass
@@ -13,6 +15,8 @@ from fraiseql.cli.sql_helper import (
 )
 
 
+
+@pytest.mark.unit
 @dataclass
 class User:
     """Test user type."""

@@ -16,6 +16,8 @@ from fraiseql.mutations.result_processor import MutationResultProcessor, ErrorDe
 
 
 # Test data structures for mutations
+
+@pytest.mark.unit
 class CreateMachineError:
     """Mock error class for testing."""
     

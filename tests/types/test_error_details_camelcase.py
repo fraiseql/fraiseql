@@ -1,3 +1,5 @@
+import pytest
+
 """Test that error details are transformed to camelCase when configured."""
 
 import uuid
@@ -9,6 +11,8 @@ from fraiseql.mutations.parser import parse_mutation_result
 from fraiseql.types.errors import Error
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class ConflictObject:
     id: uuid.UUID

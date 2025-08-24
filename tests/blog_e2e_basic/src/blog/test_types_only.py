@@ -1,3 +1,5 @@
+import pytest
+
 """Test importing types individually to isolate issues."""
 
 def test_blog_types():
@@ -10,6 +12,8 @@ def test_blog_types():
         print(f"❌ blog_types import failed: {e}")
         assert False, f"blog_types import failed: {e}"
 
+
+@pytest.mark.blog_demo
 def test_blog_mutations():
     """Test importing blog_mutations."""
     try:

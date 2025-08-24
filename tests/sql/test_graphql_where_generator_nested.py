@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import uuid
 
 import fraiseql
@@ -15,6 +17,8 @@ from fraiseql.sql import (
 
 
 # Define test types at module level to avoid forward reference issues
+
+@pytest.mark.unit
 @fraiseql.type
 class Machine:
     id: uuid.UUID

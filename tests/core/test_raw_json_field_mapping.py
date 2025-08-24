@@ -1,3 +1,5 @@
+import pytest
+
 """Test raw JSON field mapping functionality."""
 
 from graphql import OperationDefinitionNode, parse
@@ -7,6 +9,8 @@ from fraiseql.sql.sql_generator import build_sql_query
 from fraiseql.utils.casing import to_snake_case
 
 
+
+@pytest.mark.unit
 def test_extract_field_paths():
     """Test extracting field paths from GraphQL query."""
     query = """

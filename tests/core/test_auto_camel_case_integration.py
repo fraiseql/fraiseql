@@ -1,3 +1,5 @@
+import pytest
+
 """Integration tests for auto camelCase feature with real GraphQL types."""
 
 from enum import Enum
@@ -6,6 +8,8 @@ import fraiseql
 from fraiseql.core.translate_query import translate_query
 
 
+
+@pytest.mark.unit
 class TestAutoCamelCaseIntegration:
     """Test auto camelCase feature with real FraiseQL types."""
 

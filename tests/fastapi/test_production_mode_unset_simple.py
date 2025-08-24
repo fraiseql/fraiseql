@@ -1,9 +1,13 @@
+import pytest
+
 """Simple tests for production mode UNSET fixes."""
 
 from fraiseql.fastapi.json_encoder import clean_unset_values
 from fraiseql.types.definitions import UNSET
 
 
+
+@pytest.mark.unit
 class TestUnsetCleaning:
     """Test UNSET value cleaning functionality."""
 

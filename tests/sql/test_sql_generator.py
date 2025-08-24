@@ -2,8 +2,12 @@ from psycopg.sql import SQL
 
 from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.sql_generator import build_sql_query
+import pytest
 
 
+
+
+@pytest.mark.unit
 def test_basic_select_flat_fields() -> None:
     query = build_sql_query(
         table="my_table",

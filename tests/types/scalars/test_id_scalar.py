@@ -5,6 +5,8 @@ import pytest
 from fraiseql.types.scalars.id_scalar import ID
 
 
+
+@pytest.mark.unit
 class TestIDClass:
     """Test suite for ID class."""
 

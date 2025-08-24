@@ -12,6 +12,8 @@ from fraiseql.types.scalars.hostname import (
 )
 
 
+
+@pytest.mark.unit
 class TestHostnameSerialization:
     """Test hostname serialization."""
 

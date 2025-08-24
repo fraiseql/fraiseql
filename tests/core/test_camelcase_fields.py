@@ -1,3 +1,5 @@
+import pytest
+
 """Test automatic snake_case to camelCase field conversion."""
 
 from graphql import graphql_sync
@@ -7,6 +9,8 @@ from fraiseql import type as fraise_type
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
+
+@pytest.mark.unit
 def test_automatic_snake_to_camel_conversion(clear_registry) -> None:
     """Test that snake_case fields are automatically converted to camelCase in GraphQL."""
 

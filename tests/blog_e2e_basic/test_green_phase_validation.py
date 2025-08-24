@@ -38,6 +38,8 @@ import fraiseql
 # 🟢 GREEN PHASE 1: Clean FraiseQL Types (No Inheritance)
 # ============================================================================
 
+
+@pytest.mark.blog_demo
 class TestGreenPhaseCleanFraiseQLTypes:
     """Test that clean FraiseQL types work without MutationResultBase inheritance."""
 

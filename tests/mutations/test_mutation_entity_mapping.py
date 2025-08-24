@@ -1,3 +1,5 @@
+import pytest
+
 """Test mutation entity field mapping from object_data.
 
 This test suite verifies that FraiseQL properly maps object_data
@@ -12,6 +14,8 @@ from fraiseql.mutations.parser import parse_mutation_result
 
 
 # Define test entities
+
+@pytest.mark.unit
 @fraiseql.type
 class Location:
     id: UUID

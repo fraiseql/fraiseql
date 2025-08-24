@@ -12,6 +12,8 @@ from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 
+
+@pytest.mark.security
 @pytest.fixture(autouse=True)
 def clear_registry():
     """Clear registry before each test to avoid type conflicts."""

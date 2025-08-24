@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for development authentication middleware."""
 
 import base64
@@ -15,6 +17,8 @@ from fraiseql.fastapi.dev_auth import (
 )
 
 
+
+@pytest.mark.unit
 class TestDevAuthMiddleware:
     """Test the DevAuthMiddleware class."""
 

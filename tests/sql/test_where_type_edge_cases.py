@@ -1,3 +1,5 @@
+import pytest
+
 """Comprehensive tests for where type integration edge cases."""
 
 import uuid
@@ -9,6 +11,8 @@ from typing import Any, Dict, List, Optional
 from fraiseql.sql.where_generator import safe_create_where_type
 
 
+
+@pytest.mark.unit
 @dataclass
 class ComplexModel:
     """Complex model with various field types."""

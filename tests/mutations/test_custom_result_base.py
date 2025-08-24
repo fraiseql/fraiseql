@@ -1,3 +1,5 @@
+import pytest
+
 # tests/mutations/test_custom_result_base.py
 
 from dataclasses import is_dataclass
@@ -8,6 +10,8 @@ from fraiseql.mutations.decorators import success
 from fraiseql.types import JSON
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class MyResultBase:
     id_: UUID

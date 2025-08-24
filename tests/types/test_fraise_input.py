@@ -4,8 +4,12 @@ from uuid import UUID
 from fraiseql.fields import fraise_field
 from fraiseql.types.fraise_input import fraise_input
 from fraiseql.types.scalars.json import JSONField
+import pytest
 
 
+
+
+@pytest.mark.unit
 def test_simple_fraise_input_definition() -> None:
     @fraise_input
     class SimpleInput:

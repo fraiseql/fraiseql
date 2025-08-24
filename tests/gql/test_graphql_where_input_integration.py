@@ -1,3 +1,5 @@
+import pytest
+
 """Integration tests for GraphQL where input feature."""
 
 from datetime import datetime
@@ -18,6 +20,8 @@ from fraiseql.sql import (
 )
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class Product:
     """Test product type."""

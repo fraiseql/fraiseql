@@ -12,6 +12,8 @@ from fraiseql.types.scalars.date import (
 )
 
 
+
+@pytest.mark.unit
 class TestDateScalar:
     """Test suite for Date scalar type."""
 

@@ -1,3 +1,5 @@
+import pytest
+
 """Test that date fields in mutations are properly serialized."""
 
 import asyncio
@@ -8,6 +10,8 @@ import fraiseql
 from fraiseql.mutations.mutation_decorator import mutation
 
 
+
+@pytest.mark.unit
 @fraiseql.input
 class CreateOrderInput:
     """Input for creating a new order."""

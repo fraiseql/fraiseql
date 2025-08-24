@@ -1,3 +1,5 @@
+import pytest
+
 """Test fix for object_data mapping issue in v0.1.0b6."""
 
 import uuid
@@ -7,6 +9,8 @@ from fraiseql import success
 from fraiseql.mutations.parser import parse_mutation_result
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class Location:
     """Test location type."""

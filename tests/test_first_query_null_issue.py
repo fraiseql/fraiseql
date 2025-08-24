@@ -13,6 +13,8 @@ from fraiseql.types import fraise_type
 
 
 # Define the User type
+
+@pytest.mark.unit
 @fraise_type
 class User:
     id: uuid.UUID

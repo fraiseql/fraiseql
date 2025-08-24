@@ -1,3 +1,5 @@
+import pytest
+
 """Test schema introspection security enforcement.
 
 This module tests that GraphQL schema introspection is properly controlled
@@ -12,6 +14,8 @@ from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 
 # Define query outside of any test function to avoid pytest confusion
+
+@pytest.mark.security
 @query
 async def simple_test_query(info: GraphQLResolveInfo) -> str:
     """Simple test query for introspection tests."""

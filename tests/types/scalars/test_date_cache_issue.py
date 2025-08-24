@@ -1,3 +1,5 @@
+import pytest
+
 """Test potential Date scalar caching issues."""
 
 import datetime
@@ -7,6 +9,8 @@ from fraiseql.core.graphql_type import _graphql_type_cache, convert_type_to_grap
 from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 
 
+
+@pytest.mark.unit
 def test_date_scalar_cache_behavior() -> None:
     """Test how Date scalar interacts with type cache."""
     # Clear everything

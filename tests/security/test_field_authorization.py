@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for field-level authorization in FraiseQL."""
 
 import fraiseql
@@ -7,6 +9,8 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.security.field_auth import FieldAuthorizationError, authorize_field
 
 
+
+@pytest.mark.security
 class TestFieldAuthorization:
     """Test field-level authorization functionality."""
 

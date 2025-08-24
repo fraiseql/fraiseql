@@ -1,3 +1,5 @@
+import pytest
+
 """Test that scalar types are properly cached to prevent duplicate registrations."""
 
 import datetime
@@ -7,6 +9,8 @@ from fraiseql.core.graphql_type import _graphql_type_cache, convert_type_to_grap
 from fraiseql.gql.schema_builder import SchemaRegistry, build_fraiseql_schema
 
 
+
+@pytest.mark.unit
 def test_scalar_caching_prevents_duplicates() -> None:
     """Test that scalar types are cached to prevent duplicate registrations."""
     # Clear cache to start fresh

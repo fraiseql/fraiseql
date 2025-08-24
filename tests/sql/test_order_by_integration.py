@@ -1,3 +1,5 @@
+import pytest
+
 """Integration test for ORDER BY functionality in GraphQL queries."""
 
 import uuid
@@ -14,6 +16,8 @@ from fraiseql.sql import (
 
 
 # Define test types
+
+@pytest.mark.unit
 @fraiseql.type
 class Machine:
     id: uuid.UUID

@@ -21,6 +21,8 @@ from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 from fraiseql.sql.sql_generator import build_sql_query
 
 
+
+@pytest.mark.unit
 class ServerStatus(Enum):
     """Test enum for complex serialization."""
 

@@ -8,6 +8,8 @@ from fraiseql.gql.schema_builder import SchemaRegistry
 from fraiseql.mutations.mutation_decorator import MutationDefinition
 
 
+
+@pytest.mark.unit
 @pytest.fixture
 def reset_registry():
     """Reset the schema registry before each test."""

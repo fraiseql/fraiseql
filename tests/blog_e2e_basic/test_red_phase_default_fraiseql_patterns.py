@@ -31,6 +31,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 # 🔴 RED PHASE 1: Default FraiseQL Patterns (No Adjectives)
 # ============================================================================
 
+
+@pytest.mark.blog_demo
 class TestRedPhaseDefaultFraiseQLPatterns:
     """Test that enhanced patterns become the default without adjectives."""
 

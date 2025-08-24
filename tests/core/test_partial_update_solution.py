@@ -1,3 +1,5 @@
+import pytest
+
 """Test that demonstrates the solution to the PrintOptim backend partial update issue."""
 
 import json
@@ -7,6 +9,8 @@ from fraiseql.mutations.mutation_decorator import _to_dict
 from fraiseql.types.definitions import UNSET
 
 
+
+@pytest.mark.unit
 @fraise_input
 class UpdateRouterInputOld:
     """Old approach - causes the partial update issue."""

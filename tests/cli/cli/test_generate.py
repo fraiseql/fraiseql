@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for the generate commands."""
 
 from pathlib import Path
@@ -6,6 +8,8 @@ from unittest.mock import patch
 from fraiseql.cli.main import cli
 
 
+
+@pytest.mark.unit
 class TestGenerateSchema:
     """Test the generate schema command."""
 

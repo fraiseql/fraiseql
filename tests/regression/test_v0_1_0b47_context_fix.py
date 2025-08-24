@@ -1,8 +1,12 @@
+import pytest
+
 """Test that GraphQL info is properly passed to repository context."""
 
 from fraiseql.db import FraiseQLRepository
 
 
+
+@pytest.mark.unit
 def test_repository_context_preserved():
     """Test that repository context can be updated with GraphQL info."""
     # Create repository with initial context

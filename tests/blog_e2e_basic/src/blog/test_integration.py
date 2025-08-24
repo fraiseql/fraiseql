@@ -1,9 +1,13 @@
+import pytest
+
 """Integration test for blog demo components."""
 
 import sys
 import traceback
 
 
+
+@pytest.mark.blog_demo
 def test_imports():
     """Test that all blog components can be imported successfully."""
     print("🧪 Testing blog demo imports...")

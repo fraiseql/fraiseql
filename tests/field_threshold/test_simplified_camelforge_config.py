@@ -1,3 +1,5 @@
+import pytest
+
 """Test the simplified CamelForge configuration approach."""
 
 import os
@@ -6,6 +8,8 @@ from fraiseql.fastapi.camelforge_config import CamelForgeConfig
 from fraiseql.fastapi.config import FraiseQLConfig
 
 
+
+@pytest.mark.camelforge
 class TestSimplifiedCamelForgeConfig:
     """Test the simplified configuration approach."""
 

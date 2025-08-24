@@ -1,3 +1,5 @@
+import pytest
+
 """Comprehensive tests for partial instantiation edge cases."""
 
 import dataclasses
@@ -11,6 +13,8 @@ from fraiseql.partial_instantiation import (
 )
 
 
+
+@pytest.mark.unit
 @dataclasses.dataclass
 class Level4Model:
     """Deeply nested level 4 model."""

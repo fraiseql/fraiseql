@@ -1,6 +1,10 @@
 from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
+import pytest
 
 
+
+
+@pytest.mark.unit
 def test_single_order_by() -> None:
     ob = OrderBy(field="email")
     result = ob.to_sql().as_string(None)

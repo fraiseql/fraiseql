@@ -4,6 +4,8 @@ from fraiseql.fields import fraise_field
 
 
 # Test case to verify the field creation and purpose assignment
+
+@pytest.mark.unit
 def test_fraise_field_with_purpose() -> None:
     field = fraise_field(
         field_type=str,

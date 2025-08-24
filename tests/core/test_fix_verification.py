@@ -1,3 +1,5 @@
+import pytest
+
 """Verification tests for the JSONB numeric type coercion fix.
 
 This test suite verifies that the fix correctly handles:
@@ -17,6 +19,8 @@ from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 from fraiseql.sql.sql_generator import build_sql_query
 
 
+
+@pytest.mark.unit
 class TestJSONBFixVerification:
     """Comprehensive verification of the JSONB type coercion fix."""
 

@@ -10,6 +10,8 @@ from fraiseql.types.definitions import FraiseQLTypeDefinition
 from fraiseql.utils.introspection import _describe_fields, describe_type
 
 
+
+@pytest.mark.unit
 class TestIntrospectionUtils:
     """Test introspection utility functions."""
 

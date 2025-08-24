@@ -12,6 +12,8 @@ from fraiseql import fraise_input
 from fraiseql.types.definitions import UNSET, UnsetType
 
 
+
+@pytest.mark.unit
 def test_unset_singleton():
     """Test that UNSET implements singleton pattern."""
     # Create multiple instances

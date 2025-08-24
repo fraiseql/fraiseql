@@ -1,1 +1,0 @@
-"""Database fixtures for FraiseQL testing."""

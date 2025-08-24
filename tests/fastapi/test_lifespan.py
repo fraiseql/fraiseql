@@ -15,6 +15,8 @@ lifecycle_events = []
 
 
 # Sample type and query
+
+@pytest.mark.unit
 @fraiseql.type
 class Status:
     message: str

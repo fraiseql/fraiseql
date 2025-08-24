@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -11,6 +13,8 @@ from fraiseql.sql import OrderByItem, OrderDirection, create_graphql_order_by_in
 
 
 # Define test types at module level
+
+@pytest.mark.unit
 @fraiseql.type
 class Department:
     id: uuid.UUID

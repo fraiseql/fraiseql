@@ -17,6 +17,8 @@ import pytest
 import pytest_asyncio
 
 
+
+@pytest.mark.blog_demo
 class TestRedPhaseMultipleValidationErrorArrays:
     """RED: Test comprehensive validation error arrays (will fail initially)."""
 

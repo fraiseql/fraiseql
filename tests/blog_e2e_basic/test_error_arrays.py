@@ -17,6 +17,8 @@ import pytest
 import pytest_asyncio
 
 
+
+@pytest.mark.blog_demo
 class TestMultipleValidationErrorArrays:
     """Test comprehensive validation error arrays following PrintOptim patterns."""
 

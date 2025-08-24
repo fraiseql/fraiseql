@@ -1,8 +1,12 @@
+import pytest
+
 """Extended tests for security validators to improve coverage."""
 
 from fraiseql.security.validators import InputValidator, ValidationResult
 
 
+
+@pytest.mark.security
 class TestValidationResult:
     """Test ValidationResult dataclass."""
 

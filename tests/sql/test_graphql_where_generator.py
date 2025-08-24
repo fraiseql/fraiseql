@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for GraphQL where input type generation."""
 
 import uuid
@@ -20,6 +22,8 @@ from fraiseql.sql import (
 )
 
 
+
+@pytest.mark.unit
 @dataclass
 class SimpleModel:
     """Simple test model."""

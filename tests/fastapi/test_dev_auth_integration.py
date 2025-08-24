@@ -1,3 +1,5 @@
+import pytest
+
 """Integration tests for development auth with create_fraiseql_app."""
 
 import base64
@@ -10,6 +12,8 @@ import fraiseql
 from fraiseql.fastapi.app import create_fraiseql_app
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class SimpleUser:
     """Simple user type for integration tests."""

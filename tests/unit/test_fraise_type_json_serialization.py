@@ -17,6 +17,8 @@ from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 from fraiseql.graphql.execute import _clean_fraise_types
 
 
+
+@pytest.mark.unit
 class StatusEnum(Enum):
     """Test enum for serialization."""
     ACTIVE = "active"

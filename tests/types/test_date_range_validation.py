@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for date range validation utilities."""
 
 from datetime import date
@@ -13,6 +15,8 @@ from fraiseql.types import (
 )
 
 
+
+@pytest.mark.unit
 class TestValidateDateRange:
     """Test the validate_date_range function."""
 

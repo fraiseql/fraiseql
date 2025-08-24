@@ -9,6 +9,8 @@ from fastapi.testclient import TestClient
 from fraiseql.fastapi.config import FraiseQLConfig
 
 
+
+@pytest.mark.unit
 class TestCORSDefaults:
     """Test CORS default configuration values."""
 

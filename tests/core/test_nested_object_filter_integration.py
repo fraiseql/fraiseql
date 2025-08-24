@@ -1,3 +1,5 @@
+import pytest
+
 """Integration test for nested object filtering in GraphQL where inputs."""
 
 import uuid
@@ -13,6 +15,8 @@ from fraiseql.sql import (
 
 
 # Define test types
+
+@pytest.mark.unit
 @fraiseql.type
 class Machine:
     id: uuid.UUID

@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for SQL helper utilities."""
 
 from fraiseql.utils.sql_helpers import (
@@ -10,6 +12,8 @@ from fraiseql.utils.sql_helpers import (
 )
 
 
+
+@pytest.mark.unit
 class TestSQLHelpers:
     """Test SQL helper functions."""
 

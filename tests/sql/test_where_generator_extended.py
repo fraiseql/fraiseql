@@ -15,6 +15,8 @@ from fraiseql.sql.where_generator import (
 )
 
 
+
+@pytest.mark.unit
 class TestBuildOperatorComposed:
     """Test the build_operator_composed function comprehensively."""
 

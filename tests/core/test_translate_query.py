@@ -5,6 +5,8 @@ from psycopg.sql import SQL
 from fraiseql.core.translate_query import translate_query
 
 
+
+@pytest.mark.unit
 class TestTranslateQuery:
     """Test suite for translate_query function."""
 

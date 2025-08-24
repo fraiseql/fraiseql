@@ -4,6 +4,8 @@ from fraiseql.fields import fraise_field
 from fraiseql.utils.fields import patch_missing_field_types
 
 
+
+@pytest.mark.unit
 class TestClassWithFraiseQLField:
     field1: str = fraise_field()
     field2: int = fraise_field()

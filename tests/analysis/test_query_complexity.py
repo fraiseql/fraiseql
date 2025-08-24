@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for query complexity analysis."""
 
 from fraiseql.analysis import (
@@ -8,6 +10,8 @@ from fraiseql.analysis import (
 )
 
 
+
+@pytest.mark.unit
 class TestComplexityScore:
     """Test the ComplexityScore calculations."""
 

@@ -7,6 +7,8 @@ import pytest
 import fraiseql
 
 
+
+@pytest.mark.unit
 class TestDefaultErrorType:
     """Test that FraiseQL provides a default Error type out of the box."""
     

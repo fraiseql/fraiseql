@@ -10,6 +10,8 @@ from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import parse_mutation_result
 
 
+
+@pytest.mark.integration
 class TestZeroInheritancePatterns:
     """Test that PrintOptim patterns work without any inheritance at all."""
     

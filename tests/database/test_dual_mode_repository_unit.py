@@ -14,6 +14,9 @@ from fraiseql.db import FraiseQLRepository
 
 
 # Test types for dual-mode instantiation
+
+@pytest.mark.integration
+@pytest.mark.database
 @fraiseql.type
 class Product:
     id: UUID

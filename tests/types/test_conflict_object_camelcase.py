@@ -1,3 +1,5 @@
+import pytest
+
 """Test conflict object camelCase transformation in mutations."""
 
 import uuid
@@ -9,6 +11,8 @@ from fraiseql.mutations.parser import parse_mutation_result
 # No need to import MutationResult - parse_mutation_result expects a dict
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class DnsServer:
     id: uuid.UUID

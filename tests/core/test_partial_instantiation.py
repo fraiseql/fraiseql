@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for partial object instantiation."""
 
 import dataclasses
@@ -10,6 +12,8 @@ from fraiseql.partial_instantiation import (
 )
 
 
+
+@pytest.mark.unit
 @dataclasses.dataclass
 class NestedModel:
     """A nested model for testing."""

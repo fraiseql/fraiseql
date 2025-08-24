@@ -5,6 +5,8 @@ import pytest
 from fraiseql.fastapi.config import FraiseQLConfig
 
 
+
+@pytest.mark.unit
 def test_config_ignores_non_prefixed_env_vars(monkeypatch) -> None:
     """Test that config ignores environment variables without FRAISEQL_ prefix."""
     # Set common environment variables that might conflict

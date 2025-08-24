@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for generic type support in FraiseQL."""
 
 from typing import Generic, TypeVar
@@ -16,6 +18,8 @@ from fraiseql.types.generic import (
 )
 
 
+
+@pytest.mark.unit
 class TestGenericTypes:
     """Test generic type functionality."""
 

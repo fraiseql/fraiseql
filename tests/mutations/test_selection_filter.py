@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for GraphQL selection filter utilities."""
 
 from unittest.mock import MagicMock
@@ -19,6 +21,8 @@ def create_field_node_mock(name, alias=None, selections=None):
     return mock
 
 
+
+@pytest.mark.unit
 class TestSelectionFilter:
     """Test selection filter functionality."""
 

@@ -11,6 +11,8 @@ import pytest
 import pytest_asyncio
 
 
+
+@pytest.mark.blog_demo
 class TestBlogPostCreationErrors:
     """Test comprehensive error scenarios for blog post creation.
 

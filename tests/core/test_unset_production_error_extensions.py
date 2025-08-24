@@ -10,6 +10,8 @@ from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.types.definitions import UNSET
 
 
+
+@pytest.mark.unit
 @fraiseql.input
 class SampleInput:
     """Test input with optional fields."""

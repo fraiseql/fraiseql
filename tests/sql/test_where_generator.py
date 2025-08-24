@@ -1,3 +1,5 @@
+import pytest
+
 # tests/test_where_generator.py
 
 import uuid
@@ -7,6 +9,8 @@ from datetime import UTC, date, datetime
 from fraiseql.sql.where_generator import safe_create_where_type
 
 
+
+@pytest.mark.unit
 @dataclass
 class Person:
     name: str

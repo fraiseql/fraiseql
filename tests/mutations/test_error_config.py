@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for configurable mutation error detection."""
 
 from fraiseql.mutations.error_config import (
@@ -8,6 +10,8 @@ from fraiseql.mutations.error_config import (
 )
 
 
+
+@pytest.mark.unit
 class TestMutationErrorConfig:
     """Test error configuration functionality."""
 

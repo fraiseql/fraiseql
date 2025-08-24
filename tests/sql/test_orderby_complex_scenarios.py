@@ -18,6 +18,8 @@ from fraiseql.sql.sql_generator import build_sql_query
 pytestmark = pytest.mark.unit
 
 
+
+@pytest.mark.unit
 class TestComplexOrderByScenarios:
     """Test complex OrderBy scenarios that mirror real-world GraphQL usage."""
 

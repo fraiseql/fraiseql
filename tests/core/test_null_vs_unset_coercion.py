@@ -1,3 +1,5 @@
+import pytest
+
 """Test null vs unset field handling in coercion."""
 
 import fraiseql
@@ -5,6 +7,8 @@ from fraiseql.types.coercion import coerce_input, coerce_input_arguments
 from fraiseql.types.definitions import UNSET
 
 
+
+@pytest.mark.unit
 @fraiseql.input
 class SampleInput:
     """Input type with optional fields that default to UNSET."""

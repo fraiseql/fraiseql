@@ -10,6 +10,8 @@ from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.sql_generator import build_sql_query
 
 
+
+@pytest.mark.camelforge
 class TestCamelForgeIntegration:
     """Test CamelForge integration with field threshold detection."""
 

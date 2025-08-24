@@ -22,6 +22,8 @@ from fraiseql.mutations.parser import (
 from fraiseql.mutations.types import MutationResult
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class Product:
     """Test product type."""

@@ -1,10 +1,15 @@
 import uuid
 from uuid import UUID
 
+import pytest
+
 from fraiseql.fields import FRAISE_MISSING, fraise_field
 from fraiseql.mutations.decorators import failure, success
 from fraiseql.types import JSON
 from fraiseql.utils.fraiseql_builder import collect_fraise_fields
+
+
+@pytest.mark.unit
 
 
 @success

@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for ComplexityConfig."""
 
 from fraiseql.analysis.complexity_config import (
@@ -8,6 +10,8 @@ from fraiseql.analysis.complexity_config import (
 )
 
 
+
+@pytest.mark.unit
 class TestComplexityConfig:
     """Test ComplexityConfig functionality."""
 

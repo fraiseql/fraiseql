@@ -1,3 +1,5 @@
+import pytest
+
 """Extended tests for query complexity analysis to improve coverage."""
 
 from graphql import parse
@@ -17,6 +19,8 @@ from fraiseql.analysis.complexity_config import (
 )
 
 
+
+@pytest.mark.unit
 class TestComplexityScoreExtended:
     """Extended tests for ComplexityScore class."""
 

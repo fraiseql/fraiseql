@@ -1,3 +1,5 @@
+import pytest
+
 """Test nested object instantiation from JSONB data."""
 
 import uuid
@@ -7,6 +9,8 @@ import fraiseql
 
 
 # Define test types
+
+@pytest.mark.unit
 @fraiseql.type
 class Gateway:
     """Represents a network gateway device."""

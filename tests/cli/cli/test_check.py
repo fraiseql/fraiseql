@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for the check command."""
 
 from pathlib import Path
@@ -5,6 +7,8 @@ from pathlib import Path
 from fraiseql.cli.main import cli
 
 
+
+@pytest.mark.unit
 class TestCheckCommand:
     """Test the fraiseql check command."""
 

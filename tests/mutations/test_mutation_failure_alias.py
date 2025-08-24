@@ -7,6 +7,8 @@ from fraiseql import failure, fraise_input, mutation, success
 
 
 # Input type
+
+@pytest.mark.unit
 @fraise_input
 class CreateUserInput:
     name: str

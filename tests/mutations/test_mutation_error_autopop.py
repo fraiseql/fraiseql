@@ -12,6 +12,8 @@ from fraiseql.mutations.parser import parse_mutation_result
 
 
 # Define a simple Error type for testing
+
+@pytest.mark.unit
 @fraiseql.type
 class Error:
     message: str

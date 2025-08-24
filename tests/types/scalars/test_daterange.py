@@ -4,6 +4,8 @@ from graphql import GraphQLError
 from fraiseql.types.scalars.daterange import parse_date_range_value
 
 
+
+@pytest.mark.unit
 def test_valid_date_range() -> None:
     # Test valid date range formats
     valid_ranges = [

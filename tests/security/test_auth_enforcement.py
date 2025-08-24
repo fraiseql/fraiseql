@@ -1,3 +1,5 @@
+import pytest
+
 """Test that authentication is properly enforced when configured."""
 
 from typing import Any, Dict, Optional
@@ -10,6 +12,8 @@ from fraiseql.auth.base import AuthProvider, UserContext
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 
+
+@pytest.mark.security
 class TestAuthProvider(AuthProvider):
     """Test auth provider with known tokens."""
 

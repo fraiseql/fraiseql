@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for automatic camelCase to snake_case conversion."""
 
 from fraiseql.core.ast_parser import FieldPath
@@ -6,6 +8,8 @@ from fraiseql.sql.sql_generator import build_sql_query
 from fraiseql.utils.casing import to_snake_case
 
 
+
+@pytest.mark.unit
 class TestAutoCamelCase:
     """Test suite for automatic camelCase to snake_case conversion."""
 

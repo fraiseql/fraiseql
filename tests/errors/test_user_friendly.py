@@ -12,6 +12,8 @@ from fraiseql.errors.user_friendly import (
 )
 
 
+
+@pytest.mark.unit
 class TestFraiseQLError:
     """Test base error class."""
 

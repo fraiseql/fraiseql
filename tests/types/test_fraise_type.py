@@ -1,3 +1,5 @@
+import pytest
+
 # tests/types/test_fraise_type_decorator.py
 
 from dataclasses import is_dataclass
@@ -5,6 +7,8 @@ from dataclasses import is_dataclass
 import fraiseql
 
 
+
+@pytest.mark.unit
 def test_fraise_type_applies_dataclass_behavior() -> None:
     @fraiseql.type
     class Example:

@@ -22,6 +22,8 @@ from fraiseql.types.fraise_type import fraise_type
 from fraiseql.types.scalars.json import JSONField, parse_json_literal
 
 
+
+@pytest.mark.unit
 class TestConvertTypeToGraphQLInput:
     """Test suite for convert_type_to_graphql_input function."""
 

@@ -1,3 +1,5 @@
+import pytest
+
 """Test mutation result mapping in production mode."""
 
 from uuid import UUID
@@ -8,6 +10,8 @@ from fraiseql import input as fraise_input
 from fraiseql.mutations.parser import parse_mutation_result
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class Location:
     id: UUID

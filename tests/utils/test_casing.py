@@ -1,6 +1,9 @@
+import pytest
+
 from fraiseql.utils.casing import to_camel_case
 
 
+@pytest.mark.unit
 class TestCasing:
     """Test suite for casing utility functions."""
 

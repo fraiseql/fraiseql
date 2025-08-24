@@ -1,3 +1,5 @@
+import pytest
+
 """Integration test demonstrating the ORDER BY bug fix."""
 
 import uuid
@@ -7,6 +9,8 @@ from fraiseql.sql import OrderDirection, create_graphql_order_by_input
 
 
 # Define test types
+
+@pytest.mark.unit
 @fraiseql.type
 class Department:
     id: uuid.UUID

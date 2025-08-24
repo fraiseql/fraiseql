@@ -1,8 +1,12 @@
+import pytest
+
 """Tests for security validators."""
 
 from fraiseql.security.validators import InputValidator
 
 
+
+@pytest.mark.security
 class TestInputValidator:
     """Test suite for InputValidator."""
 

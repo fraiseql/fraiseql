@@ -1,6 +1,10 @@
 from fraiseql.core.ast_parser import FieldPath, extract_flat_paths, parse_query_ast
+import pytest
 
 
+
+
+@pytest.mark.unit
 def test_simple_flat_selection() -> None:
     query = """
     query {

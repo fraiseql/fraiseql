@@ -19,6 +19,8 @@ from fraiseql.sql.graphql_order_by_generator import (
 )
 
 
+
+@pytest.mark.unit
 @fraiseql.type
 class DnsServer:
     """Test type matching the original bug report."""

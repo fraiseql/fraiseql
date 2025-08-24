@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for FraiseQL type protocols."""
 
 from typing import Any
@@ -8,6 +10,8 @@ from fraiseql.types.definitions import FraiseQLTypeDefinition
 from fraiseql.types.protocols import FraiseQLInputType, FraiseQLOutputType
 
 
+
+@pytest.mark.unit
 class TestFraiseQLProtocols:
     """Test FraiseQL type protocols."""
 

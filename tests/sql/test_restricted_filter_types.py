@@ -1,3 +1,5 @@
+import pytest
+
 """Test restricted filter types for exotic scalar types.
 
 This ensures that problematic operators are not exposed for types that have
@@ -19,6 +21,8 @@ from fraiseql.sql.graphql_where_generator import (
 from fraiseql.types import CIDR, DateTime, IpAddress, LTree, MacAddress
 
 
+
+@pytest.mark.unit
 @dataclass
 class NetworkDevice:
     """Test device with exotic scalar types."""
