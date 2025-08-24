@@ -1,4 +1,4 @@
-# ruff: noqa: T201, E501, E712, F841
+# ruff: noqa: E501, E712, F841
 """Complete end-to-end workflow tests for the FraiseQL blog demo.
 
 This module tests complete user journeys through the blog application,
@@ -7,6 +7,7 @@ scenarios. These are the highest-level tests that demonstrate the
 full capabilities of FraiseQL.
 """
 
+import logging
 from uuid import uuid4
 
 import pytest
@@ -14,6 +15,8 @@ import pytest
 from tests_new.utilities.assertions.graphql import (
     assert_no_graphql_errors,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.e2e
@@ -215,7 +218,7 @@ class TestCompleteUserJourney:
         if updated_post["tags"] is not None:
             assert len(updated_post["tags"]) == 3
         else:
-            print("WARNING: tags field returned None, skipping length assertion")
+            logger.warning("Tags field returned None, skipping length assertion")
 
         # Step 5: Publish Post
         publish_post_mutation = """
@@ -715,7 +718,9 @@ class TestPerformanceWorkflows:
         avg_time = performance_monitor.get_average_query_time()
         assert avg_time < 0.5, f"Average user creation time {avg_time:.3f}s (expected < 0.5s)"
 
-        print(f"✅ Created {user_count} users in {total_time:.2f}s (avg: {avg_time:.3f}s per user)")
+        logger.info(
+            f"Created {user_count} users in {total_time:.2f}s (avg: {avg_time:.3f}s per user)"
+        )
 
 
 @pytest.mark.e2e

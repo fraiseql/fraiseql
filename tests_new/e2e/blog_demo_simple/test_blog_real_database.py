@@ -5,6 +5,7 @@ actual database operations instead of mocks, validating that all components
 work together correctly in realistic scenarios.
 """
 
+import logging
 from uuid import uuid4
 
 import pytest
@@ -12,6 +13,8 @@ import pytest
 from tests_new.utilities.assertions.graphql import (
     assert_no_graphql_errors,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.e2e
@@ -61,7 +64,7 @@ class TestRealDatabaseUserJourney:
         assert user["username"] == register_input["username"]
         assert user["email"] == register_input["email"]
         assert user["role"] == "AUTHOR"
-        assert user["isActive"] == True
+        assert user["isActive"]
         assert user["profile"]["firstName"] == "Real"
 
         # Step 2: Verify user exists in database with query
@@ -159,7 +162,7 @@ class TestRealDatabaseUserJourney:
             "excerpt": "My real database post testing the complete E2E workflow with FraiseQL.",
             "status": "DRAFT",
             "authorId": user_id,
-            "featured": false,
+            "featured": False,
             "seoMetadata": {
                 "title": "Real Database Post - FraiseQL E2E Testing",
                 "description": "Complete E2E testing with real database operations",
@@ -618,8 +621,8 @@ class TestRealDatabasePerformance:
         assert query_time < 2.0, f"Querying users took {query_time:.2f}s"
         assert len(users) >= user_count, "Should retrieve at least the created users"
 
-        print(f"✅ Created {user_count} users in {user_creation_time:.2f}s")
-        print(f"✅ Queried {len(users)} users in {query_time:.2f}s")
+        logger.info(f"Created {user_count} users in {user_creation_time:.2f}s")
+        logger.info(f"Queried {len(users)} users in {query_time:.2f}s")
 
 
 @pytest.mark.e2e

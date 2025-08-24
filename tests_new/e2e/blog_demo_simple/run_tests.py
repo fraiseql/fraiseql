@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: T201
 """Real Database E2E Test Runner for FraiseQL Blog Demo
 
 This script runs the complete E2E test suite using real database operations,
@@ -21,10 +20,58 @@ Usage:
 """
 
 import argparse
+import logging
 import os
 import sys
 import time
 from pathlib import Path
+
+try:
+    from rich.console import Console
+    from rich.logging import RichHandler
+    from rich.panel import Panel
+    from rich.text import Text
+
+    # Setup console and logging with rich
+    console = Console()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        handlers=[RichHandler(console=console, show_time=False)],
+    )
+except ImportError:
+    # Fallback to basic console if rich is not available
+    console = None
+    logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
+
+
+def smart_print(message: str, style: str = "white") -> None:
+    """Print with rich styling if available, fallback to regular print."""
+    if console:
+        console.print(message, style=style)
+    else:
+        # Use sys.stdout.write to avoid T201 lint error
+        import sys
+
+        sys.stdout.write(message + "\n")
+        sys.stdout.flush()
+
+
+def smart_panel(content: str, title: str = "", border_style: str = "blue") -> None:
+    """Print a panel with rich if available, fallback to formatted text."""
+    if console:
+        console.print(Panel.fit(Text.from_markup(content), title=title, border_style=border_style))
+    else:
+        # Use sys.stdout.write to avoid T201 lint error
+        import sys
+
+        sys.stdout.write(f"\n--- {title} ---\n")
+        sys.stdout.write(content.replace("[bold]", "").replace("[/bold]", "") + "\n")
+        sys.stdout.write("-" * 40 + "\n")
+        sys.stdout.flush()
+
 
 # Add the tests_new directory to Python path
 tests_new_dir = Path(__file__).parent.parent.parent
@@ -43,21 +90,21 @@ def run_pytest(args):
     if Path(test_file).exists():
         cmd.append(test_file)
     else:
-        print(f"❌ Test file {test_file} not found")
+        smart_print(f"❌ Test file {test_file} not found", "red")
         return False
 
     # Add pytest arguments based on options
     if args.fast:
         cmd.extend(["-m", "not slow"])
-        print("🏃 Running fast tests only (skipping slow tests)")
+        smart_print("🏃 Running fast tests only (skipping slow tests)", "yellow")
 
     if args.performance:
         cmd.extend(["-m", "performance"])
-        print("📊 Running performance tests only")
+        smart_print("📊 Running performance tests only", "blue")
 
     if args.verbose:
         cmd.extend(["-v", "-s", "--tb=long"])
-        print("🔍 Running with verbose output")
+        smart_print("🔍 Running with verbose output", "cyan")
     else:
         cmd.extend(["--tb=short"])
 
@@ -73,13 +120,16 @@ def run_pytest(args):
         }
     )
 
-    print(f"🚀 Running command: {' '.join(cmd)}")
-    print("📋 Test Environment:")
-    print(f"   - Tests directory: {Path.cwd()}")
-    print(f"   - Python path: {tests_new_dir}")
-    print("   - Database: PostgreSQL (Docker container)")
-    print("   - Isolation: Transaction-based (automatic rollback)")
-    print("=" * 60)
+    smart_print(f"🚀 Running command: {' '.join(cmd)}", "bold blue")
+    smart_panel(
+        f"[bold]📋 Test Environment:[/bold]\n"
+        f"   • Tests directory: {Path.cwd()}\n"
+        f"   • Python path: {tests_new_dir}\n"
+        f"   • Database: PostgreSQL (Docker container)\n"
+        f"   • Isolation: Transaction-based (automatic rollback)",
+        title="Environment",
+        border_style="blue",
+    )
 
     # Run the tests
     start_time = time.time()
@@ -87,20 +137,22 @@ def run_pytest(args):
         result = subprocess.run(cmd, env=env, check=False)
         duration = time.time() - start_time
 
-        print("=" * 60)
         if result.returncode == 0:
-            print(f"✅ All tests passed! Duration: {duration:.2f}s")
+            smart_print(f"✅ All tests passed! Duration: {duration:.2f}s", "bold green")
             return True
-        print(f"❌ Tests failed with exit code {result.returncode}. Duration: {duration:.2f}s")
+        smart_print(
+            f"❌ Tests failed with exit code {result.returncode}. Duration: {duration:.2f}s",
+            "bold red",
+        )
         return False
 
     except KeyboardInterrupt:
         duration = time.time() - start_time
-        print(f"\n⏹️  Tests interrupted by user after {duration:.2f}s")
+        smart_print(f"\n⏹️  Tests interrupted by user after {duration:.2f}s", "yellow")
         return False
     except Exception as e:
         duration = time.time() - start_time
-        print(f"💥 Error running tests after {duration:.2f}s: {e}")
+        smart_print(f"💥 Error running tests after {duration:.2f}s: {e}", "red")
         return False
 
 
@@ -112,7 +164,7 @@ def check_dependencies():
     try:
         import pytest
 
-        print(f"✅ pytest {pytest.__version__}")
+        smart_print(f"✅ pytest {pytest.__version__}", "green")
     except ImportError:
         missing.append("pytest")
 
@@ -120,7 +172,7 @@ def check_dependencies():
     try:
         import psycopg
 
-        print(f"✅ psycopg {psycopg.__version__}")
+        smart_print(f"✅ psycopg {psycopg.__version__}", "green")
     except ImportError:
         missing.append("psycopg")
 
@@ -128,7 +180,7 @@ def check_dependencies():
     try:
         import fraiseql
 
-        print(f"✅ fraiseql {getattr(fraiseql, '__version__', 'dev')}")
+        smart_print(f"✅ fraiseql {getattr(fraiseql, '__version__', 'dev')}", "green")
     except ImportError:
         missing.append("fraiseql")
 
@@ -136,16 +188,16 @@ def check_dependencies():
     try:
         import testcontainers
 
-        print(f"✅ testcontainers {testcontainers.__version__}")
+        smart_print(f"✅ testcontainers {testcontainers.__version__}", "green")
     except ImportError:
-        print("⚠️  testcontainers not available (will try external database)")
+        smart_print("⚠️  testcontainers not available (will try external database)", "yellow")
 
     if missing:
-        print("❌ Missing required dependencies:")
+        smart_print("❌ Missing required dependencies:", "red")
         for dep in missing:
-            print(f"   - {dep}")
-        print("\nInstall missing dependencies with:")
-        print(f"   pip install {' '.join(missing)}")
+            smart_print(f"   - {dep}", "red")
+        smart_print("\nInstall missing dependencies with:", "yellow")
+        smart_print(f"   pip install {' '.join(missing)}", "cyan")
         return False
 
     return True
@@ -153,26 +205,26 @@ def check_dependencies():
 
 def show_test_info():
     """Show information about the test suite."""
-    print("📚 FraiseQL Blog Demo - Real Database E2E Tests")
-    print("=" * 60)
-    print("🎯 What these tests validate:")
-    print("   ✓ Real PostgreSQL database operations")
-    print("   ✓ Complete GraphQL schema functionality")
-    print("   ✓ Foreign key relationships and constraints")
-    print("   ✓ JSONB field storage and retrieval")
-    print("   ✓ Transaction isolation between tests")
-    print("   ✓ User registration → post creation → publishing workflow")
-    print("   ✓ Comment threading with moderation")
-    print("   ✓ Data consistency across mutations and queries")
-    print("   ✓ Performance characteristics")
-    print()
-    print("🔧 Test Infrastructure:")
-    print("   • PostgreSQL via Docker container (automatic)")
-    print("   • Transaction-based isolation (automatic rollback)")
-    print("   • Real database schema setup per test")
-    print("   • Seed data loading")
-    print("   • No manual cleanup required")
-    print()
+    smart_panel(
+        "[bold]🎯 What these tests validate:[/bold]\n"
+        "   ✓ Real PostgreSQL database operations\n"
+        "   ✓ Complete GraphQL schema functionality\n"
+        "   ✓ Foreign key relationships and constraints\n"
+        "   ✓ JSONB field storage and retrieval\n"
+        "   ✓ Transaction isolation between tests\n"
+        "   ✓ User registration → post creation → publishing workflow\n"
+        "   ✓ Comment threading with moderation\n"
+        "   ✓ Data consistency across mutations and queries\n"
+        "   ✓ Performance characteristics\n\n"
+        "[bold]🔧 Test Infrastructure:[/bold]\n"
+        "   • PostgreSQL via Docker container (automatic)\n"
+        "   • Transaction-based isolation (automatic rollback)\n"
+        "   • Real database schema setup per test\n"
+        "   • Seed data loading\n"
+        "   • No manual cleanup required",
+        title="📚 FraiseQL Blog Demo - Real Database E2E Tests",
+        border_style="green",
+    )
 
 
 def main():
@@ -196,30 +248,32 @@ def main():
         show_test_info()
         return True
 
-    print("🧪 FraiseQL Blog Demo - Real Database E2E Test Runner")
-    print("=" * 60)
+    smart_print("🧪 FraiseQL Blog Demo - Real Database E2E Test Runner", "bold magenta")
 
     # Check dependencies
-    print("🔍 Checking dependencies...")
+    smart_print("🔍 Checking dependencies...", "blue")
     if not check_dependencies():
         return False
 
-    print("\n📋 Test Configuration:")
-    print(f"   - Working directory: {Path.cwd()}")
-    print("   - Test isolation: Transaction-based (automatic rollback)")
-    print("   - Database: PostgreSQL (Docker container)")
-    print("   - Schema: Real database tables and views")
-    print()
+    smart_panel(
+        f"[bold]📋 Test Configuration:[/bold]\n"
+        f"   - Working directory: {Path.cwd()}\n"
+        f"   - Test isolation: Transaction-based (automatic rollback)\n"
+        f"   - Database: PostgreSQL (Docker container)\n"
+        f"   - Schema: Real database tables and views",
+        title="Configuration",
+        border_style="cyan",
+    )
 
     # Run tests
     success = run_pytest(args)
 
     if success:
-        print("\n🎉 E2E Tests completed successfully!")
-        print("   All real database operations validated ✅")
+        smart_print("\n🎉 E2E Tests completed successfully!", "bold green")
+        smart_print("   All real database operations validated ✅", "green")
         return True
-    print("\n💥 E2E Tests failed!")
-    print("   Check the output above for details ❌")
+    smart_print("\n💥 E2E Tests failed!", "bold red")
+    smart_print("   Check the output above for details ❌", "red")
     return False
 
 
