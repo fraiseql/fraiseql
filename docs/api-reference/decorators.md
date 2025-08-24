@@ -604,29 +604,42 @@ class MutationResult:
 
 Base class for mutation results (union type).
 
-### @success
+### @success (Deprecated)
+
+> ⚠️ **Deprecated:** With FraiseQL's clean default patterns, `@fraiseql.success` is no longer needed.
+> Use `FraiseQLMutation` which automatically decorates success and failure types.
 
 ```python
+# OLD (deprecated)
 @fraiseql.success
-@fraiseql.fraise_type
 class MutationSuccess(MutationResult):
     data: Type
     message: str
+
+# NEW (clean default pattern)
+class MutationSuccess:
+    data: Type
+    message: str = "Operation successful"
+    errors: list[FraiseQLError] = []  # Native error arrays
 ```
 
-Marks a type as successful mutation result.
+### @failure (Deprecated)
 
-### @failure
+> ⚠️ **Deprecated:** With FraiseQL's clean default patterns, `@fraiseql.failure` is no longer needed.
+> Use `FraiseQLMutation` which automatically decorates success and failure types.
 
 ```python
+# OLD (deprecated)
 @fraiseql.failure
-@fraiseql.fraise_type
 class MutationError(MutationResult):
     code: str
     message: str
-```
 
-Marks a type as error mutation result.
+# NEW (clean default pattern)
+class MutationError:
+    message: str
+    errors: list[FraiseQLError]  # Comprehensive error information
+```
 
 #### Complete Example
 

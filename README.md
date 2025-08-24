@@ -170,31 +170,33 @@ async def user(info, id: ID) -> User | None:
 
 ```python
 # src/mutations.py
-import fraiseql
-from fraiseql import EmailAddress
+from fraiseql import FraiseQLMutation, FraiseQLError, EmailAddress
 from .types import User
 
-@fraiseql.mutation
-@fraiseql.success(User)
-@fraiseql.failure(code="VALIDATION_ERROR")
-async def create_user(info, email: EmailAddress, name: str) -> fraiseql.Success[User] | fraiseql.Failure:
-    """Create a new user"""
-    repo = info.context["repo"]
+class CreateUserSuccess:
+    """Success response for user creation."""
+    user: User
+    message: str = "User created successfully"
+    errors: list[FraiseQLError] = []
 
-    # Call PostgreSQL function
-    result = await repo.execute_function(
-        "fn_create_user",
-        email=email,
-        name=name
-    )
+class CreateUserError:
+    """Error response for user creation."""
+    message: str
+    errors: list[FraiseQLError]
+    validation_details: dict | None = None
 
-    if result["success"]:
-        return fraiseql.Success(data=User(**result["data"]))
-    else:
-        return fraiseql.Failure(
-            message=result["error_message"],
-            code=result["error_code"]
-        )
+class CreateUser(
+    FraiseQLMutation,  # Clean default pattern
+    function="fn_create_user",
+    validation_strict=True
+):
+    """Create a new user with clean default patterns.
+
+    Success and failure types are automatically decorated by FraiseQLMutation.
+    """
+    input: dict  # Or CreateUserInput type
+    success: CreateUserSuccess  # Auto-decorated
+    failure: CreateUserError    # Auto-decorated
 ```
 
 ### 6. Run the Development Server

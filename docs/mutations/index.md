@@ -106,59 +106,42 @@ Mutations in Python wrap the PostgreSQL functions:
 
 ```python
 from uuid import UUID
-import fraiseql
-from fraiseql import mutation
+from fraiseql import FraiseQLMutation, FraiseQLError
+from .types import User
 
-# Input type
 @fraiseql.input
 class CreateUserInput:
     email: str
     name: str
     roles: list[str] | None = None
 
-# Success type
-@fraiseql.success
 class CreateUserSuccess:
+    """Success response for user creation."""
     user: User
     message: str = "User created successfully"
+    errors: list[FraiseQLError] = []
 
-# Error type
-@fraiseql.failure
 class CreateUserError:
+    """Error response for user creation."""
     message: str
-    code: str
+    errors: list[FraiseQLError]
     field_errors: dict[str, str] | None = None
+    validation_details: dict | None = None
 
-# Mutation handler
-@mutation
-async def create_user(
-    info,
+class CreateUser(
+    FraiseQLMutation,  # Clean default pattern
+    function="fn_create_user",
+    validation_strict=True,
+    error_trace=True
+):
+    """Create a new user account with clean default patterns.
+
+    Success and failure types are automatically decorated by FraiseQLMutation.
+    This eliminates the need for manual @fraiseql.success/@fraiseql.failure decorators.
+    """
     input: CreateUserInput
-) -> CreateUserSuccess | CreateUserError:
-    """Create a new user account."""
-    db = info.context["db"]
-
-    # Call PostgreSQL function
-    result = await db.execute_function(
-        "fn_create_user",
-        {
-            "email": input.email,
-            "name": input.name,
-            "roles": input.roles or ["user"]
-        }
-    )
-
-    if result["success"]:
-        # Fetch the created user from view
-        user_data = await db.get_user_by_id(result["user_id"])
-        return CreateUserSuccess(
-            user=User.from_dict(user_data)
-        )
-    else:
-        return CreateUserError(
-            message=result["error"],
-            code=result["code"]
-        )
+    success: CreateUserSuccess  # Auto-decorated
+    failure: CreateUserError    # Auto-decorated
 ```
 
 ## Transaction Management
@@ -340,61 +323,32 @@ async def update_profile(
 FraiseQL mutations return unions for success/error handling:
 
 ```python
-# Define success and failure types
-@fraiseql.success
 class DeletePostSuccess:
+    """Success response for post deletion."""
     message: str = "Post deleted successfully"
     deleted_id: UUID
+    errors: list[FraiseQLError] = []
 
-@fraiseql.failure
 class DeletePostError:
+    """Error response for post deletion."""
     message: str
-    code: str  # NOT_FOUND, PERMISSION_DENIED, etc.
+    errors: list[FraiseQLError]
+    authorization_failure: bool = False
+    not_found_details: dict | None = None
 
-# Mutation returns a union
-@mutation
-async def delete_post(
-    info,
-    id: UUID
-) -> DeletePostSuccess | DeletePostError:
-    """Delete a blog post."""
-    user = info.context.get("user")
+class DeletePost(
+    FraiseQLMutation,  # Clean default pattern
+    function="fn_delete_post",
+    validation_strict=True,
+    authorization_required=True
+):
+    """Delete a blog post with clean default patterns.
 
-    if not user:
-        return DeletePostError(
-            message="Authentication required",
-            code="UNAUTHENTICATED"
-        )
-
-    db = info.context["db"]
-
-    # Check ownership
-    post = await db.get_post_by_id(id)
-    if not post:
-        return DeletePostError(
-            message="Post not found",
-            code="NOT_FOUND"
-        )
-
-    if post["author_id"] != user.id:
-        return DeletePostError(
-            message="You can only delete your own posts",
-            code="PERMISSION_DENIED"
-        )
-
-    # Execute deletion
-    result = await db.execute_function(
-        "fn_delete_post",
-        {"post_id": id, "user_id": user.id}
-    )
-
-    if result["success"]:
-        return DeletePostSuccess(deleted_id=id)
-    else:
-        return DeletePostError(
-            message=result["error"],
-            code="DELETE_FAILED"
-        )
+    Includes automatic authorization checking and comprehensive error handling.
+    """
+    input: dict  # Contains post ID
+    success: DeletePostSuccess  # Auto-decorated
+    failure: DeletePostError    # Auto-decorated
 ```
 
 GraphQL client handles the union:
