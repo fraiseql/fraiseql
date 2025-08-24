@@ -1,4 +1,4 @@
-# ruff: noqa: T201, E501, E712, F841, F821
+# ruff: noqa: T201, E501, E712, F841
 """Complete end-to-end workflow tests for the FraiseQL blog demo.
 
 This module tests complete user journeys through the blog application,
@@ -303,10 +303,81 @@ class TestCompleteUserJourney:
         assert_no_graphql_errors(posts_result)
 
         posts = posts_result["data"]["posts"]
-        assert len(posts) > 0, "Need at least one published post for comment testing"
 
-        post_id = posts[0]["id"]
-        initial_comment_count = posts[0]["commentCount"]
+        # If no published posts exist, create one for testing
+        if len(posts) == 0:
+            # Create user first
+            create_user_mutation = """
+            mutation CreateUser($input: CreateUserInput!) {
+                createUser(input: $input) {
+                    __typename
+                    id
+                    username
+                }
+            }
+            """
+
+            user_result = await simple_graphql_client.execute_async(
+                create_user_mutation,
+                variables={
+                    "input": {
+                        "username": f"test_author_{uuid4().hex[:8]}",
+                        "email": f"test_{uuid4().hex[:8]}@example.com",
+                        "password": "password123",
+                        "role": "AUTHOR",
+                    }
+                },
+            )
+            assert_no_graphql_errors(user_result)
+            author_id = user_result["data"]["createUser"]["id"]
+
+            # Create published post
+            create_post_mutation = """
+            mutation CreatePost($input: CreatePostInput!) {
+                createPost(input: $input) {
+                    __typename
+                    id
+                    title
+                    author { id }
+                }
+            }
+            """
+
+            post_result = await simple_graphql_client.execute_async(
+                create_post_mutation,
+                variables={
+                    "input": {
+                        "title": "Test Post for Comments",
+                        "content": "This is a test post for comment testing",
+                        "status": "DRAFT",
+                        "authorId": author_id,
+                    }
+                },
+            )
+            assert_no_graphql_errors(post_result)
+            post_id = post_result["data"]["createPost"]["id"]
+
+            # Publish the post
+            publish_mutation = """
+            mutation PublishPost($id: String!) {
+                publishPost(id: $id) {
+                    __typename
+                    id
+                    status
+                    isPublished
+                }
+            }
+            """
+
+            publish_result = await simple_graphql_client.execute_async(
+                publish_mutation, variables={"id": post_id}
+            )
+            assert_no_graphql_errors(publish_result)
+
+            initial_comment_count = 0
+        else:
+            post_id = posts[0]["id"]
+            initial_comment_count = posts[0]["commentCount"]
 
         # Create a commenter user
         commenter_username = f"commenter_{uuid4().hex[:8]}"
@@ -364,7 +435,13 @@ class TestCompleteUserJourney:
 
         parent_comment_result = await simple_graphql_client.execute_async(
             create_comment_mutation,
-            variables={"input": {"postId": post_id, "content": parent_comment_content}},
+            variables={
+                "input": {
+                    "postId": post_id,
+                    "content": parent_comment_content,
+                    "status": "APPROVED",
+                }
+            },
         )
 
         assert_no_graphql_errors(parent_comment_result)
@@ -394,6 +471,7 @@ class TestCompleteUserJourney:
                         "postId": post_id,
                         "parentId": parent_comment_id,
                         "content": reply_content,
+                        "status": "APPROVED",
                     }
                 },
             )
@@ -483,7 +561,42 @@ class TestCompleteUserJourney:
         """)
 
         assert_no_graphql_errors(posts_result)
-        post_id = posts_result["data"]["posts"][0]["id"]
+
+        # Create a post if none exists
+        if len(posts_result["data"]["posts"]) == 0:
+            # Create user and post for testing
+            user_result = await simple_graphql_client.execute_async(
+                """mutation CreateUser($input: CreateUserInput!) {
+                    createUser(input: $input) { __typename, id }
+                }""",
+                variables={
+                    "input": {
+                        "username": f"mod_test_user_{uuid4().hex[:8]}",
+                        "email": f"mod_test_{uuid4().hex[:8]}@example.com",
+                        "password": "password123",
+                        "role": "AUTHOR",
+                    }
+                },
+            )
+            assert_no_graphql_errors(user_result)
+
+            post_result = await simple_graphql_client.execute_async(
+                """mutation CreatePost($input: CreatePostInput!) {
+                    createPost(input: $input) { __typename, id }
+                }""",
+                variables={
+                    "input": {
+                        "title": "Moderation Test Post",
+                        "content": "Post for comment moderation testing",
+                        "status": "DRAFT",
+                        "authorId": user_result["data"]["createUser"]["id"],
+                    }
+                },
+            )
+            assert_no_graphql_errors(post_result)
+            post_id = post_result["data"]["createPost"]["id"]
+        else:
+            post_id = posts_result["data"]["posts"][0]["id"]
 
         # Create comment (starts as PENDING)
         comment_result = await simple_graphql_client.execute_async(
@@ -559,6 +672,18 @@ class TestPerformanceWorkflows:
 
         import time
 
+        # Simple performance monitor for testing
+        class PerformanceMonitor:
+            def __init__(self):
+                self.times = []
+
+            def add_mutation_time(self, time_taken):
+                self.times.append(time_taken)
+
+            def get_average_query_time(self):
+                return sum(self.times) / len(self.times) if self.times else 0
+
+        performance_monitor = PerformanceMonitor()
         start_time = time.time()
 
         for i in range(user_count):
