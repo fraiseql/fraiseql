@@ -352,14 +352,10 @@ def validate_green_phase_renaming():
         ("FraiseQLError is Enhanced Version", test_fraiseql_error_is_the_enhanced_version),
         ("ErrorMapper Available as Default", test_error_mapper_is_available_as_default),
         ("ValidationContext Available", test_validation_context_is_available),
-        ("Legacy FraiseQLMutation Exists", test_legacy_fraiseql_mutation_exists),
-        ("Legacy MutationResultBase Exists", test_legacy_mutation_result_base_exists),
-        ("Legacy Error Patterns Exist", test_legacy_error_patterns_exist),
         ("Enhanced Patterns Work with Clean Names", test_enhanced_patterns_work_with_new_default_names),
         ("Migration Documentation Exists", test_migration_documentation_exists),
         ("Clean Blog Mutations with Default Patterns", test_clean_blog_mutations_with_default_patterns),
-        ("Error Handling with Default Patterns", test_error_handling_with_default_patterns),
-        ("Legacy and Default Patterns Coexist", test_legacy_patterns_coexist_with_defaults)
+        ("Error Handling with Default Patterns", test_error_handling_with_default_patterns)
     ]
 
     passed = 0
@@ -386,11 +382,6 @@ def validate_green_phase_renaming():
         print("   • ErrorMapper available as default pattern")
         print("   • ValidationContext available as default pattern")
         print()
-        print("✅ Legacy Patterns Preserved for Backward Compatibility:")
-        print("   • LegacyFraiseQLMutation (was FraiseQLMutation)")
-        print("   • LegacyMutationResultBase (was MutationResultBase)")
-        print("   • LegacyFraiseQLError for basic error handling")
-        print()
         print("✅ Enhanced Features Available with Clean Names:")
         print("   • Auto-decoration of success/failure types")
         print("   • Comprehensive error arrays with severity and categorization")
@@ -406,10 +397,9 @@ def validate_green_phase_renaming():
         print("       failure: CreateUserError   # Auto-decorated!")
         print()
         print("🔄 Migration Guide Available:")
-        print("   • Zero breaking changes - fully backward compatible")
-        print("   • Gradual, opt-in migration to clean default patterns")
+        print("   • Clean migration from Enhanced/Optimized patterns")
         print("   • Comprehensive documentation and examples")
-        print("   • Legacy patterns available indefinitely")
+        print("   • Simple renaming - no legacy compatibility needed")
         print()
         print("🚀 Ready for REFACTOR Phase:")
         print("   • Create comprehensive migration tooling")

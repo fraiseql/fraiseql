@@ -487,64 +487,6 @@ class ErrorMapper:
 
 
 # ============================================================================
-# LEGACY PATTERNS (Backward Compatibility)
-# ============================================================================
-
-class LegacyMutationResultBase:
-    """Legacy base class for mutation results - backward compatibility."""
-
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-
-class LegacyFraiseQLMutation:
-    """Legacy FraiseQL mutation class - basic version for backward compatibility."""
-
-    def __init_subclass__(
-        cls,
-        function: str,
-        schema: str = "app",
-        context_params: dict[str, str] | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """Basic subclass initialization - legacy version."""
-        super().__init_subclass__(**kwargs)
-
-        # Basic validation (not enhanced)
-        if not hasattr(cls, "__annotations__"):
-            raise TypeError(f"{cls.__name__} must define input, success, and failure type annotations")
-
-        annotations = cls.__annotations__
-        required = {"input", "success", "failure"}
-        missing = required - set(annotations.keys())
-
-        if missing:
-            raise TypeError(f"{cls.__name__} missing required annotations: {', '.join(sorted(missing))}")
-
-        # Apply basic FraiseQL mutation decorator
-        fraiseql.mutation(
-            function=function,
-            schema=schema,
-            context_params=context_params or {}
-        )(cls)
-
-        # Mark as legacy
-        cls.__fraiseql_mutation__ = True
-        cls.__fraiseql_legacy__ = True
-
-
-class LegacyFraiseQLError:
-    """Legacy error type - basic version for backward compatibility."""
-
-    def __init__(self, code: int, identifier: str, message: str, details: dict[str, Any] | None = None):
-        self.code = code
-        self.identifier = identifier
-        self.message = message
-        self.details = details
-
-
-# ============================================================================
 # MIGRATION UTILITIES
 # ============================================================================
 
@@ -554,16 +496,13 @@ def get_migration_guide() -> dict[str, Any]:
     return {
         "renaming_map": {
             "OptimizedFraiseQLMutation": "FraiseQLMutation",
-            "EnhancedFraiseQLError": "FraiseQLError",
-            "FraiseQLMutation": "LegacyFraiseQLMutation",
-            "MutationResultBase": "LegacyMutationResultBase"
+            "EnhancedFraiseQLError": "FraiseQLError"
         },
-        "breaking_changes": [],  # No breaking changes - backward compatible
+        "breaking_changes": [],  # No breaking changes
         "migration_steps": [
             "Import from fraiseql_defaults instead of enhanced modules",
             "Use FraiseQLMutation (clean name) instead of OptimizedFraiseQLMutation",
             "Use FraiseQLError (clean name) instead of EnhancedFraiseQLError",
-            "Legacy patterns available for gradual migration",
             "Update documentation to use clean default patterns"
         ],
         "examples": {
@@ -578,22 +517,6 @@ class CreateUser(
     FraiseQLMutation,  # Clean default!
     function="create_user",
     validation_strict=True
-):
-    input: CreateUserInput
-    success: CreateUserSuccess
-    failure: CreateUserError
-            ''',
-            "legacy_pattern": '''
-from fraiseql_defaults import LegacyFraiseQLMutation, LegacyMutationResultBase
-
-@fraiseql.success
-class CreateUserSuccess(LegacyMutationResultBase):
-    user: User
-    error_code: str | None = None
-
-class CreateUser(
-    LegacyFraiseQLMutation,
-    function="create_user"
 ):
     input: CreateUserInput
     success: CreateUserSuccess
@@ -615,11 +538,6 @@ __all__ = [
     "ValidationContext",
     "ErrorSeverity",
     "ConstraintType",
-
-    # Legacy patterns (backward compatibility)
-    "LegacyFraiseQLMutation",
-    "LegacyMutationResultBase",
-    "LegacyFraiseQLError",
 
     # Migration utilities
     "get_migration_guide"
