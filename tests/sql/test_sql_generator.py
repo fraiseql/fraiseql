@@ -1,282 +1,333 @@
+import pytest
+
+"""Comprehensive tests for sql_generator module to improve coverage."""
+
 from psycopg.sql import SQL
 
 from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.sql_generator import build_sql_query
-import pytest
-
 
 
 
 @pytest.mark.unit
-def test_basic_select_flat_fields() -> None:
-    query = build_sql_query(
-        table="my_table",
-        field_paths=[
-            FieldPath(alias="age", path=["profile", "age"]),
-            FieldPath(alias="nickname", path=["profile", "username"]),
-        ],
-    )
+class TestBuildSqlQuery:
+    """Test the build_sql_query function comprehensively."""
 
-    sql_str = query.as_string(None)
+    def test_basic_query_no_json_output(self):
+        """Test basic query without JSON output."""
+        field_paths = [FieldPath(path=["name"], alias="name"), FieldPath(path=["age"], alias="age")]
 
-    assert "SELECT" in sql_str
-    assert 'FROM "my_table"' in sql_str
-    # Type-aware operator selection: -> for age (numeric), ->> for username (string)
-    assert "data->'profile'->'age' AS \"age\"" in sql_str
-    assert "data->'profile'->>'username' AS \"nickname\"" in sql_str
-    assert "WHERE" not in sql_str
+        query = build_sql_query("users", field_paths)
+        sql_str = query.as_string(None)
+
+        assert "SELECT" in sql_str
+        assert "data->>'name' AS \"name\"" in sql_str  # name is string
+        assert "data->'age' AS \"age\"" in sql_str  # age is numeric, uses -> for type preservation
+        assert 'FROM "users"' in sql_str
+
+    def test_basic_query_with_json_output(self):
+        """Test basic query with JSON output."""
+        field_paths = [
+            FieldPath(path=["name"], alias="name"),
+            FieldPath(path=["email"], alias="email"),
+        ]
+
+        query = build_sql_query("users", field_paths, json_output=True)
+        sql_str = query.as_string(None)
+
+        assert "jsonb_build_object(" in sql_str
+        assert "'name', data->>'name'" in sql_str
+        assert "'email', data->>'email'" in sql_str
+        assert "AS result" in sql_str
+
+    def test_nested_field_paths(self):
+        """Test query with nested field paths."""
+        field_paths = [
+            FieldPath(path=["id"], alias="id"),
+            FieldPath(path=["profile", "avatar"], alias="avatar"),
+            FieldPath(path=["settings", "theme", "color"], alias="themeColor"),
+        ]
+
+        query = build_sql_query("users", field_paths, json_output=True)
+        sql_str = query.as_string(None)
+
+        assert "data->>'id'" in sql_str
+        assert "data->'profile'->>'avatar'" in sql_str
+        assert "data->'settings'->'theme'->>'color'" in sql_str
+
+    def test_with_typename(self):
+        """Test query with typename included."""
+        field_paths = [FieldPath(path=["id"], alias="id"), FieldPath(path=["name"], alias="name")]
+
+        query = build_sql_query("users", field_paths, json_output=True, typename="User")
+        sql_str = query.as_string(None)
+
+        assert "'__typename', 'User'" in sql_str
+
+    def test_with_where_clause(self):
+        """Test query with WHERE clause."""
+        field_paths = [FieldPath(path=["name"], alias="name")]
+        where_clause = SQL("data->>'is_active' = 'true'")
+
+        query = build_sql_query("users", field_paths, where_clause=where_clause)
+        sql_str = query.as_string(None)
+
+        assert "WHERE data->>'is_active' = 'true'" in sql_str
+
+    def test_with_order_by_single_field(self):
+        """Test query with ORDER BY single field."""
+        field_paths = [FieldPath(path=["name"], alias="name")]
+        order_by = [("name", "ASC")]
+
+        query = build_sql_query("users", field_paths, order_by=order_by)
+        sql_str = query.as_string(None)
+
+        assert "ORDER BY data->>'name' ASC" in sql_str
+
+    def test_with_order_by_multiple_fields(self):
+        """Test query with ORDER BY multiple fields."""
+        field_paths = [FieldPath(path=["name"], alias="name"), FieldPath(path=["age"], alias="age")]
+        order_by = [("age", "DESC"), ("name", "ASC")]
+
+        query = build_sql_query("users", field_paths, order_by=order_by)
+        sql_str = query.as_string(None)
+
+        assert "ORDER BY data->>'age' DESC, data->>'name' ASC" in sql_str
+
+    def test_with_order_by_nested_field(self):
+        """Test query with ORDER BY on nested fields."""
+        field_paths = [FieldPath(path=["name"], alias="name")]
+        order_by = [("profile.created_at", "DESC")]
+
+        query = build_sql_query("users", field_paths, order_by=order_by)
+        sql_str = query.as_string(None)
+
+        assert "ORDER BY data->'profile'->>'created_at' DESC" in sql_str
+
+    def test_with_group_by_single_field(self):
+        """Test query with GROUP BY single field."""
+        field_paths = [FieldPath(path=["department"], alias="department")]
+        group_by = ["department"]
+
+        query = build_sql_query("users", field_paths, group_by=group_by)
+        sql_str = query.as_string(None)
+
+        assert "GROUP BY data->>'department'" in sql_str
+
+    def test_with_group_by_multiple_fields(self):
+        """Test query with GROUP BY multiple fields."""
+        field_paths = [
+            FieldPath(path=["department"], alias="department"),
+            FieldPath(path=["role"], alias="role"),
+        ]
+        group_by = ["department", "role"]
+
+        query = build_sql_query("users", field_paths, group_by=group_by)
+        sql_str = query.as_string(None)
+
+        assert "GROUP BY data->>'department', data->>'role'" in sql_str
+
+    def test_with_group_by_nested_field(self):
+        """Test query with GROUP BY on nested fields."""
+        field_paths = [FieldPath(path=["name"], alias="name")]
+        group_by = ["profile.country", "profile.city"]
+
+        query = build_sql_query("users", field_paths, group_by=group_by)
+        sql_str = query.as_string(None)
+
+        assert "GROUP BY data->'profile'->>'country', data->'profile'->>'city'" in sql_str
+
+    def test_with_all_clauses(self):
+        """Test query with WHERE, GROUP BY, and ORDER BY clauses."""
+        field_paths = [
+            FieldPath(path=["department"], alias="department"),
+            FieldPath(path=["count"], alias="count"),
+        ]
+        where_clause = SQL("data->>'is_active' = 'true'")
+        group_by = ["department"]
+        order_by = [("count", "DESC")]
+
+        query = build_sql_query(
+            "users",
+            field_paths,
+            where_clause=where_clause,
+            group_by=group_by,
+            order_by=order_by,
+            json_output=True,
+        )
+        sql_str = query.as_string(None)
+
+        # Check clause order
+        where_pos = sql_str.find("WHERE")
+        group_pos = sql_str.find("GROUP BY")
+        order_pos = sql_str.find("ORDER BY")
+
+        assert where_pos > 0
+        assert group_pos > where_pos
+        assert order_pos > group_pos
+
+    def test_auto_camel_case_disabled(self):
+        """Test query without auto camel case conversion."""
+        field_paths = [FieldPath(path=["user_name"], alias="userName")]
+
+        query = build_sql_query("users", field_paths, auto_camel_case=False)
+        sql_str = query.as_string(None)
+
+        # Should use the path as-is
+        assert "data->>'user_name'" in sql_str
+
+    def test_auto_camel_case_enabled(self):
+        """Test query with auto camel case conversion."""
+        field_paths = [FieldPath(path=["userName"], alias="userName")]
+        order_by = [("firstName", "ASC")]
+        group_by = ["departmentId"]
+
+        query = build_sql_query(
+            "users", field_paths, auto_camel_case=True, order_by=order_by, group_by=group_by
+        )
+        sql_str = query.as_string(None)
+
+        # When auto_camel_case=True, the SQL uses the original camelCase
+        assert "data->>'userName'" in sql_str
+        assert "ORDER BY data->>'firstName' ASC" in sql_str
+        assert "GROUP BY data->>'departmentId'" in sql_str
+
+    def test_auto_camel_case_with_nested_fields(self):
+        """Test auto camel case with nested field paths."""
+        field_paths = [FieldPath(path=["userProfile", "firstName"], alias="firstName")]
+        order_by = [("userProfile.lastName", "ASC")]
+        group_by = ["userProfile.departmentId"]
+
+        query = build_sql_query(
+            "users", field_paths, auto_camel_case=True, order_by=order_by, group_by=group_by
+        )
+        sql_str = query.as_string(None)
+
+        # When auto_camel_case=True, the SQL uses the original camelCase
+        assert "data->'userProfile'->>'firstName'" in sql_str
+        assert "ORDER BY data->'userProfile'->>'lastName' ASC" in sql_str
+        assert "GROUP BY data->'userProfile'->>'departmentId'" in sql_str
+
+    def test_empty_field_paths(self):
+        """Test query with empty field paths."""
+        field_paths = []
+
+        query = build_sql_query("users", field_paths, json_output=True)
+        sql_str = query.as_string(None)
+
+        # Should still generate valid SQL
+        assert 'SELECT jsonb_build_object() AS result FROM "users"' in sql_str
+
+    def test_special_characters_in_field_names(self):
+        """Test query with special characters in field names."""
+        field_paths = [
+            FieldPath(path=["field-with-dash"], alias="fieldWithDash"),
+            FieldPath(path=["field.with.dots"], alias="fieldWithDots"),
+            FieldPath(path=["field with spaces"], alias="fieldWithSpaces"),
+        ]
+
+        query = build_sql_query("users", field_paths, json_output=True)
+        sql_str = query.as_string(None)
+
+        # Should properly quote field names
+        assert "'field-with-dash'" in sql_str
+        assert "'field.with.dots'" in sql_str
+        assert "'field with spaces'" in sql_str
+
+    def test_complex_nested_structure(self):
+        """Test query with complex nested structure."""
+        field_paths = [
+            FieldPath(path=["data", "items", "0", "value"], alias="firstItemValue"),
+            FieldPath(path=["meta", "tags", "primary"], alias="primaryTag"),
+        ]
+
+        query = build_sql_query("documents", field_paths, json_output=True)
+        sql_str = query.as_string(None)
+
+        # Should handle numeric indices and deep nesting
+        # value is detected as numeric by heuristics, primary as string
+        assert "data->'data'->'items'->'0'->'value'" in sql_str
+        assert "data->'meta'->'tags'->>'primary'" in sql_str
+
+    def test_table_name_escaping(self):
+        """Test query with table name that needs escaping."""
+        field_paths = [FieldPath(path=["id"], alias="id")]
+
+        # Table name with special characters
+        query = build_sql_query("user-accounts", field_paths)
+        sql_str = query.as_string(None)
+
+        # Should properly escape table name
+        assert 'FROM "user-accounts"' in sql_str
+
+    def test_field_alias_different_from_path(self):
+        """Test query where field alias differs from path."""
+        field_paths = [
+            FieldPath(path=["internal_id"], alias="id"),
+            FieldPath(path=["display_name"], alias="name"),
+            FieldPath(path=["contact", "email"], alias="emailAddress"),
+        ]
+
+        query = build_sql_query("users", field_paths, json_output=True)
+        sql_str = query.as_string(None)
+
+        # Check that aliases are used in output
+        assert "'id', data->>'internal_id'" in sql_str
+        assert "'name', data->>'display_name'" in sql_str
+        assert "'emailAddress', data->'contact'->>'email'" in sql_str
+
+    def test_non_json_output_formatting(self):
+        """Test query formatting without JSON output."""
+        field_paths = [
+            FieldPath(path=["id"], alias="id"),
+            FieldPath(path=["profile", "name"], alias="profileName"),
+        ]
+
+        query = build_sql_query("users", field_paths, json_output=False)
+        sql_str = query.as_string(None)
+
+        # Should format as regular SELECT with aliases
+        assert "data->>'id' AS \"id\"" in sql_str
+        assert "data->'profile'->>'name' AS \"profileName\"" in sql_str
+        assert "jsonb_build_object" not in sql_str
 
 
-def test_select_with_where_clause() -> None:
-    where = SQL("data->>'status' = 'active'")
-    query = build_sql_query(
-        table="users",
-        field_paths=[FieldPath(alias="email", path=["contact", "email"])],
-        where_clause=where,
-    )
+class TestEdgeCasesAndErrors:
+    """Test edge cases and error conditions."""
 
-    sql_str = query.as_string(None)
+    def test_single_field_query(self):
+        """Test query with single field."""
+        field_paths = [FieldPath(path=["id"], alias="id")]
 
-    assert 'FROM "users"' in sql_str
-    assert "WHERE data->>'status' = 'active'" in sql_str
+        query = build_sql_query("users", field_paths, json_output=True)
+        sql_str = query.as_string(None)
 
+        assert "jsonb_build_object('id', data->>'id') AS result" in sql_str
 
-def test_nested_path_multiple_levels() -> None:
-    query = build_sql_query(
-        table="events", field_paths=[FieldPath(alias="city", path=["location", "address", "city"])]
-    )
+    def test_very_deep_nesting(self):
+        """Test query with very deep field nesting."""
+        field_paths = [
+            FieldPath(
+                path=["level1", "level2", "level3", "level4", "level5", "value"], alias="deepValue"
+            )
+        ]
 
-    sql_str = query.as_string(None)
-    # city is a string field, so uses ->> operator
-    assert "data->'location'->'address'->>'city' AS \"city\"" in sql_str
+        query = build_sql_query("deep_data", field_paths, json_output=True)
+        sql_str = query.as_string(None)
 
+        # value is detected as numeric by heuristics, so uses -> operator
+        expected = "data->'level1'->'level2'->'level3'->'level4'->'level5'->'value'"
+        assert expected in sql_str
 
-def test_field_path_aliasing() -> None:
-    query = build_sql_query(
-        table="products",
-        field_paths=[
-            FieldPath(alias="productName", path=["info", "name"]),
-            FieldPath(alias="productPrice", path=["pricing", "retail"]),
-        ],
-    )
+    def test_numeric_field_paths(self):
+        """Test query with numeric indices in field paths."""
+        field_paths = [
+            FieldPath(path=["items", "0"], alias="firstItem"),
+            FieldPath(path=["items", "1", "name"], alias="secondItemName"),
+        ]
 
-    sql_str = query.as_string(None)
-    assert 'AS "productName"' in sql_str
-    assert 'AS "productPrice"' in sql_str
+        query = build_sql_query("arrays", field_paths, json_output=True)
+        sql_str = query.as_string(None)
 
-
-def test_empty_field_paths() -> None:
-    query = build_sql_query(table="empty_case", field_paths=[])
-
-    sql_str = query.as_string(None)
-    assert sql_str.startswith('SELECT  FROM "empty_case"')
-    assert "WHERE" not in sql_str
-
-
-def test_json_output_with_typename() -> None:
-    query = build_sql_query(
-        table="accounts",
-        field_paths=[
-            FieldPath(alias="id", path=["meta", "id"]),
-            FieldPath(alias="role", path=["meta", "role"]),
-        ],
-        where_clause=SQL("data->>'deleted' IS NULL"),
-        json_output=True,
-        typename="Account",
-    )
-
-    sql_str = query.as_string(None)
-
-    assert sql_str.startswith("SELECT jsonb_build_object(")
-    # ID and role are string fields, so use ->> operator
-    assert "'id', data->'meta'->>'id'" in sql_str
-    assert "'role', data->'meta'->>'role'" in sql_str
-    assert "'__typename', 'Account'" in sql_str
-    assert 'FROM "accounts"' in sql_str
-    assert "WHERE data->>'deleted' IS NULL" in sql_str
-
-
-def test_order_by_single_field() -> None:
-    """Test ORDER BY with a single top-level field."""
-    query = build_sql_query(
-        table="users",
-        field_paths=[
-            FieldPath(alias="name", path=["name"]),
-            FieldPath(alias="email", path=["email"]),
-        ],
-        order_by=[("created_at", "desc")],
-    )
-
-    sql_str = query.as_string(None)
-    assert "ORDER BY data->>'created_at' DESC" in sql_str
-
-
-def test_order_by_nested_field() -> None:
-    """Test ORDER BY with nested fields."""
-    query = build_sql_query(
-        table="users",
-        field_paths=[
-            FieldPath(alias="name", path=["name"]),
-            FieldPath(alias="age", path=["profile", "age"]),
-        ],
-        order_by=[("profile.age", "asc"), ("profile.location.city", "desc")],
-    )
-
-    sql_str = query.as_string(None)
-    assert (
-        "ORDER BY data->'profile'->>'age' ASC, data->'profile'->'location'->>'city' DESC" in sql_str
-    )
-
-
-def test_order_by_multiple_fields() -> None:
-    """Test ORDER BY with multiple fields including nested ones."""
-    query = build_sql_query(
-        table="products",
-        field_paths=[
-            FieldPath(alias="name", path=["name"]),
-            FieldPath(alias="price", path=["pricing", "retail"]),
-        ],
-        order_by=[("category", "asc"), ("pricing.retail", "desc"), ("metadata.popularity", "desc")],
-    )
-
-    sql_str = query.as_string(None)
-    assert "ORDER BY" in sql_str
-    assert "data->>'category' ASC" in sql_str
-    assert "data->'pricing'->>'retail' DESC" in sql_str
-    assert "data->'metadata'->>'popularity' DESC" in sql_str
-
-
-def test_group_by_single_field() -> None:
-    """Test GROUP BY with a single field."""
-    query = build_sql_query(
-        table="orders",
-        field_paths=[FieldPath(alias="status", path=["status"])],
-        group_by=["status"],
-    )
-
-    sql_str = query.as_string(None)
-    assert "GROUP BY data->>'status'" in sql_str
-
-
-def test_group_by_nested_fields() -> None:
-    """Test GROUP BY with nested fields."""
-    query = build_sql_query(
-        table="users",
-        field_paths=[
-            FieldPath(alias="country", path=["address", "country"]),
-            FieldPath(alias="city", path=["address", "city"]),
-        ],
-        group_by=["address.country", "address.city"],
-    )
-
-    sql_str = query.as_string(None)
-    assert "GROUP BY data->'address'->>'country', data->'address'->>'city'" in sql_str
-
-
-def test_group_by_deeply_nested() -> None:
-    """Test GROUP BY with deeply nested fields."""
-    query = build_sql_query(
-        table="events",
-        field_paths=[FieldPath(alias="venue", path=["location", "venue", "name"])],
-        group_by=["location.venue.name", "location.venue.type"],
-    )
-
-    sql_str = query.as_string(None)
-    assert "GROUP BY" in sql_str
-    assert "data->'location'->'venue'->>'name'" in sql_str
-    assert "data->'location'->'venue'->>'type'" in sql_str
-
-
-def test_combined_where_group_by_order_by() -> None:
-    """Test combining WHERE, GROUP BY, and ORDER BY clauses."""
-    query = build_sql_query(
-        table="sales",
-        field_paths=[
-            FieldPath(alias="region", path=["location", "region"]),
-            FieldPath(alias="product", path=["product", "category"]),
-        ],
-        where_clause=SQL("data->>'year' = '2024'"),
-        group_by=["location.region", "product.category"],
-        order_by=[("location.region", "asc")],
-    )
-
-    sql_str = query.as_string(None)
-
-    # Verify correct SQL clause order
-    where_pos = sql_str.find("WHERE")
-    group_pos = sql_str.find("GROUP BY")
-    order_pos = sql_str.find("ORDER BY")
-
-    assert where_pos > 0
-    assert group_pos > where_pos
-    assert order_pos > group_pos
-
-    assert "WHERE data->>'year' = '2024'" in sql_str
-    assert "GROUP BY data->'location'->>'region', data->'product'->>'category'" in sql_str
-    assert "ORDER BY data->'location'->>'region' ASC" in sql_str
-
-
-def test_json_output_with_order_by() -> None:
-    """Test JSON output format with ORDER BY."""
-    query = build_sql_query(
-        table="users",
-        field_paths=[
-            FieldPath(alias="id", path=["id"]),
-            FieldPath(alias="name", path=["profile", "fullName"]),
-        ],
-        json_output=True,
-        typename="User",
-        order_by=[("profile.fullName", "asc"), ("created_at", "desc")],
-    )
-
-    sql_str = query.as_string(None)
-
-    assert "jsonb_build_object(" in sql_str
-    assert "'__typename', 'User'" in sql_str
-    assert "ORDER BY data->'profile'->>'full_name' ASC, data->>'created_at' DESC" in sql_str
-
-
-def test_empty_order_by_and_group_by() -> None:
-    """Test that empty order_by and group_by lists don't affect the query."""
-    query = build_sql_query(
-        table="users",
-        field_paths=[FieldPath(alias="name", path=["name"])],
-        order_by=[],
-        group_by=[],
-    )
-
-    sql_str = query.as_string(None)
-    assert "ORDER BY" not in sql_str
-    assert "GROUP BY" not in sql_str
-
-
-def test_complex_nested_scenario() -> None:
-    """Test complex scenario with deeply nested fields in all clauses."""
-    query = build_sql_query(
-        table="analytics",
-        field_paths=[
-            FieldPath(alias="browser", path=["user", "device", "browser", "name"]),
-            FieldPath(alias="country", path=["geo", "location", "country"]),
-        ],
-        where_clause=SQL("data->'user'->'device'->>'type' = 'mobile'"),
-        group_by=["user.device.browser.name", "geo.location.country", "user.device.os.version"],
-        order_by=[("geo.location.country", "asc"), ("user.device.browser.name", "desc")],
-    )
-
-    sql_str = query.as_string(None)
-
-    # Check field extraction
-    assert "data->'user'->'device'->'browser'->>'name'" in sql_str
-    assert "data->'geo'->'location'->>'country'" in sql_str
-
-    # Check WHERE clause
-    assert "WHERE data->'user'->'device'->>'type' = 'mobile'" in sql_str
-
-    # Check GROUP BY
-    assert "GROUP BY" in sql_str
-    assert "data->'user'->'device'->'os'->>'version'" in sql_str
-
-    # Check ORDER BY
-    assert "ORDER BY" in sql_str
-    assert "data->'geo'->'location'->>'country' ASC" in sql_str
-    assert "data->'user'->'device'->'browser'->>'name' DESC" in sql_str
+        assert "data->'items'->>'0'" in sql_str
+        assert "data->'items'->'1'->>'name'" in sql_str

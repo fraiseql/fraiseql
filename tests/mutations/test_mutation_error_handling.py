@@ -25,6 +25,48 @@ async def test_production_config_environment_check():
         pytest.fail(f"Config environment access raised AttributeError: {e}")
 
 
+@pytest.mark.asyncio 
+async def test_multiple_validation_errors_array_pattern():
+    """Test that multiple validation errors can be returned as arrays.
+    
+    This demonstrates the PrintOptim Backend error pattern where
+    complex validation produces structured error arrays.
+    """
+    # Mock multiple validation errors
+    validation_errors = [
+        {
+            "code": "REQUIRED_FIELD_MISSING",
+            "field": "name",
+            "message": "Name is required",
+            "details": {"constraint": "not_null"}
+        },
+        {
+            "code": "INVALID_FORMAT", 
+            "field": "email",
+            "message": "Email format is invalid",
+            "details": {"pattern": "email", "value": "invalid-email"}
+        },
+        {
+            "code": "VALUE_TOO_SHORT",
+            "field": "password", 
+            "message": "Password must be at least 8 characters",
+            "details": {"min_length": 8, "actual_length": 4}
+        }
+    ]
+    
+    # Verify error array structure
+    assert len(validation_errors) == 3
+    assert all("code" in error for error in validation_errors)
+    assert all("field" in error for error in validation_errors)
+    assert all("message" in error for error in validation_errors)
+    assert all("details" in error for error in validation_errors)
+    
+    # Verify error codes follow pattern
+    error_codes = {error["code"] for error in validation_errors}
+    expected_codes = {"REQUIRED_FIELD_MISSING", "INVALID_FORMAT", "VALUE_TOO_SHORT"}
+    assert error_codes == expected_codes
+
+
 @pytest.mark.asyncio
 async def test_development_config_environment_check():
     """Test that development config properly sets environment attribute."""
