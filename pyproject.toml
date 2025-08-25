@@ -330,7 +330,9 @@ include = [
 
 [dependency-groups]
 dev = [
+    "docker>=7.1.0",
     "pre-commit>=4.2.0",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
+    "testcontainers>=4.10.0",
 ]

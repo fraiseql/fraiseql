@@ -604,9 +604,11 @@ tracing = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "docker" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "testcontainers" },
 ]
 
 [package.metadata]
@@ -675,9 +677,11 @@ provides-extras = ["dev", "auth0", "docs", "tracing", "redis", "all"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "docker", specifier = ">=7.1.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=8.4.0" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "testcontainers", specifier = ">=4.10.0" },
 ]
 
 [[package]]
