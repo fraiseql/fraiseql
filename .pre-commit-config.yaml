@@ -27,7 +27,20 @@ repos:
     hooks:
       - id: pytest
         name: pytest (100% tests must pass)
-        entry: bash -c 'if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then echo "⏭️  Skipping tests in CI - will be run by GitHub Actions"; exit 0; elif ! command -v uv >/dev/null 2>&1; then echo "❌ uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh" && exit 1; else echo "🧪 Running tests locally with uv..." && TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true uv run pytest --tb=short -q && echo "✅ All tests passed - commit allowed"; fi'
+        entry: |
+          bash -c '
+          if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then
+            echo "⏭️  Skipping tests in CI - will be run by GitHub Actions"
+            exit 0
+          elif ! command -v uv >/dev/null 2>&1; then
+            echo "❌ uv not found. Install with curl -LsSf https://astral.sh/uv/install.sh | sh"
+            exit 1
+          else
+            echo "🧪 Running tests locally with uv..."
+            TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true uv run pytest --tb=short -q
+            echo "✅ All tests passed - commit allowed"
+          fi
+          '
         language: system
         types: [python]
         pass_filenames: false
