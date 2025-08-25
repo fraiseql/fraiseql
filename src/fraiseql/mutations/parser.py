@@ -237,7 +237,8 @@ def _parse_error(
     import logging
 
     logger = logging.getLogger(__name__)
-    logger.info(f"_parse_error called: status={result.status}, class={error_cls.__name__}")
+    class_name = getattr(error_cls, "__name__", str(error_cls))
+    logger.info(f"_parse_error called: status={result.status}, class={class_name}")
 
     fields = {}
     annotations = getattr(error_cls, "__annotations__", {})

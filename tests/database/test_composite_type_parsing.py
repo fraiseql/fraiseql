@@ -1,7 +1,7 @@
 """
 Test PostgreSQL composite type parsing in FraiseQL.
 
-This test reproduces the issue where PostgreSQL composite types 
+This test reproduces the issue where PostgreSQL composite types
 are returned as string representations instead of structured objects,
 preventing ALWAYS_DATA_CONFIG from working properly.
 """
@@ -19,18 +19,18 @@ class TestCompositeTypeParsing:
     async def test_composite_type_returned_as_string_without_registration(self, postgres_url):
         """
         RED TEST: This test should FAIL initially.
-        
-        Demonstrates the problem: PostgreSQL composite types are returned 
+
+        Demonstrates the problem: PostgreSQL composite types are returned
         as string representations instead of structured objects.
         """
         # Create a pool without composite type registration (current behavior)
         pool = await create_db_pool(postgres_url)
         repo = FraiseQLRepository(pool=pool)
-        
+
         try:
             # Create the composite type and function for testing
             await self._setup_test_schema(repo)
-            
+
             # Call a function that returns a composite type
             result = await repo.execute_function(
                 "test_schema.test_mutation_function",
@@ -40,18 +40,18 @@ class TestCompositeTypeParsing:
                     "message": "Test message"
                 }
             )
-            
+
             # The problem: result should be a structured object but comes back as string
             print(f"Result type: {type(result)}")
             print(f"Result value: {result}")
-            
+
             # This assertion should FAIL because the composite type isn't parsed
             # The result will be something like: "('123...',{},'noop:not_found','Test message',null,{})"
             assert isinstance(result, dict), f"Expected dict, got {type(result)}"
-            
+
             # Analyze the actual result structure
             print(f"Result keys: {list(result.keys())}")
-            
+
             # The function name might not be included in the result for single composite types
             # Let's check if the composite type fields are directly in the result
             if "status" in result:
@@ -75,20 +75,20 @@ class TestCompositeTypeParsing:
                         pytest.fail(f"Cannot access status from: {type(mutation_result)} = {mutation_result}")
                 else:
                     pytest.fail(f"No composite result found in: {result}")
-                
+
         finally:
             await pool.close()
 
     async def _setup_test_schema(self, repo: FraiseQLRepository):
         """Set up test schema with composite type and function."""
-        
+
         # Create test schema
         await repo.run(DatabaseQuery(
             statement=SQL("CREATE SCHEMA IF NOT EXISTS test_schema;"),
             params={},
             fetch_result=False
         ))
-        
+
         # Create a composite type similar to PrintOptim's app.mutation_result
         await repo.run(DatabaseQuery(
             statement=SQL("""
@@ -105,7 +105,7 @@ class TestCompositeTypeParsing:
             params={},
             fetch_result=False
         ))
-        
+
         # Create a function that returns the composite type
         await repo.run(DatabaseQuery(
             statement=SQL("""
@@ -124,7 +124,7 @@ class TestCompositeTypeParsing:
                         '{"test": "data"}'::JSONB,
                         '{"extra": true}'::JSONB
                     );
-                    
+
                     RETURN result;
                 END;
                 $$;
@@ -137,7 +137,7 @@ class TestCompositeTypeParsing:
     async def test_composite_type_parsing_for_always_data_config(self, postgres_url):
         """
         RED TEST: This test should FAIL initially.
-        
+
         Tests the specific use case for ALWAYS_DATA_CONFIG:
         - Function returns composite type with status field
         - ALWAYS_DATA_CONFIG needs to check if status contains error indicators
@@ -145,10 +145,10 @@ class TestCompositeTypeParsing:
         """
         pool = await create_db_pool(postgres_url)
         repo = FraiseQLRepository(pool=pool)
-        
+
         try:
             await self._setup_test_schema(repo)
-            
+
             # Test various status types that ALWAYS_DATA_CONFIG needs to detect
             test_cases = [
                 {"status": "success", "expected_is_error": False},
@@ -156,7 +156,7 @@ class TestCompositeTypeParsing:
                 {"status": "error:validation_failed", "expected_is_error": True},
                 {"status": "noop:no_changes", "expected_is_error": True},
             ]
-            
+
             for case in test_cases:
                 result = await repo.execute_function(
                     "test_schema.test_mutation_function",
@@ -166,54 +166,49 @@ class TestCompositeTypeParsing:
                         "message": f"Test {case['status']}"
                     }
                 )
-                
-                # Extract the composite result
-                mutation_result = result.get("test_mutation_function")
-                
+
+                # The PostgreSQL composite type is returned directly as a dict
                 # The key test: can ALWAYS_DATA_CONFIG logic work?
-                status = None
-                if isinstance(mutation_result, (tuple, list)) and len(mutation_result) > 2:
-                    status = mutation_result[2]  # status is 3rd field
-                elif hasattr(mutation_result, 'status'):
-                    status = mutation_result.status
+                if isinstance(result, dict) and 'status' in result:
+                    status = result['status']
                 else:
-                    pytest.fail(f"Cannot access status field from: {type(mutation_result)}")
-                
+                    pytest.fail(f"Cannot access status field from result: {type(result)} = {result}")
+
                 # Simulate ALWAYS_DATA_CONFIG logic
                 is_error = status and ('noop:' in status or 'error:' in status)
-                
+
                 assert is_error == case["expected_is_error"], (
                     f"ALWAYS_DATA_CONFIG logic failed for status '{case['status']}': "
                     f"expected is_error={case['expected_is_error']}, got {is_error}"
                 )
-                
+
         finally:
             await pool.close()
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_multiple_composite_types_registration(self, postgres_url):
         """
         RED TEST: This test should FAIL initially.
-        
+
         Tests that FraiseQL can handle multiple composite types in one database,
         which is common in real applications like PrintOptim Backend.
         """
         pool = await create_db_pool(postgres_url)
         repo = FraiseQLRepository(pool=pool)
-        
+
         try:
             # Create multiple composite types
             await repo.run(DatabaseQuery(
                 statement=SQL("""
                     CREATE SCHEMA IF NOT EXISTS test_schema;
-                    
+
                     DROP TYPE IF EXISTS test_schema.validation_result CASCADE;
                     CREATE TYPE test_schema.validation_result AS (
                         is_valid BOOLEAN,
                         errors TEXT[],
                         warnings TEXT[]
                     );
-                    
+
                     DROP TYPE IF EXISTS test_schema.audit_result CASCADE;
                     CREATE TYPE test_schema.audit_result AS (
                         action TEXT,
@@ -224,7 +219,7 @@ class TestCompositeTypeParsing:
                 params={},
                 fetch_result=False
             ))
-            
+
             # Create functions returning different composite types
             await repo.run(DatabaseQuery(
                 statement=SQL("""
@@ -235,46 +230,46 @@ class TestCompositeTypeParsing:
                         RETURN (false, ARRAY['field_required'], ARRAY['deprecated_field']);
                     END;
                     $$;
-                    
+
                     CREATE OR REPLACE FUNCTION test_schema.audit_action(input JSONB)
-                    RETURNS test_schema.audit_result  
+                    RETURNS test_schema.audit_result
                     LANGUAGE plpgsql AS $$
                     BEGIN
-                        RETURN ('CREATE', NOW(), '{"user_id": "test"}');
+                        RETURN ROW('CREATE'::TEXT, NOW(), '{"user_id": "test"}'::JSONB)::test_schema.audit_result;
                     END;
                     $$;
                 """),
                 params={},
                 fetch_result=False
             ))
-            
+
             # Test validation_result composite type
             validation_result = await repo.execute_function(
-                "test_schema.validate_data", 
+                "test_schema.validate_data",
                 {"test": "data"}
             )
-            
-            val_result = validation_result.get("validate_data")
-            if isinstance(val_result, (tuple, list)):
-                is_valid = val_result[0]
-                errors = val_result[1]
+
+            # PostgreSQL composite type should be returned as a dict
+            if isinstance(validation_result, dict) and 'is_valid' in validation_result:
+                is_valid = validation_result['is_valid']
+                errors = validation_result['errors']
                 assert is_valid is False
                 assert "field_required" in errors
             else:
-                pytest.fail(f"validation_result not parsed as tuple: {type(val_result)}")
-            
+                pytest.fail(f"validation_result not parsed correctly: {type(validation_result)} = {validation_result}")
+
             # Test audit_result composite type
             audit_result = await repo.execute_function(
                 "test_schema.audit_action",
-                {"action": "test"}
+                {"input": {"action": "test"}}
             )
-            
-            audit_res = audit_result.get("audit_action") 
-            if isinstance(audit_res, (tuple, list)):
-                action = audit_res[0]
+
+            # PostgreSQL composite type should be returned as a dict
+            if isinstance(audit_result, dict) and 'action' in audit_result:
+                action = audit_result['action']
                 assert action == "CREATE"
             else:
-                pytest.fail(f"audit_result not parsed as tuple: {type(audit_res)}")
-                
+                pytest.fail(f"audit_result not parsed correctly: {type(audit_result)} = {audit_result}")
+
         finally:
             await pool.close()
