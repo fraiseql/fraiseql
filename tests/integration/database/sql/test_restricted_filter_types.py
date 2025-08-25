@@ -21,7 +21,6 @@ from fraiseql.sql.graphql_where_generator import (
 from fraiseql.types import CIDR, DateTime, IpAddress, LTree, MacAddress
 
 
-
 @pytest.mark.unit
 @dataclass
 class NetworkDevice:

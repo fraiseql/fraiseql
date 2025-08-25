@@ -16,7 +16,6 @@ from fraiseql.sql.where_generator import (
 )
 
 
-
 @pytest.mark.unit
 @dataclass
 class SampleModel:

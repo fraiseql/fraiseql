@@ -13,7 +13,6 @@ from fraiseql.partial_instantiation import (
 )
 
 
-
 @pytest.mark.unit
 @dataclasses.dataclass
 class Level4Model:

@@ -8,12 +8,15 @@ These tests define the exact behavior expected from the rebuilt system:
 """
 
 import json
+
 import pytest
-from unittest.mock import Mock
 
+from fraiseql.mutations.result_processor import (
+    ErrorDetail,
+    MutationResultProcessor,
+    ProcessedResult,
+)
 from fraiseql.mutations.types import MutationResult
-from fraiseql.mutations.result_processor import MutationResultProcessor, ErrorDetail, ProcessedResult
-
 
 # Test data structures for mutations
 
@@ -54,8 +57,8 @@ class TestErrorResultProcessor:
         assert isinstance(result.errors, list)
         assert len(result.errors) > 0
         assert result.errors[0].code == 422
-        assert result.errors[0].identifier == 'invalid_contract_id'
-        assert result.errors[0].message == 'Contract not found or access denied'
+        assert result.errors[0].identifier == "invalid_contract_id"
+        assert result.errors[0].message == "Contract not found or access denied"
 
     def test_success_result_has_empty_errors_array(self):
         """RED: Success results should have empty errors array, not None."""
@@ -82,7 +85,7 @@ class TestErrorResultProcessor:
         result = processor.process_error(db_result, CreateMachineError)
 
         assert result.errors[0].code == 422
-        assert result.errors[0].identifier == 'machine_already_exists'
+        assert result.errors[0].identifier == "machine_already_exists"
 
     def test_blocked_status_creates_422_error(self):
         """RED: blocked: statuses should create 422 errors."""
@@ -95,7 +98,7 @@ class TestErrorResultProcessor:
         result = processor.process_error(db_result, CreateMachineError)
 
         assert result.errors[0].code == 422
-        assert result.errors[0].identifier == 'insufficient_permissions'
+        assert result.errors[0].identifier == "insufficient_permissions"
 
     def test_failed_status_creates_500_error(self):
         """RED: failed: statuses should create 500 errors."""
@@ -108,7 +111,7 @@ class TestErrorResultProcessor:
         result = processor.process_error(db_result, CreateMachineError)
 
         assert result.errors[0].code == 500
-        assert result.errors[0].identifier == 'database_connection'
+        assert result.errors[0].identifier == "database_connection"
 
     def test_immutable_processing(self):
         """RED: Processing should not mutate original objects."""
@@ -145,7 +148,7 @@ class TestErrorResultProcessor:
         processor = MutationResultProcessor()
         result = processor.process_error(db_result, CreateMachineError)
 
-        assert result.errors[0].details['validation_errors'] == [
+        assert result.errors[0].details["validation_errors"] == [
             {"field": "serial_number", "issue": "already_exists"},
             {"field": "model_id", "issue": "not_found"}
         ]
@@ -164,7 +167,7 @@ class TestErrorResultProcessor:
         json_string = json.dumps(result.to_dict())
         parsed = json.loads(json_string)
 
-        assert parsed['errors'][0]['code'] == 422
+        assert parsed["errors"][0]["code"] == 422
 
     def test_typename_field_present_in_result(self):
         """RED: __typename field must be present for GraphQL union resolution."""
@@ -177,8 +180,8 @@ class TestErrorResultProcessor:
         result = processor.process_error(db_result, CreateMachineError)
 
         result_dict = result.to_dict()
-        assert '__typename' in result_dict
-        assert result_dict['__typename'] == 'CreateMachineError'
+        assert "__typename" in result_dict
+        assert result_dict["__typename"] == "CreateMachineError"
 
     def test_success_result_typename_field(self):
         """RED: Success results should also have __typename for union resolution."""
@@ -191,8 +194,8 @@ class TestErrorResultProcessor:
         result = processor.process_success(db_result, CreateMachineSuccess)
 
         result_dict = result.to_dict()
-        assert '__typename' in result_dict
-        assert result_dict['__typename'] == 'CreateMachineSuccess'
+        assert "__typename" in result_dict
+        assert result_dict["__typename"] == "CreateMachineSuccess"
 
     def test_status_without_colon_handled_gracefully(self):
         """RED: Status strings without colon should be handled as general errors."""
@@ -205,7 +208,7 @@ class TestErrorResultProcessor:
         result = processor.process_error(db_result, CreateMachineError)
 
         assert result.errors[0].code == 500  # Default to server error
-        assert result.errors[0].identifier == 'general_error'  # Default identifier
+        assert result.errors[0].identifier == "general_error"  # Default identifier
 
     def test_none_status_handled_gracefully(self):
         """RED: None status should be handled gracefully."""
@@ -218,7 +221,7 @@ class TestErrorResultProcessor:
         result = processor.process_error(db_result, CreateMachineError)
 
         assert result.errors[0].code == 500
-        assert result.errors[0].identifier == 'general_error'
+        assert result.errors[0].identifier == "general_error"
         assert "No status provided" in result.errors[0].message
 
     def test_empty_message_handled_gracefully(self):
@@ -244,10 +247,10 @@ class TestErrorResultProcessor:
         result = processor.process_error(db_result, CreateMachineError)
 
         error = result.errors[0]
-        assert hasattr(error, 'code')
-        assert hasattr(error, 'identifier')
-        assert hasattr(error, 'message')
-        assert hasattr(error, 'details')
+        assert hasattr(error, "code")
+        assert hasattr(error, "identifier")
+        assert hasattr(error, "message")
+        assert hasattr(error, "details")
         assert isinstance(error.details, dict)
 
 
@@ -258,8 +261,8 @@ class TestErrorDetail:
         """RED: ErrorDetail should be immutable (frozen dataclass)."""
         error = ErrorDetail(
             code=422,
-            identifier='test_error',
-            message='Test message',
+            identifier="test_error",
+            message="Test message",
             details={}
         )
 
@@ -271,25 +274,25 @@ class TestErrorDetail:
         """RED: ErrorDetail should convert to dictionary properly."""
         error = ErrorDetail(
             code=422,
-            identifier='test_error',
-            message='Test message',
-            details={'extra': 'info'}
+            identifier="test_error",
+            message="Test message",
+            details={"extra": "info"}
         )
 
         # This test will fail until we implement the to_dict method
         expected_dict = {
-            'code': 422,
-            'identifier': 'test_error',
-            'message': 'Test message',
-            'details': {'extra': 'info'}
+            "code": 422,
+            "identifier": "test_error",
+            "message": "Test message",
+            "details": {"extra": "info"}
         }
 
         # ErrorDetail should be directly JSON serializable via its fields
         # This will test that the structure is correct
-        assert error.code == expected_dict['code']
-        assert error.identifier == expected_dict['identifier']
-        assert error.message == expected_dict['message']
-        assert error.details == expected_dict['details']
+        assert error.code == expected_dict["code"]
+        assert error.identifier == expected_dict["identifier"]
+        assert error.message == expected_dict["message"]
+        assert error.details == expected_dict["details"]
 
 
 class TestProcessedResult:
@@ -298,44 +301,44 @@ class TestProcessedResult:
     def test_processed_result_is_immutable(self):
         """RED: ProcessedResult should be immutable."""
         result = ProcessedResult(
-            typename='TestError',
-            status='noop:test',
-            message='Test message',
+            typename="TestError",
+            status="noop:test",
+            message="Test message",
             errors=[]
         )
 
         # Should not be able to modify fields
         with pytest.raises(AttributeError):
-            result.typename = 'ModifiedType'
+            result.typename = "ModifiedType"
 
     def test_processed_result_to_dict_structure(self):
         """RED: ProcessedResult.to_dict() should return correct structure."""
         error = ErrorDetail(
             code=422,
-            identifier='test_error',
-            message='Test message',
+            identifier="test_error",
+            message="Test message",
             details={}
         )
 
         result = ProcessedResult(
-            typename='TestError',
-            status='noop:test',
-            message='Test message',
+            typename="TestError",
+            status="noop:test",
+            message="Test message",
             errors=[error]
         )
 
         result_dict = result.to_dict()
 
         expected_structure = {
-            '__typename': 'TestError',
-            'status': 'noop:test',
-            'message': 'Test message',
-            'errors': [
+            "__typename": "TestError",
+            "status": "noop:test",
+            "message": "Test message",
+            "errors": [
                 {
-                    'code': 422,
-                    'identifier': 'test_error',
-                    'message': 'Test message',
-                    'details': {}
+                    "code": 422,
+                    "identifier": "test_error",
+                    "message": "Test message",
+                    "details": {}
                 }
             ]
         }

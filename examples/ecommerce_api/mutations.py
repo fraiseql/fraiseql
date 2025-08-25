@@ -12,10 +12,12 @@ For complete enterprise example, see ../enterprise_patterns/
 """
 
 from datetime import datetime
-from typing import Optional
+from decimal import Decimal
+from typing import Any, Optional
 from uuid import UUID
 
-from fraiseql import mutation
+# Import enterprise pattern types (would be defined in models.py)
+from fraiseql import failure, input, mutation, success
 
 from .models import (
     AddressMutationResult,
@@ -24,11 +26,6 @@ from .models import (
     OrderMutationResult,
     ReviewMutationResult,
 )
-
-# Import enterprise pattern types (would be defined in models.py)
-from fraiseql import input, success, failure
-from typing import Any
-from decimal import Decimal
 
 
 # Cart Mutations
@@ -319,7 +316,6 @@ async def process_order_legacy(
     Compare with ProcessOrderEnterprise above to see the difference.
     """
     # Implementation would be similar to create_order function above
-    pass
 
 
 # Enterprise Pattern Type Definitions

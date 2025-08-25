@@ -7,7 +7,6 @@ from fraiseql.types.coercion import coerce_input, coerce_input_arguments
 from fraiseql.types.definitions import UNSET
 
 
-
 @pytest.mark.unit
 @fraiseql.input
 class SampleInput:

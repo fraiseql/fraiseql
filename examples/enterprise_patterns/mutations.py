@@ -4,37 +4,32 @@ from fraiseql import mutation
 from fraiseql.auth import requires_auth, requires_permission
 
 from .models import (
-    # Create inputs
-    CreateOrganizationInput,
-    CreateUserInput,
-    CreateProjectInput,
-    CreateTaskInput,
-
-    # Update inputs
-    UpdateProjectInput,
-
-    # Success types
-    CreateOrganizationSuccess,
-    CreateUserSuccess,
-    CreateProjectSuccess,
-    CreateTaskSuccess,
-    UpdateProjectSuccess,
-
-    # NOOP types
-    CreateOrganizationNoop,
-    CreateUserNoop,
-    CreateProjectNoop,
-    CreateTaskNoop,
-    UpdateProjectNoop,
-
     # Error types
     CreateOrganizationError,
-    CreateUserError,
+    # Create inputs
+    CreateOrganizationInput,
+    # NOOP types
+    CreateOrganizationNoop,
+    # Success types
+    CreateOrganizationSuccess,
     CreateProjectError,
+    CreateProjectInput,
+    CreateProjectNoop,
+    CreateProjectSuccess,
     CreateTaskError,
+    CreateTaskInput,
+    CreateTaskNoop,
+    CreateTaskSuccess,
+    CreateUserError,
+    CreateUserInput,
+    CreateUserNoop,
+    CreateUserSuccess,
     UpdateProjectError,
+    # Update inputs
+    UpdateProjectInput,
+    UpdateProjectNoop,
+    UpdateProjectSuccess,
 )
-
 
 # Organization Management Mutations
 

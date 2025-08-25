@@ -12,7 +12,6 @@ from fraiseql.cqrs.executor import CQRSExecutor
 from fraiseql.cqrs.repository import CQRSRepository
 
 
-
 @pytest.mark.unit
 @pytest.fixture
 def mock_connection():

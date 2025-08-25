@@ -12,7 +12,6 @@ import fraiseql
 from fraiseql import fraise_field
 from fraiseql.db import FraiseQLRepository
 
-
 # Test types for dual-mode instantiation
 
 @pytest.mark.integration

@@ -1,11 +1,9 @@
 """Test default Error type and MutationResultBase for plug-and-play usage."""
 
-from typing import Any
-import uuid
 
 import pytest
-import fraiseql
 
+import fraiseql
 
 
 @pytest.mark.unit
@@ -18,13 +16,13 @@ class TestDefaultErrorType:
         from fraiseql import Error
 
         # Should be a proper @fraise_type
-        assert hasattr(Error, '__fraiseql_definition__')
+        assert hasattr(Error, "__fraiseql_definition__")
 
         # Should have standard fields
         definition = Error.__fraiseql_definition__
         field_names = set(definition.fields.keys())
 
-        expected_fields = {'message', 'code', 'identifier', 'details'}
+        expected_fields = {"message", "code", "identifier", "details"}
         assert expected_fields.issubset(field_names)
 
     def test_error_type_can_be_instantiated(self):
@@ -65,20 +63,20 @@ class TestDefaultMutationResultBase:
 
     def test_mutation_result_base_available(self):
         """Test that MutationResultBase is available from main import."""
-        from fraiseql import MutationResultBase, Error
+        from fraiseql import MutationResultBase
 
-        assert hasattr(MutationResultBase, '__fraiseql_definition__')
+        assert hasattr(MutationResultBase, "__fraiseql_definition__")
 
         # Should have standard fields from PrintOptim pattern
         definition = MutationResultBase.__fraiseql_definition__
         field_names = set(definition.fields.keys())
 
-        expected_fields = {'status', 'message', 'errors'}
+        expected_fields = {"status", "message", "errors"}
         assert expected_fields.issubset(field_names)
 
     def test_mutation_result_base_can_be_used(self):
         """Test that MutationResultBase works for common patterns."""
-        from fraiseql import MutationResultBase, Error
+        from fraiseql import MutationResultBase
 
         @fraiseql.type
         class TestSuccess(MutationResultBase):
@@ -89,12 +87,12 @@ class TestDefaultMutationResultBase:
             conflict_entity: dict | None = None
 
         # Should work without issues
-        assert hasattr(TestSuccess, '__fraiseql_definition__')
-        assert hasattr(TestError, '__fraiseql_definition__')
+        assert hasattr(TestSuccess, "__fraiseql_definition__")
+        assert hasattr(TestError, "__fraiseql_definition__")
 
     def test_mutation_result_base_inheritance_works(self):
         """Test that inheriting from MutationResultBase provides expected fields."""
-        from fraiseql import MutationResultBase, Error
+        from fraiseql import MutationResultBase
 
         @fraiseql.type
         class CreateUserSuccess(MutationResultBase):
@@ -130,9 +128,9 @@ class TestImprovedDefaultErrorConfig:
 
     def test_default_config_works_with_error_auto_population(self):
         """Test that default config properly populates error arrays."""
+        from fraiseql import Error
         from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
         from fraiseql.mutations.parser import parse_mutation_result
-        from fraiseql import Error
 
         @fraiseql.type
         class TestSuccess:
@@ -169,7 +167,7 @@ class TestPlugAndPlayIntegration:
 
     def test_simple_mutation_with_defaults(self):
         """Test creating a mutation using only FraiseQL defaults."""
-        from fraiseql import Error, MutationResultBase
+        from fraiseql import MutationResultBase
 
         @fraiseql.input
         class CreateEntityInput:
@@ -184,17 +182,17 @@ class TestPlugAndPlayIntegration:
             conflict_entity: dict | None = None
 
         # Should work without custom Error type or MutationResultBase definition
-        assert hasattr(CreateEntitySuccess, '__fraiseql_definition__')
-        assert hasattr(CreateEntityError, '__fraiseql_definition__')
+        assert hasattr(CreateEntitySuccess, "__fraiseql_definition__")
+        assert hasattr(CreateEntityError, "__fraiseql_definition__")
 
         # Both should have errors field from MutationResultBase
         success_fields = set(CreateEntitySuccess.__fraiseql_definition__.fields.keys())
         error_fields = set(CreateEntityError.__fraiseql_definition__.fields.keys())
 
-        assert 'errors' in success_fields
-        assert 'errors' in error_fields
-        assert 'status' in success_fields
-        assert 'message' in success_fields
+        assert "errors" in success_fields
+        assert "errors" in error_fields
+        assert "status" in success_fields
+        assert "message" in success_fields
 
     def test_mutation_decorator_uses_better_defaults(self):
         """Test that @mutation decorator uses improved defaults."""

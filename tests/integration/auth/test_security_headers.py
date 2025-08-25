@@ -21,7 +21,6 @@ from fraiseql.security.security_headers import (
 )
 
 
-
 @pytest.mark.security
 @pytest.fixture
 def app():

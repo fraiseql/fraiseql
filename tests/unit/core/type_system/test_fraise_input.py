@@ -1,12 +1,11 @@
 from typing import Annotated
 from uuid import UUID
 
+import pytest
+
 from fraiseql.fields import fraise_field
 from fraiseql.types.fraise_input import fraise_input
 from fraiseql.types.scalars.json import JSONField
-import pytest
-
-
 
 
 @pytest.mark.unit

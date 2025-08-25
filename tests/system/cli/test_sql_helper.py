@@ -15,7 +15,6 @@ from fraiseql.cli.sql_helper import (
 )
 
 
-
 @pytest.mark.unit
 @dataclass
 class User:

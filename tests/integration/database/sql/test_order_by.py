@@ -1,7 +1,6 @@
-from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
 import pytest
 
-
+from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
 
 
 @pytest.mark.unit

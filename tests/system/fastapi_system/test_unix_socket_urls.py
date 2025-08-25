@@ -5,7 +5,6 @@ import pytest
 from fraiseql.fastapi.config import FraiseQLConfig, validate_postgres_url
 
 
-
 @pytest.mark.unit
 class TestUnixSocketURLs:
     """Test validation of Unix domain socket PostgreSQL URLs."""

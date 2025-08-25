@@ -5,7 +5,6 @@ import pytest
 from fraiseql.security.validators import InputValidator
 
 
-
 @pytest.mark.security
 class TestInputValidator:
     """Test suite for InputValidator."""

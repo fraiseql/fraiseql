@@ -11,7 +11,6 @@ import fraiseql
 from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder, FraiseQLJSONResponse
 
 
-
 @pytest.mark.unit
 class TestFraiseTypeJSONSerialization:
     """Test that @fraiseql.type decorated classes are JSON serializable."""

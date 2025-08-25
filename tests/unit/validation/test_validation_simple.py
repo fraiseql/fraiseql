@@ -10,7 +10,6 @@ from fraiseql.errors.exceptions import WhereClauseError
 from fraiseql.validation import validate_where_input
 
 
-
 @pytest.mark.unit
 @fraiseql.type
 @dataclass

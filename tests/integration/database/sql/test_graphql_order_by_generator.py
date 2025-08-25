@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
-
 import uuid
 from datetime import datetime
 from typing import Optional
 
+import pytest
+
 import fraiseql
 from fraiseql.sql import OrderByItem, OrderDirection, create_graphql_order_by_input
-
 
 # Define test types at module level
 

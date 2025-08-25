@@ -8,7 +8,6 @@ from unittest.mock import patch
 from fraiseql.cli.main import cli
 
 
-
 @pytest.mark.unit
 class TestGenerateSchema:
     """Test the generate schema command."""

@@ -8,7 +8,6 @@ from fraiseql.fastapi.camelforge_config import CamelForgeConfig
 from fraiseql.fastapi.config import FraiseQLConfig
 
 
-
 @pytest.mark.camelforge
 class TestSimplifiedCamelForgeConfig:
     """Test the simplified configuration approach."""

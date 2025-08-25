@@ -10,7 +10,6 @@ from graphql import GraphQLField, GraphQLObjectType, GraphQLSchema, graphql_sync
 from fraiseql.types.enum import fraise_enum
 
 
-
 @pytest.mark.unit
 def test_enum_serialization():
     """Test that enum values can be JSON serialized when returned from GraphQL."""

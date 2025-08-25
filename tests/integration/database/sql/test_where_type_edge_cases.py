@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 from fraiseql.sql.where_generator import safe_create_where_type
 
 
-
 @pytest.mark.unit
 @dataclass
 class ComplexModel:

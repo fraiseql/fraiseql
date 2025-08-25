@@ -12,7 +12,6 @@ from fraiseql.auth.base import AuthProvider, UserContext
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 
-
 @pytest.mark.security
 class TestAuthProvider(AuthProvider):
     """Test auth provider with known tokens."""

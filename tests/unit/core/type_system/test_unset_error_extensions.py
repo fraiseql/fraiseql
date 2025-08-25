@@ -9,7 +9,6 @@ from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types.definitions import UNSET
 
 
-
 @pytest.mark.unit
 @fraiseql.input
 class SampleInput:

@@ -11,7 +11,6 @@ from fraiseql.types.scalars.datetime import (
 )
 
 
-
 @pytest.mark.unit
 def test_serialize_datetime() -> None:
     # Test serializing datetime to ISO 8601 string

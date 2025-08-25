@@ -12,7 +12,6 @@ import fraiseql
 from fraiseql.fastapi.app import create_fraiseql_app
 
 
-
 @pytest.mark.unit
 @fraiseql.type
 class SimpleUser:

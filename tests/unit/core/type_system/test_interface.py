@@ -10,7 +10,6 @@ import fraiseql
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
-
 @pytest.mark.unit
 class TestFraiseInterface:
     """Test suite for @fraise_interface decorator and interface functionality."""

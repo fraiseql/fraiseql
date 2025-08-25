@@ -10,7 +10,6 @@ from fraiseql.mutations.error_config import (
 )
 
 
-
 @pytest.mark.unit
 class TestMutationErrorConfig:
     """Test error configuration functionality."""

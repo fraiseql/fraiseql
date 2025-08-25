@@ -2,13 +2,13 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Annotated, Optional
+from typing import Annotated, Any, Optional
 from uuid import UUID
+
+from pydantic import Field
 
 import fraiseql
 from fraiseql import fraise_field
-from pydantic import Field
-
 
 # Base Audit Pattern
 
@@ -137,7 +137,7 @@ class Task:
 
     # Task details
     description: Optional[str] = None
-    status: str  # todo, in_progress, review, done, cancelled
+    status: str  # TODO, in_progress, review, done, cancelled
     priority: str = "medium"
 
     # Relationships
@@ -175,7 +175,7 @@ class CreateOrganizationInput:
     industry: Optional[Annotated[str, Field(max_length=100)]] = None
 
     # Optional business information
-    tax_id: Optional[Annotated[str, Field(pattern=r'^[0-9-]+$')]] = None
+    tax_id: Optional[Annotated[str, Field(pattern=r"^[0-9-]+$")]] = None
     employee_count: Optional[Annotated[int, Field(gt=0, le=1000000)]] = None
     annual_revenue: Optional[Annotated[Decimal, Field(gt=0)]] = None
 
@@ -193,7 +193,7 @@ class CreateUserInput:
 
     # Optional profile fields
     bio: Optional[Annotated[str, Field(max_length=1000)]] = None
-    phone: Optional[Annotated[str, Field(pattern=r'^\+?[1-9]\d{1,14}$')]] = None
+    phone: Optional[Annotated[str, Field(pattern=r"^\+?[1-9]\d{1,14}$")]] = None
 
     # Organizational assignment
     organization_id: UUID

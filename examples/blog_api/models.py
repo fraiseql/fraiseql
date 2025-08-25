@@ -1,12 +1,13 @@
 """Blog API models demonstrating audit patterns."""
 
 from datetime import datetime
-from typing import Any, Optional, Annotated
+from typing import Annotated, Any, Optional
 from uuid import UUID
+
+from pydantic import Field
 
 import fraiseql
 from fraiseql import fraise_field
-from pydantic import Field
 
 
 @fraiseql.type

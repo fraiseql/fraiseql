@@ -15,7 +15,6 @@ from fraiseql.types import (
 )
 
 
-
 @pytest.mark.unit
 class TestValidateDateRange:
     """Test the validate_date_range function."""

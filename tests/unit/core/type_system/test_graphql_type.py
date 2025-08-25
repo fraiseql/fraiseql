@@ -8,7 +8,6 @@ from fraiseql.core.graphql_type import translate_query_from_type
 from fraiseql.sql.where_generator import DynamicType
 
 
-
 @pytest.mark.unit
 def test_fraiseql_type_decorator() -> None:
     @fraise.type(sql_source="tb_users")

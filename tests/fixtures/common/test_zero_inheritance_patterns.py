@@ -10,7 +10,6 @@ from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import parse_mutation_result
 
 
-
 @pytest.mark.integration
 class TestZeroInheritancePatterns:
     """Test that PrintOptim patterns work without any inheritance at all."""
@@ -37,12 +36,12 @@ class TestZeroInheritancePatterns:
         error_fields = set(CreateContractError.__fraiseql_definition__.fields.keys())
 
         # Standard mutation fields are auto-injected
-        assert {'status', 'message', 'errors'}.issubset(success_fields)
-        assert {'status', 'message', 'errors'}.issubset(error_fields)
+        assert {"status", "message", "errors"}.issubset(success_fields)
+        assert {"status", "message", "errors"}.issubset(error_fields)
 
         # Custom fields are preserved
-        assert 'contract' in success_fields
-        assert 'conflict_contract' in error_fields
+        assert "contract" in success_fields
+        assert "conflict_contract" in error_fields
 
     def test_zero_config_printoptim_workflow(self):
         """Test complete PrintOptim workflow with zero custom configuration."""
@@ -150,7 +149,7 @@ class TestZeroInheritancePatterns:
 
         # Should still have all fields
         fields = set(CustomFieldsSuccess.__fraiseql_definition__.fields.keys())
-        assert {'status', 'message', 'errors', 'entity'}.issubset(fields)
+        assert {"status", "message", "errors", "entity"}.issubset(fields)
 
         # Should be able to instantiate with custom defaults
         instance = CustomFieldsSuccess(entity={"id": "test"})
@@ -177,8 +176,8 @@ class TestZeroInheritancePatterns:
         new_fields = set(NewPatternSuccess.__fraiseql_definition__.fields.keys())
 
         assert old_fields == new_fields
-        assert {'status', 'message', 'errors', 'user'}.issubset(old_fields)
-        assert {'status', 'message', 'errors', 'user'}.issubset(new_fields)
+        assert {"status", "message", "errors", "user"}.issubset(old_fields)
+        assert {"status", "message", "errors", "user"}.issubset(new_fields)
 
     def test_works_with_complex_printoptim_mutations(self):
         """Test that complex PrintOptim mutation patterns work seamlessly."""

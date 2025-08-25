@@ -12,7 +12,6 @@ from fraiseql.types.scalars.uuid import (
 )
 
 
-
 @pytest.mark.unit
 class TestUUIDScalar:
     """Test suite for UUID scalar type."""

@@ -5,7 +5,6 @@ import pytest
 from fraiseql.utils.db_url import normalize_database_url, psycopg2_to_url, url_to_psycopg2
 
 
-
 @pytest.mark.unit
 class TestPsycopg2ToUrl:
     """Test psycopg2 to URL conversion."""

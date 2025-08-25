@@ -22,7 +22,6 @@ from fraiseql.sql import (
 )
 
 
-
 @pytest.mark.unit
 @dataclass
 class SimpleModel:

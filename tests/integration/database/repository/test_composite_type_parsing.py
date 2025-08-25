@@ -1,5 +1,4 @@
-"""
-Test PostgreSQL composite type parsing in FraiseQL.
+"""Test PostgreSQL composite type parsing in FraiseQL.
 
 This test reproduces the issue where PostgreSQL composite types
 are returned as string representations instead of structured objects,
@@ -7,9 +6,10 @@ preventing ALWAYS_DATA_CONFIG from working properly.
 """
 
 import pytest
-from fraiseql.fastapi.app import create_db_pool
-from fraiseql.db import FraiseQLRepository, DatabaseQuery
 from psycopg.sql import SQL
+
+from fraiseql.db import DatabaseQuery, FraiseQLRepository
+from fraiseql.fastapi.app import create_db_pool
 
 
 class TestCompositeTypeParsing:
@@ -17,8 +17,7 @@ class TestCompositeTypeParsing:
 
     @pytest.mark.asyncio
     async def test_composite_type_returned_as_string_without_registration(self, postgres_url):
-        """
-        RED TEST: This test should FAIL initially.
+        """RED TEST: This test should FAIL initially.
 
         Demonstrates the problem: PostgreSQL composite types are returned
         as string representations instead of structured objects.
@@ -69,7 +68,7 @@ class TestCompositeTypeParsing:
                     elif isinstance(mutation_result, dict) and "status" in mutation_result:
                         status = mutation_result["status"]
                         assert status == "noop:not_found", f"Expected 'noop:not_found', got {status}"
-                    elif hasattr(mutation_result, 'status'):
+                    elif hasattr(mutation_result, "status"):
                         assert mutation_result.status == "noop:not_found"
                     else:
                         pytest.fail(f"Cannot access status from: {type(mutation_result)} = {mutation_result}")
@@ -81,7 +80,6 @@ class TestCompositeTypeParsing:
 
     async def _setup_test_schema(self, repo: FraiseQLRepository):
         """Set up test schema with composite type and function."""
-
         # Create test schema
         await repo.run(DatabaseQuery(
             statement=SQL("CREATE SCHEMA IF NOT EXISTS test_schema;"),
@@ -135,8 +133,7 @@ class TestCompositeTypeParsing:
 
     @pytest.mark.asyncio
     async def test_composite_type_parsing_for_always_data_config(self, postgres_url):
-        """
-        RED TEST: This test should FAIL initially.
+        """RED TEST: This test should FAIL initially.
 
         Tests the specific use case for ALWAYS_DATA_CONFIG:
         - Function returns composite type with status field
@@ -169,13 +166,13 @@ class TestCompositeTypeParsing:
 
                 # The PostgreSQL composite type is returned directly as a dict
                 # The key test: can ALWAYS_DATA_CONFIG logic work?
-                if isinstance(result, dict) and 'status' in result:
-                    status = result['status']
+                if isinstance(result, dict) and "status" in result:
+                    status = result["status"]
                 else:
                     pytest.fail(f"Cannot access status field from result: {type(result)} = {result}")
 
                 # Simulate ALWAYS_DATA_CONFIG logic
-                is_error = status and ('noop:' in status or 'error:' in status)
+                is_error = status and ("noop:" in status or "error:" in status)
 
                 assert is_error == case["expected_is_error"], (
                     f"ALWAYS_DATA_CONFIG logic failed for status '{case['status']}': "
@@ -187,8 +184,7 @@ class TestCompositeTypeParsing:
 
     @pytest.mark.asyncio
     async def test_multiple_composite_types_registration(self, postgres_url):
-        """
-        RED TEST: This test should FAIL initially.
+        """RED TEST: This test should FAIL initially.
 
         Tests that FraiseQL can handle multiple composite types in one database,
         which is common in real applications like PrintOptim Backend.
@@ -250,9 +246,9 @@ class TestCompositeTypeParsing:
             )
 
             # PostgreSQL composite type should be returned as a dict
-            if isinstance(validation_result, dict) and 'is_valid' in validation_result:
-                is_valid = validation_result['is_valid']
-                errors = validation_result['errors']
+            if isinstance(validation_result, dict) and "is_valid" in validation_result:
+                is_valid = validation_result["is_valid"]
+                errors = validation_result["errors"]
                 assert is_valid is False
                 assert "field_required" in errors
             else:
@@ -265,8 +261,8 @@ class TestCompositeTypeParsing:
             )
 
             # PostgreSQL composite type should be returned as a dict
-            if isinstance(audit_result, dict) and 'action' in audit_result:
-                action = audit_result['action']
+            if isinstance(audit_result, dict) and "action" in audit_result:
+                action = audit_result["action"]
                 assert action == "CREATE"
             else:
                 pytest.fail(f"audit_result not parsed correctly: {type(audit_result)} = {audit_result}")

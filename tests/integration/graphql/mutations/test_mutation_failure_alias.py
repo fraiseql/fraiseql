@@ -5,7 +5,6 @@ import pytest
 import fraiseql
 from fraiseql import failure, fraise_input, mutation, success
 
-
 # Input type
 
 @pytest.mark.unit

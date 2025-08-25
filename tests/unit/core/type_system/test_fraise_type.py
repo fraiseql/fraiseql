@@ -1,11 +1,9 @@
-import pytest
-
 # tests/types/test_fraise_type_decorator.py
-
 from dataclasses import is_dataclass
 
-import fraiseql
+import pytest
 
+import fraiseql
 
 
 @pytest.mark.unit

@@ -9,7 +9,6 @@ from fraiseql import success
 from fraiseql.mutations.parser import parse_mutation_result
 
 
-
 @pytest.mark.unit
 @fraiseql.type
 class Location:

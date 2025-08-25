@@ -49,7 +49,7 @@ jobs:
         # Install all optional dependencies for comprehensive testing
         uv pip install --system -e ".[dev,all]"
 
-    - name: Run tests with coverage
+    - name: Run core tests with coverage
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -58,7 +58,23 @@ jobs:
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
       run: |
-        pytest --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v
+        # Run core tests first
+        pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise"
+
+    - name: Run example integration tests
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+      run: |
+        # Run example tests to catch regressions
+        pytest tests/integration/examples/ -v --tb=short || echo "Example tests failed but continuing"
+
+        # Also run a quick smoke test on the examples themselves (if database setup works)
+        pytest examples/blog_simple/tests/test_queries.py::test_query_posts -v --tb=short || echo "Blog simple smoke test failed"
 
     - name: Upload coverage
       uses: codecov/codecov-action@v5

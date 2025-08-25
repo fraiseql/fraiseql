@@ -9,7 +9,6 @@ from fraiseql.gql.builders.registry import SchemaRegistry
 from fraiseql.gql.builders.schema_composer import SchemaComposer
 
 
-
 @pytest.mark.unit
 class TestSchemaRegistry:
     """Test the SchemaRegistry functionality."""

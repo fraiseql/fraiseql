@@ -9,7 +9,6 @@ from fraiseql.mutations.mutation_decorator import _to_dict
 from fraiseql.types.definitions import UNSET
 
 
-
 @pytest.mark.unit
 @fraise_input
 class UpdateRouterInputOld:

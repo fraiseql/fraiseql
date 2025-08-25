@@ -18,7 +18,6 @@ from fraiseql.types.generic import (
 )
 
 
-
 @pytest.mark.unit
 class TestGenericTypes:
     """Test generic type functionality."""

@@ -13,7 +13,6 @@ from fraiseql.types.scalars.mac_address import (
 )
 
 
-
 @pytest.mark.unit
 class TestMacAddressNormalization:
     """Test MAC address normalization."""

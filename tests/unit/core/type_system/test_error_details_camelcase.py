@@ -11,7 +11,6 @@ from fraiseql.mutations.parser import parse_mutation_result
 from fraiseql.types.errors import Error
 
 
-
 @pytest.mark.unit
 @fraiseql.type
 class ConflictObject:

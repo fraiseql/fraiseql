@@ -2,6 +2,52 @@
 
 This directory contains comprehensive example applications that demonstrate FraiseQL's capabilities across different domains and use cases. Each example showcases best practices, advanced features, and real-world implementation patterns.
 
+## 🎯 New Blueprint Examples
+
+### 📝 Blog Simple (`blog_simple/`) **NEW**
+**Perfect for learning FraiseQL fundamentals**
+
+A complete blog application demonstrating core FraiseQL patterns:
+- **Database-first architecture** with PostgreSQL functions
+- **Command/Query separation** with views and materialized tables
+- **CRUD operations** with comprehensive error handling
+- **Real-time database testing** patterns
+- **Authentication and authorization** flows
+
+**Quick Start:**
+```bash
+cd blog_simple
+docker-compose up -d
+# Visit http://localhost:8000/graphql
+```
+
+### 🏢 Blog Enterprise (`blog_enterprise/`) **NEW**
+**Enterprise-grade patterns for production systems**
+
+An advanced blog showcasing enterprise development patterns:
+- **Domain-driven design** with bounded contexts
+- **Advanced PostgreSQL patterns** (stored procedures, triggers, materialized views)
+- **Enterprise authentication** with role-based access control
+- **Multi-tenant architecture** support
+- **Event sourcing** and audit trails
+- **Performance optimization** with caching layers
+
+**Quick Start:**
+```bash
+cd blog_enterprise
+docker-compose up -d
+# Visit http://localhost:8000/graphql
+```
+
+## 📚 Learning Path
+
+| Example | Complexity | Best For | Key Patterns |
+|---------|------------|----------|--------------|
+| `blog_simple/` | **Beginner** | Learning basics | CRUD, basic auth, simple queries |
+| `blog_enterprise/` | **Advanced** | Production systems | DDD, multi-tenancy, event sourcing |
+| `blog_api/` | **Intermediate** | Content systems | Audit trails, mutation results |
+| `ecommerce_api/` | **Advanced** | E-commerce | Complex validation, business rules |
+
 ## 🏢 Enterprise Patterns (`enterprise_patterns/`) **NEW**
 
 **The definitive reference for production-ready enterprise applications.**

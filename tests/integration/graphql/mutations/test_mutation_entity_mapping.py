@@ -12,7 +12,6 @@ import fraiseql
 from fraiseql import failure, success
 from fraiseql.mutations.parser import parse_mutation_result
 
-
 # Define test entities
 
 @pytest.mark.unit

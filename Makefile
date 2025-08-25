@@ -34,9 +34,14 @@ install-dev: ## Install all development dependencies
 	pip install -e ".[dev,auth0,docs]"
 
 .PHONY: test
-test: ## Run all tests with Podman
-	@echo -e "$(GREEN)Running all tests with Podman...$(NC)"
+test: ## Run all tests including examples with Podman
+	@echo -e "$(GREEN)Running all tests including examples with Podman...$(NC)"
 	pytest -xvs
+
+.PHONY: test-core
+test-core: ## Run core tests only (excluding examples)
+	@echo -e "$(GREEN)Running core tests only...$(NC)"
+	pytest tests/ -xvs -m "not blog_simple and not blog_enterprise"
 
 .PHONY: test-fast
 test-fast: ## Run tests in parallel (faster)
@@ -83,6 +88,31 @@ test-auth-security: ## Run security audit on native auth system
 test-testfoundry: ## Run TestFoundry extension tests
 	@echo -e "$(GREEN)Running TestFoundry tests...$(NC)"
 	pytest tests/extensions/testfoundry/ -xvs
+
+.PHONY: test-examples
+test-examples: ## Run all example integration tests from main test suite
+	@echo -e "$(GREEN)Running example integration tests...$(NC)"
+	pytest tests/integration/examples/ -xvs
+
+.PHONY: test-examples-full
+test-examples-full: ## Run full example test suites (examples + integration)
+	@echo -e "$(GREEN)Running all example tests (integration + full suites)...$(NC)"
+	pytest tests/integration/examples/ examples/ -xvs -m "blog_simple or blog_enterprise"
+
+.PHONY: test-blog-simple
+test-blog-simple: ## Run blog_simple example tests
+	@echo -e "$(GREEN)Running blog_simple example tests...$(NC)"
+	pytest tests/integration/examples/test_blog_simple_integration.py examples/blog_simple/tests/ -xvs
+
+.PHONY: test-blog-enterprise
+test-blog-enterprise: ## Run blog_enterprise example tests
+	@echo -e "$(GREEN)Running blog_enterprise example tests...$(NC)"
+	pytest tests/integration/examples/test_blog_enterprise_integration.py -xvs
+
+.PHONY: test-examples-smoke
+test-examples-smoke: ## Run quick smoke tests for examples (CI-friendly)
+	@echo -e "$(GREEN)Running example smoke tests...$(NC)"
+	pytest tests/integration/examples/ -xvs -k "health or home or introspection" --tb=short
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage report

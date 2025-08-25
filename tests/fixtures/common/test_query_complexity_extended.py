@@ -19,7 +19,6 @@ from fraiseql.analysis.complexity_config import (
 )
 
 
-
 @pytest.mark.unit
 class TestComplexityScoreExtended:
     """Extended tests for ComplexityScore class."""

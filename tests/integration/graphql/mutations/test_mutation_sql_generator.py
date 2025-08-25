@@ -8,7 +8,6 @@ from fraiseql.mutations.sql_generator import generate_insert_json_call
 from fraiseql.types.definitions import UNSET
 
 
-
 @pytest.mark.unit
 class TestGenerateInsertJsonCall:
     """Test suite for SQL mutation query generation."""

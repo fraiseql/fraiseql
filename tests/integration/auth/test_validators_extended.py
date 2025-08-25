@@ -5,7 +5,6 @@ import pytest
 from fraiseql.security.validators import InputValidator, ValidationResult
 
 
-
 @pytest.mark.security
 class TestValidationResult:
     """Test ValidationResult dataclass."""

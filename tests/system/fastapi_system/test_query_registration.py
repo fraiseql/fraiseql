@@ -9,7 +9,6 @@ import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.gql.schema_builder import SchemaRegistry
 
-
 # Define test types
 
 @pytest.mark.unit

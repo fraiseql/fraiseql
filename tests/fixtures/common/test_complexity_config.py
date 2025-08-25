@@ -10,7 +10,6 @@ from fraiseql.analysis.complexity_config import (
 )
 
 
-
 @pytest.mark.unit
 class TestComplexityConfig:
     """Test ComplexityConfig functionality."""

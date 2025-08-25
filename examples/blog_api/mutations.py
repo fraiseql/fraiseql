@@ -15,23 +15,23 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from models import (
+    AuditTrail,
     Comment,
     CreateCommentInput,
     CreatePostError,
     CreatePostInput,
-    CreatePostSuccess,
     CreatePostNoop,
+    CreatePostSuccess,
     CreateUserError,
     CreateUserInput,
-    CreateUserSuccess,
     CreateUserNoop,
+    CreateUserSuccess,
     Post,
     UpdatePostError,
     UpdatePostInput,
-    UpdatePostSuccess,
     UpdatePostNoop,
+    UpdatePostSuccess,
     User,
-    AuditTrail,
 )
 
 from fraiseql import mutation
@@ -324,4 +324,3 @@ async def create_post_legacy(
     New code should use the @mutation class decorators instead.
     """
     # Implementation remains the same as create_post function above
-    pass

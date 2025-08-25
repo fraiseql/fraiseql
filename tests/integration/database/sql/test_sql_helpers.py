@@ -12,7 +12,6 @@ from fraiseql.utils.sql_helpers import (
 )
 
 
-
 @pytest.mark.unit
 class TestSQLHelpers:
     """Test SQL helper functions."""

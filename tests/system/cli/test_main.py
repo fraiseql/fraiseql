@@ -7,7 +7,6 @@ from unittest.mock import patch
 from fraiseql.cli.main import cli, main
 
 
-
 @pytest.mark.unit
 class TestCLIMain:
     """Test the main CLI functionality."""

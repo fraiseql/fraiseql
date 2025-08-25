@@ -11,7 +11,6 @@ from fraiseql.config.schema_config import SchemaConfig
 from fraiseql.core.json_passthrough import JSONPassthrough, is_json_passthrough
 
 
-
 @pytest.mark.unit
 @fraiseql.type
 class NestedType:

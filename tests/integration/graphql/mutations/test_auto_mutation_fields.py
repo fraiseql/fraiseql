@@ -1,11 +1,11 @@
 """Test automatic mutation field injection without inheritance."""
 
 import pytest
+
 import fraiseql
 from fraiseql import Error
 from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import parse_mutation_result
-
 
 
 @pytest.mark.unit
@@ -21,15 +21,15 @@ class TestAutoMutationFields:
             user: dict | None = None
 
         # Should have auto-injected standard fields
-        assert hasattr(CreateUserSuccess, '__fraiseql_definition__')
+        assert hasattr(CreateUserSuccess, "__fraiseql_definition__")
         definition = CreateUserSuccess.__fraiseql_definition__
         field_names = set(definition.fields.keys())
 
         # Should have both custom and auto-injected fields
-        assert 'user' in field_names  # Custom field
-        assert 'status' in field_names  # Auto-injected
-        assert 'message' in field_names  # Auto-injected
-        assert 'errors' in field_names  # Auto-injected
+        assert "user" in field_names  # Custom field
+        assert "status" in field_names  # Auto-injected
+        assert "message" in field_names  # Auto-injected
+        assert "errors" in field_names  # Auto-injected
 
     def test_failure_auto_injects_standard_fields(self):
         """Test that @failure automatically adds status, message, errors fields."""
@@ -40,15 +40,15 @@ class TestAutoMutationFields:
             conflict_user: dict | None = None
 
         # Should have auto-injected standard fields
-        assert hasattr(CreateUserError, '__fraiseql_definition__')
+        assert hasattr(CreateUserError, "__fraiseql_definition__")
         definition = CreateUserError.__fraiseql_definition__
         field_names = set(definition.fields.keys())
 
         # Should have both custom and auto-injected fields
-        assert 'conflict_user' in field_names  # Custom field
-        assert 'status' in field_names  # Auto-injected
-        assert 'message' in field_names  # Auto-injected
-        assert 'errors' in field_names  # Auto-injected
+        assert "conflict_user" in field_names  # Custom field
+        assert "status" in field_names  # Auto-injected
+        assert "message" in field_names  # Auto-injected
+        assert "errors" in field_names  # Auto-injected
 
     def test_parser_works_with_auto_injected_fields(self):
         """Test that mutation parser works with auto-injected fields."""
@@ -129,10 +129,10 @@ class TestAutoMutationFields:
         definition = CustomSuccess.__fraiseql_definition__
         field_names = set(definition.fields.keys())
 
-        assert 'status' in field_names
-        assert 'message' in field_names
-        assert 'errors' in field_names
-        assert 'entity' in field_names
+        assert "status" in field_names
+        assert "message" in field_names
+        assert "errors" in field_names
+        assert "entity" in field_names
 
     def test_no_inheritance_needed_for_printoptim_patterns(self):
         """Test that PrintOptim patterns work without any inheritance."""
@@ -156,10 +156,10 @@ class TestAutoMutationFields:
         error_fields = set(CreateContractError.__fraiseql_definition__.fields.keys())
 
         # Should have PrintOptim's standard fields auto-injected
-        expected_base_fields = {'status', 'message', 'errors'}
+        expected_base_fields = {"status", "message", "errors"}
         assert expected_base_fields.issubset(success_fields)
         assert expected_base_fields.issubset(error_fields)
 
         # Should have their specific fields too
-        assert 'contract' in success_fields
-        assert 'conflict_contract' in error_fields
+        assert "contract" in success_fields
+        assert "conflict_contract" in error_fields

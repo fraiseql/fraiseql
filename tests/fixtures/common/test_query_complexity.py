@@ -10,7 +10,6 @@ from fraiseql.analysis import (
 )
 
 
-
 @pytest.mark.unit
 class TestComplexityScore:
     """Test the ComplexityScore calculations."""

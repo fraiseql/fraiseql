@@ -12,7 +12,6 @@ from graphql import GraphQLResolveInfo
 from fraiseql import query
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
-
 # Define query outside of any test function to avoid pytest confusion
 
 @pytest.mark.security

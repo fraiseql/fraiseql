@@ -11,7 +11,6 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 from fraiseql.security.field_auth import authorize_field
 
 
-
 @pytest.mark.security
 def test_field_authorization_basic():
     """Test basic field authorization with GraphQL execution."""

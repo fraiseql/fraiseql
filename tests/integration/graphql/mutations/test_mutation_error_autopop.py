@@ -10,7 +10,6 @@ import fraiseql
 from fraiseql.mutations.error_config import MutationErrorConfig
 from fraiseql.mutations.parser import parse_mutation_result
 
-
 # Define a simple Error type for testing
 
 @pytest.mark.unit

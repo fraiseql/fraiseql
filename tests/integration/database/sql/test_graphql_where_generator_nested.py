@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
 import uuid
+
+import pytest
 
 import fraiseql
 from fraiseql.sql import (
@@ -14,7 +14,6 @@ from fraiseql.sql import (
     UUIDFilter,
     create_graphql_where_input,
 )
-
 
 # Define test types at module level to avoid forward reference issues
 

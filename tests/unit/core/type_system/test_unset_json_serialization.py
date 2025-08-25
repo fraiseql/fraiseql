@@ -17,7 +17,6 @@ from fraiseql.fastapi.json_encoder import (
 from fraiseql.types.definitions import UNSET
 
 
-
 @pytest.mark.unit
 def test_fraiseql_json_encoder_handles_unset():
     """Test that FraiseQLJSONEncoder properly serializes UNSET values."""

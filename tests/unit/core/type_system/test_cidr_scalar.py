@@ -12,7 +12,6 @@ from fraiseql.types.scalars.cidr import (
 )
 
 
-
 @pytest.mark.unit
 class TestCIDRSerialization:
     """Test CIDR serialization."""

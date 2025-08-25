@@ -12,7 +12,6 @@ from fraiseql.types.scalars.port import (
 )
 
 
-
 @pytest.mark.unit
 class TestPortSerialization:
     """Test port serialization."""

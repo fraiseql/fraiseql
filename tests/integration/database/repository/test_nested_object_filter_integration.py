@@ -13,7 +13,6 @@ from fraiseql.sql import (
     create_graphql_where_input,
 )
 
-
 # Define test types
 
 @pytest.mark.unit

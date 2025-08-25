@@ -5,7 +5,6 @@ import pytest
 from fraiseql.db import FraiseQLRepository
 
 
-
 @pytest.mark.unit
 def test_raw_json_methods_still_available():
     """Test that raw JSON methods are still available for special use cases."""

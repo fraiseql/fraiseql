@@ -1,6 +1,5 @@
 """Integration test for PrintOptim-style patterns with FraiseQL defaults."""
 
-import uuid
 from typing import Any
 
 import pytest
@@ -10,14 +9,13 @@ from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 from fraiseql.mutations.parser import parse_mutation_result
 
 
-
 @pytest.mark.integration
 class TestPrintOptimStyleMutations:
     """Test that PrintOptim patterns work seamlessly with FraiseQL defaults."""
 
     def test_simple_mutation_with_defaults_only(self):
         """Test creating a mutation using only FraiseQL built-in types."""
-        from fraiseql import Error, MutationResultBase
+        from fraiseql import MutationResultBase
 
         # This mirrors PrintOptim's typical mutation structure but uses FraiseQL defaults
         @fraiseql.input
@@ -34,25 +32,25 @@ class TestPrintOptimStyleMutations:
             conflict_contract: dict[str, Any] | None = None
 
         # Should work exactly like PrintOptim's custom types
-        assert hasattr(CreateContractSuccess, '__fraiseql_definition__')
-        assert hasattr(CreateContractError, '__fraiseql_definition__')
+        assert hasattr(CreateContractSuccess, "__fraiseql_definition__")
+        assert hasattr(CreateContractError, "__fraiseql_definition__")
 
         # Both should inherit all the fields from MutationResultBase
         success_fields = set(CreateContractSuccess.__fraiseql_definition__.fields.keys())
         error_fields = set(CreateContractError.__fraiseql_definition__.fields.keys())
 
         # Should have PrintOptim's standard fields
-        expected_base_fields = {'status', 'message', 'errors'}
+        expected_base_fields = {"status", "message", "errors"}
         assert expected_base_fields.issubset(success_fields)
         assert expected_base_fields.issubset(error_fields)
 
         # Should have their specific fields too
-        assert 'contract' in success_fields
-        assert 'conflict_contract' in error_fields
+        assert "contract" in success_fields
+        assert "conflict_contract" in error_fields
 
     def test_mutation_decorator_with_improved_defaults(self):
         """Test that @fraiseql.mutation uses the improved DEFAULT_ERROR_CONFIG."""
-        from fraiseql import Error, MutationResultBase
+        from fraiseql import MutationResultBase
 
         @fraiseql.input
         class TestInput:
@@ -116,7 +114,7 @@ class TestPrintOptimStyleMutations:
 
     def test_no_custom_base_class_needed(self):
         """Test that PrintOptim no longer needs PrintOptimMutation base class."""
-        from fraiseql import Error, MutationResultBase
+        from fraiseql import MutationResultBase
 
         # This should work without any custom base classes
         @fraiseql.input
@@ -145,7 +143,7 @@ class TestPrintOptimStyleMutations:
             failure: CreateUserError
 
         # Should work exactly like PrintOptim's PrintOptimMutation pattern
-        assert hasattr(CreateUser, '__fraiseql_mutation__')
+        assert hasattr(CreateUser, "__fraiseql_mutation__")
 
     def test_all_printoptim_error_patterns_supported(self):
         """Test that all PrintOptim error patterns work with defaults."""

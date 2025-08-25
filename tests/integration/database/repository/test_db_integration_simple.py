@@ -11,7 +11,11 @@ from psycopg.sql import SQL, Composed, Identifier
 
 # Import database fixtures for this database test
 from tests.fixtures.database.database_conftest import *  # noqa: F403
-from tests.unit.utils.schema_utils import SchemaQualifiedQueryBuilder, build_select_query, get_current_schema
+from tests.unit.utils.schema_utils import (
+    SchemaQualifiedQueryBuilder,
+    build_select_query,
+    get_current_schema,
+)
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 

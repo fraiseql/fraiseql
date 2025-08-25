@@ -10,7 +10,6 @@ from fraiseql.types.definitions import FraiseQLTypeDefinition
 from fraiseql.types.protocols import FraiseQLInputType, FraiseQLOutputType
 
 
-
 @pytest.mark.unit
 class TestFraiseQLProtocols:
     """Test FraiseQL type protocols."""

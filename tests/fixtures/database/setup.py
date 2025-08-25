@@ -7,7 +7,7 @@ transaction-based test isolation, and comprehensive utilities.
 import logging
 import os
 from pathlib import Path
-from typing import AsyncGenerator, Any
+from typing import Any, AsyncGenerator
 
 import psycopg
 import pytest_asyncio
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Database configuration
 DB_USER = os.getenv("DB_USER", "lionel")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_HOST = os.getenv("DB_HOST", "localhost") 
+DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
 DB_NAME_TEMPLATE = "fraiseql_test_{suffix}"
 
@@ -127,13 +127,13 @@ class DatabaseManager:
         columns = ", ".join(data.keys())
         placeholders = ", ".join([f"${i+1}" for i in range(len(data))])
         values = list(data.values())
-        
+
         query = f"""
             INSERT INTO {table} ({columns})
             VALUES ({placeholders})
             RETURNING *
         """
-        
+
         return await self.execute_mutation(query, values)
 
     async def cleanup_table(self, table: str) -> None:
@@ -145,16 +145,16 @@ class DatabaseManager:
 async def test_database():
     """Session-scoped test database fixture."""
     db_name = DB_NAME_TEMPLATE.format(suffix="main")
-    
+
     await create_test_database(db_name)
-    
+
     yield db_name
-    
+
     await drop_test_database(db_name)
 
 
 @pytest_asyncio.fixture
-async def db_connection(test_database: str) -> AsyncGenerator[psycopg.AsyncConnection, None]:
+async def db_connection(test_database: str) -> AsyncGenerator[psycopg.AsyncConnection]:
     """Provide isolated database connection with transaction rollback."""
     conn_str = get_db_connection_string(test_database)
 

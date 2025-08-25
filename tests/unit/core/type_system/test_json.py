@@ -10,7 +10,6 @@ from fraiseql.types.scalars.json import (
 )
 
 
-
 @pytest.mark.unit
 class TestJSONScalar:
     """Test suite for JSON scalar type."""

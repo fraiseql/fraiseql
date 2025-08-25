@@ -1,7 +1,6 @@
-from fraiseql.core.ast_parser import FieldPath, extract_flat_paths, parse_query_ast
 import pytest
 
-
+from fraiseql.core.ast_parser import FieldPath, extract_flat_paths, parse_query_ast
 
 
 @pytest.mark.unit

@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fraiseql_blog_simple
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: fraiseql
+    ports:
+      - "5432:5432"
+    volumes:
+      - blog_db_data:/var/lib/postgresql/data
+      - ./db/setup.sql:/docker-entrypoint-initdb.d/01-setup.sql
+      - ./db/seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql -d fraiseql_blog_simple"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Blog application
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=db
+      - DB_NAME=fraiseql_blog_simple
+      - DB_USER=fraiseql
+      - DB_PASSWORD=fraiseql
+      - DB_PORT=5432
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: python app.py
+
+volumes:
+  blog_db_data:

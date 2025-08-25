@@ -11,7 +11,6 @@ from fraiseql.db import FraiseQLRepository
 from fraiseql.fastapi.config import FraiseQLConfig
 
 
-
 @pytest.mark.camelforge
 @pytest.mark.database
 @pytest.mark.e2e

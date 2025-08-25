@@ -11,7 +11,6 @@ from fraiseql.types.errors import Error
 from fraiseql.types.fraise_input import fraise_input
 
 
-
 @pytest.mark.unit
 @fraise_input
 class MutationTestInput:

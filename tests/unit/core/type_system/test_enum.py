@@ -10,7 +10,6 @@ import fraiseql
 from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 
-
 @pytest.mark.unit
 class TestFraiseEnum:
     """Test suite for @fraise_enum decorator and enum functionality."""

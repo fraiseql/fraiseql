@@ -5,7 +5,6 @@ in responses, particularly for error auto-population scenarios where Error objec
 are created during mutation parsing.
 """
 
-import asyncio
 from typing import Any
 
 import pytest
@@ -15,7 +14,6 @@ import fraiseql
 from fraiseql.graphql.execute import (
     _clean_fraise_types,
     _serialize_fraise_types_in_result,
-    execute_with_passthrough_check,
 )
 from fraiseql.mutations.error_config import MutationErrorConfig
 from fraiseql.mutations.parser import parse_mutation_result
@@ -191,7 +189,7 @@ class TestGraphQLErrorSerialization:
         # The auto-populated error should be an Error object
         error_obj = parsed.errors[0]
         assert isinstance(error_obj, Error)
-        assert hasattr(error_obj, '__fraiseql_definition__')
+        assert hasattr(error_obj, "__fraiseql_definition__")
 
         # Now test that this can be cleaned for JSON serialization
         cleaned_parsed = _clean_fraise_types(parsed)

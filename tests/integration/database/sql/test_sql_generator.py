@@ -8,7 +8,6 @@ from fraiseql.core.ast_parser import FieldPath
 from fraiseql.sql.sql_generator import build_sql_query
 
 
-
 @pytest.mark.unit
 class TestBuildSqlQuery:
     """Test the build_sql_query function comprehensively."""

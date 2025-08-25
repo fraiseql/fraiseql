@@ -58,7 +58,7 @@ class ProjectTasksLoader(DataLoader[UUID, list[Task]]):
 
 # Define subscriptions
 @subscription
-async def task_updates(info, project_id: UUID) -> AsyncGenerator[Task, None]:
+async def task_updates(info, project_id: UUID) -> AsyncGenerator[Task]:
     """Subscribe to task updates for a project."""
     # Simulate real-time updates
     for i in range(5):
@@ -75,7 +75,7 @@ async def task_updates(info, project_id: UUID) -> AsyncGenerator[Task, None]:
 
 
 @subscription
-async def project_stats(info) -> AsyncGenerator[dict, None]:
+async def project_stats(info) -> AsyncGenerator[dict]:
     """Subscribe to project statistics updates."""
     # Simulate periodic stats updates
     for i in range(3):

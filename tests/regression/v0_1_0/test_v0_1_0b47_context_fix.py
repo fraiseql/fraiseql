@@ -5,7 +5,6 @@ import pytest
 from fraiseql.db import FraiseQLRepository
 
 
-
 @pytest.mark.unit
 def test_repository_context_preserved():
     """Test that repository context can be updated with GraphQL info."""

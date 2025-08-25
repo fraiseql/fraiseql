@@ -6,16 +6,15 @@ execution pipeline cleaning functions.
 """
 
 import json
-from typing import Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 import pytest
 
 import fraiseql
 from fraiseql.fastapi.json_encoder import FraiseQLJSONEncoder
 from fraiseql.graphql.execute import _clean_fraise_types
-
 
 
 @pytest.mark.unit
@@ -368,7 +367,7 @@ class TestFraiseTypeJSONSerialization:
         error = SimpleError(message="Attribute test", code=400)
 
         # Should have the FraiseQL definition attribute
-        assert hasattr(error, '__fraiseql_definition__')
+        assert hasattr(error, "__fraiseql_definition__")
 
         # Encoder should recognize it
         encoder = FraiseQLJSONEncoder()

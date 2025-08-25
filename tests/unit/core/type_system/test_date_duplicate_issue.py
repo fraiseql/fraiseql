@@ -10,7 +10,6 @@ from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 
-
 @pytest.mark.unit
 def test_date_scalar_in_fastapi_app() -> None:
     """Test Date scalar registration through FastAPI app creation."""

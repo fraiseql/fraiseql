@@ -34,7 +34,7 @@ async def current_time(info) -> str:
 
 # Define subscriptions
 @subscription
-async def task_feed(info) -> AsyncGenerator[Task, None]:
+async def task_feed(info) -> AsyncGenerator[Task]:
     """Subscribe to new tasks as they're created."""
     for i in range(10):
         await asyncio.sleep(1)  # Simulate real-time updates

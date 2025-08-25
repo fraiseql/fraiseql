@@ -12,7 +12,6 @@ from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.sql.sql_generator import build_sql_query
 
 
-
 @pytest.mark.camelforge
 class TestCamelForgeCompleteExample:
     """Complete example of CamelForge integration matching the feature request."""

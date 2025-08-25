@@ -10,7 +10,6 @@ import fraiseql
 from fraiseql.mutations.mutation_decorator import mutation
 
 
-
 @pytest.mark.unit
 @fraiseql.input
 class CreateOrderInput:

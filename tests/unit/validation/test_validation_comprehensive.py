@@ -12,7 +12,6 @@ from fraiseql.validation import (
 )
 
 
-
 @pytest.mark.unit
 @fraiseql.type
 @dataclass

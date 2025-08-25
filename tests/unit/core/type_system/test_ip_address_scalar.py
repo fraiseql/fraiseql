@@ -12,7 +12,6 @@ from fraiseql.types.scalars.ip_address import (
 )
 
 
-
 @pytest.mark.unit
 class TestIpAddressSerialization:
     """Test IP address serialization."""

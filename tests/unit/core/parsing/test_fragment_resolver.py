@@ -1,8 +1,7 @@
+import pytest
 from graphql import FragmentDefinitionNode, parse
 
 from fraiseql.core.fragment_resolver import resolve_all_fields
-import pytest
-
 
 
 def get_fragments(query: str) -> dict[str, FragmentDefinitionNode]:

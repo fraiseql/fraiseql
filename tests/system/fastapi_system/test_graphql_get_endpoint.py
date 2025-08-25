@@ -11,7 +11,6 @@ import fraiseql
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 
-
 @pytest.mark.unit
 @asynccontextmanager
 async def noop_lifespan(app: FastAPI):

@@ -10,7 +10,6 @@ from fraiseql import fraise_input
 from fraiseql.types.definitions import UNSET as UNSET_FROM_DEFINITIONS
 
 
-
 @pytest.mark.unit
 def test_unset_imports_are_same():
     """Test that UNSET imported from different paths is the same object."""

@@ -117,11 +117,11 @@ class MutationErrorConfig:
 DEFAULT_ERROR_CONFIG = MutationErrorConfig(
     success_keywords={
         "success",
-        "completed", 
+        "completed",
         "ok",
         "done",
         "new",
-        "existing", 
+        "existing",
         "updated",
         "deleted",
         "synced",
@@ -132,7 +132,7 @@ DEFAULT_ERROR_CONFIG = MutationErrorConfig(
         "error:",
         "failed:",
         "validation_error:",
-        "unauthorized:", 
+        "unauthorized:",
         "forbidden:",
         "not_found:",
         "timeout:",
