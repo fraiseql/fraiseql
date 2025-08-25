@@ -62,11 +62,11 @@ class Entity(ABC):
 class DomainEvent:
     """Base class for all domain events."""
 
-    event_id: UUID = field(default_factory=uuid4)
-    occurred_at: datetime = field(default_factory=datetime.utcnow)
-    version: int = 1
-    correlation_id: Optional[UUID] = None
-    causation_id: Optional[UUID] = None
+    event_id: UUID = field(default_factory=uuid4, init=False)
+    occurred_at: datetime = field(default_factory=datetime.utcnow, init=False)
+    version: int = field(default=1, init=False)
+    correlation_id: Optional[UUID] = field(default=None, init=False)
+    causation_id: Optional[UUID] = field(default=None, init=False)
 
 
 @dataclass

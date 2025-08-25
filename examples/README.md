@@ -2,7 +2,7 @@
 
 This directory contains comprehensive example applications that demonstrate FraiseQL's capabilities across different domains and use cases. Each example showcases best practices, advanced features, and real-world implementation patterns.
 
-## 🎯 New Blueprint Examples
+## 🎯 New Blueprint Examples (Updated Dec 2024)
 
 ### 📝 Blog Simple (`blog_simple/`) **NEW**
 **Perfect for learning FraiseQL fundamentals**
