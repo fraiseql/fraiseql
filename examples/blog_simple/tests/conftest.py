@@ -44,7 +44,7 @@ except ImportError:
         yield loop
         loop.close()
 
-    @pytest.fixture(scope="session")
+    @pytest_asyncio.fixture(scope="session")
     async def setup_test_db():
         """Setup test database with schema and seed data."""
         admin_url = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/postgres"
@@ -87,20 +87,20 @@ except ImportError:
             print(f"Database setup failed: {e}")
             yield
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def db_connection(setup_test_db) -> AsyncGenerator[psycopg.AsyncConnection, None]:
         """Provide a database connection for testing."""
         conn = await psycopg.AsyncConnection.connect(TEST_DATABASE_URL)
         yield conn
         await conn.close()
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def db_repo(db_connection) -> AsyncGenerator[CQRSRepository, None]:
         """Provide a CQRS repository for testing."""
         repo = CQRSRepository(db_connection)
         yield repo
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def test_context(db_repo) -> dict:
         """Provide test context with database and user info."""
         return {
@@ -109,7 +109,7 @@ except ImportError:
             "tenant_id": uuid.UUID("11111111-1111-1111-1111-111111111111"),  # test tenant
         }
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def app_client(setup_test_db) -> AsyncGenerator[AsyncClient, None]:
         """Provide HTTP client for testing the FastAPI application."""
         from app import app
@@ -120,7 +120,7 @@ except ImportError:
         async with AsyncClient(app=app, base_url="http://test") as client:
             yield client
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def graphql_client(app_client):
         """Provide GraphQL client for testing GraphQL operations."""
 
