@@ -9,7 +9,7 @@ import pytest
 from psycopg.sql import SQL
 
 # Import database fixtures
-from fixtures.database.database_conftest import *  # noqa: F403
+from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 

@@ -4,8 +4,8 @@ from fraiseql.config.schema_config import SchemaConfig
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 # Import fixtures from the new organized structure
-from fixtures.database.database_conftest import *  # noqa: F403
-from fixtures.auth.conftest_auth import *  # noqa: F403
+from tests.fixtures.database.database_conftest import *  # noqa: F403
+from tests.fixtures.auth.conftest_auth import *  # noqa: F403
 
 
 @pytest.fixture

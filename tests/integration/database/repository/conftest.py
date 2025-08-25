@@ -5,4 +5,4 @@ in unit tests that don't need them.
 """
 
 # Import all database fixtures for database tests
-from fixtures.database.database_conftest import *  # noqa: F403
+from tests.fixtures.database.database_conftest import *  # noqa: F403

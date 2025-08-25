@@ -10,7 +10,7 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 
 # Import database fixtures for real PostgreSQL testing
-from fixtures.database.database_conftest import *  # noqa: F403
+from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 import fraiseql
 

@@ -15,7 +15,7 @@ pytestmark = pytest.mark.database
 
 # Import database fixtures for this database test
 
-from fixtures.database.database_conftest import *  # noqa: F403
+from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view

@@ -83,7 +83,7 @@ pytest tests/integration/database/
 pytest tests/integration/graphql/
 
 # Type system tests
-pytest tests/unit/core/types/
+pytest tests/unit/core/type_system/
 
 # Authentication tests
 pytest tests/integration/auth/
