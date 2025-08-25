@@ -199,6 +199,6 @@ class PostSharedEvent(DomainEvent):
 
     post_id: UUID
     organization_id: UUID
-    user_id: Optional[UUID] = None
     platform: str  # social media platform or method
+    user_id: Optional[UUID] = None
     referrer: Optional[str] = None
