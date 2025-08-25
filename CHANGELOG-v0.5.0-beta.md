@@ -1,4 +1,4 @@
-# FraiseQL v0.5.0-beta1 Release Notes
+# FraiseQL v0.5.0 Release Notes
 
 **🎯 Beta Release for Clean Mutation Error Management System**
 
@@ -152,10 +152,10 @@ Test migrating existing mutations to use the clean system without breaking funct
 
 ```bash
 # Install beta version
-pip install fraiseql==0.5.0b1
+pip install fraiseql==0.5.0
 
 # Or with uv
-uv add fraiseql==0.5.0b1
+uv add fraiseql==0.5.0
 ```
 
 ### For Development/Local Testing:
@@ -175,7 +175,7 @@ uv add --editable /path/to/fraiseql
 
 ### Step 1: Install Beta Version
 ```bash
-uv add fraiseql==0.5.0b1
+uv add fraiseql==0.5.0
 ```
 
 ### Step 2: Create Test Mutation (Side-by-Side)

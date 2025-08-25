@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] - 2025-08-23
+## [0.5.0] - 2025-08-25
 
 ### 🚀 **Major Release: Ultimate FraiseQL Integration & Zero-Inheritance Pattern**
 

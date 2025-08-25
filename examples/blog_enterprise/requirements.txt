@@ -1,7 +1,7 @@
 # FraiseQL Blog Enterprise - Dependencies
 
 # Core FraiseQL with all features
-fraiseql[fastapi,cache,auth]>=0.5.0
+fraiseql[fastapi,cache,auth]==0.5.0
 
 # Database connectivity and extensions
 psycopg[binary]>=3.1.0
