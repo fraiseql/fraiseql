@@ -27,7 +27,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest (100% tests must pass)
-        entry: bash -c 'TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true .venv/bin/pytest --tb=short -q && echo "✅ All tests passed - commit allowed"'
+        entry: bash -c 'if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then echo "⏭️  Skipping tests in CI - will be run by GitHub Actions"; exit 0; else TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true pytest --tb=short -q && echo "✅ All tests passed - commit allowed"; fi'
         language: system
         types: [python]
         pass_filenames: false
