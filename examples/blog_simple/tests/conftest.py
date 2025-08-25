@@ -23,6 +23,7 @@ except ImportError:
     from typing import AsyncGenerator
 
     import pytest
+    import pytest_asyncio
     import psycopg
     from httpx import AsyncClient
 
