@@ -10,8 +10,6 @@ from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
 @pytest.mark.integration
 @pytest.mark.database
-
-
 class TestFraiseQLRepository:
     """Test suite for FraiseQLRepository class."""
 

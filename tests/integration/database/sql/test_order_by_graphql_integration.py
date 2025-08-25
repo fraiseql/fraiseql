@@ -9,6 +9,7 @@ from fraiseql.sql import OrderDirection, create_graphql_order_by_input
 
 # Define test types
 
+
 @pytest.mark.unit
 @fraiseql.type
 class Department:

@@ -1,0 +1,12 @@
+[2025-08-25 12:29:04] Installing fraiseql: uv pip install fraiseql
+[2025-08-25 12:29:04] Installing psycopg[pool]: uv pip install psycopg[pool]
+[2025-08-25 12:29:04] Installing fastapi: uv pip install fastapi
+[2025-08-25 12:29:04] Installing uvicorn: uv pip install uvicorn
+[2025-08-25 12:29:23] Installing fraiseql: uv pip install fraiseql
+[2025-08-25 12:29:23] Installing psycopg[pool]: uv pip install psycopg[pool]
+[2025-08-25 12:29:23] Installing fastapi: uv pip install fastapi
+[2025-08-25 12:29:23] Installing uvicorn: uv pip install uvicorn
+[2025-08-25 12:29:32] Installing fraiseql: uv pip install fraiseql
+[2025-08-25 12:29:32] Installing psycopg[pool]: uv pip install psycopg[pool]
+[2025-08-25 12:29:32] Installing fastapi: uv pip install fastapi
+[2025-08-25 12:29:32] Installing uvicorn: uv pip install uvicorn

@@ -10,8 +10,6 @@ from fraiseql.utils.fraiseql_builder import collect_fraise_fields
 
 
 @pytest.mark.unit
-
-
 @success
 class BaseResult:
     id_: UUID

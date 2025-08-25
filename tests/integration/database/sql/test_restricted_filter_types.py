@@ -117,7 +117,7 @@ class TestRestrictedFilterTypes:
         WhereInput = create_graphql_where_input(NetworkDevice)
 
         # Create an instance to verify the types
-        where_input = WhereInput()
+        WhereInput()
         type_hints = get_type_hints(WhereInput)
 
         # Check that the correct filter types are used

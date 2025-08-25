@@ -83,7 +83,7 @@ async def test_execute_function_set_local_bug():
     repo = FraiseQLRepository(mock_pool, context={"query_timeout": 10})
 
     # Execute a function
-    result = await repo.execute_function("test_function", {"data": "test"})
+    await repo.execute_function("test_function", {"data": "test"})
 
     # Check that SET LOCAL was called with prepared statement (the bug)
     calls = mock_cursor.execute.call_args_list

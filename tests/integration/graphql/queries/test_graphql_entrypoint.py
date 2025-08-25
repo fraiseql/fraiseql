@@ -54,7 +54,7 @@ class TestGraphNoteRouter:
     async def test_graphql_query_execution(self, simple_schema):
         """Test GraphQL query execution through the router."""
         # Mock the graphql execution
-        mock_result = ExecutionResult(data={"hello": "world"})
+        ExecutionResult(data={"hello": "world"})
 
         router = GraphNoteRouter(simple_schema)
         app = TestClient(router)

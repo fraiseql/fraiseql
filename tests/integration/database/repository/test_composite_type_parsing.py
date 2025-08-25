@@ -36,20 +36,17 @@ class TestCompositeTypeParsing:
                 {
                     "entity_id": "123e4567-e89b-12d3-a456-426614174000",
                     "status": "noop:not_found",
-                    "message": "Test message"
-                }
+                    "message": "Test message",
+                },
             )
 
             # The problem: result should be a structured object but comes back as string
-            print(f"Result type: {type(result)}")
-            print(f"Result value: {result}")
 
             # This assertion should FAIL because the composite type isn't parsed
             # The result will be something like: "('123...',{},'noop:not_found','Test message',null,{})"
             assert isinstance(result, dict), f"Expected dict, got {type(result)}"
 
             # Analyze the actual result structure
-            print(f"Result keys: {list(result.keys())}")
 
             # The function name might not be included in the result for single composite types
             # Let's check if the composite type fields are directly in the result
@@ -57,21 +54,26 @@ class TestCompositeTypeParsing:
                 # Direct composite type fields - this means it's working!
                 status = result["status"]
                 assert status == "noop:not_found", f"Expected 'noop:not_found', got {status}"
-                print("✅ SUCCESS: Composite type is properly parsed!")
             else:
                 # Check if it's wrapped under function name
                 mutation_result = result.get("test_mutation_function")
                 if mutation_result is not None:
                     if isinstance(mutation_result, (tuple, list)):
                         status = mutation_result[2] if len(mutation_result) > 2 else None
-                        assert status == "noop:not_found", f"Expected 'noop:not_found', got {status}"
+                        assert status == "noop:not_found", (
+                            f"Expected 'noop:not_found', got {status}"
+                        )
                     elif isinstance(mutation_result, dict) and "status" in mutation_result:
                         status = mutation_result["status"]
-                        assert status == "noop:not_found", f"Expected 'noop:not_found', got {status}"
+                        assert status == "noop:not_found", (
+                            f"Expected 'noop:not_found', got {status}"
+                        )
                     elif hasattr(mutation_result, "status"):
                         assert mutation_result.status == "noop:not_found"
                     else:
-                        pytest.fail(f"Cannot access status from: {type(mutation_result)} = {mutation_result}")
+                        pytest.fail(
+                            f"Cannot access status from: {type(mutation_result)} = {mutation_result}"
+                        )
                 else:
                     pytest.fail(f"No composite result found in: {result}")
 
@@ -81,15 +83,18 @@ class TestCompositeTypeParsing:
     async def _setup_test_schema(self, repo: FraiseQLRepository):
         """Set up test schema with composite type and function."""
         # Create test schema
-        await repo.run(DatabaseQuery(
-            statement=SQL("CREATE SCHEMA IF NOT EXISTS test_schema;"),
-            params={},
-            fetch_result=False
-        ))
+        await repo.run(
+            DatabaseQuery(
+                statement=SQL("CREATE SCHEMA IF NOT EXISTS test_schema;"),
+                params={},
+                fetch_result=False,
+            )
+        )
 
         # Create a composite type similar to PrintOptim's app.mutation_result
-        await repo.run(DatabaseQuery(
-            statement=SQL("""
+        await repo.run(
+            DatabaseQuery(
+                statement=SQL("""
                 DROP TYPE IF EXISTS test_schema.test_mutation_result CASCADE;
                 CREATE TYPE test_schema.test_mutation_result AS (
                     id UUID,
@@ -100,13 +105,15 @@ class TestCompositeTypeParsing:
                     extra_metadata JSONB
                 );
             """),
-            params={},
-            fetch_result=False
-        ))
+                params={},
+                fetch_result=False,
+            )
+        )
 
         # Create a function that returns the composite type
-        await repo.run(DatabaseQuery(
-            statement=SQL("""
+        await repo.run(
+            DatabaseQuery(
+                statement=SQL("""
                 CREATE OR REPLACE FUNCTION test_schema.test_mutation_function(
                     input_data JSONB
                 ) RETURNS test_schema.test_mutation_result
@@ -127,9 +134,10 @@ class TestCompositeTypeParsing:
                 END;
                 $$;
             """),
-            params={},
-            fetch_result=False
-        ))
+                params={},
+                fetch_result=False,
+            )
+        )
 
     @pytest.mark.asyncio
     async def test_composite_type_parsing_for_always_data_config(self, postgres_url):
@@ -160,8 +168,8 @@ class TestCompositeTypeParsing:
                     {
                         "entity_id": "123e4567-e89b-12d3-a456-426614174000",
                         "status": case["status"],
-                        "message": f"Test {case['status']}"
-                    }
+                        "message": f"Test {case['status']}",
+                    },
                 )
 
                 # The PostgreSQL composite type is returned directly as a dict
@@ -169,7 +177,9 @@ class TestCompositeTypeParsing:
                 if isinstance(result, dict) and "status" in result:
                     status = result["status"]
                 else:
-                    pytest.fail(f"Cannot access status field from result: {type(result)} = {result}")
+                    pytest.fail(
+                        f"Cannot access status field from result: {type(result)} = {result}"
+                    )
 
                 # Simulate ALWAYS_DATA_CONFIG logic
                 is_error = status and ("noop:" in status or "error:" in status)
@@ -194,8 +204,9 @@ class TestCompositeTypeParsing:
 
         try:
             # Create multiple composite types
-            await repo.run(DatabaseQuery(
-                statement=SQL("""
+            await repo.run(
+                DatabaseQuery(
+                    statement=SQL("""
                     CREATE SCHEMA IF NOT EXISTS test_schema;
 
                     DROP TYPE IF EXISTS test_schema.validation_result CASCADE;
@@ -212,13 +223,15 @@ class TestCompositeTypeParsing:
                         metadata JSONB
                     );
                 """),
-                params={},
-                fetch_result=False
-            ))
+                    params={},
+                    fetch_result=False,
+                )
+            )
 
             # Create functions returning different composite types
-            await repo.run(DatabaseQuery(
-                statement=SQL("""
+            await repo.run(
+                DatabaseQuery(
+                    statement=SQL("""
                     CREATE OR REPLACE FUNCTION test_schema.validate_data(input JSONB)
                     RETURNS test_schema.validation_result
                     LANGUAGE plpgsql AS $$
@@ -235,14 +248,14 @@ class TestCompositeTypeParsing:
                     END;
                     $$;
                 """),
-                params={},
-                fetch_result=False
-            ))
+                    params={},
+                    fetch_result=False,
+                )
+            )
 
             # Test validation_result composite type
             validation_result = await repo.execute_function(
-                "test_schema.validate_data",
-                {"test": "data"}
+                "test_schema.validate_data", {"test": "data"}
             )
 
             # PostgreSQL composite type should be returned as a dict
@@ -252,12 +265,13 @@ class TestCompositeTypeParsing:
                 assert is_valid is False
                 assert "field_required" in errors
             else:
-                pytest.fail(f"validation_result not parsed correctly: {type(validation_result)} = {validation_result}")
+                pytest.fail(
+                    f"validation_result not parsed correctly: {type(validation_result)} = {validation_result}"
+                )
 
             # Test audit_result composite type
             audit_result = await repo.execute_function(
-                "test_schema.audit_action",
-                {"input": {"action": "test"}}
+                "test_schema.audit_action", {"input": {"action": "test"}}
             )
 
             # PostgreSQL composite type should be returned as a dict
@@ -265,7 +279,9 @@ class TestCompositeTypeParsing:
                 action = audit_result["action"]
                 assert action == "CREATE"
             else:
-                pytest.fail(f"audit_result not parsed correctly: {type(audit_result)} = {audit_result}")
+                pytest.fail(
+                    f"audit_result not parsed correctly: {type(audit_result)} = {audit_result}"
+                )
 
         finally:
             await pool.close()

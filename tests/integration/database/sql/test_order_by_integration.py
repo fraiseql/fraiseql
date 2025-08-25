@@ -16,6 +16,7 @@ from fraiseql.sql import (
 
 # Define test types
 
+
 @pytest.mark.unit
 @fraiseql.type
 class Machine:
@@ -84,7 +85,7 @@ class TestOrderByIntegration:
             limit: int = 20,
         ) -> list[Allocation]:
             # Convert inputs to SQL
-            sql_where = where._to_sql_where() if where else None
+            where._to_sql_where() if where else None
             sql_order_by = order_by._to_sql_order_by() if order_by else None
 
             # This would be passed to the database
@@ -103,7 +104,7 @@ class TestOrderByIntegration:
             return []  # Mock return
 
         # Test the resolver with order by
-        order_by = AllocationOrderByInput(
+        AllocationOrderByInput(
             allocated_at=OrderDirection.DESC,
             user_email=OrderDirection.ASC,
             machine=MachineOrderByInput(last_maintenance=OrderDirection.DESC),

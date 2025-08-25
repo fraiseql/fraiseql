@@ -14,6 +14,7 @@ from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
 # Define query outside of any test function to avoid pytest confusion
 
+
 @pytest.mark.security
 @query
 async def simple_test_query(info: GraphQLResolveInfo) -> str:
@@ -59,13 +60,12 @@ class TestSchemaIntrospectionSecurity:
 
         with TestClient(app) as client:
             # Basic introspection query
-            response = client.post(
+            client.post(
                 "/graphql", json={"query": "{ __schema { queryType { name } } }"}
             )
 
             # This should be blocked in production, but currently isn't
             # This is the bug we need to fix
-            print(f"Production introspection response: {response.json()}")
 
             # TODO: This should fail (return error), but currently passes
             # This demonstrates the security issue

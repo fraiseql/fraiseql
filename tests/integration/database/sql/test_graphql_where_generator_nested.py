@@ -17,6 +17,7 @@ from fraiseql.sql import (
 
 # Define test types at module level to avoid forward reference issues
 
+
 @pytest.mark.unit
 @fraiseql.type
 class Machine:
@@ -178,7 +179,7 @@ class TestNestedObjectFiltering:
 
     def test_list_of_nested_objects(self):
         """Test filtering on lists of nested objects."""
-        TagWhereInput = create_graphql_where_input(Tag)
+        create_graphql_where_input(Tag)
         ProductWhereInput = create_graphql_where_input(Product)
 
         # For lists, we might want to support 'some' or 'every' operators
@@ -208,7 +209,6 @@ class TestNestedObjectFiltering:
         UserWhereInput = create_graphql_where_input(User)
 
         # Check all fields have correct filter types
-        fields = UserWhereInput.__dataclass_fields__
 
         # Scalar fields should have their respective filter types
         where = UserWhereInput()
@@ -226,7 +226,7 @@ class TestNestedObjectFiltering:
 
     def test_none_handling_in_nested_filters(self):
         """Test that None values are handled correctly in nested structures."""
-        MachineWhereInput = create_graphql_where_input(Machine)
+        create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
 
         # Test with None machine filter
@@ -246,7 +246,7 @@ class TestNestedObjectFiltering:
         # Document the expected behavior for type checking
         try:
             # This should fail or at least be caught by type checkers
-            where_input = AllocationWhereInput(
+            AllocationWhereInput(
                 machine=StringFilter(eq="wrong")  # This is incorrect
             )
             # If this doesn't fail at runtime, type checkers should catch it

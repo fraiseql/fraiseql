@@ -58,10 +58,6 @@ def postgres_container():
     test_db_url = os.environ.get("TEST_DATABASE_URL")
     db_url = os.environ.get("DATABASE_URL")
     if test_db_url or db_url:
-        print(
-            f"[database_conftest] Skipping container creation - "
-            f"TEST_DATABASE_URL={test_db_url}, DATABASE_URL={db_url}"
-        )
         yield None
         return
 
@@ -100,7 +96,6 @@ def postgres_url(postgres_container) -> str:
     # Check for external database URL (e.g., GitHub Actions)
     external_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
     if external_url:
-        print(f"[database_conftest] Using external database URL: {external_url}")
         return external_url
 
     # Otherwise check if we have a container
@@ -109,7 +104,6 @@ def postgres_url(postgres_container) -> str:
         # testcontainers returns postgresql+psycopg:// but psycopg3 expects postgresql://
         url = container.get_connection_url()
         url = url.replace("postgresql+psycopg://", "postgresql://")
-        print(f"[database_conftest] Using testcontainers URL: {url}")
         return url
 
     pytest.skip("No database available")

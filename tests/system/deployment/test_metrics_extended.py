@@ -78,11 +78,11 @@ class TestFraiseQLMetrics:
         # Verify counters were incremented
         if PROMETHEUS_AVAILABLE:
             # For labeled metrics, we need to check the samples or use collect()
-            samples = list(metrics.query_total.collect())[0].samples
+            samples = next(iter(metrics.query_total.collect())).samples
             assert len(samples) > 0
             assert any(s.value > 0 for s in samples)
 
-            success_samples = list(metrics.query_success.collect())[0].samples
+            success_samples = next(iter(metrics.query_success.collect())).samples
             assert len(success_samples) > 0
             assert any(s.value > 0 for s in success_samples)
         else:
@@ -97,7 +97,7 @@ class TestFraiseQLMetrics:
         )
 
         if PROMETHEUS_AVAILABLE:
-            error_samples = list(metrics.query_errors.collect())[0].samples
+            error_samples = next(iter(metrics.query_errors.collect())).samples
             assert len(error_samples) > 0
             assert any(s.value > 0 for s in error_samples)
         else:
@@ -110,11 +110,11 @@ class TestFraiseQLMetrics:
         )
 
         if PROMETHEUS_AVAILABLE:
-            mutation_samples = list(metrics.mutation_total.collect())[0].samples
+            mutation_samples = next(iter(metrics.mutation_total.collect())).samples
             assert len(mutation_samples) > 0
             assert any(s.value > 0 for s in mutation_samples)
 
-            success_samples = list(metrics.mutation_success.collect())[0].samples
+            success_samples = next(iter(metrics.mutation_success.collect())).samples
             assert len(success_samples) > 0
             assert any(s.value > 0 for s in success_samples)
         else:
@@ -128,7 +128,7 @@ class TestFraiseQLMetrics:
         )
 
         if PROMETHEUS_AVAILABLE:
-            error_samples = list(metrics.mutation_errors.collect())[0].samples
+            error_samples = next(iter(metrics.mutation_errors.collect())).samples
             assert len(error_samples) > 0
             assert any(s.value > 0 for s in error_samples)
         else:
@@ -153,7 +153,7 @@ class TestFraiseQLMetrics:
         metrics.record_db_query(query_type="SELECT", table_name="users", duration_ms=45)
 
         if PROMETHEUS_AVAILABLE:
-            query_samples = list(metrics.db_queries_total.collect())[0].samples
+            query_samples = next(iter(metrics.db_queries_total.collect())).samples
             assert len(query_samples) > 0
             assert any(s.value > 0 for s in query_samples)
         else:
@@ -165,7 +165,7 @@ class TestFraiseQLMetrics:
         metrics.record_cache_hit("turbo_router")
 
         if PROMETHEUS_AVAILABLE:
-            hit_samples = list(metrics.cache_hits.collect())[0].samples
+            hit_samples = next(iter(metrics.cache_hits.collect())).samples
             assert len(hit_samples) > 0
             assert any(s.value > 0 for s in hit_samples)
         else:
@@ -176,7 +176,7 @@ class TestFraiseQLMetrics:
         metrics.record_cache_miss("dataloader")
 
         if PROMETHEUS_AVAILABLE:
-            miss_samples = list(metrics.cache_misses.collect())[0].samples
+            miss_samples = next(iter(metrics.cache_misses.collect())).samples
             assert len(miss_samples) > 0
             assert any(s.value > 0 for s in miss_samples)
         else:
@@ -189,7 +189,7 @@ class TestFraiseQLMetrics:
         )
 
         if PROMETHEUS_AVAILABLE:
-            error_samples = list(metrics.errors_total.collect())[0].samples
+            error_samples = next(iter(metrics.errors_total.collect())).samples
             assert len(error_samples) > 0
             assert any(s.value > 0 for s in error_samples)
         else:
@@ -303,7 +303,7 @@ class TestMetricsIntegration:
 
         # Should have recorded metrics
         if PROMETHEUS_AVAILABLE:
-            query_samples = list(metrics.query_total.collect())[0].samples
+            query_samples = next(iter(metrics.query_total.collect())).samples
             assert len(query_samples) > 0
             assert any(s.value > 0 for s in query_samples)
 
@@ -324,7 +324,7 @@ class TestMetricsIntegration:
 
         # Should have recorded error
         if PROMETHEUS_AVAILABLE:
-            error_samples = list(metrics.query_errors.collect())[0].samples
+            error_samples = next(iter(metrics.query_errors.collect())).samples
             assert len(error_samples) > 0
             assert any(s.value > 0 for s in error_samples)
 
@@ -333,7 +333,7 @@ class TestMetricsIntegration:
         from fastapi import FastAPI
 
         app = FastAPI()
-        metrics = setup_metrics(app)
+        setup_metrics(app)
 
         @with_metrics("sync_operation")
         def sync_function():
@@ -377,7 +377,7 @@ class TestMetricsMiddleware:
         # Should have recorded metrics
         metrics = middleware.metrics
         if PROMETHEUS_AVAILABLE:
-            request_samples = list(metrics.http_requests_total.collect())[0].samples
+            request_samples = next(iter(metrics.http_requests_total.collect())).samples
             assert len(request_samples) > 0
             assert any(s.value > 0 for s in request_samples)
 

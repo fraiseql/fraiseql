@@ -24,8 +24,7 @@ from fraiseql.fastapi import create_fraiseql_app
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -86,7 +85,9 @@ def create_app() -> FastAPI:
     # CORS configuration for enterprise
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(","),
+        allow_origins=os.getenv(
+            "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+        ).split(","),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
@@ -102,7 +103,9 @@ def create_app() -> FastAPI:
 
             # Extract JWT token and tenant information
             auth_header = request.headers.get("Authorization", "")
-            token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else None
+            token = (
+                auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else None
+            )
 
             # For demo purposes, use default tenant and user
             # In production, extract from validated JWT token
@@ -192,7 +195,9 @@ def create_app() -> FastAPI:
             cache_status = f"unhealthy: {e!s}"
 
         return {
-            "status": "healthy" if db_status == "healthy" and cache_status == "healthy" else "degraded",
+            "status": "healthy"
+            if db_status == "healthy" and cache_status == "healthy"
+            else "degraded",
             "service": "blog_enterprise",
             "version": "2.0.0",
             "environment": ENV,

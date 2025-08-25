@@ -1,6 +1,5 @@
 """Test default Error type and MutationResultBase for plug-and-play usage."""
 
-
 import pytest
 
 import fraiseql
@@ -30,10 +29,7 @@ class TestDefaultErrorType:
         from fraiseql import Error
 
         error = Error(
-            message="Test error",
-            code=400,
-            identifier="test_error",
-            details={"field": "value"}
+            message="Test error", code=400, identifier="test_error", details={"field": "value"}
         )
 
         assert error.message == "Test error"
@@ -45,11 +41,7 @@ class TestDefaultErrorType:
         """Test that details field is optional."""
         from fraiseql import Error
 
-        error = Error(
-            message="Simple error",
-            code=500,
-            identifier="simple"
-        )
+        error = Error(message="Simple error", code=500, identifier="simple")
 
         assert error.message == "Simple error"
         assert error.code == 500
@@ -102,7 +94,7 @@ class TestDefaultMutationResultBase:
             status="success",
             message="User created",
             errors=None,
-            user={"id": "123", "name": "Test User"}
+            user={"id": "123", "name": "Test User"},
         )
 
         assert success.status == "success"
@@ -149,7 +141,7 @@ class TestImprovedDefaultErrorConfig:
             "status": "noop:already_exists",
             "message": "Entity already exists",
             "object_data": {},
-            "extra_metadata": {"conflict_id": "existing-id"}
+            "extra_metadata": {"conflict_id": "existing-id"},
         }
 
         parsed = parse_mutation_result(result, TestSuccess, TestError, DEFAULT_ERROR_CONFIG)

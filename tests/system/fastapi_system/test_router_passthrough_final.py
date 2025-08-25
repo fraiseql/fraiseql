@@ -36,20 +36,16 @@ class TestRouterPassthroughFix:
         json_passthrough = False
 
         # This is the FIXED logic (not the buggy version)
-        if is_production_env:
-            if config.json_passthrough_enabled and getattr(
-                config, "json_passthrough_in_production", True
-            ):
-                json_passthrough = True
+        if is_production_env and config.json_passthrough_enabled and getattr(
+            config, "json_passthrough_in_production", True
+        ):
+            json_passthrough = True
 
         # With the fix, passthrough should be False
         assert json_passthrough is False, (
             "Passthrough should be disabled when json_passthrough_in_production=False"
         )
 
-        print(
-            f"✓ Fixed logic: Production with in_production=False -> passthrough={json_passthrough}"
-        )
 
     def test_production_enabled_passthrough(self, schema):
         """Test that production enables passthrough when both flags are true."""
@@ -66,16 +62,14 @@ class TestRouterPassthroughFix:
         json_passthrough = False
 
         # Fixed logic
-        if is_production_env:
-            if config.json_passthrough_enabled and getattr(
-                config, "json_passthrough_in_production", True
-            ):
-                json_passthrough = True
+        if is_production_env and config.json_passthrough_enabled and getattr(
+            config, "json_passthrough_in_production", True
+        ):
+            json_passthrough = True
 
         # With both flags true, passthrough should be True
         assert json_passthrough is True, "Passthrough should be enabled when both flags are true"
 
-        print(f"✓ Fixed logic: Production with both flags true -> passthrough={json_passthrough}")
 
     def test_staging_header_disabled_passthrough(self, schema):
         """Test staging mode header respects configuration."""
@@ -103,7 +97,6 @@ class TestRouterPassthroughFix:
             "Staging mode should respect json_passthrough_in_production=False"
         )
 
-        print(f"✓ Fixed logic: Staging with in_production=False -> passthrough={json_passthrough}")
 
     def test_buggy_vs_fixed_logic_comparison(self):
         """Compare buggy logic vs fixed logic to show the difference."""
@@ -124,23 +117,17 @@ class TestRouterPassthroughFix:
 
         # FIXED LOGIC (what it should be)
         fixed_passthrough = False
-        if is_production_env:
-            if config.json_passthrough_enabled and getattr(
-                config, "json_passthrough_in_production", True
-            ):
-                fixed_passthrough = True
+        if is_production_env and config.json_passthrough_enabled and getattr(
+            config, "json_passthrough_in_production", True
+        ):
+            fixed_passthrough = True
 
-        print(
-            f"Configuration: enabled={config.json_passthrough_enabled}, in_production={config.json_passthrough_in_production}"
-        )
-        print(f"Buggy logic result: {buggy_passthrough} (WRONG - ignores config)")
-        print(f"Fixed logic result: {fixed_passthrough} (CORRECT - respects config)")
 
         assert buggy_passthrough != fixed_passthrough, "Bug demonstration"
         assert fixed_passthrough is False, "Fixed logic should disable passthrough"
 
     @pytest.mark.parametrize(
-        "enabled,in_prod,expected",
+        ("enabled", "in_prod", "expected"),
         [
             (False, False, False),
             (False, True, False),
@@ -162,11 +149,10 @@ class TestRouterPassthroughFix:
         json_passthrough = False
 
         # Apply fixed logic
-        if is_production_env:
-            if config.json_passthrough_enabled and getattr(
-                config, "json_passthrough_in_production", True
-            ):
-                json_passthrough = True
+        if is_production_env and config.json_passthrough_enabled and getattr(
+            config, "json_passthrough_in_production", True
+        ):
+            json_passthrough = True
 
         assert json_passthrough == expected, (
             f"Config: enabled={enabled}, in_prod={in_prod}, "

@@ -4,8 +4,6 @@ import pytest
 
 
 @pytest.mark.security
-
-
 class TestFunctionNameValidation:
     """Test the function name validation logic that prevents SQL injection."""
 

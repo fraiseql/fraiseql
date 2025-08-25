@@ -12,9 +12,11 @@ from fraiseql import fraise_field
 
 # Base Audit Pattern
 
+
 @fraiseql.type
 class AuditTrail:
     """Complete audit trail information."""
+
     created_at: datetime
     created_by_id: UUID
     created_by_name: str
@@ -30,9 +32,11 @@ class AuditTrail:
 
 # Core Entity Types with Enterprise Features
 
+
 @fraiseql.type
 class Organization:
     """Organization with complete enterprise features."""
+
     id: UUID  # Exposed as GraphQL ID
     name: str
     identifier: str  # Business identifier (ORG-2024-ACME)
@@ -53,6 +57,7 @@ class Organization:
 @fraiseql.type
 class User:
     """User with comprehensive audit and role management."""
+
     id: UUID
     email: str
     name: str
@@ -92,6 +97,7 @@ class User:
 @fraiseql.type
 class Project:
     """Project entity demonstrating complex business logic."""
+
     id: UUID
     name: str
     identifier: str  # PROJ-2024-Q1-WEBSITE
@@ -131,6 +137,7 @@ class Project:
 @fraiseql.type
 class Task:
     """Task with nested relationships and complex validation."""
+
     id: UUID
     title: str
     identifier: str  # TASK-PROJ-001-SETUP
@@ -167,9 +174,11 @@ class Task:
 
 # Input Types with Enterprise Validation
 
+
 @fraiseql.input
 class CreateOrganizationInput:
     """Organization creation with comprehensive validation."""
+
     name: Annotated[str, Field(min_length=2, max_length=200)]
     legal_name: Annotated[str, Field(min_length=2, max_length=500)]
     industry: Optional[Annotated[str, Field(max_length=100)]] = None
@@ -187,6 +196,7 @@ class CreateOrganizationInput:
 @fraiseql.input
 class CreateUserInput:
     """User creation with multi-layer validation."""
+
     email: Annotated[str, Field(regex=r"^[^@]+@[^@]+\.[^@]+$")]
     first_name: Annotated[str, Field(min_length=1, max_length=50)]
     last_name: Annotated[str, Field(min_length=1, max_length=50)]
@@ -212,6 +222,7 @@ class CreateUserInput:
 @fraiseql.input
 class CreateProjectInput:
     """Project creation with business rule validation."""
+
     name: Annotated[str, Field(min_length=3, max_length=200)]
     description: Optional[Annotated[str, Field(max_length=2000)]] = None
 
@@ -241,6 +252,7 @@ class CreateProjectInput:
 @fraiseql.input
 class CreateTaskInput:
     """Task creation with complex validation."""
+
     title: Annotated[str, Field(min_length=3, max_length=200)]
     description: Optional[Annotated[str, Field(max_length=2000)]] = None
 
@@ -264,9 +276,11 @@ class CreateTaskInput:
 
 # Success Types with Rich Metadata
 
+
 @fraiseql.success
 class CreateOrganizationSuccess:
     """Organization created successfully with audit information."""
+
     organization: Organization
     message: str = "Organization created successfully"
 
@@ -280,6 +294,7 @@ class CreateOrganizationSuccess:
 @fraiseql.success
 class CreateUserSuccess:
     """User created successfully with onboarding info."""
+
     user: User
     message: str = "User created successfully"
 
@@ -294,6 +309,7 @@ class CreateUserSuccess:
 @fraiseql.success
 class CreateProjectSuccess:
     """Project created with setup information."""
+
     project: Project
     message: str = "Project created successfully"
 
@@ -308,6 +324,7 @@ class CreateProjectSuccess:
 @fraiseql.success
 class CreateTaskSuccess:
     """Task created with relationship validation."""
+
     task: Task
     message: str = "Task created successfully"
 
@@ -321,9 +338,11 @@ class CreateTaskSuccess:
 
 # NOOP Types for Business Rule Handling
 
+
 @fraiseql.success
 class CreateOrganizationNoop:
     """Organization creation was a no-op."""
+
     existing_organization: Organization
     message: str
     noop_reason: str
@@ -338,6 +357,7 @@ class CreateOrganizationNoop:
 @fraiseql.success
 class CreateUserNoop:
     """User creation was a no-op."""
+
     existing_user: User
     message: str
     noop_reason: str
@@ -352,6 +372,7 @@ class CreateUserNoop:
 @fraiseql.success
 class CreateProjectNoop:
     """Project creation was a no-op."""
+
     existing_project: Project
     message: str
     noop_reason: str
@@ -366,6 +387,7 @@ class CreateProjectNoop:
 @fraiseql.success
 class CreateTaskNoop:
     """Task creation was a no-op."""
+
     existing_task: Optional[Task] = None
     message: str
     noop_reason: str
@@ -379,9 +401,11 @@ class CreateTaskNoop:
 
 # Error Types with Detailed Context
 
+
 @fraiseql.failure
 class CreateOrganizationError:
     """Organization creation failed with context."""
+
     message: str
     error_code: str
     field_errors: Optional[dict[str, str]] = None
@@ -396,6 +420,7 @@ class CreateOrganizationError:
 @fraiseql.failure
 class CreateUserError:
     """User creation failed with detailed information."""
+
     message: str
     error_code: str
     field_errors: Optional[dict[str, str]] = None
@@ -414,6 +439,7 @@ class CreateUserError:
 @fraiseql.failure
 class CreateProjectError:
     """Project creation failed with business context."""
+
     message: str
     error_code: str
     field_errors: Optional[dict[str, str]] = None
@@ -432,6 +458,7 @@ class CreateProjectError:
 @fraiseql.failure
 class CreateTaskError:
     """Task creation failed with relationship context."""
+
     message: str
     error_code: str
     field_errors: Optional[dict[str, str]] = None
@@ -449,9 +476,11 @@ class CreateTaskError:
 
 # Update Input Types (showing enterprise patterns for updates)
 
+
 @fraiseql.input
 class UpdateProjectInput:
     """Project update with optimistic locking."""
+
     name: Optional[Annotated[str, Field(min_length=3, max_length=200)]] = None
     description: Optional[Annotated[str, Field(max_length=2000)]] = None
     status: Optional[str] = None
@@ -477,6 +506,7 @@ class UpdateProjectInput:
 @fraiseql.success
 class UpdateProjectSuccess:
     """Project updated with change tracking."""
+
     project: Project
     message: str = "Project updated successfully"
 
@@ -501,6 +531,7 @@ class UpdateProjectSuccess:
 @fraiseql.success
 class UpdateProjectNoop:
     """Project update was a no-op."""
+
     project: Project
     message: str = "No changes detected"
     noop_reason: str = "no_changes"
@@ -515,6 +546,7 @@ class UpdateProjectNoop:
 @fraiseql.failure
 class UpdateProjectError:
     """Project update failed with context."""
+
     message: str
     error_code: str
     field_errors: Optional[dict[str, str]] = None

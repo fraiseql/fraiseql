@@ -59,9 +59,11 @@ class Comment:
 
 # Enterprise Pattern Types
 
+
 @fraiseql.type
 class AuditTrail:
     """Comprehensive audit information."""
+
     created_at: datetime
     created_by_name: Optional[str] = None
     updated_at: Optional[datetime] = None
@@ -73,9 +75,11 @@ class AuditTrail:
 
 # Enhanced types with audit trails (enterprise pattern examples)
 
+
 @fraiseql.type
 class PostEnterprise:
     """Blog post with audit trail - enterprise pattern example."""
+
     id: UUID
     title: str
     content: str
@@ -95,6 +99,7 @@ class PostEnterprise:
 @fraiseql.type
 class UserEnterprise:
     """User with comprehensive audit trail."""
+
     id: UUID
     email: str
     name: str
@@ -125,6 +130,7 @@ class CreateUserInput:
 @fraiseql.input
 class CreateUserInputEnterprise:
     """Post creation input with validation - enterprise pattern example."""
+
     email: Annotated[str, Field(pattern=r"^[^@]+@[^@]+\.[^@]+$")]
     name: Annotated[str, Field(min_length=2, max_length=100)]
     password: Annotated[str, Field(min_length=8)]
@@ -160,6 +166,7 @@ class CreatePostInput:
 @fraiseql.input
 class CreatePostInputEnterprise:
     """Post creation input with validation - enterprise pattern example."""
+
     title: Annotated[str, Field(min_length=3, max_length=200)]
     content: Annotated[str, Field(min_length=50)]
     is_published: bool = False
@@ -267,9 +274,11 @@ class UpdatePostError:
 
 # Enterprise NOOP Result Types
 
+
 @fraiseql.success
 class CreateUserNoop:
     """User creation was a no-op."""
+
     existing_user: User
     message: str
     noop_reason: str
@@ -279,6 +288,7 @@ class CreateUserNoop:
 @fraiseql.success
 class CreatePostNoop:
     """Post creation was a no-op."""
+
     existing_post: Post
     message: str
     noop_reason: str
@@ -288,6 +298,7 @@ class CreatePostNoop:
 @fraiseql.success
 class UpdatePostNoop:
     """Post update was a no-op."""
+
     post: Post
     message: str = "No changes detected"
     noop_reason: str = "no_changes"
@@ -296,9 +307,11 @@ class UpdatePostNoop:
 
 # Enhanced Success Types with Audit Information
 
+
 @fraiseql.success
 class CreateUserSuccessEnterprise:
     """User created successfully with audit trail."""
+
     user: UserEnterprise
     message: str = "User created successfully"
     was_noop: bool = False
@@ -308,6 +321,7 @@ class CreateUserSuccessEnterprise:
 @fraiseql.success
 class CreatePostSuccessEnterprise:
     """Post created successfully with audit trail."""
+
     post: PostEnterprise
     message: str = "Post created successfully"
     was_noop: bool = False
@@ -318,6 +332,7 @@ class CreatePostSuccessEnterprise:
 @fraiseql.success
 class UpdatePostSuccessEnterprise:
     """Post updated successfully with change tracking."""
+
     post: PostEnterprise
     message: str = "Post updated successfully"
     updated_fields: list[str]
@@ -328,9 +343,11 @@ class UpdatePostSuccessEnterprise:
 
 # Enhanced Error Types with Validation Context
 
+
 @fraiseql.failure
 class CreateUserErrorEnterprise:
     """User creation failed with detailed context."""
+
     message: str
     error_code: str
     field_errors: Optional[dict[str, str]] = None
@@ -341,6 +358,7 @@ class CreateUserErrorEnterprise:
 @fraiseql.failure
 class CreatePostErrorEnterprise:
     """Post creation failed with detailed context."""
+
     message: str
     error_code: str
     field_errors: Optional[dict[str, str]] = None

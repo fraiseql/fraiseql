@@ -13,7 +13,6 @@ def get_fragments(query: str) -> dict[str, FragmentDefinitionNode]:
     }
 
 
-
 @pytest.mark.unit
 def test_named_fragment_resolution() -> None:
     query = """

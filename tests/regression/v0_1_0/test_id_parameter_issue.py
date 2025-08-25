@@ -84,7 +84,6 @@ class TestIdParameterIssue:
 
         # Check that it has an 'id_' argument (or 'id' in GraphQL)
         # This is the key question - what does GraphQL see?
-        print(f"Arguments for allocationWorkaround: {list(allocation_field.args.keys())}")
 
     @pytest.mark.asyncio
     async def test_resolver_execution_with_id(self):
@@ -114,13 +113,10 @@ class TestIdParameterIssue:
 
         # This is where we expect it to fail with "unexpected keyword argument 'id'"
         if result.errors:
-            print(f"Errors: {result.errors}")
             # Check if it's the expected error
             error_msg = str(result.errors[0])
-            print(f"Error message: {error_msg}")
             # The issue might be happening!
             if "unexpected keyword argument" in error_msg:
-                print("FOUND THE ISSUE: GraphQL is passing 'id' but Python expects something else")
                 # This is actually the bug we're looking for
                 assert "id" in error_msg
         else:

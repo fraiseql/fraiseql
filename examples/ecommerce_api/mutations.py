@@ -241,6 +241,7 @@ async def mark_review_helpful(
 # Enterprise Pattern Examples
 # These demonstrate complex validation and cross-entity patterns
 
+
 @mutation(function="app.process_order")
 class ProcessOrderEnterprise:
     """Process order with comprehensive validation.
@@ -252,6 +253,7 @@ class ProcessOrderEnterprise:
     - Financial audit trails with precise change tracking
     - Real-time inventory reservation and payment processing
     """
+
     input: ProcessOrderInput
     success: ProcessOrderSuccess
     error: ProcessOrderError
@@ -273,6 +275,7 @@ class UpdateInventoryEnterprise:
     - Inventory levels would violate business rules
     - Concurrent modification conflicts (optimistic locking)
     """
+
     input: UpdateInventoryInput
     success: UpdateInventorySuccess
     error: UpdateInventoryError
@@ -290,6 +293,7 @@ class ApplyDiscountEnterprise:
     - Quantity validation (minimum purchase requirements)
     - Cross-promotion conflicts (stackable vs exclusive discounts)
     """
+
     input: ApplyDiscountInput
     success: ApplyDiscountSuccess
     error: ApplyDiscountError
@@ -299,11 +303,9 @@ class ApplyDiscountEnterprise:
 # Legacy Pattern Examples (for comparison)
 # Note: These show the old way. Use Enterprise classes above for new code.
 
+
 async def process_order_legacy(
-    info,
-    cart_id: UUID,
-    customer_id: UUID,
-    payment_details: dict
+    info, cart_id: UUID, customer_id: UUID, payment_details: dict
 ) -> OrderMutationResult:
     """Legacy pattern - for comparison only.
 
@@ -321,9 +323,11 @@ async def process_order_legacy(
 # Enterprise Pattern Type Definitions
 # These would typically be in models.py but shown here for demonstration
 
+
 @input
 class ProcessOrderInput:
     """Order processing with comprehensive validation."""
+
     cart_id: UUID
     customer_id: UUID
     shipping_address_id: UUID
@@ -340,6 +344,7 @@ class ProcessOrderInput:
 @success
 class ProcessOrderSuccess:
     """Order processed successfully."""
+
     order_id: UUID
     order_number: str
     total_amount: Decimal
@@ -356,6 +361,7 @@ class ProcessOrderSuccess:
 @success
 class ProcessOrderNoop:
     """Order processing was a no-op."""
+
     reason: str
     order_id: Optional[UUID] = None
     blocking_issues: list[dict[str, Any]]
@@ -369,6 +375,7 @@ class ProcessOrderNoop:
 @failure
 class ProcessOrderError:
     """Order processing failed."""
+
     message: str
     error_code: str
     field_errors: Optional[dict[str, str]] = None
@@ -382,6 +389,7 @@ class ProcessOrderError:
 @input
 class UpdateInventoryInput:
     """Inventory update with business rules."""
+
     product_variant_id: UUID
     quantity_change: int  # Can be negative
     reason_code: str  # 'restock', 'sale', 'damage', 'adjustment'
@@ -396,6 +404,7 @@ class UpdateInventoryInput:
 @success
 class UpdateInventorySuccess:
     """Inventory updated successfully."""
+
     product_variant_id: UUID
     previous_quantity: int
     new_quantity: int
@@ -410,6 +419,7 @@ class UpdateInventorySuccess:
 @success
 class UpdateInventoryNoop:
     """Inventory update was a no-op."""
+
     reason: str
     product_variant_id: UUID
     current_quantity: int
@@ -423,6 +433,7 @@ class UpdateInventoryNoop:
 @failure
 class UpdateInventoryError:
     """Inventory update failed."""
+
     message: str
     error_code: str
     product_variant_id: UUID
@@ -436,6 +447,7 @@ class UpdateInventoryError:
 @input
 class ApplyDiscountInput:
     """Discount application with eligibility rules."""
+
     cart_id: UUID
     discount_code: Optional[str] = None
     discount_id: Optional[UUID] = None
@@ -449,6 +461,7 @@ class ApplyDiscountInput:
 @success
 class ApplyDiscountSuccess:
     """Discount applied successfully."""
+
     discount_id: UUID
     discount_amount: Decimal
     discount_percentage: Optional[Decimal] = None
@@ -463,6 +476,7 @@ class ApplyDiscountSuccess:
 @success
 class ApplyDiscountNoop:
     """Discount application was a no-op."""
+
     reason: str
     discount_code: Optional[str] = None
     customer_id: UUID
@@ -476,6 +490,7 @@ class ApplyDiscountNoop:
 @failure
 class ApplyDiscountError:
     """Discount application failed."""
+
     message: str
     error_code: str
     discount_code: Optional[str] = None

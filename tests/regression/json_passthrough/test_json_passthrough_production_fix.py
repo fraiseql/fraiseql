@@ -181,7 +181,7 @@ class TestProductionPassthroughBug:
                     assert mock_repo.context.get("json_passthrough") is not True
 
     @pytest.mark.parametrize(
-        "env,enabled,in_prod,should_passthrough",
+        ("env", "enabled", "in_prod", "should_passthrough"),
         [
             # Production environment - these are the critical cases
             ("production", False, False, False),  # Both disabled
@@ -282,10 +282,10 @@ class TestRouterPassthroughLogic:
                 fixed_json_passthrough = True
 
         # The buggy logic incorrectly enables passthrough
-        assert buggy_json_passthrough == True  # This is the bug!
+        assert buggy_json_passthrough  # This is the bug!
 
         # The fixed logic correctly respects the configuration
-        assert fixed_json_passthrough == False  # This is correct!
+        assert not fixed_json_passthrough  # This is correct!
 
     def test_staging_mode_header_check_logic(self):
         """Test the logic for staging mode headers.
@@ -314,7 +314,7 @@ class TestRouterPassthroughLogic:
                 fixed_json_passthrough = True
 
         # The buggy logic incorrectly enables passthrough
-        assert buggy_json_passthrough == True  # This is the bug!
+        assert buggy_json_passthrough  # This is the bug!
 
         # The fixed logic correctly respects the configuration
-        assert fixed_json_passthrough == False  # This is correct!
+        assert not fixed_json_passthrough  # This is correct!

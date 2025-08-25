@@ -169,19 +169,16 @@ async def test_user_with_embedded_organization_tenant_id_bug(db_connection):
     # instead of using the embedded data from v_user
 
     if result.errors:
-        print(f"Errors: {result.errors}")
         # Check if the error is about missing tenant_id
         error_messages = [str(e) for e in result.errors]
         assert any("tenant_id" in msg for msg in error_messages), (
             "Expected tenant_id error, but got different errors"
         )
 
-        print("✓ Bug reproduced: FraiseQL incorrectly requires tenant_id for embedded organization")
     else:
         # If no errors, the bug might be fixed
         assert result.data["user"] is not None
         assert result.data["user"]["organization"] is not None
-        print("✓ Bug appears to be fixed: No tenant_id error for embedded organization")
 
 
 @pytest.mark.asyncio
@@ -251,4 +248,3 @@ async def test_workaround_with_duplicate_type(db_connection):
     assert result.errors is None or len(result.errors) == 0
     assert result.data["userWithEmbedded"] is not None
     assert result.data["userWithEmbedded"]["organization"] is not None
-    print("✓ Workaround successful: Using type without sql_source avoids tenant_id requirement")

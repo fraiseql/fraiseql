@@ -47,9 +47,6 @@ class TestSubscriptionLifecycle:
         assert "mock_func" in result
 
         # Debug: print the context
-        print(f"Context after call: {self.mock_info.context}")
-        print(f"Has context attr: {hasattr(self.mock_info, 'context')}")
-        print(f"Context type: {type(self.mock_info.context)}")
 
         # Check context is updated
         assert "subscription_start" in self.mock_info.context
@@ -474,7 +471,7 @@ class TestLifecycleIntegration:
     @pytest.mark.asyncio
     async def test_lifecycle_with_logging(self):
         """Test lifecycle hooks with actual logging."""
-        with patch("fraiseql.subscriptions.lifecycle.logger") as mock_logger:
+        with patch("fraiseql.subscriptions.lifecycle.logger"):
 
             @with_lifecycle()
             async def logged_subscription(info):

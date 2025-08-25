@@ -26,7 +26,9 @@ class TestAutoCamelCase:
         sql_str = sql.as_string(None)
         assert "data->>'first_name' AS \"firstName\"" in sql_str  # string field
         assert "data->>'last_name' AS \"lastName\"" in sql_str  # string field
-        assert "data->'is_active' AS \"isActive\"" in sql_str  # boolean field, uses -> for type preservation
+        assert (
+            "data->'is_active' AS \"isActive\"" in sql_str
+        )  # boolean field, uses -> for type preservation
 
     def test_nested_field_conversion(self) -> None:
         """Test conversion of nested camelCase fields to snake_case."""
@@ -108,7 +110,9 @@ class TestAutoCamelCase:
         sql_str = sql.as_string(None)
         assert "'firstName', data->>'first_name'" in sql_str  # string field
         assert "'lastName', data->>'last_name'" in sql_str  # string field
-        assert "'isActive', data->'is_active'" in sql_str  # boolean field, uses -> for type preservation
+        assert (
+            "'isActive', data->'is_active'" in sql_str
+        )  # boolean field, uses -> for type preservation
         assert "'createdAt', data->>'created_at'" in sql_str  # string field
 
     def test_disabled_by_default(self) -> None:
@@ -175,7 +179,9 @@ class TestAutoCamelCase:
 
         sql_str = sql.as_string(None)
         # Check nested field conversions
-        assert "'isPublished', data->'is_published'" in sql_str  # boolean field, uses -> for type preservation
+        assert (
+            "'isPublished', data->'is_published'" in sql_str
+        )  # boolean field, uses -> for type preservation
         assert "'publishedAt', data->>'published_at'" in sql_str  # string field
         assert "'firstName', data->'author'->>'first_name'" in sql_str
         assert "'lastName', data->'author'->>'last_name'" in sql_str

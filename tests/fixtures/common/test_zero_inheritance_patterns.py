@@ -70,7 +70,7 @@ class TestZeroInheritancePatterns:
                 "message": "User updated successfully",
                 "object_data": {"user": {"id": "test-user", "email": "test@example.com"}},
                 "extra_metadata": {},
-                "expected_type": UpdateUserSuccess
+                "expected_type": UpdateUserSuccess,
             },
             {
                 "id": str(uuid.uuid4()),
@@ -79,18 +79,19 @@ class TestZeroInheritancePatterns:
                 "message": "User created",
                 "object_data": {"user": {"id": "new-user", "email": "new@example.com"}},
                 "extra_metadata": {},
-                "expected_type": UpdateUserSuccess
+                "expected_type": UpdateUserSuccess,
             },
-
             # Error-as-data patterns (handled by DEFAULT_ERROR_CONFIG)
             {
                 "id": str(uuid.uuid4()),
                 "updated_fields": [],
                 "status": "noop:already_exists",  # PrintOptim pattern
                 "message": "User already exists",
-                "object_data": {"conflicting_user": {"id": "existing", "email": "test@example.com"}},
+                "object_data": {
+                    "conflicting_user": {"id": "existing", "email": "test@example.com"}
+                },
                 "extra_metadata": {"conflict_id": "existing-user-id"},
-                "expected_type": UpdateUserError
+                "expected_type": UpdateUserError,
             },
             {
                 "id": str(uuid.uuid4()),
@@ -99,7 +100,7 @@ class TestZeroInheritancePatterns:
                 "message": "User has dependent records",
                 "object_data": {},
                 "extra_metadata": {"dependent_count": 5},
-                "expected_type": UpdateUserError
+                "expected_type": UpdateUserError,
             },
             {
                 "id": str(uuid.uuid4()),
@@ -108,7 +109,7 @@ class TestZeroInheritancePatterns:
                 "message": "Email already in use",
                 "object_data": {},
                 "extra_metadata": {"duplicate_field": "email"},
-                "expected_type": UpdateUserError
+                "expected_type": UpdateUserError,
             },
         ]
 
@@ -120,12 +121,13 @@ class TestZeroInheritancePatterns:
                 test_case,
                 UpdateUserSuccess,
                 UpdateUserError,
-                DEFAULT_ERROR_CONFIG  # Enhanced for PrintOptim
+                DEFAULT_ERROR_CONFIG,  # Enhanced for PrintOptim
             )
 
             # Should return the expected type
-            assert isinstance(parsed, expected_type), \
+            assert isinstance(parsed, expected_type), (
                 f"Status '{test_case['status']}' should return {expected_type.__name__}"
+            )
 
             # Standard fields should be populated
             assert parsed.status == test_case["status"]
@@ -209,19 +211,13 @@ class TestZeroInheritancePatterns:
             "object_data": {
                 "order": {"id": "ord_123", "total": 99.99},
                 "invoice": {"id": "inv_123", "amount": 99.99},
-                "tracking_number": "TRK_789"
+                "tracking_number": "TRK_789",
             },
-            "extra_metadata": {
-                "processing_time_ms": 234,
-                "payment_method": "credit_card"
-            }
+            "extra_metadata": {"processing_time_ms": 234, "payment_method": "credit_card"},
         }
 
         parsed_success = parse_mutation_result(
-            success_result,
-            CreateOrderSuccess,
-            CreateOrderError,
-            DEFAULT_ERROR_CONFIG
+            success_result, CreateOrderSuccess, CreateOrderError, DEFAULT_ERROR_CONFIG
         )
 
         assert isinstance(parsed_success, CreateOrderSuccess)
@@ -239,18 +235,13 @@ class TestZeroInheritancePatterns:
             "message": "Insufficient inventory for requested items",
             "object_data": {
                 "validation_errors": [{"field": "quantity", "message": "Exceeds available stock"}],
-                "inventory_conflicts": [{"item_id": "item_123", "requested": 5, "available": 2}]
+                "inventory_conflicts": [{"item_id": "item_123", "requested": 5, "available": 2}],
             },
-            "extra_metadata": {
-                "conflict_resolution_url": "/api/inventory/conflicts/123"
-            }
+            "extra_metadata": {"conflict_resolution_url": "/api/inventory/conflicts/123"},
         }
 
         parsed_error = parse_mutation_result(
-            error_result,
-            CreateOrderSuccess,
-            CreateOrderError,
-            DEFAULT_ERROR_CONFIG
+            error_result, CreateOrderSuccess, CreateOrderError, DEFAULT_ERROR_CONFIG
         )
 
         assert isinstance(parsed_error, CreateOrderError)
@@ -259,5 +250,9 @@ class TestZeroInheritancePatterns:
         assert parsed_error.errors is not None  # Auto-populated
         assert len(parsed_error.errors) == 1
         assert parsed_error.errors[0].identifier == "inventory_conflict"
-        assert parsed_error.validation_errors == [{"field": "quantity", "message": "Exceeds available stock"}]
-        assert parsed_error.inventory_conflicts == [{"item_id": "item_123", "requested": 5, "available": 2}]
+        assert parsed_error.validation_errors == [
+            {"field": "quantity", "message": "Exceeds available stock"}
+        ]
+        assert parsed_error.inventory_conflicts == [
+            {"item_id": "item_123", "requested": 5, "available": 2}
+        ]

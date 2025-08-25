@@ -89,8 +89,10 @@ class TestPrintOptimStyleMutations:
             "updated_fields": [],
             "status": "noop:already_exists",
             "message": "Contract already exists",
-            "object_data": {"conflicting_entity": {"id": "existing-id", "name": "Existing Contract"}},
-            "extra_metadata": {"conflict_id": "existing-id"}
+            "object_data": {
+                "conflicting_entity": {"id": "existing-id", "name": "Existing Contract"}
+            },
+            "extra_metadata": {"conflict_id": "existing-id"},
         }
 
         parsed = parse_mutation_result(result, TestSuccess, TestError, DEFAULT_ERROR_CONFIG)
@@ -134,7 +136,7 @@ class TestPrintOptimStyleMutations:
         @fraiseql.mutation(
             function="create_user",
             schema="app",
-            context_params={"tenant_id": "input_pk_organization", "user": "input_created_by"}
+            context_params={"tenant_id": "input_pk_organization", "user": "input_created_by"},
             # Uses DEFAULT_ERROR_CONFIG automatically - no need to specify error_config
         )
         class CreateUser:
@@ -164,12 +166,10 @@ class TestPrintOptimStyleMutations:
             ("created", "Entity created", TestSuccess),
             ("updated", "Entity updated", TestSuccess),
             ("cancelled", "Operation cancelled", TestSuccess),
-
             # Error-as-data patterns (should populate errors array)
             ("noop:already_exists", "Already exists", TestError),
             ("blocked:children", "Has dependent entities", TestError),
             ("duplicate:name", "Name already used", TestError),
-
             # GraphQL error patterns (would cause GraphQL errors in real usage)
             ("failed:validation", "Validation failed", TestError),
         ]
@@ -181,11 +181,13 @@ class TestPrintOptimStyleMutations:
                 "status": status,
                 "message": message,
                 "object_data": {},
-                "extra_metadata": {}
+                "extra_metadata": {},
             }
 
             parsed = parse_mutation_result(result, TestSuccess, TestError, DEFAULT_ERROR_CONFIG)
-            assert isinstance(parsed, expected_type), f"Status '{status}' should return {expected_type.__name__}"
+            assert isinstance(parsed, expected_type), (
+                f"Status '{status}' should return {expected_type.__name__}"
+            )
 
             if expected_type == TestError:
                 # Error cases should have auto-populated errors
@@ -203,14 +205,6 @@ class TestPrintOptimStyleMutations:
         assert "cancelled" in DEFAULT_ERROR_CONFIG.success_keywords
 
         # Should properly classify failed: as GraphQL errors (not data)
-        result = {
-            "id": "123e4567-e89b-12d3-a456-426614174000",
-            "updated_fields": [],
-            "status": "failed:validation",
-            "message": "Validation failed",
-            "object_data": {},
-            "extra_metadata": {}
-        }
 
         from fraiseql import MutationResultBase
 

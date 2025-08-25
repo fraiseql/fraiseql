@@ -326,8 +326,7 @@ class TestMixedOperatorTypes:
             try:
                 sql_str = sql.as_string(None)
                 assert len(sql_str) > 0
-            except Exception as e:
-                print(f"Error for conditions {conditions}: {e}")
+            except Exception:
                 raise
 
     def test_mixed_operators_same_field(self):

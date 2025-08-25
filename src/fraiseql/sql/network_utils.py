@@ -122,7 +122,8 @@ def ip_in_range(ip_str: str, start_ip: str, end_ip: str) -> bool:
         if not isinstance(ip, type(start)) or not isinstance(ip, type(end)):
             return False
 
-        return start <= ip <= end
+        # Type checking: all IPs are the same type now
+        return start <= ip <= end  # type: ignore[operator]
     except (ipaddress.AddressValueError, ValueError):
         return False
 
@@ -148,8 +149,8 @@ def validate_ip_range(start_ip: str, end_ip: str) -> bool:
         if not isinstance(start, type(end)):
             return False
 
-        # Start must be <= end
-        return start <= end
+        # Start must be <= end (type checking: both IPs are same type)
+        return start <= end  # type: ignore[operator]
     except (ipaddress.AddressValueError, ValueError):
         return False
 

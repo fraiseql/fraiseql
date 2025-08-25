@@ -6,11 +6,12 @@ import pytest
 
 import fraiseql
 
-# from fraiseql import type as  # TODO: Fix incomplete import
+# Import commented out as it's not needed - fraiseql.type is used via decorator
 from fraiseql.mutations.error_config import MutationErrorConfig
 from fraiseql.mutations.parser import parse_mutation_result
 
 # Define a simple Error type for testing
+
 
 @pytest.mark.unit
 @fraiseql.type

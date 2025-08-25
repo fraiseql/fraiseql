@@ -381,36 +381,24 @@ def test_fraiseql_json_encoder_handles_nested_fraiseql_types():
 
 if __name__ == "__main__":
     test_fraiseql_json_encoder_handles_unset()
-    print("✓ test_fraiseql_json_encoder_handles_unset passed")
 
     test_fraiseql_json_encoder_handles_nested_unset()
-    print("✓ test_fraiseql_json_encoder_handles_nested_unset passed")
 
     test_fraiseql_json_encoder_handles_unset_in_lists()
-    print("✓ test_fraiseql_json_encoder_handles_unset_in_lists passed")
 
     test_fraiseql_json_response_renders_unset()
-    print("✓ test_fraiseql_json_response_renders_unset passed")
 
     test_graphql_error_response_with_unset()
-    print("✓ test_graphql_error_response_with_unset passed")
 
     test_input_object_with_unset_serialization()
-    print("✓ test_input_object_with_unset_serialization passed")
 
     test_clean_unset_values_function()
-    print("✓ test_clean_unset_values_function passed")
 
     test_fraiseql_json_encoder_handles_ipaddress()
-    print("✓ test_fraiseql_json_encoder_handles_ipaddress passed")
 
     test_fraiseql_json_response_with_ipaddress()
-    print("✓ test_fraiseql_json_response_with_ipaddress passed")
 
     test_fraiseql_json_encoder_handles_fraiseql_types()
-    print("✓ test_fraiseql_json_encoder_handles_fraiseql_types passed")
 
     test_fraiseql_json_encoder_handles_nested_fraiseql_types()
-    print("✓ test_fraiseql_json_encoder_handles_nested_fraiseql_types passed")
 
-    print("\nAll tests passed!")

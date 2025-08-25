@@ -146,10 +146,10 @@ async def setup_test_database():
 
         await conn.commit()
         return conn
-    except Exception as e:
+    except Exception:
         await conn.rollback()
         await conn.close()
-        raise e
+        raise
 
 
 # Define GraphQL types with sql_source
@@ -317,7 +317,6 @@ async def test_nested_organization_without_tenant_id():
         # Check results
         if result.errors:
             error_messages = [str(e) for e in result.errors]
-            print(f"Errors found: {error_messages}")
 
             # The bug would cause "missing a required argument: 'tenant_id'" error
             has_tenant_error = any("tenant_id" in msg.lower() for msg in error_messages)
@@ -347,8 +346,6 @@ async def test_nested_organization_without_tenant_id():
         assert org_data["identifier"] == "TEST-ORG"
         assert org_data["status"] == "active"
 
-        print("✅ Test PASSED: Nested organization with sql_source works without tenant_id!")
-        print("   The fix successfully allows embedded data to be used without additional queries.")
 
     finally:
         # Cleanup
@@ -438,25 +435,19 @@ async def test_comparison_with_and_without_embedded():
         db = TestRepository(conn)
 
         # Test 1: With embedded data (should work)
-        print("\n--- Test 1: View WITH embedded organization data ---")
         result = await db.find_one("v_user", id=UUID("75736572-0000-0000-0000-000000000000"))
         assert result is not None
         assert "organization" in result
         assert result["organization"]["name"] == "Test Organization"
-        print("✅ Embedded organization data retrieved successfully")
 
         # Test 2: Without embedded data (would need separate query)
-        print("\n--- Test 2: View WITHOUT embedded organization data ---")
         result = await db.find_one(
             "v_user_no_embed", id=UUID("75736572-0000-0000-0000-000000000000")
         )
         assert result is not None
         assert "organization" not in result  # No embedded org
         assert "organization_id" in result  # Just the FK
-        print("✅ Non-embedded view returns only organization_id (FK)")
 
-        print("\n🎯 Summary: The fix allows FraiseQL to use embedded data when available,")
-        print("   avoiding the need for tenant_id in nested queries.")
 
     finally:
         await conn.close()
@@ -471,6 +462,5 @@ async def test_comparison_with_and_without_embedded():
 
 if __name__ == "__main__":
     # Run tests directly
-    print("Running nested object tenant_id fix tests with real database...\n")
     asyncio.run(test_nested_organization_without_tenant_id())
     asyncio.run(test_comparison_with_and_without_embedded())

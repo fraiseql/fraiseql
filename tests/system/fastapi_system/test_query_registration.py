@@ -11,6 +11,7 @@ from fraiseql.gql.schema_builder import SchemaRegistry
 
 # Define test types
 
+
 @pytest.mark.unit
 @fraiseql.type
 class User:

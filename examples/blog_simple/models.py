@@ -22,6 +22,7 @@ import fraiseql
 @fraiseql.enum
 class UserRole(str, Enum):
     """User roles in the blog system."""
+
     ADMIN = "admin"
     AUTHOR = "author"
     USER = "user"
@@ -30,6 +31,7 @@ class UserRole(str, Enum):
 @fraiseql.enum
 class PostStatus(str, Enum):
     """Post publication status."""
+
     DRAFT = "draft"
     PUBLISHED = "published"
     ARCHIVED = "archived"
@@ -38,6 +40,7 @@ class PostStatus(str, Enum):
 @fraiseql.enum
 class CommentStatus(str, Enum):
     """Comment moderation status."""
+
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -97,11 +100,14 @@ class Post:
         """Post tags."""
         db = info.context["db"]
         # Join through post_tags table
-        result = await db.execute("""
+        result = await db.execute(
+            """
             SELECT t.* FROM tags t
             JOIN post_tags pt ON t.id = pt.tag_id
             WHERE pt.post_id = %s
-        """, [self.id])
+        """,
+            [self.id],
+        )
         return [Tag(**row) for row in result]
 
     @fraiseql.field
@@ -116,7 +122,7 @@ class Post:
         db = info.context["db"]
         result = await db.execute(
             "SELECT COUNT(*) as count FROM comments WHERE post_id = %s AND status = %s",
-            [self.id, CommentStatus.APPROVED]
+            [self.id, CommentStatus.APPROVED],
         )
         return result[0]["count"] if result else 0
 
@@ -174,23 +180,29 @@ class Tag:
     async def posts(self, info: GraphQLResolveInfo) -> List[Post]:
         """Posts with this tag."""
         db = info.context["db"]
-        result = await db.execute("""
+        result = await db.execute(
+            """
             SELECT p.* FROM posts p
             JOIN post_tags pt ON p.id = pt.post_id
             WHERE pt.tag_id = %s AND p.status = %s
             ORDER BY p.created_at DESC
-        """, [self.id, PostStatus.PUBLISHED])
+        """,
+            [self.id, PostStatus.PUBLISHED],
+        )
         return [Post(**row) for row in result]
 
     @fraiseql.field
     async def post_count(self, info: GraphQLResolveInfo) -> int:
         """Number of published posts with this tag."""
         db = info.context["db"]
-        result = await db.execute("""
+        result = await db.execute(
+            """
             SELECT COUNT(*) as count FROM posts p
             JOIN post_tags pt ON p.id = pt.post_id
             WHERE pt.tag_id = %s AND p.status = %s
-        """, [self.id, PostStatus.PUBLISHED])
+        """,
+            [self.id, PostStatus.PUBLISHED],
+        )
         return result[0]["count"] if result else 0
 
 
@@ -198,6 +210,7 @@ class Tag:
 @fraiseql.input
 class CreatePostInput:
     """Input for creating a blog post."""
+
     title: str
     content: str
     excerpt: Optional[str] = None
@@ -207,6 +220,7 @@ class CreatePostInput:
 @fraiseql.input
 class UpdatePostInput:
     """Input for updating a blog post."""
+
     title: Optional[str] = None
     content: Optional[str] = None
     excerpt: Optional[str] = None
@@ -217,6 +231,7 @@ class UpdatePostInput:
 @fraiseql.input
 class CreateCommentInput:
     """Input for creating a comment."""
+
     post_id: UUID
     content: str
     parent_id: Optional[UUID] = None
@@ -225,6 +240,7 @@ class CreateCommentInput:
 @fraiseql.input
 class CreateTagInput:
     """Input for creating a tag."""
+
     name: str
     color: Optional[str] = "#6366f1"
     description: Optional[str] = None
@@ -233,6 +249,7 @@ class CreateTagInput:
 @fraiseql.input
 class CreateUserInput:
     """Input for creating a user."""
+
     username: str
     email: str
     password: str
@@ -244,6 +261,7 @@ class CreateUserInput:
 @fraiseql.input
 class PostWhereInput:
     """Filter posts by various criteria."""
+
     status: Optional[PostStatus] = None
     author_id: Optional[UUID] = None
     title_contains: Optional[str] = None
@@ -253,6 +271,7 @@ class PostWhereInput:
 @fraiseql.input
 class PostOrderByInput:
     """Order posts by field and direction."""
+
     field: str = "created_at"
     direction: str = "DESC"
 
@@ -261,6 +280,7 @@ class PostOrderByInput:
 @fraiseql.success
 class CreatePostSuccess:
     """Success response for post creation."""
+
     post: Post
     message: str = "Post created successfully"
 
@@ -268,6 +288,7 @@ class CreatePostSuccess:
 @fraiseql.success
 class UpdatePostSuccess:
     """Success response for post update."""
+
     post: Post
     message: str = "Post updated successfully"
 
@@ -275,6 +296,7 @@ class UpdatePostSuccess:
 @fraiseql.success
 class CreateCommentSuccess:
     """Success response for comment creation."""
+
     comment: Comment
     message: str = "Comment created successfully"
 
@@ -282,6 +304,7 @@ class CreateCommentSuccess:
 @fraiseql.success
 class CreateTagSuccess:
     """Success response for tag creation."""
+
     tag: Tag
     message: str = "Tag created successfully"
 
@@ -289,6 +312,7 @@ class CreateTagSuccess:
 @fraiseql.success
 class CreateUserSuccess:
     """Success response for user creation."""
+
     user: User
     message: str = "User created successfully"
 
@@ -297,6 +321,7 @@ class CreateUserSuccess:
 @fraiseql.failure
 class ValidationError:
     """Validation error with details."""
+
     message: str
     code: str = "VALIDATION_ERROR"
     field_errors: Optional[List[Dict[str, str]]] = None
@@ -305,6 +330,7 @@ class ValidationError:
 @fraiseql.failure
 class NotFoundError:
     """Entity not found error."""
+
     message: str
     code: str = "NOT_FOUND"
     entity_type: Optional[str] = None
@@ -314,6 +340,7 @@ class NotFoundError:
 @fraiseql.failure
 class PermissionError:
     """Permission denied error."""
+
     message: str
     code: str = "PERMISSION_DENIED"
     required_role: Optional[str] = None
@@ -323,11 +350,14 @@ class PermissionError:
 @fraiseql.mutation
 class CreatePost:
     """Create a new blog post."""
+
     input: CreatePostInput
     success: CreatePostSuccess
     failure: Union[ValidationError, PermissionError]
 
-    async def resolve(self, info: GraphQLResolveInfo) -> Union[CreatePostSuccess, ValidationError, PermissionError]:
+    async def resolve(
+        self, info: GraphQLResolveInfo
+    ) -> Union[CreatePostSuccess, ValidationError, PermissionError]:
         db = info.context["db"]
         user_id = info.context["user_id"]
 
@@ -342,7 +372,7 @@ class CreatePost:
                 "content": self.input.content,
                 "excerpt": self.input.excerpt or self.input.content[:200],
                 "author_id": user_id,
-                "status": PostStatus.DRAFT
+                "status": PostStatus.DRAFT,
             }
 
             post_id = await db.insert("posts", post_data, returning="id")
@@ -350,10 +380,7 @@ class CreatePost:
             # Add tags if provided
             if self.input.tag_ids:
                 for tag_id in self.input.tag_ids:
-                    await db.insert("post_tags", {
-                        "post_id": post_id,
-                        "tag_id": tag_id
-                    })
+                    await db.insert("post_tags", {"post_id": post_id, "tag_id": tag_id})
 
             # Return created post
             post = await db.find_one("posts", id=post_id)
@@ -366,12 +393,15 @@ class CreatePost:
 @fraiseql.mutation
 class UpdatePost:
     """Update an existing blog post."""
+
     id: UUID
     input: UpdatePostInput
     success: UpdatePostSuccess
     failure: Union[ValidationError, NotFoundError, PermissionError]
 
-    async def resolve(self, info: GraphQLResolveInfo) -> Union[UpdatePostSuccess, ValidationError, NotFoundError, PermissionError]:
+    async def resolve(
+        self, info: GraphQLResolveInfo
+    ) -> Union[UpdatePostSuccess, ValidationError, NotFoundError, PermissionError]:
         db = info.context["db"]
         user_id = info.context["user_id"]
 
@@ -379,7 +409,9 @@ class UpdatePost:
             # Check if post exists and user has permission
             existing_post = await db.find_one("posts", id=self.id)
             if not existing_post:
-                return NotFoundError(message="Post not found", entity_type="Post", entity_id=self.id)
+                return NotFoundError(
+                    message="Post not found", entity_type="Post", entity_id=self.id
+                )
 
             if existing_post["author_id"] != user_id:
                 return PermissionError(message="You can only edit your own posts")
@@ -407,10 +439,7 @@ class UpdatePost:
                 await db.execute("DELETE FROM post_tags WHERE post_id = %s", [self.id])
                 # Add new tags
                 for tag_id in self.input.tag_ids:
-                    await db.insert("post_tags", {
-                        "post_id": self.id,
-                        "tag_id": tag_id
-                    })
+                    await db.insert("post_tags", {"post_id": self.id, "tag_id": tag_id})
 
             # Return updated post
             post = await db.find_one("posts", id=self.id)
@@ -423,11 +452,14 @@ class UpdatePost:
 @fraiseql.mutation
 class CreateComment:
     """Create a comment on a blog post."""
+
     input: CreateCommentInput
     success: CreateCommentSuccess
     failure: Union[ValidationError, NotFoundError]
 
-    async def resolve(self, info: GraphQLResolveInfo) -> Union[CreateCommentSuccess, ValidationError, NotFoundError]:
+    async def resolve(
+        self, info: GraphQLResolveInfo
+    ) -> Union[CreateCommentSuccess, ValidationError, NotFoundError]:
         db = info.context["db"]
         user_id = info.context["user_id"]
 
@@ -435,7 +467,9 @@ class CreateComment:
             # Check if post exists
             post = await db.find_one("posts", id=self.input.post_id)
             if not post:
-                return NotFoundError(message="Post not found", entity_type="Post", entity_id=self.input.post_id)
+                return NotFoundError(
+                    message="Post not found", entity_type="Post", entity_id=self.input.post_id
+                )
 
             # Create comment
             comment_data = {
@@ -443,7 +477,7 @@ class CreateComment:
                 "author_id": user_id,
                 "parent_id": self.input.parent_id,
                 "content": self.input.content,
-                "status": CommentStatus.PENDING  # Requires moderation
+                "status": CommentStatus.PENDING,  # Requires moderation
             }
 
             comment_id = await db.insert("comments", comment_data, returning="id")
@@ -462,7 +496,7 @@ async def posts(
     where: Optional[PostWhereInput] = None,
     order_by: Optional[List[PostOrderByInput]] = None,
     limit: int = 20,
-    offset: int = 0
+    offset: int = 0,
 ) -> List[Post]:
     """Query posts with filtering and pagination."""
     db = info.context["db"]
@@ -505,7 +539,9 @@ async def posts(
 
 
 @fraiseql.query
-async def post(info: GraphQLResolveInfo, id: Optional[UUID] = None, slug: Optional[str] = None) -> Optional[Post]:
+async def post(
+    info: GraphQLResolveInfo, id: Optional[UUID] = None, slug: Optional[str] = None
+) -> Optional[Post]:
     """Get a single post by ID or slug."""
     db = info.context["db"]
 

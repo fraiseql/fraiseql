@@ -554,6 +554,7 @@ dev = [
     { name = "build" },
     { name = "docker" },
     { name = "email-validator" },
+    { name = "faker" },
     { name = "pre-commit" },
     { name = "prometheus-client" },
     { name = "pyright" },
@@ -561,6 +562,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "pytest-timeout" },
     { name = "pytest-watch" },
     { name = "pytest-xdist" },
     { name = "pyyaml" },
@@ -587,26 +589,14 @@ tracing = [
     { name = "wrapt" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "docker" },
-    { name = "faker" },
-    { name = "fastapi" },
-    { name = "psycopg-pool" },
-    { name = "pyjwt" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-timeout" },
-    { name = "testcontainers" },
-    { name = "twine" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=25.0.1" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "click", specifier = ">=8.1.0" },
-    { name = "docker", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "docker", marker = "extra == 'dev'", specifier = ">=7.1.0" },
     { name = "email-validator", marker = "extra == 'dev'", specifier = ">=2.0.0" },
+    { name = "faker", marker = "extra == 'dev'", specifier = ">=37.5.3" },
     { name = "fastapi", specifier = ">=0.115.12" },
     { name = "graphql-core", specifier = ">=3.2.6" },
     { name = "httpx", specifier = ">=0.25.0" },
@@ -639,9 +629,10 @@ requires-dist = [
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.401" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.5" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.11.0" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.4.0" },
     { name = "pytest-watch", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "python-dateutil", specifier = ">=2.8.0" },
@@ -652,27 +643,14 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.4" },
     { name = "starlette", specifier = ">=0.47.2" },
     { name = "structlog", specifier = ">=23.0.0" },
-    { name = "testcontainers", extras = ["postgres"], marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "testcontainers", extras = ["postgres"], marker = "extra == 'dev'", specifier = ">=4.10.0" },
     { name = "tox", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=5.0.0" },
+    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.1.0" },
     { name = "uvicorn", specifier = ">=0.34.3" },
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.16.0" },
     { name = "wrapt", marker = "extra == 'tracing'", specifier = ">=1.16.0" },
 ]
 provides-extras = ["dev", "auth0", "docs", "tracing", "redis", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "docker", specifier = ">=7.1.0" },
-    { name = "faker", specifier = ">=37.5.3" },
-    { name = "fastapi", specifier = ">=0.116.1" },
-    { name = "psycopg-pool", specifier = ">=3.2.6" },
-    { name = "pyjwt", specifier = ">=2.10.1" },
-    { name = "pytest-asyncio", specifier = ">=1.0.0" },
-    { name = "pytest-timeout", specifier = ">=2.4.0" },
-    { name = "testcontainers", extras = ["postgres"], specifier = ">=4.10.0" },
-    { name = "twine", specifier = ">=6.1.0" },
-]
 
 [[package]]
 name = "ghp-import"

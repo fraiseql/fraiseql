@@ -20,6 +20,7 @@ from fraiseql.mutations.types import MutationResult
 
 # Test data structures for mutations
 
+
 @pytest.mark.unit
 class CreateMachineError:
     """Mock error class for testing."""
@@ -45,8 +46,7 @@ class TestErrorResultProcessor:
         """RED: Error results must always have non-empty errors array."""
         # Given a database result indicating error
         db_result = MutationResult(
-            status="noop:invalid_contract_id",
-            message="Contract not found or access denied"
+            status="noop:invalid_contract_id", message="Contract not found or access denied"
         )
 
         # When processed through the new system
@@ -63,9 +63,7 @@ class TestErrorResultProcessor:
     def test_success_result_has_empty_errors_array(self):
         """RED: Success results should have empty errors array, not None."""
         db_result = MutationResult(
-            status="success",
-            message="Machine created",
-            object_data={"id": "machine-123"}
+            status="success", message="Machine created", object_data={"id": "machine-123"}
         )
 
         processor = MutationResultProcessor()
@@ -77,8 +75,7 @@ class TestErrorResultProcessor:
     def test_noop_status_creates_422_error(self):
         """RED: noop: statuses should create 422 errors with proper identifier."""
         db_result = MutationResult(
-            status="noop:machine_already_exists",
-            message="Machine with this serial already exists"
+            status="noop:machine_already_exists", message="Machine with this serial already exists"
         )
 
         processor = MutationResultProcessor()
@@ -90,8 +87,7 @@ class TestErrorResultProcessor:
     def test_blocked_status_creates_422_error(self):
         """RED: blocked: statuses should create 422 errors."""
         db_result = MutationResult(
-            status="blocked:insufficient_permissions",
-            message="User lacks permission"
+            status="blocked:insufficient_permissions", message="User lacks permission"
         )
 
         processor = MutationResultProcessor()
@@ -103,8 +99,7 @@ class TestErrorResultProcessor:
     def test_failed_status_creates_500_error(self):
         """RED: failed: statuses should create 500 errors."""
         db_result = MutationResult(
-            status="failed:database_connection",
-            message="Database connection lost"
+            status="failed:database_connection", message="Database connection lost"
         )
 
         processor = MutationResultProcessor()
@@ -115,10 +110,7 @@ class TestErrorResultProcessor:
 
     def test_immutable_processing(self):
         """RED: Processing should not mutate original objects."""
-        db_result = MutationResult(
-            status="noop:test",
-            message="Original message"
-        )
+        db_result = MutationResult(status="noop:test", message="Original message")
         original_status = db_result.status
         original_message = db_result.message
 
@@ -140,9 +132,9 @@ class TestErrorResultProcessor:
             extra_metadata={
                 "validation_errors": [
                     {"field": "serial_number", "issue": "already_exists"},
-                    {"field": "model_id", "issue": "not_found"}
+                    {"field": "model_id", "issue": "not_found"},
                 ]
-            }
+            },
         )
 
         processor = MutationResultProcessor()
@@ -150,15 +142,12 @@ class TestErrorResultProcessor:
 
         assert result.errors[0].details["validation_errors"] == [
             {"field": "serial_number", "issue": "already_exists"},
-            {"field": "model_id", "issue": "not_found"}
+            {"field": "model_id", "issue": "not_found"},
         ]
 
     def test_json_serializable_output(self):
         """RED: All processed results must be JSON serializable."""
-        db_result = MutationResult(
-            status="noop:test",
-            message="Test message"
-        )
+        db_result = MutationResult(status="noop:test", message="Test message")
 
         processor = MutationResultProcessor()
         result = processor.process_error(db_result, CreateMachineError)
@@ -171,10 +160,7 @@ class TestErrorResultProcessor:
 
     def test_typename_field_present_in_result(self):
         """RED: __typename field must be present for GraphQL union resolution."""
-        db_result = MutationResult(
-            status="noop:test",
-            message="Test message"
-        )
+        db_result = MutationResult(status="noop:test", message="Test message")
 
         processor = MutationResultProcessor()
         result = processor.process_error(db_result, CreateMachineError)
@@ -185,10 +171,7 @@ class TestErrorResultProcessor:
 
     def test_success_result_typename_field(self):
         """RED: Success results should also have __typename for union resolution."""
-        db_result = MutationResult(
-            status="success",
-            message="Machine created"
-        )
+        db_result = MutationResult(status="success", message="Machine created")
 
         processor = MutationResultProcessor()
         result = processor.process_success(db_result, CreateMachineSuccess)
@@ -199,10 +182,7 @@ class TestErrorResultProcessor:
 
     def test_status_without_colon_handled_gracefully(self):
         """RED: Status strings without colon should be handled as general errors."""
-        db_result = MutationResult(
-            status="general_failure",
-            message="Something went wrong"
-        )
+        db_result = MutationResult(status="general_failure", message="Something went wrong")
 
         processor = MutationResultProcessor()
         result = processor.process_error(db_result, CreateMachineError)
@@ -212,10 +192,7 @@ class TestErrorResultProcessor:
 
     def test_none_status_handled_gracefully(self):
         """RED: None status should be handled gracefully."""
-        db_result = MutationResult(
-            status=None,
-            message="No status provided"
-        )
+        db_result = MutationResult(status=None, message="No status provided")
 
         processor = MutationResultProcessor()
         result = processor.process_error(db_result, CreateMachineError)
@@ -226,10 +203,7 @@ class TestErrorResultProcessor:
 
     def test_empty_message_handled_gracefully(self):
         """RED: Empty or None messages should get default messages."""
-        db_result = MutationResult(
-            status="noop:test",
-            message=None
-        )
+        db_result = MutationResult(status="noop:test", message=None)
 
         processor = MutationResultProcessor()
         result = processor.process_error(db_result, CreateMachineError)
@@ -238,10 +212,7 @@ class TestErrorResultProcessor:
 
     def test_error_details_structure_is_complete(self):
         """RED: Error details should have all required fields."""
-        db_result = MutationResult(
-            status="noop:test",
-            message="Test message"
-        )
+        db_result = MutationResult(status="noop:test", message="Test message")
 
         processor = MutationResultProcessor()
         result = processor.process_error(db_result, CreateMachineError)
@@ -259,12 +230,7 @@ class TestErrorDetail:
 
     def test_error_detail_is_immutable(self):
         """RED: ErrorDetail should be immutable (frozen dataclass)."""
-        error = ErrorDetail(
-            code=422,
-            identifier="test_error",
-            message="Test message",
-            details={}
-        )
+        error = ErrorDetail(code=422, identifier="test_error", message="Test message", details={})
 
         # Should not be able to modify fields
         with pytest.raises(AttributeError):
@@ -273,10 +239,7 @@ class TestErrorDetail:
     def test_error_detail_to_dict_conversion(self):
         """RED: ErrorDetail should convert to dictionary properly."""
         error = ErrorDetail(
-            code=422,
-            identifier="test_error",
-            message="Test message",
-            details={"extra": "info"}
+            code=422, identifier="test_error", message="Test message", details={"extra": "info"}
         )
 
         # This test will fail until we implement the to_dict method
@@ -284,7 +247,7 @@ class TestErrorDetail:
             "code": 422,
             "identifier": "test_error",
             "message": "Test message",
-            "details": {"extra": "info"}
+            "details": {"extra": "info"},
         }
 
         # ErrorDetail should be directly JSON serializable via its fields
@@ -301,10 +264,7 @@ class TestProcessedResult:
     def test_processed_result_is_immutable(self):
         """RED: ProcessedResult should be immutable."""
         result = ProcessedResult(
-            typename="TestError",
-            status="noop:test",
-            message="Test message",
-            errors=[]
+            typename="TestError", status="noop:test", message="Test message", errors=[]
         )
 
         # Should not be able to modify fields
@@ -313,18 +273,10 @@ class TestProcessedResult:
 
     def test_processed_result_to_dict_structure(self):
         """RED: ProcessedResult.to_dict() should return correct structure."""
-        error = ErrorDetail(
-            code=422,
-            identifier="test_error",
-            message="Test message",
-            details={}
-        )
+        error = ErrorDetail(code=422, identifier="test_error", message="Test message", details={})
 
         result = ProcessedResult(
-            typename="TestError",
-            status="noop:test",
-            message="Test message",
-            errors=[error]
+            typename="TestError", status="noop:test", message="Test message", errors=[error]
         )
 
         result_dict = result.to_dict()
@@ -334,13 +286,8 @@ class TestProcessedResult:
             "status": "noop:test",
             "message": "Test message",
             "errors": [
-                {
-                    "code": 422,
-                    "identifier": "test_error",
-                    "message": "Test message",
-                    "details": {}
-                }
-            ]
+                {"code": 422, "identifier": "test_error", "message": "Test message", "details": {}}
+            ],
         }
 
         assert result_dict == expected_structure

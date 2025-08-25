@@ -551,6 +551,7 @@ class TestCSRFConfigHelpers:
 
 # Extended tests merged from test_csrf_protection_extended.py
 
+
 class TestCSRFTokenGeneratorExtended:
     """Test CSRF token generation and validation."""
 

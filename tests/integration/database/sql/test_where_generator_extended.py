@@ -296,7 +296,7 @@ class TestDynamicTypeProtocol:
             def to_sql(self, extra_param):  # Wrong signature
                 return None
 
-        filter_instance = InvalidFilter()
+        InvalidFilter()
         # Should not satisfy protocol due to signature mismatch
         # Note: runtime_checkable only checks method existence, not signature
 

@@ -517,10 +517,8 @@ class TestN1DetectionContext:
 
         request_id = "test-request-123"
 
-        detector_ref = None
         async with n1_detection_context(request_id) as detector:
             assert isinstance(detector, N1QueryDetector)
-            detector_ref = detector
             # Check that start_request was called by seeing if we can track
             assert detector.enabled  # Should be enabled now
 
@@ -817,7 +815,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_context_manager_with_detection_exception(self):
         """Test context manager when N+1 detection raises exception."""
-        detector = configure_detector(threshold=1, enabled=True, raise_on_detection=True)
+        configure_detector(threshold=1, enabled=True, raise_on_detection=True)
 
         request_id = "test-request"
 

@@ -112,7 +112,6 @@ class TestInMemoryRateLimiter:
     @pytest.mark.asyncio
     async def test_hour_window_limit(self, limiter):
         """Test hour window limit enforcement."""
-        key = "test_user"
 
         # Simulate exhausting hour limit
         # In real implementation, would need to manipulate internal state
@@ -230,7 +229,6 @@ class TestSlidingWindowRateLimiter:
     @pytest.mark.asyncio
     async def test_sliding_window_accuracy(self, limiter):
         """Test that sliding window is more accurate than fixed window."""
-        key = "test_user"
 
         # Make requests spread over time
         # In sliding window, old requests should expire gradually
@@ -239,7 +237,6 @@ class TestSlidingWindowRateLimiter:
     @pytest.mark.asyncio
     async def test_burst_handling(self, limiter):
         """Test handling of burst requests."""
-        key = "test_user"
 
         # Should allow burst up to configured size
         # Then enforce steady rate

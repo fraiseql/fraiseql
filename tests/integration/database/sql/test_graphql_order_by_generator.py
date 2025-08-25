@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import pytest
 
 import fraiseql
 from fraiseql.sql import OrderByItem, OrderDirection, create_graphql_order_by_input
 
+if TYPE_CHECKING:
+    import uuid
+    from datetime import datetime
+
 # Define test types at module level
+
 
 @pytest.mark.unit
 @fraiseql.type
@@ -276,7 +279,7 @@ class TestGraphQLOrderByGenerator:
         # Simulate GraphQL resolver
         async def get_employees(info, order_by: EmployeeOrderByInput | None = None):
             if order_by:
-                sql_order_by = order_by._to_sql_order_by()
+                order_by._to_sql_order_by()
                 # This would be passed to repository
                 # return await db.find("employee_view", order_by=sql_order_by)
 

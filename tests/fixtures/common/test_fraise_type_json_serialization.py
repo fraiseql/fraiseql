@@ -20,6 +20,7 @@ from fraiseql.graphql.execute import _clean_fraise_types
 @pytest.mark.unit
 class StatusEnum(Enum):
     """Test enum for serialization."""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
 
@@ -27,6 +28,7 @@ class StatusEnum(Enum):
 @fraiseql.type
 class SimpleError:
     """Simple error type for testing."""
+
     message: str
     code: int
 
@@ -34,6 +36,7 @@ class SimpleError:
 @fraiseql.type
 class ComplexError:
     """Complex error type with optional fields."""
+
     message: str
     code: int
     identifier: str
@@ -44,6 +47,7 @@ class ComplexError:
 @fraiseql.type
 class NestedType:
     """Type with nested @fraise_type fields."""
+
     name: str
     error: SimpleError | None = None
     errors: list[ComplexError] | None = None
@@ -52,6 +56,7 @@ class NestedType:
 @dataclass
 class RegularDataclass:
     """Regular dataclass for comparison."""
+
     name: str
     value: int
 
@@ -66,10 +71,7 @@ class TestFraiseTypeJSONSerialization:
         json_str = json.dumps(error, cls=FraiseQLJSONEncoder)
         parsed = json.loads(json_str)
 
-        assert parsed == {
-            "message": "Test error",
-            "code": 400
-        }
+        assert parsed == {"message": "Test error", "code": 400}
 
     def test_complex_fraise_type_with_encoder(self):
         """Test serialization of complex @fraise_type object with FraiseQLJSONEncoder."""
@@ -78,7 +80,7 @@ class TestFraiseTypeJSONSerialization:
             code=422,
             identifier="validation_error",
             details={"field": "email", "value": "invalid"},
-            metadata=["tag1", "tag2"]
+            metadata=["tag1", "tag2"],
         )
 
         json_str = json.dumps(error, cls=FraiseQLJSONEncoder)
@@ -89,62 +91,46 @@ class TestFraiseTypeJSONSerialization:
             "code": 422,
             "identifier": "validation_error",
             "details": {"field": "email", "value": "invalid"},
-            "metadata": ["tag1", "tag2"]
+            "metadata": ["tag1", "tag2"],
         }
         assert parsed == expected
 
     def test_fraise_type_with_none_fields(self):
         """Test serialization with None fields."""
         error = ComplexError(
-            message="Simple error",
-            code=400,
-            identifier="simple",
-            details=None,
-            metadata=None
+            message="Simple error", code=400, identifier="simple", details=None, metadata=None
         )
 
         json_str = json.dumps(error, cls=FraiseQLJSONEncoder)
         parsed = json.loads(json_str)
 
         # FraiseQLJSONEncoder only includes non-None fields
-        expected = {
-            "message": "Simple error",
-            "code": 400,
-            "identifier": "simple"
-        }
+        expected = {"message": "Simple error", "code": 400, "identifier": "simple"}
         assert parsed == expected
 
     def test_nested_fraise_types_with_encoder(self):
         """Test serialization of nested @fraise_type objects."""
         simple_error = SimpleError(message="Nested error", code=500)
         complex_error = ComplexError(
-            message="Complex nested",
-            code=422,
-            identifier="nested",
-            details={"nested": True}
+            message="Complex nested", code=422, identifier="nested", details={"nested": True}
         )
 
-        nested = NestedType(
-            name="Test nested",
-            error=simple_error,
-            errors=[complex_error]
-        )
+        nested = NestedType(name="Test nested", error=simple_error, errors=[complex_error])
 
         json_str = json.dumps(nested, cls=FraiseQLJSONEncoder)
         parsed = json.loads(json_str)
 
         expected = {
             "name": "Test nested",
-            "error": {
-                "message": "Nested error",
-                "code": 500
-            },
-            "errors": [{
-                "message": "Complex nested",
-                "code": 422,
-                "identifier": "nested",
-                "details": {"nested": True}
-            }]
+            "error": {"message": "Nested error", "code": 500},
+            "errors": [
+                {
+                    "message": "Complex nested",
+                    "code": 422,
+                    "identifier": "nested",
+                    "details": {"nested": True},
+                }
+            ],
         }
         assert parsed == expected
 
@@ -152,7 +138,7 @@ class TestFraiseTypeJSONSerialization:
         """Test serialization of list containing @fraise_type objects."""
         errors = [
             SimpleError(message="Error 1", code=400),
-            SimpleError(message="Error 2", code=500)
+            SimpleError(message="Error 2", code=500),
         ]
 
         data = {"errors": errors}
@@ -161,10 +147,7 @@ class TestFraiseTypeJSONSerialization:
         parsed = json.loads(json_str)
 
         expected = {
-            "errors": [
-                {"message": "Error 1", "code": 400},
-                {"message": "Error 2", "code": 500}
-            ]
+            "errors": [{"message": "Error 1", "code": 400}, {"message": "Error 2", "code": 500}]
         }
         assert parsed == expected
 
@@ -180,7 +163,7 @@ class TestFraiseTypeJSONSerialization:
             "number": 123,
             "list": [1, 2, 3],
             "dict": {"key": "value"},
-            "status": StatusEnum.ACTIVE
+            "status": StatusEnum.ACTIVE,
         }
 
         json_str = json.dumps(data, cls=FraiseQLJSONEncoder)
@@ -193,7 +176,7 @@ class TestFraiseTypeJSONSerialization:
             "number": 123,
             "list": [1, 2, 3],
             "dict": {"key": "value"},
-            "status": "active"  # Enum value
+            "status": "active",  # Enum value
         }
         assert parsed == expected
 
@@ -212,10 +195,7 @@ class TestFraiseTypeJSONSerialization:
     def test_clean_fraise_types_function(self):
         """Test the _clean_fraise_types function directly."""
         error = ComplexError(
-            message="Clean test",
-            code=422,
-            identifier="clean",
-            details={"test": True}
+            message="Clean test", code=422, identifier="clean", details={"test": True}
         )
 
         cleaned = _clean_fraise_types(error)
@@ -234,13 +214,10 @@ class TestFraiseTypeJSONSerialization:
 
         data = {
             "level1": {
-                "level2": [
-                    {"error": error1, "id": 1},
-                    {"error": error2, "id": 2}
-                ],
-                "metadata": {"count": 2}
+                "level2": [{"error": error1, "id": 1}, {"error": error2, "id": 2}],
+                "metadata": {"count": 2},
             },
-            "simple": "value"
+            "simple": "value",
         }
 
         cleaned = _clean_fraise_types(data)
@@ -294,10 +271,7 @@ class TestFraiseTypeJSONSerialization:
         import time
 
         # Create many error objects
-        errors = [
-            SimpleError(message=f"Error {i}", code=400 + (i % 100))
-            for i in range(1000)
-        ]
+        errors = [SimpleError(message=f"Error {i}", code=400 + (i % 100)) for i in range(1000)]
 
         data = {"errors": errors}
 
@@ -325,7 +299,7 @@ class TestFraiseTypeJSONSerialization:
                 code=400 + i,
                 identifier=f"batch_{i}",
                 details={f"field_{j}": f"value_{j}" for j in range(5)},
-                metadata=[f"tag_{i}_{j}" for j in range(3)]
+                metadata=[f"tag_{i}_{j}" for j in range(3)],
             )
             for i in range(10)
         ]
@@ -333,16 +307,13 @@ class TestFraiseTypeJSONSerialization:
         nested = NestedType(
             name="Complex nested test",
             error=SimpleError(message="Main error", code=500),
-            errors=errors
+            errors=errors,
         )
 
         data = {
             "result": nested,
-            "metadata": {
-                "timestamp": "2024-01-01T00:00:00Z",
-                "count": len(errors)
-            },
-            "status": StatusEnum.ACTIVE
+            "metadata": {"timestamp": "2024-01-01T00:00:00Z", "count": len(errors)},
+            "status": StatusEnum.ACTIVE,
         }
 
         # Should fail with standard JSON
@@ -384,7 +355,7 @@ class TestFraiseTypeJSONSerialization:
             message="Validation failed",
             code=422,
             identifier="validation_error",
-            details={"field": "email", "constraint": "format"}
+            details={"field": "email", "constraint": "format"},
         )
 
         graphql_response = {
@@ -393,12 +364,10 @@ class TestFraiseTypeJSONSerialization:
                     "__typename": "CreateUserError",
                     "message": "User creation failed",
                     "errors": [error],
-                    "conflictingUser": None
+                    "conflictingUser": None,
                 }
             },
-            "extensions": {
-                "tracing": {"duration": 150}
-            }
+            "extensions": {"tracing": {"duration": 150}},
         }
 
         # Should fail with standard JSON due to the Error object

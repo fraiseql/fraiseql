@@ -220,7 +220,7 @@ class TestMutationStatusMap:
         assert "failed:exception" in all_statuses
 
     @pytest.mark.parametrize(
-        "status,expected_http",
+        ("status", "expected_http"),
         [
             ("ok", 200),
             ("updated", 200),

@@ -4,8 +4,6 @@ import pytest
 
 
 @pytest.mark.unit
-
-
 def test_mock_auth_context(mock_auth_context):
     """Test mock auth context fixture."""
     assert mock_auth_context["user"]["id"] == "123"

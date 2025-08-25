@@ -25,6 +25,7 @@ except ImportError:
         """Placeholder class when Redis is not available."""
 
         def __init__(self, *args, **kwargs):
+            """Initialize placeholder - raises ImportError."""
             raise ImportError(
                 "Redis is required for RedisRevocationStore. "
                 "Install it with: pip install fraiseql[redis]",

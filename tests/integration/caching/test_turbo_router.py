@@ -425,13 +425,16 @@ class TestTurboRouter:
 
         # Mock database
         mock_db_result = [
-            {"result": [
-                {"id": "1", "name": "Alice", "email": "alice@example.com"},
-                {"id": "2", "name": "Bob", "email": "bob@example.com"}
-            ]}
+            {
+                "result": [
+                    {"id": "1", "name": "Alice", "email": "alice@example.com"},
+                    {"id": "2", "name": "Bob", "email": "bob@example.com"},
+                ]
+            }
         ]
 
         mock_db = AsyncMock()
+
         async def mock_transaction(func):
             mock_conn = AsyncMock()
             mock_cursor = AsyncMock()
@@ -503,17 +506,20 @@ class TestTurboRouter:
 
         # Mock database that returns pre-wrapped GraphQL response
         mock_db_result = [
-            {"result": {
-                "data": {
-                    "products": [
-                        {"id": "1", "name": "Product A", "price": 100},
-                        {"id": "2", "name": "Product B", "price": 200}
-                    ]
+            {
+                "result": {
+                    "data": {
+                        "products": [
+                            {"id": "1", "name": "Product A", "price": 100},
+                            {"id": "2", "name": "Product B", "price": 200},
+                        ]
+                    }
                 }
-            }}
+            }
         ]
 
         mock_db = AsyncMock()
+
         async def mock_transaction(func):
             mock_conn = AsyncMock()
             mock_cursor = AsyncMock()

@@ -2,6 +2,7 @@
 
 Following DDD principles with pure Python classes for enterprise blog domain.
 """
+
 from abc import ABC
 from dataclasses import dataclass, field
 from datetime import datetime

@@ -261,6 +261,7 @@ async def delete_post(info, id: UUID) -> bool:
 # Enterprise Pattern Examples
 # These demonstrate the new PrintOptim mutation patterns
 
+
 @mutation(function="app.create_post")  # Uses app/core split
 class CreatePostEnterprise:
     """Create blog post with enterprise patterns.
@@ -271,6 +272,7 @@ class CreatePostEnterprise:
     - Comprehensive audit information
     - NOOP handling for duplicate slugs
     """
+
     input: CreatePostInput
     success: CreatePostSuccess
     error: CreatePostError
@@ -287,6 +289,7 @@ class UpdatePostEnterprise:
     - NOOP for no-changes scenarios
     - Complete audit trail
     """
+
     input: UpdatePostInput
     success: UpdatePostSuccess
     error: UpdatePostError
@@ -303,6 +306,7 @@ class CreateUserEnterprise:
     - Structured error responses with field context
     - Audit trail creation
     """
+
     input: CreateUserInput
     success: CreateUserSuccess
     error: CreateUserError
@@ -311,6 +315,7 @@ class CreateUserEnterprise:
 
 # Legacy Pattern Examples (for comparison)
 # Note: These show the old way. Use Enterprise classes above for new code.
+
 
 async def create_post_legacy(
     info,

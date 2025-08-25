@@ -70,8 +70,6 @@ class TestCamelForgeCompleteExample:
         assert "'identifier'" in sql_str
         assert "'id'" in sql_str
 
-        print("Generated SQL for low field count (CamelForge enabled):")
-        print(sql_str)
 
     def test_holy_grail_architecture_high_field_count(self):
         """Test graceful degradation for high field count queries.
@@ -111,8 +109,6 @@ class TestCamelForgeCompleteExample:
         assert "jsonb_build_object(" not in sql_str
         assert "SELECT data AS result" in sql_str
 
-        print("Generated SQL for high field count (fallback to standard):")
-        print(sql_str)
 
     def test_performance_characteristics(self):
         """Test performance characteristics mentioned in the feature request.
@@ -167,8 +163,6 @@ class TestCamelForgeCompleteExample:
         assert "turbo.fn_camelforge(" not in large_sql
         assert "SELECT data::text AS result" in large_sql
 
-        print(f"Small query (CamelForge): {len(small_sql)} characters")
-        print(f"Large query (fallback): {len(large_sql)} characters")
 
     def test_backward_compatibility(self):
         """Test backward compatibility guarantees from the feature request.
@@ -228,7 +222,6 @@ class TestCamelForgeCompleteExample:
         enabled_sql = enabled_query.as_string(None)
         assert "turbo.fn_camelforge(" in enabled_sql  # Different from legacy
 
-        print(f"Legacy behavior preserved: {disabled_sql == legacy_sql}")
 
     def test_success_criteria_validation(self):
         """Validate all success criteria from the feature request.
@@ -318,7 +311,6 @@ class TestCamelForgeCompleteExample:
             None
         )  # ✅ Criterion 5
 
-        print("✅ All success criteria validated!")
 
     def test_example_from_feature_request(self):
         """Test the exact example from the original feature request.
@@ -367,8 +359,6 @@ class TestCamelForgeCompleteExample:
         for expected in expected_structure:
             assert expected in sql_str, f"Missing expected SQL fragment: {expected}"
 
-        print("✅ Feature request example SQL generated successfully:")
-        print(sql_str)
 
         # This SQL would now return: {"id": "uuid", "identifier": "dns-01", "ipAddress": "192.168.1.1"}
         # instead of the previous error: 'DnsServer' object has no attribute 'keys'

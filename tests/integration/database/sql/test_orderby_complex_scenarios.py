@@ -18,7 +18,6 @@ from fraiseql.sql.sql_generator import build_sql_query
 pytestmark = pytest.mark.unit
 
 
-
 @pytest.mark.unit
 class TestComplexOrderByScenarios:
     """Test complex OrderBy scenarios that mirror real-world GraphQL usage."""
@@ -327,8 +326,11 @@ class TestComplexOrderByScenarios:
         # Verify complete transformation
         assert "ORDER BY" in sql_str
         assert "complex_test_table" in sql_str
-        assert "user" in sql_str and "profile" in sql_str and "first_name" in sql_str
-        assert "organization" in sql_str and "settings" in sql_str
+        assert "user" in sql_str
+        assert "profile" in sql_str
+        assert "first_name" in sql_str
+        assert "organization" in sql_str
+        assert "settings" in sql_str
         assert "last_modified_at" in sql_str
 
     def test_error_recovery_complex_scenarios(self):

@@ -21,7 +21,6 @@ def create_field_node_mock(name, alias=None, selections=None):
     return mock
 
 
-
 @pytest.mark.unit
 class TestSelectionFilter:
     """Test selection filter functionality."""

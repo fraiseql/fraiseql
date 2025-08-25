@@ -72,42 +72,42 @@ def validate_author_input(input_data: dict) -> List[dict]:
     required_fields = ["identifier", "name", "email"]
     for field in required_fields:
         if not input_data.get(field):
-            errors.append({
-                "code": 422,
-                "identifier": "missing_required_field",
-                "message": f"Missing required field: {field}",
-                "details": {
-                    "field": field,
-                    "constraint": "required"
+            errors.append(
+                {
+                    "code": 422,
+                    "identifier": "missing_required_field",
+                    "message": f"Missing required field: {field}",
+                    "details": {"field": field, "constraint": "required"},
                 }
-            })
+            )
 
     # Validate field lengths
     if input_data.get("name") and len(input_data["name"]) > 100:
-        errors.append({
-            "code": 422,
-            "identifier": "name_too_long",
-            "message": "Name exceeds maximum length of 100 characters",
-            "details": {
-                "field": "name",
-                "constraint": "length",
-                "max_length": 100,
-                "current_length": len(input_data["name"])
+        errors.append(
+            {
+                "code": 422,
+                "identifier": "name_too_long",
+                "message": "Name exceeds maximum length of 100 characters",
+                "details": {
+                    "field": "name",
+                    "constraint": "length",
+                    "max_length": 100,
+                    "current_length": len(input_data["name"]),
+                },
             }
-        })
+        )
 
     # Validate email format (simple check)
     email = input_data.get("email", "")
     if email and "@" not in email:
-        errors.append({
-            "code": 422,
-            "identifier": "invalid_email_format",
-            "message": "Email format is invalid",
-            "details": {
-                "field": "email",
-                "constraint": "format"
+        errors.append(
+            {
+                "code": 422,
+                "identifier": "invalid_email_format",
+                "message": "Email format is invalid",
+                "details": {"field": "email", "constraint": "format"},
             }
-        })
+        )
 
     return errors
 
@@ -125,7 +125,7 @@ def create_author_mutation_logic(input_data: dict) -> Union[CreateAuthorSuccess,
                 "total_errors": len(validation_errors),
                 "has_validation_errors": any(e["code"] == 422 for e in validation_errors),
                 "has_conflicts": any(e["code"] == 409 for e in validation_errors),
-            }
+            },
         )
 
     # Create successful author
@@ -135,14 +135,10 @@ def create_author_mutation_logic(input_data: dict) -> Union[CreateAuthorSuccess,
         identifier=input_data["identifier"],
         name=input_data["name"],
         email=input_data["email"],
-        bio=input_data.get("bio")
+        bio=input_data.get("bio"),
     )
 
-    return CreateAuthorSuccess(
-        author=author,
-        message="Author created successfully",
-        errors=[]
-    )
+    return CreateAuthorSuccess(author=author, message="Author created successfully", errors=[])
 
 
 @pytest.mark.regression
@@ -154,9 +150,9 @@ class TestErrorArraysV050:
         """Test that multiple validation errors are returned as structured array."""
         # Input with multiple validation errors
         input_data = {
-            "identifier": "",      # Missing required field
-            "name": "A" * 150,    # Too long
-            "email": "invalid-email"  # Invalid format
+            "identifier": "",  # Missing required field
+            "name": "A" * 150,  # Too long
+            "email": "invalid-email",  # Invalid format
         }
 
         result = create_author_mutation_logic(input_data)
@@ -184,7 +180,7 @@ class TestErrorArraysV050:
         input_data = {
             "identifier": "success-author",
             "name": "Success Author",
-            "email": "success@example.com"
+            "email": "success@example.com",
         }
 
         result = create_author_mutation_logic(input_data)
@@ -203,11 +199,7 @@ class TestErrorArraysV050:
     def test_error_array_structure_consistency(self):
         """Test that all errors in array follow consistent structure."""
         # Input that will generate multiple different error types
-        input_data = {
-            "identifier": "",
-            "name": "",
-            "email": "bad-email"
-        }
+        input_data = {"identifier": "", "name": "", "email": "bad-email"}
 
         result = create_author_mutation_logic(input_data)
         assert isinstance(result, CreateAuthorError)
@@ -228,7 +220,9 @@ class TestErrorArraysV050:
             assert isinstance(error.message, str), f"Error {i} 'message' should be string"
 
             # Code should be valid HTTP status code
-            assert error.code in [400, 401, 403, 404, 409, 422, 500], f"Error {i} has invalid code: {error.code}"
+            assert error.code in [400, 401, 403, 404, 409, 422, 500], (
+                f"Error {i} has invalid code: {error.code}"
+            )
 
             # Message should be non-empty
             assert len(error.message) > 0, f"Error {i} has empty message"
@@ -240,9 +234,9 @@ class TestErrorArraysV050:
     def test_field_level_error_grouping_capability(self):
         """Test that errors can be grouped by field for client convenience."""
         input_data = {
-            "identifier": "",           # Missing required field
-            "name": "X" * 150,         # Too long
-            "email": "invalid-email"   # Invalid format
+            "identifier": "",  # Missing required field
+            "name": "X" * 150,  # Too long
+            "email": "invalid-email",  # Invalid format
         }
 
         result = create_author_mutation_logic(input_data)
@@ -257,11 +251,13 @@ class TestErrorArraysV050:
             if field:
                 if field not in field_errors:
                     field_errors[field] = []
-                field_errors[field].append({
-                    "identifier": error.identifier,
-                    "message": error.message,
-                    "constraint": error.details.get("constraint") if error.details else None
-                })
+                field_errors[field].append(
+                    {
+                        "identifier": error.identifier,
+                        "message": error.message,
+                        "constraint": error.details.get("constraint") if error.details else None,
+                    }
+                )
 
         # Should have errors grouped by field
         assert "identifier" in field_errors
@@ -278,9 +274,9 @@ class TestErrorArraysV050:
     def test_validation_summary_provides_aggregated_information(self):
         """Test that validation summary provides useful aggregated error information."""
         input_data = {
-            "identifier": "",           # Missing field - validation error
+            "identifier": "",  # Missing field - validation error
             "name": "Valid Name",
-            "email": "valid@example.com"
+            "email": "valid@example.com",
         }
 
         result = create_author_mutation_logic(input_data)
@@ -294,29 +290,32 @@ class TestErrorArraysV050:
 
     def test_error_array_supports_different_error_codes(self):
         """Test that error arrays can contain different HTTP status codes."""
+
         # Add conflict check to validation function temporarily for this test
         def extended_validation(input_data: dict) -> List[dict]:
             errors = validate_author_input(input_data)
 
             # Simulate conflict error
             if input_data.get("identifier") == "existing-author":
-                errors.append({
-                    "code": 409,
-                    "identifier": "duplicate_identifier",
-                    "message": "Author with this identifier already exists",
-                    "details": {
-                        "field": "identifier",
-                        "constraint": "unique",
-                        "conflict_id": str(uuid.uuid4())
+                errors.append(
+                    {
+                        "code": 409,
+                        "identifier": "duplicate_identifier",
+                        "message": "Author with this identifier already exists",
+                        "details": {
+                            "field": "identifier",
+                            "constraint": "unique",
+                            "conflict_id": str(uuid.uuid4()),
+                        },
                     }
-                })
+                )
 
             return errors
 
         input_data = {
             "identifier": "existing-author",  # Conflict
-            "name": "B" * 150,               # Validation error - too long
-            "email": "valid@example.com"     # Valid email
+            "name": "B" * 150,  # Validation error - too long
+            "email": "valid@example.com",  # Valid email
         }
 
         # Use extended validation for this test
@@ -335,7 +334,7 @@ class TestErrorArraysV050:
                 "total_errors": len(validation_errors),
                 "has_validation_errors": any(e["code"] == 422 for e in validation_errors),
                 "has_conflicts": any(e["code"] == 409 for e in validation_errors),
-            }
+            },
         )
 
         # Validation summary should reflect mixed error types

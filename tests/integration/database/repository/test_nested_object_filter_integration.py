@@ -15,6 +15,7 @@ from fraiseql.sql import (
 
 # Define test types
 
+
 @pytest.mark.unit
 @fraiseql.type
 class Machine:
@@ -65,7 +66,7 @@ class TestNestedObjectFilterIntegration:
 
     def test_nested_filter_with_none_values(self):
         """Test that None values in nested filters are handled correctly."""
-        MachineWhereInput = create_graphql_where_input(Machine)
+        create_graphql_where_input(Machine)
         AllocationWhereInput = create_graphql_where_input(Allocation)
 
         # Test with None machine filter

@@ -3,6 +3,7 @@
 Events represent things that have happened in the domain and are used
 for decoupling between bounded contexts.
 """
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional

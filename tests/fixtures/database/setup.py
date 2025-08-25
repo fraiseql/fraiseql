@@ -125,7 +125,7 @@ class DatabaseManager:
     async def insert_test_data(self, table: str, **data: Any) -> dict:
         """Insert test data and return the inserted row."""
         columns = ", ".join(data.keys())
-        placeholders = ", ".join([f"${i+1}" for i in range(len(data))])
+        placeholders = ", ".join([f"${i + 1}" for i in range(len(data))])
         values = list(data.values())
 
         query = f"""

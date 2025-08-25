@@ -2,6 +2,7 @@
 
 These exceptions represent business rule violations and domain-specific errors.
 """
+
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -15,7 +16,7 @@ class EntityNotFoundError(DomainException):
     def __init__(self, entity_type: str, entity_id: UUID):
         super().__init__(
             f"{entity_type} with id {entity_id} was not found",
-            {"entity_type": entity_type, "entity_id": str(entity_id)}
+            {"entity_type": entity_type, "entity_id": str(entity_id)},
         )
         self.entity_type = entity_type
         self.entity_id = entity_id
@@ -27,7 +28,7 @@ class UnauthorizedAccessError(DomainException):
     def __init__(self, user_id: UUID, resource: str, action: str):
         super().__init__(
             f"User {user_id} is not authorized to {action} {resource}",
-            {"user_id": str(user_id), "resource": resource, "action": action}
+            {"user_id": str(user_id), "resource": resource, "action": action},
         )
 
 
@@ -37,7 +38,7 @@ class DuplicateEntityError(DomainException):
     def __init__(self, entity_type: str, field: str, value: Any):
         super().__init__(
             f"{entity_type} with {field}='{value}' already exists",
-            {"entity_type": entity_type, "field": field, "value": str(value)}
+            {"entity_type": entity_type, "field": field, "value": str(value)},
         )
 
 
@@ -48,7 +49,7 @@ class PostPublishingError(DomainException):
     def __init__(self, post_id: UUID, reason: str):
         super().__init__(
             f"Post {post_id} cannot be published: {reason}",
-            {"post_id": str(post_id), "reason": reason}
+            {"post_id": str(post_id), "reason": reason},
         )
 
 
@@ -61,8 +62,8 @@ class InvalidPostStatusTransitionError(DomainException):
             {
                 "post_id": str(post_id),
                 "current_status": current_status,
-                "target_status": target_status
-            }
+                "target_status": target_status,
+            },
         )
 
 
@@ -72,7 +73,7 @@ class CommentModerationError(DomainException):
     def __init__(self, comment_id: UUID, reason: str):
         super().__init__(
             f"Comment {comment_id} moderation failed: {reason}",
-            {"comment_id": str(comment_id), "reason": reason}
+            {"comment_id": str(comment_id), "reason": reason},
         )
 
 
@@ -88,10 +89,7 @@ class InvalidCredentialsError(DomainException):
     """Exception raised when authentication fails."""
 
     def __init__(self, username: str):
-        super().__init__(
-            f"Invalid credentials for user {username}",
-            {"username": username}
-        )
+        super().__init__(f"Invalid credentials for user {username}", {"username": username})
 
 
 class UserDeactivationError(DomainException):
@@ -100,7 +98,7 @@ class UserDeactivationError(DomainException):
     def __init__(self, user_id: UUID, reason: str):
         super().__init__(
             f"User {user_id} cannot be deactivated: {reason}",
-            {"user_id": str(user_id), "reason": reason}
+            {"user_id": str(user_id), "reason": reason},
         )
 
 
@@ -110,7 +108,7 @@ class InsufficientPermissionsError(DomainException):
     def __init__(self, user_id: UUID, required_permission: str):
         super().__init__(
             f"User {user_id} lacks required permission: {required_permission}",
-            {"user_id": str(user_id), "permission": required_permission}
+            {"user_id": str(user_id), "permission": required_permission},
         )
 
 
@@ -125,8 +123,8 @@ class OrganizationLimitExceededError(DomainException):
                 "organization_id": str(organization_id),
                 "limit_type": limit_type,
                 "current": current,
-                "maximum": maximum
-            }
+                "maximum": maximum,
+            },
         )
 
 
@@ -139,8 +137,8 @@ class SubscriptionTierError(DomainException):
             {
                 "organization_id": str(organization_id),
                 "current_tier": current_tier,
-                "required_tier": required_tier
-            }
+                "required_tier": required_tier,
+            },
         )
 
 
@@ -151,7 +149,7 @@ class ValidationError(DomainException):
     def __init__(self, field: str, value: Any, rule: str):
         super().__init__(
             f"Validation failed for field '{field}': {rule}",
-            {"field": field, "value": str(value), "rule": rule}
+            {"field": field, "value": str(value), "rule": rule},
         )
 
 
@@ -159,7 +157,4 @@ class BusinessRuleViolationError(DomainException):
     """Exception raised when business rules are violated."""
 
     def __init__(self, rule_name: str, details: Dict[str, Any]):
-        super().__init__(
-            f"Business rule violation: {rule_name}",
-            {"rule": rule_name, **details}
-        )
+        super().__init__(f"Business rule violation: {rule_name}", {"rule": rule_name, **details})

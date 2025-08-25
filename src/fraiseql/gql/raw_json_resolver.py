@@ -6,6 +6,7 @@ when possible, falling back to normal execution for complex queries.
 
 import inspect
 import logging
+import re
 from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
@@ -82,8 +83,6 @@ def create_raw_json_resolver(
                     # Very basic heuristic - check for db.find_one or db.find
                     if "db.find_one(" in source:
                         # Extract view name if possible (very simplified)
-                        import re
-
                         match = re.search(r'db\.find_one\("([^"]+)"', source)
                         if match:
                             view_name = match.group(1)

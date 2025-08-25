@@ -22,6 +22,7 @@ from fraiseql.mutations.parser import parse_mutation_result
 @fraiseql.type
 class Error:
     """Test Error type matching the one in fraiseql.types.errors."""
+
     message: str
     code: int
     identifier: str
@@ -31,6 +32,7 @@ class Error:
 @fraiseql.type
 class MutationTestSuccess:
     """Success response for test mutations."""
+
     message: str
     entity: dict[str, Any] | None = None
 
@@ -38,6 +40,7 @@ class MutationTestSuccess:
 @fraiseql.type
 class MutationTestError:
     """Error response with auto-populated errors field."""
+
     message: str
     status: str
     errors: list[Error] | None = None
@@ -50,10 +53,7 @@ class TestGraphQLErrorSerialization:
     def test_clean_fraise_types_single_object(self):
         """Test cleaning a single @fraise_type object."""
         error = Error(
-            message="Test error",
-            code=400,
-            identifier="test_error",
-            details={"field": "name"}
+            message="Test error", code=400, identifier="test_error", details={"field": "name"}
         )
 
         cleaned = _clean_fraise_types(error)
@@ -69,7 +69,7 @@ class TestGraphQLErrorSerialization:
         """Test cleaning a list containing @fraise_type objects."""
         errors = [
             Error(message="Error 1", code=400, identifier="error_1"),
-            Error(message="Error 2", code=500, identifier="error_2")
+            Error(message="Error 2", code=500, identifier="error_2"),
         ]
 
         cleaned = _clean_fraise_types(errors)
@@ -86,13 +86,8 @@ class TestGraphQLErrorSerialization:
         error = Error(message="Nested error", code=409, identifier="nested")
 
         data = {
-            "mutation": {
-                "result": {
-                    "errors": [error],
-                    "message": "Failed"
-                }
-            },
-            "other_data": "preserved"
+            "mutation": {"result": {"errors": [error], "message": "Failed"}},
+            "other_data": "preserved",
         }
 
         cleaned = _clean_fraise_types(data)
@@ -114,7 +109,7 @@ class TestGraphQLErrorSerialization:
             "number": 42,
             "list": [1, 2, 3],
             "nested": {"key": "value"},
-            "null": None
+            "null": None,
         }
 
         cleaned = _clean_fraise_types(data)
@@ -127,16 +122,10 @@ class TestGraphQLErrorSerialization:
         """Test the ExecutionResult serialization wrapper."""
         error = Error(message="Test", code=400, identifier="test")
 
-        result_data = {
-            "testMutation": {
-                "errors": [error]
-            }
-        }
+        result_data = {"testMutation": {"errors": [error]}}
 
         execution_result = ExecutionResult(
-            data=result_data,
-            errors=None,
-            extensions={"test": "value"}
+            data=result_data, errors=None, extensions={"test": "value"}
         )
 
         cleaned_result = _serialize_fraise_types_in_result(execution_result)
@@ -212,7 +201,7 @@ class TestGraphQLErrorSerialization:
             message="JSON test",
             code=422,
             identifier="json_test",
-            details={"nested": {"data": "value"}}
+            details={"nested": {"data": "value"}},
         )
 
         complex_data = {
@@ -224,10 +213,10 @@ class TestGraphQLErrorSerialization:
                         "more_errors": [
                             Error(message="Nested error", code=400, identifier="nested")
                         ]
-                    }
+                    },
                 }
             },
-            "extensions": {"trace": "debug"}
+            "extensions": {"trace": "debug"},
         }
 
         # Should fail with standard JSON
@@ -261,10 +250,10 @@ class TestGraphQLErrorSerialization:
                 "testMutation": {
                     "__typename": "TestMutationError",
                     "message": "Mutation failed",
-                    "errors": [error]  # This would cause JSON serialization to fail
+                    "errors": [error],  # This would cause JSON serialization to fail
                 }
             },
-            errors=None
+            errors=None,
         )
 
         # The fix should clean this before JSON serialization
@@ -272,6 +261,7 @@ class TestGraphQLErrorSerialization:
 
         # Should now be JSON serializable
         import json
+
         json_str = json.dumps(cleaned_result.data)
 
         # Verify the structure is correct
@@ -286,8 +276,7 @@ class TestGraphQLErrorSerialization:
 
         # Create a large structure with many @fraise_type objects
         errors = [
-            Error(message=f"Error {i}", code=400, identifier=f"error_{i}")
-            for i in range(1000)
+            Error(message=f"Error {i}", code=400, identifier=f"error_{i}") for i in range(1000)
         ]
 
         large_data = {
@@ -296,8 +285,8 @@ class TestGraphQLErrorSerialization:
                     "id": i,
                     "result": {
                         "errors": errors[:10],  # Share errors to test deduplication
-                        "metadata": {"batch": i}
-                    }
+                        "metadata": {"batch": i},
+                    },
                 }
                 for i in range(100)
             ]

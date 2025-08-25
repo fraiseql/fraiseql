@@ -38,20 +38,20 @@ async def test_multiple_validation_errors_array_pattern():
             "code": "REQUIRED_FIELD_MISSING",
             "field": "name",
             "message": "Name is required",
-            "details": {"constraint": "not_null"}
+            "details": {"constraint": "not_null"},
         },
         {
             "code": "INVALID_FORMAT",
             "field": "email",
             "message": "Email format is invalid",
-            "details": {"pattern": "email", "value": "invalid-email"}
+            "details": {"pattern": "email", "value": "invalid-email"},
         },
         {
             "code": "VALUE_TOO_SHORT",
             "field": "password",
             "message": "Password must be at least 8 characters",
-            "details": {"min_length": 8, "actual_length": 4}
-        }
+            "details": {"min_length": 8, "actual_length": 4},
+        },
     ]
 
     # Verify error array structure

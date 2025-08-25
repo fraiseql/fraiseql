@@ -173,40 +173,39 @@ async def setup_sample_data(pool: AsyncConnectionPool):
     """Set up sample data for testing."""
     from fraiseql.auth.native.models import User as UserModel
 
-    async with pool.connection() as conn:
-        async with conn.cursor() as cursor:
-            # Check if admin user exists
-            admin = await UserModel.get_by_email(cursor, "public", "admin@example.com")
+    async with pool.connection() as conn, conn.cursor() as cursor:
+        # Check if admin user exists
+        admin = await UserModel.get_by_email(cursor, "public", "admin@example.com")
 
-            if not admin:
-                # Create admin user
-                admin = UserModel(
-                    email="admin@example.com",
-                    password="AdminPassword123!",
-                    name="Admin User",
-                    roles=["admin", "user"],
-                    permissions=["users:read", "users:write", "posts:write"],
-                    is_active=True,
-                    email_verified=True,
-                )
-                await admin.save(cursor, "public")
+        if not admin:
+            # Create admin user
+            admin = UserModel(
+                email="admin@example.com",
+                password="AdminPassword123!",
+                name="Admin User",
+                roles=["admin", "user"],
+                permissions=["users:read", "users:write", "posts:write"],
+                is_active=True,
+                email_verified=True,
+            )
+            await admin.save(cursor, "public")
 
-                # Create regular user
-                user = UserModel(
-                    email="user@example.com",
-                    password="UserPassword123!",
-                    name="Regular User",
-                    roles=["user"],
-                    permissions=["posts:write"],
-                    is_active=True,
-                    email_verified=True,
-                )
-                await user.save(cursor, "public")
+            # Create regular user
+            user = UserModel(
+                email="user@example.com",
+                password="UserPassword123!",
+                name="Regular User",
+                roles=["user"],
+                permissions=["posts:write"],
+                is_active=True,
+                email_verified=True,
+            )
+            await user.save(cursor, "public")
 
-                await conn.commit()
-                print("✅ Sample users created:")
-                print("   Admin: admin@example.com / AdminPassword123!")
-                print("   User:  user@example.com / UserPassword123!")
+            await conn.commit()
+            print("✅ Sample users created:")
+            print("   Admin: admin@example.com / AdminPassword123!")
+            print("   User:  user@example.com / UserPassword123!")
 
 
 if __name__ == "__main__":

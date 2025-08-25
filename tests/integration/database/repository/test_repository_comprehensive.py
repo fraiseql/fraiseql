@@ -117,7 +117,7 @@ class TestCQRSRepositoryQueries:
             name: str
             email: str
 
-        result = await repository.find_by_id(User, test_id)
+        await repository.find_by_id(User, test_id)
 
         # Should have made cursor call
         mock_connection.cursor.assert_called()
@@ -197,8 +197,6 @@ class TestCQRSRepositoryQueries:
 
     async def test_list_with_ordering(self, repository, mock_connection):
         """Test listing entities with order by."""
-        expected_data = []
-
         mock_connection.cursor.return_value.__aenter__.return_value.fetchall.return_value = []
 
         @fraiseql.type
@@ -364,8 +362,6 @@ class TestCQRSRepositoryUtilities:
 
     async def test_count_entities(self, repository, mock_connection):
         """Test counting entities."""
-        expected_count = [{"count": 42}]
-
         mock_connection.cursor.return_value.__aenter__.return_value.fetchone.return_value = [42]
 
         @fraiseql.type

@@ -9,6 +9,7 @@ import fraiseql
 
 # Define test types
 
+
 @pytest.mark.unit
 @fraiseql.type
 class Gateway:

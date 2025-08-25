@@ -5,10 +5,10 @@ from PostgreSQL, bypassing all Python object creation and JSON parsing overhead.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from psycopg import AsyncConnection
-from psycopg.sql import SQL, Composed
+from psycopg.sql import SQL, Composed, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,7 @@ def build_graphql_response_sql(
     base_query: SQL | Composed,
     field_name: str,
     is_list: bool = False,
-) -> SQL:
+) -> Union[SQL, Composed]:
     """Wrap a SQL query to return a complete GraphQL response structure.
 
     This modifies a SQL query to return results in GraphQL response format:
@@ -191,21 +191,21 @@ def build_graphql_response_sql(
             """
             SELECT json_build_object(
                 'data', json_build_object(
-                    %s, COALESCE(json_agg(result.data), '[]'::json)
+                    {}, COALESCE(json_agg(result.data), '[]'::json)
                 )
             )::text
             FROM ({}) AS result
         """
-        ).format(base_query) % (field_name,)
+        ).format(Literal(field_name), base_query)
     # For single results, wrap in GraphQL structure
     return SQL(
         """
             SELECT json_build_object(
                 'data', json_build_object(
-                    %s, result.data
+                    {}, result.data
                 )
             )::text
             FROM ({}) AS result
             LIMIT 1
         """
-    ).format(base_query) % (field_name,)
+    ).format(Literal(field_name), base_query)

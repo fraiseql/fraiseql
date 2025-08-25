@@ -69,12 +69,16 @@ jobs:
         DB_PORT: 5432
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
+        # Smart dependency management configuration for CI
+        FRAISEQL_ENVIRONMENT: ci
+        FRAISEQL_AUTO_INSTALL: false
+        FRAISEQL_LOG_LEVEL: INFO
       run: |
-        # Run example tests to catch regressions
-        pytest tests/integration/examples/ -v --tb=short || echo "Example tests failed but continuing"
+        # Run example tests - dependencies should be pre-installed in CI
+        pytest tests/integration/examples/ -v --tb=short
 
-        # Also run a quick smoke test on the examples themselves (if database setup works)
-        pytest examples/blog_simple/tests/test_queries.py::test_query_posts -v --tb=short || echo "Blog simple smoke test failed"
+        # Also run a quick smoke test on the examples themselves
+        pytest examples/blog_simple/tests/test_queries.py::test_query_posts -v --tb=short
 
     - name: Upload coverage
       uses: codecov/codecov-action@v5

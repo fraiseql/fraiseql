@@ -55,7 +55,7 @@ class TestJSONBNumericCoercionBug:
         }
 
         # Test direct JSON serialization with FraiseQLJSONEncoder
-        encoder = FraiseQLJSONEncoder()
+        FraiseQLJSONEncoder()
         serialized = json.dumps(jsonb_data, cls=FraiseQLJSONEncoder)
         deserialized = json.loads(serialized)
 
@@ -75,7 +75,7 @@ class TestJSONBNumericCoercionBug:
             "n_total_allocations": 0,  # Should remain as int, not become "0"
         }
 
-        encoder = FraiseQLJSONEncoder()
+        FraiseQLJSONEncoder()
         serialized = json.dumps(jsonb_data, cls=FraiseQLJSONEncoder)
         deserialized = json.loads(serialized)
 
@@ -96,7 +96,7 @@ class TestJSONBNumericCoercionBug:
             "nested_object": {"nested_int": 123, "nested_string": "nested_value"},
         }
 
-        encoder = FraiseQLJSONEncoder()
+        FraiseQLJSONEncoder()
         serialized = json.dumps(mixed_data, cls=FraiseQLJSONEncoder)
         deserialized = json.loads(serialized)
 
@@ -144,7 +144,7 @@ class TestJSONBNumericCoercionBug:
         graphql_response = {"data": {"smtpServers": [smtp_server_data]}}
 
         # Serialize using FraiseQLJSONEncoder (as would happen in production)
-        encoder = FraiseQLJSONEncoder()
+        FraiseQLJSONEncoder()
         json_response = json.dumps(graphql_response, cls=FraiseQLJSONEncoder)
         parsed_response = json.loads(json_response)
 
@@ -214,12 +214,6 @@ class TestJSONBNumericCoercionBug:
         assert isinstance(jsonb_extracted_enabled, bool)
         assert jsonb_extracted_port == 587  # Integer, as expected!
 
-        print(
-            "ISSUE IDENTIFIED: The SQL generator uses ->> operator which converts all values to TEXT!"
-        )
-        print(
-            "SOLUTION: Use -> operator for type-preserving extraction, then handle JSON serialization properly."
-        )
 
     def test_raw_json_string_handling(self):
         """Test handling of raw JSON strings (as might come from PostgreSQL).
@@ -234,7 +228,7 @@ class TestJSONBNumericCoercionBug:
         parsed_data = json.loads(raw_json_string)
 
         # Re-serialize using FraiseQLJSONEncoder
-        encoder = FraiseQLJSONEncoder()
+        FraiseQLJSONEncoder()
         re_serialized = json.dumps(parsed_data, cls=FraiseQLJSONEncoder)
         final_data = json.loads(re_serialized)
 
@@ -258,7 +252,7 @@ class TestJSONBNumericCoercionBug:
             "scientific": 1e10,
         }
 
-        encoder = FraiseQLJSONEncoder()
+        FraiseQLJSONEncoder()
         serialized = json.dumps(edge_cases, cls=FraiseQLJSONEncoder)
         deserialized = json.loads(serialized)
 
@@ -326,12 +320,6 @@ class TestJSONBNumericCoercionBug:
         assert isinstance(deserialized["ipv4_field"], str)
         assert isinstance(deserialized["bytes_field"], str)
 
-        print("✅ FraiseQLJSONEncoder correctly handles mixed PostgreSQL and JSON types!")
-        print(f"   - int_field: {deserialized['int_field']} ({type(deserialized['int_field'])})")
-        print(f"   - uuid_field: {deserialized['uuid_field']} ({type(deserialized['uuid_field'])})")
-        print(
-            f"   - decimal_field: {deserialized['decimal_field']} ({type(deserialized['decimal_field'])})"
-        )
 
 
 @pytest.mark.integration
@@ -360,7 +348,7 @@ class TestJSONBNumericCoercionIntegration:
         graphql_response = {"data": {"smtpServer": db_result}}
 
         # Step 3: Serialize as would happen in HTTP response
-        encoder = FraiseQLJSONEncoder()
+        FraiseQLJSONEncoder()
         http_response_json = json.dumps(graphql_response, cls=FraiseQLJSONEncoder)
 
         # Step 4: Parse response as client would receive it

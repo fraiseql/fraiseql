@@ -230,7 +230,8 @@ class TestNetworkFilterSQL:
         sql, params = generate_range_sql("data->>'ip_address'", "192.168.1.1", "192.168.1.100")
 
         # Should use PostgreSQL inet comparison
-        assert ">=" in sql and "<=" in sql
+        assert ">=" in sql
+        assert "<=" in sql
         assert "inet" in sql.lower()
         assert "192.168.1.1" in params
         assert "192.168.1.100" in params

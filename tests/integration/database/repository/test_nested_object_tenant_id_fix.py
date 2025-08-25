@@ -88,7 +88,6 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
     # With the fix, there should be no errors about missing tenant_id
     if result.errors:
         error_messages = [str(e) for e in result.errors]
-        print(f"Errors found: {error_messages}")
         # The bug would cause "missing a required argument: 'tenant_id'" error
         assert not any("tenant_id" in msg for msg in error_messages), (
             "Unexpected tenant_id error - the bug is still present!"
@@ -104,7 +103,6 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
     # Verify that find_one was NOT called (data was embedded, not queried)
     mock_db.find_one.assert_not_called()
 
-    print("✓ Test passed: No tenant_id error for embedded organization with sql_source")
 
 
 @pytest.mark.asyncio
@@ -165,7 +163,6 @@ async def test_smart_resolver_prefers_embedded_data():
     # Database should not be queried for embedded data
     mock_db.find_one.assert_not_called()
 
-    print("✓ Smart resolver correctly uses embedded data without querying sql_source")
 
 
 @pytest.mark.asyncio
@@ -230,7 +227,7 @@ async def test_smart_resolver_queries_when_no_embedded_data():
 
     # Should succeed - smart resolver queries when no embedded data
     if result.errors:
-        print(f"Errors: {result.errors}")
+        pass
 
     # Data should be fetched from database
     assert result.data is not None
@@ -243,7 +240,6 @@ async def test_smart_resolver_queries_when_no_embedded_data():
     assert call_args[0][0] == "departments"  # Table name
     assert "id" in call_args[1]  # Query parameters
 
-    print("✓ Smart resolver correctly queries sql_source when no embedded data")
 
 
 if __name__ == "__main__":

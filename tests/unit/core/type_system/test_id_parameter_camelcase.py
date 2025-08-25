@@ -63,9 +63,8 @@ class TestIdParameterWithCamelCase:
         assert user_field is not None
 
         # Print all arguments for debugging
-        print(f"User field arguments: {list(user_field.args.keys())}")
-        for arg_name, arg in user_field.args.items():
-            print(f"  - {arg_name}: {arg.type}")
+        for _arg_name, _arg in user_field.args.items():
+            pass
 
         # The GraphQL field should accept 'id' as argument
         assert "id" in user_field.args
@@ -74,7 +73,6 @@ class TestIdParameterWithCamelCase:
         search_field = query_type.fields.get("searchUsers")
         assert search_field is not None
 
-        print(f"SearchUsers field arguments: {list(search_field.args.keys())}")
 
         # Check if Python reserved keywords are handled
         assert "type" in search_field.args
@@ -114,15 +112,12 @@ class TestIdParameterWithCamelCase:
             context_value={"db": None},
         )
 
-        print(f"Result: {result}")
-        print(f"Data: {result.data}")
-        print(f"Errors: {result.errors}")
 
         # Check if we get the expected error
         if result.errors:
             error_msg = str(result.errors[0])
             if "unexpected keyword argument" in error_msg:
-                print(f"FOUND THE BUG: {error_msg}")
+                pass
                 # This confirms the issue - GraphQL passes 'id' but Python function expects 'id'
                 # and somehow there's a mismatch
 
@@ -158,13 +153,11 @@ class TestIdParameterWithCamelCase:
         }
         """
         result = graphql_sync(schema, introspection_query)
-        print(f"Introspection result: {result}")
 
         if result.data:
             query_type = result.data["__type"]
             for field in query_type["fields"]:
                 if field["name"] == "user":
-                    print(f"User field args: {field['args']}")
                     # Check what GraphQL sees
                     arg_names = [arg["name"] for arg in field["args"]]
                     assert "id" in arg_names, f"Expected 'id' in args, got {arg_names}"

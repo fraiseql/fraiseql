@@ -227,7 +227,7 @@ class TestFieldLimitThresholdEdgeCases:
         assert "SELECT data AS result" in sql_str
 
     @pytest.mark.parametrize(
-        "threshold,expected_mode",
+        ("threshold", "expected_mode"),
         [
             (10, "full_data"),  # 25 fields > 10 threshold
             (30, "jsonb_build"),  # 25 fields < 30 threshold

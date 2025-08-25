@@ -144,7 +144,6 @@ class TestJSONBTypeCoercionAdversarial:
         assert isinstance(nested["uuid_in_nested"], str)
         assert isinstance(nested["array_of_decimals"][0], float)  # Decimal -> float in arrays
 
-        print("✅ Kitchen sink test passed - all PostgreSQL types handled correctly")
 
     def test_sql_generator_with_complex_paths(self):
         """Test SQL generation with deeply nested and complex field paths."""
@@ -228,7 +227,6 @@ class TestJSONBTypeCoercionAdversarial:
         # Verify raw JSON output formatting
         assert "::text AS result" in sql_str
 
-        print("✅ Complex SQL path generation uses type-preserving operators")
 
     def test_graphql_response_structure_adversarial(self):
         """Test complex GraphQL response structures that might break serialization."""
@@ -420,9 +418,6 @@ class TestJSONBTypeCoercionAdversarial:
         assert isinstance(ext["cached"], bool)
         assert isinstance(ext["cache_hit_rate"], float)
 
-        print("✅ Complex nested GraphQL response preserves all types correctly")
-        print(f"   Verified {len(cluster['servers'])} servers with nested configs and metrics")
-        print("   All numeric fields preserved as numbers, not strings")
 
     def test_edge_case_json_structures(self):
         """Test edge cases that might break JSON serialization."""
@@ -524,7 +519,6 @@ class TestJSONBTypeCoercionAdversarial:
         assert isinstance(deep["array"], list)
         assert all(isinstance(x, int) for x in deep["array"])
 
-        print("✅ All edge case JSON structures handled correctly")
 
     def test_typescript_interface_compatibility(self):
         """Test that serialized data matches TypeScript interface expectations."""
@@ -634,11 +628,6 @@ class TestJSONBTypeCoercionAdversarial:
         # Verify null handling (TypeScript string | null)
         assert server["updatedAt"] is None, "null values must remain null, not become strings"
 
-        print("✅ All data matches TypeScript interface expectations")
-        print("   - All numeric fields are JavaScript numbers, not strings")
-        print("   - All boolean fields are JavaScript booleans, not strings")
-        print("   - All arrays contain correctly typed elements")
-        print("   - Null values remain null")
 
     def _create_deep_nested_object(self, depth: int) -> Dict[str, Any]:
         """Create a deeply nested object for testing."""
@@ -663,7 +652,6 @@ class TestJSONBTypeCoercionAdversarial:
 # Run adversarial tests manually if executed directly
 if __name__ == "__main__":
     test = TestJSONBTypeCoercionAdversarial()
-    print("🧪 Running adversarial JSONB type coercion tests...")
 
     try:
         test.test_postgresql_types_kitchen_sink()
@@ -672,9 +660,6 @@ if __name__ == "__main__":
         test.test_edge_case_json_structures()
         test.test_typescript_interface_compatibility()
 
-        print("\n🎉 ALL ADVERSARIAL TESTS PASSED!")
-        print("The JSONB type coercion fix handles all complex PostgreSQL types correctly.")
 
-    except Exception as e:
-        print(f"\n❌ ADVERSARIAL TEST FAILED: {e}")
+    except Exception:
         raise

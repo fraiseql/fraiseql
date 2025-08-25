@@ -108,15 +108,8 @@ class TestSubscriptionLifecycle:
         # Collect results
         messages = []
         async for item in result:
-            print(f"DEBUG: Got item: {item}")
-            print(
-                f"DEBUG: Item errors: "
-                f"{item.errors if hasattr(item, 'errors') else 'No errors attr'}"
-            )
-            print(f"DEBUG: Item data: {item.data if hasattr(item, 'data') else 'No data attr'}")
 
             if hasattr(item, "errors") and item.errors:
-                print(f"ERROR in subscription: {item.errors}")
                 raise AssertionError(f"Subscription error: {item.errors}")
 
             if hasattr(item, "data") and item.data:

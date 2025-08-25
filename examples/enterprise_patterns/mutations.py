@@ -33,6 +33,7 @@ from .models import (
 
 # Organization Management Mutations
 
+
 @mutation(function="app.create_organization")
 class CreateOrganization:
     """Create organization with enterprise validation.
@@ -44,6 +45,7 @@ class CreateOrganization:
     - Compliance checks for business registration
     - NOOP handling for duplicate organizations
     """
+
     input: CreateOrganizationInput
     success: CreateOrganizationSuccess
     error: CreateOrganizationError
@@ -51,6 +53,7 @@ class CreateOrganization:
 
 
 # User Management Mutations
+
 
 @mutation(function="app.create_user")
 class CreateUser:
@@ -67,6 +70,7 @@ class CreateUser:
     - User invitation already sent
     - Organization at user capacity
     """
+
     input: CreateUserInput
     success: CreateUserSuccess
     error: CreateUserError
@@ -74,6 +78,7 @@ class CreateUser:
 
 
 # Project Management Mutations
+
 
 @mutation(function="app.create_project")
 @requires_auth
@@ -93,6 +98,7 @@ class CreateProject:
     - Budget exceeds organizational limits
     - Required team members unavailable
     """
+
     input: CreateProjectInput
     success: CreateProjectSuccess
     error: CreateProjectError
@@ -118,6 +124,7 @@ class UpdateProject:
     - Status transition not allowed
     - Insufficient permissions for specific fields
     """
+
     input: UpdateProjectInput
     success: UpdateProjectSuccess
     error: UpdateProjectError
@@ -125,6 +132,7 @@ class UpdateProject:
 
 
 # Task Management Mutations
+
 
 @mutation(function="app.create_task")
 @requires_auth
@@ -150,6 +158,7 @@ class CreateTask:
     - Parent task already completed
     - Project in completed/cancelled status
     """
+
     input: CreateTaskInput
     success: CreateTaskSuccess
     error: CreateTaskError
@@ -157,6 +166,7 @@ class CreateTask:
 
 
 # Administrative Mutations
+
 
 @mutation(function="app.archive_organization")
 @requires_permission("admin")
@@ -174,6 +184,7 @@ class ArchiveOrganization:
     This demonstrates complex business logic with
     multiple entity coordination and compliance requirements.
     """
+
     organization_id: str  # UUID as string for GraphQL
     archive_reason: str
     transfer_data_to: Optional[str] = None  # UUID of receiving org
@@ -185,6 +196,7 @@ class ArchiveOrganization:
 
 
 # Bulk Operations
+
 
 @mutation(function="app.bulk_create_users")
 @requires_permission("user_admin")
@@ -203,6 +215,7 @@ class BulkCreateUsers:
     This demonstrates how enterprise patterns scale
     to bulk operations while maintaining data integrity.
     """
+
     users: list[CreateUserInput]
     send_welcome_emails: bool = True
     fail_on_any_error: bool = False  # vs. best-effort processing
@@ -214,6 +227,7 @@ class BulkCreateUsers:
 
 
 # Cross-Entity Operations
+
 
 @mutation(function="app.transfer_project")
 @requires_permission("project_admin")
@@ -238,6 +252,7 @@ class TransferProject:
     This demonstrates the most complex enterprise scenarios
     with multi-tenant considerations and compliance requirements.
     """
+
     project_id: str  # UUID
     destination_organization_id: str  # UUID
     transfer_team_members: bool = True

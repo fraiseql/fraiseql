@@ -138,7 +138,7 @@ class TestPassthroughMixinFix:
         assert repo._should_use_passthrough() is True
 
     @pytest.mark.parametrize(
-        "mode,json_pass,exec_mode,enabled_flag,expected",
+        ("mode", "json_pass", "exec_mode", "enabled_flag", "expected"),
         [
             # Production mode tests
             (

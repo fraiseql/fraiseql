@@ -279,7 +279,7 @@ class TestJSONPassthroughIntegration:
         prod_repo = FraiseQLRepository(db_pool, context={"mode": "production"})
         start = time.time()
         prod_articles = await prod_repo.find("test_articles_view")
-        prod_time = time.time() - start
+        time.time() - start
 
         # Measure JSON passthrough
         pass_repo = FraiseQLRepository(
@@ -296,10 +296,6 @@ class TestJSONPassthroughIntegration:
         assert len(pass_data["data"]["articles"]) == 1001
 
         # Log performance (passthrough should be fastest)
-        print("\nPerformance comparison:")
-        print(f"Development mode: {dev_time:.3f}s")
-        print(f"Production mode: {prod_time:.3f}s")
-        print(f"JSON passthrough: {pass_time:.3f}s")
 
         # JSON passthrough should be faster than object instantiation
         assert pass_time < dev_time

@@ -11,7 +11,6 @@ from fraiseql import fraise_field
 # So we'll skip the custom scalar test for now
 
 
-
 @pytest.mark.unit
 def test_basic_from_dict() -> None:
     """Test basic from_dict functionality with simple types."""

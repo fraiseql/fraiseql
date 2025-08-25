@@ -66,7 +66,7 @@ class TestIPv4MaskLength:
     """Test IPv4 netmask length calculation."""
 
     @pytest.mark.parametrize(
-        "netmask,expected_length",
+        ("netmask", "expected_length"),
         [
             ("255.255.255.255", 32),  # /32 - single host
             ("255.255.255.254", 31),  # /31 - point-to-point

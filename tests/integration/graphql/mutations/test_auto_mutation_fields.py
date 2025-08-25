@@ -18,6 +18,7 @@ class TestAutoMutationFields:
         @fraiseql.success
         class CreateUserSuccess:
             """Success response without explicit inheritance."""
+
             user: dict | None = None
 
         # Should have auto-injected standard fields
@@ -37,6 +38,7 @@ class TestAutoMutationFields:
         @fraiseql.failure
         class CreateUserError:
             """Error response without explicit inheritance."""
+
             conflict_user: dict | None = None
 
         # Should have auto-injected standard fields
@@ -68,10 +70,12 @@ class TestAutoMutationFields:
             "status": "success",
             "message": "Entity created successfully",
             "object_data": {"entity": {"id": "test-id", "name": "Test Entity"}},
-            "extra_metadata": {}
+            "extra_metadata": {},
         }
 
-        parsed_success = parse_mutation_result(success_result, TestSuccess, TestError, DEFAULT_ERROR_CONFIG)
+        parsed_success = parse_mutation_result(
+            success_result, TestSuccess, TestError, DEFAULT_ERROR_CONFIG
+        )
 
         # Should be success type with auto-populated fields
         assert isinstance(parsed_success, TestSuccess)
@@ -98,10 +102,12 @@ class TestAutoMutationFields:
             "status": "noop:already_exists",
             "message": "Entity already exists",
             "object_data": {"conflicting_entity": {"id": "existing-id", "name": "Existing Entity"}},
-            "extra_metadata": {"conflict_id": "existing-id"}
+            "extra_metadata": {"conflict_id": "existing-id"},
         }
 
-        parsed_error = parse_mutation_result(error_result, TestSuccess, TestError, DEFAULT_ERROR_CONFIG)
+        parsed_error = parse_mutation_result(
+            error_result, TestSuccess, TestError, DEFAULT_ERROR_CONFIG
+        )
 
         # Should be error type with auto-populated fields
         assert isinstance(parsed_error, TestError)

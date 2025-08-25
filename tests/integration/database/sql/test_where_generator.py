@@ -160,7 +160,8 @@ class TestBuildOperatorComposed:
         assert " IN (" in sql_str
         # Check for either boolean literals or string representation
         # The implementation may use either true/false or 'true'/'false'
-        assert "true" in sql_str.lower() and "false" in sql_str.lower()
+        assert "true" in sql_str.lower()
+        assert "false" in sql_str.lower()
 
     def test_in_operator_invalid_type(self):
         """Test IN operator with invalid type raises TypeError."""
@@ -182,7 +183,8 @@ class TestBuildOperatorComposed:
         sql_str = result.as_string(None)
         assert " NOT IN (" in sql_str
         # Check for either boolean literals or string representation
-        assert "true" in sql_str.lower() and "false" in sql_str.lower()
+        assert "true" in sql_str.lower()
+        assert "false" in sql_str.lower()
 
     def test_notin_operator_invalid_type(self):
         """Test NOT IN operator with invalid type raises TypeError."""

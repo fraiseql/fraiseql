@@ -5,7 +5,6 @@ generation bug where GraphQL filters were ignored in SQL queries.
 The bug has been fixed by integrating proper WHERE clause generation.
 """
 
-
 import pytest
 
 from fraiseql.cqrs.repository import CQRSRepository
@@ -157,7 +156,7 @@ class TestWhereClauseFix:
 
         # This test will be implemented once we have the fix
         # For now, just document the expected behavior
-        for case in test_cases:
+        for _case in test_cases:
             # TODO: Implement actual WHERE clause generation testing
             # when the fix is ready
             pass

@@ -1,10 +1,15 @@
 """
-Integration tests for blog_simple example running from main test suite.
+Integration tests for blog_simple example with smart dependency management.
 
-These tests ensure the blog_simple example works correctly and catches regressions.
+These tests run with automatically installed dependencies and smart database setup,
+providing full validation of the blog_simple example functionality.
 """
 
+import logging
 import pytest
+
+# Setup logging for integration tests
+logger = logging.getLogger(__name__)
 
 # Mark all tests as example integration tests
 pytestmark = [
@@ -15,15 +20,30 @@ pytestmark = [
 ]
 
 
+@pytest.mark.asyncio  
+async def test_smart_dependencies_available(smart_dependencies):
+    """Test that smart dependency management successfully provides all required dependencies."""
+    # Verify that smart dependencies fixture provided dependency information
+    assert smart_dependencies is not None
+    assert 'dependency_results' in smart_dependencies
+    assert 'environment' in smart_dependencies
+    
+    # Verify all critical dependencies are available
+    import fraiseql, httpx, psycopg, fastapi
+    logger.info("All smart dependencies validated in integration test")
+
+
 @pytest.mark.asyncio
 async def test_blog_simple_app_health(blog_simple_client):
     """Test that blog_simple app starts up and responds to health checks."""
+    logger.info("Testing blog_simple app health endpoint")
     response = await blog_simple_client.get("/health")
     assert response.status_code == 200
 
     data = response.json()
     assert data["status"] == "healthy"
     assert data["service"] == "blog_simple"
+    logger.info("Blog simple health check passed")
 
 
 @pytest.mark.asyncio

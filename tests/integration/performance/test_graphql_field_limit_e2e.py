@@ -215,9 +215,8 @@ class TestGraphQLFieldLimitE2E:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_field_limit), base_url="http://test"
         ) as client:
-            simple_response = await client.post("/graphql", json={"query": simple_query})
+            await client.post("/graphql", json={"query": simple_query})
 
-        print(f"Simple query response: {simple_response.json()}")
 
         # Query requesting ALL fields
         query = """
@@ -281,7 +280,7 @@ class TestGraphQLFieldLimitE2E:
 
         # Check for errors
         if "errors" in data:
-            print(f"GraphQL errors: {data['errors']}")
+            pass
 
         # Should successfully return data despite exceeding field limit
         assert "data" in data
