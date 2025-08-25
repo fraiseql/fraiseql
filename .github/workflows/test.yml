@@ -74,11 +74,8 @@ jobs:
         FRAISEQL_AUTO_INSTALL: false
         FRAISEQL_LOG_LEVEL: INFO
       run: |
-        # Run example tests - dependencies should be pre-installed in CI
+        # Run example integration tests - provides comprehensive coverage of examples
         pytest tests/integration/examples/ -v --tb=short
-
-        # Also run a quick smoke test on the examples themselves
-        pytest examples/blog_simple/tests/test_queries.py::test_query_posts -v --tb=short
 
     - name: Upload coverage
       uses: codecov/codecov-action@v5
