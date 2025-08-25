@@ -25,7 +25,7 @@ class TestDefaultErrorType:
         assert expected_fields.issubset(field_names)
 
     def test_error_type_can_be_instantiated(self):
-        """Test that default Error type works like PrintOptim's custom one."""
+        """Test that default Error type works like FraiseQL's custom one."""
         from fraiseql import Error
 
         error = Error(
@@ -59,7 +59,7 @@ class TestDefaultMutationResultBase:
 
         assert hasattr(MutationResultBase, "__fraiseql_definition__")
 
-        # Should have standard fields from PrintOptim pattern
+        # Should have standard fields from FraiseQL pattern
         definition = MutationResultBase.__fraiseql_definition__
         field_names = set(definition.fields.keys())
 
@@ -104,9 +104,9 @@ class TestDefaultMutationResultBase:
 
 
 class TestImprovedDefaultErrorConfig:
-    """Test that DEFAULT_ERROR_CONFIG is more PrintOptim-friendly."""
+    """Test that DEFAULT_ERROR_CONFIG is more FraiseQL-friendly."""
 
-    def test_default_error_config_includes_printoptim_patterns(self):
+    def test_default_error_config_includes_fraiseql_patterns(self):
         """Test that default config handles noop: and blocked: as data."""
         from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 
@@ -155,7 +155,7 @@ class TestImprovedDefaultErrorConfig:
 
 
 class TestPlugAndPlayIntegration:
-    """Test that PrintOptim patterns work with minimal configuration."""
+    """Test that FraiseQL patterns work with minimal configuration."""
 
     def test_simple_mutation_with_defaults(self):
         """Test creating a mutation using only FraiseQL defaults."""
@@ -190,7 +190,7 @@ class TestPlugAndPlayIntegration:
         """Test that @mutation decorator uses improved defaults."""
         from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 
-        # The improved defaults should handle PrintOptim patterns
+        # The improved defaults should handle FraiseQL patterns
         assert "noop:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
         assert "blocked:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
         assert "duplicate:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes

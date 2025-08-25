@@ -283,8 +283,10 @@ def create_fraiseql_app(
         )
 
     # Build GraphQL schema
+    # Combine both types and queries - types define GraphQL types, queries define query functions
+    all_query_types = list(types) + list(queries)
     schema = build_fraiseql_schema(
-        query_types=list(queries) or list(types),
+        query_types=all_query_types,
         mutation_resolvers=list(mutations),
         camel_case_fields=config.auto_camel_case,
     )

@@ -183,7 +183,7 @@ SELECT turbo.fn_get_cached_response(
 -- 3. OR rebuilds from table views and caches (< 5ms first time)
 ```
 
-### Real Implementation Example (from PrintOptim)
+### Real Implementation Example (from FraiseQL)
 
 ```python
 # TurboRouter query registration from actual system

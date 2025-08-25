@@ -1,4 +1,4 @@
-"""Test to replicate the query timeout bug reported in PrintOptim backend."""
+"""Test to replicate the query timeout bug reported in FraiseQL backend."""
 
 from unittest.mock import AsyncMock, MagicMock
 

@@ -4,6 +4,13 @@
 -- Disable RLS for seeding
 SET row_security = off;
 
+-- Clean existing seed data to allow re-running
+DELETE FROM comments WHERE id IN ('71111111-1111-1111-1111-111111111111', '72222222-2222-2222-2222-222222222222', '73333333-3333-3333-3333-333333333333', '74444444-4444-4444-4444-444444444444', '75555555-5555-5555-5555-555555555555', '76666666-6666-6666-6666-666666666666');
+DELETE FROM post_tags WHERE post_id IN ('61111111-1111-1111-1111-111111111111', '62222222-2222-2222-2222-222222222222', '63333333-3333-3333-3333-333333333333', '64444444-4444-4444-4444-444444444444');
+DELETE FROM posts WHERE id IN ('61111111-1111-1111-1111-111111111111', '62222222-2222-2222-2222-222222222222', '63333333-3333-3333-3333-333333333333', '64444444-4444-4444-4444-444444444444');
+DELETE FROM tags WHERE id IN ('51111111-1111-1111-1111-111111111111', '52222222-2222-2222-2222-222222222222', '53333333-3333-3333-3333-333333333333', '54444444-4444-4444-4444-444444444444', '55555555-5555-5555-5555-555555555555', '56666666-6666-6666-6666-666666666666');
+DELETE FROM users WHERE id IN ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444');
+
 -- Insert sample users
 INSERT INTO users (id, username, email, password_hash, role, profile_data) VALUES
 (
@@ -42,42 +49,42 @@ INSERT INTO users (id, username, email, password_hash, role, profile_data) VALUE
 -- Insert sample tags
 INSERT INTO tags (id, name, slug, color, description) VALUES
 (
-    'tag11111-1111-1111-1111-111111111111',
+    '51111111-1111-1111-1111-111111111111',
     'GraphQL',
     'graphql',
     '#E10098',
     'GraphQL API development and best practices'
 ),
 (
-    'tag22222-2222-2222-2222-222222222222',
+    '52222222-2222-2222-2222-222222222222',
     'PostgreSQL',
     'postgresql',
     '#336791',
     'PostgreSQL database tips and techniques'
 ),
 (
-    'tag33333-3333-3333-3333-333333333333',
+    '53333333-3333-3333-3333-333333333333',
     'FraiseQL',
     'fraiseql',
     '#6366f1',
     'FraiseQL framework tutorials and examples'
 ),
 (
-    'tag44444-4444-4444-4444-444444444444',
+    '54444444-4444-4444-4444-444444444444',
     'Web Development',
     'web-development',
     '#f59e0b',
     'General web development topics'
 ),
 (
-    'tag55555-5555-5555-5555-555555555555',
+    '55555555-5555-5555-5555-555555555555',
     'Python',
     'python',
     '#3776ab',
     'Python programming language'
 ),
 (
-    'tag66666-6666-6666-6666-666666666666',
+    '56666666-6666-6666-6666-666666666666',
     'FastAPI',
     'fastapi',
     '#009688',
@@ -87,7 +94,7 @@ INSERT INTO tags (id, name, slug, color, description) VALUES
 -- Insert sample posts
 INSERT INTO posts (id, title, slug, content, excerpt, author_id, status, published_at) VALUES
 (
-    'post1111-1111-1111-1111-111111111111',
+    '61111111-1111-1111-1111-111111111111',
     'Getting Started with FraiseQL',
     'getting-started-with-fraiseql',
     'FraiseQL is a powerful framework for building GraphQL APIs with PostgreSQL. In this comprehensive guide, we''ll explore how to create your first FraiseQL application.
@@ -144,7 +151,7 @@ Happy coding!',
     NOW() - INTERVAL '2 days'
 ),
 (
-    'post2222-2222-2222-2222-222222222222',
+    '62222222-2222-2222-2222-222222222222',
     'Advanced PostgreSQL Patterns in FraiseQL',
     'advanced-postgresql-patterns-in-fraiseql',
     'PostgreSQL is more than just a database - it''s a powerful platform for building robust applications. In this article, we''ll explore advanced patterns that make FraiseQL applications shine.
@@ -216,7 +223,7 @@ These patterns form the foundation of scalable, secure FraiseQL applications.',
     NOW() - INTERVAL '1 day'
 ),
 (
-    'post3333-3333-3333-3333-333333333333',
+    '63333333-3333-3333-3333-333333333333',
     'Building Reactive UIs with GraphQL Subscriptions',
     'building-reactive-uis-with-graphql-subscriptions',
     'Real-time updates are essential for modern web applications. FraiseQL makes it easy to implement GraphQL subscriptions for reactive user interfaces.
@@ -297,7 +304,7 @@ Start building reactive applications today with FraiseQL subscriptions!',
     NOW() - INTERVAL '6 hours'
 ),
 (
-    'post4444-4444-4444-4444-444444444444',
+    '64444444-4444-4444-4444-444444444444',
     'FraiseQL vs Other GraphQL Frameworks',
     'fraiseql-vs-other-graphql-frameworks',
     'Choosing the right GraphQL framework is crucial for project success. Let''s compare FraiseQL with other popular options and understand when to choose each.
@@ -388,66 +395,66 @@ Each framework has its place - choose based on your specific needs and constrain
 -- Insert post-tag relationships
 INSERT INTO post_tags (post_id, tag_id) VALUES
 -- Getting Started with FraiseQL
-('post1111-1111-1111-1111-111111111111', 'tag11111-1111-1111-1111-111111111111'), -- GraphQL
-('post1111-1111-1111-1111-111111111111', 'tag33333-3333-3333-3333-333333333333'), -- FraiseQL
-('post1111-1111-1111-1111-111111111111', 'tag44444-4444-4444-4444-444444444444'), -- Web Development
+('61111111-1111-1111-1111-111111111111', '51111111-1111-1111-1111-111111111111'), -- GraphQL
+('61111111-1111-1111-1111-111111111111', '53333333-3333-3333-3333-333333333333'), -- FraiseQL
+('61111111-1111-1111-1111-111111111111', '54444444-4444-4444-4444-444444444444'), -- Web Development
 
 -- Advanced PostgreSQL Patterns
-('post2222-2222-2222-2222-222222222222', 'tag22222-2222-2222-2222-222222222222'), -- PostgreSQL
-('post2222-2222-2222-2222-222222222222', 'tag33333-3333-3333-3333-333333333333'), -- FraiseQL
-('post2222-2222-2222-2222-222222222222', 'tag55555-5555-5555-5555-555555555555'), -- Python
+('62222222-2222-2222-2222-222222222222', '52222222-2222-2222-2222-222222222222'), -- PostgreSQL
+('62222222-2222-2222-2222-222222222222', '53333333-3333-3333-3333-333333333333'), -- FraiseQL
+('62222222-2222-2222-2222-222222222222', '55555555-5555-5555-5555-555555555555'), -- Python
 
 -- Building Reactive UIs
-('post3333-3333-3333-3333-333333333333', 'tag11111-1111-1111-1111-111111111111'), -- GraphQL
-('post3333-3333-3333-3333-333333333333', 'tag33333-3333-3333-3333-333333333333'), -- FraiseQL
-('post3333-3333-3333-3333-333333333333', 'tag44444-4444-4444-4444-444444444444'), -- Web Development
+('63333333-3333-3333-3333-333333333333', '51111111-1111-1111-1111-111111111111'), -- GraphQL
+('63333333-3333-3333-3333-333333333333', '53333333-3333-3333-3333-333333333333'), -- FraiseQL
+('63333333-3333-3333-3333-333333333333', '54444444-4444-4444-4444-444444444444'), -- Web Development
 
 -- FraiseQL vs Other Frameworks
-('post4444-4444-4444-4444-444444444444', 'tag11111-1111-1111-1111-111111111111'), -- GraphQL
-('post4444-4444-4444-4444-444444444444', 'tag33333-3333-3333-3333-333333333333'), -- FraiseQL
-('post4444-4444-4444-4444-444444444444', 'tag55555-5555-5555-5555-555555555555'); -- Python
+('64444444-4444-4444-4444-444444444444', '51111111-1111-1111-1111-111111111111'), -- GraphQL
+('64444444-4444-4444-4444-444444444444', '53333333-3333-3333-3333-333333333333'), -- FraiseQL
+('64444444-4444-4444-4444-444444444444', '55555555-5555-5555-5555-555555555555'); -- Python
 
 -- Insert sample comments
 INSERT INTO comments (id, post_id, author_id, content, status) VALUES
 (
-    'comm1111-1111-1111-1111-111111111111',
-    'post1111-1111-1111-1111-111111111111',
+    '71111111-1111-1111-1111-111111111111',
+    '61111111-1111-1111-1111-111111111111',
     '44444444-4444-4444-4444-444444444444',
     'Great introduction to FraiseQL! I''ve been looking for a GraphQL framework that works well with PostgreSQL. The database-first approach really appeals to me.',
     'approved'
 ),
 (
-    'comm2222-2222-2222-2222-222222222222',
-    'post1111-1111-1111-1111-111111111111',
+    '72222222-2222-2222-2222-222222222222',
+    '61111111-1111-1111-1111-111111111111',
     '33333333-3333-3333-3333-333333333333',
     'Thanks for this tutorial! One question - how does FraiseQL handle complex joins and relationships? Looking forward to more advanced examples.',
     'approved'
 ),
 (
-    'comm3333-3333-3333-3333-333333333333',
-    'post1111-1111-1111-1111-111111111111',
+    '73333333-3333-3333-3333-333333333333',
+    '61111111-1111-1111-1111-111111111111',
     '22222222-2222-2222-2222-222222222222',
     '@janedoe Great question! FraiseQL handles relationships through field resolvers and can optimize joins automatically. I''ll cover this in detail in an upcoming post.',
     'approved'
 ),
 (
-    'comm4444-4444-4444-4444-444444444444',
-    'post2222-2222-2222-2222-222222222222',
+    '74444444-4444-4444-4444-444444444444',
+    '62222222-2222-2222-2222-222222222222',
     '44444444-4444-4444-4444-444444444444',
     'The JSONB examples are really helpful. I didn''t realize PostgreSQL could be so flexible while maintaining relational integrity.',
     'approved'
 ),
 (
-    'comm5555-5555-5555-5555-555555555555',
-    'post3333-3333-3333-3333-333333333333',
+    '75555555-5555-5555-5555-555555555555',
+    '63333333-3333-3333-3333-333333333333',
     '22222222-2222-2222-2222-222222222222',
     'Subscriptions are such a powerful feature. The WebSocket integration looks seamless. Can''t wait to try this in my next project!',
     'approved'
 ),
 -- Nested comment (reply)
 (
-    'comm6666-6666-6666-6666-666666666666',
-    'post3333-3333-3333-3333-333333333333',
+    '76666666-6666-6666-6666-666666666666',
+    '63333333-3333-3333-3333-333333333333',
     '33333333-3333-3333-3333-333333333333',
     '@johndoe Definitely give it a try! The real-time updates make such a difference for user experience. Let me know if you run into any issues.',
     'approved'
@@ -455,8 +462,8 @@ INSERT INTO comments (id, post_id, author_id, content, status) VALUES
 
 -- Update the reply to have the correct parent_id
 UPDATE comments
-SET parent_id = 'comm5555-5555-5555-5555-555555555555'
-WHERE id = 'comm6666-6666-6666-6666-666666666666';
+SET parent_id = '75555555-5555-5555-5555-555555555555'
+WHERE id = '76666666-6666-6666-6666-666666666666';
 
 -- Re-enable RLS
 SET row_security = on;

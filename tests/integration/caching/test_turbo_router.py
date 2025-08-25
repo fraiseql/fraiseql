@@ -483,7 +483,7 @@ class TestTurboRouter:
         }
         """
 
-        # SQL that returns a pre-wrapped GraphQL response (like PrintOptim Backend does)
+        # SQL that returns a pre-wrapped GraphQL response (like FraiseQL Backend does)
         sql_template = """
         SELECT jsonb_build_object(
             'data', jsonb_build_object(

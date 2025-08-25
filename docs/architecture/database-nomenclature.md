@@ -301,4 +301,4 @@ CREATE INDEX idx_tv_order_search ON tv_order USING gin(search_vector);
 
 ---
 
-*Version: 2.0.0 | Based on PrintOptim Database Manifesto v3.0*
+*Version: 2.0.0 | Based on FraiseQL Database Manifesto v3.0*

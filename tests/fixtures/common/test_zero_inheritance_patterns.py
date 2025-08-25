@@ -1,4 +1,4 @@
-"""Test that FraiseQL now works with zero inheritance for PrintOptim patterns."""
+"""Test that FraiseQL now works with zero inheritance for FraiseQL patterns."""
 
 import uuid
 from typing import Any
@@ -12,12 +12,12 @@ from fraiseql.mutations.parser import parse_mutation_result
 
 @pytest.mark.integration
 class TestZeroInheritancePatterns:
-    """Test that PrintOptim patterns work without any inheritance at all."""
+    """Test that FraiseQL patterns work without any inheritance at all."""
 
     def test_completely_clean_mutation_definitions(self):
         """Test the cleanest possible mutation definitions."""
 
-        # This is now the complete PrintOptim pattern - no inheritance needed!
+        # This is now the complete FraiseQL pattern - no inheritance needed!
         @fraiseql.input
         class CreateContractInput:
             name: str
@@ -43,8 +43,8 @@ class TestZeroInheritancePatterns:
         assert "contract" in success_fields
         assert "conflict_contract" in error_fields
 
-    def test_zero_config_printoptim_workflow(self):
-        """Test complete PrintOptim workflow with zero custom configuration."""
+    def test_zero_config_fraiseql_workflow(self):
+        """Test complete FraiseQL workflow with zero custom configuration."""
 
         @fraiseql.input
         class UpdateUserInput:
@@ -60,7 +60,7 @@ class TestZeroInheritancePatterns:
             conflict_user: dict | None = None
             validation_errors: list[str] | None = None
 
-        # Test all PrintOptim status patterns work out-of-the-box
+        # Test all FraiseQL status patterns work out-of-the-box
         test_cases = [
             # Success patterns
             {
@@ -75,7 +75,7 @@ class TestZeroInheritancePatterns:
             {
                 "id": str(uuid.uuid4()),
                 "updated_fields": [],
-                "status": "created",  # PrintOptim pattern
+                "status": "created",  # FraiseQL pattern
                 "message": "User created",
                 "object_data": {"user": {"id": "new-user", "email": "new@example.com"}},
                 "extra_metadata": {},
@@ -85,7 +85,7 @@ class TestZeroInheritancePatterns:
             {
                 "id": str(uuid.uuid4()),
                 "updated_fields": [],
-                "status": "noop:already_exists",  # PrintOptim pattern
+                "status": "noop:already_exists",  # FraiseQL pattern
                 "message": "User already exists",
                 "object_data": {
                     "conflicting_user": {"id": "existing", "email": "test@example.com"}
@@ -96,7 +96,7 @@ class TestZeroInheritancePatterns:
             {
                 "id": str(uuid.uuid4()),
                 "updated_fields": [],
-                "status": "blocked:children",  # PrintOptim pattern
+                "status": "blocked:children",  # FraiseQL pattern
                 "message": "User has dependent records",
                 "object_data": {},
                 "extra_metadata": {"dependent_count": 5},
@@ -105,7 +105,7 @@ class TestZeroInheritancePatterns:
             {
                 "id": str(uuid.uuid4()),
                 "updated_fields": [],
-                "status": "duplicate:email",  # PrintOptim pattern
+                "status": "duplicate:email",  # FraiseQL pattern
                 "message": "Email already in use",
                 "object_data": {},
                 "extra_metadata": {"duplicate_field": "email"},
@@ -121,7 +121,7 @@ class TestZeroInheritancePatterns:
                 test_case,
                 UpdateUserSuccess,
                 UpdateUserError,
-                DEFAULT_ERROR_CONFIG,  # Enhanced for PrintOptim
+                DEFAULT_ERROR_CONFIG,  # Enhanced for FraiseQL
             )
 
             # Should return the expected type
@@ -181,8 +181,8 @@ class TestZeroInheritancePatterns:
         assert {"status", "message", "errors", "user"}.issubset(old_fields)
         assert {"status", "message", "errors", "user"}.issubset(new_fields)
 
-    def test_works_with_complex_printoptim_mutations(self):
-        """Test that complex PrintOptim mutation patterns work seamlessly."""
+    def test_works_with_complex_fraiseql_mutations(self):
+        """Test that complex FraiseQL mutation patterns work seamlessly."""
 
         @fraiseql.input
         class CreateOrderInput:

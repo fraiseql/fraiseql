@@ -1,4 +1,4 @@
-"""Enterprise patterns models demonstrating all PrintOptim patterns."""
+"""Enterprise patterns models demonstrating all FraiseQL enterprise patterns."""
 
 from datetime import datetime
 from decimal import Decimal

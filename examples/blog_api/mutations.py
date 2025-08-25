@@ -1,4 +1,4 @@
-"""Blog API mutations demonstrating PrintOptim patterns.
+"""Blog API mutations demonstrating FraiseQL enterprise patterns.
 
 This example showcases enterprise-grade patterns:
 - Mutation Result Pattern for standardized responses
@@ -259,7 +259,7 @@ async def delete_post(info, id: UUID) -> bool:
 
 
 # Enterprise Pattern Examples
-# These demonstrate the new PrintOptim mutation patterns
+# These demonstrate the new FraiseQL enterprise mutation patterns
 
 
 @mutation(function="app.create_post")  # Uses app/core split

@@ -151,7 +151,7 @@ class MutationDefinition:
             # Return the parsed result directly - let GraphQL handle object resolution
             # Serialization will be handled at the JSON encoding stage
 
-            # DEBUG: Check if errors field is being set correctly for PrintOptim compatibility
+            # DEBUG: Check if errors field is being set correctly for enterprise compatibility
             if hasattr(parsed_result, "errors") and hasattr(parsed_result, "__class__"):
                 class_name = parsed_result.__class__.__name__
                 errors_value = parsed_result.errors

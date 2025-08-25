@@ -703,7 +703,7 @@ graph LR
 
 ### Real-World Implementation
 
-From the PrintOptim system:
+From the FraiseQL system:
 
 ```python
 # 1. Load queries from database with cache-enabled SQL templates

@@ -53,10 +53,10 @@ class EnvironmentConfig:
     max_parallel_installs: int
     database_strategy: str
     logging_level: str
-    
+
     # Timeout configurations
     dependency_install_timeout: int = 300
-    database_setup_timeout: int = 120  
+    database_setup_timeout: int = 120
     test_execution_timeout: int = 60
 
 
@@ -113,14 +113,14 @@ class EnvironmentDetector:
             'APPVEYOR',
             'DRONE'
         ]
-        
+
         return any(indicator in os.environ for indicator in ci_indicators)
 
     def _detect_server_environment(self) -> Environment:
         """Detect server environment based on various indicators."""
         # Check hostname patterns
         hostname = socket.gethostname().lower()
-        
+
         if any(pattern in hostname for pattern in ['dev', 'development']):
             return Environment.DEV
         elif any(pattern in hostname for pattern in ['staging', 'stage']):
@@ -160,14 +160,14 @@ class EnvironmentDetector:
         """Detect performance capabilities of current environment."""
         # Check CPU count
         cpu_count = os.cpu_count() or 1
-        
+
         # Check available memory (approximate)
         available_memory = self._get_available_memory_gb()
-        
+
         # CI environments are typically well-resourced
         if self.detect_environment() == Environment.CI:
             return PerformanceProfile.HIGH
-        
+
         # Performance classification based on resources
         if cpu_count >= 8 and available_memory >= 16:
             return PerformanceProfile.HIGH
@@ -191,14 +191,14 @@ class EnvironmentDetector:
                             kb = int(line.split()[1])
                             return kb / 1024 / 1024 * 0.8  # Assume 80% available
             elif platform.system() == "Darwin":  # macOS
-                result = subprocess.run(['sysctl', 'hw.memsize'], 
+                result = subprocess.run(['sysctl', 'hw.memsize'],
                                       capture_output=True, text=True)
                 if result.returncode == 0:
                     bytes_mem = int(result.stdout.split()[1])
                     return bytes_mem / 1024 / 1024 / 1024
         except:
             pass
-        
+
         # Default assumption
         return 8.0
 
@@ -209,7 +209,7 @@ class EnvironmentDetector:
 
         environment = self.detect_environment()
         performance = self.detect_performance_profile()
-        
+
         # Base configurations per environment
         configs = {
             Environment.LOCAL: EnvironmentConfig(
@@ -231,7 +231,7 @@ class EnvironmentDetector:
                 use_database_templates=True,
                 parallel_execution=True,
                 timeout_multiplier=1.5,
-                cache_duration=1800,  # 30 minutes  
+                cache_duration=1800,  # 30 minutes
                 max_parallel_installs=6,
                 database_strategy="template_clone",
                 logging_level="INFO"
@@ -245,7 +245,7 @@ class EnvironmentDetector:
                 timeout_multiplier=1.5,
                 cache_duration=1800,
                 max_parallel_installs=3,
-                database_strategy="reuse_existing", 
+                database_strategy="reuse_existing",
                 logging_level="DEBUG"
             ),
             Environment.STAGING: EnvironmentConfig(
@@ -273,9 +273,9 @@ class EnvironmentDetector:
                 logging_level="ERROR"
             )
         }
-        
+
         base_config = configs.get(environment, configs[Environment.LOCAL])
-        
+
         # Apply performance profile adjustments
         if performance == PerformanceProfile.CONSTRAINED:
             base_config.parallel_execution = False
@@ -283,10 +283,10 @@ class EnvironmentDetector:
             base_config.timeout_multiplier *= 2
         elif performance == PerformanceProfile.HIGH:
             base_config.max_parallel_installs = min(8, base_config.max_parallel_installs * 2)
-        
+
         # Apply environment variable overrides
         base_config = self._apply_env_overrides(base_config)
-        
+
         self._cached_config = base_config
         return base_config
 
@@ -295,26 +295,26 @@ class EnvironmentDetector:
         # Auto-install override
         if os.getenv('FRAISEQL_AUTO_INSTALL'):
             config.auto_install_dependencies = os.getenv('FRAISEQL_AUTO_INSTALL').lower() in ['true', '1', 'yes']
-        
+
         # Database strategy override
         if os.getenv('FRAISEQL_DATABASE_STRATEGY'):
             config.database_strategy = os.getenv('FRAISEQL_DATABASE_STRATEGY')
-        
+
         # Timeout multiplier override
         if os.getenv('FRAISEQL_TIMEOUT_MULTIPLIER'):
             try:
                 config.timeout_multiplier = float(os.getenv('FRAISEQL_TIMEOUT_MULTIPLIER'))
             except ValueError:
                 pass
-        
+
         # Parallel execution override
         if os.getenv('FRAISEQL_PARALLEL_EXECUTION'):
             config.parallel_execution = os.getenv('FRAISEQL_PARALLEL_EXECUTION').lower() in ['true', '1', 'yes']
-        
+
         # Logging level override
         if os.getenv('FRAISEQL_LOG_LEVEL'):
             config.logging_level = os.getenv('FRAISEQL_LOG_LEVEL').upper()
-        
+
         return config
 
     def should_auto_install(self) -> bool:
@@ -329,7 +329,7 @@ class EnvironmentDetector:
         """Get timeout configuration for current environment."""
         config = self.get_environment_config()
         multiplier = config.timeout_multiplier
-        
+
         return {
             'dependency_install': int(config.dependency_install_timeout * multiplier),
             'database_setup': int(config.database_setup_timeout * multiplier),
@@ -339,7 +339,7 @@ class EnvironmentDetector:
     def get_resource_limits(self) -> Dict[str, int]:
         """Get resource limits for current environment."""
         config = self.get_environment_config()
-        
+
         return {
             'max_parallel_installs': config.max_parallel_installs,
             'max_parallel_tests': config.max_parallel_installs,  # Same as installs for now
@@ -359,7 +359,7 @@ class EnvironmentDetector:
     def get_debug_info(self) -> Dict[str, Any]:
         """Get debugging information about environment detection."""
         config = self.get_environment_config()
-        
+
         return {
             'detected_environment': self.detect_environment().value,
             'performance_profile': self.detect_performance_profile().value,

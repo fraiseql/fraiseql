@@ -52,9 +52,9 @@ class TestPsycopg2ToUrl:
 
     def test_real_world_example(self) -> None:
         """Test real-world example from user."""
-        conn_str = "dbname='printoptim_db_local' user='lionel' host='localhost'"
+        conn_str = "dbname='fraiseql_db_local' user='lionel' host='localhost'"
         result = psycopg2_to_url(conn_str)
-        assert result == "postgresql://lionel@localhost:5432/printoptim_db_local"
+        assert result == "postgresql://lionel@localhost:5432/fraiseql_db_local"
 
     def test_defaults(self) -> None:
         """Test with minimal connection string."""

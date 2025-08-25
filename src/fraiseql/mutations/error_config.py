@@ -125,8 +125,8 @@ DEFAULT_ERROR_CONFIG = MutationErrorConfig(
         "updated",
         "deleted",
         "synced",
-        "created",  # Added for PrintOptim compatibility
-        "cancelled",  # Added for PrintOptim compatibility
+        "created",  # Added for enterprise compatibility
+        "cancelled",  # Added for enterprise compatibility
     },
     error_prefixes={
         "error:",
@@ -143,7 +143,7 @@ DEFAULT_ERROR_CONFIG = MutationErrorConfig(
         "blocked:",
         "skipped:",
         "ignored:",
-        "duplicate:",  # Added for PrintOptim compatibility - duplicate entries
+        "duplicate:",  # Added for enterprise compatibility - duplicate entries
     },
 )
 
@@ -173,7 +173,7 @@ STRICT_STATUS_CONFIG = MutationErrorConfig(
 )
 
 # Legacy configuration for always returning errors as data (deprecated)
-# Use DEFAULT_ERROR_CONFIG instead which handles PrintOptim patterns better
+# Use DEFAULT_ERROR_CONFIG instead which handles enterprise patterns better
 ALWAYS_DATA_CONFIG = MutationErrorConfig(
     always_return_as_data=True,
 )

@@ -589,6 +589,12 @@ tracing = [
     { name = "wrapt" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=25.0.1" },
@@ -651,6 +657,12 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'tracing'", specifier = ">=1.16.0" },
 ]
 provides-extras = ["dev", "auth0", "docs", "tracing", "redis", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.4.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+]
 
 [[package]]
 name = "ghp-import"

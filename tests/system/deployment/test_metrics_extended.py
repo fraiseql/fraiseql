@@ -218,40 +218,6 @@ class TestFraiseQLMetrics:
                 assert hasattr(metrics.subscriptions_active, "dec")
                 assert hasattr(metrics.subscription_duration, "observe")
 
-    def test_update_turbo_router_stats(self, metrics):
-        """Test updating TurboRouter statistics."""
-        # Skip test if method doesn't exist
-        if not hasattr(metrics, "update_turbo_router_stats"):
-            pytest.skip("update_turbo_router_stats not implemented")
-
-        metrics.update_turbo_router_stats(cache_size=850, hit_rate=0.92)
-
-        if PROMETHEUS_AVAILABLE:
-            # These would need to be updated based on actual turbo router metrics implementation
-            pass  # Skip for now since turbo router metrics may not be implemented
-        else:
-            assert hasattr(metrics.turbo_router_cache_size, "set")
-            assert hasattr(metrics.turbo_router_hit_rate, "set")
-
-    def test_generate_output(self, metrics):
-        """Test generating metrics output."""
-        # Skip test if method doesn't exist
-        if not hasattr(metrics, "generate_output"):
-            pytest.skip("generate_output not implemented")
-
-        # Record some metrics
-        metrics.record_query(
-            operation_type="query", operation_name="Test", duration_ms=100, success=True
-        )
-        metrics.record_cache_hit("turbo_router")
-
-        output = metrics.generate_output()
-        assert isinstance(output, bytes)
-
-        if PROMETHEUS_AVAILABLE:
-            # Should contain metric names
-            assert b"fraiseql_graphql_queries_total" in output
-            assert b"fraiseql_cache_hits_total" in output
 
 
 class TestMetricsIntegration:

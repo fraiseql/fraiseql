@@ -52,7 +52,7 @@ docker-compose up -d
 
 **The definitive reference for production-ready enterprise applications.**
 
-A comprehensive showcase of all PrintOptim Backend patterns:
+A comprehensive showcase of all FraiseQL enterprise patterns:
 
 - **Mutation Result Pattern**: Standardized success/error/noop responses with audit metadata
 - **NOOP Handling**: Graceful handling of edge cases and business rule violations

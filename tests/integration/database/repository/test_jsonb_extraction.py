@@ -497,10 +497,10 @@ class TestJSONBExtractionIntegration:
     """Integration tests for JSONB extraction with real-like scenarios."""
 
     @pytest.mark.asyncio
-    async def test_printoptim_like_scenario(self, db_pool):
-        """Test scenario similar to PrintOptim's use case."""
+    async def test_fraiseql_like_scenario(self, db_pool):
+        """Test scenario similar to FraiseQL's use case."""
 
-        # Define a Machine type like PrintOptim uses
+        # Define a Machine type like FraiseQL uses
         @fraiseql.type(sql_source="tv_machine", jsonb_column="data")
         class Machine:
             id: str
@@ -511,7 +511,7 @@ class TestJSONBExtractionIntegration:
 
         register_type_for_view("tv_machine", Machine)
 
-        # Create table with PrintOptim-like structure
+        # Create table with FraiseQL-like structure
         async with db_pool.connection() as setup_conn:
             await setup_conn.execute("""
                 CREATE TABLE IF NOT EXISTS tv_machine (

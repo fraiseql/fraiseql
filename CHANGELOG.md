@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] - 2025-08-23
 
-### 🚀 **Major Release: Ultimate PrintOptim Integration & Zero-Inheritance Pattern**
+### 🚀 **Major Release: Ultimate FraiseQL Integration & Zero-Inheritance Pattern**
 
 #### **🎯 Revolutionary Zero-Inheritance Mutation Pattern**
 
@@ -54,12 +54,12 @@ class CreateUserError:    # Just your fields!
 #### **🏗️ Built-in Types for Zero Configuration**
 - **Added**: Built-in `Error` type exported from main `fraiseql` module
 - **Added**: `MutationResultBase` type (still available but not required thanks to auto-injection)
-- **Enhanced**: `DEFAULT_ERROR_CONFIG` with PrintOptim-friendly patterns:
+- **Enhanced**: `DEFAULT_ERROR_CONFIG` with FraiseQL-friendly patterns:
   - Success keywords: `"created"`, `"cancelled"`
   - Error-as-data prefixes: `"duplicate:"` (in addition to `"noop:"`, `"blocked:"`)
 
-#### **🎯 PrintOptim Integration Impact**
-- **Zero configuration**: Works perfectly with all PrintOptim patterns out-of-the-box
+#### **🎯 FraiseQL Integration Impact**
+- **Zero configuration**: Works perfectly with all FraiseQL patterns out-of-the-box
 - **75% less code**: Eliminate both custom types AND inheritance boilerplate
 - **Cleaner definitions**: Focus purely on business fields
 - **Migration path**: Existing patterns still work during transition
@@ -72,7 +72,7 @@ class CreateUserError:    # Just your fields!
 
 #### **📈 Impact**
 - **Simplest possible mutation definitions** in any GraphQL framework
-- **PrintOptim projects** can now use FraiseQL with absolute minimal code
+- **FraiseQL projects** can now use FraiseQL with absolute minimal code
 - **Developer experience** dramatically improved with near-zero boilerplate
 - **Performance** gains from cleaned codebase and optimized defaults
 
@@ -265,7 +265,7 @@ Fixed OrderBy handling across **4 critical components**:
 - **Validation**: Complete GraphQL → SQL transformation verification
 
 #### **Test Scenarios Added**
-- PrintOptim Backend DNS servers scenario (original failing case)
+- FraiseQL Backend DNS servers scenario (original failing case)
 - Enterprise contract management with nested sorting
 - Deep nested field ordering (`user.profile.address.city`)
 - Mixed format OrderBy combinations
@@ -336,7 +336,7 @@ query GetDnsServers($orderBy: [DnsServerOrderByInput!]) {
 - ✅ 29/32 adversarial test cases passed
 - ✅ All core functionality scenarios verified
 - ✅ Complex nested field patterns working
-- ✅ Real-world PrintOptim Backend scenarios resolved
+- ✅ Real-world FraiseQL Backend scenarios resolved
 - ✅ Enterprise-scale OrderBy patterns supported
 
 ## [0.4.0] - 2025-08-21
@@ -716,7 +716,7 @@ SELECT data AS result FROM v_dns_server
 
 ### Changed
 - Renamed exported error configuration constants for consistency:
-  - `PrintOptimConfig` → `STRICT_STATUS_CONFIG`
+  - `FraiseQLConfig` → `STRICT_STATUS_CONFIG`
   - `AlwaysDataConfig` → `ALWAYS_DATA_CONFIG`
   - `DefaultErrorConfig` → `DEFAULT_ERROR_CONFIG`
 - Improved project description to better reflect its production-ready status

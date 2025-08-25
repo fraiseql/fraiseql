@@ -112,7 +112,7 @@ tests/mutation_error_management/
 **100% Backward Compatible**: All existing mutations continue to work unchanged.
 
 - ✅ Existing `@fraiseql.mutation` decorators work as before
-- ✅ Existing `PrintOptimMutation` base classes work as before
+- ✅ Existing `FraiseQLMutation` base classes work as before
 - ✅ No breaking changes to existing APIs
 - ✅ New system is **opt-in** - use when ready
 

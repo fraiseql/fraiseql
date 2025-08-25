@@ -18,9 +18,11 @@ from uuid import UUID
 import psycopg
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from graphql import GraphQLResolveInfo
 
+import fraiseql
 from fraiseql.cqrs import CQRSRepository
-from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.fastapi import create_fraiseql_app, FraiseQLConfig
 
 # Configure logging
 logging.basicConfig(
@@ -72,34 +74,18 @@ async def lifespan(app: FastAPI):
     logger.info("🔒 Blog Enterprise shutdown")
 
 
-def create_app() -> FastAPI:
-    """Create the enterprise blog FastAPI application."""
-    app = FastAPI(
-        title="FraiseQL Blog Enterprise",
-        description="Enterprise blog built with FraiseQL showcasing advanced patterns",
-        version="2.0.0",
-        lifespan=lifespan,
-        debug=DEBUG,
-    )
-
-    # CORS configuration for enterprise
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=os.getenv(
-            "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
-        ).split(","),
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
-    )
+def _create_base_app() -> FastAPI:
+    """Create the base enterprise blog FastAPI application."""
 
     # Enterprise context getter with multi-tenancy
     async def get_enterprise_context(request: Request) -> Dict[str, Any]:
         """Provide enterprise context for GraphQL operations."""
-        database_url = get_database_url()
+        # Import here to avoid circular imports
+        from fraiseql.fastapi.dependencies import get_db
 
         try:
-            conn = await psycopg.AsyncConnection.connect(database_url)
+            # Use FraiseQL's database dependency to get a connection from the pool
+            db = await get_db()
 
             # Extract JWT token and tenant information
             auth_header = request.headers.get("Authorization", "")
@@ -113,7 +99,7 @@ def create_app() -> FastAPI:
             organization_id = UUID("11111111-1111-1111-1111-111111111111")  # Demo org
 
             return {
-                "db": CQRSRepository(conn),
+                "db": db,
                 "user_id": user_id,
                 "organization_id": organization_id,
                 "tenant_id": organization_id,  # For compatibility
@@ -126,29 +112,54 @@ def create_app() -> FastAPI:
             logger.error(f"Failed to create enterprise context: {e}")
             raise
 
-    # Import enterprise GraphQL schema (placeholder for now)
-    # In a real enterprise setup, these would be in separate modules
+    # Simple health query that doesn't require database access
+    @fraiseql.query
+    def health_status() -> dict:
+        """Simple health status query that doesn't access the database."""
+        return {
+            "status": "healthy",
+            "service": "blog_enterprise",
+            "timestamp": "2024-01-01T00:00:00Z"
+        }
+
     ENTERPRISE_TYPES = []
     ENTERPRISE_MUTATIONS = []
-    ENTERPRISE_QUERIES = []
+    ENTERPRISE_QUERIES = [health_status]
 
-    # Create FraiseQL app with enterprise configuration
-    fraiseql_app = create_fraiseql_app(
+    # Create enterprise configuration
+    config = FraiseQLConfig(
         database_url=get_database_url(),
-        types=ENTERPRISE_TYPES,
-        mutations=ENTERPRISE_MUTATIONS,
-        queries=ENTERPRISE_QUERIES,
-        context_getter=get_enterprise_context,
-        title="FraiseQL Blog Enterprise API",
-        description="Enterprise blog API with advanced patterns and multi-tenancy",
-        production=not DEBUG,
-        # Enterprise-specific configurations
+        app_name="FraiseQL Blog Enterprise API",
+        app_version="2.0.0",
+        environment="development" if DEBUG else "production",
         enable_introspection=DEBUG,
         enable_playground=DEBUG,
     )
 
-    # Mount GraphQL endpoint
-    app.mount("/graphql", fraiseql_app)
+    # Create FraiseQL app with enterprise configuration - this becomes our main app
+    app = create_fraiseql_app(
+        database_url=get_database_url(),
+        types=ENTERPRISE_TYPES,
+        mutations=ENTERPRISE_MUTATIONS,
+        queries=ENTERPRISE_QUERIES,
+        # context_getter=get_enterprise_context,  # Disable custom context to avoid pool initialization issue
+        config=config,
+        title="FraiseQL Blog Enterprise API",
+        description="Enterprise blog API with advanced patterns and multi-tenancy",
+        production=not DEBUG,
+        # lifespan=lifespan,  # Let FraiseQL handle its own lifespan
+    )
+
+    # CORS configuration for enterprise
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=os.getenv(
+            "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+        ).split(","),
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
     # Enterprise endpoints
     @app.get("/")
@@ -177,36 +188,6 @@ def create_app() -> FastAPI:
             },
         }
 
-    @app.get("/health")
-    async def health():
-        """Enterprise health check with dependencies."""
-        try:
-            # Check database connectivity
-            conn = await psycopg.AsyncConnection.connect(get_database_url())
-            db_status = "healthy"
-            await conn.close()
-        except Exception as e:
-            db_status = f"unhealthy: {e!s}"
-
-        try:
-            # Check Redis connectivity (placeholder)
-            cache_status = "healthy"  # Would check Redis in real implementation
-        except Exception as e:
-            cache_status = f"unhealthy: {e!s}"
-
-        return {
-            "status": "healthy"
-            if db_status == "healthy" and cache_status == "healthy"
-            else "degraded",
-            "service": "blog_enterprise",
-            "version": "2.0.0",
-            "environment": ENV,
-            "dependencies": {
-                "database": db_status,
-                "cache": cache_status,
-            },
-            "uptime": "0s",  # Would track actual uptime
-        }
 
     @app.get("/metrics")
     async def metrics():
@@ -245,6 +226,60 @@ def create_app() -> FastAPI:
                 "Audit logs",
             ],
         }
+
+    return app
+
+
+def create_app():
+    """Main application factory with custom health endpoint override."""
+    # Create the base FraiseQL app first
+    app = _create_base_app()
+
+    # Override FraiseQL's health endpoint by replacing the existing route
+    # Find and replace the existing health route
+    for i, route in enumerate(app.routes):
+        if hasattr(route, 'path') and route.path == "/health":
+            # Get our custom health function from the base app
+            # It was already defined in the base app
+            async def custom_health():
+                """Enterprise health check with dependencies."""
+                try:
+                    # Check database connectivity
+                    import psycopg
+                    conn = await psycopg.AsyncConnection.connect(get_database_url())
+                    db_status = "healthy"
+                    await conn.close()
+                except Exception as e:
+                    db_status = f"unhealthy: {e!s}"
+
+                try:
+                    # Check Redis connectivity (placeholder)
+                    cache_status = "healthy"  # Would check Redis in real implementation
+                except Exception as e:
+                    cache_status = f"unhealthy: {e!s}"
+
+                return {
+                    "status": "healthy"
+                    if db_status == "healthy" and cache_status == "healthy"
+                    else "degraded",
+                    "service": "blog_enterprise",
+                    "version": "2.0.0",
+                    "environment": ENV,
+                    "dependencies": {
+                        "database": db_status,
+                        "cache": cache_status,
+                    },
+                    "uptime": "0s",  # Would track actual uptime
+                }
+
+            # Create new route with our endpoint
+            from fastapi.routing import APIRoute
+            new_route = APIRoute("/health", custom_health, methods=["GET"])
+            # Replace the route at the same position
+            routes_list = list(app.routes)
+            routes_list[i] = new_route
+            app.router.routes = routes_list
+            break
 
     return app
 

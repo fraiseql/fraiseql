@@ -29,7 +29,7 @@ async def test_production_config_environment_check():
 async def test_multiple_validation_errors_array_pattern():
     """Test that multiple validation errors can be returned as arrays.
 
-    This demonstrates the PrintOptim Backend error pattern where
+    This demonstrates the FraiseQL Backend error pattern where
     complex validation produces structured error arrays.
     """
     # Mock multiple validation errors

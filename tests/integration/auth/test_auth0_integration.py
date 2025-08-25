@@ -30,8 +30,8 @@ class TestAuth0Integration:
     def auth0_provider(self):
         """Create Auth0 provider instance."""
         return Auth0Provider(
-            domain="staging-printoptim-juqnt9ch4.eu.auth0.com",
-            api_identifier="https://develop.api.printoptim.io",
+            domain="staging-fraiseql-juqnt9ch4.eu.auth0.com",
+            api_identifier="https://develop.api.fraiseql.io",
             algorithms=["RS256"],
         )
 
@@ -87,8 +87,8 @@ class TestAuth0Integration:
             database_url="postgresql://localhost/test",
             auth_enabled=True,
             auth_provider="auth0",
-            auth0_domain="staging-printoptim-juqnt9ch4.eu.auth0.com",
-            auth0_api_identifier="https://develop.api.printoptim.io",
+            auth0_domain="staging-fraiseql-juqnt9ch4.eu.auth0.com",
+            auth0_api_identifier="https://develop.api.fraiseql.io",
         )
 
         # Import here to avoid circular imports
@@ -116,8 +116,8 @@ class TestAuth0Integration:
             auth_provider = get_auth_provider()
             assert auth_provider is not None
             assert isinstance(auth_provider, Auth0Provider)
-            assert auth_provider.domain == "staging-printoptim-juqnt9ch4.eu.auth0.com"
-            assert auth_provider.api_identifier == "https://develop.api.printoptim.io"
+            assert auth_provider.domain == "staging-fraiseql-juqnt9ch4.eu.auth0.com"
+            assert auth_provider.api_identifier == "https://develop.api.fraiseql.io"
 
     @pytest.mark.asyncio
     async def test_context_getter_receives_user(self):

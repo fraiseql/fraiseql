@@ -401,4 +401,3 @@ if __name__ == "__main__":
     test_fraiseql_json_encoder_handles_fraiseql_types()
 
     test_fraiseql_json_encoder_handles_nested_fraiseql_types()
-

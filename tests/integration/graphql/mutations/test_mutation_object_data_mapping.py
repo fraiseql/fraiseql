@@ -1,6 +1,6 @@
 """Test mutation object_data mapping in production mode.
 
-This test reproduces the issue reported in PrintOptim where mutation
+This test reproduces the issue reported in FraiseQL where mutation
 results return null for the object field despite successful creation.
 """
 

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+import uuid
+from datetime import datetime
+from typing import Optional
 
 import pytest
 
 import fraiseql
 from fraiseql.sql import OrderByItem, OrderDirection, create_graphql_order_by_input
-
-if TYPE_CHECKING:
-    import uuid
-    from datetime import datetime
 
 # Define test types at module level
 

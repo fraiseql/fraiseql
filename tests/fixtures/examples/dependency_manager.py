@@ -1,7 +1,7 @@
 """Smart Dependency Management for FraiseQL Integration Tests.
 
 This module provides automatic dependency installation and management
-for integration tests, inspired by PrintOptim backend's smart fixtures.
+for integration tests, inspired by FraiseQL backend's smart fixtures.
 
 Key Features:
 - Automatic detection and installation of missing dependencies
@@ -69,10 +69,10 @@ class SmartDependencyManager:
         self.cache_file = self.cache_dir / ".dependency_cache.json"
         self.install_log = self.cache_dir / ".install_log.txt"
         self.lock_file = self.cache_dir / ".dependency_install.lock"
-        
+
         # Ensure cache directory exists
         self.cache_dir.mkdir(exist_ok=True)
-        
+
         # Load cached dependency state
         self.dependency_cache = self._load_cache()
 
@@ -99,7 +99,7 @@ class SmartDependencyManager:
         """Log installation attempt."""
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
-        
+
         try:
             with open(self.install_log, 'a') as f:
                 f.write(log_entry)
@@ -109,10 +109,10 @@ class SmartDependencyManager:
     def detect_install_strategy(self) -> InstallStrategy:
         """Determine best installation method."""
         project_root = Path(__file__).parent.parent.parent.parent
-        
+
         # Check for UV first (preferred and fastest)
         try:
-            subprocess.run(['uv', '--version'], 
+            subprocess.run(['uv', '--version'],
                          capture_output=True, check=True, timeout=5)
             if (project_root / "uv.lock").exists():
                 return InstallStrategy.UV
@@ -125,16 +125,16 @@ class SmartDependencyManager:
     def _is_dependency_available(self, dep_info: DependencyInfo) -> bool:
         """Check if dependency is already available."""
         import_name = dep_info.import_name or dep_info.name
-        
+
         # Handle special cases
         import_mapping = {
             'fraiseql': 'fraiseql',
-            'httpx': 'httpx', 
+            'httpx': 'httpx',
             'psycopg': 'psycopg',
             'fastapi': 'fastapi'
         }
         import_name = import_mapping.get(import_name, import_name)
-        
+
         try:
             __import__(import_name)
             return True
@@ -146,10 +146,10 @@ class SmartDependencyManager:
         cache_entry = self.dependency_cache.get(dep_name)
         if not cache_entry:
             return False
-            
+
         cached_time = cache_entry.get('installed_at', 0)
         cache_duration = cache_entry.get('cache_duration', 3600)
-        
+
         return (time.time() - cached_time) < cache_duration
 
     def _install_dependency(self, dep_info: DependencyInfo, context: InstallContext) -> InstallResult:
@@ -177,16 +177,16 @@ class SmartDependencyManager:
         try:
             install_cmd = self._build_install_command(dep_info, context)
             logger.info(f"Installing {dep_info.name} with: {' '.join(install_cmd)}")
-            
+
             self._log_install_attempt(f"Installing {dep_info.name}: {' '.join(install_cmd)}")
-            
+
             result = subprocess.run(
                 install_cmd,
                 capture_output=True,
                 text=True,
                 timeout=context.timeout
             )
-            
+
             if result.returncode == 0:
                 # Verify installation worked
                 if self._is_dependency_available(dep_info):
@@ -204,7 +204,7 @@ class SmartDependencyManager:
                 logger.error(f"Failed to install {dep_info.name}: {result.stderr}")
                 self._log_install_attempt(f"Failed to install {dep_info.name}: {result.stderr}")
                 return InstallResult.FAILED
-                
+
         except subprocess.TimeoutExpired:
             logger.error(f"Timeout installing {dep_info.name}")
             return InstallResult.FAILED
@@ -245,10 +245,10 @@ class SmartDependencyManager:
             try:
                 result = self._install_dependency(dep_info, context)
                 results[dep_info.name] = result
-                
+
                 if result in [InstallResult.FAILED] and dep_info.required:
                     all_success = False
-                    
+
             except Exception as e:
                 logger.error(f"Unexpected error processing {dep_info.name}: {e}")
                 results[dep_info.name] = InstallResult.FAILED
@@ -257,17 +257,17 @@ class SmartDependencyManager:
 
         # Save cache after installation attempts
         self._save_cache()
-        
+
         return all_success, results
 
     def _should_auto_install(self) -> bool:
         """Determine if auto-install should be enabled."""
         import os
-        
+
         # Check environment variable override
         if os.getenv('FRAISEQL_SKIP_AUTO_INSTALL', '').lower() in ['true', '1', 'yes']:
             return False
-            
+
         if os.getenv('FRAISEQL_AUTO_INSTALL', '').lower() in ['true', '1', 'yes']:
             return True
 
@@ -276,7 +276,7 @@ class SmartDependencyManager:
         in_ci = any(ci_var in os.environ for ci_var in [
             'CI', 'CONTINUOUS_INTEGRATION', 'GITHUB_ACTIONS', 'TRAVIS', 'JENKINS'
         ])
-        
+
         return not in_ci
 
     def clear_cache(self):

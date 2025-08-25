@@ -1,6 +1,6 @@
 # Enterprise Patterns Example
 
-This example demonstrates all PrintOptim Backend patterns in a single, comprehensive application.
+This example demonstrates all FraiseQL enterprise patterns in a single, comprehensive application.
 
 ## Patterns Demonstrated
 

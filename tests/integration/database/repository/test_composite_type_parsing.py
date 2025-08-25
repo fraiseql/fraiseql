@@ -91,7 +91,7 @@ class TestCompositeTypeParsing:
             )
         )
 
-        # Create a composite type similar to PrintOptim's app.mutation_result
+        # Create a composite type similar to FraiseQL's app.mutation_result
         await repo.run(
             DatabaseQuery(
                 statement=SQL("""
@@ -197,7 +197,7 @@ class TestCompositeTypeParsing:
         """RED TEST: This test should FAIL initially.
 
         Tests that FraiseQL can handle multiple composite types in one database,
-        which is common in real applications like PrintOptim Backend.
+        which is common in real applications like FraiseQL Backend.
         """
         pool = await create_db_pool(postgres_url)
         repo = FraiseQLRepository(pool=pool)

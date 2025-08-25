@@ -1,0 +1,12 @@
+{
+  "blog_simple": {
+    "schema_checksum": "e1a491a8f7313731f82d234ba4bed9b2",
+    "template_created_at": 1756127710.5364318,
+    "last_validated": 1756127710.5364327
+  },
+  "blog_enterprise": {
+    "schema_checksum": "d41d8cd98f00b204e9800998ecf8427e",
+    "template_created_at": 1756126192.3497396,
+    "last_validated": 1756126192.3497403
+  }
+}

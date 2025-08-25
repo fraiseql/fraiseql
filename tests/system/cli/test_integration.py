@@ -81,48 +81,6 @@ class TestCLIIntegration:
             assert (blog_path / "migrations/002_create_posts.sql").exists()
             assert (blog_path / "migrations/003_create_comments.sql").exists()
 
-    @pytest.mark.skip(reason="TestFoundry extension not yet implemented")
-    @patch("os.getenv", return_value="postgresql://test/db")
-    def test_testfoundry_workflow(self, mock_getenv, cli_runner, temp_project_dir) -> None:
-        """Test TestFoundry integration workflow."""
-        from unittest.mock import AsyncMock
-
-        # Create project first
-        result = cli_runner.invoke(cli, ["init", "testproject", "--no-git"])
-        assert result.exit_code == 0
-
-        test_path = temp_project_dir / "testproject"
-
-        # Mock TestFoundry components
-        with patch("fraiseql.cqrs.CQRSRepository") as mock_repo:
-            mock_repo.return_value.close = AsyncMock()
-
-            with patch("fraiseql.extensions.testfoundry.FoundrySetup") as mock_setup:
-                mock_setup.return_value.install = AsyncMock()
-
-                # Install TestFoundry
-                result = cli_runner.invoke(cli, ["testfoundry", "install"], cwd=str(test_path))
-                assert result.exit_code == 0
-                assert "TestFoundry installed successfully!" in result.output
-
-        # Generate tests (mocked)
-        with patch("fraiseql.cqrs.CQRSRepository") as mock_repo:
-            mock_repo.return_value.close = AsyncMock()
-
-            with patch("fraiseql.extensions.testfoundry.FoundryGenerator") as mock_gen:
-                mock_gen.return_value.generate_tests_for_entity = AsyncMock(
-                    return_value={"happy_path": "-- test"},
-                )
-                mock_gen.return_value.write_tests_to_files = AsyncMock()
-
-                result = cli_runner.invoke(
-                    cli,
-                    ["testfoundry", "generate", "User"],
-                    cwd=str(test_path),
-                )
-                assert result.exit_code == 0
-                assert "Tests generated" in result.output
-
     def test_environment_handling(self, cli_runner, temp_project_dir) -> None:
         """Test that CLI respects environment variables."""
         # Create project with custom database URL

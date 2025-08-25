@@ -16,7 +16,7 @@ class TestUnixSocketURLs:
             "postgresql://user@/var/run/postgresql:5432/database",
             "postgresql://user:password@/var/run/postgresql:5432/database",
             "postgres://user@/tmp:5432/mydb",
-            "postgresql://printoptim_app@/var/run/postgresql:5432/printoptim_test",
+            "postgresql://fraiseql_app@/var/run/postgresql:5432/fraiseql_test",
         ]
 
         for url in valid_urls:
@@ -53,11 +53,11 @@ class TestUnixSocketURLs:
         """Test that FraiseQLConfig accepts Unix socket URLs."""
         # The exact URL from the bug report
         config = FraiseQLConfig(
-            database_url="postgresql://printoptim_app@/var/run/postgresql:5432/printoptim_test"
+            database_url="postgresql://fraiseql_app@/var/run/postgresql:5432/fraiseql_test"
         )
         assert (
             config.database_url
-            == "postgresql://printoptim_app@/var/run/postgresql:5432/printoptim_test"
+            == "postgresql://fraiseql_app@/var/run/postgresql:5432/fraiseql_test"
         )
 
     def test_fraiseql_config_with_regular_url(self):

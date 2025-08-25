@@ -212,8 +212,8 @@ class TestComplexOrderByScenarios:
         assert "address" in sql_str
         assert "city" in sql_str
 
-    def test_printoptim_backend_dns_servers_scenario(self):
-        """Test the exact scenario from PrintOptim Backend DNS servers."""
+    def test_fraiseql_backend_dns_servers_scenario(self):
+        """Test the exact scenario from FraiseQL Backend DNS servers."""
         # This is the real-world case that was failing
         graphql_input = [
             {"ipAddress": "ASC"},

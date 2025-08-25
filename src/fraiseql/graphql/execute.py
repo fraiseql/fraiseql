@@ -110,19 +110,28 @@ async def execute_with_passthrough_check(
     from graphql.execution import execute
     from graphql.validation import validate
 
+    # Always validate the document against the schema
+    validation_rules = []
+
     # Add introspection validation rule if disabled
     if not enable_introspection:
         from graphql import NoSchemaIntrospectionCustomRule
 
-        logger.info("Introspection disabled - validating query for introspection fields")
+        validation_rules.append(NoSchemaIntrospectionCustomRule)
+        logger.info("Introspection disabled - adding NoSchemaIntrospectionCustomRule")
 
-        # Validate the document with the introspection rule
-        validation_errors = validate(schema, document, [NoSchemaIntrospectionCustomRule])
-        if validation_errors:
+    # Validate the document against the schema
+    validation_errors = validate(schema, document, validation_rules or None)
+    if validation_errors:
+        if not enable_introspection and validation_rules:
             logger.warning(
                 "Introspection query blocked: %s", [err.message for err in validation_errors]
             )
-            return ExecutionResult(data=None, errors=validation_errors)
+        else:
+            logger.warning(
+                "Schema validation failed: %s", [err.message for err in validation_errors]
+            )
+        return ExecutionResult(data=None, errors=validation_errors)
 
     result = execute(
         schema,

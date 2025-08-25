@@ -20,7 +20,7 @@ def fraise_type(
     _cls: None = None,
     *,
     sql_source: str | None = None,
-    jsonb_column: str | None = None,
+    jsonb_column: str | None = ...,  # Use ... as sentinel for "not specified"
     implements: list[type] | None = None,
     resolve_nested: bool = False,
 ) -> Callable[[T], T]: ...
@@ -34,7 +34,7 @@ def fraise_type(
     _cls: T | None = None,
     *,
     sql_source: str | None = None,
-    jsonb_column: str | None = None,
+    jsonb_column: str | None = ...,  # Use ... as sentinel for "not specified"
     implements: list[type] | None = None,
     resolve_nested: bool = False,
 ) -> T | Callable[[T], T]:
@@ -155,7 +155,14 @@ def fraise_type(
             cls.__gql_table__ = sql_source
             cls.__fraiseql_definition__.sql_source = sql_source
             # Store JSONB column information for production mode extraction
-            cls.__fraiseql_definition__.jsonb_column = jsonb_column or "data"
+            # Set JSONB column: ... means not specified (default to "data"),
+            # None means no JSONB column (regular table)
+            if jsonb_column is ...:
+                cls.__fraiseql_definition__.jsonb_column = "data"  # Default for CQRS/JSONB tables
+            else:
+                cls.__fraiseql_definition__.jsonb_column = (
+                    jsonb_column  # None for regular tables, or custom column name
+                )
             # Store whether nested instances should be resolved separately
             cls.__fraiseql_definition__.resolve_nested = resolve_nested
             cls.__gql_where_type__ = safe_create_where_type(cls)

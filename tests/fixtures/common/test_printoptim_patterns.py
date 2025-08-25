@@ -1,4 +1,4 @@
-"""Integration test for PrintOptim-style patterns with FraiseQL defaults."""
+"""Integration test for FraiseQL-style patterns with FraiseQL defaults."""
 
 from typing import Any
 
@@ -10,14 +10,14 @@ from fraiseql.mutations.parser import parse_mutation_result
 
 
 @pytest.mark.integration
-class TestPrintOptimStyleMutations:
-    """Test that PrintOptim patterns work seamlessly with FraiseQL defaults."""
+class TestFraiseQLStyleMutations:
+    """Test that FraiseQL patterns work seamlessly with FraiseQL defaults."""
 
     def test_simple_mutation_with_defaults_only(self):
         """Test creating a mutation using only FraiseQL built-in types."""
         from fraiseql import MutationResultBase
 
-        # This mirrors PrintOptim's typical mutation structure but uses FraiseQL defaults
+        # This mirrors FraiseQL's typical mutation structure but uses FraiseQL defaults
         @fraiseql.input
         class CreateContractInput:
             name: str
@@ -31,7 +31,7 @@ class TestPrintOptimStyleMutations:
         class CreateContractError(MutationResultBase):
             conflict_contract: dict[str, Any] | None = None
 
-        # Should work exactly like PrintOptim's custom types
+        # Should work exactly like FraiseQL's custom types
         assert hasattr(CreateContractSuccess, "__fraiseql_definition__")
         assert hasattr(CreateContractError, "__fraiseql_definition__")
 
@@ -39,7 +39,7 @@ class TestPrintOptimStyleMutations:
         success_fields = set(CreateContractSuccess.__fraiseql_definition__.fields.keys())
         error_fields = set(CreateContractError.__fraiseql_definition__.fields.keys())
 
-        # Should have PrintOptim's standard fields
+        # Should have FraiseQL's standard fields
         expected_base_fields = {"status", "message", "errors"}
         assert expected_base_fields.issubset(success_fields)
         assert expected_base_fields.issubset(error_fields)
@@ -64,7 +64,7 @@ class TestPrintOptimStyleMutations:
         class TestError(MutationResultBase):
             conflict_entity: dict | None = None
 
-        # Test that DEFAULT_ERROR_CONFIG handles PrintOptim patterns
+        # Test that DEFAULT_ERROR_CONFIG handles FraiseQL patterns
         assert "noop:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
         assert "blocked:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
         assert "duplicate:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
@@ -83,7 +83,7 @@ class TestPrintOptimStyleMutations:
         class TestError(MutationResultBase):
             conflict_entity: dict | None = None
 
-        # Simulate PrintOptim's typical noop case
+        # Simulate FraiseQL's typical noop case
         result = {
             "id": "123e4567-e89b-12d3-a456-426614174000",
             "updated_fields": [],
@@ -115,7 +115,7 @@ class TestPrintOptimStyleMutations:
         assert error.details == {"conflictId": "existing-id"}
 
     def test_no_custom_base_class_needed(self):
-        """Test that PrintOptim no longer needs PrintOptimMutation base class."""
+        """Test that FraiseQL no longer needs FraiseQLMutation base class."""
         from fraiseql import MutationResultBase
 
         # This should work without any custom base classes
@@ -144,11 +144,11 @@ class TestPrintOptimStyleMutations:
             success: CreateUserSuccess
             failure: CreateUserError
 
-        # Should work exactly like PrintOptim's PrintOptimMutation pattern
+        # Should work exactly like FraiseQL's FraiseQLMutation pattern
         assert hasattr(CreateUser, "__fraiseql_mutation__")
 
-    def test_all_printoptim_error_patterns_supported(self):
-        """Test that all PrintOptim error patterns work with defaults."""
+    def test_all_fraiseql_error_patterns_supported(self):
+        """Test that all FraiseQL error patterns work with defaults."""
         from fraiseql import Error, MutationResultBase
 
         @fraiseql.type
@@ -159,7 +159,7 @@ class TestPrintOptimStyleMutations:
         class TestError(MutationResultBase):
             pass
 
-        # Test all PrintOptim status patterns
+        # Test all FraiseQL status patterns
         test_cases = [
             # Success patterns
             ("success", "Created successfully", TestSuccess),
@@ -195,9 +195,9 @@ class TestPrintOptimStyleMutations:
                 assert len(parsed.errors) >= 1
                 assert isinstance(parsed.errors[0], Error)
 
-    def test_default_config_optimal_for_printoptim(self):
-        """Test that DEFAULT_ERROR_CONFIG is optimized for PrintOptim patterns."""
-        # The enhanced DEFAULT_ERROR_CONFIG should handle all PrintOptim needs
+    def test_default_config_optimal_for_fraiseql(self):
+        """Test that DEFAULT_ERROR_CONFIG is optimized for FraiseQL patterns."""
+        # The enhanced DEFAULT_ERROR_CONFIG should handle all FraiseQL needs
         assert "noop:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
         assert "blocked:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
         assert "duplicate:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes

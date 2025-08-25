@@ -1,6 +1,6 @@
 import pytest
 
-"""Test that demonstrates the solution to the PrintOptim backend partial update issue."""
+"""Test that demonstrates the solution to the FraiseQL backend partial update issue."""
 
 
 from fraiseql import fraise_input

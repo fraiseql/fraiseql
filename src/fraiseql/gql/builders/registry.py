@@ -88,6 +88,18 @@ class SchemaRegistry:
         self._types[typ] = typ
         logger.debug("Current registry: %s", list(self._types.keys()))
 
+        # Register type with database repository if it has sql_source
+        if hasattr(typ, "__fraiseql_definition__") and typ.__fraiseql_definition__.sql_source:
+            from fraiseql.db import register_type_for_view
+
+            sql_source = typ.__fraiseql_definition__.sql_source
+            logger.debug(
+                "Registering type '%s' with repository for view '%s'",
+                typ.__name__,
+                sql_source,
+            )
+            register_type_for_view(sql_source, typ)
+
     def register_enum(self, enum_cls: type, graphql_enum: GraphQLEnumType) -> None:
         """Register a Python Enum class as a GraphQL enum type.
 

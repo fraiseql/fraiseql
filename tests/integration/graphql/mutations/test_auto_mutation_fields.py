@@ -140,10 +140,10 @@ class TestAutoMutationFields:
         assert "errors" in field_names
         assert "entity" in field_names
 
-    def test_no_inheritance_needed_for_printoptim_patterns(self):
-        """Test that PrintOptim patterns work without any inheritance."""
+    def test_no_inheritance_needed_for_fraiseql_patterns(self):
+        """Test that FraiseQL patterns work without any inheritance."""
 
-        # This should work exactly like PrintOptim's current patterns
+        # This should work exactly like FraiseQL's current patterns
         @fraiseql.input
         class CreateContractInput:
             name: str
@@ -161,7 +161,7 @@ class TestAutoMutationFields:
         success_fields = set(CreateContractSuccess.__fraiseql_definition__.fields.keys())
         error_fields = set(CreateContractError.__fraiseql_definition__.fields.keys())
 
-        # Should have PrintOptim's standard fields auto-injected
+        # Should have FraiseQL's standard fields auto-injected
         expected_base_fields = {"status", "message", "errors"}
         assert expected_base_fields.issubset(success_fields)
         assert expected_base_fields.issubset(error_fields)

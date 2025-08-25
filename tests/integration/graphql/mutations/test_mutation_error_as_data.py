@@ -111,7 +111,7 @@ class TestMutationErrorAsData:
         assert parsed.entity.id == "123e4567-e89b-12d3-a456-426614174000"
         assert parsed.entity.name == "Test Entity"
 
-    def test_mutation_with_printoptim_config(self) -> None:
+    def test_mutation_with_fraiseql_config(self) -> None:
         """Test mutation decorator with strict status error config."""
 
         @mutation(function="test_mutation", schema="test", error_config=STRICT_STATUS_CONFIG)

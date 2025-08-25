@@ -73,11 +73,16 @@ async def error_query_func(info) -> SampleType:
 
 
 @pytest.fixture
-def test_app(clear_registry, mocker):
+def test_app(clear_registry, monkeypatch):
     """Create test app with our test types."""
+    from unittest.mock import MagicMock
+
     # Mock the database pool to avoid actual database connection
-    mocker.patch("fraiseql.fastapi.dependencies.get_db_pool", return_value=mocker.MagicMock())
-    mocker.patch("fraiseql.fastapi.dependencies.get_db", return_value=mocker.MagicMock())
+    mock_pool = MagicMock()
+    mock_db = MagicMock()
+
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db_pool", lambda: mock_pool)
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db", lambda: mock_db)
 
     app = create_fraiseql_app(
         database_url="postgresql://test/test",
@@ -127,10 +132,12 @@ def test_graphql_error_with_unset_in_extensions(test_client, clear_registry):
     assert extensions["debug_info"]["unset_value"] is None  # UNSET -> None
 
 
-def test_mutation_error_with_unset_input(test_client, mocker, clear_registry):
+def test_mutation_error_with_unset_input(test_client, monkeypatch, clear_registry):
     """Test mutation error handling when input contains UNSET."""
+    from unittest.mock import MagicMock
+
     # Mock the database to simulate an error
-    mock_db = mocker.MagicMock()
+    mock_db = MagicMock()
 
     async def mock_execute_function(func_name, input_data):
         # Simulate error that includes the input data
@@ -187,11 +194,13 @@ def test_mutation_error_with_unset_input(test_client, mocker, clear_registry):
     assert len(data["errors"]) > 0
 
 
-def test_production_mode_error_handling(mocker, clear_registry):
+def test_production_mode_error_handling(monkeypatch, clear_registry):
     """Test that production mode also handles UNSET in errors."""
+    from unittest.mock import MagicMock
+
     # Mock the database pool to avoid actual database connection
-    mocker.patch("fraiseql.fastapi.dependencies.get_db_pool", return_value=mocker.MagicMock())
-    mocker.patch("fraiseql.fastapi.dependencies.get_db", return_value=mocker.MagicMock())
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db_pool", lambda: MagicMock())
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db", lambda: MagicMock())
 
     # Create production app
     app = create_fraiseql_app(

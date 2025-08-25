@@ -304,7 +304,7 @@ def _parse_error(
     instance = error_cls(**fields)
 
     # Post-process to auto-populate errors field if it exists and is empty or None
-    # FORCE POPULATE for frontend compatibility - PrintOptim needs errors array
+    # FORCE POPULATE for frontend compatibility - Enterprise applications need errors array
     errors_value = getattr(instance, "errors", "NOT_SET")
     if hasattr(instance, "errors") and (errors_value is None or errors_value == []):
         # Auto-populate the errors field with structured error information

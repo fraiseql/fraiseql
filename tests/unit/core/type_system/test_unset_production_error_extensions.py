@@ -55,11 +55,15 @@ async def validation_error_query(info) -> list[SampleType]:
     return []
 
 
-def test_production_mode_unset_in_graphql_error_extensions(clear_registry, mocker):
+def test_production_mode_unset_in_graphql_error_extensions(clear_registry, monkeypatch):
     """Test that production mode properly cleans UNSET from GraphQL error extensions."""
+    from unittest.mock import MagicMock
+
     # Mock the database pool to avoid actual database connection
-    mocker.patch("fraiseql.fastapi.dependencies.get_db_pool", return_value=mocker.MagicMock())
-    mocker.patch("fraiseql.fastapi.dependencies.get_db", return_value=mocker.MagicMock())
+    mock_pool = MagicMock()
+    mock_db = MagicMock()
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db_pool", lambda: mock_pool)
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db", lambda: mock_db)
 
     # Create production app with explicit config
     config = FraiseQLConfig(
@@ -111,11 +115,13 @@ def test_production_mode_unset_in_graphql_error_extensions(clear_registry, mocke
     # Should not raise JSON serialization error
 
 
-def test_production_mode_validation_error_with_unset(clear_registry, mocker):
+def test_production_mode_validation_error_with_unset(clear_registry, monkeypatch):
     """Test that production mode handles validation errors that might have UNSET."""
+    from unittest.mock import MagicMock
+
     # Mock the database pool to avoid actual database connection
-    mocker.patch("fraiseql.fastapi.dependencies.get_db_pool", return_value=mocker.MagicMock())
-    mocker.patch("fraiseql.fastapi.dependencies.get_db", return_value=mocker.MagicMock())
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db_pool", lambda: MagicMock())
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db", lambda: MagicMock())
 
     config = FraiseQLConfig(
         database_url="postgresql://test/test",
@@ -162,11 +168,13 @@ def test_production_mode_validation_error_with_unset(clear_registry, mocker):
         assert data["data"]["validationErrorQuery"] == []
 
 
-def test_production_mode_with_detailed_errors(clear_registry, mocker):
+def test_production_mode_with_detailed_errors(clear_registry, monkeypatch):
     """Test production mode when hide_error_details is False."""
+    from unittest.mock import MagicMock
+
     # Mock the database pool to avoid actual database connection
-    mocker.patch("fraiseql.fastapi.dependencies.get_db_pool", return_value=mocker.MagicMock())
-    mocker.patch("fraiseql.fastapi.dependencies.get_db", return_value=mocker.MagicMock())
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db_pool", lambda: MagicMock())
+    monkeypatch.setattr("fraiseql.fastapi.dependencies.get_db", lambda: MagicMock())
 
     # Custom config that shows error details in production
     config = FraiseQLConfig(

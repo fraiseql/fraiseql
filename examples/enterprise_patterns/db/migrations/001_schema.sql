@@ -1,5 +1,5 @@
 -- Enterprise Patterns Schema
--- Complete schema demonstrating all PrintOptim patterns
+-- Complete schema demonstrating all FraiseQL enterprise patterns
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

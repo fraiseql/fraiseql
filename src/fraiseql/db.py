@@ -610,7 +610,20 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             return await execute_raw_json_query(conn, query.statement, query.params, field_name)
 
     def _instantiate_from_row(self, type_class: type, row: dict[str, Any]) -> Any:
-        """Instantiate a type from the 'data' JSONB column."""
+        """Instantiate a type from the row data."""
+        # Check if this type uses JSONB data column or regular columns
+        if hasattr(type_class, "__fraiseql_definition__"):
+            jsonb_column = type_class.__fraiseql_definition__.jsonb_column
+
+            if jsonb_column is None:
+                # Regular table columns - instantiate from the full row
+                return self._instantiate_recursive(type_class, row)
+            # JSONB data column - instantiate from the jsonb_column
+            column_to_use = jsonb_column or "data"
+            if column_to_use not in row:
+                raise KeyError(column_to_use)
+            return self._instantiate_recursive(type_class, row[column_to_use])
+        # No definition - default behavior (JSONB data column)
         return self._instantiate_recursive(type_class, row["data"])
 
     def _instantiate_recursive(
@@ -1048,8 +1061,21 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     + Identifier(view_name)
                 ]
             else:
-                # Default to 'data' column for backward compatibility
-                query_parts = [SQL("SELECT data::text FROM ") + Identifier(view_name)]
+                # Check if the type explicitly has no JSONB column
+                type_class = None
+                if view_name in _type_registry:
+                    type_class = _type_registry[view_name]
+
+                if (
+                    type_class
+                    and hasattr(type_class, "__fraiseql_definition__")
+                    and type_class.__fraiseql_definition__.jsonb_column is None
+                ):
+                    # Type explicitly uses regular columns, not JSONB - fall back to SELECT *
+                    query_parts = [SQL("SELECT * FROM ") + Identifier(view_name)]
+                else:
+                    # Default to 'data' column for backward compatibility
+                    query_parts = [SQL("SELECT data::text FROM ") + Identifier(view_name)]
         else:
             query_parts = [SQL("SELECT * FROM ") + Identifier(view_name)]
 

@@ -20,16 +20,48 @@ pytestmark = [
 ]
 
 
-@pytest.mark.asyncio  
+@pytest.mark.asyncio
 async def test_smart_dependencies_available(smart_dependencies):
     """Test that smart dependency management successfully provides all required dependencies."""
     # Verify that smart dependencies fixture provided dependency information
     assert smart_dependencies is not None
     assert 'dependency_results' in smart_dependencies
     assert 'environment' in smart_dependencies
-    
-    # Verify all critical dependencies are available
-    import fraiseql, httpx, psycopg, fastapi
+
+    # Test basic imports individually to identify the failing one
+    import sys
+    logger.info(f"Using Python: {sys.executable}")
+    logger.info(f"Python path: {sys.path[:3]}")
+
+    import httpx
+    import psycopg
+
+    # Check if fastapi is available
+    try:
+        import fastapi
+        logger.info("FastAPI import successful")
+    except ImportError as e:
+        logger.error(f"FastAPI import failed: {e}")
+        # Try to find where the package would be
+        logger.error(f"Sys path: {sys.path[:5]}")
+        raise
+
+    # Test GraphQL separately first
+    try:
+        from graphql import GraphQLSchema
+        logger.info("GraphQL import successful")
+    except ImportError as e:
+        logger.error(f"GraphQL import failed: {e}")
+        raise
+
+    # Now test fraiseql
+    try:
+        import fraiseql
+        logger.info("FraiseQL import successful")
+    except ImportError as e:
+        logger.error(f"FraiseQL import failed: {e}")
+        raise
+
     logger.info("All smart dependencies validated in integration test")
 
 
@@ -41,8 +73,9 @@ async def test_blog_simple_app_health(blog_simple_client):
     assert response.status_code == 200
 
     data = response.json()
-    assert data["status"] == "healthy"
-    assert data["service"] == "blog_simple"
+    logger.info(f"Blog simple health response: {data}")
+    assert data["status"] == "healthy", f"Expected healthy, got: {data}"
+    assert data["service"] == "blog_simple", f"Expected blog_simple, got: {data}"
     logger.info("Blog simple health check passed")
 
 
@@ -137,26 +170,32 @@ async def test_blog_simple_basic_queries(blog_simple_graphql_client):
 async def test_blog_simple_database_connectivity(blog_simple_repository):
     """Test that database connectivity works properly."""
     # Test basic database connection
-    result = await blog_simple_repository._connection.execute("SELECT 1 as test")
+    result = await blog_simple_repository.connection.execute("SELECT 1 as test")
     rows = await result.fetchall()
     assert len(rows) == 1
-    assert rows[0]["test"] == 1
+    assert rows[0][0] == 1  # First column of first row
 
 
 @pytest.mark.asyncio
 async def test_blog_simple_seed_data(blog_simple_repository):
     """Test that seed data is properly loaded."""
-    # Check that users exist
-    users = await blog_simple_repository.find("users", limit=5)
-    assert len(users) > 0
+    # Check that users table exists and has data
+    result = await blog_simple_repository.connection.execute("SELECT COUNT(*) as count FROM users")
+    rows = await result.fetchall()
+    user_count = rows[0][0]  # First column of first row
+    assert user_count > 0, "Users table should have seed data"
 
-    # Check that tags exist
-    tags = await blog_simple_repository.find("tags", limit=5)
-    assert len(tags) > 0
+    # Check that tags table exists and has data
+    result = await blog_simple_repository.connection.execute("SELECT COUNT(*) as count FROM tags")
+    rows = await result.fetchall()
+    tag_count = rows[0][0]  # First column of first row
+    assert tag_count > 0, "Tags table should have seed data"
 
-    # Check that posts exist
-    posts = await blog_simple_repository.find("posts", limit=5)
-    assert len(posts) > 0
+    # Check that posts table exists and has data
+    result = await blog_simple_repository.connection.execute("SELECT COUNT(*) as count FROM posts")
+    rows = await result.fetchall()
+    post_count = rows[0][0]  # First column of first row
+    assert post_count > 0, "Posts table should have seed data"
 
 
 @pytest.mark.asyncio
