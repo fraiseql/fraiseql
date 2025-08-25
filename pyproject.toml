@@ -46,6 +46,7 @@ dependencies = [
   "python-dotenv>=1.0.0",
   "structlog>=23.0.0",
   "passlib[argon2]>=1.7.4",
+  "aiosqlite>=0.21.0",
 ]
 
 [project.urls]
@@ -329,6 +330,7 @@ include = [
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.2.0",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
 ]

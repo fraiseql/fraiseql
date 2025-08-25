@@ -143,6 +143,14 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url):
             if key in os.environ:
                 original_env[key] = os.environ[key]
 
+        # Clear the FraiseQL registry completely to prevent schema conflicts
+        try:
+            from fraiseql.gql.builders.registry import SchemaRegistry
+            SchemaRegistry.get_instance().clear()
+            logger.info("Successfully cleared SchemaRegistry before creating blog_simple app")
+        except ImportError:
+            logger.warning("Could not import SchemaRegistry - continuing without clearing")
+
         # Clear any fraiseql modules from sys.modules to prevent contamination
         modules_to_remove = [name for name in sys.modules.keys()
                            if name.startswith('fraiseql.') and 'registry' in name.lower()]
@@ -261,6 +269,14 @@ async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
         for key in ["DB_NAME", "DATABASE_URL", "ENV"]:
             if key in os.environ:
                 original_env[key] = os.environ[key]
+
+        # Clear the FraiseQL registry completely to prevent schema conflicts
+        try:
+            from fraiseql.gql.builders.registry import SchemaRegistry
+            SchemaRegistry.get_instance().clear()
+            logger.info("Successfully cleared SchemaRegistry before creating blog_enterprise app")
+        except ImportError:
+            logger.warning("Could not import SchemaRegistry - continuing without clearing")
 
         # Clear any fraiseql modules from sys.modules to prevent contamination
         modules_to_remove = [name for name in sys.modules.keys()

@@ -2,14 +2,30 @@ import pytest
 
 """Test that authentication is properly enforced when configured."""
 
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from fastapi.testclient import TestClient
 from graphql import GraphQLResolveInfo
 
-from fraiseql import query
+from fraiseql import fraise_type, query
 from fraiseql.auth.base import AuthProvider, UserContext
-from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
+from fraiseql.fastapi import create_fraiseql_app
+
+
+@fraise_type
+class UserInfo:
+    """User information object for GraphQL."""
+    id: Optional[str] = None
+    email: Optional[str] = None
+    authenticated: bool = False
+
+
+@fraise_type
+class ContextInfo:
+    """Context information object for GraphQL."""
+    has_user: bool = False
+    authenticated: bool = False
+    user_id: Optional[str] = None
 
 
 @pytest.mark.security
@@ -41,16 +57,16 @@ async def sensitive_data(info: GraphQLResolveInfo) -> str:
 
 
 @query
-async def user_info(info: GraphQLResolveInfo) -> Dict[str, Any]:
+async def user_info(info: GraphQLResolveInfo) -> UserInfo:
     """Query that returns current user info."""
     user = info.context.get("user")
     if not user:
-        return {"id": None, "email": None, "authenticated": False}
-    return {
-        "id": user.user_id if hasattr(user, "user_id") else user.get("id"),
-        "email": user.email if hasattr(user, "email") else user.get("email"),
-        "authenticated": True,
-    }
+        return UserInfo(id=None, email=None, authenticated=False)
+    return UserInfo(
+        id=user.user_id if hasattr(user, "user_id") else user.get("id"),
+        email=user.email if hasattr(user, "email") else user.get("email"),
+        authenticated=True,
+    )
 
 
 class TestAuthenticationEnforcement:
@@ -58,14 +74,12 @@ class TestAuthenticationEnforcement:
 
     def test_auth_disabled_allows_anonymous(self):
         """When auth is not configured, anonymous requests should succeed."""
-        config = FraiseQLConfig(
-            database_url="postgresql://test:test@localhost/test",
-            environment="development",
-            auth_enabled=False,  # Explicitly disable auth
-        )
-
+        # When no auth provider is passed, auth is disabled
         app = create_fraiseql_app(
-            config=config, queries=[public_data, sensitive_data, user_info], production=False
+            database_url="sqlite:///:memory:",
+            queries=[public_data, sensitive_data, user_info],
+            production=False,
+            # No auth parameter = auth disabled
         )
 
         with TestClient(app) as client:
@@ -81,16 +95,11 @@ class TestAuthenticationEnforcement:
 
     def test_auth_enabled_blocks_anonymous(self):
         """When auth is configured, anonymous requests should be blocked."""
-        config = FraiseQLConfig(
-            database_url="postgresql://test:test@localhost/test",
-            environment="production",
-            auth_enabled=True,
-        )
-
+        # When auth provider is passed, auth is enabled
         app = create_fraiseql_app(
-            config=config,
+            database_url="sqlite:///:memory:",
             queries=[public_data, sensitive_data, user_info],
-            auth=TestAuthProvider(),
+            auth=TestAuthProvider(),  # This enables auth
             production=True,
         )
 
@@ -107,7 +116,7 @@ class TestAuthenticationEnforcement:
     def test_auth_enabled_accepts_valid_token(self):
         """When auth is configured, valid tokens should work."""
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url="sqlite:///:memory:",
             queries=[public_data, sensitive_data, user_info],
             auth=TestAuthProvider(),
             production=False,
@@ -138,7 +147,7 @@ class TestAuthenticationEnforcement:
     def test_auth_enabled_rejects_invalid_token(self):
         """Invalid tokens should be rejected."""
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url="sqlite:///:memory:",
             queries=[sensitive_data],
             auth=TestAuthProvider(),
             production=False,
@@ -156,7 +165,7 @@ class TestAuthenticationEnforcement:
     def test_introspection_allowed_in_dev_without_auth(self):
         """Introspection should be allowed in development even without auth."""
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url="sqlite:///:memory:",
             queries=[sensitive_data],
             auth=TestAuthProvider(),
             production=False,  # Development mode
@@ -173,7 +182,7 @@ class TestAuthenticationEnforcement:
     def test_introspection_blocked_in_production_without_auth(self):
         """Introspection should be blocked in production without auth."""
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url="sqlite:///:memory:",
             queries=[sensitive_data],
             auth=TestAuthProvider(),
             production=True,  # Production mode
@@ -191,7 +200,7 @@ class TestAuthenticationEnforcement:
         """Passing an auth provider should automatically enable authentication."""
         # Don't explicitly set auth_enabled, just pass auth provider
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url="sqlite:///:memory:",
             queries=[sensitive_data],
             auth=TestAuthProvider(),  # This should enable auth
             production=False,
@@ -218,18 +227,17 @@ class TestAuthContextPropagation:
         """Context should contain user info when authenticated."""
 
         @query
-        async def context_check(info: GraphQLResolveInfo) -> Dict[str, Any]:
+        async def context_check(info: GraphQLResolveInfo) -> ContextInfo:
             """Check what's in the context."""
-            return {
-                "hasUser": "user" in info.context,
-                "authenticated": info.context.get("authenticated", False),
-                "userId": getattr(info.context.get("user"), "user_id", None)
-                if info.context.get("user")
-                else None,
-            }
+            user = info.context.get("user")
+            return ContextInfo(
+                has_user="user" in info.context,
+                authenticated=info.context.get("authenticated", False),
+                user_id=getattr(user, "user_id", None) if user else None,
+            )
 
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url="sqlite:///:memory:",
             queries=[context_check],
             auth=TestAuthProvider(),
             production=False,
@@ -252,17 +260,17 @@ class TestAuthContextPropagation:
         """Context should show unauthenticated when auth is optional."""
 
         @query
-        async def context_check(info: GraphQLResolveInfo) -> Dict[str, Any]:
+        async def context_check(info: GraphQLResolveInfo) -> ContextInfo:
             """Check what's in the context."""
-            return {
-                "hasUser": "user" in info.context,
-                "authenticated": info.context.get("authenticated", False),
-                "userId": None,
-            }
+            return ContextInfo(
+                has_user="user" in info.context,
+                authenticated=info.context.get("authenticated", False),
+                user_id=None,
+            )
 
         # Create app without auth provider (auth optional)
         app = create_fraiseql_app(
-            database_url="postgresql://test:test@localhost/test",
+            database_url="sqlite:///:memory:",
             queries=[context_check],
             production=False,
         )
