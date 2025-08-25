@@ -1,6 +1,6 @@
 # FraiseQL Test Suite
 
-This test suite is organized into logical layers for better maintainability and understanding.
+A well-organized test suite designed for clarity, maintainability, and efficient execution.
 
 ## Test Organization
 
@@ -56,37 +56,37 @@ Test utilities and setup
 
 ### Run All Tests
 ```bash
-pytest tests_new/
+pytest tests/
 ```
 
 ### Run by Category
 ```bash
 # Unit tests only (fast)
-pytest tests_new/unit/
+pytest tests/unit/
 
 # Integration tests (requires services)
-pytest tests_new/integration/
+pytest tests/integration/
 
 # System tests (full end-to-end)
-pytest tests_new/system/
+pytest tests/system/
 
 # Regression tests only
-pytest tests_new/regression/
+pytest tests/regression/
 ```
 
 ### Run by Functionality
 ```bash
 # Database-related tests
-pytest tests_new/integration/database/
+pytest tests/integration/database/
 
 # GraphQL-related tests
-pytest tests_new/integration/graphql/
+pytest tests/integration/graphql/
 
 # Type system tests
-pytest tests_new/unit/core/types/
+pytest tests/unit/core/types/
 
 # Authentication tests
-pytest tests_new/integration/auth/
+pytest tests/integration/auth/
 ```
 
 ### Test Markers
@@ -122,15 +122,15 @@ pytest -m auth
 | System | Full application stack |
 | Regression | Varies by specific test |
 
-## Migration from Old Structure
+## Architecture Benefits
 
-This new structure consolidates 247 test files from 35+ directories into a logical hierarchy:
+This structure provides:
 
-- **Reduced complexity**: Clear separation of concerns
-- **Better discoverability**: Logical grouping by functionality
-- **Improved maintainability**: Related tests are co-located
-- **Easier CI/CD**: Run only relevant test suites
-- **Clearer dependencies**: Obvious which tests need external services
+- **Clear separation of concerns**: Each layer has distinct responsibilities
+- **Logical grouping**: Related functionality is co-located
+- **Selective execution**: Run only the tests you need
+- **Obvious dependencies**: Easy to see which tests require external services
+- **Scalable organization**: Easy to add new tests in appropriate categories
 
 ## Contributing
 
