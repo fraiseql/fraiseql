@@ -14,6 +14,7 @@ from typing import AsyncGenerator, Dict, Any
 from uuid import UUID, uuid4
 
 import pytest
+import pytest_asyncio
 
 # Import smart management systems
 from .dependency_manager import (
@@ -75,7 +76,7 @@ def examples_event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def blog_simple_db_url(smart_dependencies):
     """Setup blog_simple test database using smart database manager."""
     db_manager = get_database_manager()
@@ -99,7 +100,7 @@ async def blog_simple_db_url(smart_dependencies):
         pytest.skip(f"Database setup failed: {e}")
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def blog_simple_db_connection(blog_simple_db_url):
     """Provide database connection for blog_simple tests."""
     try:
@@ -111,7 +112,7 @@ async def blog_simple_db_connection(blog_simple_db_url):
         pytest.skip(f"Database connection failed: {e}")
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def blog_simple_repository(blog_simple_db_connection):
     """Provide CQRS repository for blog_simple tests."""
     from fraiseql.cqrs import CQRSRepository
@@ -119,7 +120,7 @@ async def blog_simple_repository(blog_simple_db_connection):
     yield repo
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def blog_simple_context(blog_simple_repository) -> Dict[str, Any]:
     """Provide test context for blog_simple."""
     return {
@@ -130,7 +131,7 @@ async def blog_simple_context(blog_simple_repository) -> Dict[str, Any]:
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def blog_simple_app(smart_dependencies, blog_simple_db_url):
     """Create blog_simple app for testing with guaranteed dependencies."""
     blog_simple_path = None
@@ -198,7 +199,7 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url):
             sys.path.remove(str(blog_simple_path))
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def blog_simple_client(blog_simple_app):
     """HTTP client for blog_simple app with guaranteed dependencies."""
     # Dependencies guaranteed by smart_dependencies fixture
@@ -211,7 +212,7 @@ async def blog_simple_client(blog_simple_app):
             yield client
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def blog_simple_graphql_client(blog_simple_client):
     """GraphQL client for blog_simple."""
 
@@ -233,7 +234,7 @@ async def blog_simple_graphql_client(blog_simple_client):
     yield GraphQLClient(blog_simple_client)
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def blog_enterprise_db_url(smart_dependencies):
     """Setup blog_enterprise test database using smart database manager."""
     db_manager = get_database_manager()
@@ -257,7 +258,7 @@ async def blog_enterprise_db_url(smart_dependencies):
         pytest.skip(f"Database setup failed: {e}")
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
     """Create blog_enterprise app for testing with guaranteed dependencies."""
     blog_enterprise_path = None
@@ -325,7 +326,7 @@ async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
             sys.path.remove(str(blog_enterprise_path))
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def blog_enterprise_client(blog_enterprise_app):
     """HTTP client for blog_enterprise app with guaranteed dependencies."""
     # Dependencies guaranteed by smart_dependencies fixture

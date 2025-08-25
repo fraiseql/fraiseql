@@ -70,7 +70,12 @@ def _create_base_app() -> FastAPI:
             raise
 
     # Import blog schema
-    from models import BLOG_MUTATIONS, BLOG_QUERIES, BLOG_TYPES
+    try:
+        # Try local import first (when running from blog_simple directory)
+        from models import BLOG_MUTATIONS, BLOG_QUERIES, BLOG_TYPES
+    except ImportError:
+        # Fallback for when running from repository root (CI environment)
+        from examples.blog_simple.models import BLOG_MUTATIONS, BLOG_QUERIES, BLOG_TYPES
 
     # Create FraiseQL app directly - this becomes our main app
     app = create_fraiseql_app(

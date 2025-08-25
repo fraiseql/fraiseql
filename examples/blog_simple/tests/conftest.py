@@ -113,7 +113,12 @@ except ImportError:
     @pytest_asyncio.fixture
     async def app_client(setup_test_db) -> AsyncGenerator[AsyncClient, None]:
         """Provide HTTP client for testing the FastAPI application."""
-        from app import app
+        try:
+            # Try local import first (when running from blog_simple directory)
+            from app import app
+        except ImportError:
+            # Fallback for when running from repository root (CI environment)
+            from examples.blog_simple.app import app
 
         # Override database URL for testing
         os.environ["DB_NAME"] = DB_NAME

@@ -7,7 +7,7 @@ pytestmark = [pytest.mark.blog_simple, pytest.mark.integration, pytest.mark.data
 
 
 @pytest.mark.asyncio
-async def test_query_posts(graphql_client):
+async def test_query_posts(blog_simple_graphql_client):
     """Test querying posts with basic filtering."""
     query = """
         query GetPosts($limit: Int, $where: PostWhereInput) {
@@ -34,7 +34,7 @@ async def test_query_posts(graphql_client):
         }
     """
 
-    result = await graphql_client.execute(
+    result = await blog_simple_graphql_client.execute(
         query,
         variables={"limit": 10, "where": {"status": "published"}}
     )
@@ -70,7 +70,7 @@ async def test_query_posts(graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_query_single_post_by_id(graphql_client):
+async def test_query_single_post_by_id(blog_simple_graphql_client):
     """Test querying a single post by ID."""
     # First get a post ID
     posts_query = """
@@ -81,7 +81,7 @@ async def test_query_single_post_by_id(graphql_client):
         }
     """
 
-    posts_result = await graphql_client.execute(posts_query)
+    posts_result = await blog_simple_graphql_client.execute(posts_query)
 
     if not posts_result.get("data", {}).get("posts"):
         pytest.skip("No posts available for testing")
@@ -110,7 +110,7 @@ async def test_query_single_post_by_id(graphql_client):
         }
     """
 
-    result = await graphql_client.execute(query, variables={"id": post_id})
+    result = await blog_simple_graphql_client.execute(query, variables={"id": post_id})
 
     assert "errors" not in result or not result["errors"]
     assert "data" in result
@@ -124,7 +124,7 @@ async def test_query_single_post_by_id(graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_query_single_post_by_slug(graphql_client):
+async def test_query_single_post_by_slug(blog_simple_graphql_client):
     """Test querying a single post by slug."""
     query = """
         query GetPost($slug: String) {
@@ -137,7 +137,7 @@ async def test_query_single_post_by_slug(graphql_client):
         }
     """
 
-    result = await graphql_client.execute(
+    result = await blog_simple_graphql_client.execute(
         query,
         variables={"slug": "getting-started-with-fraiseql"}
     )
@@ -152,7 +152,7 @@ async def test_query_single_post_by_slug(graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_query_tags(graphql_client):
+async def test_query_tags(blog_simple_graphql_client):
     """Test querying tags."""
     query = """
         query GetTags($limit: Int) {
@@ -167,7 +167,7 @@ async def test_query_tags(graphql_client):
         }
     """
 
-    result = await graphql_client.execute(query, variables={"limit": 10})
+    result = await blog_simple_graphql_client.execute(query, variables={"limit": 10})
 
     assert "errors" not in result or not result["errors"]
     assert "data" in result
@@ -185,7 +185,7 @@ async def test_query_tags(graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_query_users(graphql_client):
+async def test_query_users(blog_simple_graphql_client):
     """Test querying users."""
     query = """
         query GetUsers($limit: Int) {
@@ -200,7 +200,7 @@ async def test_query_users(graphql_client):
         }
     """
 
-    result = await graphql_client.execute(query, variables={"limit": 10})
+    result = await blog_simple_graphql_client.execute(query, variables={"limit": 10})
 
     assert "errors" not in result or not result["errors"]
     assert "data" in result
@@ -218,7 +218,7 @@ async def test_query_users(graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_query_posts_with_filtering(graphql_client):
+async def test_query_posts_with_filtering(blog_simple_graphql_client):
     """Test querying posts with various filters."""
     query = """
         query GetPosts($where: PostWhereInput) {
@@ -234,7 +234,7 @@ async def test_query_posts_with_filtering(graphql_client):
     """
 
     # Test filtering by status
-    result = await graphql_client.execute(
+    result = await blog_simple_graphql_client.execute(
         query,
         variables={"where": {"status": "published"}}
     )
@@ -247,7 +247,7 @@ async def test_query_posts_with_filtering(graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_query_posts_with_ordering(graphql_client):
+async def test_query_posts_with_ordering(blog_simple_graphql_client):
     """Test querying posts with custom ordering."""
     query = """
         query GetPosts($orderBy: [PostOrderByInput!]) {
@@ -259,7 +259,7 @@ async def test_query_posts_with_ordering(graphql_client):
         }
     """
 
-    result = await graphql_client.execute(
+    result = await blog_simple_graphql_client.execute(
         query,
         variables={"orderBy": [{"field": "createdAt", "direction": "ASC"}]}
     )
@@ -275,7 +275,7 @@ async def test_query_posts_with_ordering(graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_query_pagination(graphql_client):
+async def test_query_pagination(blog_simple_graphql_client):
     """Test query pagination."""
     query = """
         query GetPosts($limit: Int, $offset: Int) {
@@ -312,7 +312,7 @@ async def test_query_pagination(graphql_client):
 
 
 @pytest.mark.asyncio
-async def test_nested_field_resolution(graphql_client):
+async def test_nested_field_resolution(blog_simple_graphql_client):
     """Test that nested fields are properly resolved."""
     query = """
         query GetPostWithNested {
@@ -339,7 +339,7 @@ async def test_nested_field_resolution(graphql_client):
         }
     """
 
-    result = await graphql_client.execute(query)
+    result = await blog_simple_graphql_client.execute(query)
 
     assert "errors" not in result or not result["errors"]
     posts = result["data"]["posts"]
