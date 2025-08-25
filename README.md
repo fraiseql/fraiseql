@@ -535,3 +535,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [Documentation](https://fraiseql.dev)
 - [GitHub Repository](https://github.com/fraiseql/fraiseql)
 - [PyPI Package](https://pypi.org/project/fraiseql/)
+
+---
+*Last verified: 2025-08-25*
