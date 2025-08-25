@@ -3,11 +3,9 @@ import pytest
 from fraiseql.config.schema_config import SchemaConfig
 from fraiseql.gql.schema_builder import SchemaRegistry
 
-# Import database fixtures to make them available to all tests
-from tests.database_conftest import *  # noqa: F403
-
-# Import auth fixtures to make them available to all tests
-from tests.conftest_auth import *  # noqa: F403
+# Import fixtures from the new organized structure
+from fixtures.database.database_conftest import *  # noqa: F403
+from fixtures.auth.conftest_auth import *  # noqa: F403
 
 
 @pytest.fixture

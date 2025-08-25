@@ -1,1 +1,0 @@
-"""FraiseQL test suite."""
