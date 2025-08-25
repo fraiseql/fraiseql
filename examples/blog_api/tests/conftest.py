@@ -31,7 +31,7 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://localhost/blog_
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_connection() -> AsyncGenerator[psycopg.AsyncConnection]:
+async def db_connection() -> AsyncGenerator[psycopg.AsyncConnection, None]:
     """Get a database connection for tests."""
     # Use direct connection instead of pool for simplicity in tests
     conn = await psycopg.AsyncConnection.connect(TEST_DATABASE_URL)
@@ -44,7 +44,7 @@ async def db_connection() -> AsyncGenerator[psycopg.AsyncConnection]:
 @pytest_asyncio.fixture(scope="function")
 async def clean_db(
     db_connection: psycopg.AsyncConnection,
-) -> AsyncGenerator[None]:
+) -> AsyncGenerator[None, None]:
     """Clean the database before and after each test."""
     # Clean all tables
     await db_connection.execute(
@@ -140,7 +140,7 @@ def test_client() -> TestClient:
 
 
 @pytest_asyncio.fixture
-async def async_client() -> AsyncGenerator[AsyncClient]:
+async def async_client() -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client for the FastAPI app."""
     # Import here to avoid circular dependencies
     from app import app
