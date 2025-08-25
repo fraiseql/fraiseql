@@ -102,7 +102,7 @@ pytest tests/ --cov=. --cov-report=html
 **Issue**: {Common problem}
 **Solution**: {How to fix it}
 
-**Issue**: {Another common problem}  
+**Issue**: {Another common problem}
 **Solution**: {How to fix it}
 
 For more help, see the [main documentation](https://fraiseql.dev) or [open an issue](https://github.com/fraiseql/fraiseql/issues).
