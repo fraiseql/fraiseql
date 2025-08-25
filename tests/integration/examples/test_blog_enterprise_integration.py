@@ -145,6 +145,12 @@ async def test_blog_enterprise_cors_headers(blog_enterprise_client):
 @pytest.mark.asyncio
 async def test_blog_enterprise_domain_structure_exists():
     """Test that enterprise domain structure exists."""
+    # Check if FraiseQL is available first
+    try:
+        import fraiseql
+    except ImportError:
+        pytest.skip("FraiseQL not installed - skipping domain structure test")
+
     import sys
     from pathlib import Path
 
@@ -170,8 +176,8 @@ async def test_blog_enterprise_domain_structure_exists():
         assert hasattr(exceptions, 'DomainException')
         assert hasattr(exceptions, 'EntityNotFoundError')
 
-    except ImportError as e:
-        pytest.skip(f"Domain structure not implemented yet: {e}")
+    except (ImportError, ModuleNotFoundError) as e:
+        pytest.skip(f"Domain structure not implemented yet or dependencies missing: {e}")
     finally:
         # Clean up sys.path
         if str(blog_enterprise_path) in sys.path:

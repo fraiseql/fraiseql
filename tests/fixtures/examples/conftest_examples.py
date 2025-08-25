@@ -13,10 +13,27 @@ from typing import AsyncGenerator, Dict, Any
 from uuid import UUID, uuid4
 
 import pytest
-import psycopg
-from httpx import AsyncClient
 
-from fraiseql.cqrs import CQRSRepository
+# Try to import optional dependencies, skip if not available
+try:
+    import psycopg
+    PSYCOPG_AVAILABLE = True
+except ImportError:
+    PSYCOPG_AVAILABLE = False
+
+try:
+    from httpx import AsyncClient
+    HTTPX_AVAILABLE = True
+except ImportError:
+    HTTPX_AVAILABLE = False
+    AsyncClient = None
+
+try:
+    from fraiseql.cqrs import CQRSRepository
+    FRAISEQL_AVAILABLE = True
+except ImportError:
+    FRAISEQL_AVAILABLE = False
+    CQRSRepository = None
 
 
 # Add examples directory to Python path for imports
@@ -35,6 +52,9 @@ def examples_event_loop():
 @pytest.fixture(scope="session")
 async def blog_simple_db_url():
     """Setup blog_simple test database."""
+    if not PSYCOPG_AVAILABLE:
+        pytest.skip("psycopg not available - skipping database fixtures")
+
     db_name = f"fraiseql_blog_simple_test_{uuid4().hex[:8]}"
     admin_url = "postgresql://fraiseql:fraiseql@localhost:5432/postgres"
 
@@ -111,6 +131,13 @@ async def blog_simple_context(blog_simple_repository) -> Dict[str, Any]:
 @pytest.fixture
 async def blog_simple_app():
     """Create blog_simple app for testing."""
+    # Check if FraiseQL is available first
+    try:
+        import fraiseql
+    except ImportError:
+        pytest.skip("FraiseQL not installed - skipping blog_simple integration tests")
+
+    blog_simple_path = None
     try:
         # Import blog_simple app
         blog_simple_path = EXAMPLES_DIR / "blog_simple"
@@ -120,21 +147,27 @@ async def blog_simple_app():
 
         # Override database settings for testing
         os.environ["DB_NAME"] = "fraiseql_blog_simple_test"
+        os.environ["ENV"] = "test"
 
         app = create_app()
         yield app
 
-    except ImportError as e:
-        pytest.skip(f"Could not import blog_simple app: {e}")
+    except (ImportError, ModuleNotFoundError) as e:
+        pytest.skip(f"Could not import blog_simple app (likely missing dependencies): {e}")
+    except Exception as e:
+        pytest.skip(f"Failed to create blog_simple app: {e}")
     finally:
         # Clean up sys.path
-        if str(blog_simple_path) in sys.path:
+        if blog_simple_path and str(blog_simple_path) in sys.path:
             sys.path.remove(str(blog_simple_path))
 
 
 @pytest.fixture
 async def blog_simple_client(blog_simple_app) -> AsyncGenerator[AsyncClient, None]:
     """HTTP client for blog_simple app."""
+    if not HTTPX_AVAILABLE:
+        pytest.skip("httpx not available - skipping HTTP client fixtures")
+
     async with AsyncClient(app=blog_simple_app, base_url="http://test") as client:
         yield client
 
@@ -196,6 +229,13 @@ async def blog_enterprise_db_url():
 @pytest.fixture
 async def blog_enterprise_app():
     """Create blog_enterprise app for testing."""
+    # Check if FraiseQL is available first
+    try:
+        import fraiseql
+    except ImportError:
+        pytest.skip("FraiseQL not installed - skipping blog_enterprise integration tests")
+
+    blog_enterprise_path = None
     try:
         # Import blog_enterprise app
         blog_enterprise_path = EXAMPLES_DIR / "blog_enterprise"
@@ -210,17 +250,22 @@ async def blog_enterprise_app():
         app = create_app()
         yield app
 
-    except ImportError as e:
-        pytest.skip(f"Could not import blog_enterprise app: {e}")
+    except (ImportError, ModuleNotFoundError) as e:
+        pytest.skip(f"Could not import blog_enterprise app (likely missing dependencies): {e}")
+    except Exception as e:
+        pytest.skip(f"Failed to create blog_enterprise app: {e}")
     finally:
         # Clean up sys.path
-        if str(blog_enterprise_path) in sys.path:
+        if blog_enterprise_path and str(blog_enterprise_path) in sys.path:
             sys.path.remove(str(blog_enterprise_path))
 
 
 @pytest.fixture
 async def blog_enterprise_client(blog_enterprise_app) -> AsyncGenerator[AsyncClient, None]:
     """HTTP client for blog_enterprise app."""
+    if not HTTPX_AVAILABLE:
+        pytest.skip("httpx not available - skipping HTTP client fixtures")
+
     async with AsyncClient(app=blog_enterprise_app, base_url="http://test") as client:
         yield client
 

@@ -23,7 +23,7 @@ from fraiseql import MutationResultBase
 class CreateUserSuccess(MutationResultBase):  # Inheritance required
     user: dict | None = None
 
-@fraiseql.failure  
+@fraiseql.failure
 class CreateUserError(MutationResultBase):   # Inheritance required
     conflict_user: dict | None = None
 ```
@@ -55,7 +55,7 @@ class CreateUserError:    # Just your fields!
 - **Added**: Built-in `Error` type exported from main `fraiseql` module
 - **Added**: `MutationResultBase` type (still available but not required thanks to auto-injection)
 - **Enhanced**: `DEFAULT_ERROR_CONFIG` with PrintOptim-friendly patterns:
-  - Success keywords: `"created"`, `"cancelled"` 
+  - Success keywords: `"created"`, `"cancelled"`
   - Error-as-data prefixes: `"duplicate:"` (in addition to `"noop:"`, `"blocked:"`)
 
 #### **🎯 PrintOptim Integration Impact**
@@ -101,7 +101,7 @@ class CreateUserError:    # Just your fields!
 
 #### **Testing & Verification**
 - **Added**: Comprehensive integration tests (`test_graphql_error_serialization.py`)
-- **Added**: Extensive unit tests (`test_fraise_type_json_serialization.py`) 
+- **Added**: Extensive unit tests (`test_fraise_type_json_serialization.py`)
 - **Verified**: All existing tests continue to pass (no regressions)
 - **Confirmed**: Bug reproduction cases now work correctly
 
