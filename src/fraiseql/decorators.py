@@ -779,6 +779,8 @@ def connection(
     max_page_size: int = 100,
     include_total_count: bool = True,
     cursor_field: str = "id",
+    jsonb_extraction: bool | None = None,
+    jsonb_column: str | None = None,
 ) -> Callable[[F], F]:
     """Decorator to create cursor-based pagination query resolvers.
 
@@ -792,6 +794,8 @@ def connection(
         max_page_size: Maximum allowed page size
         include_total_count: Whether to include total count in results
         cursor_field: Field to use for cursor ordering
+        jsonb_extraction: Enable JSONB field extraction (inherits global config if None)
+        jsonb_column: JSONB column name to extract fields from (inherits global config if None)
 
     Returns:
         Decorated function that returns Connection[T]
@@ -814,7 +818,9 @@ def connection(
                 view_name="v_published_posts",
                 default_page_size=25,
                 max_page_size=50,
-                cursor_field="created_at"
+                cursor_field="created_at",
+                jsonb_extraction=True,
+                jsonb_column="data"
             )
             @fraiseql.query
             async def posts_connection(
@@ -877,6 +883,19 @@ def connection(
             except KeyError as e:
                 raise ValueError("Database repository not found in GraphQL context") from e
 
+            # Resolve JSONB configuration dynamically
+            config = info.context.get("config")
+            resolved_jsonb_extraction = jsonb_extraction
+            resolved_jsonb_column = jsonb_column
+
+            # Auto-inherit from global configuration if not explicitly set
+            if resolved_jsonb_extraction is None and config:
+                resolved_jsonb_extraction = getattr(config, "jsonb_extraction_enabled", False)
+
+            if resolved_jsonb_column is None and config:
+                default_columns = getattr(config, "jsonb_default_columns", ["data"])
+                resolved_jsonb_column = default_columns[0] if default_columns else "data"
+
             # Call repository paginate method with all parameters
             try:
                 result = await db.paginate(
@@ -888,6 +907,8 @@ def connection(
                     filters=where,
                     order_by=cursor_field,
                     include_total=include_total_count,
+                    jsonb_extraction=resolved_jsonb_extraction,
+                    jsonb_column=resolved_jsonb_column,
                 )
             except Exception as e:
                 # Provide context about which view/query failed
@@ -909,6 +930,9 @@ def connection(
             "max_page_size": max_page_size,
             "include_total_count": include_total_count,
             "cursor_field": cursor_field,
+            "jsonb_extraction": jsonb_extraction,  # Store original values
+            "jsonb_column": jsonb_column,
+            "supports_global_jsonb": True,  # Indicate global config support
         }
 
         return wrapper  # type: ignore[return-value]

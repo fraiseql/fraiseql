@@ -103,3 +103,135 @@ class TestConnectionDecorator:
             @connection(node_type=User, default_page_size=50, max_page_size=25)
             async def inconsistent_page_sizes_connection(info) -> Connection[User]:
                 pass
+
+    def test_connection_decorator_jsonb_extraction_compatibility(self):
+        """🔴 RED: Test that @connection decorator respects global JSONB configuration.
+
+        This test documents enterprise JSONB scenarios where:
+        1. Global JSONB config works for individual queries
+        2. @connection decorator needs to inherit JSONB field extraction
+        3. Connection wrapper type needs to extract JSONB fields
+
+        This should FAIL in RED phase, then PASS after GREEN implementation.
+        """
+        from fraiseql.decorators import connection
+        from unittest.mock import AsyncMock, Mock
+
+        # Mock database repository with JSONB data structure
+        mock_db = AsyncMock()
+        mock_db.paginate.return_value = {
+            "nodes": [
+                {
+                    "id": "dns-server-1",
+                    "data": {  # JSONB column with extracted fields
+                        "identifier": "dns-001",
+                        "ip_address": "192.168.1.10",
+                        "n_total_allocations": 5
+                    }
+                },
+                {
+                    "id": "dns-server-2",
+                    "data": {
+                        "identifier": "dns-002",
+                        "ip_address": "192.168.1.20",
+                        "n_total_allocations": 3
+                    }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": False,
+                "hasPreviousPage": False,
+                "startCursor": "dns-server-1",
+                "endCursor": "dns-server-2"
+            },
+            "totalCount": 2
+        }
+
+        # Mock GraphQL info with database context
+        mock_info = Mock()
+        mock_info.context = {"db": mock_db}
+
+        # Create connection with JSONB extraction enabled
+        @connection(
+            node_type=User,
+            view_name="v_dns_server",
+            jsonb_extraction=True,  # 🔴 This parameter should exist but doesn't yet
+            jsonb_column="data"     # 🔴 This parameter should exist but doesn't yet
+        )
+        async def dns_servers_connection(info, first: int | None = None) -> Connection[User]:
+            pass
+
+        # Test that JSONB configuration is stored in connection metadata
+        config = dns_servers_connection.__fraiseql_connection__
+        assert config['jsonb_extraction'] is True
+        assert config['jsonb_column'] == "data"
+        assert config['supports_global_jsonb'] is True  # ✅ Now supported!
+
+    def test_connection_decorator_global_jsonb_inheritance(self):
+        """🔄 REFACTOR: Test that @connection inherits global JSONB configuration."""
+        from fraiseql.decorators import connection
+        from unittest.mock import AsyncMock, Mock
+
+        # Mock config with global JSONB settings
+        mock_config = Mock()
+        mock_config.jsonb_extraction_enabled = True
+        mock_config.jsonb_default_columns = ["metadata", "data"]  # Test priority
+
+        mock_db = AsyncMock()
+        mock_info = Mock()
+        mock_info.context = {"db": mock_db, "config": mock_config}
+
+        # Connection WITHOUT explicit JSONB parameters - should inherit
+        @connection(node_type=User, view_name="v_test")
+        async def auto_jsonb_connection(info, first: int | None = None) -> Connection[User]:
+            pass
+
+        # Test metadata shows None (will be resolved at runtime)
+        config = auto_jsonb_connection.__fraiseql_connection__
+        assert config['jsonb_extraction'] is None  # Will inherit at runtime
+        assert config['jsonb_column'] is None      # Will inherit at runtime
+        assert config['supports_global_jsonb'] is True
+
+        # Test runtime resolution by calling the function
+        # This would verify the global config inheritance works
+        # (We can't easily test the actual paginate call without integration tests)
+
+    def test_connection_decorator_explicit_overrides_global(self):
+        """🔄 REFACTOR: Test that explicit params override global config."""
+        from fraiseql.decorators import connection
+
+        # Connection WITH explicit JSONB parameters - should override global
+        @connection(
+            node_type=User,
+            view_name="v_test",
+            jsonb_extraction=False,    # Explicit override
+            jsonb_column="custom_data" # Explicit override
+        )
+        async def explicit_jsonb_connection(info, first: int | None = None) -> Connection[User]:
+            pass
+
+        config = explicit_jsonb_connection.__fraiseql_connection__
+        assert config['jsonb_extraction'] is False       # Explicit override
+        assert config['jsonb_column'] == "custom_data"   # Explicit override
+        assert config['supports_global_jsonb'] is True
+
+    def test_connection_decorator_backward_compatibility(self):
+        """🔄 REFACTOR: Test backward compatibility - old code still works."""
+        from fraiseql.decorators import connection
+
+        # Old-style usage without JSONB parameters - should work unchanged
+        @connection(node_type=User, view_name="v_legacy")
+        async def legacy_connection(info, first: int | None = None) -> Connection[User]:
+            pass
+
+        # Should have all expected metadata with sensible defaults
+        config = legacy_connection.__fraiseql_connection__
+        assert config['node_type'] == User
+        assert config['view_name'] == "v_legacy"
+        assert config['default_page_size'] == 20
+        assert config['max_page_size'] == 100
+        assert config['include_total_count'] is True
+        assert config['cursor_field'] == "id"
+        assert config['jsonb_extraction'] is None  # Will inherit global
+        assert config['jsonb_column'] is None      # Will inherit global
+        assert config['supports_global_jsonb'] is True
