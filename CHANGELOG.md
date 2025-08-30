@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2025-08-30
+
+### 🚀 **Cursor-Based Pagination with Relay Connection Support**
+
+#### **New @connection Decorator**
+FraiseQL now provides a **complete cursor-based pagination solution** following the Relay Connection specification:
+
+```python
+import fraiseql
+
+@fraiseql.connection(
+    node_type=User,
+    view_name="v_user",
+    default_page_size=20,
+    max_page_size=100
+)
+async def users(
+    info: GraphQLResolveInfo,
+    first: int | None = None,
+    after: str | None = None,
+    last: int | None = None,
+    before: str | None = None,
+    where: UserWhereInput | None = None,
+) -> UserConnection:
+    """Get paginated users with cursor-based navigation."""
+```
+
+#### **Complete Relay Specification Compliance**
+- **Connection[T], Edge[T], PageInfo types** - Full GraphQL Connection specification
+- **Base64 cursor encoding/decoding** - Secure, opaque cursor format
+- **Forward and backward pagination** - `first`/`after` and `last`/`before` parameters
+- **Cursor validation** - Automatic cursor format validation and error handling
+- **Total count support** - Optional `totalCount` field for client pagination UI
+- **Flexible configuration** - Customizable page sizes, cursor fields, and view names
+
+#### **Built on Existing Infrastructure**
+- **Leverages CQRSRepository** - Uses proven FraiseQL pagination patterns
+- **Integrates with CursorPaginator** - Builds on existing `fraiseql.cqrs.pagination` module
+- **PostgreSQL JSONB optimized** - Efficient cursor-based queries over JSONB views
+- **Type-safe implementation** - Full Python typing support with proper generics
+
+#### **Comprehensive Documentation & Examples**
+- **405-line demo file** (`examples/cursor_pagination_demo.py`) with Vue.js integration
+- **Complete test coverage** - 4 comprehensive test cases covering all functionality
+- **Production-ready patterns** - Real-world pagination examples with error handling
+- **Frontend integration guide** - Vue.js components for cursor-based UI
+
+#### **Key Features**
+- **Automatic resolver generation** - Single decorator creates complete connection resolver
+- **Parameter validation** - Built-in validation for pagination parameters and conflicts
+- **Error handling** - Graceful handling of invalid cursors and parameter combinations
+- **Performance optimized** - Efficient PostgreSQL queries with proper LIMIT/OFFSET handling
+- **Extensible design** - Easy to customize cursor fields and pagination behavior
+
+#### **Migration from Offset Pagination**
+```python
+# Before: Traditional offset pagination
+@fraiseql.query
+async def users(offset: int = 0, limit: int = 20) -> list[User]:
+    # Manual pagination logic
+    pass
+
+# After: Cursor-based pagination
+@fraiseql.connection(node_type=User)
+async def users(first: int | None = None, after: str | None = None) -> UserConnection:
+    # Automatic cursor handling
+    pass
+```
+
+This release establishes FraiseQL as **the most comprehensive GraphQL pagination solution** for PostgreSQL, combining Relay specification compliance with high-performance JSONB queries.
+
 ## [0.5.0] - 2025-08-25
 
 ### 🚀 **Major Release: Ultimate FraiseQL Integration & Zero-Inheritance Pattern**

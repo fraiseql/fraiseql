@@ -1,7 +1,7 @@
 # FraiseQL Blog Simple - Dependencies
 
 # Core FraiseQL with FastAPI support
-fraiseql[fastapi]==0.5.0
+fraiseql[fastapi]==0.5.1
 
 # Database connectivity
 psycopg[binary]>=3.1.0
