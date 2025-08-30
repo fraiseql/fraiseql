@@ -8,7 +8,7 @@ from .commands import check, dev, generate, init_command, sql
 
 
 @click.group()
-@click.version_option(version="0.5.1", prog_name="fraiseql")
+@click.version_option(version="0.5.2", prog_name="fraiseql")
 def cli() -> None:
     """FraiseQL - Lightweight GraphQL-to-PostgreSQL query builder.
 
