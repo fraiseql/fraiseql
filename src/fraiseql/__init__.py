@@ -5,7 +5,7 @@ Exports public API for FraiseQL framework.
 
 # Core imports
 from .cqrs import CQRSExecutor, CQRSRepository
-from .decorators import field, query
+from .decorators import connection, field, query
 from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
 from .mutations.decorators import failure, result, success
@@ -98,6 +98,7 @@ __all__ = [
     "PaginatedResponse",
     "UserContext",
     "build_fraiseql_schema",
+    "connection",
     "create_connection",
     "create_fraiseql_app",
     "dataloader_field",

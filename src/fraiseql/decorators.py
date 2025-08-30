@@ -721,3 +721,196 @@ def turbo_query(
 
 class TurboExecutionMarker:
     """Marker class to indicate turbo execution."""
+
+
+# Helper functions for connection decorator
+def _validate_connection_config(
+    node_type: type | None, default_page_size: int, max_page_size: int
+) -> None:
+    """Validate connection decorator configuration parameters."""
+    if node_type is None:
+        raise ValueError("node_type is required")
+
+    if default_page_size <= 0:
+        raise ValueError("default_page_size must be positive")
+
+    if max_page_size <= 0:
+        raise ValueError("max_page_size must be positive")
+
+    if max_page_size < default_page_size:
+        raise ValueError("max_page_size must be >= default_page_size")
+
+
+def _infer_view_name_from_function(func_name: str, view_name: str | None) -> str:
+    """Infer database view name from function name if not provided."""
+    if view_name is not None:
+        return view_name
+
+    # Convert function name like "users_connection" -> "v_users"
+    if func_name.endswith("_connection"):
+        base_name = func_name[:-11]  # Remove "_connection"
+        return f"v_{base_name}"
+    # Fallback: just add v_ prefix
+    return f"v_{func_name}"
+
+
+def _validate_pagination_params(first: int | None, last: int | None, max_page_size: int) -> None:
+    """Validate runtime pagination parameters."""
+    if first is not None and last is not None:
+        raise ValueError("Cannot specify both first and last")
+
+    if first is not None and first <= 0:
+        raise ValueError("first must be positive")
+
+    if last is not None and last <= 0:
+        raise ValueError("last must be positive")
+
+    if first is not None and first > max_page_size:
+        raise ValueError(f"first cannot exceed max_page_size ({max_page_size})")
+
+    if last is not None and last > max_page_size:
+        raise ValueError(f"last cannot exceed max_page_size ({max_page_size})")
+
+
+def connection(
+    node_type: type,
+    view_name: str | None = None,
+    default_page_size: int = 20,
+    max_page_size: int = 100,
+    include_total_count: bool = True,
+    cursor_field: str = "id",
+) -> Callable[[F], F]:
+    """Decorator to create cursor-based pagination query resolvers.
+
+    This decorator converts a standard query function into a Connection[T] resolver
+    that automatically handles cursor-based pagination following the Relay specification.
+
+    Args:
+        node_type: The type of objects in the connection (e.g., User, Post)
+        view_name: Database view name to query (inferred from function name if not provided)
+        default_page_size: Default number of items per page
+        max_page_size: Maximum allowed page size
+        include_total_count: Whether to include total count in results
+        cursor_field: Field to use for cursor ordering
+
+    Returns:
+        Decorated function that returns Connection[T]
+
+    Raises:
+        ValueError: If configuration parameters are invalid
+
+    Examples:
+        Basic connection query::
+
+            @fraiseql.connection(node_type=User)
+            @fraiseql.query
+            async def users_connection(info, first: int | None = None) -> Connection[User]:
+                pass  # Implementation handled by decorator
+
+        Connection with custom configuration::
+
+            @fraiseql.connection(
+                node_type=Post,
+                view_name="v_published_posts",
+                default_page_size=25,
+                max_page_size=50,
+                cursor_field="created_at"
+            )
+            @fraiseql.query
+            async def posts_connection(
+                info,
+                first: int | None = None,
+                after: str | None = None,
+                where: dict[str, Any] | None = None,
+            ) -> Connection[Post]:
+                pass
+
+        With filtering and ordering::
+
+            @fraiseql.connection(
+                node_type=User,
+                cursor_field="created_at"
+            )
+            @fraiseql.query
+            async def recent_users_connection(
+                info,
+                first: int | None = None,
+                after: str | None = None,
+                where: dict[str, Any] | None = None,
+            ) -> Connection[User]:
+                pass
+
+    Notes:
+        - Functions must be async and take 'info' as first parameter
+        - The decorator handles all pagination logic automatically
+        - Uses existing CQRSRepository.paginate() method
+        - Returns properly typed Connection[T] objects
+        - Supports all Relay connection specification features
+    """
+    # Validate configuration parameters at decoration time
+    _validate_connection_config(node_type, default_page_size, max_page_size)
+
+    def decorator(func: F) -> F:
+        # Infer view name from function name if not provided
+        inferred_view_name = _infer_view_name_from_function(func.__name__, view_name)
+
+        @wraps(func)
+        async def wrapper(
+            info,
+            first: int | None = None,
+            after: str | None = None,
+            last: int | None = None,
+            before: str | None = None,
+            where: dict[str, Any] | None = None,
+            **kwargs,
+        ):
+            # Validate runtime pagination parameters
+            _validate_pagination_params(first, last, max_page_size)
+
+            # Apply default page size if neither first nor last specified
+            if first is None and last is None:
+                first = default_page_size
+
+            # Get repository from GraphQL context
+            try:
+                db = info.context["db"]
+            except KeyError as e:
+                raise ValueError("Database repository not found in GraphQL context") from e
+
+            # Call repository paginate method with all parameters
+            try:
+                result = await db.paginate(
+                    inferred_view_name,
+                    first=first,
+                    after=after,
+                    last=last,
+                    before=before,
+                    filters=where,
+                    order_by=cursor_field,
+                    include_total=include_total_count,
+                )
+            except Exception as e:
+                # Provide context about which view/query failed
+                raise ValueError(
+                    f"Pagination failed for view '{inferred_view_name}' "
+                    f"in function '{func.__name__}': {e!s}"
+                ) from e
+
+            # Convert to typed Connection using create_connection helper
+            from fraiseql.types.generic import create_connection
+
+            return create_connection(result, node_type)
+
+        # Store configuration metadata for introspection and debugging
+        wrapper.__fraiseql_connection__ = {
+            "node_type": node_type,
+            "view_name": inferred_view_name,
+            "default_page_size": default_page_size,
+            "max_page_size": max_page_size,
+            "include_total_count": include_total_count,
+            "cursor_field": cursor_field,
+        }
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator

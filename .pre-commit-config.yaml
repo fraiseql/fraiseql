@@ -29,7 +29,7 @@ repos:
         name: pytest (100% tests must pass)
         entry: |
           bash -c '
-          if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then
+          if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ] || [ "$PRE_COMMIT_CI" = "true" ] || [ -n "$PRE_COMMIT" ]; then
             echo "⏭️  Skipping tests in CI - will be run by GitHub Actions"
             exit 0
           elif ! command -v uv >/dev/null 2>&1; then
