@@ -1,6 +1,6 @@
-"""Integration test for PrintOptim Backend Fresh @connection + JSONB scenario.
+"""Integration test for @connection decorator + JSONB scenario.
 
-🚀 This tests the EXACT issue reported by Alex Chen, PrintOptim Backend CTO:
+🚀 This tests enterprise GraphQL + JSONB architecture patterns:
 - Global JSONB configuration working for individual queries
 - @connection decorator now inheriting JSONB field extraction
 - Connection wrapper type successfully extracting JSONB fields
@@ -22,7 +22,7 @@ from fraiseql.fastapi.config import FraiseQLConfig
 
 @fraise_type
 class DnsServer:
-    """DNS Server type matching PrintOptim Backend Fresh implementation."""
+    """DNS Server type for enterprise JSONB testing."""
     id: UUID
     identifier: str
     ip_address: str
@@ -30,7 +30,7 @@ class DnsServer:
 
     @classmethod
     def from_db_row(cls, row: dict) -> 'DnsServer':
-        """Extract fields from JSONB data column - PrintOptim pattern."""
+        """Extract fields from JSONB data column - enterprise pattern."""
         # Check if this is from flattened view (has direct columns)
         if 'identifier' in row and not isinstance(row.get('identifier'), dict):
             # Direct columns from materialized view
@@ -52,12 +52,12 @@ class DnsServer:
 
 
 @pytest.mark.integration
-class TestPrintOptimBackendConnectionJSONB:
-    """Integration tests for the PrintOptim Backend Fresh scenario."""
+class TestConnectionJSONBIntegration:
+    """Integration tests for @connection decorator JSONB scenarios."""
 
     def test_global_jsonb_config_setup(self):
         """✅ Test that global JSONB configuration is properly set up."""
-        # Recreate PrintOptim Backend Fresh configuration
+        # Test enterprise JSONB configuration
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
 
@@ -74,7 +74,7 @@ class TestPrintOptimBackendConnectionJSONB:
         assert config.jsonb_field_limit_threshold == 20
 
     def test_connection_decorator_with_global_jsonb_inheritance(self):
-        """🎯 Test the EXACT PrintOptim Backend Fresh scenario - BEFORE fix."""
+        """🎯 Test connection decorator with global JSONB inheritance."""
 
         # Mock FraiseQL global configuration
         mock_config = FraiseQLConfig(
@@ -85,7 +85,7 @@ class TestPrintOptimBackendConnectionJSONB:
             jsonb_field_limit_threshold=20,
         )
 
-        # Mock database repository with PrintOptim Backend data structure
+        # Mock database repository with enterprise JSONB data structure
         mock_db = AsyncMock()
         mock_db.paginate.return_value = {
             "nodes": [
@@ -115,7 +115,7 @@ class TestPrintOptimBackendConnectionJSONB:
             "total_count": 2
         }
 
-        # Mock GraphQL info with PrintOptim Backend context
+        # Mock GraphQL info with enterprise context
         mock_info = Mock()
         mock_info.context = {"db": mock_db, "config": mock_config}
 
@@ -213,11 +213,11 @@ class TestPrintOptimBackendConnectionJSONB:
         assert config_meta['jsonb_column'] == "custom_json"
         assert config_meta['supports_global_jsonb'] is True
 
-    def test_printoptim_backend_success_scenario(self):
-        """🎉 SUCCESS: Test the complete PrintOptim Backend Fresh solution."""
+    def test_enterprise_success_scenario(self):
+        """🎉 SUCCESS: Test the complete enterprise JSONB solution."""
 
-        # This test documents that the issue is now SOLVED
-        # Alex Chen's team can now use @connection with zero JSONB configuration!
+        # This test documents that the connection + JSONB issue is now SOLVED
+        # Enterprise teams can now use @connection with zero JSONB configuration!
 
         mock_config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",

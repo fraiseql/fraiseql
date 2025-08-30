@@ -107,10 +107,10 @@ class TestConnectionDecorator:
     def test_connection_decorator_jsonb_extraction_compatibility(self):
         """🔴 RED: Test that @connection decorator respects global JSONB configuration.
 
-        This test documents the PrintOptim Backend Fresh issue where:
+        This test documents enterprise JSONB scenarios where:
         1. Global JSONB config works for individual queries
-        2. @connection decorator doesn't inherit JSONB field extraction
-        3. Connection wrapper type fails to extract JSONB fields
+        2. @connection decorator needs to inherit JSONB field extraction
+        3. Connection wrapper type needs to extract JSONB fields
 
         This should FAIL in RED phase, then PASS after GREEN implementation.
         """
