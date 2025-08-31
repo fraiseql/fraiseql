@@ -281,6 +281,144 @@ class PathOperatorStrategy(BaseOperatorStrategy):
         raise ValueError(f"Unsupported path operator: {op}")
 
 
+class DateRangeOperatorStrategy(BaseOperatorStrategy):
+    """Strategy for DateRange operators with PostgreSQL daterange type casting."""
+
+    def __init__(self) -> None:
+        # Include range operators and basic operations, restrict problematic patterns
+        super().__init__(
+            [
+                "eq",
+                "neq",
+                "in",
+                "notin",  # Basic operations
+                "contains_date",  # Range contains date (@>)
+                "overlaps",  # Ranges overlap (&&) - handled by existing JsonOperatorStrategy
+                "adjacent",  # Ranges are adjacent (-|-)
+                "strictly_left",  # Range is strictly left (<<)
+                "strictly_right",  # Range is strictly right (>>)
+                "not_left",  # Range does not extend left (&>)
+                "not_right",  # Range does not extend right (&<)
+                "contains",
+                "startswith",
+                "endswith",  # Generic patterns (to restrict)
+            ]
+        )
+
+    def can_handle(self, op: str, field_type: type | None = None) -> bool:
+        """Check if this strategy can handle the given operator.
+
+        DateRange operators should only be used with DateRange field types.
+        For DateRange types, we handle ALL operators to properly restrict unsupported ones.
+        """
+        # If no field type provided, we can't determine if this is appropriate
+        if field_type is None:
+            return False
+
+        # For DateRange types, handle ALL the operators we're configured for
+        # This ensures we can properly restrict the problematic ones
+        return self._is_daterange_type(field_type) and op in self.operators
+
+    def build_sql(
+        self,
+        path_sql: SQL,
+        op: str,
+        val: Any,
+        field_type: type | None = None,
+    ) -> Composed:
+        """Build SQL for DateRange operators with proper daterange casting."""
+        # For basic operations, cast both sides to daterange for proper PostgreSQL handling
+        if op in ("eq", "neq", "in", "notin"):
+            casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
+
+            if op == "eq":
+                return Composed([casted_path, SQL(" = "), Literal(val), SQL("::daterange")])
+            if op == "neq":
+                return Composed([casted_path, SQL(" != "), Literal(val), SQL("::daterange")])
+            if op == "in":
+                if not isinstance(val, list):
+                    msg = f"'in' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" IN (")]
+                for i, range_val in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(range_val), SQL("::daterange")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+            if op == "notin":
+                if not isinstance(val, list):
+                    msg = f"'notin' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" NOT IN (")]
+                for i, range_val in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(range_val), SQL("::daterange")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+
+        # For range-specific operators
+        elif op == "contains_date":
+            # range @> date - range contains date
+            casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
+            return Composed([casted_path, SQL(" @> "), Literal(val), SQL("::date")])
+
+        elif op == "overlaps":
+            # range1 && range2 - ranges overlap
+            casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
+            return Composed([casted_path, SQL(" && "), Literal(val), SQL("::daterange")])
+
+        elif op == "adjacent":
+            # range1 -|- range2 - ranges are adjacent
+            casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
+            return Composed([casted_path, SQL(" -|- "), Literal(val), SQL("::daterange")])
+
+        elif op == "strictly_left":
+            # range1 << range2 - range1 is strictly left of range2
+            casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
+            return Composed([casted_path, SQL(" << "), Literal(val), SQL("::daterange")])
+
+        elif op == "strictly_right":
+            # range1 >> range2 - range1 is strictly right of range2
+            casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
+            return Composed([casted_path, SQL(" >> "), Literal(val), SQL("::daterange")])
+
+        elif op == "not_left":
+            # range1 &> range2 - range1 does not extend left of range2
+            casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
+            return Composed([casted_path, SQL(" &> "), Literal(val), SQL("::daterange")])
+
+        elif op == "not_right":
+            # range1 &< range2 - range1 does not extend right of range2
+            casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
+            return Composed([casted_path, SQL(" &< "), Literal(val), SQL("::daterange")])
+
+        # For pattern operators (contains, startswith, endswith), explicitly reject them
+        elif op in ("contains", "startswith", "endswith"):
+            raise ValueError(
+                f"Pattern operator '{op}' is not supported for DateRange fields. "
+                f"Use range operators: contains_date, overlaps, adjacent, strictly_left, "
+                f"strictly_right, not_left, not_right, or basic: eq, neq, in, notin, isnull."
+            )
+
+        raise ValueError(f"Unsupported DateRange operator: {op}")
+
+    def _is_daterange_type(self, field_type: type) -> bool:
+        """Check if field_type is a DateRange type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types.scalars.daterange import DateRangeField
+
+            return field_type == DateRangeField or (
+                isinstance(field_type, type) and issubclass(field_type, DateRangeField)
+            )
+        except ImportError:
+            return False
+
+
 class LTreeOperatorStrategy(BaseOperatorStrategy):
     """Strategy for LTree hierarchical path operators with PostgreSQL ltree type casting."""
 
@@ -649,6 +787,7 @@ class OperatorRegistry:
         """Initialize the registry with all available strategies."""
         self.strategies: list[OperatorStrategy] = [
             NullOperatorStrategy(),
+            DateRangeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             LTreeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             MacAddressOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             NetworkOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
