@@ -287,10 +287,21 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
     def __init__(self) -> None:
         super().__init__(["inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"])
 
-    def can_handle(self, op: str) -> bool:
-        """Check if this strategy can handle the given operator."""
+    def can_handle(self, op: str, field_type: type | None = None) -> bool:
+        """Check if this strategy can handle the given operator.
+
+        Network operators should only be used with IP address field types.
+        """
+        if op not in self.operators:
+            return False
+
+        # If no field type provided, we can't determine if this is appropriate
+        # but we'll allow it for backward compatibility
+        if field_type is None:
+            return True
+
         # Only handle network operators for IP address types
-        return op in self.operators
+        return self._is_ip_address_type(field_type)
 
     def build_sql(
         self,
@@ -300,10 +311,19 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for network operators."""
-        # Build SQL directly for network operators
+        # Apply consistent type casting (same as ComparisonOperatorStrategy)
+        # For IP addresses, we should use the same casting approach for consistency
+        if field_type and self._is_ip_address_type(field_type):
+            # Use direct ::inet casting for network operations (more appropriate than host())
+            # Network operators work with full CIDR notation, so we don't strip with host()
+            casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
+        else:
+            # Fallback to direct path for non-IP types
+            casted_path = path_sql
+
         if op == "inSubnet":
             # PostgreSQL subnet matching using <<= operator
-            return Composed([SQL("("), path_sql, SQL(")::inet <<= "), Literal(val), SQL("::inet")])
+            return Composed([casted_path, SQL(" <<= "), Literal(val), SQL("::inet")])
 
         if op == "inRange":
             # IP range comparison
@@ -319,14 +339,13 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
 
             return Composed(
                 [
-                    SQL("("),
-                    path_sql,
-                    SQL(")::inet >= "),
+                    casted_path,
+                    SQL(" >= "),
                     Literal(from_ip),
                     SQL("::inet"),
-                    SQL(" AND ("),
-                    path_sql,
-                    SQL(")::inet <= "),
+                    SQL(" AND "),
+                    casted_path,
+                    SQL(" <= "),
                     Literal(to_ip),
                     SQL("::inet"),
                 ]
@@ -337,40 +356,32 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             if val:
                 return Composed(
                     [
-                        SQL("(("),
-                        path_sql,
-                        SQL(")::inet <<= '10.0.0.0/8'::inet OR "),
                         SQL("("),
-                        path_sql,
-                        SQL(")::inet <<= '172.16.0.0/12'::inet OR "),
-                        SQL("("),
-                        path_sql,
-                        SQL(")::inet <<= '192.168.0.0/16'::inet OR "),
-                        SQL("("),
-                        path_sql,
-                        SQL(")::inet <<= '127.0.0.0/8'::inet OR "),
-                        SQL("("),
-                        path_sql,
-                        SQL(")::inet <<= '169.254.0.0/16'::inet)"),
+                        casted_path,
+                        SQL(" <<= '10.0.0.0/8'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '172.16.0.0/12'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '192.168.0.0/16'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '127.0.0.0/8'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '169.254.0.0/16'::inet)"),
                     ]
                 )
             return Composed(
                 [
-                    SQL("NOT (("),
-                    path_sql,
-                    SQL(")::inet <<= '10.0.0.0/8'::inet OR "),
-                    SQL("("),
-                    path_sql,
-                    SQL(")::inet <<= '172.16.0.0/12'::inet OR "),
-                    SQL("("),
-                    path_sql,
-                    SQL(")::inet <<= '192.168.0.0/16'::inet OR "),
-                    SQL("("),
-                    path_sql,
-                    SQL(")::inet <<= '127.0.0.0/8'::inet OR "),
-                    SQL("("),
-                    path_sql,
-                    SQL(")::inet <<= '169.254.0.0/16'::inet)"),
+                    SQL("NOT ("),
+                    casted_path,
+                    SQL(" <<= '10.0.0.0/8'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '172.16.0.0/12'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '192.168.0.0/16'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '127.0.0.0/8'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '169.254.0.0/16'::inet)"),
                 ]
             )
 
@@ -380,55 +391,47 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                 # Public means NOT private
                 return Composed(
                     [
-                        SQL("NOT (("),
-                        path_sql,
-                        SQL(")::inet <<= '10.0.0.0/8'::inet OR "),
-                        SQL("("),
-                        path_sql,
-                        SQL(")::inet <<= '172.16.0.0/12'::inet OR "),
-                        SQL("("),
-                        path_sql,
-                        SQL(")::inet <<= '192.168.0.0/16'::inet OR "),
-                        SQL("("),
-                        path_sql,
-                        SQL(")::inet <<= '127.0.0.0/8'::inet OR "),
-                        SQL("("),
-                        path_sql,
-                        SQL(")::inet <<= '169.254.0.0/16'::inet)"),
+                        SQL("NOT ("),
+                        casted_path,
+                        SQL(" <<= '10.0.0.0/8'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '172.16.0.0/12'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '192.168.0.0/16'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '127.0.0.0/8'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '169.254.0.0/16'::inet)"),
                     ]
                 )
             # NOT public means private
             return Composed(
                 [
-                    SQL("(("),
-                    path_sql,
-                    SQL(")::inet <<= '10.0.0.0/8'::inet OR "),
                     SQL("("),
-                    path_sql,
-                    SQL(")::inet <<= '172.16.0.0/12'::inet OR "),
-                    SQL("("),
-                    path_sql,
-                    SQL(")::inet <<= '192.168.0.0/16'::inet OR "),
-                    SQL("("),
-                    path_sql,
-                    SQL(")::inet <<= '127.0.0.0/8'::inet OR "),
-                    SQL("("),
-                    path_sql,
-                    SQL(")::inet <<= '169.254.0.0/16'::inet)"),
+                    casted_path,
+                    SQL(" <<= '10.0.0.0/8'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '172.16.0.0/12'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '192.168.0.0/16'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '127.0.0.0/8'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '169.254.0.0/16'::inet)"),
                 ]
             )
 
         if op == "isIPv4":
             # Check IP version using family() function
             if val:
-                return Composed([SQL("family(("), path_sql, SQL(")::inet) = 4")])
-            return Composed([SQL("family(("), path_sql, SQL(")::inet) != 4")])
+                return Composed([SQL("family("), casted_path, SQL(") = 4")])
+            return Composed([SQL("family("), casted_path, SQL(") != 4")])
 
         if op == "isIPv6":
             # Check IP version using family() function
             if val:
-                return Composed([SQL("family(("), path_sql, SQL(")::inet) = 6")])
-            return Composed([SQL("family(("), path_sql, SQL(")::inet) != 6")])
+                return Composed([SQL("family("), casted_path, SQL(") = 6")])
+            return Composed([SQL("family("), casted_path, SQL(") != 6")])
 
         raise ValueError(f"Unsupported network operator: {op}")
 
@@ -448,11 +451,25 @@ class OperatorRegistry:
             NetworkOperatorStrategy(),  # Network-specific operators (v0.3.8+)
         ]
 
-    def get_strategy(self, op: str) -> OperatorStrategy:
+    def get_strategy(self, op: str, field_type: type | None = None) -> OperatorStrategy:
         """Get the appropriate strategy for an operator."""
         for strategy in self.strategies:
-            if strategy.can_handle(op):
-                return strategy
+            # Try to pass field_type if the strategy supports it
+            try:
+                if hasattr(strategy, "can_handle"):
+                    # Check if can_handle accepts field_type parameter
+                    import inspect
+
+                    sig = inspect.signature(strategy.can_handle)
+                    if "field_type" in sig.parameters:
+                        if strategy.can_handle(op, field_type):
+                            return strategy
+                    elif strategy.can_handle(op):
+                        return strategy
+            except Exception:
+                # Fallback to basic can_handle
+                if strategy.can_handle(op):
+                    return strategy
         raise ValueError(f"Unsupported operator: {op}")
 
     def build_sql(
@@ -463,7 +480,7 @@ class OperatorRegistry:
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for the given operator."""
-        strategy = self.get_strategy(op)
+        strategy = self.get_strategy(op, field_type)
         return strategy.build_sql(path_sql, op, val, field_type)
 
 
