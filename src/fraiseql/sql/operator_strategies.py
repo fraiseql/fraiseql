@@ -281,6 +281,91 @@ class PathOperatorStrategy(BaseOperatorStrategy):
         raise ValueError(f"Unsupported path operator: {op}")
 
 
+class MacAddressOperatorStrategy(BaseOperatorStrategy):
+    """Strategy for MAC address-specific operators with PostgreSQL macaddr type casting."""
+
+    def __init__(self) -> None:
+        # Include ALL operators to properly restrict unsupported ones
+        super().__init__(["eq", "neq", "in", "notin", "contains", "startswith", "endswith"])
+
+    def can_handle(self, op: str, field_type: type | None = None) -> bool:
+        """Check if this strategy can handle the given operator.
+
+        MAC address operators should only be used with MAC address field types.
+        For MAC address types, we handle ALL operators to properly restrict unsupported ones.
+        """
+        # If no field type provided, we can't determine if this is appropriate
+        if field_type is None:
+            return False
+
+        # For MAC address types, handle ALL the operators we're configured for
+        # This ensures we can properly restrict the problematic ones
+        return self._is_mac_address_type(field_type) and op in self.operators
+
+    def build_sql(
+        self,
+        path_sql: SQL,
+        op: str,
+        val: Any,
+        field_type: type | None = None,
+    ) -> Composed:
+        """Build SQL for MAC address operators with proper macaddr casting."""
+        # For supported operators, cast the JSONB field to macaddr for proper PostgreSQL handling
+        if op in ("eq", "neq", "in", "notin"):
+            casted_path = Composed([SQL("("), path_sql, SQL(")::macaddr")])
+
+            if op == "eq":
+                return Composed([casted_path, SQL(" = "), Literal(val), SQL("::macaddr")])
+            if op == "neq":
+                return Composed([casted_path, SQL(" != "), Literal(val), SQL("::macaddr")])
+            if op == "in":
+                if not isinstance(val, list):
+                    msg = f"'in' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" IN (")]
+                for i, mac in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(mac), SQL("::macaddr")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+            if op == "notin":
+                if not isinstance(val, list):
+                    msg = f"'notin' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" NOT IN (")]
+                for i, mac in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(mac), SQL("::macaddr")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+
+        # For pattern operators (contains, startswith, endswith), explicitly reject them
+        elif op in ("contains", "startswith", "endswith"):
+            raise ValueError(
+                f"Pattern operator '{op}' is not supported for MAC address fields. "
+                f"Use only: eq, neq, in, notin, isnull for MAC address filtering."
+            )
+
+        raise ValueError(f"Unsupported MAC address operator: {op}")
+
+    def _is_mac_address_type(self, field_type: type) -> bool:
+        """Check if field_type is a MAC address type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types import MacAddress
+            from fraiseql.types.scalars.mac_address import MacAddressField
+
+            return field_type in (MacAddress, MacAddressField) or (
+                isinstance(field_type, type) and issubclass(field_type, MacAddressField)
+            )
+        except ImportError:
+            return False
+
+
 class NetworkOperatorStrategy(BaseOperatorStrategy):
     """Strategy for network-specific operators (v0.3.8+)."""
 
@@ -443,12 +528,13 @@ class OperatorRegistry:
         """Initialize the registry with all available strategies."""
         self.strategies: list[OperatorStrategy] = [
             NullOperatorStrategy(),
+            MacAddressOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
+            NetworkOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             ComparisonOperatorStrategy(),
             PatternMatchingStrategy(),  # Move before JsonOperatorStrategy
             JsonOperatorStrategy(),
             ListOperatorStrategy(),
             PathOperatorStrategy(),
-            NetworkOperatorStrategy(),  # Network-specific operators (v0.3.8+)
         ]
 
     def get_strategy(self, op: str, field_type: type | None = None) -> OperatorStrategy:
