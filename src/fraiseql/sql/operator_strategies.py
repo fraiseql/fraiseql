@@ -281,6 +281,127 @@ class PathOperatorStrategy(BaseOperatorStrategy):
         raise ValueError(f"Unsupported path operator: {op}")
 
 
+class LTreeOperatorStrategy(BaseOperatorStrategy):
+    """Strategy for LTree hierarchical path operators with PostgreSQL ltree type casting."""
+
+    def __init__(self) -> None:
+        # Include hierarchical operators and basic operations, restrict problematic patterns
+        super().__init__(
+            [
+                "eq",
+                "neq",
+                "in",
+                "notin",  # Basic operations
+                "ancestor_of",
+                "descendant_of",  # Hierarchical relationships
+                "matches_lquery",
+                "matches_ltxtquery",  # Pattern matching
+                "contains",
+                "startswith",
+                "endswith",  # Generic patterns (to restrict)
+            ]
+        )
+
+    def can_handle(self, op: str, field_type: type | None = None) -> bool:
+        """Check if this strategy can handle the given operator.
+
+        LTree operators should only be used with LTree field types.
+        For LTree types, we handle ALL operators to properly restrict unsupported ones.
+        """
+        # If no field type provided, we can't determine if this is appropriate
+        if field_type is None:
+            return False
+
+        # For LTree types, handle ALL the operators we're configured for
+        # This ensures we can properly restrict the problematic ones
+        return self._is_ltree_type(field_type) and op in self.operators
+
+    def build_sql(
+        self,
+        path_sql: SQL,
+        op: str,
+        val: Any,
+        field_type: type | None = None,
+    ) -> Composed:
+        """Build SQL for LTree operators with proper ltree casting."""
+        # For basic operations, cast both sides to ltree for proper PostgreSQL handling
+        if op in ("eq", "neq", "in", "notin"):
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            if op == "eq":
+                return Composed([casted_path, SQL(" = "), Literal(val), SQL("::ltree")])
+            if op == "neq":
+                return Composed([casted_path, SQL(" != "), Literal(val), SQL("::ltree")])
+            if op == "in":
+                if not isinstance(val, list):
+                    msg = f"'in' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" IN (")]
+                for i, path in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(path), SQL("::ltree")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+            if op == "notin":
+                if not isinstance(val, list):
+                    msg = f"'notin' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" NOT IN (")]
+                for i, path in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(path), SQL("::ltree")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+
+        # For hierarchical operators, use proper ltree operators
+        elif op == "ancestor_of":
+            # path1 @> path2 means path1 is ancestor of path2
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([casted_path, SQL(" @> "), Literal(val), SQL("::ltree")])
+
+        elif op == "descendant_of":
+            # path1 <@ path2 means path1 is descendant of path2
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([casted_path, SQL(" <@ "), Literal(val), SQL("::ltree")])
+
+        elif op == "matches_lquery":
+            # path ~ lquery means path matches lquery pattern
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([casted_path, SQL(" ~ "), Literal(val), SQL("::lquery")])
+
+        elif op == "matches_ltxtquery":
+            # path ? ltxtquery means path matches ltxtquery text query
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([casted_path, SQL(" ? "), Literal(val), SQL("::ltxtquery")])
+
+        # For pattern operators (contains, startswith, endswith), explicitly reject them
+        elif op in ("contains", "startswith", "endswith"):
+            raise ValueError(
+                f"Pattern operator '{op}' is not supported for LTree fields. "
+                f"Use hierarchical operators: ancestor_of, descendant_of, matches_lquery, "
+                f"matches_ltxtquery, or basic: eq, neq, in, notin, isnull."
+            )
+
+        raise ValueError(f"Unsupported LTree operator: {op}")
+
+    def _is_ltree_type(self, field_type: type) -> bool:
+        """Check if field_type is an LTree type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types import LTree
+            from fraiseql.types.scalars.ltree import LTreeField
+
+            return field_type in (LTree, LTreeField) or (
+                isinstance(field_type, type) and issubclass(field_type, LTreeField)
+            )
+        except ImportError:
+            return False
+
+
 class MacAddressOperatorStrategy(BaseOperatorStrategy):
     """Strategy for MAC address-specific operators with PostgreSQL macaddr type casting."""
 
@@ -528,6 +649,7 @@ class OperatorRegistry:
         """Initialize the registry with all available strategies."""
         self.strategies: list[OperatorStrategy] = [
             NullOperatorStrategy(),
+            LTreeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             MacAddressOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             NetworkOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             ComparisonOperatorStrategy(),
