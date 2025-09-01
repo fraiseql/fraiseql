@@ -1,13 +1,16 @@
-name: Test
+# DEPRECATED: This workflow is being replaced by quality-gate.yml
+# Keeping for backward compatibility during transition
+name: Test (Legacy)
 
 on:
+  # Reduced scope - quality-gate.yml handles main protection
   push:
-    branches: [ main, dev ]
+    branches: [ feature/*, fix/*, chore/* ]
   pull_request:
-    branches: [ main ]
+    branches: [ dev ]
 
 concurrency:
-  group: test-${{ github.ref }}
+  group: test-legacy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

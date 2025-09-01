@@ -1,13 +1,20 @@
-name: Publish
+name: Quality Gate
 
+# This workflow provides comprehensive quality checks that must pass
+# before any code can be merged to main or released
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+concurrency:
+  group: quality-gate-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
-    name: Tests (Required for Release)
+    name: Tests
     runs-on: ubuntu-latest
 
     services:
@@ -40,8 +47,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # Use uv for faster and more reliable dependency resolution
-        # Install all optional dependencies for comprehensive testing
         uv pip install --system -e ".[dev,all]"
 
     - name: Run core tests with coverage
@@ -53,7 +58,6 @@ jobs:
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
       run: |
-        # Run core tests first - MUST PASS for release
         pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise"
 
     - name: Run example integration tests
@@ -64,16 +68,23 @@ jobs:
         DB_PORT: 5432
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
-        # Smart dependency management configuration for CI
         FRAISEQL_ENVIRONMENT: ci
         FRAISEQL_AUTO_INSTALL: false
         FRAISEQL_LOG_LEVEL: INFO
       run: |
-        # Run example integration tests - MUST PASS for release
         pytest tests/integration/examples/ -v --tb=short
 
+    - name: Upload coverage
+      uses: codecov/codecov-action@v5
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: Python-3.12
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
   lint:
-    name: Lint (Required for Release)
+    name: Lint
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -85,13 +96,13 @@ jobs:
       uses: astral-sh/setup-uv@v6
     - name: Install dependencies
       run: uv pip install --system -e ".[dev]"
-    - name: Run ruff
+    - name: Run ruff check
       run: ruff check .
-    - name: Run ruff format
+    - name: Run ruff format check
       run: ruff format --check .
 
   security:
-    name: Security (Required for Release)
+    name: Security
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -106,37 +117,27 @@ jobs:
     - name: Run bandit
       run: bandit -r src/ -f json || true
 
-  publish:
-    name: Publish to PyPI
+  # Quality gate summary job - this job fails if any quality check fails
+  quality-gate:
+    name: Quality Gate ✅
     runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      id-token: write
-    # 🚨 CRITICAL: Publish ONLY runs if ALL quality checks pass
     needs: [test, lint, security]
-
+    if: always()
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Install build tools
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-
-    - name: Build package
-      run: python -m build
-
-    - name: Check package
-      run: twine check dist/*
-
-    - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_TOKEN }}
+      - name: Check quality gate status
+        run: |
+          # This job will fail if any of the required jobs failed
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "❌ Tests failed - Quality gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "❌ Lint checks failed - Quality gate blocked"
+            exit 1
+          fi
+          if [[ "${{ needs.security.result }}" != "success" ]]; then
+            echo "❌ Security checks failed - Quality gate blocked"
+            exit 1
+          fi
+          echo "✅ All quality checks passed - Quality gate open"
+          echo "🚀 Code is ready for merge/release"
