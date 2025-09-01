@@ -49,6 +49,21 @@ jobs:
       run: |
         uv pip install --system -e ".[dev,all]"
 
+    - name: Debug CI Environment
+      run: |
+        echo "=== CI Environment Debug Info ==="
+        python --version
+        pip --version
+        uv --version
+        postgres --version || echo "Direct postgres command not available"
+        pytest --version
+        echo "PostgreSQL service status: $(pg_isready -h localhost -p 5432 -U fraiseql && echo 'Ready' || echo 'Not Ready')"
+        echo "Database connection test:"
+        python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
+        echo "Installed packages:"
+        pip list | grep -E "(pytest|psycopg|fraiseql)" || echo "No matching packages found"
+        echo "================================="
+
     - name: Run core tests with coverage
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -58,7 +73,40 @@ jobs:
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
       run: |
-        pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise"
+        echo "=== Starting Core Tests ==="
+        pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise" --tb=short -x || {
+          echo "❌ Core tests failed with exit code $?"
+          echo "=== Test failure details ==="
+          echo "This typically indicates either:"
+          echo "1. Database connection issues"
+          echo "2. Missing dependencies"
+          echo "3. Test environment setup problems"
+          echo "4. Python version compatibility issues"
+          exit 1
+        }
+        echo "✅ Core tests completed successfully"
+
+    - name: Validate Network Filtering Fix
+      env:
+        DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_USER: fraiseql
+        DB_PASSWORD: fraiseql
+      run: |
+        echo "=== Validating Network Filtering Bug Fix ==="
+        pytest tests/integration/database/sql/test_jsonb_network_filtering_bug.py -v || {
+          echo "❌ CRITICAL: Network filtering tests failed!"
+          echo "This indicates the core bug fix from PR #25 is broken"
+          exit 1
+        }
+        pytest tests/integration/database/sql/test_network_address_filtering.py -v || {
+          echo "❌ CRITICAL: Network address filtering tests failed!"
+          echo "This indicates the core bug fix from PR #25 is broken"
+          exit 1
+        }
+        echo "✅ Network filtering bug fix validated successfully"
 
     - name: Run example integration tests
       env:
