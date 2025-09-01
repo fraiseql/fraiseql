@@ -29,9 +29,9 @@ class TestNetworkFilteringFix:
         strategy = registry.get_strategy("inSubnet", IpAddress)
         assert strategy.__class__.__name__ == "NetworkOperatorStrategy"
 
-        # Test that eq still gets ComparisonOperatorStrategy (this is correct)
+        # Test that eq now gets NetworkOperatorStrategy (after fix)
         strategy = registry.get_strategy("eq", IpAddress)
-        assert strategy.__class__.__name__ == "ComparisonOperatorStrategy"
+        assert strategy.__class__.__name__ == "NetworkOperatorStrategy"
 
         # Test that isPrivate gets NetworkOperatorStrategy
         strategy = registry.get_strategy("isPrivate", IpAddress)
