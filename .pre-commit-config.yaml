@@ -32,8 +32,10 @@ repos:
           set -e  # Exit on any error
 
           # Check CI environment first (before checking for uv)
-          if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ] || [ "$PRE_COMMIT_CI" = "true" ]; then
+          # More comprehensive CI detection for pre-commit.ci
+          if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ] || [ "$PRE_COMMIT_CI" = "true" ] || [ -n "$GITHUB_WORKSPACE" ] || [ -n "$GITHUB_HEAD_REF" ] || [ -n "$GITHUB_REF" ]; then
             echo "⏭️  Skipping tests in CI - will be run by GitHub Actions"
+            echo "🔍 Detected CI environment: CI=$CI, GITHUB_ACTIONS=$GITHUB_ACTIONS, PRE_COMMIT_CI=$PRE_COMMIT_CI"
             exit 0
           fi
 
