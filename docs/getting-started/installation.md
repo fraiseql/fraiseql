@@ -6,8 +6,8 @@ Get FraiseQL up and running in your development environment.
 
 Before installing FraiseQL, make sure you have:
 
-### Python 3.10+
-FraiseQL uses modern Python type hints and requires Python 3.10 or later.
+### Python 3.13+
+FraiseQL uses modern Python type hints and requires Python 3.13 or later.
 
 ```bash
 python --version  # Should show 3.10 or higher

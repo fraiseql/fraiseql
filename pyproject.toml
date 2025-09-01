@@ -11,7 +11,7 @@ authors = [
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 keywords = ["graphql", "postgresql", "api", "database", "jsonb", "fastapi", "async", "orm"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -19,8 +19,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Framework :: FastAPI",
     "Topic :: Database",
@@ -130,11 +128,11 @@ asyncio_mode = "auto"
 
 [tool.black]
 line-length = 100
-target-version = ["py312"]
+target-version = ["py313"]
 
 [tool.ruff]
 src = ["src"]
-target-version = "py312"
+target-version = "py313"
 line-length = 100
 exclude = ["tests", "examples", "tools", "scripts", "conftest.py"]
 fix = true
