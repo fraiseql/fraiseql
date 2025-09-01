@@ -311,13 +311,17 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         DateRange operators should only be used with DateRange field types.
         For DateRange types, we handle ALL operators to properly restrict unsupported ones.
         """
-        # If no field type provided, we can't determine if this is appropriate
-        if field_type is None:
+        if op not in self.operators:
             return False
+
+        # If no field type provided, we can't determine if this is appropriate
+        # but we'll allow it for backward compatibility (repository calls don't pass field_type)
+        if field_type is None:
+            return True
 
         # For DateRange types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
-        return self._is_daterange_type(field_type) and op in self.operators
+        return self._is_daterange_type(field_type)
 
     def build_sql(
         self,
@@ -327,6 +331,13 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for DateRange operators with proper daterange casting."""
+        # Safety check: if we know the field type and it's NOT a DateRange, something is wrong
+        if field_type and not self._is_daterange_type(field_type):
+            raise ValueError(
+                f"DateRange operator '{op}' can only be used with DateRange fields, "
+                f"got {field_type}"
+            )
+
         # For basic operations, cast both sides to daterange for proper PostgreSQL handling
         if op in ("eq", "neq", "in", "notin"):
             casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
@@ -446,13 +457,17 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         LTree operators should only be used with LTree field types.
         For LTree types, we handle ALL operators to properly restrict unsupported ones.
         """
-        # If no field type provided, we can't determine if this is appropriate
-        if field_type is None:
+        if op not in self.operators:
             return False
+
+        # If no field type provided, we can't determine if this is appropriate
+        # but we'll allow it for backward compatibility (repository calls don't pass field_type)
+        if field_type is None:
+            return True
 
         # For LTree types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
-        return self._is_ltree_type(field_type) and op in self.operators
+        return self._is_ltree_type(field_type)
 
     def build_sql(
         self,
@@ -462,6 +477,12 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for LTree operators with proper ltree casting."""
+        # Safety check: if we know the field type and it's NOT an LTree, something is wrong
+        if field_type and not self._is_ltree_type(field_type):
+            raise ValueError(
+                f"LTree operator '{op}' can only be used with LTree fields, got {field_type}"
+            )
+
         # For basic operations, cast both sides to ltree for proper PostgreSQL handling
         if op in ("eq", "neq", "in", "notin"):
             casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
@@ -553,13 +574,17 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         MAC address operators should only be used with MAC address field types.
         For MAC address types, we handle ALL operators to properly restrict unsupported ones.
         """
-        # If no field type provided, we can't determine if this is appropriate
-        if field_type is None:
+        if op not in self.operators:
             return False
+
+        # If no field type provided, we can't determine if this is appropriate
+        # but we'll allow it for backward compatibility (repository calls don't pass field_type)
+        if field_type is None:
+            return True
 
         # For MAC address types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
-        return self._is_mac_address_type(field_type) and op in self.operators
+        return self._is_mac_address_type(field_type)
 
     def build_sql(
         self,
@@ -569,6 +594,13 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for MAC address operators with proper macaddr casting."""
+        # Safety check: if we know the field type and it's NOT a MAC address, something is wrong
+        if field_type and not self._is_mac_address_type(field_type):
+            raise ValueError(
+                f"MAC address operator '{op}' can only be used with MAC address fields, "
+                f"got {field_type}"
+            )
+
         # For supported operators, cast the JSONB field to macaddr for proper PostgreSQL handling
         if op in ("eq", "neq", "in", "notin"):
             casted_path = Composed([SQL("("), path_sql, SQL(")::macaddr")])
