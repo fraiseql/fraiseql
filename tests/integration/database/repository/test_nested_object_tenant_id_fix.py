@@ -7,10 +7,11 @@ from uuid import UUID
 import pytest
 from graphql import GraphQLResolveInfo, graphql
 
-from fraiseql import build_fraiseql_schema, query, type
+from fraiseql import build_fraiseql_schema, query
+from fraiseql import type as fraiseql_type
 
 
-@type(sql_source="organizations")
+@fraiseql_type(sql_source="organizations")
 class Organization1:
     """Organization type with sql_source."""
 
@@ -20,7 +21,7 @@ class Organization1:
     status: str
 
 
-@type(sql_source="users")
+@fraiseql_type(sql_source="users")
 class User1:
     """User type with embedded organization in JSONB data."""
 
@@ -109,13 +110,13 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
 async def test_smart_resolver_prefers_embedded_data():
     """Test that the smart resolver uses embedded data when available."""
 
-    @type(sql_source="departments")
+    @fraiseql_type(sql_source="departments")
     class Department2:
         id: UUID
         name: str
         code: str
 
-    @type(sql_source="employees")
+    @fraiseql_type(sql_source="employees")
     class Employee2:
         id: UUID
         name: str
@@ -169,13 +170,13 @@ async def test_smart_resolver_prefers_embedded_data():
 async def test_smart_resolver_queries_when_no_embedded_data():
     """Test that the smart resolver queries sql_source when data is not embedded."""
 
-    @type(sql_source="departments", resolve_nested=True)
+    @fraiseql_type(sql_source="departments", resolve_nested=True)
     class Department3:
         id: UUID
         name: str
         code: str
 
-    @type(sql_source="employees")
+    @fraiseql_type(sql_source="employees")
     class Employee3:
         id: UUID
         name: str

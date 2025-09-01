@@ -1,8 +1,0 @@
-# fraiseql_relay PostgreSQL extension
-comment = 'FraiseQL Relay GraphQL specification compliance extension'
-default_version = '1.0'
-module_pathname = '$libdir/fraiseql_relay'
-relocatable = true
-requires = 'uuid-ossp'
-trusted = false
-schema = 'core'

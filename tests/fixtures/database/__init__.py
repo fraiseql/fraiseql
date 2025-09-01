@@ -1,1 +1,1 @@
-# Test package
+"""Database fixtures for testing."""

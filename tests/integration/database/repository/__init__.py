@@ -1,1 +1,1 @@
-# Test package
+"""Repository integration tests."""

@@ -64,7 +64,7 @@ async def users(info) -> list[User]:
 - **Automatic invalidation**: Version tracking by bounded contexts
 
 ### 🎯 Type Safety Throughout
-Modern Python typing (3.10+) ensures type safety from database to GraphQL schema.
+Modern Python typing (3.13+) ensures type safety from database to GraphQL schema.
 
 ### 🏗️ True CQRS Architecture
 - **Queries**: Read from optimized views (`v_` prefix) and table views (`tv_` prefix)

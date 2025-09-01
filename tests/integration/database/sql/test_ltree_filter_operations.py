@@ -5,11 +5,10 @@ to ensure proper PostgreSQL ltree type handling with hierarchical operators.
 """
 
 import pytest
+from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import get_operator_registry
-from fraiseql.sql.graphql_where_generator import LTreeFilter
 from fraiseql.types import LTree
-from psycopg.sql import SQL
 
 
 @pytest.mark.integration

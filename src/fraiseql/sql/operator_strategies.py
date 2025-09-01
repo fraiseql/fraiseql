@@ -311,13 +311,28 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         DateRange operators should only be used with DateRange field types.
         For DateRange types, we handle ALL operators to properly restrict unsupported ones.
         """
-        # If no field type provided, we can't determine if this is appropriate
-        if field_type is None:
+        if op not in self.operators:
             return False
+
+        # Define DateRange-specific operators that we can safely handle without field type info
+        daterange_specific_ops = {
+            "contains_date",
+            "overlaps",
+            "adjacent",
+            "strictly_left",
+            "strictly_right",
+            "not_left",
+            "not_right",
+        }
+
+        # If no field type provided, only handle DateRange-specific operators
+        # Generic operators (eq, contains, etc.) should go to appropriate generic strategies
+        if field_type is None:
+            return op in daterange_specific_ops
 
         # For DateRange types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
-        return self._is_daterange_type(field_type) and op in self.operators
+        return self._is_daterange_type(field_type)
 
     def build_sql(
         self,
@@ -327,6 +342,13 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for DateRange operators with proper daterange casting."""
+        # Safety check: if we know the field type and it's NOT a DateRange, something is wrong
+        if field_type and not self._is_daterange_type(field_type):
+            raise ValueError(
+                f"DateRange operator '{op}' can only be used with DateRange fields, "
+                f"got {field_type}"
+            )
+
         # For basic operations, cast both sides to daterange for proper PostgreSQL handling
         if op in ("eq", "neq", "in", "notin"):
             casted_path = Composed([SQL("("), path_sql, SQL(")::daterange")])
@@ -446,13 +468,20 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         LTree operators should only be used with LTree field types.
         For LTree types, we handle ALL operators to properly restrict unsupported ones.
         """
-        # If no field type provided, we can't determine if this is appropriate
-        if field_type is None:
+        if op not in self.operators:
             return False
+
+        # Define LTree-specific operators that we can safely handle without field type info
+        ltree_specific_ops = {"ancestor_of", "descendant_of", "matches_lquery", "matches_ltxtquery"}
+
+        # If no field type provided, only handle LTree-specific operators
+        # Generic operators (eq, contains, etc.) should go to appropriate generic strategies
+        if field_type is None:
+            return op in ltree_specific_ops
 
         # For LTree types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
-        return self._is_ltree_type(field_type) and op in self.operators
+        return self._is_ltree_type(field_type)
 
     def build_sql(
         self,
@@ -462,6 +491,12 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for LTree operators with proper ltree casting."""
+        # Safety check: if we know the field type and it's NOT an LTree, something is wrong
+        if field_type and not self._is_ltree_type(field_type):
+            raise ValueError(
+                f"LTree operator '{op}' can only be used with LTree fields, got {field_type}"
+            )
+
         # For basic operations, cast both sides to ltree for proper PostgreSQL handling
         if op in ("eq", "neq", "in", "notin"):
             casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
@@ -553,13 +588,18 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         MAC address operators should only be used with MAC address field types.
         For MAC address types, we handle ALL operators to properly restrict unsupported ones.
         """
-        # If no field type provided, we can't determine if this is appropriate
+        if op not in self.operators:
+            return False
+
+        # MAC address operators are all generic (eq, neq, in, notin, contains, startswith, endswith)
+        # There are no MAC-address-specific operators, so we cannot safely handle any operation
+        # without knowing the field type. All operations should go to generic strategies.
         if field_type is None:
             return False
 
         # For MAC address types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
-        return self._is_mac_address_type(field_type) and op in self.operators
+        return self._is_mac_address_type(field_type)
 
     def build_sql(
         self,
@@ -569,6 +609,13 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for MAC address operators with proper macaddr casting."""
+        # Safety check: if we know the field type and it's NOT a MAC address, something is wrong
+        if field_type and not self._is_mac_address_type(field_type):
+            raise ValueError(
+                f"MAC address operator '{op}' can only be used with MAC address fields, "
+                f"got {field_type}"
+            )
+
         # For supported operators, cast the JSONB field to macaddr for proper PostgreSQL handling
         if op in ("eq", "neq", "in", "notin"):
             casted_path = Composed([SQL("("), path_sql, SQL(")::macaddr")])
@@ -655,15 +702,17 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for network operators."""
-        # Apply consistent type casting (same as ComparisonOperatorStrategy)
-        # For IP addresses, we should use the same casting approach for consistency
-        if field_type and self._is_ip_address_type(field_type):
-            # Use direct ::inet casting for network operations (more appropriate than host())
-            # Network operators work with full CIDR notation, so we don't strip with host()
-            casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
-        else:
-            # Fallback to direct path for non-IP types
-            casted_path = path_sql
+        # Apply consistent type casting for network operations
+        # Network operators are ONLY used for IP addresses, so we should always cast to ::inet
+        # even when field_type is not provided (repository calls don't pass field_type)
+        if field_type and not self._is_ip_address_type(field_type):
+            # Safety check: if we know the field type and it's NOT an IP address, something is wrong
+            raise ValueError(
+                f"Network operator '{op}' can only be used with IP address fields, got {field_type}"
+            )
+
+        # Always cast to ::inet for network operations since these operators are IP-specific
+        casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
 
         if op == "inSubnet":
             # PostgreSQL subnet matching using <<= operator

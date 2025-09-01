@@ -77,7 +77,7 @@ The framework supports both regular views (`v_` prefix) for real-time data and t
 #### 🚀 **Core Features**
 - **Automatic GraphQL Schema Generation**: Define Python types, get a complete GraphQL API
 - **PostgreSQL-First Design**: Optimized for PostgreSQL's advanced features (JSONB, views, functions)
-- **Type Safety**: Full type checking with Python 3.11+ type hints
+- **Type Safety**: Full type checking with Python 3.13+ type hints
 - **High Performance**: Built-in query optimization, caching, and N+1 query detection
 - **Security**: Field-level authorization, rate limiting, CSRF protection
 - **Developer Experience**: Hot reload, GraphQL playground, comprehensive error messages
@@ -98,7 +98,7 @@ pip install fraiseql
 
 ### Requirements
 
-- Python 3.11+
+- Python 3.13+
 - PostgreSQL 14+ (with JSONB support)
 
 ## Quick Start

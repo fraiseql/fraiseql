@@ -9,15 +9,16 @@ This represents the definitive reference implementation for enterprise
 GraphQL + JSONB architecture with FraiseQL.
 """
 
-import pytest
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
+import pytest
+
 from fraiseql.decorators import connection, query
+from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.types import fraise_type
 from fraiseql.types.generic import Connection
-from fraiseql.fastapi.config import FraiseQLConfig
 
 
 @fraise_type
@@ -29,26 +30,25 @@ class DnsServer:
     n_total_allocations: int | None = None
 
     @classmethod
-    def from_db_row(cls, row: dict) -> 'DnsServer':
+    def from_db_row(cls, row: dict) -> "DnsServer":
         """Extract fields from JSONB data column - enterprise pattern."""
         # Check if this is from flattened view (has direct columns)
-        if 'identifier' in row and not isinstance(row.get('identifier'), dict):
+        if "identifier" in row and not isinstance(row.get("identifier"), dict):
             # Direct columns from materialized view
             return cls(
-                id=UUID(str(row['id'])),
-                identifier=row['identifier'],
-                ip_address=row['ip_address'],
-                n_total_allocations=row.get('n_total_allocations')
+                id=UUID(str(row["id"])),
+                identifier=row["identifier"],
+                ip_address=row["ip_address"],
+                n_total_allocations=row.get("n_total_allocations")
             )
-        else:
-            # JSONB extraction from v_dns_server
-            data = row.get('data', {})
-            return cls(
-                id=UUID(str(data.get('id', row.get('id')))),
-                identifier=data.get('identifier', ''),
-                ip_address=data.get('ip_address', ''),
-                n_total_allocations=data.get('n_total_allocations')
-            )
+        # JSONB extraction from v_dns_server
+        data = row.get("data", {})
+        return cls(
+            id=UUID(str(data.get("id", row.get("id")))),
+            identifier=data.get("identifier", ""),
+            ip_address=data.get("ip_address", ""),
+            n_total_allocations=data.get("n_total_allocations")
+        )
 
 
 @pytest.mark.integration
@@ -75,7 +75,6 @@ class TestConnectionJSONBIntegration:
 
     def test_connection_decorator_with_global_jsonb_inheritance(self):
         """🎯 Test connection decorator with global JSONB inheritance."""
-
         # Mock FraiseQL global configuration
         mock_config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
@@ -143,15 +142,14 @@ class TestConnectionJSONBIntegration:
 
         # Test that decorator metadata shows inheritance support
         config_meta = dns_servers.__fraiseql_connection__
-        assert config_meta['node_type'] == DnsServer
-        assert config_meta['view_name'] == "v_dns_server"
-        assert config_meta['jsonb_extraction'] is None    # Will inherit at runtime
-        assert config_meta['jsonb_column'] is None        # Will inherit at runtime
-        assert config_meta['supports_global_jsonb'] is True  # ✅ KEY FIX!
+        assert config_meta["node_type"] == DnsServer
+        assert config_meta["view_name"] == "v_dns_server"
+        assert config_meta["jsonb_extraction"] is None    # Will inherit at runtime
+        assert config_meta["jsonb_column"] is None        # Will inherit at runtime
+        assert config_meta["supports_global_jsonb"] is True  # ✅ KEY FIX!
 
     async def test_connection_runtime_jsonb_resolution(self):
         """🎯 Test runtime JSONB configuration resolution."""
-
         # Setup same as previous test
         mock_config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
@@ -179,20 +177,19 @@ class TestConnectionJSONBIntegration:
             pass
 
         # Call the connection function to trigger runtime resolution
-        result = await auto_inherit_connection(mock_info, first=10)
+        await auto_inherit_connection(mock_info, first=10)
 
         # Verify that paginate was called with inherited JSONB config
         mock_db.paginate.assert_called_once()
         call_args = mock_db.paginate.call_args
 
         # Check that JSONB parameters were resolved from global config
-        assert call_args.kwargs['jsonb_extraction'] is True  # From global config
-        assert call_args.kwargs['jsonb_column'] == "metadata"  # First in priority list
+        assert call_args.kwargs["jsonb_extraction"] is True  # From global config
+        assert call_args.kwargs["jsonb_column"] == "metadata"  # First in priority list
 
     def test_explicit_jsonb_params_override_global(self):
         """🔧 Test that explicit parameters still override global configuration."""
-
-        mock_config = FraiseQLConfig(
+        FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             jsonb_extraction_enabled=True,
             jsonb_default_columns=["data"],
@@ -209,17 +206,16 @@ class TestConnectionJSONBIntegration:
             pass
 
         config_meta = explicit_override_connection.__fraiseql_connection__
-        assert config_meta['jsonb_extraction'] is False
-        assert config_meta['jsonb_column'] == "custom_json"
-        assert config_meta['supports_global_jsonb'] is True
+        assert config_meta["jsonb_extraction"] is False
+        assert config_meta["jsonb_column"] == "custom_json"
+        assert config_meta["supports_global_jsonb"] is True
 
     def test_enterprise_success_scenario(self):
         """🎉 SUCCESS: Test the complete enterprise JSONB solution."""
-
         # This test documents that the connection + JSONB issue is now SOLVED
         # Enterprise teams can now use @connection with zero JSONB configuration!
 
-        mock_config = FraiseQLConfig(
+        FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
             jsonb_extraction_enabled=True,
             jsonb_default_columns=["data"],
@@ -248,7 +244,7 @@ class TestConnectionJSONBIntegration:
 
         # ✅ VERIFICATION: All expected functionality working
         config_meta = dns_servers_clean.__fraiseql_connection__
-        assert config_meta['supports_global_jsonb'] is True
+        assert config_meta["supports_global_jsonb"] is True
 
         # ✅ ENTERPRISE READY:
         # - Global JSONB config inheritance ✅

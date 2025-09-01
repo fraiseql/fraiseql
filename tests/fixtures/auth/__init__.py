@@ -1,1 +1,1 @@
-# Test package
+"""Authentication fixtures for testing."""

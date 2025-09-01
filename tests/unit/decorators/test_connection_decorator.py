@@ -9,8 +9,8 @@ This tests the @connection decorator that should:
 4. Support all Relay connection specification features
 """
 
+
 import pytest
-from typing import Any
 
 from fraiseql.types import fraise_type
 from fraiseql.types.generic import Connection
@@ -44,14 +44,14 @@ class TestConnectionDecorator:
             pass
 
         # Test that decorator properly wraps the function
-        assert hasattr(users_connection, '__fraiseql_connection__')
+        assert hasattr(users_connection, "__fraiseql_connection__")
         config = users_connection.__fraiseql_connection__
-        assert config['node_type'] == User
-        assert config['view_name'] == "v_users"  # Inferred from function name
-        assert config['default_page_size'] == 20
-        assert config['max_page_size'] == 100
-        assert config['include_total_count'] is True
-        assert config['cursor_field'] == "id"
+        assert config["node_type"] == User
+        assert config["view_name"] == "v_users"  # Inferred from function name
+        assert config["default_page_size"] == 20
+        assert config["max_page_size"] == 100
+        assert config["include_total_count"] is True
+        assert config["cursor_field"] == "id"
 
     def test_connection_decorator_with_options(self):
         """Test @connection decorator with custom configuration."""
@@ -69,12 +69,12 @@ class TestConnectionDecorator:
             pass
 
         config = custom_users_connection.__fraiseql_connection__
-        assert config['node_type'] == User
-        assert config['view_name'] == "v_custom_users"
-        assert config['default_page_size'] == 25
-        assert config['max_page_size'] == 50
-        assert config['include_total_count'] is False
-        assert config['cursor_field'] == "created_at"
+        assert config["node_type"] == User
+        assert config["view_name"] == "v_custom_users"
+        assert config["default_page_size"] == 25
+        assert config["max_page_size"] == 50
+        assert config["include_total_count"] is False
+        assert config["cursor_field"] == "created_at"
 
     def test_connection_decorator_parameter_validation(self):
         """Test that @connection decorator validates parameters."""
@@ -114,8 +114,9 @@ class TestConnectionDecorator:
 
         This should FAIL in RED phase, then PASS after GREEN implementation.
         """
-        from fraiseql.decorators import connection
         from unittest.mock import AsyncMock, Mock
+
+        from fraiseql.decorators import connection
 
         # Mock database repository with JSONB data structure
         mock_db = AsyncMock()
@@ -163,14 +164,15 @@ class TestConnectionDecorator:
 
         # Test that JSONB configuration is stored in connection metadata
         config = dns_servers_connection.__fraiseql_connection__
-        assert config['jsonb_extraction'] is True
-        assert config['jsonb_column'] == "data"
-        assert config['supports_global_jsonb'] is True  # ✅ Now supported!
+        assert config["jsonb_extraction"] is True
+        assert config["jsonb_column"] == "data"
+        assert config["supports_global_jsonb"] is True  # ✅ Now supported!
 
     def test_connection_decorator_global_jsonb_inheritance(self):
         """🔄 REFACTOR: Test that @connection inherits global JSONB configuration."""
-        from fraiseql.decorators import connection
         from unittest.mock import AsyncMock, Mock
+
+        from fraiseql.decorators import connection
 
         # Mock config with global JSONB settings
         mock_config = Mock()
@@ -188,9 +190,9 @@ class TestConnectionDecorator:
 
         # Test metadata shows None (will be resolved at runtime)
         config = auto_jsonb_connection.__fraiseql_connection__
-        assert config['jsonb_extraction'] is None  # Will inherit at runtime
-        assert config['jsonb_column'] is None      # Will inherit at runtime
-        assert config['supports_global_jsonb'] is True
+        assert config["jsonb_extraction"] is None  # Will inherit at runtime
+        assert config["jsonb_column"] is None      # Will inherit at runtime
+        assert config["supports_global_jsonb"] is True
 
         # Test runtime resolution by calling the function
         # This would verify the global config inheritance works
@@ -211,9 +213,9 @@ class TestConnectionDecorator:
             pass
 
         config = explicit_jsonb_connection.__fraiseql_connection__
-        assert config['jsonb_extraction'] is False       # Explicit override
-        assert config['jsonb_column'] == "custom_data"   # Explicit override
-        assert config['supports_global_jsonb'] is True
+        assert config["jsonb_extraction"] is False       # Explicit override
+        assert config["jsonb_column"] == "custom_data"   # Explicit override
+        assert config["supports_global_jsonb"] is True
 
     def test_connection_decorator_backward_compatibility(self):
         """🔄 REFACTOR: Test backward compatibility - old code still works."""
@@ -226,12 +228,12 @@ class TestConnectionDecorator:
 
         # Should have all expected metadata with sensible defaults
         config = legacy_connection.__fraiseql_connection__
-        assert config['node_type'] == User
-        assert config['view_name'] == "v_legacy"
-        assert config['default_page_size'] == 20
-        assert config['max_page_size'] == 100
-        assert config['include_total_count'] is True
-        assert config['cursor_field'] == "id"
-        assert config['jsonb_extraction'] is None  # Will inherit global
-        assert config['jsonb_column'] is None      # Will inherit global
-        assert config['supports_global_jsonb'] is True
+        assert config["node_type"] == User
+        assert config["view_name"] == "v_legacy"
+        assert config["default_page_size"] == 20
+        assert config["max_page_size"] == 100
+        assert config["include_total_count"] is True
+        assert config["cursor_field"] == "id"
+        assert config["jsonb_extraction"] is None  # Will inherit global
+        assert config["jsonb_column"] is None      # Will inherit global
+        assert config["supports_global_jsonb"] is True
