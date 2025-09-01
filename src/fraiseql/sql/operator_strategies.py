@@ -655,15 +655,17 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for network operators."""
-        # Apply consistent type casting (same as ComparisonOperatorStrategy)
-        # For IP addresses, we should use the same casting approach for consistency
-        if field_type and self._is_ip_address_type(field_type):
-            # Use direct ::inet casting for network operations (more appropriate than host())
-            # Network operators work with full CIDR notation, so we don't strip with host()
-            casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
-        else:
-            # Fallback to direct path for non-IP types
-            casted_path = path_sql
+        # Apply consistent type casting for network operations
+        # Network operators are ONLY used for IP addresses, so we should always cast to ::inet
+        # even when field_type is not provided (repository calls don't pass field_type)
+        if field_type and not self._is_ip_address_type(field_type):
+            # Safety check: if we know the field type and it's NOT an IP address, something is wrong
+            raise ValueError(
+                f"Network operator '{op}' can only be used with IP address fields, got {field_type}"
+            )
+
+        # Always cast to ::inet for network operations since these operators are IP-specific
+        casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
 
         if op == "inSubnet":
             # PostgreSQL subnet matching using <<= operator
