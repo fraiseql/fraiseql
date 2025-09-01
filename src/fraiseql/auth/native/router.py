@@ -147,7 +147,7 @@ auth_router = APIRouter(tags=["auth"])
 
 
 # Dependency to get database connection
-async def get_db(request: Request) -> AsyncGenerator[AsyncConnection, None]:
+async def get_db(request: Request) -> AsyncGenerator[AsyncConnection]:
     """Get database connection from request."""
     # In a real app, this would come from app state or dependency injection
     # For tests, we'll get it from the request state
