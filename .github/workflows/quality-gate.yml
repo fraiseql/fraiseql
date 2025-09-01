@@ -74,7 +74,7 @@ jobs:
         DB_PASSWORD: fraiseql
       run: |
         echo "=== Starting Core Tests ==="
-        pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise" --tb=short -x || {
+        pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise" --tb=short || {
           echo "❌ Core tests failed with exit code $?"
           echo "=== Test failure details ==="
           echo "This typically indicates either:"

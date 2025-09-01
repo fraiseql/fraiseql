@@ -183,10 +183,6 @@ class TestValidateWhereInput:
         errors = validate_where_input(where, SampleUser)
         assert errors == []
 
-    @pytest.mark.xfail(
-        condition=os.environ.get("GITHUB_ACTIONS") == "true",
-        reason="Validation type checking inconsistent in CI environment",
-    )
     def test_operator_type_validation(self):
         """Test operator validation against field types."""
         # String operator on non-string field should be caught

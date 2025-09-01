@@ -183,10 +183,6 @@ class TestValidationUtilities:
         assert len(errors) == 1
         assert "Unknown operator '_invalid'" in errors[0]
 
-    @pytest.mark.xfail(
-        condition=os.environ.get("GITHUB_ACTIONS") == "true",
-        reason="Validation type checking inconsistent in CI environment",
-    )
     def test_validate_where_input_type_mismatch(self):
         """Test validation with operator type mismatch."""
         # String operator on non-string field
