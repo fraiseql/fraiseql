@@ -139,7 +139,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: deploy/docker/Dockerfile
     container_name: fraiseql-app
     environment:
       DATABASE_URL: postgresql://fraiseql:development_password@postgres:5432/fraiseql_dev
@@ -410,14 +410,14 @@ SENTRY_DSN=https://your-sentry-dsn-here
 
 ```bash
 # Build for production
-docker build -t fraiseql:latest -f Dockerfile .
+docker build -t fraiseql:latest -f deploy/docker/Dockerfile .
 
 # Build with specific version
-docker build -t fraiseql:v1.0.0 -f Dockerfile .
+docker build -t fraiseql:v1.0.0 -f deploy/docker/Dockerfile .
 
 # Multi-platform build
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t fraiseql:latest -f Dockerfile .
+  -t fraiseql:latest -f deploy/docker/Dockerfile .
 ```
 
 ### Run with Docker
