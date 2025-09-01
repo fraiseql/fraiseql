@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2025-09-01
+
+### 🚀 Major Features
+- **CRITICAL FIX**: Comprehensive JSONB special types casting fix for production
+  - Resolves 3 release failures caused by type casting issues
+  - Enhanced ComparisonOperatorStrategy with intelligent value detection
+  - Fixes Network, MAC Address, LTree, and DateRange type operations
+
+### 🔧 Improvements
+- Added intelligent fallback type detection when field_type=None
+- Maintains backward compatibility with existing field_type behavior
+- Prevents false positives with robust validation patterns
+
+### 🧪 Testing
+- Added 53+ comprehensive tests using RED-GREEN-REFACTOR methodology
+- Added Tier 1 core tests with pytest -m core marker (<30s runtime)
+- Production scenario validation and regression prevention
+
+### 🎯 Bug Fixes
+- Fixed JSONB IP address equality operations in production
+- Fixed MAC address casting for network hardware operations
+- Fixed LTree hierarchical path operations
+- Fixed DateRange operations with proper PostgreSQL casting
+
+### 📊 Performance
+- Ensures identical behavior between test and production environments
+- Zero regressions introduced while fixing critical production issues
+
 ## [0.5.4] - 2025-01-21
 
 ### 🔧 **Critical Bug Fixes**
