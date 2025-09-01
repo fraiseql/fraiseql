@@ -5,11 +5,8 @@ where NetworkAddressFilter appears to have inconsistent behavior when
 filtering IP addresses stored in JSONB columns.
 """
 
-import asyncio
 from dataclasses import dataclass
 from typing import get_type_hints
-
-import pytest
 
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 from fraiseql.types import IpAddress
@@ -56,8 +53,9 @@ class TestRootCauseInvestigation:
 
     async def test_sql_generation_for_jsonb_network_field(self):
         """Test SQL generation for network filtering on JSONB fields."""
-        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
         from psycopg.sql import SQL
+
+        from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
         from fraiseql.types import IpAddress
 
         strategy = NetworkOperatorStrategy()
@@ -68,7 +66,6 @@ class TestRootCauseInvestigation:
 
         # Should generate proper PostgreSQL inet subnet matching
         sql_str = str(result)
-        print(f"Generated SQL: {sql_str}")
 
         # Check that it properly casts JSONB text to inet
         assert "::inet" in sql_str, "Should cast to inet type"
@@ -77,8 +74,9 @@ class TestRootCauseInvestigation:
 
     async def test_eq_operator_sql_generation(self):
         """Test SQL generation for eq operator on JSONB network field."""
-        from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
         from psycopg.sql import SQL
+
+        from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy
         from fraiseql.types import IpAddress
 
         strategy = ComparisonOperatorStrategy()
@@ -88,7 +86,6 @@ class TestRootCauseInvestigation:
         result = strategy.build_sql(field_path, "eq", "1.1.1.1", IpAddress)
 
         sql_str = str(result)
-        print(f"Generated SQL for eq: {sql_str}")
 
         # Should properly handle IP address comparison
         # The exact format may vary based on IP address handling

@@ -5,11 +5,10 @@ to ensure proper PostgreSQL daterange type handling with range operators.
 """
 
 import pytest
+from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import get_operator_registry
-from fraiseql.sql.graphql_where_generator import DateRangeFilter
 from fraiseql.types.scalars.daterange import DateRangeField
-from psycopg.sql import SQL
 
 
 @pytest.mark.integration

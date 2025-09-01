@@ -5,11 +5,10 @@ to ensure proper PostgreSQL macaddr type handling.
 """
 
 import pytest
+from psycopg.sql import SQL
 
 from fraiseql.sql.operator_strategies import get_operator_registry
-from fraiseql.sql.graphql_where_generator import MacAddressFilter
 from fraiseql.types import MacAddress
-from psycopg.sql import SQL
 
 
 @pytest.mark.integration
@@ -215,7 +214,6 @@ class TestMacAddressFilterOperations:
             "0011.2233.4455",     # Cisco dot
         ]
 
-        canonical_target = "00:11:22:33:44:55"
 
         for fmt in formats:
             sql = registry.build_sql(

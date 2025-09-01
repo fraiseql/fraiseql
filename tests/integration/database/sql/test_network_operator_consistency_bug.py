@@ -7,7 +7,7 @@ SQL for the same IP address field type.
 import pytest
 from psycopg.sql import SQL
 
-from fraiseql.sql.operator_strategies import NetworkOperatorStrategy, ComparisonOperatorStrategy
+from fraiseql.sql.operator_strategies import ComparisonOperatorStrategy, NetworkOperatorStrategy
 from fraiseql.types import IpAddress
 
 
@@ -16,7 +16,6 @@ class TestNetworkOperatorConsistencyBug:
 
     def test_eq_vs_insubnet_sql_consistency(self):
         """Test that eq and inSubnet generate consistent SQL for IP fields."""
-
         # Test field path representing JSONB IP address
         field_path = SQL("data->>'ip_address'")
 
@@ -28,8 +27,6 @@ class TestNetworkOperatorConsistencyBug:
         network_strategy = NetworkOperatorStrategy()
         subnet_sql = network_strategy.build_sql(field_path, "inSubnet", "1.1.1.0/24", IpAddress)
 
-        print(f"EQ SQL: {eq_sql}")
-        print(f"inSubnet SQL: {subnet_sql}")
 
         # The issue: eq uses host() but inSubnet doesn't
         eq_str = str(eq_sql)
@@ -39,8 +36,7 @@ class TestNetworkOperatorConsistencyBug:
         if "host(" in eq_str:
             # If eq uses host(), subnet operations should be compatible
             # The issue might be that inSubnet doesn't account for host() usage
-            print("BUG: eq uses host() but inSubnet uses direct cast")
-            print("This could cause inconsistent behavior when filtering the same field")
+            pass
 
         # Check that both operators can handle the JSONB field properly
         assert "data->>'ip_address'" in eq_str, "eq should reference the JSONB field"
@@ -49,7 +45,6 @@ class TestNetworkOperatorConsistencyBug:
 
     def test_private_vs_eq_consistency(self):
         """Test consistency between isPrivate and eq operators."""
-
         field_path = SQL("data->>'ip_address'")
 
         # Test eq for private IP
@@ -60,8 +55,6 @@ class TestNetworkOperatorConsistencyBug:
         network_strategy = NetworkOperatorStrategy()
         private_sql = network_strategy.build_sql(field_path, "isPrivate", True, IpAddress)
 
-        print(f"EQ SQL for private IP: {eq_sql}")
-        print(f"isPrivate SQL: {private_sql}")
 
         eq_str = str(eq_sql)
         private_str = str(private_sql)
@@ -69,12 +62,10 @@ class TestNetworkOperatorConsistencyBug:
         # Both should handle the same field consistently
         # If eq uses host(), isPrivate should account for this
         if "host(" in eq_str and "host(" not in private_str:
-            print("POTENTIAL BUG: eq uses host() but isPrivate doesn't")
-            print("This could cause inconsistent behavior when the same IP has CIDR notation")
+            pass
 
     def test_demonstration_of_actual_bug(self):
         """Demonstrate the actual bug with concrete SQL examples."""
-
         field_path = SQL("data->>'ip_address'")
 
         # Simulate the case where JSONB contains "192.168.1.1" (without CIDR)
@@ -88,22 +79,13 @@ class TestNetworkOperatorConsistencyBug:
         eq_str = str(eq_sql)
         subnet_str = str(subnet_sql)
 
-        print("\n=== DEMONSTRATION OF INCONSISTENCY ===")
-        print(f"For JSONB field containing '192.168.1.1':")
-        print(f"  eq operator SQL: {eq_str}")
-        print(f"  inSubnet operator SQL: {subnet_str}")
 
         # The real issue: different casting approaches
         uses_host_for_eq = "host(" in eq_str
         uses_direct_cast_for_subnet = "::inet" in subnet_str and "host(" not in subnet_str
 
         if uses_host_for_eq and uses_direct_cast_for_subnet:
-            print("\n🐛 BUG IDENTIFIED:")
-            print("  - eq operator uses host() which strips CIDR notation")
-            print("  - inSubnet operator uses direct ::inet cast")
-            print("  - This inconsistency may cause filtering issues with JSONB data")
-            print("\n💡 EXPECTED:")
-            print("  Both operators should use consistent casting approach for the same field type")
+            pass
 
         # The bug manifests when:
         # 1. JSONB contains IP addresses (with or without CIDR)
@@ -132,13 +114,10 @@ class TestSQLBehaviorWithPostgreSQL:
 
         # Case 3: The actual bug might be elsewhere - let's investigate field type handling
 
-        pass
 
     def test_field_type_detection_issue(self):
         """Test if the issue is in field type detection for network operators."""
-
         from fraiseql.sql.operator_strategies import get_operator_registry
-        from fraiseql.types import IpAddress
 
         registry = get_operator_registry()
 
@@ -146,8 +125,6 @@ class TestSQLBehaviorWithPostgreSQL:
         network_strategy = registry.get_strategy("inSubnet")
         comparison_strategy = registry.get_strategy("eq")
 
-        print(f"inSubnet strategy: {type(network_strategy).__name__}")
-        print(f"eq strategy: {type(comparison_strategy).__name__}")
 
         # Test that network strategy can handle the operator
         assert network_strategy.can_handle("inSubnet"), "Network strategy should handle inSubnet"
@@ -157,9 +134,8 @@ class TestSQLBehaviorWithPostgreSQL:
         # Let's see if it properly filters by field type
 
         network_strategy_instance = NetworkOperatorStrategy()
-        can_handle_with_ip = network_strategy_instance.can_handle("inSubnet")
+        network_strategy_instance.can_handle("inSubnet")
 
-        print(f"NetworkOperatorStrategy.can_handle('inSubnet'): {can_handle_with_ip}")
 
         # The bug might be here - NetworkOperatorStrategy should only handle network operators
         # for network field types, but the can_handle method doesn't check field type!

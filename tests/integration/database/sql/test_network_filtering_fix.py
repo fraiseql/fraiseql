@@ -1,11 +1,11 @@
 """Test that the network filtering fix resolves the reported issues."""
 
-import pytest
-from fraiseql.sql.where_generator import safe_create_where_type
-from fraiseql.sql.operator_strategies import get_operator_registry
-from fraiseql.types import IpAddress
 from psycopg.sql import SQL
+
 import fraiseql
+from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.where_generator import safe_create_where_type
+from fraiseql.types import IpAddress
 
 
 @fraiseql.type
@@ -46,7 +46,6 @@ class TestNetworkFilteringFix:
         subnet_sql = registry.build_sql(field_path, "inSubnet", "192.168.1.0/24", IpAddress)
         subnet_str = str(subnet_sql)
 
-        print(f"inSubnet SQL: {subnet_str}")
 
         # Should contain proper casting
         assert "::inet" in subnet_str
@@ -57,7 +56,6 @@ class TestNetworkFilteringFix:
         private_sql = registry.build_sql(field_path, "isPrivate", True, IpAddress)
         private_str = str(private_sql)
 
-        print(f"isPrivate SQL: {private_str}")
 
         # Should contain RFC 1918 ranges
         assert "192.168.0.0/16" in private_str
@@ -77,8 +75,6 @@ class TestNetworkFilteringFix:
         eq_str = str(eq_sql)
         subnet_str = str(subnet_sql)
 
-        print(f"eq SQL: {eq_str}")
-        print(f"inSubnet SQL: {subnet_str}")
 
         # Both should work with PostgreSQL
         # eq uses host() to handle CIDR notation properly
@@ -99,20 +95,18 @@ class TestNetworkFilteringFix:
         where_instance = WhereType()
 
         # Should have network operators for ip_address field
-        assert hasattr(where_instance, 'ip_address')
+        assert hasattr(where_instance, "ip_address")
 
         # The ip_address field should be a NetworkAddressFilter type
-        ip_filter = where_instance.ip_address
 
         # This would be None initially, but the type should support network operations
         # We can't easily test this without creating a full instance, but we can check
         # that the type was created correctly by the GraphQL where generator
 
-        print(f"ip_address filter type: {type(ip_filter)}")
 
     def test_network_operators_reject_non_ip_fields(self):
         """Test that network operators properly reject non-IP field types."""
-        registry = get_operator_registry()
+        get_operator_registry()
 
         # Test that NetworkOperatorStrategy rejects non-IP types
         from fraiseql.sql.operator_strategies import NetworkOperatorStrategy
@@ -120,13 +114,13 @@ class TestNetworkFilteringFix:
         network_strategy = NetworkOperatorStrategy()
 
         # Should handle IP addresses
-        assert network_strategy.can_handle("inSubnet", IpAddress) == True
+        assert network_strategy.can_handle("inSubnet", IpAddress)
 
         # Should reject string types
-        assert network_strategy.can_handle("inSubnet", str) == False
+        assert not network_strategy.can_handle("inSubnet", str)
 
         # Should reject int types
-        assert network_strategy.can_handle("inSubnet", int) == False
+        assert not network_strategy.can_handle("inSubnet", int)
 
     def test_regression_reported_issue_patterns(self):
         """Test the specific patterns from the reported issue."""
@@ -138,7 +132,6 @@ class TestNetworkFilteringFix:
         subnet_sql = registry.build_sql(field_path, "inSubnet", "192.168.0.0/16", IpAddress)
         subnet_str = str(subnet_sql)
 
-        print(f"Subnet filter SQL: {subnet_str}")
 
         # Should generate: (data->>'ip_address')::inet <<= '192.168.0.0/16'::inet
         # This SQL should correctly filter only IPs in the 192.168.x.x range
@@ -152,7 +145,6 @@ class TestNetworkFilteringFix:
         eq_sql = registry.build_sql(field_path, "eq", "1.1.1.1", IpAddress)
         eq_str = str(eq_sql)
 
-        print(f"Exact match SQL: {eq_str}")
 
         # Should generate proper equality check
         # The host() function is actually correct for handling CIDR notation
@@ -163,7 +155,6 @@ class TestNetworkFilteringFix:
         private_sql = registry.build_sql(field_path, "isPrivate", True, IpAddress)
         private_str = str(private_sql)
 
-        print(f"Private IP filter SQL: {private_str}")
 
         # Should check all RFC 1918 ranges
         rfc1918_ranges = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]

@@ -13,7 +13,8 @@ import psycopg
 import pytest
 from graphql import GraphQLResolveInfo
 
-from fraiseql import query, type
+from fraiseql import query
+from fraiseql import type as fraiseql_type
 
 
 async def setup_test_database():
@@ -153,7 +154,7 @@ async def setup_test_database():
 
 
 # Define GraphQL types with sql_source
-@type(sql_source="mv_organization")
+@fraiseql_type(sql_source="mv_organization")
 class Organization:
     """Organization type with sql_source pointing to materialized view."""
 
@@ -173,7 +174,7 @@ class Organization:
         )
 
 
-@type(sql_source="v_user")
+@fraiseql_type(sql_source="v_user")
 class User:
     """User type with embedded organization in JSONB data."""
 

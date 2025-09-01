@@ -4,12 +4,12 @@ This test demonstrates that our fix resolves the specific issues mentioned
 in the bug report: /tmp/fraiseql_network_filtering_issue.md
 """
 
-import pytest
-from fraiseql.sql.operator_strategies import get_operator_registry
-from fraiseql.sql.graphql_where_generator import create_graphql_where_input
-from fraiseql.types import IpAddress
 from psycopg.sql import SQL
+
 import fraiseql
+from fraiseql.sql.graphql_where_generator import create_graphql_where_input
+from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.types import IpAddress
 
 
 @fraiseql.type
@@ -40,7 +40,6 @@ class TestIssueResolutionDemonstration:
         subnet_sql = registry.build_sql(field_path, "inSubnet", "192.168.0.0/16", IpAddress)
         sql_str = str(subnet_sql)
 
-        print(f"✅ FIXED - inSubnet SQL: {sql_str}")
 
         # Verify the SQL will work correctly
         assert "data->>'ip_address'" in sql_str
@@ -53,7 +52,6 @@ class TestIssueResolutionDemonstration:
         # - ✅ 192.168.1.102 (in subnet)
         # - ❌ 21.43.108.1 (NOT in subnet) <- This was the bug!
 
-        print("✅ inSubnet now generates correct PostgreSQL inet subnet matching SQL")
 
     def test_issue_2_exact_matching_eq_fixed(self):
         """RESOLVED: eq filter now works correctly.
@@ -69,7 +67,6 @@ class TestIssueResolutionDemonstration:
         eq_sql = registry.build_sql(field_path, "eq", "1.1.1.1", IpAddress)
         sql_str = str(eq_sql)
 
-        print(f"✅ FIXED - eq SQL: {sql_str}")
 
         # Verify the SQL uses proper IP address handling
         assert "1.1.1.1" in sql_str
@@ -79,7 +76,6 @@ class TestIssueResolutionDemonstration:
         # - host('1.1.1.1'::inet) = '1.1.1.1' ✅
         # - host('1.1.1.1/32'::inet) = '1.1.1.1' ✅
 
-        print("✅ eq now uses host() to properly handle IP addresses with/without CIDR")
 
     def test_issue_3_isprivate_filter_fixed(self):
         """RESOLVED: isPrivate filter now returns correct results.
@@ -95,7 +91,6 @@ class TestIssueResolutionDemonstration:
         private_sql = registry.build_sql(field_path, "isPrivate", True, IpAddress)
         sql_str = str(private_sql)
 
-        print(f"✅ FIXED - isPrivate SQL: {sql_str}")
 
         # Verify all RFC 1918 ranges are checked
         rfc1918_ranges = [
@@ -117,7 +112,6 @@ class TestIssueResolutionDemonstration:
         # - ❌ 1.1.1.1 (public)
         # - ❌ 21.43.108.1 (public)
 
-        print("✅ isPrivate now checks all RFC 1918 ranges with proper casting")
 
     def test_string_filtering_still_works(self):
         """VERIFIED: String filtering continues to work (was not broken).
@@ -131,12 +125,10 @@ class TestIssueResolutionDemonstration:
         contains_sql = registry.build_sql(field_path, "contains", "sup-musiq", str)
         sql_str = str(contains_sql)
 
-        print(f"✅ VERIFIED - String contains SQL: {sql_str}")
 
         assert "sup-musiq" in sql_str
         assert "LIKE" in sql_str or "~" in sql_str  # Pattern matching
 
-        print("✅ String filtering continues to work correctly")
 
     def test_network_operators_type_safety_improved(self):
         """NEW: Network operators now properly check field types.
@@ -148,14 +140,13 @@ class TestIssueResolutionDemonstration:
         network_strategy = NetworkOperatorStrategy()
 
         # Should accept IP address types
-        assert network_strategy.can_handle("inSubnet", IpAddress) == True
-        assert network_strategy.can_handle("isPrivate", IpAddress) == True
+        assert network_strategy.can_handle("inSubnet", IpAddress)
+        assert network_strategy.can_handle("isPrivate", IpAddress)
 
         # Should reject non-IP types
-        assert network_strategy.can_handle("inSubnet", str) == False
-        assert network_strategy.can_handle("isPrivate", int) == False
+        assert not network_strategy.can_handle("inSubnet", str)
+        assert not network_strategy.can_handle("isPrivate", int)
 
-        print("✅ Network operators now validate field types for better safety")
 
     def test_graphql_integration_works(self):
         """VERIFIED: GraphQL where input generation includes network operators.
@@ -168,9 +159,8 @@ class TestIssueResolutionDemonstration:
         where_instance = WhereInput()
 
         # Verify that ip_address field exists
-        assert hasattr(where_instance, 'ip_address')
+        assert hasattr(where_instance, "ip_address")
 
-        print("✅ GraphQL where input generation correctly maps IP fields to NetworkAddressFilter")
 
     def test_sql_generation_consistency_verified(self):
         """VERIFIED: SQL generation is now consistent across operators.
@@ -196,50 +186,10 @@ class TestIssueResolutionDemonstration:
             assert "data->>'ip_address'" in sql_str
             assert "::inet" in sql_str
 
-            print(f"✅ {op} uses consistent casting: {sql_str[:50]}...")
 
-        print("✅ All network operators use consistent casting approach")
 
     def test_comprehensive_fix_summary(self):
         """Summary of all fixes applied to resolve the JSONB network filtering issue."""
-
-        print("\n" + "="*80)
-        print("🎉 COMPREHENSIVE FIX SUMMARY")
-        print("="*80)
-
-        print("\n🐛 ORIGINAL ISSUES (from /tmp/fraiseql_network_filtering_issue.md):")
-        print("1. inSubnet filter returned wrong results (21.43.108.1 in 192.168.0.0/16)")
-        print("2. eq filter returned empty results for existing IPs")
-        print("3. isPrivate filter returned empty results for private IPs")
-
-        print("\n🔧 FIXES IMPLEMENTED:")
-        print("1. Enhanced NetworkOperatorStrategy with consistent ::inet casting")
-        print("2. Added field type validation to NetworkOperatorStrategy.can_handle()")
-        print("3. Updated OperatorRegistry to pass field types to strategy selection")
-        print("4. Fixed all network operators to use consistent casted_path approach")
-        print("5. Maintained backward compatibility with existing ComparisonOperatorStrategy")
-
-        print("\n✅ RESOLVED BEHAVIORS:")
-        print("• inSubnet: Generates (data->>'ip_address')::inet <<= 'subnet'::inet")
-        print("• eq: Uses host((data->>'ip_address')::inet) = 'ip' for IP fields")
-        print("• isPrivate: Checks all RFC 1918 ranges with proper casting")
-        print("• isPublic: Inverts private logic correctly")
-        print("• isIPv4/isIPv6: Uses family() function with consistent casting")
-
-        print("\n🚀 ENHANCEMENTS:")
-        print("• Type-safe network operator selection")
-        print("• Consistent SQL generation across all network operators")
-        print("• Backward compatibility maintained")
-        print("• No regressions in existing functionality")
-
-        print("\n✨ VERIFICATION:")
-        print("• All original tests pass (22/22)")
-        print("• New regression tests pass (6/6)")
-        print("• Integration tests confirm fix (8/8)")
-
-        print("="*80)
-        print("🎯 RESULT: JSONB network filtering issue COMPLETELY RESOLVED!")
-        print("="*80)
 
 
 if __name__ == "__main__":
