@@ -117,18 +117,35 @@ def _make_filter_field_composed(
 def _build_where_to_sql(
     fields: list[str],
     type_hints: dict[str, type] | None = None,
+    graphql_info: Any | None = None,
 ) -> Callable[[object], Composed | None]:
     """Build a `to_sql` method for a dynamic filter dataclass.
 
     Args:
         fields: List of filter field names.
         type_hints: Optional mapping of field names to their types.
+        graphql_info: Optional GraphQL resolve info context for field type extraction.
 
     Returns:
         A function suitable as a `to_sql(self)` method returning Composed SQL.
     """
 
     def to_sql(self: object) -> Composed | None:
+        # Enhance type hints with GraphQL context if available
+        enhanced_type_hints = type_hints
+        if graphql_info:
+            try:
+                from fraiseql.graphql.field_type_extraction import (
+                    enhance_type_hints_with_graphql_context,
+                )
+
+                enhanced_type_hints = enhance_type_hints_with_graphql_context(
+                    type_hints, graphql_info, fields
+                )
+            except ImportError:
+                # Fallback gracefully if GraphQL extraction is not available
+                pass
+
         conditions: list[Composed] = []
         for name in fields:
             val = getattr(self, name, None)
@@ -138,7 +155,7 @@ def _build_where_to_sql(
                 if sql:
                     conditions.append(sql)
             elif isinstance(val, dict):
-                field_type = type_hints.get(name) if type_hints else None
+                field_type = enhanced_type_hints.get(name) if enhanced_type_hints else None
                 cond = _make_filter_field_composed(
                     name,
                     cast("dict[str, object]", val),
@@ -204,4 +221,36 @@ def safe_create_where_type(cls: type[object]) -> type[DynamicType] | object:
     attrs["to_sql"] = _build_where_to_sql(field_names, type_hints)
 
     where_name = f"{cls.__name__}Where"
+    return dataclass(type(where_name, (), attrs))
+
+
+def create_where_type_with_graphql_context(
+    cls: type[object], graphql_info: Any | None = None
+) -> type[DynamicType] | object:
+    """Create a dataclass-based WHERE filter type with GraphQL context support.
+
+    This function is similar to safe_create_where_type but supports GraphQL context
+    for enhanced field type extraction, enabling proper network operator handling.
+
+    Args:
+        cls: The base dataclass to generate filter type for.
+        graphql_info: Optional GraphQL resolve info context for field type extraction.
+
+    Returns:
+        A new dataclass type implementing DynamicType with enhanced field type support.
+    """
+    type_hints = get_type_hints(cls)
+    annotations: dict[str, object] = {}
+    attrs: dict[str, object] = {}
+
+    for name, typ in type_hints.items():
+        unwrap_type(typ)
+        annotations[name] = dict[str, Any] | None  # Use Any for the dict value type
+        attrs[name] = field(default_factory=dict)
+
+    field_names = list(type_hints.keys())
+    attrs["__annotations__"] = annotations
+    attrs["to_sql"] = _build_where_to_sql(field_names, type_hints, graphql_info)
+
+    where_name = f"{cls.__name__}WhereWithContext"
     return dataclass(type(where_name, (), attrs))
