@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Experimental/Private Extensions
+fraiseql-relay-extension/
+
 # C extensions
 *.so
 
