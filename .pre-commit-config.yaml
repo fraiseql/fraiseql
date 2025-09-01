@@ -31,36 +31,41 @@ repos:
           bash -c '
           set -e  # Exit on any error
 
+          # Check CI environment first (before checking for uv)
           if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ] || [ "$PRE_COMMIT_CI" = "true" ]; then
             echo "⏭️  Skipping tests in CI - will be run by GitHub Actions"
             exit 0
-          elif ! command -v uv >/dev/null 2>&1; then
+          fi
+
+          # Only check for uv if not in CI environment
+          if ! command -v uv >/dev/null 2>&1; then
             echo ""
             echo "❌ uv not found - cannot run tests!"
             echo "📦 Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
             echo "🚨 COMMIT BLOCKED - install uv to run tests before committing"
             echo ""
             exit 1
+          fi
+
+          # Run tests only in local development environment
+          echo ""
+          echo "🧪 Running comprehensive test suite..."
+          echo "📊 This ensures no broken code reaches the repository"
+          echo ""
+
+          # Run core tests with strict settings (exclude problematic integration tests)
+          if TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true uv run pytest tests/ --tb=short -x -m "not blog_simple and not blog_enterprise"; then
+            echo ""
+            echo "✅ All tests passed - commit allowed"
+            echo "🚀 Code is ready for push to remote"
+            echo ""
           else
             echo ""
-            echo "🧪 Running comprehensive test suite..."
-            echo "📊 This ensures no broken code reaches the repository"
+            echo "❌ TESTS FAILED - COMMIT BLOCKED"
+            echo "🚨 Fix failing tests before committing"
+            echo "💡 Run: uv run pytest --tb=short -v"
             echo ""
-
-            # Run core tests with strict settings (exclude problematic integration tests)
-            if TESTCONTAINERS_PODMAN=true TESTCONTAINERS_RYUK_DISABLED=true uv run pytest tests/ --tb=short -x -m "not blog_simple and not blog_enterprise"; then
-              echo ""
-              echo "✅ All tests passed - commit allowed"
-              echo "🚀 Code is ready for push to remote"
-              echo ""
-            else
-              echo ""
-              echo "❌ TESTS FAILED - COMMIT BLOCKED"
-              echo "🚨 Fix failing tests before committing"
-              echo "💡 Run: uv run pytest --tb=short -v"
-              echo ""
-              exit 1
-            fi
+            exit 1
           fi
           '
         language: system
