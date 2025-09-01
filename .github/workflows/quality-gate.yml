@@ -94,6 +94,7 @@ jobs:
         echo "Running pytest with explicit configuration..."
 
         # Run with more explicit options to avoid any caching issues
+        # Note: Removed --no-cov-on-fail option due to CI environment compatibility
         python -m pytest tests/ \
           --cov=src/fraiseql \
           --cov-report=xml \
@@ -101,7 +102,6 @@ jobs:
           -v \
           -m "not blog_simple and not blog_enterprise" \
           --tb=short \
-          --no-cov-on-fail \
           --disable-warnings \
           || {
             echo "❌ Core tests failed with exit code $?"
