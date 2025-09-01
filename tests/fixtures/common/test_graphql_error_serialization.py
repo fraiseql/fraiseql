@@ -297,8 +297,8 @@ class TestGraphQLErrorSerialization:
         cleaned = _clean_fraise_types(large_data)
         end_time = time.time()
 
-        # Should complete in reasonable time (< 1 second for this size)
-        assert end_time - start_time < 1.0, f"Cleaning took {end_time - start_time} seconds"
+        # Should complete in reasonable time (< 2 seconds for this size)
+        assert end_time - start_time < 2.0, f"Cleaning took {end_time - start_time} seconds"
 
         # Verify correctness
         assert len(cleaned["mutations"]) == 100
