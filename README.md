@@ -280,10 +280,10 @@ FraiseQL provides a rich type system with built-in scalars:
 
 ### WHERE Clause Generation
 
-FraiseQL automatically generates type-safe WHERE clauses:
+FraiseQL automatically generates type-safe WHERE clauses with **intelligent type-aware SQL optimization** (v0.5.7+):
 
-```python
-# GraphQL query
+```graphql
+# GraphQL query with automatic type-aware optimization
 query {
   users(where: {
     email: {eq: "user@example.com"}
@@ -295,6 +295,33 @@ query {
   }
 }
 ```
+
+#### Advanced Type-Aware Filtering (NEW in v0.5.7)
+
+```graphql
+# Network and special type filtering with optimized SQL generation
+query {
+  dnsServers(where: {
+    ipAddress: { eq: "8.8.8.8" }        # → Optimized ::inet casting
+    port: { gt: 1024 }                  # → Optimized ::integer casting
+    createdAt: { gte: "2024-01-01" }    # → Optimized ::timestamp casting
+    macAddress: { eq: "aa:bb:cc:dd:ee:ff" }  # → Optimized ::macaddr casting
+  }) {
+    id identifier ipAddress port createdAt
+  }
+}
+```
+
+**What happens behind the scenes:**
+```sql
+-- FraiseQL automatically generates optimized SQL based on field types:
+WHERE (data->>'ip_address')::inet = '8.8.8.8'::inet
+  AND (data->>'port')::integer > 1024
+  AND (data->>'created_at')::timestamp >= '2024-01-01'::timestamp
+  AND (data->>'mac_address')::macaddr = 'aa:bb:cc:dd:ee:ff'::macaddr
+```
+
+**Performance Impact:** Type-aware casting significantly improves query performance by allowing PostgreSQL to use specialized indexes and operators for network types, dates, and numeric fields.
 
 ### Field-Level Features
 

@@ -118,7 +118,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - `src/fraiseql/sql/operator_strategies.py` - Main fix implementation
 - `tests/unit/sql/test_network_operator_strategy_fix.py` - Primary test suite
 - `tests/unit/sql/test_all_operator_strategies_coverage.py` - Comprehensive verification
-- `NETWORK_OPERATOR_FIX.md` - Complete technical documentation
+- `../fixes/NETWORK_OPERATOR_FIX.md` - Complete technical documentation
 
 ## Expected Outcome
 After successful completion, the FraiseQL v0.5.5 network filtering issues will be fully resolved in the dev branch, ready for the next release.
