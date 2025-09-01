@@ -55,7 +55,7 @@ class SubscriptionCache:
         key: str,
         generator: AsyncGenerator,
         ttl: float,
-    ) -> AsyncGenerator[Any, None]:
+    ) -> AsyncGenerator[Any]:
         """Get cached values or generate new ones."""
         # Check cache
         if key in self._cache:
