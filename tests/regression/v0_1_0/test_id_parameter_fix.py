@@ -34,7 +34,7 @@ async def create_item(info, id_: UUID, class_: str) -> Item:
 
 # Subscription with reserved word parameter
 @subscription
-async def watch_items(info, type_: str) -> AsyncGenerator[Item]:
+async def watch_items(info, type_: str) -> AsyncGenerator[Item, None]:
     """Watch items of a specific type."""
     # Simulate streaming items
     for i in range(3):

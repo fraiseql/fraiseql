@@ -110,7 +110,7 @@ def postgres_url(postgres_container) -> str:
 
 
 @pytest_asyncio.fixture(scope="session")
-async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool]:
+async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool, None]:
     """🔄 SHARED CONNECTION POOL: Efficient connection reuse across tests.
 
     Part of the unified container approach:
@@ -153,7 +153,7 @@ async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPo
 
 
 @pytest_asyncio.fixture
-async def db_connection(db_pool) -> AsyncGenerator[psycopg.AsyncConnection]:
+async def db_connection(db_pool) -> AsyncGenerator[psycopg.AsyncConnection, None]:
     """Provide an isolated database connection for each test.
 
     This fixture provides a connection with automatic transaction rollback
@@ -252,7 +252,7 @@ def create_fraiseql_app_with_db(postgres_url, clear_registry, db_pool):
 
 # Alternative fixtures for tests that need committed data
 @pytest_asyncio.fixture
-async def db_connection_committed(db_pool) -> AsyncGenerator[psycopg.AsyncConnection]:
+async def db_connection_committed(db_pool) -> AsyncGenerator[psycopg.AsyncConnection, None]:
     """Provide a database connection with committed changes.
 
     Use this fixture when you need changes to persist across queries
