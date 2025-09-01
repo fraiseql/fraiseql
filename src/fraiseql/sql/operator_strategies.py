@@ -924,25 +924,44 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
 
 
 class NetworkOperatorStrategy(BaseOperatorStrategy):
-    """Strategy for network-specific operators (v0.3.8+)."""
+    """Strategy for network-specific operators with basic comparison support (v0.5.5+)."""
 
     def __init__(self) -> None:
-        super().__init__(["inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"])
+        # Include basic operations and network-specific operators
+        super().__init__(
+            [
+                "eq",
+                "neq",
+                "in",
+                "notin",  # Basic operations
+                "inSubnet",
+                "inRange",
+                "isPrivate",
+                "isPublic",
+                "isIPv4",
+                "isIPv6",  # Network-specific operations
+            ]
+        )
 
     def can_handle(self, op: str, field_type: type | None = None) -> bool:
         """Check if this strategy can handle the given operator.
 
         Network operators should only be used with IP address field types.
+        For IP address types, we handle ALL operators to properly restrict unsupported ones.
         """
         if op not in self.operators:
             return False
 
-        # If no field type provided, we can't determine if this is appropriate
-        # but we'll allow it for backward compatibility
-        if field_type is None:
-            return True
+        # Define network-specific operators that we can safely handle without field type info
+        network_specific_ops = {"inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"}
 
-        # Only handle network operators for IP address types
+        # If no field type provided, only handle network-specific operators
+        # Generic operators (eq, neq, in, notin) should go to appropriate generic strategies
+        if field_type is None:
+            return op in network_specific_ops
+
+        # For IP address types, handle ALL the operators we're configured for
+        # This ensures we can properly restrict the problematic ones
         return self._is_ip_address_type(field_type)
 
     def build_sql(
@@ -964,6 +983,37 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
 
         # Always cast to ::inet for network operations since these operators are IP-specific
         casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
+
+        # For basic operations, cast both sides to inet for proper PostgreSQL handling
+        if op in ("eq", "neq", "in", "notin"):
+            if op == "eq":
+                return Composed([casted_path, SQL(" = "), Literal(val), SQL("::inet")])
+            if op == "neq":
+                return Composed([casted_path, SQL(" != "), Literal(val), SQL("::inet")])
+            if op == "in":
+                if not isinstance(val, list):
+                    msg = f"'in' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" IN (")]
+                for i, ip in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(ip), SQL("::inet")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+            if op == "notin":
+                if not isinstance(val, list):
+                    msg = f"'notin' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" NOT IN (")]
+                for i, ip in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(ip), SQL("::inet")])
+                parts.append(SQL(")"))
+                return Composed(parts)
 
         if op == "inSubnet":
             # PostgreSQL subnet matching using <<= operator

@@ -151,9 +151,11 @@ class TestProductionFixValidation:
         sql_str = str(result)
         print(f"With field_type (backward compatibility): {sql_str}")
 
-        # Should still work as before
+        # Should work with the new NetworkOperatorStrategy implementation
         assert "::inet" in sql_str, "Backward compatibility broken - missing inet casting"
-        assert "host(" in sql_str, "Should still use host() function"
+        # NetworkOperatorStrategy now uses direct ::inet casting instead of host()
+        assert " = " in sql_str, "Should generate equality comparison"
+        assert "'8.8.8.8'" in sql_str, "Should contain the IP address literal"
 
     def test_production_scenario_exact_reproduction(self):
         """Test the exact production scenario that was failing."""
