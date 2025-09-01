@@ -258,6 +258,23 @@ pre-commit-install: ## Install pre-commit hooks
 	@echo -e "$(GREEN)Installing pre-commit hooks...$(NC)"
 	pre-commit install
 
+# Safe development workflow commands
+safe-commit: test-core ## Safe commit: Run tests before committing
+	@echo -e "$(GREEN)✅ Tests passed - proceeding with commit...$(NC)"
+	@echo -e "$(YELLOW)📝 Use: git add -A && git commit -m 'your message'$(NC)"
+
+safe-push: test ## Safe push: Run full tests before pushing
+	@echo -e "$(GREEN)✅ All tests passed - safe to push$(NC)"
+	@echo -e "$(YELLOW)📡 Use: git push origin branch-name$(NC)"
+
+verify-tests: ## Verify current test status (quick check)
+	@echo -e "$(GREEN)🔍 Verifying current test status...$(NC)"
+	pytest --collect-only -q | tail -3
+
+test-commit-safety: ## Test the commit safety hooks
+	@echo -e "$(GREEN)🧪 Testing commit safety mechanisms...$(NC)"
+	@bash -c 'source .git/hooks/pre-push && echo "Pre-push hook would have run successfully"'
+
 # Package distribution commands
 .PHONY: build
 build: ## Build distribution packages

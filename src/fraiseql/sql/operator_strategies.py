@@ -314,10 +314,21 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
         if op not in self.operators:
             return False
 
-        # If no field type provided, we can't determine if this is appropriate
-        # but we'll allow it for backward compatibility (repository calls don't pass field_type)
+        # Define DateRange-specific operators that we can safely handle without field type info
+        daterange_specific_ops = {
+            "contains_date",
+            "overlaps",
+            "adjacent",
+            "strictly_left",
+            "strictly_right",
+            "not_left",
+            "not_right",
+        }
+
+        # If no field type provided, only handle DateRange-specific operators
+        # Generic operators (eq, contains, etc.) should go to appropriate generic strategies
         if field_type is None:
-            return True
+            return op in daterange_specific_ops
 
         # For DateRange types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
@@ -460,10 +471,13 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         if op not in self.operators:
             return False
 
-        # If no field type provided, we can't determine if this is appropriate
-        # but we'll allow it for backward compatibility (repository calls don't pass field_type)
+        # Define LTree-specific operators that we can safely handle without field type info
+        ltree_specific_ops = {"ancestor_of", "descendant_of", "matches_lquery", "matches_ltxtquery"}
+
+        # If no field type provided, only handle LTree-specific operators
+        # Generic operators (eq, contains, etc.) should go to appropriate generic strategies
         if field_type is None:
-            return True
+            return op in ltree_specific_ops
 
         # For LTree types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
@@ -577,10 +591,11 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         if op not in self.operators:
             return False
 
-        # If no field type provided, we can't determine if this is appropriate
-        # but we'll allow it for backward compatibility (repository calls don't pass field_type)
+        # MAC address operators are all generic (eq, neq, in, notin, contains, startswith, endswith)
+        # There are no MAC-address-specific operators, so we cannot safely handle any operation
+        # without knowing the field type. All operations should go to generic strategies.
         if field_type is None:
-            return True
+            return False
 
         # For MAC address types, handle ALL the operators we're configured for
         # This ensures we can properly restrict the problematic ones
