@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6] - 2025-09-01
+
+### 🔧 Critical Network Filtering Enhancement
+
+#### **Network Operator Support Fix**
+- **Fixed**: "Unsupported network operator: eq" error for IP address filtering
+- **Added**: Basic comparison operators (`eq`, `neq`, `in`, `notin`) to NetworkOperatorStrategy
+- **Impact**: IP address equality filtering now works correctly in GraphQL queries
+- **SQL**: Proper PostgreSQL `::inet` type casting in generated SQL
+
+#### **Before v0.5.6 ❌**
+```graphql
+# This failed with "Unsupported network operator: eq"
+dnsServers(where: { ipAddress: { eq: "8.8.8.8" } }) {
+  id identifier ipAddress
+}
+```
+
+#### **After v0.5.6 ✅**
+```graphql
+# This now works perfectly
+dnsServers(where: { ipAddress: { eq: "8.8.8.8" } }) {
+  id identifier ipAddress
+}
+
+# All these operators now work:
+dnsServers(where: { ipAddress: { neq: "192.168.1.1" } }) { ... }
+dnsServers(where: { ipAddress: { in: ["8.8.8.8", "1.1.1.1"] } }) { ... }
+dnsServers(where: { ipAddress: { notin: ["192.168.1.1"] } }) { ... }
+```
+
+### 🧪 Testing
+- **19 comprehensive NetworkOperatorStrategy tests** covering all operators
+- **Edge cases**: IPv6 addresses, empty lists, error handling
+- **Backward compatibility**: All existing network operators continue working
+- **SQL generation quality**: Proper `::inet` casting validation
+- **Production scenarios**: Real-world use case validation
+
+### 🛠️ Infrastructure
+- **Architecture Consistency**: Follows established pattern used by other operator strategies
+- **No Dependencies**: No new dependencies added
+- **Performance**: No performance impact on existing queries
+- **Security**: No security concerns introduced
+
 ## [0.5.5] - 2025-09-01
 
 ### 🚀 Major Features
