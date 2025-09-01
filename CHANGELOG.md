@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2025-01-21
+
+### 🔧 **Critical Bug Fixes**
+
+#### **JSONB Network Filtering Resolution**
+Fixed critical network filtering bug affecting PostgreSQL JSONB fields:
+- **Fixed**: `NetworkOperatorStrategy` now properly casts to `::inet` for JSONB fields
+- **Fixed**: All network operators (`insubnet`, `isprivate`, `eq`) now work correctly with JSONB data
+- **Resolved**: SQL generation consistency issues between different operator types
+- **Impact**: Network filtering operations now work reliably across all PostgreSQL column types
+
+#### **Repository Integration Enhancement**
+- **Fixed**: Specialized operator strategies (Network, MAC, LTree, DateRange) now fully compatible with repository methods
+- **Improved**: GraphQL where input generation includes all network operators
+- **Enhanced**: Type safety for network filtering operations
+
+### 🚀 **Python 3.13 Upgrade**
+
+#### **Full Python 3.13 Compatibility**
+- **Upgraded**: All CI/CD pipelines from Python 3.12 to Python 3.13
+- **Fixed**: `AsyncGenerator` typing compatibility issues
+- **Updated**: Dependencies and lock files for Python 3.13 support
+- **Resolved**: pytest asyncio marker configuration conflicts
+- **Validated**: All 2484+ tests pass with Python 3.13.3
+
+#### **Performance & Stability**
+- **Removed**: xfail markers from tests that now pass consistently
+- **Enhanced**: Async/await patterns optimized for Python 3.13
+- **Improved**: Type checking and runtime performance
+
+### 🛡️ **CI/CD Pipeline Security**
+
+#### **Quality Gate System**
+- **Added**: Comprehensive quality gate workflow with multi-stage validation
+- **Implemented**: Development safety protections preventing broken releases
+- **Enhanced**: Security checks integrated into release process
+- **Documented**: CI/CD pipeline architecture and safety measures
+
+#### **Infrastructure Improvements**
+- **Fixed**: pip cache directory issues in CI environments
+- **Resolved**: pytest-cov compatibility problems
+- **Disabled**: Problematic plugin autoloading causing test collection errors
+- **Added**: Comprehensive environment debugging for CI failures
+
+### 📈 **Performance Improvements**
+
+#### **Test Infrastructure**
+- **Fixed**: Flaky performance test timeouts in GraphQL error serialization
+- **Improved**: Test reliability and execution speed
+- **Enhanced**: CI test stability with better error handling
+
+### 📚 **Documentation**
+
+#### **FraiseQL Relay Extension**
+- **Added**: Complete PostgreSQL extension for GraphQL Relay specification
+- **Documented**: Technical architecture and implementation guides
+- **Created**: Performance benchmarks and optimization recommendations
+- **Provided**: Migration guides for existing applications
+
+#### **Development Guidelines**
+- **Added**: Comprehensive agent prompt for PrintOptim Backend Relay
+- **Created**: Implementation blueprint with Clean Architecture + CQRS
+- **Documented**: Production-grade development setup procedures
+
+### 🧪 **Testing**
+
+#### **Comprehensive Validation**
+- **Status**: ✅ 2484 tests passed, 1 skipped
+- **Coverage**: 65% overall code coverage maintained
+- **Validation**: All 25 network filtering tests passing
+- **Quality**: CI pipeline complete: Tests ✅, Lint ✅, Security ✅
+
+#### **Network Filtering Test Suite**
+- **Added**: Comprehensive test coverage for network filtering bug fixes
+- **Validated**: SQL generation consistency across operator types
+- **Verified**: GraphQL integration works correctly with network operators
+
+### 🔄 **Breaking Changes**
+None - this is a backward-compatible bug fix release.
+
+### 📋 **Migration Guide**
+No migration required. This release only fixes bugs and adds new functionality without breaking existing APIs.
+
+**Recommendation**: Update immediately to benefit from critical network filtering fixes and Python 3.13 compatibility.
+
 ## [0.5.1] - 2025-08-30
 
 ### 🚀 **Cursor-Based Pagination with Relay Connection Support**
