@@ -76,7 +76,7 @@ jobs:
         pytest --collect-only tests/integration/database/sql/test_jsonb_network_filtering_bug.py -q || echo "❌ Collection failed"
         echo "================================="
 
-    - name: Run core tests with coverage
+    - name: Run core tests
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -94,11 +94,8 @@ jobs:
         echo "Running pytest with explicit configuration..."
 
         # Run with more explicit options to avoid any caching issues
-        # Note: Removed --no-cov-on-fail option due to CI environment compatibility
+        # Note: Coverage removed from Quality Gate - handled by Test (Legacy) workflow
         python -m pytest tests/ \
-          --cov=src/fraiseql \
-          --cov-report=xml \
-          --cov-report=term-missing \
           -v \
           -m "not blog_simple and not blog_enterprise" \
           --tb=short \
@@ -166,14 +163,8 @@ jobs:
         }
         echo "✅ Example integration tests completed successfully"
 
-    - name: Upload coverage
-      uses: codecov/codecov-action@v5
-      with:
-        files: ./coverage.xml
-        flags: unittests
-        name: Python-3.13
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
+    # Note: Coverage upload handled by Test (Legacy) workflow
+    # Quality Gate focuses on test execution validation only
 
   lint:
     name: Lint
