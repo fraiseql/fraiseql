@@ -64,6 +64,37 @@ class BaseOperatorStrategy(ABC):
             # For IP addresses, use host() to strip CIDR notation
             return Composed([SQL("host("), path_sql, SQL("::inet)")])
 
+        # CRITICAL FIX: Handle special types even when field_type is not provided
+        # This fixes the production issue where field_type information is lost
+        if not field_type and op in (
+            "eq",
+            "neq",
+            "contains",
+            "startswith",
+            "endswith",
+            "in",
+            "notin",
+        ):
+            # Check MAC addresses first (most specific - before IP addresses)
+            if self._looks_like_mac_address_value(val, op):
+                # Apply MAC address casting for network hardware operations
+                return Composed([path_sql, SQL("::macaddr")])
+
+            # Check for IP addresses (after MAC addresses to avoid collision)
+            if self._looks_like_ip_address_value(val, op):
+                # Apply IP address casting to fix JSONB text comparison issue
+                return Composed([SQL("host("), path_sql, SQL("::inet)")])
+
+            # Check for LTree paths
+            if self._looks_like_ltree_value(val, op):
+                # Apply LTree casting for hierarchical path operations
+                return Composed([path_sql, SQL("::ltree")])
+
+            # Check for DateRange values
+            if self._looks_like_daterange_value(val, op):
+                # Apply DateRange casting for temporal range operations
+                return Composed([path_sql, SQL("::daterange")])
+
         # Handle booleans first
         if isinstance(val, bool):
             return Composed([path_sql, SQL("::boolean")])
@@ -89,6 +120,226 @@ class BaseOperatorStrategy(ABC):
                 isinstance(field_type, type) and issubclass(field_type, IpAddressField)
             )
         except ImportError:
+            return False
+
+    def _looks_like_ip_address_value(self, val: Any, op: str) -> bool:
+        """Check if a value looks like an IP address (fallback when field_type is missing).
+
+        This is the critical fix for production failures where field_type information
+        is lost but we still need to apply proper IP address casting.
+        """
+        if not isinstance(val, str):
+            # Handle list values for 'in'/'notin' operators
+            if op in ("in", "notin") and isinstance(val, list):
+                return any(
+                    self._looks_like_ip_address_value(v, "eq") for v in val if isinstance(v, str)
+                )
+            return False
+
+        # Import here to avoid circular imports and only when needed
+        try:
+            import ipaddress
+
+            # Try to parse as IP address (both IPv4 and IPv6)
+            try:
+                ipaddress.ip_address(val)
+                return True
+            except ValueError:
+                # Also try as CIDR network (might be used in comparisons)
+                try:
+                    ipaddress.ip_network(val, strict=False)
+                    return True
+                except ValueError:
+                    pass
+
+            # Additional heuristic checks for common IP patterns
+            # This catches edge cases where ipaddress parsing might be too strict
+            if val.count(".") == 3:  # IPv4-like pattern
+                parts = val.split(".")
+                if len(parts) == 4 and all(
+                    part.isdigit() and 0 <= int(part) <= 255 for part in parts
+                ):
+                    return True
+
+            # IPv6-like pattern (simplified check)
+            if ":" in val and val.count(":") >= 2:  # At least two colons
+                # Basic IPv6 pattern check - contains only valid hex chars and colons
+                hex_chars = "0123456789abcdefABCDEF"
+                return all(c in hex_chars + ":" for c in val)
+
+        except ImportError:
+            # Fallback to basic pattern matching if ipaddress module not available
+            # IPv4 pattern: xxx.xxx.xxx.xxx
+            if val.count(".") == 3:
+                parts = val.split(".")
+                try:
+                    return all(0 <= int(part) <= 255 for part in parts)
+                except ValueError:
+                    pass
+
+        return False
+
+    def _looks_like_ltree_value(self, val: Any, op: str) -> bool:
+        """Check if a value looks like an LTree path (fallback when field_type is missing).
+
+        LTree paths use dot notation for hierarchical structures like 'top.middle.bottom'.
+        """
+        if not isinstance(val, str):
+            # Handle list values for 'in'/'notin' operators
+            if op in ("in", "notin") and isinstance(val, list):
+                return any(self._looks_like_ltree_value(v, "eq") for v in val if isinstance(v, str))
+            return False
+
+        # Basic LTree patterns:
+        # - Contains dots (hierarchical separator)
+        # - Contains only alphanumeric chars, dots, underscores, hyphens
+        # - At least one dot (implies hierarchy)
+        # - No consecutive dots
+        # - Doesn't start or end with dot
+
+        if not val or val.startswith(".") or val.endswith(".") or ".." in val:
+            return False
+
+        if "." not in val:
+            return False  # LTree paths should be hierarchical
+
+        # Check for valid LTree characters and patterns
+        # LTree labels can contain: letters, digits, underscore, hyphen
+        # But we need to be more restrictive to avoid false positives with domain names
+        import re
+
+        # More restrictive LTree pattern - avoid common domain extensions
+        ltree_pattern = r"^[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$"
+
+        if not re.match(ltree_pattern, val):
+            return False
+
+        # Additional checks to avoid domain name false positives
+        # Common domain extensions that should NOT be treated as LTree
+        domain_extensions = {
+            "com",
+            "net",
+            "org",
+            "edu",
+            "gov",
+            "mil",
+            "int",
+            "co",
+            "uk",
+            "ca",
+            "de",
+            "fr",
+            "jp",
+            "au",
+            "ru",
+            "io",
+            "ai",
+            "dev",
+            "app",
+            "api",
+            "www",
+        }
+
+        # If the last part is a common domain extension, probably not an LTree
+        last_part = val.split(".")[-1].lower()
+        if last_part in domain_extensions:
+            return False
+
+        # If it looks like a URL (has common web prefixes), probably not an LTree
+        if val.lower().startswith(("www.", "api.", "app.", "dev.", "test.")):
+            return False
+
+        # Avoid detecting IP-like patterns (even invalid ones) as LTree
+        # If it has exactly 3 dots and all parts are numeric, it's likely an IP attempt
+        parts = val.split(".")
+        if len(parts) == 4 and all(
+            part.replace("-", "").replace("_", "").isdigit() for part in parts
+        ):
+            return False
+
+        return True
+
+    def _looks_like_daterange_value(self, val: Any, op: str) -> bool:
+        """Check if a value looks like a DateRange (fallback when field_type is missing).
+
+        DateRange format: '[2024-01-01,2024-12-31)' or '(2024-01-01,2024-12-31]'
+        """
+        if not isinstance(val, str):
+            # Handle list values for 'in'/'notin' operators
+            if op in ("in", "notin") and isinstance(val, list):
+                return any(
+                    self._looks_like_daterange_value(v, "eq") for v in val if isinstance(v, str)
+                )
+            return False
+
+        # PostgreSQL daterange format patterns:
+        # - Starts with '[' or '(' (inclusive/exclusive lower bound)
+        # - Ends with ']' or ')' (inclusive/exclusive upper bound)
+        # - Contains comma separating two dates
+        # - Dates in ISO format: YYYY-MM-DD
+
+        if len(val) < 7:  # Minimum: '[a,b]'
+            return False
+
+        if not (val.startswith(("[", "(")) and val.endswith(("]", ")"))):
+            return False
+
+        # Extract the content between brackets
+        content = val[1:-1]  # Remove brackets
+
+        if "," not in content:
+            return False
+
+        # Split on comma and check each part looks like a date
+        parts = content.split(",")
+        if len(parts) != 2:
+            return False
+
+        # Basic date pattern check (YYYY-MM-DD)
+        import re
+
+        date_pattern = r"^\d{4}-\d{2}-\d{2}$"
+
+        for part in parts:
+            stripped_part = part.strip()
+            if not stripped_part:  # Allow empty for infinite ranges
+                continue
+            if not re.match(date_pattern, stripped_part):
+                return False
+
+        return True
+
+    def _looks_like_mac_address_value(self, val: Any, op: str) -> bool:
+        """Check if a value looks like a MAC address (fallback when field_type is missing).
+
+        MAC address formats:
+        - 00:11:22:33:44:55 (colon-separated)
+        - 00-11-22-33-44-55 (hyphen-separated)
+        - 001122334455 (no separators)
+        """
+        if not isinstance(val, str):
+            # Handle list values for 'in'/'notin' operators
+            if op in ("in", "notin") and isinstance(val, list):
+                return any(
+                    self._looks_like_mac_address_value(v, "eq") for v in val if isinstance(v, str)
+                )
+            return False
+
+        if not val:
+            return False
+
+        # Remove common separators
+        mac_clean = val.replace(":", "").replace("-", "").replace(" ", "").upper()
+
+        # MAC address should be exactly 12 hex characters
+        if len(mac_clean) != 12:
+            return False
+
+        # Check if all characters are valid hex
+        try:
+            int(mac_clean, 16)
+            return True
+        except ValueError:
             return False
 
 
