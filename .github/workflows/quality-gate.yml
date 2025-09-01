@@ -84,8 +84,7 @@ jobs:
         DB_PORT: 5432
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
-        # Ensure pytest doesn't use problematic caching
-        PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+        # Environment variables for pytest configuration
         PYTEST_CURRENT_TEST: ""
       run: |
         echo "=== Starting Core Tests ==="
