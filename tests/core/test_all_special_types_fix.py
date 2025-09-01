@@ -21,12 +21,12 @@ class TestAllSpecialTypesFix:
 
         # Comprehensive test cases for all special types
         test_cases = [
-            # Network types (IP addresses)
-            ("IPv4 Public", "8.8.8.8", "::inet", "host("),
-            ("IPv4 Private", "192.168.1.1", "::inet", "host("),
-            ("IPv4 Localhost", "127.0.0.1", "::inet", "host("),
-            ("IPv6 Short", "::1", "::inet", "host("),
-            ("IPv6 Full", "2001:db8::1", "::inet", "host("),
+            # Network types (IP addresses) - Fixed: eq operators use direct ::inet casting
+            ("IPv4 Public", "8.8.8.8", "::inet", None),
+            ("IPv4 Private", "192.168.1.1", "::inet", None),
+            ("IPv4 Localhost", "127.0.0.1", "::inet", None),
+            ("IPv6 Short", "::1", "::inet", None),
+            ("IPv6 Full", "2001:db8::1", "::inet", None),
 
             # MAC addresses (should be detected before IP addresses)
             ("MAC Colon", "00:11:22:33:44:55", "::macaddr", None),
@@ -202,9 +202,10 @@ class TestAllSpecialTypesFix:
             assert expected_cast in sql_str, \
                 f"Production fix failed for {test_name}: {sql_str}"
 
-            # Should use proper IP comparison, not text comparison
-            assert "host(" in sql_str, \
-                f"Should use host() function for IP comparison: {sql_str}"
+            # Should use proper INET casting for comparison, not text comparison
+            # Note: Fixed behavior no longer uses host() for equality operators
+            assert "::inet" in sql_str, \
+                f"Should use INET casting for IP comparison: {sql_str}"
 
             print(f"  ✅ PRODUCTION FIX VALIDATED")
 
