@@ -10,7 +10,7 @@ from psycopg.sql import SQL, Composed
 
 from fraiseql.sql.where.core.field_detection import FieldType
 
-from . import basic, lists, ltree, mac_address, network, nulls, text
+from . import basic, date_range, lists, ltree, mac_address, network, nulls, text
 
 # Simple operator mapping - much cleaner than complex strategy pattern
 OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
@@ -56,6 +56,19 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.LTREE, "descendant_of"): ltree.build_descendant_of_sql,
     (FieldType.LTREE, "matches_lquery"): ltree.build_matches_lquery_sql,
     (FieldType.LTREE, "matches_ltxtquery"): ltree.build_matches_ltxtquery_sql,
+    # DateRange operators for temporal range operations
+    (FieldType.DATE_RANGE, "eq"): date_range.build_daterange_eq_sql,
+    (FieldType.DATE_RANGE, "neq"): date_range.build_daterange_neq_sql,
+    (FieldType.DATE_RANGE, "in_"): date_range.build_daterange_in_sql,
+    (FieldType.DATE_RANGE, "in"): date_range.build_daterange_in_sql,
+    (FieldType.DATE_RANGE, "notin"): date_range.build_daterange_notin_sql,
+    (FieldType.DATE_RANGE, "contains_date"): date_range.build_contains_date_sql,
+    (FieldType.DATE_RANGE, "overlaps"): date_range.build_overlaps_sql,
+    (FieldType.DATE_RANGE, "adjacent"): date_range.build_adjacent_sql,
+    (FieldType.DATE_RANGE, "strictly_left"): date_range.build_strictly_left_sql,
+    (FieldType.DATE_RANGE, "strictly_right"): date_range.build_strictly_right_sql,
+    (FieldType.DATE_RANGE, "not_left"): date_range.build_not_left_sql,
+    (FieldType.DATE_RANGE, "not_right"): date_range.build_not_right_sql,
 }
 
 
