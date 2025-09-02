@@ -10,7 +10,7 @@ from psycopg.sql import SQL, Composed
 
 from fraiseql.sql.where.core.field_detection import FieldType
 
-from . import basic, lists, network, nulls, text
+from . import basic, lists, mac_address, network, nulls, text
 
 # Simple operator mapping - much cleaner than complex strategy pattern
 OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
@@ -40,6 +40,12 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.IP_ADDRESS, "inSubnet"): network.build_in_subnet_sql,
     (FieldType.IP_ADDRESS, "isPrivate"): network.build_is_private_sql,
     (FieldType.IP_ADDRESS, "isPublic"): network.build_is_public_sql,
+    # MAC address specific operators
+    (FieldType.MAC_ADDRESS, "eq"): mac_address.build_mac_eq_sql,
+    (FieldType.MAC_ADDRESS, "neq"): mac_address.build_mac_neq_sql,
+    (FieldType.MAC_ADDRESS, "in_"): mac_address.build_mac_in_sql,
+    (FieldType.MAC_ADDRESS, "in"): mac_address.build_mac_in_sql,
+    (FieldType.MAC_ADDRESS, "notin"): mac_address.build_mac_notin_sql,
 }
 
 

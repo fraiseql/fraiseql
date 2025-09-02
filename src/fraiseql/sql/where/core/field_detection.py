@@ -178,6 +178,30 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
     ):
         return FieldType.IP_ADDRESS
 
+    # MAC address patterns - handle both snake_case and camelCase
+    mac_patterns = [
+        "mac_address",
+        "macaddress",
+        "device_mac",
+        "mac_addr",
+        "hardware_address",
+        "devicemac",
+        "macaddr",
+        "hardwareaddress",
+    ]
+
+    # Check MAC pattern matches
+    if any(pattern in field_lower for pattern in mac_patterns):
+        return FieldType.MAC_ADDRESS
+
+    # Additional MAC patterns that should be whole words or at start/end
+    if (
+        field_lower in ["mac"]
+        or field_lower.endswith(("_mac", "mac"))
+        or field_lower.startswith(("mac_", "mac"))
+    ):
+        return FieldType.MAC_ADDRESS
+
     return FieldType.ANY
 
 
