@@ -1047,6 +1047,330 @@ class NetworkDevice:
     mac_address: MacAddress
 ```
 
+## Advanced Filtering Examples
+
+### Complex Real-World Query
+
+This example demonstrates the full power of FraiseQL's filtering system by combining logical operators with specialized network filtering in a realistic network audit scenario.
+
+#### Business Scenario: DNS Server Network Audit
+
+Find servers that meet specific security and operational criteria:
+
+**Include servers that are:**
+1. **Production servers** (containing "delete", "prod", or "server") with high allocations (>2) in private networks
+2. **Development ranges** (21.43.* or 21.44.*) that are publicly accessible
+3. **Utility servers** (containing "utility", "service", "config") with moderate load (1-10 allocations)
+
+**But exclude:**
+- Servers with suspicious high-number suffixes (_3, _4, _5, _6)
+- Servers in the management subnet (192.168.1.0/24)
+
+#### GraphQL Query Implementation
+
+```python
+from fraiseql.sql import StringFilter, IntFilter, create_graphql_where_input
+from fraiseql.sql.graphql_where_generator import NetworkAddressFilter
+
+@fraiseql.type
+class DnsServer:
+    id: uuid.UUID
+    identifier: str
+    ip_address: str
+    n_total_allocations: int
+
+# Create the WHERE input type
+DnsServerWhereInput = create_graphql_where_input(DnsServer)
+
+# Complex filtering query with 4-level nesting
+complex_filter = DnsServerWhereInput(
+    AND=[
+        # Main inclusion criteria - Triple OR condition
+        DnsServerWhereInput(
+            OR=[
+                # Branch 1: Production servers in private networks
+                DnsServerWhereInput(
+                    AND=[
+                        # Multiple server type patterns
+                        DnsServerWhereInput(
+                            OR=[
+                                DnsServerWhereInput(identifier=StringFilter(contains="delete")),
+                                DnsServerWhereInput(identifier=StringFilter(contains="prod")),
+                                DnsServerWhereInput(identifier=StringFilter(contains="server")),
+                            ]
+                        ),
+                        # High allocation threshold
+                        DnsServerWhereInput(n_total_allocations=IntFilter(gt=2)),
+                        # Network security requirement
+                        DnsServerWhereInput(ip_address=NetworkAddressFilter(isPrivate=True)),
+                    ]
+                ),
+
+                # Branch 2: Development ranges that are public
+                DnsServerWhereInput(
+                    AND=[
+                        # Specific development IP ranges
+                        DnsServerWhereInput(
+                            OR=[
+                                DnsServerWhereInput(ip_address=StringFilter(startswith="21.43")),
+                                DnsServerWhereInput(ip_address=StringFilter(startswith="21.44")),
+                            ]
+                        ),
+                        # Must be publicly accessible
+                        DnsServerWhereInput(ip_address=NetworkAddressFilter(isPublic=True)),
+                        # Any allocation level acceptable
+                        DnsServerWhereInput(n_total_allocations=IntFilter(gte=0)),
+                    ]
+                ),
+
+                # Branch 3: Utility servers with moderate load
+                DnsServerWhereInput(
+                    AND=[
+                        # Utility server identification
+                        DnsServerWhereInput(
+                            OR=[
+                                DnsServerWhereInput(identifier=StringFilter(contains="utility")),
+                                DnsServerWhereInput(identifier=StringFilter(contains="service")),
+                                DnsServerWhereInput(identifier=StringFilter(contains="config")),
+                            ]
+                        ),
+                        # Moderate allocation range
+                        DnsServerWhereInput(
+                            AND=[
+                                DnsServerWhereInput(n_total_allocations=IntFilter(gte=1)),
+                                DnsServerWhereInput(n_total_allocations=IntFilter(lte=10)),
+                            ]
+                        ),
+                    ]
+                ),
+            ]
+        ),
+
+        # Exclusion criteria with NOT operator
+        DnsServerWhereInput(
+            NOT=DnsServerWhereInput(
+                OR=[
+                    # Exclude suspicious high-number suffixes
+                    DnsServerWhereInput(
+                        OR=[
+                            DnsServerWhereInput(identifier=StringFilter(endswith="_3")),
+                            DnsServerWhereInput(identifier=StringFilter(endswith="_4")),
+                            DnsServerWhereInput(identifier=StringFilter(endswith="_5")),
+                            DnsServerWhereInput(identifier=StringFilter(endswith="_6")),
+                        ]
+                    ),
+                    # Exclude management subnet
+                    DnsServerWhereInput(ip_address=NetworkAddressFilter(inSubnet="192.168.1.0/24")),
+                ]
+            )
+        ),
+    ]
+)
+```
+
+#### Query Analysis
+
+**Complexity Metrics:**
+- **Logical Depth**: 4 levels (AND → OR → AND → OR)
+- **Total Conditions**: 15+ individual filter conditions
+- **Filter Types**: 4 different specialized filters
+  - `StringFilter`: contains, startswith, endswith
+  - `IntFilter`: gt, gte, lt, lte
+  - `NetworkAddressFilter`: isPrivate, isPublic, inSubnet
+  - Logical operators: OR, AND, NOT
+
+#### Generated SQL
+
+The above query generates optimized PostgreSQL with proper JSONB operations:
+
+```sql
+SELECT data FROM v_dns_server WHERE (
+  (
+    -- Production servers in private networks
+    (
+      (
+        (data ->> 'identifier') LIKE '%delete%' OR
+        (data ->> 'identifier') LIKE '%prod%' OR
+        (data ->> 'identifier') LIKE '%server%'
+      ) AND
+      ((data ->> 'n_total_allocations')::numeric) > 2 AND
+      -- Network function call for private IP detection
+      is_private_ip((data ->> 'ip_address')::inet)
+    ) OR
+    -- Development ranges that are public
+    (
+      (
+        (data ->> 'ip_address') LIKE '21.43%' OR
+        (data ->> 'ip_address') LIKE '21.44%'
+      ) AND
+      NOT is_private_ip((data ->> 'ip_address')::inet) AND
+      ((data ->> 'n_total_allocations')::numeric) >= 0
+    ) OR
+    -- Utility servers with moderate load
+    (
+      (
+        (data ->> 'identifier') LIKE '%utility%' OR
+        (data ->> 'identifier') LIKE '%service%' OR
+        (data ->> 'identifier') LIKE '%config%'
+      ) AND
+      ((data ->> 'n_total_allocations')::numeric) >= 1 AND
+      ((data ->> 'n_total_allocations')::numeric) <= 10
+    )
+  ) AND
+  NOT (
+    -- Exclude suspicious suffixes
+    (
+      (data ->> 'identifier') LIKE '%_3' OR
+      (data ->> 'identifier') LIKE '%_4' OR
+      (data ->> 'identifier') LIKE '%_5' OR
+      (data ->> 'identifier') LIKE '%_6'
+    ) OR
+    -- Exclude management subnet
+    (data ->> 'ip_address')::inet << '192.168.1.0/24'::inet
+  )
+)
+```
+
+#### Performance Characteristics
+
+- **JSONB Optimization**: Direct field extraction with type casting
+- **Network Functions**: PostgreSQL native inet operations
+- **Proper Parentheses**: Ensures correct logical precedence
+- **Index-Friendly**: Generated conditions work with GIN indexes
+
+### Filter Type Combinations
+
+#### String + Network + Numeric
+
+```python
+# Find web servers in development networks with moderate load
+web_servers = ServerWhereInput(
+    AND=[
+        # String identification
+        ServerWhereInput(
+            OR=[
+                ServerWhereInput(hostname=StringFilter(contains="web")),
+                ServerWhereInput(hostname=StringFilter(contains="http")),
+            ]
+        ),
+        # Network classification
+        ServerWhereInput(ip_address=NetworkAddressFilter(isPrivate=True)),
+        # Load balancing
+        ServerWhereInput(
+            AND=[
+                ServerWhereInput(cpu_usage=IntFilter(gte=10)),
+                ServerWhereInput(cpu_usage=IntFilter(lt=80)),
+            ]
+        )
+    ]
+)
+```
+
+#### Temporal + Geographic + Status
+
+```python
+# Find recent events in specific regions with active status
+events_filter = EventWhereInput(
+    AND=[
+        # Time window
+        EventWhereInput(created_at=DateTimeFilter(gte="2024-01-01T00:00:00Z")),
+        # Geographic constraint
+        EventWhereInput(region=StringFilter(in_=["us-east", "us-west", "eu-central"])),
+        # Status filtering with exclusions
+        EventWhereInput(
+            NOT=EventWhereInput(
+                OR=[
+                    EventWhereInput(status=StringFilter(eq="cancelled")),
+                    EventWhereInput(status=StringFilter(eq="expired")),
+                ]
+            )
+        )
+    ]
+)
+```
+
+### Testing Complex Filters
+
+```python
+@pytest.mark.asyncio
+async def test_complex_network_audit_query(graphql_client):
+    """Test the complex DNS server audit query."""
+
+    query = """
+        query ComplexNetworkAudit(
+            $where: DnsServerWhereInput
+        ) {
+            dnsServers(where: $where) {
+                id
+                identifier
+                ipAddress
+                nTotalAllocations
+            }
+        }
+    """
+
+    # Use the complex filter from above
+    variables = {"where": complex_filter.to_dict()}
+
+    result = await graphql_client.execute(query, variables=variables)
+
+    assert "errors" not in result
+    servers = result["data"]["dnsServers"]
+
+    # Validate business logic
+    for server in servers:
+        identifier = server["identifier"]
+        ip = server["ipAddress"]
+        allocations = server["nTotalAllocations"]
+
+        # Should match at least one inclusion criteria
+        is_production = any(keyword in identifier for keyword in ["delete", "prod", "server"]) and allocations > 2
+        is_dev_range = ip.startswith("21.43") or ip.startswith("21.44")
+        is_utility = any(keyword in identifier for keyword in ["utility", "service", "config"]) and 1 <= allocations <= 10
+
+        assert is_production or is_dev_range or is_utility
+
+        # Should not match exclusion criteria
+        assert not any(identifier.endswith(suffix) for suffix in ["_3", "_4", "_5", "_6"])
+        assert not ip.startswith("192.168.1.")
+```
+
+### Performance Optimization for Complex Queries
+
+#### Index Strategy
+
+```sql
+-- Support string pattern matching
+CREATE INDEX idx_dns_server_identifier_gin
+ON tb_dns_server USING gin(to_tsvector('english', data->>'identifier'));
+
+-- Support numeric comparisons
+CREATE INDEX idx_dns_server_allocations
+ON tb_dns_server ((data->>'n_total_allocations')::numeric);
+
+-- Support network operations
+CREATE INDEX idx_dns_server_ip
+ON tb_dns_server ((data->>'ip_address')::inet);
+
+-- Composite index for common combinations
+CREATE INDEX idx_dns_server_composite
+ON tb_dns_server (
+    ((data->>'identifier')),
+    ((data->>'n_total_allocations')::numeric),
+    ((data->>'ip_address')::inet)
+);
+```
+
+#### Query Optimization Tips
+
+1. **Filter Ordering**: Place most selective filters first
+2. **Index Usage**: Ensure GIN indexes exist for JSONB text search
+3. **Network Functions**: Use PostgreSQL native inet operations
+4. **Type Casting**: Explicit casting helps query planner
+5. **Logical Grouping**: Group related conditions to leverage indexes
+
+This advanced example demonstrates FraiseQL's capability to handle enterprise-level filtering requirements with clean, maintainable code while generating optimized PostgreSQL queries.
+
 ## Next Steps
 
 - Learn about [Query Translation](./query-translation.md) to understand how filters become SQL

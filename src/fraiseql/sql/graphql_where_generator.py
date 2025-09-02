@@ -168,6 +168,18 @@ class NetworkAddressFilter:
     isIPv4: bool | None = None  # IPv4 address  # noqa: N815
     isIPv6: bool | None = None  # IPv6 address  # noqa: N815
 
+    # Advanced network classification (v0.6.1+)
+    isLoopback: bool | None = None  # Loopback address (127.0.0.1, ::1)  # noqa: N815
+    isMulticast: bool | None = None  # Multicast address (224.0.0.0/4, ff00::/8)  # noqa: N815
+    isBroadcast: bool | None = None  # Broadcast address (255.255.255.255)  # noqa: N815
+    isLinkLocal: bool | None = None  # Link-local address (169.254.0.0/16, fe80::/10)  # noqa: N815
+    isDocumentation: bool | None = None  # RFC 3849/5737 documentation ranges  # noqa: N815
+    isReserved: bool | None = None  # Reserved/unspecified address (0.0.0.0, ::)  # noqa: N815
+    isCarrierGrade: bool | None = None  # Carrier-Grade NAT (100.64.0.0/10)  # noqa: N815
+    isSiteLocal: bool | None = None  # Site-local IPv6 (fec0::/10 - deprecated)  # noqa: N815
+    isUniqueLocal: bool | None = None  # Unique local IPv6 (fc00::/7)  # noqa: N815
+    isGlobalUnicast: bool | None = None  # Global unicast address  # noqa: N815
+
     # Intentionally excludes: contains, startswith, endswith
 
 
