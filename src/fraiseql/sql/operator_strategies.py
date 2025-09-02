@@ -997,7 +997,8 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             )
 
         # Always cast to ::inet for network operations since these operators are IP-specific
-        casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
+        # path_sql is already wrapped in parentheses, so we just add ::inet casting
+        casted_path = Composed([path_sql, SQL("::inet")])
 
         # For basic operations, cast both sides to inet for proper PostgreSQL handling
         if op in ("eq", "neq", "in", "notin", "nin"):
@@ -1074,8 +1075,10 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             )
 
         if op == "isPrivate":
-            # RFC 1918 private network ranges
+            # RFC 1918 private network ranges + localhost + link-local
+            # Build a single compound condition to avoid multiple casted_path repeats
             if val:
+                # isPrivate=True: IP is in any private range
                 return Composed(
                     [
                         SQL("("),
@@ -1088,9 +1091,11 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                         casted_path,
                         SQL(" <<= '127.0.0.0/8'::inet OR "),
                         casted_path,
-                        SQL(" <<= '169.254.0.0/16'::inet)"),
+                        SQL(" <<= '169.254.0.0/16'::inet"),
+                        SQL(")"),
                     ]
                 )
+            # isPrivate=False: IP is NOT in any private range
             return Composed(
                 [
                     SQL("NOT ("),
@@ -1103,14 +1108,15 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                     casted_path,
                     SQL(" <<= '127.0.0.0/8'::inet OR "),
                     casted_path,
-                    SQL(" <<= '169.254.0.0/16'::inet)"),
+                    SQL(" <<= '169.254.0.0/16'::inet"),
+                    SQL(")"),
                 ]
             )
 
         if op == "isPublic":
-            # Invert private logic
+            # Public is the inverse of private
             if val:
-                # Public means NOT private
+                # isPublic=True: IP is NOT in any private range
                 return Composed(
                     [
                         SQL("NOT ("),
@@ -1123,10 +1129,11 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                         casted_path,
                         SQL(" <<= '127.0.0.0/8'::inet OR "),
                         casted_path,
-                        SQL(" <<= '169.254.0.0/16'::inet)"),
+                        SQL(" <<= '169.254.0.0/16'::inet"),
+                        SQL(")"),
                     ]
                 )
-            # NOT public means private
+            # isPublic=False: IP IS in private range
             return Composed(
                 [
                     SQL("("),
@@ -1139,7 +1146,8 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                     casted_path,
                     SQL(" <<= '127.0.0.0/8'::inet OR "),
                     casted_path,
-                    SQL(" <<= '169.254.0.0/16'::inet)"),
+                    SQL(" <<= '169.254.0.0/16'::inet"),
+                    SQL(")"),
                 ]
             )
 

@@ -60,7 +60,7 @@ class TestNetworkOperatorStrategy:
         result = self.strategy.build_sql(self.field_path, "eq", "8.8.8.8", IpAddress)
 
         expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
+            Composed([self.field_path, SQL("::inet")]),
             SQL(" = "),
             Literal("8.8.8.8"),
             SQL("::inet")
@@ -73,7 +73,7 @@ class TestNetworkOperatorStrategy:
         result = self.strategy.build_sql(self.field_path, "neq", "8.8.8.8", IpAddress)
 
         expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
+            Composed([self.field_path, SQL("::inet")]),
             SQL(" != "),
             Literal("8.8.8.8"),
             SQL("::inet")
@@ -87,7 +87,7 @@ class TestNetworkOperatorStrategy:
         result = self.strategy.build_sql(self.field_path, "in", ip_list, IpAddress)
 
         expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
+            Composed([self.field_path, SQL("::inet")]),
             SQL(" IN ("),
             Literal("8.8.8.8"), SQL("::inet"),
             SQL(", "),
@@ -105,7 +105,7 @@ class TestNetworkOperatorStrategy:
         result = self.strategy.build_sql(self.field_path, "notin", ip_list, IpAddress)
 
         expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
+            Composed([self.field_path, SQL("::inet")]),
             SQL(" NOT IN ("),
             Literal("192.168.1.1"), SQL("::inet"),
             SQL(", "),
@@ -130,7 +130,7 @@ class TestNetworkOperatorStrategy:
         # Test inSubnet
         result = self.strategy.build_sql(self.field_path, "inSubnet", "192.168.0.0/16", IpAddress)
         expected_subnet = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
+            Composed([self.field_path, SQL("::inet")]),
             SQL(" <<= "),
             Literal("192.168.0.0/16"),
             SQL("::inet")
@@ -168,7 +168,7 @@ class TestNetworkOperatorStrategyEdgeCases:
         """Test in operator with empty list."""
         result = self.strategy.build_sql(self.field_path, "in", [], IpAddress)
         expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
+            Composed([self.field_path, SQL("::inet")]),
             SQL(" IN ("),
             SQL(")")
         ])
@@ -178,7 +178,7 @@ class TestNetworkOperatorStrategyEdgeCases:
         """Test in operator with single item list."""
         result = self.strategy.build_sql(self.field_path, "in", ["8.8.8.8"], IpAddress)
         expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
+            Composed([self.field_path, SQL("::inet")]),
             SQL(" IN ("),
             Literal("8.8.8.8"), SQL("::inet"),
             SQL(")")
@@ -191,7 +191,7 @@ class TestNetworkOperatorStrategyEdgeCases:
         result = self.strategy.build_sql(self.field_path, "eq", ipv6_addr, IpAddress)
 
         expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
+            Composed([self.field_path, SQL("::inet")]),
             SQL(" = "),
             Literal("2001:db8::1"),
             SQL("::inet")
