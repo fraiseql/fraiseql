@@ -49,7 +49,9 @@ class FieldType(Enum):
         # Try to detect other FraiseQL scalar types
         try:
             from fraiseql.types import CIDR, IpAddress, LTree, MacAddress
+            from fraiseql.types.scalars.date import DateField
             from fraiseql.types.scalars.daterange import DateRangeField
+            from fraiseql.types.scalars.datetime import DateTimeField
 
             type_mapping = {
                 IpAddress: cls.IP_ADDRESS,
@@ -57,6 +59,8 @@ class FieldType(Enum):
                 MacAddress: cls.MAC_ADDRESS,
                 LTree: cls.LTREE,
                 DateRangeField: cls.DATE_RANGE,
+                DateTimeField: cls.DATETIME,
+                DateField: cls.DATE,
             }
 
             if python_type in type_mapping:
@@ -113,6 +117,14 @@ class FieldType(Enum):
             # Check for DateRange patterns
             if _is_daterange_value(value):
                 return cls.DATE_RANGE
+
+            # Check for DateTime patterns (ISO 8601 with time)
+            if _is_datetime_value(value):
+                return cls.DATETIME
+
+            # Check for Date patterns (ISO 8601 date only)
+            if _is_date_value(value):
+                return cls.DATE
 
             return cls.STRING
 
@@ -230,6 +242,144 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
         or field_lower.startswith(("path_", "path", "tree_", "tree"))
     ):
         return FieldType.LTREE
+
+    # DateTime patterns - handle both snake_case and camelCase
+    datetime_patterns = [
+        "created_at",
+        "createdat",
+        "updated_at",
+        "updatedat",
+        "timestamp",
+        "event_time",
+        "eventtime",
+        "start_time",
+        "starttime",
+        "end_time",
+        "endtime",
+        "last_modified",
+        "lastmodified",
+        "last_accessed",
+        "lastaccessed",
+        "published_at",
+        "publishedat",
+    ]
+
+    # Check DateTime pattern matches
+    if any(pattern in field_lower for pattern in datetime_patterns):
+        return FieldType.DATETIME
+
+    # Additional DateTime patterns that should be whole words or at start/end
+    if (
+        field_lower in ["timestamp", "datetime"]
+        or field_lower.endswith(("_at", "at", "_time", "time", "_timestamp", "timestamp"))
+        or field_lower.startswith(("timestamp_", "timestamp", "datetime_", "datetime"))
+    ):
+        return FieldType.DATETIME
+
+    # Date patterns - handle both snake_case and camelCase
+    date_patterns = [
+        "birth_date",
+        "birthdate",
+        "start_date",
+        "startdate",
+        "end_date",
+        "enddate",
+        "event_date",
+        "eventdate",
+        "due_date",
+        "duedate",
+        "expiry_date",
+        "expirydate",
+        "expiration_date",
+        "expirationdate",
+        "created_date",
+        "createddate",
+        "modified_date",
+        "modifieddate",
+    ]
+
+    # Check Date pattern matches
+    if any(pattern in field_lower for pattern in date_patterns):
+        return FieldType.DATE
+
+    # Additional Date patterns that should be whole words or at start/end
+    if (
+        field_lower in ["date"]
+        or field_lower.endswith(("_date", "date"))
+        or field_lower.startswith(("date_", "date"))
+    ):
+        return FieldType.DATE
+
+    # Hostname patterns - handle both snake_case and camelCase
+    hostname_patterns = [
+        "hostname",
+        "server_name",
+        "servername",
+        "domain_name",
+        "domainname",
+        "api_endpoint",
+        "apiendpoint",
+        "service_url",
+        "serviceurl",
+    ]
+
+    # Check Hostname pattern matches
+    if any(pattern in field_lower for pattern in hostname_patterns):
+        return FieldType.HOSTNAME
+
+    # Additional Hostname patterns
+    if (
+        field_lower in ["host", "domain", "endpoint", "url"]
+        or field_lower.endswith(("_hostname", "hostname", "_host", "host", "_domain", "domain"))
+        or field_lower.startswith(("hostname_", "hostname", "host_", "host", "api_", "api"))
+    ):
+        return FieldType.HOSTNAME
+
+    # Email patterns - handle both snake_case and camelCase
+    email_patterns = [
+        "email",
+        "email_address",
+        "emailaddress",
+        "contact_email",
+        "contactemail",
+        "user_email",
+        "useremail",
+    ]
+
+    # Check Email pattern matches
+    if any(pattern in field_lower for pattern in email_patterns):
+        return FieldType.EMAIL
+
+    # Additional Email patterns
+    if (
+        field_lower in ["email"]
+        or field_lower.endswith(("_email", "email"))
+        or field_lower.startswith(("email_", "email"))
+    ):
+        return FieldType.EMAIL
+
+    # Port patterns - handle both snake_case and camelCase
+    port_patterns = [
+        "port",
+        "server_port",
+        "serverport",
+        "service_port",
+        "serviceport",
+        "listen_port",
+        "listenport",
+    ]
+
+    # Check Port pattern matches
+    if any(pattern in field_lower for pattern in port_patterns):
+        return FieldType.PORT
+
+    # Additional Port patterns
+    if (
+        field_lower in ["port"]
+        or field_lower.endswith(("_port", "port"))
+        or field_lower.startswith(("port_", "port"))
+    ):
+        return FieldType.PORT
 
     return FieldType.ANY
 
@@ -377,3 +527,70 @@ def _is_daterange_value(value: str) -> bool:
             return False
 
     return True
+
+
+def _is_datetime_value(value: str) -> bool:
+    """Check if a string value looks like an ISO 8601 datetime."""
+    if not value or len(value) < 10:  # Minimum: YYYY-MM-DD
+        return False
+
+    # Must contain 'T' for datetime (not just date)
+    if "T" not in value:
+        return False
+
+    # Basic datetime pattern: YYYY-MM-DDTHH:MM:SS with optional timezone and microseconds
+    datetime_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})?$"
+
+    if not re.match(datetime_pattern, value):
+        return False
+
+    # Additional validation: check the date part is reasonable
+    date_part = value.split("T")[0]
+    try:
+        year, month, day = map(int, date_part.split("-"))
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            return False
+        # Basic month/day validation
+        if month in [4, 6, 9, 11] and day > 30:
+            return False
+        if month == 2:
+            # Check leap year
+            is_leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+            if day > (29 if is_leap else 28):
+                return False
+        return True
+    except (ValueError, IndexError):
+        return False
+
+
+def _is_date_value(value: str) -> bool:
+    """Check if a string value looks like an ISO 8601 date."""
+    if not value or len(value) != 10:  # Must be exactly YYYY-MM-DD
+        return False
+
+    # Must NOT contain 'T' (that would be datetime)
+    if "T" in value:
+        return False
+
+    # Basic date pattern: YYYY-MM-DD
+    date_pattern = r"^\d{4}-\d{2}-\d{2}$"
+
+    if not re.match(date_pattern, value):
+        return False
+
+    # Additional validation: check if it's a reasonable date
+    try:
+        year, month, day = map(int, value.split("-"))
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            return False
+        # Basic month/day validation
+        if month in [4, 6, 9, 11] and day > 30:
+            return False
+        if month == 2:
+            # Check leap year
+            is_leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+            if day > (29 if is_leap else 28):
+                return False
+        return True
+    except ValueError:
+        return False
