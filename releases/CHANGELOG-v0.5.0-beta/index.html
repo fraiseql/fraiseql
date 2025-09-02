@@ -12,13 +12,9 @@
         <meta name="author" content="Lionel Hamayon">
       
       
-        <link rel="canonical" href="https://fraiseql.dev/docs/getting-started/installation/">
+        <link rel="canonical" href="https://fraiseql.dev/docs/releases/CHANGELOG-v0.5.0-beta/">
       
       
-        <link rel="prev" href="../">
-      
-      
-        <link rel="next" href="../quickstart/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -26,7 +22,7 @@
     
     
       
-        <title>Installation - FraiseQL Documentation</title>
+        <title>FraiseQL v0.5.0 Release Notes - FraiseQL Documentation</title>
       
     
     
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#installation" class="md-skip">
+        <a href="#fraiseql-v050-release-notes" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +108,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Installation
+              FraiseQL v0.5.0 Release Notes
             
           </span>
         </div>
@@ -242,13 +238,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../getting-started/" class="md-tabs__link">
           
   
   
@@ -575,8 +569,6 @@
       
   
   
-    
-  
   
   
     
@@ -598,23 +590,22 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../getting-started/" class="md-nav__link ">
               
   
   
@@ -627,13 +618,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             Getting Started
@@ -646,32 +637,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Installation
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
@@ -682,338 +651,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
-    <span class="md-ellipsis">
-      Prerequisites
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Prerequisites">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#python-313" class="md-nav__link">
-    <span class="md-ellipsis">
-      Python 3.13+
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#postgresql-13" class="md-nav__link">
-    <span class="md-ellipsis">
-      PostgreSQL 13+
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#install-fraiseql" class="md-nav__link">
-    <span class="md-ellipsis">
-      Install FraiseQL
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Install FraiseQL">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#using-pip-recommended" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using pip (Recommended)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-poetry" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using Poetry
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-pipenv" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using pipenv
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#development-installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Development Installation
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verify-installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Verify Installation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#database-setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      Database Setup
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Database Setup">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-create-a-database" class="md-nav__link">
-    <span class="md-ellipsis">
-      1. Create a Database
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2-set-database-url" class="md-nav__link">
-    <span class="md-ellipsis">
-      2. Set Database URL
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#3-test-connection" class="md-nav__link">
-    <span class="md-ellipsis">
-      3. Test Connection
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#optional-dependencies" class="md-nav__link">
-    <span class="md-ellipsis">
-      Optional Dependencies
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Optional Dependencies">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#for-production-deployment" class="md-nav__link">
-    <span class="md-ellipsis">
-      For Production Deployment
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#for-development" class="md-nav__link">
-    <span class="md-ellipsis">
-      For Development
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#for-fastapi-integration" class="md-nav__link">
-    <span class="md-ellipsis">
-      For FastAPI Integration
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ide-setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      IDE Setup
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="IDE Setup">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#vs-code" class="md-nav__link">
-    <span class="md-ellipsis">
-      VS Code
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pycharm" class="md-nav__link">
-    <span class="md-ellipsis">
-      PyCharm
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#environment-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      Environment Configuration
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#docker-setup-optional" class="md-nav__link">
-    <span class="md-ellipsis">
-      Docker Setup (Optional)
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Troubleshooting
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Troubleshooting">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#common-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      Common Issues
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Common Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#importerror-no-module-named-fraiseql" class="md-nav__link">
-    <span class="md-ellipsis">
-      ImportError: No module named 'fraiseql'
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#psycopg2-installation-fails" class="md-nav__link">
-    <span class="md-ellipsis">
-      psycopg2 Installation Fails
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#connection-refused-to-postgresql" class="md-nav__link">
-    <span class="md-ellipsis">
-      Connection Refused to PostgreSQL
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#jsonb-functions-not-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      JSONB Functions Not Available
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#getting-help" class="md-nav__link">
-    <span class="md-ellipsis">
-      Getting Help
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      Next Steps
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1026,7 +663,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
@@ -1049,7 +686,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../graphql-playground/" class="md-nav__link">
+      <a href="../../getting-started/graphql-playground/" class="md-nav__link">
         
   
   
@@ -1072,7 +709,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../first-api/" class="md-nav__link">
+      <a href="../../getting-started/first-api/" class="md-nav__link">
         
   
   
@@ -3079,28 +2716,94 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
+  <a href="#new-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Prerequisites
+      🆕 New Features
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Prerequisites">
+    <nav class="md-nav" aria-label="🆕 New Features">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#python-313" class="md-nav__link">
+  <a href="#clean-mutation-error-management-system" class="md-nav__link">
     <span class="md-ellipsis">
-      Python 3.13+
+      🧹 Clean Mutation Error Management System
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🧹 Clean Mutation Error Management System">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components-added" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Components Added:
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#postgresql-13" class="md-nav__link">
+  <a href="#problems-solved" class="md-nav__link">
     <span class="md-ellipsis">
-      PostgreSQL 13+
+      Problems Solved:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#new-guarantees" class="md-nav__link">
+    <span class="md-ellipsis">
+      New Guarantees:
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#technical-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      🛠️ Technical Implementation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🛠️ Technical Implementation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      New Modules:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#usage-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage Example:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-response-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Response Structure:
     </span>
   </a>
   
@@ -3112,46 +2815,37 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-fraiseql" class="md-nav__link">
+  <a href="#testing-coverage" class="md-nav__link">
     <span class="md-ellipsis">
-      Install FraiseQL
+      🧪 Testing Coverage
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Install FraiseQL">
+    <nav class="md-nav" aria-label="🧪 Testing Coverage">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#using-pip-recommended" class="md-nav__link">
+  <a href="#comprehensive-test-suite-added" class="md-nav__link">
     <span class="md-ellipsis">
-      Using pip (Recommended)
+      Comprehensive Test Suite Added:
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#using-poetry" class="md-nav__link">
+  <a href="#test-locations" class="md-nav__link">
     <span class="md-ellipsis">
-      Using Poetry
+      Test Locations:
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#using-pipenv" class="md-nav__link">
+  <a href="#validation" class="md-nav__link">
     <span class="md-ellipsis">
-      Using pipenv
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#development-installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Development Installation
+      Validation:
     </span>
   </a>
   
@@ -3163,46 +2857,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#verify-installation" class="md-nav__link">
+  <a href="#backward-compatibility" class="md-nav__link">
     <span class="md-ellipsis">
-      Verify Installation
+      🔄 Backward Compatibility
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#database-setup" class="md-nav__link">
+  <a href="#beta-testing-focus-areas" class="md-nav__link">
     <span class="md-ellipsis">
-      Database Setup
+      🎯 Beta Testing Focus Areas
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Database Setup">
+    <nav class="md-nav" aria-label="🎯 Beta Testing Focus Areas">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-create-a-database" class="md-nav__link">
+  <a href="#1-error-array-population" class="md-nav__link">
     <span class="md-ellipsis">
-      1. Create a Database
+      1. Error Array Population
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-set-database-url" class="md-nav__link">
+  <a href="#2-frontend-compatibility" class="md-nav__link">
     <span class="md-ellipsis">
-      2. Set Database URL
+      2. Frontend Compatibility
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-test-connection" class="md-nav__link">
+  <a href="#3-consistency-testing" class="md-nav__link">
     <span class="md-ellipsis">
-      3. Test Connection
+      3. Consistency Testing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-migration-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Migration Path
     </span>
   </a>
   
@@ -3214,37 +2917,28 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#optional-dependencies" class="md-nav__link">
+  <a href="#installation" class="md-nav__link">
     <span class="md-ellipsis">
-      Optional Dependencies
+      📦 Installation
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Optional Dependencies">
+    <nav class="md-nav" aria-label="📦 Installation">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#for-production-deployment" class="md-nav__link">
+  <a href="#for-testing-in-other-repositories" class="md-nav__link">
     <span class="md-ellipsis">
-      For Production Deployment
+      For Testing in Other Repositories:
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#for-development" class="md-nav__link">
+  <a href="#for-developmentlocal-testing" class="md-nav__link">
     <span class="md-ellipsis">
-      For Development
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#for-fastapi-integration" class="md-nav__link">
-    <span class="md-ellipsis">
-      For FastAPI Integration
+      For Development/Local Testing:
     </span>
   </a>
   
@@ -3256,28 +2950,46 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#ide-setup" class="md-nav__link">
+  <a href="#migration-guide-for-beta-testers" class="md-nav__link">
     <span class="md-ellipsis">
-      IDE Setup
+      🚀 Migration Guide (For Beta Testers)
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="IDE Setup">
+    <nav class="md-nav" aria-label="🚀 Migration Guide (For Beta Testers)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#vs-code" class="md-nav__link">
+  <a href="#step-1-install-beta-version" class="md-nav__link">
     <span class="md-ellipsis">
-      VS Code
+      Step 1: Install Beta Version
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#pycharm" class="md-nav__link">
+  <a href="#step-2-create-test-mutation-side-by-side" class="md-nav__link">
     <span class="md-ellipsis">
-      PyCharm
+      Step 2: Create Test Mutation (Side-by-Side)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-register-both-mutations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 3: Register Both Mutations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-test-both-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 4: Test Both Versions
     </span>
   </a>
   
@@ -3289,102 +3001,36 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#environment-configuration" class="md-nav__link">
+  <a href="#beta-limitations" class="md-nav__link">
     <span class="md-ellipsis">
-      Environment Configuration
+      ⚠️ Beta Limitations
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#docker-setup-optional" class="md-nav__link">
+  <a href="#feedback-bug-reports" class="md-nav__link">
     <span class="md-ellipsis">
-      Docker Setup (Optional)
+      🐛 Feedback &amp; Bug Reports
     </span>
   </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Troubleshooting
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Troubleshooting">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#common-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      Common Issues
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Common Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#importerror-no-module-named-fraiseql" class="md-nav__link">
-    <span class="md-ellipsis">
-      ImportError: No module named 'fraiseql'
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#psycopg2-installation-fails" class="md-nav__link">
-    <span class="md-ellipsis">
-      psycopg2 Installation Fails
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#connection-refused-to-postgresql" class="md-nav__link">
-    <span class="md-ellipsis">
-      Connection Refused to PostgreSQL
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#jsonb-functions-not-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      JSONB Functions Not Available
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#getting-help" class="md-nav__link">
-    <span class="md-ellipsis">
-      Getting Help
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
   <a href="#next-steps" class="md-nav__link">
     <span class="md-ellipsis">
-      Next Steps
+      🎯 Next Steps
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-results-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      📊 Test Results Summary
     </span>
   </a>
   
@@ -3409,205 +3055,235 @@
   
 
 
-<h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
-<p>Get FraiseQL up and running in your development environment.</p>
-<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
-<p>Before installing FraiseQL, make sure you have:</p>
-<h3 id="python-313">Python 3.13+<a class="headerlink" href="#python-313" title="Permanent link">&para;</a></h3>
-<p>FraiseQL uses modern Python type hints and requires Python 3.13 or later.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>--version<span class="w">  </span><span class="c1"># Should show 3.10 or higher</span>
-</code></pre></div>
-<h3 id="postgresql-13">PostgreSQL 13+<a class="headerlink" href="#postgresql-13" title="Permanent link">&para;</a></h3>
-<p>FraiseQL leverages PostgreSQL's JSONB capabilities and advanced features.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>psql<span class="w"> </span>--version<span class="w">  </span><span class="c1"># Should show 13 or higher</span>
-</code></pre></div>
-<div class="admonition tip">
-<p class="admonition-title">PostgreSQL Installation</p>
+<h1 id="fraiseql-v050-release-notes">FraiseQL v0.5.0 Release Notes<a class="headerlink" href="#fraiseql-v050-release-notes" title="Permanent link">&para;</a></h1>
+<p><strong>🎯 Beta Release for Clean Mutation Error Management System</strong></p>
+<p>This beta release introduces the new <strong>Clean Mutation Error Management System</strong> that solves critical frontend compatibility issues with mutation error handling.</p>
+<hr />
+<h2 id="new-features">🆕 New Features<a class="headerlink" href="#new-features" title="Permanent link">&para;</a></h2>
+<h3 id="clean-mutation-error-management-system">🧹 Clean Mutation Error Management System<a class="headerlink" href="#clean-mutation-error-management-system" title="Permanent link">&para;</a></h3>
+<p>A completely rebuilt error management system that provides <strong>predictable, frontend-compatible error responses</strong>.</p>
+<h4 id="key-components-added">Key Components Added:<a class="headerlink" href="#key-components-added" title="Permanent link">&para;</a></h4>
 <ul>
-<li><strong>macOS</strong>: <code>brew install postgresql@14</code></li>
-<li><strong>Ubuntu/Debian</strong>: <code>apt-get install postgresql-14</code></li>
-<li><strong>Windows</strong>: Download from <a href="https://www.postgresql.org/download/windows/">postgresql.org</a></li>
+<li><strong><code>MutationResultProcessor</code></strong> - Immutable, predictable result processing</li>
+<li><strong><code>clean_mutation</code> decorator</strong> - Alternative to existing mutation decorators</li>
+<li><strong><code>ErrorDetail</code> &amp; <code>ProcessedResult</code></strong> - Immutable data structures for errors</li>
+<li><strong><code>result_processor.py</code></strong> - Core processing logic</li>
+<li><strong><code>clean_decorator.py</code></strong> - Clean mutation decorator implementation</li>
 </ul>
-</div>
-<h2 id="install-fraiseql">Install FraiseQL<a class="headerlink" href="#install-fraiseql" title="Permanent link">&para;</a></h2>
-<h3 id="using-pip-recommended">Using pip (Recommended)<a class="headerlink" href="#using-pip-recommended" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Core installation</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># With optional dependencies</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>redis<span class="o">]</span><span class="w">        </span><span class="c1"># Redis caching support</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>tracing<span class="o">]</span><span class="w">      </span><span class="c1"># OpenTelemetry tracing</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>auth0<span class="o">]</span><span class="w">        </span><span class="c1"># Auth0 integration</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>all<span class="o">]</span><span class="w">          </span><span class="c1"># All optional dependencies</span>
+<h4 id="problems-solved">Problems Solved:<a class="headerlink" href="#problems-solved" title="Permanent link">&para;</a></h4>
+<ul>
+<li>❌ <strong>Inconsistent errors arrays</strong>: Sometimes <code>null</code>, sometimes empty, sometimes populated</li>
+<li>❌ <strong>Manual workarounds required</strong>: No more <code>__post_init__()</code> hacks needed</li>
+<li>❌ <strong>Frontend compatibility issues</strong>: Guaranteed structure for frontend consumption</li>
+<li>❌ <strong>Complex debugging</strong>: Simple, predictable error flow</li>
+</ul>
+<h4 id="new-guarantees">New Guarantees:<a class="headerlink" href="#new-guarantees" title="Permanent link">&para;</a></h4>
+<ul>
+<li>✅ <strong>Always populated errors arrays</strong>: Error types ALWAYS have populated errors array (never <code>null</code>)</li>
+<li>✅ <strong>Immutable processing</strong>: No in-place object modifications during processing</li>
+<li>✅ <strong>Predictable structure</strong>: Same input always produces same output</li>
+<li>✅ <strong>Frontend-first design</strong>: Built specifically for frontend consumption</li>
+<li>✅ <strong>Status code mapping</strong>: <code>noop:</code>/<code>blocked:</code> → 422, <code>failed:</code> → 500</li>
+</ul>
+<hr />
+<h2 id="technical-implementation">🛠️ Technical Implementation<a class="headerlink" href="#technical-implementation" title="Permanent link">&para;</a></h2>
+<h3 id="new-modules">New Modules:<a class="headerlink" href="#new-modules" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>src/fraiseql/mutations/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── result_processor.py     # Core error processing logic
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>└── clean_decorator.py      # Clean mutation decorator
 </code></pre></div>
-<div class="admonition info">
-<p class="admonition-title">Package Availability</p>
-<p>FraiseQL is available on <a href="https://pypi.org/project/fraiseql/">PyPI</a> and can be installed directly using pip.</p>
-</div>
-<h3 id="using-poetry">Using Poetry<a class="headerlink" href="#using-poetry" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>add<span class="w"> </span>fraiseql
+<h3 id="usage-example">Usage Example:<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.mutations.clean_decorator</span><span class="w"> </span><span class="kn">import</span> <span class="n">clean_mutation</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nd">@clean_mutation</span><span class="p">(</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">function</span><span class="o">=</span><span class="s2">&quot;create_machine&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">context_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;tenant_id&quot;</span><span class="p">:</span> <span class="s2">&quot;input_pk_organization&quot;</span><span class="p">,</span> <span class="s2">&quot;user&quot;</span><span class="p">:</span> <span class="s2">&quot;input_created_by&quot;</span><span class="p">}</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">)</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateMachine</span><span class="p">:</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Input</span><span class="p">:</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>        <span class="n">serial_number</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Success</span><span class="p">:</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="n">machine</span><span class="p">:</span> <span class="n">Machine</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Success&quot;</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Error</span><span class="p">:</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Failed&quot;</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>        <span class="n">error_code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;CREATE_FAILED&quot;</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>        <span class="c1"># NO manual errors field needed!</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>        <span class="c1"># NO __post_init__ hack required!</span>
 </code></pre></div>
-<h3 id="using-pipenv">Using pipenv<a class="headerlink" href="#using-pipenv" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pipenv<span class="w"> </span>install<span class="w"> </span>fraiseql
+<h3 id="error-response-structure">Error Response Structure:<a class="headerlink" href="#error-response-structure" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;__typename&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CreateMachineError&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Contract not found or access denied&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;errorCode&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INVALID_CONTRACT_ID&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">&quot;errors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">422</span><span class="p">,</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">      </span><span class="nt">&quot;identifier&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;invalid_contract_id&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Contract not found or access denied&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;details&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="p">}</span>
 </code></pre></div>
-<h3 id="development-installation">Development Installation<a class="headerlink" href="#development-installation" title="Permanent link">&para;</a></h3>
-<p>For contributing or testing latest features:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/fraiseql/fraiseql.git
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">cd</span><span class="w"> </span>fraiseql
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
+<hr />
+<h2 id="testing-coverage">🧪 Testing Coverage<a class="headerlink" href="#testing-coverage" title="Permanent link">&para;</a></h2>
+<h3 id="comprehensive-test-suite-added">Comprehensive Test Suite Added:<a class="headerlink" href="#comprehensive-test-suite-added" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>29 comprehensive tests</strong> covering all error management scenarios</li>
+<li><strong>TestErrorResultProcessor</strong> - Core processing logic tests</li>
+<li><strong>TestGraphQLErrorIntegration</strong> - GraphQL integration tests</li>
+<li><strong>TestCleanMutationDecorator</strong> - Decorator functionality tests</li>
+</ul>
+<h3 id="test-locations">Test Locations:<a class="headerlink" href="#test-locations" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>tests/mutation_error_management/
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>├── test_error_result_processor.py     # 18 core tests
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>└── test_graphql_integration.py        # 11 integration tests
 </code></pre></div>
-<h2 id="verify-installation">Verify Installation<a class="headerlink" href="#verify-installation" title="Permanent link">&para;</a></h2>
-<p>Check that FraiseQL is installed correctly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import fraiseql; print(fraiseql.__version__)&quot;</span>
-</code></pre></div>
-<h2 id="database-setup">Database Setup<a class="headerlink" href="#database-setup" title="Permanent link">&para;</a></h2>
-<h3 id="1-create-a-database">1. Create a Database<a class="headerlink" href="#1-create-a-database" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>createdb<span class="w"> </span>my_app_db
-</code></pre></div>
-<p>Or using psql:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">DATABASE</span><span class="w"> </span><span class="n">my_app_db</span><span class="p">;</span>
-</code></pre></div>
-<h3 id="2-set-database-url">2. Set Database URL<a class="headerlink" href="#2-set-database-url" title="Permanent link">&para;</a></h3>
-<p>FraiseQL uses standard PostgreSQL connection strings:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Environment variable (recommended)</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">DATABASE_URL</span><span class="o">=</span><span class="s2">&quot;postgresql://username:password@localhost:5432/my_app_db&quot;</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Or in .env file</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="nv">DATABASE_URL</span><span class="o">=</span>postgresql://username:password@localhost:5432/my_app_db
-</code></pre></div>
-<h3 id="3-test-connection">3. Test Connection<a class="headerlink" href="#3-test-connection" title="Permanent link">&para;</a></h3>
-<p>Create a simple test script:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># test_connection.py</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql</span><span class="w"> </span><span class="kn">import</span> <span class="n">FraiseQL</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">app</span> <span class="o">=</span> <span class="n">FraiseQL</span><span class="p">(</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">database_url</span><span class="o">=</span><span class="s2">&quot;postgresql://localhost/my_app_db&quot;</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;✅ FraiseQL connected successfully!&quot;</span><span class="p">)</span>
-</code></pre></div>
-<p>Run it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python<span class="w"> </span>test_connection.py
-</code></pre></div>
-<h2 id="optional-dependencies">Optional Dependencies<a class="headerlink" href="#optional-dependencies" title="Permanent link">&para;</a></h2>
-<h3 id="for-production-deployment">For Production Deployment<a class="headerlink" href="#for-production-deployment" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>production<span class="o">]</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="c1"># Includes: uvicorn, gunicorn, python-multipart</span>
-</code></pre></div>
-<h3 id="for-development">For Development<a class="headerlink" href="#for-development" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>dev<span class="o">]</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="c1"># Includes: pytest, black, mypy, pre-commit</span>
-</code></pre></div>
-<h3 id="for-fastapi-integration">For FastAPI Integration<a class="headerlink" href="#for-fastapi-integration" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pip<span class="w"> </span>install<span class="w"> </span>fraiseql<span class="o">[</span>fastapi<span class="o">]</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="c1"># Includes: fastapi, uvicorn</span>
-</code></pre></div>
-<h2 id="ide-setup">IDE Setup<a class="headerlink" href="#ide-setup" title="Permanent link">&para;</a></h2>
-<h3 id="vs-code">VS Code<a class="headerlink" href="#vs-code" title="Permanent link">&para;</a></h3>
-<p>Install recommended extensions for the best experience:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">&quot;recommendations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="s2">&quot;ms-python.python&quot;</span><span class="p">,</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="s2">&quot;ms-python.vscode-pylance&quot;</span><span class="p">,</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span><span class="s2">&quot;GraphQL.vscode-graphql&quot;</span><span class="p">,</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="s2">&quot;mtxr.sqltools&quot;</span><span class="p">,</span>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">    </span><span class="s2">&quot;mtxr.sqltools-driver-pg&quot;</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="p">}</span>
-</code></pre></div>
-<h3 id="pycharm">PyCharm<a class="headerlink" href="#pycharm" title="Permanent link">&para;</a></h3>
-<ol>
-<li>Enable Python type checking</li>
-<li>Install GraphQL plugin</li>
-<li>Configure Database tools for PostgreSQL</li>
-</ol>
-<h2 id="environment-configuration">Environment Configuration<a class="headerlink" href="#environment-configuration" title="Permanent link">&para;</a></h2>
-<p>Create a <code>.env</code> file in your project root:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># Database</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nv">DATABASE_URL</span><span class="o">=</span>postgresql://localhost/my_app_db
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="nv">DATABASE_POOL_SIZE</span><span class="o">=</span><span class="m">20</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="nv">DATABASE_MAX_OVERFLOW</span><span class="o">=</span><span class="m">40</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="c1"># Environment</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="nv">ENVIRONMENT</span><span class="o">=</span>development<span class="w">  </span><span class="c1"># or production</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="c1"># GraphQL</span>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="nv">GRAPHQL_PATH</span><span class="o">=</span>/graphql
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="nv">GRAPHQL_PLAYGROUND_ENABLED</span><span class="o">=</span><span class="nb">true</span><span class="w">  </span><span class="c1"># Disable in production</span>
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
-<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="c1"># Security (production)</span>
-<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="nv">SECRET_KEY</span><span class="o">=</span>your-secret-key-here
-<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>
-<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="c1"># CORS (only if serving browsers directly)</span>
-<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a><span class="c1"># FRAISEQL_CORS_ENABLED=true</span>
-<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="c1"># FRAISEQL_CORS_ORIGINS=https://yourdomain.com</span>
-</code></pre></div>
-<h2 id="docker-setup-optional">Docker Setup (Optional)<a class="headerlink" href="#docker-setup-optional" title="Permanent link">&para;</a></h2>
-<p>If you prefer using Docker for PostgreSQL:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># docker-compose.yml</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;3.8&#39;</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="nt">services</span><span class="p">:</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="nt">postgres</span><span class="p">:</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:14-alpine</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">      </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_app_db</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">      </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fraiseql</span>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="w">      </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secret</span>
-<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
-<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;5432:5432&quot;</span>
-<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="w">    </span><span class="nt">volumes</span><span class="p">:</span>
-<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres_data:/var/lib/postgresql/data</span>
-<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>
-<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="nt">volumes</span><span class="p">:</span>
-<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a><span class="w">  </span><span class="nt">postgres_data</span><span class="p">:</span>
-</code></pre></div>
-<p>Start PostgreSQL:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>docker-compose<span class="w"> </span>up<span class="w"> </span>-d
-</code></pre></div>
-<p>Your connection string would be:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nv">DATABASE_URL</span><span class="o">=</span>postgresql://fraiseql:secret@localhost:5432/my_app_db
+<h3 id="validation">Validation:<a class="headerlink" href="#validation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ All 29 new tests pass</li>
+<li>✅ All existing FraiseQL tests still pass (no regressions)</li>
+<li>✅ Backward compatibility maintained</li>
+</ul>
+<hr />
+<h2 id="backward-compatibility">🔄 Backward Compatibility<a class="headerlink" href="#backward-compatibility" title="Permanent link">&para;</a></h2>
+<p><strong>100% Backward Compatible</strong>: All existing mutations continue to work unchanged.</p>
+<ul>
+<li>✅ Existing <code>@fraiseql.mutation</code> decorators work as before</li>
+<li>✅ Existing <code>FraiseQLMutation</code> base classes work as before</li>
+<li>✅ No breaking changes to existing APIs</li>
+<li>✅ New system is <strong>opt-in</strong> - use when ready</li>
+</ul>
+<hr />
+<h2 id="beta-testing-focus-areas">🎯 Beta Testing Focus Areas<a class="headerlink" href="#beta-testing-focus-areas" title="Permanent link">&para;</a></h2>
+<p>This beta is specifically designed for testing the new error management system:</p>
+<h3 id="1-error-array-population">1. <strong>Error Array Population</strong><a class="headerlink" href="#1-error-array-population" title="Permanent link">&para;</a></h3>
+<p>Test that error responses <strong>always</strong> have populated <code>errors</code> arrays:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Should NEVER be null</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">assert</span> <span class="n">response</span><span class="p">[</span><span class="s2">&quot;errors&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s2">&quot;errors&quot;</span><span class="p">],</span> <span class="nb">list</span><span class="p">)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="s2">&quot;errors&quot;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span>  <span class="c1"># For error responses</span>
 </code></pre></div></p>
-<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
-<h3 id="common-issues">Common Issues<a class="headerlink" href="#common-issues" title="Permanent link">&para;</a></h3>
-<h4 id="importerror-no-module-named-fraiseql">ImportError: No module named 'fraiseql'<a class="headerlink" href="#importerror-no-module-named-fraiseql" title="Permanent link">&para;</a></h4>
-<ul>
-<li><strong>Solution</strong>: Ensure you're using the correct Python environment</li>
-<li>Check: <code>which python</code> and <code>pip list | grep fraiseql</code></li>
-</ul>
-<h4 id="psycopg2-installation-fails">psycopg2 Installation Fails<a class="headerlink" href="#psycopg2-installation-fails" title="Permanent link">&para;</a></h4>
-<ul>
-<li><strong>macOS</strong>: <code>brew install postgresql</code> before installing FraiseQL</li>
-<li><strong>Ubuntu</strong>: <code>apt-get install libpq-dev python3-dev</code></li>
-<li><strong>Alternative</strong>: Use <code>psycopg2-binary</code> for development</li>
-</ul>
-<h4 id="connection-refused-to-postgresql">Connection Refused to PostgreSQL<a class="headerlink" href="#connection-refused-to-postgresql" title="Permanent link">&para;</a></h4>
-<ul>
-<li><strong>Check if PostgreSQL is running</strong>: <code>pg_isready</code></li>
-<li><strong>Check connection details</strong>: <code>psql -U username -d database -h localhost</code></li>
-<li><strong>Check PostgreSQL logs</strong>: <code>tail -f /var/log/postgresql/*.log</code></li>
-</ul>
-<h4 id="jsonb-functions-not-available">JSONB Functions Not Available<a class="headerlink" href="#jsonb-functions-not-available" title="Permanent link">&para;</a></h4>
-<ul>
-<li><strong>Ensure PostgreSQL 13+</strong>: Older versions have limited JSONB support</li>
-<li><strong>Check extensions</strong>: <code>CREATE EXTENSION IF NOT EXISTS "uuid-ossp";</code></li>
-</ul>
-<h3 id="getting-help">Getting Help<a class="headerlink" href="#getting-help" title="Permanent link">&para;</a></h3>
-<p>If you encounter issues:</p>
+<h3 id="2-frontend-compatibility">2. <strong>Frontend Compatibility</strong><a class="headerlink" href="#2-frontend-compatibility" title="Permanent link">&para;</a></h3>
+<p>Verify error structure matches frontend expectations:
+- <code>errors[0].code</code> - HTTP-style error code (422, 500, etc.)
+- <code>errors[0].identifier</code> - Machine-readable identifier
+- <code>errors[0].message</code> - Human-readable message
+- <code>errors[0].details</code> - Additional error context</p>
+<h3 id="3-consistency-testing">3. <strong>Consistency Testing</strong><a class="headerlink" href="#3-consistency-testing" title="Permanent link">&para;</a></h3>
+<p>Same error conditions should produce identical error structures across multiple test runs.</p>
+<h3 id="4-migration-path">4. <strong>Migration Path</strong><a class="headerlink" href="#4-migration-path" title="Permanent link">&para;</a></h3>
+<p>Test migrating existing mutations to use the clean system without breaking functionality.</p>
+<hr />
+<h2 id="installation">📦 Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
+<h3 id="for-testing-in-other-repositories">For Testing in Other Repositories:<a class="headerlink" href="#for-testing-in-other-repositories" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Install beta version</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">fraiseql</span><span class="o">==</span><span class="m">0</span>.5.0
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Or with uv</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="nv">fraiseql</span><span class="o">==</span><span class="m">0</span>.5.0
+</code></pre></div>
+<h3 id="for-developmentlocal-testing">For Development/Local Testing:<a class="headerlink" href="#for-developmentlocal-testing" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Install from local source (most up-to-date)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">cd</span><span class="w"> </span>/path/to/fraiseql
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># Or</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>uv<span class="w"> </span>add<span class="w"> </span>--editable<span class="w"> </span>/path/to/fraiseql
+</code></pre></div>
+<hr />
+<h2 id="migration-guide-for-beta-testers">🚀 Migration Guide (For Beta Testers)<a class="headerlink" href="#migration-guide-for-beta-testers" title="Permanent link">&para;</a></h2>
+<h3 id="step-1-install-beta-version">Step 1: Install Beta Version<a class="headerlink" href="#step-1-install-beta-version" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="nv">fraiseql</span><span class="o">==</span><span class="m">0</span>.5.0
+</code></pre></div>
+<h3 id="step-2-create-test-mutation-side-by-side">Step 2: Create Test Mutation (Side-by-Side)<a class="headerlink" href="#step-2-create-test-mutation-side-by-side" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Keep existing mutation working</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">your_app.base_mutation</span><span class="w"> </span><span class="kn">import</span> <span class="n">YourBaseMutation</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateItem</span><span class="p">(</span><span class="n">YourBaseMutation</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="s2">&quot;create_item&quot;</span><span class="p">):</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="nb">input</span><span class="p">:</span> <span class="n">CreateItemInput</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">success</span><span class="p">:</span> <span class="n">CreateItemSuccess</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">failure</span><span class="p">:</span> <span class="n">CreateItemError</span>  <span class="c1"># May have manual __post_init__ hacks</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># Add new clean version for testing</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.mutations.clean_decorator</span><span class="w"> </span><span class="kn">import</span> <span class="n">clean_mutation</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="nd">@clean_mutation</span><span class="p">(</span><span class="n">function</span><span class="o">=</span><span class="s2">&quot;create_item&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateItemClean</span><span class="p">:</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Input</span><span class="p">:</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>        <span class="c1"># Same fields as CreateItemInput</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Success</span><span class="p">:</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>        <span class="n">item</span><span class="p">:</span> <span class="n">Item</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Success&quot;</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Error</span><span class="p">:</span>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Failed&quot;</span>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>        <span class="n">error_code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;CREATE_FAILED&quot;</span>
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>        <span class="c1"># NO manual errors field!</span>
+<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>        <span class="c1"># NO __post_init__ hack!</span>
+</code></pre></div>
+<h3 id="step-3-register-both-mutations">Step 3: Register Both Mutations<a class="headerlink" href="#step-3-register-both-mutations" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># In your GraphQL schema registration:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">MUTATIONS</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">CreateItem</span><span class="p">,</span>       <span class="c1"># Existing (for comparison)</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">CreateItemClean</span><span class="p">,</span>  <span class="c1"># New clean version (for testing)</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="p">]</span>
+</code></pre></div>
+<h3 id="step-4-test-both-versions">Step 4: Test Both Versions<a class="headerlink" href="#step-4-test-both-versions" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Test old vs new side-by-side</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">old_result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;mutation { createItem(...) }&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">new_result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;mutation { createItemClean(...) }&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># Compare error structure consistency</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="k">assert</span> <span class="n">new_result</span><span class="p">[</span><span class="s2">&quot;errors&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>  <span class="c1"># Never null!</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_result</span><span class="p">[</span><span class="s2">&quot;errors&quot;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span>     <span class="c1"># Always populated for errors!</span>
+</code></pre></div>
+<hr />
+<h2 id="beta-limitations">⚠️ Beta Limitations<a class="headerlink" href="#beta-limitations" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Check the documentation and examples</li>
-<li>Search <a href="https://github.com/fraiseql/fraiseql/issues">existing issues</a></li>
-<li>Ask in <a href="https://github.com/fraiseql/fraiseql/discussions">discussions</a></li>
-<li>Report a <a href="https://github.com/fraiseql/fraiseql/issues/new">new issue</a></li>
+<li><strong>New <code>clean_mutation</code> decorator</strong>: May need additional GraphQL integration work</li>
+<li><strong>Limited real-world testing</strong>: Needs validation in production-like environments</li>
+<li><strong>Documentation</strong>: Complete docs will come with stable release</li>
+<li><strong>Migration tooling</strong>: Automated migration tools not yet available</li>
 </ol>
-<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<p>Now that FraiseQL is installed, you're ready to:</p>
+<hr />
+<h2 id="feedback-bug-reports">🐛 Feedback &amp; Bug Reports<a class="headerlink" href="#feedback-bug-reports" title="Permanent link">&para;</a></h2>
+<p>Please report any issues or feedback:</p>
+<ol>
+<li><strong>GitHub Issues</strong>: https://github.com/fraiseql/fraiseql/issues</li>
+<li><strong>Focus Areas</strong>:</li>
+<li>Error array population consistency</li>
+<li>Frontend integration compatibility</li>
+<li>Performance impact</li>
+<li>Migration experience</li>
+<li>Unexpected behavior vs existing system</li>
+</ol>
+<hr />
+<h2 id="next-steps">🎯 Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
+<p>After beta testing feedback:</p>
+<ol>
+<li><strong>v0.5.0 Stable Release</strong>: Address any beta feedback</li>
+<li><strong>Migration Tooling</strong>: Automated tools for converting existing mutations</li>
+<li><strong>Complete Documentation</strong>: Full docs for the clean error management system</li>
+<li><strong>Integration Examples</strong>: More real-world usage examples</li>
+</ol>
+<hr />
+<p><strong>This beta release enables testing the clean error management system in real applications while maintaining full backward compatibility.</strong></p>
+<hr />
+<h2 id="test-results-summary">📊 Test Results Summary<a class="headerlink" href="#test-results-summary" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../quickstart/"><strong>Follow the Quickstart</strong></a> - Build your first API in 5 minutes</li>
-<li><a href="../graphql-playground/"><strong>Explore the Playground</strong></a> - Test queries interactively</li>
-<li><a href="../first-api/"><strong>Build Your First API</strong></a> - Step-by-step guide</li>
+<li>✅ <strong>29/29</strong> new error management tests pass</li>
+<li>✅ <strong>18/18</strong> existing parser tests pass (no regressions)</li>
+<li>✅ <strong>6/6</strong> existing decorator tests pass (backward compatibility)</li>
+<li>✅ <strong>All core FraiseQL functionality</strong> remains unchanged</li>
 </ul>
+<p><strong>Ready for beta testing in dependent projects!</strong> 🚀</p>
 
 
 

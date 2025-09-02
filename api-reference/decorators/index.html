@@ -1566,22 +1566,22 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#success" class="md-nav__link">
+  <a href="#success-deprecated" class="md-nav__link">
     <span class="md-ellipsis">
-      @success
+      @success (Deprecated)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#failure" class="md-nav__link">
+  <a href="#failure-deprecated" class="md-nav__link">
     <span class="md-ellipsis">
-      @failure
+      @failure (Deprecated)
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="@failure">
+    <nav class="md-nav" aria-label="@failure (Deprecated)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -3950,22 +3950,22 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#success" class="md-nav__link">
+  <a href="#success-deprecated" class="md-nav__link">
     <span class="md-ellipsis">
-      @success
+      @success (Deprecated)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#failure" class="md-nav__link">
+  <a href="#failure-deprecated" class="md-nav__link">
     <span class="md-ellipsis">
-      @failure
+      @failure (Deprecated)
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="@failure">
+    <nav class="md-nav" aria-label="@failure (Deprecated)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -4611,22 +4611,39 @@
 <a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>    <span class="k">pass</span>
 </code></pre></div>
 <p>Base class for mutation results (union type).</p>
-<h3 id="success">@success<a class="headerlink" href="#success" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">success</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">fraise_type</span>
+<h3 id="success-deprecated">@success (Deprecated)<a class="headerlink" href="#success-deprecated" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>⚠️ <strong>Deprecated:</strong> With FraiseQL's clean default patterns, <code>@fraiseql.success</code> is no longer needed.
+Use <code>FraiseQLMutation</code> which automatically decorates success and failure types.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># OLD (deprecated)</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">success</span>
 <a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">MutationSuccess</span><span class="p">(</span><span class="n">MutationResult</span><span class="p">):</span>
 <a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">Type</span>
 <a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="c1"># NEW (clean default pattern)</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="k">class</span><span class="w"> </span><span class="nc">MutationSuccess</span><span class="p">:</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">Type</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Operation successful&quot;</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>    <span class="n">errors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FraiseQLError</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># Native error arrays</span>
 </code></pre></div>
-<p>Marks a type as successful mutation result.</p>
-<h3 id="failure">@failure<a class="headerlink" href="#failure" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">failure</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">fraise_type</span>
+<h3 id="failure-deprecated">@failure (Deprecated)<a class="headerlink" href="#failure-deprecated" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>⚠️ <strong>Deprecated:</strong> With FraiseQL's clean default patterns, <code>@fraiseql.failure</code> is no longer needed.
+Use <code>FraiseQLMutation</code> which automatically decorates success and failure types.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># OLD (deprecated)</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="nd">@fraiseql</span><span class="o">.</span><span class="n">failure</span>
 <a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">MutationError</span><span class="p">(</span><span class="n">MutationResult</span><span class="p">):</span>
 <a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># NEW (clean default pattern)</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="k">class</span><span class="w"> </span><span class="nc">MutationError</span><span class="p">:</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a>    <span class="n">errors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FraiseQLError</span><span class="p">]</span>  <span class="c1"># Comprehensive error information</span>
 </code></pre></div>
-<p>Marks a type as error mutation result.</p>
 <h4 id="complete-example">Complete Example<a class="headerlink" href="#complete-example" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql</span><span class="w"> </span><span class="kn">import</span> <span class="n">mutation</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">success</span><span class="p">,</span> <span class="n">failure</span><span class="p">,</span> <span class="n">fraise_type</span>
 <a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>
