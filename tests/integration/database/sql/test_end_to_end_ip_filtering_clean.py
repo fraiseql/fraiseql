@@ -95,8 +95,8 @@ class TestEndToEndIPFiltering:
         # String field should use LIKE
         assert "(data ->> 'name') LIKE '%server%'" in sql_str
 
-        # Integer field should use numeric casting
-        assert "(data ->> 'port')::numeric = 80" in sql_str
+        # Integer field should use integer casting
+        assert "((data ->> 'port'))::integer = 80" in sql_str
 
     def test_ipv6_filtering(self):
         """Should handle IPv6 addresses correctly."""

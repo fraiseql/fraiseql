@@ -102,13 +102,13 @@ class FieldType(Enum):
             return cls.FLOAT
 
         if isinstance(value, str):
+            # Check for MAC address patterns first (before IP to avoid IPv6-like false positives)
+            if _is_mac_address_value(value):
+                return cls.MAC_ADDRESS
+
             # Check for IP address patterns
             if _is_ip_address_value(value):
                 return cls.IP_ADDRESS
-
-            # Check for MAC address patterns
-            if _is_mac_address_value(value):
-                return cls.MAC_ADDRESS
 
             # Check for LTree patterns
             if _is_ltree_value(value):
