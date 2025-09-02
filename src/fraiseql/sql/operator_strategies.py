@@ -997,8 +997,8 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             )
 
         # Always cast to ::inet for network operations since these operators are IP-specific
-        # path_sql is already wrapped in parentheses, so we just add ::inet casting
-        casted_path = Composed([path_sql, SQL("::inet")])
+        # We need parentheses around the JSONB extraction for proper PostgreSQL parsing
+        casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
 
         # For basic operations, cast both sides to inet for proper PostgreSQL handling
         if op in ("eq", "neq", "in", "notin", "nin"):
