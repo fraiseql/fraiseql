@@ -251,6 +251,13 @@ def convert_type_to_graphql_input(
         )
         raise TypeError(msg)
 
+    # Handle raw list type (list without type parameters)
+    if typ is list:
+        # Default to list[str] for compatibility
+        from graphql import GraphQLString
+
+        return GraphQLList(GraphQLString)
+
     # Handle scalar types using the existing scalar mapping utility
     if isinstance(typ, type):
         try:

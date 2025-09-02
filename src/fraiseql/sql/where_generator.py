@@ -281,13 +281,13 @@ def safe_create_where_type(cls: type[object]) -> type[DynamicType] | object:
 
     for name, typ in type_hints.items():
         unwrap_type(typ)
-        annotations[name] = dict[str, Any] | None  # Use Any for the dict value type
+        annotations[name] = dict[str, object] | None  # Use object for the dict value type
         attrs[name] = field(default_factory=dict)
 
     # Add logical operators fields
-    annotations["OR"] = list[Any] | None
-    annotations["AND"] = list[Any] | None
-    annotations["NOT"] = Any | None
+    annotations["OR"] = list | None
+    annotations["AND"] = list | None
+    annotations["NOT"] = object | None
     attrs["OR"] = None
     attrs["AND"] = None
     attrs["NOT"] = None
@@ -321,13 +321,13 @@ def create_where_type_with_graphql_context(
 
     for name, typ in type_hints.items():
         unwrap_type(typ)
-        annotations[name] = dict[str, Any] | None  # Use Any for the dict value type
+        annotations[name] = dict[str, object] | None  # Use object for the dict value type
         attrs[name] = field(default_factory=dict)
 
     # Add logical operators fields
-    annotations["OR"] = list[Any] | None
-    annotations["AND"] = list[Any] | None
-    annotations["NOT"] = Any | None
+    annotations["OR"] = list | None
+    annotations["AND"] = list | None
+    annotations["NOT"] = object | None
     attrs["OR"] = None
     attrs["AND"] = None
     attrs["NOT"] = None

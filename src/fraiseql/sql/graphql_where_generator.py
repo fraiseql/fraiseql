@@ -491,13 +491,16 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
         # Generate class name
         class_name = name or f"{cls.__name__}WhereInput"
 
-        # Add logical operators fields (use Any to avoid circular reference issues for now)
-        from typing import Any
-
+        # Add logical operators fields using safer types for GraphQL schema generation
+        # These will work at runtime but won't break GraphQL type conversion
         logical_fields = [
-            ("OR", Optional[list[Any]], None),
-            ("AND", Optional[list[Any]], None),
-            ("NOT", Optional[Any], None),
+            ("OR", Optional[list], None),
+            ("AND", Optional[list], None),
+            (
+                "NOT",
+                Optional[dict],
+                None,
+            ),  # Use dict instead of object for better GraphQL compatibility
         ]
 
         # Add logical operators to field definitions

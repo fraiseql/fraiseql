@@ -48,24 +48,30 @@ class TestWhereClauseFix:
         conn = db_connection_committed
         repo = CQRSRepository(conn)
 
-        # Create test data with IP addresses
-        await conn.execute("""
-            CREATE TEMP TABLE test_network_devices (
+        # Create test data with IP addresses - use unique table name to avoid conflicts
+        import uuid
+        table_suffix = str(uuid.uuid4()).replace('-', '_')[:8]
+        table_name = f"test_network_devices_{table_suffix}"
+        view_name = f"v_test_network_devices_{table_suffix}"
+
+        await conn.execute(f"""
+            DROP TABLE IF EXISTS {table_name} CASCADE;
+            CREATE TEMP TABLE {table_name} (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
             );
-            INSERT INTO test_network_devices (data) VALUES
-            ('{"hostname": "router-01", "ipAddress": "192.168.1.1"}'),
-            ('{"hostname": "router-02", "ipAddress": "10.0.0.1"}'),
-            ('{"hostname": "server-01", "ipAddress": "8.8.8.8"}');
+            INSERT INTO {table_name} (data) VALUES
+            ('{{"hostname": "router-01", "ipAddress": "192.168.1.1"}}'),
+            ('{{"hostname": "router-02", "ipAddress": "10.0.0.1"}}'),
+            ('{{"hostname": "server-01", "ipAddress": "8.8.8.8"}}');
 
-            CREATE TEMP VIEW v_test_network_devices AS
-            SELECT id, data FROM test_network_devices;
+            CREATE TEMP VIEW {view_name} AS
+            SELECT id, data FROM {table_name};
         """)
 
         # Test private IP filter - should return only private IPs
         results = await repo.select_from_json_view(
-            "v_test_network_devices", where={"ipAddress": {"isPrivate": True}}
+            view_name, where={"ipAddress": {"isPrivate": True}}
         )
 
         # FIXED: This now works correctly with network address filtering
