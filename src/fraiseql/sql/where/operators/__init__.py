@@ -12,7 +12,9 @@ from fraiseql.sql.where.core.field_detection import FieldType
 
 from . import (
     basic,
+    date,
     date_range,
+    datetime,
     email,
     hostname,
     lists,
@@ -103,6 +105,26 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.PORT, "gte"): port.build_port_gte_sql,
     (FieldType.PORT, "lt"): port.build_port_lt_sql,
     (FieldType.PORT, "lte"): port.build_port_lte_sql,
+    # DateTime operators for ISO 8601 datetime with timezone support
+    (FieldType.DATETIME, "eq"): datetime.build_datetime_eq_sql,
+    (FieldType.DATETIME, "neq"): datetime.build_datetime_neq_sql,
+    (FieldType.DATETIME, "in_"): datetime.build_datetime_in_sql,
+    (FieldType.DATETIME, "in"): datetime.build_datetime_in_sql,
+    (FieldType.DATETIME, "notin"): datetime.build_datetime_notin_sql,
+    (FieldType.DATETIME, "gt"): datetime.build_datetime_gt_sql,
+    (FieldType.DATETIME, "gte"): datetime.build_datetime_gte_sql,
+    (FieldType.DATETIME, "lt"): datetime.build_datetime_lt_sql,
+    (FieldType.DATETIME, "lte"): datetime.build_datetime_lte_sql,
+    # Date operators for ISO 8601 date format
+    (FieldType.DATE, "eq"): date.build_date_eq_sql,
+    (FieldType.DATE, "neq"): date.build_date_neq_sql,
+    (FieldType.DATE, "in_"): date.build_date_in_sql,
+    (FieldType.DATE, "in"): date.build_date_in_sql,
+    (FieldType.DATE, "notin"): date.build_date_notin_sql,
+    (FieldType.DATE, "gt"): date.build_date_gt_sql,
+    (FieldType.DATE, "gte"): date.build_date_gte_sql,
+    (FieldType.DATE, "lt"): date.build_date_lt_sql,
+    (FieldType.DATE, "lte"): date.build_date_lte_sql,
 }
 
 
