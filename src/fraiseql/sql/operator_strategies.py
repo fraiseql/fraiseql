@@ -117,6 +117,15 @@ class BaseOperatorStrategy(ABC):
 
     def _is_ip_address_type(self, field_type: type) -> bool:
         """Check if field_type is an IP address type."""
+        # Handle FieldType enum values (from WHERE generator)
+        try:
+            from fraiseql.sql.where.core.field_detection import FieldType
+
+            if field_type == FieldType.IP_ADDRESS:
+                return True
+        except ImportError:
+            pass
+
         # Import here to avoid circular imports
         try:
             from fraiseql.types.scalars.ip_address import IpAddressField
@@ -938,7 +947,8 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                 "eq",
                 "neq",
                 "in",
-                "notin",  # Basic operations
+                "notin",
+                "nin",  # Basic operations
                 "inSubnet",
                 "inRange",
                 "isPrivate",
@@ -987,10 +997,11 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             )
 
         # Always cast to ::inet for network operations since these operators are IP-specific
+        # We need parentheses around the JSONB extraction for proper PostgreSQL parsing
         casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
 
         # For basic operations, cast both sides to inet for proper PostgreSQL handling
-        if op in ("eq", "neq", "in", "notin"):
+        if op in ("eq", "neq", "in", "notin", "nin"):
             if op == "eq":
                 return Composed([casted_path, SQL(" = "), Literal(val), SQL("::inet")])
             if op == "neq":
@@ -1010,6 +1021,19 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             if op == "notin":
                 if not isinstance(val, list):
                     msg = f"'notin' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" NOT IN (")]
+                for i, ip in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(ip), SQL("::inet")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+            if op == "nin":
+                # nin is an alias for notin
+                if not isinstance(val, list):
+                    msg = f"'nin' operator requires a list, got {type(val)}"
                     raise TypeError(msg)
 
                 parts = [casted_path, SQL(" NOT IN (")]
@@ -1051,8 +1075,10 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             )
 
         if op == "isPrivate":
-            # RFC 1918 private network ranges
+            # RFC 1918 private network ranges + localhost + link-local
+            # Build a single compound condition to avoid multiple casted_path repeats
             if val:
+                # isPrivate=True: IP is in any private range
                 return Composed(
                     [
                         SQL("("),
@@ -1065,9 +1091,11 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                         casted_path,
                         SQL(" <<= '127.0.0.0/8'::inet OR "),
                         casted_path,
-                        SQL(" <<= '169.254.0.0/16'::inet)"),
+                        SQL(" <<= '169.254.0.0/16'::inet"),
+                        SQL(")"),
                     ]
                 )
+            # isPrivate=False: IP is NOT in any private range
             return Composed(
                 [
                     SQL("NOT ("),
@@ -1080,14 +1108,15 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                     casted_path,
                     SQL(" <<= '127.0.0.0/8'::inet OR "),
                     casted_path,
-                    SQL(" <<= '169.254.0.0/16'::inet)"),
+                    SQL(" <<= '169.254.0.0/16'::inet"),
+                    SQL(")"),
                 ]
             )
 
         if op == "isPublic":
-            # Invert private logic
+            # Public is the inverse of private
             if val:
-                # Public means NOT private
+                # isPublic=True: IP is NOT in any private range
                 return Composed(
                     [
                         SQL("NOT ("),
@@ -1100,10 +1129,11 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                         casted_path,
                         SQL(" <<= '127.0.0.0/8'::inet OR "),
                         casted_path,
-                        SQL(" <<= '169.254.0.0/16'::inet)"),
+                        SQL(" <<= '169.254.0.0/16'::inet"),
+                        SQL(")"),
                     ]
                 )
-            # NOT public means private
+            # isPublic=False: IP IS in private range
             return Composed(
                 [
                     SQL("("),
@@ -1116,7 +1146,8 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                     casted_path,
                     SQL(" <<= '127.0.0.0/8'::inet OR "),
                     casted_path,
-                    SQL(" <<= '169.254.0.0/16'::inet)"),
+                    SQL(" <<= '169.254.0.0/16'::inet"),
+                    SQL(")"),
                 ]
             )
 

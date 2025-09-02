@@ -141,12 +141,12 @@ class TestFieldTypeExtraction:
         assert enhanced_hints['ipAddress'] == IpAddress
         assert 'identifier' not in enhanced_hints  # No type detected
 
-    def test_enhance_type_hints_preserves_existing(self):
-        """Test that existing type hints are preserved and not overwritten."""
-        # Initial type hints with explicit network type
+    def test_enhance_type_hints_overrides_generic_types(self):
+        """Test that generic types are overridden with specific GraphQL-detected types."""
+        # Initial type hints with generic types that should be overridden
         initial_hints = {
-            'ipAddress': str,  # Explicitly defined as string
-            'name': str,
+            'ipAddress': str,  # Generic string type - should be upgraded to IpAddress
+            'name': str,       # Generic string type - no specific detection, stays str
         }
 
         # Mock GraphQL info
@@ -161,9 +161,9 @@ class TestFieldTypeExtraction:
             initial_hints, mock_info, field_names
         )
 
-        # Should preserve existing explicit type
-        assert enhanced_hints['ipAddress'] == str  # Not overwritten
-        assert enhanced_hints['name'] == str
+        # Should override generic str with specific IpAddress for IP address fields
+        assert enhanced_hints['ipAddress'] == IpAddress  # Upgraded from str
+        assert enhanced_hints['name'] == str            # No specific type detected, stays str
 
         # Should add new extracted type
         assert enhanced_hints['macAddress'] == MacAddress
