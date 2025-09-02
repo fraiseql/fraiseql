@@ -372,6 +372,298 @@ query {
 }
 ```
 
+### Logical Operators (OR, AND, NOT)
+
+**🆕 New in v0.6.0**: FraiseQL now supports logical operators for complex filtering conditions, similar to Hasura and Prisma.
+
+Every `WhereInput` type automatically includes logical operators:
+
+```graphql
+input UserWhereInput {
+  # Field filters
+  name: StringFilter
+  age: IntFilter
+  is_active: BooleanFilter
+
+  # Logical operators
+  OR: [UserWhereInput!]
+  AND: [UserWhereInput!]
+  NOT: UserWhereInput
+}
+```
+
+#### OR Operator
+Match entities where ANY of the conditions are true:
+
+```graphql
+query {
+  products(where: {
+    OR: [
+      {category: {eq: "electronics"}},
+      {category: {eq: "computers"}},
+      {price: {lt: 50}}
+    ]
+  }) {
+    id
+    name
+    category
+    price
+  }
+}
+```
+
+This finds products that are either electronics, computers, OR cost less than $50.
+
+#### AND Operator
+Match entities where ALL conditions are true (explicit AND):
+
+```graphql
+query {
+  users(where: {
+    AND: [
+      {age: {gte: 18}},
+      {is_active: {eq: true}},
+      {created_at: {gte: "2024-01-01T00:00:00Z"}}
+    ]
+  }) {
+    id
+    name
+    age
+  }
+}
+```
+
+**Note**: Fields at the same level are implicitly combined with AND, so this is equivalent to:
+
+```graphql
+query {
+  users(where: {
+    age: {gte: 18}
+    is_active: {eq: true}
+    created_at: {gte: "2024-01-01T00:00:00Z"}
+  }) {
+    id
+    name
+    age
+  }
+}
+```
+
+#### NOT Operator
+Match entities where the condition is NOT true:
+
+```graphql
+query {
+  users(where: {
+    NOT: {
+      is_active: {eq: false}
+    }
+  }) {
+    id
+    name
+    is_active
+  }
+}
+```
+
+This finds all users that are NOT inactive (i.e., active users).
+
+#### Complex Nested Logic
+Combine logical operators for sophisticated queries:
+
+```graphql
+query {
+  products(where: {
+    # Must be in electronics category
+    category: {eq: "electronics"}
+
+    # AND (cheap OR high stock)
+    OR: [
+      {price: {lt: 100}},
+      {stock: {gt: 50}}
+    ]
+
+    # AND NOT discontinued
+    NOT: {
+      status: {eq: "discontinued"}
+    }
+  }) {
+    id
+    name
+    price
+    stock
+    status
+  }
+}
+```
+
+This query finds electronics that are either:
+- Cheap (< $100) OR well-stocked (> 50 units)
+- AND are not discontinued
+
+#### Mixing Field and Logical Operators
+
+```graphql
+query {
+  orders(where: {
+    # Field-level filters (implicit AND)
+    customer_id: {eq: "user-123"}
+    status: {eq: "pending"}
+
+    # Logical OR condition
+    OR: [
+      {total: {gt: 1000}},           # High-value orders
+      {priority: {eq: "urgent"}}     # OR urgent priority
+    ]
+  }) {
+    id
+    total
+    status
+    priority
+  }
+}
+```
+
+#### Repository-Level Logical Operators
+
+You can also use logical operators in repository queries:
+
+```python
+@fraiseql.query
+async def complex_product_search(
+    info,
+    category: str,
+    max_price: float | None = None,
+    min_stock: int | None = None
+) -> list[Product]:
+    repo = info.context["repo"]
+
+    # Build complex where condition
+    where_conditions = [
+        # Must match category
+        {"category": category}
+    ]
+
+    # Add OR condition for price or stock
+    or_conditions = []
+    if max_price:
+        or_conditions.append({"price__lt": max_price})
+    if min_stock:
+        or_conditions.append({"stock__gte": min_stock})
+
+    if or_conditions:
+        where_conditions.append({"OR": or_conditions})
+
+    # Add NOT condition (exclude discontinued)
+    where_conditions.append({
+        "NOT": {"status": "discontinued"}
+    })
+
+    # Combine all with AND
+    where = {"AND": where_conditions}
+
+    return await repo.find("v_product", where=where, order_by="created_at DESC")
+```
+
+#### Performance Considerations
+
+**Indexing for Logical Operators:**
+Complex logical conditions may require composite indexes:
+
+```sql
+-- For OR conditions on multiple fields
+CREATE INDEX idx_product_category_price ON tb_product
+((data->>'category'), (data->>'price')::numeric);
+
+-- For complex conditions
+CREATE INDEX idx_product_complex ON tb_product
+((data->>'category'), (data->>'status'), (data->>'price')::numeric);
+```
+
+**Query Planning:**
+- OR conditions can be less efficient than AND conditions
+- Put most selective filters first, even within OR clauses
+- Consider using separate queries with UNION for complex OR conditions
+
+**Testing Logical Operators:**
+
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_logical_or_filtering(app_client):
+    """Test OR operator with multiple conditions."""
+
+    query = """
+        query {
+            products(where: {
+                OR: [
+                    {category: {eq: "electronics"}},
+                    {price: {lt: 50}}
+                ]
+            }) {
+                id
+                category
+                price
+            }
+        }
+    """
+
+    result = await app_client.post("/graphql", json={"query": query})
+
+    assert result.status_code == 200
+    products = result.json()["data"]["products"]
+
+    # Verify OR logic: each product should match at least one condition
+    for product in products:
+        assert (
+            product["category"] == "electronics" or
+            product["price"] < 50
+        )
+
+@pytest.mark.asyncio
+async def test_complex_nested_logic(app_client):
+    """Test complex nested logical operators."""
+
+    query = """
+        query {
+            products(where: {
+                category: {eq: "electronics"}
+                AND: [
+                    {
+                        OR: [
+                            {price: {lt: 100}},
+                            {stock: {gt: 50}}
+                        ]
+                    },
+                    {
+                        NOT: {
+                            status: {eq: "discontinued"}
+                        }
+                    }
+                ]
+            }) {
+                id
+                category
+                price
+                stock
+                status
+            }
+        }
+    """
+
+    result = await app_client.post("/graphql", json={"query": query})
+
+    assert result.status_code == 200
+    products = result.json()["data"]["products"]
+
+    # Verify complex logic
+    for product in products:
+        assert product["category"] == "electronics"
+        assert product["price"] < 100 or product["stock"] > 50
+        assert product["status"] != "discontinued"
+```
+
 ### Repository-Level Where Clauses
 
 You can also build where clauses in your resolvers:

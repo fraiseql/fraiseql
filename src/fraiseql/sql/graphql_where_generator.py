@@ -344,8 +344,21 @@ def _convert_graphql_input_to_where_type(graphql_input: Any, target_class: type)
         for field_name in graphql_input.__gql_fields__:
             filter_value = getattr(graphql_input, field_name)
             if filter_value is not None:
+                # Handle logical operators specially
+                if field_name in ("OR", "AND"):
+                    # These are lists of WhereInput objects
+                    if isinstance(filter_value, list):
+                        converted_list = []
+                        for item in filter_value:
+                            if hasattr(item, "_to_sql_where"):
+                                converted_list.append(item._to_sql_where())
+                        setattr(where_obj, field_name, converted_list)
+                elif field_name == "NOT":
+                    # This is a single WhereInput object
+                    if hasattr(filter_value, "_to_sql_where"):
+                        setattr(where_obj, field_name, filter_value._to_sql_where())
                 # Check if this is a nested where input
-                if hasattr(filter_value, "_target_class") and hasattr(
+                elif hasattr(filter_value, "_target_class") and hasattr(
                     filter_value, "_to_sql_where"
                 ):
                     # Convert nested where input recursively
@@ -363,8 +376,21 @@ def _convert_graphql_input_to_where_type(graphql_input: Any, target_class: type)
     elif hasattr(graphql_input, "__dict__"):
         for field_name, filter_value in graphql_input.__dict__.items():
             if filter_value is not None:
+                # Handle logical operators specially
+                if field_name in ("OR", "AND"):
+                    # These are lists of WhereInput objects
+                    if isinstance(filter_value, list):
+                        converted_list = []
+                        for item in filter_value:
+                            if hasattr(item, "_to_sql_where"):
+                                converted_list.append(item._to_sql_where())
+                        setattr(where_obj, field_name, converted_list)
+                elif field_name == "NOT":
+                    # This is a single WhereInput object
+                    if hasattr(filter_value, "_to_sql_where"):
+                        setattr(where_obj, field_name, filter_value._to_sql_where())
                 # Check if this is a nested where input
-                if hasattr(filter_value, "_target_class") and hasattr(
+                elif hasattr(filter_value, "_target_class") and hasattr(
                     filter_value, "_to_sql_where"
                 ):
                     # Convert nested where input recursively
@@ -452,6 +478,19 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
 
         # Generate class name
         class_name = name or f"{cls.__name__}WhereInput"
+
+        # Add logical operators fields (use Any to avoid circular reference issues for now)
+        from typing import Any
+
+        logical_fields = [
+            ("OR", Optional[list[Any]], None),
+            ("AND", Optional[list[Any]], None),
+            ("NOT", Optional[Any], None),
+        ]
+
+        # Add logical operators to field definitions
+        field_definitions.extend(logical_fields)
+        field_defaults.update({field_name: default for field_name, _, default in logical_fields})
 
         # Create the dataclass
         WhereInputClass = make_dataclass(

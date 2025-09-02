@@ -147,9 +147,37 @@ def _build_where_to_sql(
                 pass
 
         conditions: list[Composed] = []
+        logical_or: list[Composed] = []
+        logical_and: list[Composed] = []
+        logical_not: Composed | None = None
+
         for name in fields:
             val = getattr(self, name, None)
-            if val is not None and hasattr(val, "to_sql"):
+            if val is None:
+                continue
+
+            # Handle logical operators specially
+            if name == "OR":
+                if isinstance(val, list):
+                    for item in val:
+                        if hasattr(item, "to_sql"):
+                            item_sql = item.to_sql()
+                            if item_sql:
+                                logical_or.append(item_sql)
+            elif name == "AND":
+                if isinstance(val, list):
+                    for item in val:
+                        if hasattr(item, "to_sql"):
+                            item_sql = item.to_sql()
+                            if item_sql:
+                                logical_and.append(item_sql)
+            elif name == "NOT":
+                if hasattr(val, "to_sql"):
+                    not_sql = val.to_sql()
+                    if not_sql:
+                        logical_not = Composed([SQL("NOT ("), not_sql, SQL(")")])
+            # Handle regular fields
+            elif hasattr(val, "to_sql"):
                 # Assume val is another DynamicType
                 sql = val.to_sql()
                 if sql:
@@ -165,12 +193,52 @@ def _build_where_to_sql(
                 if cond:
                     conditions.append(cond)
 
-        if not conditions:
+        # Collect all condition parts
+        all_conditions: list[Composed] = []
+
+        # Add regular field conditions (combine with implicit AND)
+        if conditions:
+            if len(conditions) == 1:
+                all_conditions.append(conditions[0])
+            else:
+                # Combine multiple conditions with AND
+                and_parts: list[SQL | Composed] = []
+                for i, cond in enumerate(conditions):
+                    if i > 0:
+                        and_parts.append(SQL(" AND "))
+                    and_parts.append(cond)
+                all_conditions.append(Composed(and_parts))
+
+        # Add explicit AND conditions
+        if logical_and:
+            all_conditions.extend(logical_and)
+
+        # Add OR conditions (group them together)
+        if logical_or:
+            if len(logical_or) == 1:
+                all_conditions.append(logical_or[0])
+            else:
+                # Combine multiple OR conditions
+                or_parts: list[SQL | Composed] = []
+                for i, or_cond in enumerate(logical_or):
+                    if i > 0:
+                        or_parts.append(SQL(" OR "))
+                    or_parts.append(Composed([SQL("("), or_cond, SQL(")")]))
+                all_conditions.append(Composed([SQL("("), Composed(or_parts), SQL(")")]))
+
+        # Add NOT condition
+        if logical_not:
+            all_conditions.append(logical_not)
+
+        if not all_conditions:
             return None
 
-        # Combine conditions with AND
+        # Combine all conditions with AND
+        if len(all_conditions) == 1:
+            return all_conditions[0]
+
         result_parts: list[SQL | Composed] = []
-        for i, cond in enumerate(conditions):
+        for i, cond in enumerate(all_conditions):
             if i > 0:
                 result_parts.append(SQL(" AND "))
             result_parts.append(cond)
@@ -216,7 +284,15 @@ def safe_create_where_type(cls: type[object]) -> type[DynamicType] | object:
         annotations[name] = dict[str, Any] | None  # Use Any for the dict value type
         attrs[name] = field(default_factory=dict)
 
-    field_names = list(type_hints.keys())
+    # Add logical operators fields
+    annotations["OR"] = list[Any] | None
+    annotations["AND"] = list[Any] | None
+    annotations["NOT"] = Any | None
+    attrs["OR"] = None
+    attrs["AND"] = None
+    attrs["NOT"] = None
+
+    field_names = [*type_hints.keys(), "OR", "AND", "NOT"]
     attrs["__annotations__"] = annotations
     attrs["to_sql"] = _build_where_to_sql(field_names, type_hints)
 
@@ -248,7 +324,15 @@ def create_where_type_with_graphql_context(
         annotations[name] = dict[str, Any] | None  # Use Any for the dict value type
         attrs[name] = field(default_factory=dict)
 
-    field_names = list(type_hints.keys())
+    # Add logical operators fields
+    annotations["OR"] = list[Any] | None
+    annotations["AND"] = list[Any] | None
+    annotations["NOT"] = Any | None
+    attrs["OR"] = None
+    attrs["AND"] = None
+    attrs["NOT"] = None
+
+    field_names = [*type_hints.keys(), "OR", "AND", "NOT"]
     attrs["__annotations__"] = annotations
     attrs["to_sql"] = _build_where_to_sql(field_names, type_hints, graphql_info)
 
