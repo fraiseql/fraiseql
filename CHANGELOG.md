@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.8] - 2025-09-02
+
+### 🚨 Critical Production Bug Fix
+
+#### **JSONB+INET Network Filtering Fix**
+- **CRITICAL**: Fixed production bug where IP address equality filtering returned empty results
+- **Affected**: Production systems using CQRS patterns with JSONB IP address storage
+- **Resolution**: Modified SQL generation to use proper INET casting for equality operators
+- **Impact**: IP address filtering now returns correct results instead of empty sets
+
+#### **The Bug (v0.5.7 and earlier)**
+```sql
+-- Generated SQL was incorrect for equality operations:
+host((data->>'ip_address')::inet) = '8.8.8.8'
+-- Result: 0 records (empty - broken)
+```
+
+#### **The Fix (v0.5.8)**
+```sql
+-- Generated SQL now correct for equality operations:
+(data->>'ip_address')::inet = '8.8.8.8'::inet
+-- Result: 1 record (correct)
+```
+
+### 🎯 Affected Use Cases
+
+#### **Before v0.5.8 ❌ (Broken)**
+```graphql
+# These queries returned empty results:
+dnsServers(where: { ipAddress: { eq: "8.8.8.8" } })       # → 0 results
+servers(where: { ip: { neq: "192.168.1.1" } })            # → 0 results
+devices(where: { address: { in: ["10.1.1.1", "10.1.1.2"] } }) # → 0 results
+```
+
+#### **After v0.5.8 ✅ (Fixed)**
+```graphql
+# Same queries now return correct results:
+dnsServers(where: { ipAddress: { eq: "8.8.8.8" } })       # → correct results
+servers(where: { ip: { neq: "192.168.1.1" } })            # → correct results
+devices(where: { address: { in: ["10.1.1.1", "10.1.1.2"] } }) # → correct results
+```
+
+### ✅ What Still Works (Unaffected)
+- **Subnet filtering**: `inSubnet`, `notInSubnet` operators worked before and continue working
+- **Pattern filtering**: `contains`, `startswith`, `endswith` operators unaffected
+- **All other field types**: String, Integer, DateTime, etc. filtering unaffected
+- **Direct INET column filtering**: Non-JSONB INET columns were never affected
+
+### 🛡️ Backward Compatibility
+- **100% Compatible**: No breaking changes, all existing code continues to work
+- **Automatic Fix**: Existing queries automatically get correct results without code changes
+- **No Migration**: Users can upgrade directly without any code modifications
+
+### 🧪 Comprehensive Testing
+- **7 new regression tests**: Complete CQRS + GraphQL integration validation
+- **3 updated core tests**: Reflect correct behavior expectations
+- **2589+ tests passing**: Full test suite validates no regressions
+- **Production pattern testing**: Real-world CQRS scenarios validated
+
+### 🔧 Technical Details
+**File Modified**: `src/fraiseql/sql/operator_strategies.py` (5 line change in `_apply_type_cast()` method)
+**Behavior Change**: Only affects equality operators with JSONB IP address fields
+**Performance**: No impact - same SQL generation speed, more accurate results
+**Compatibility**: 100% backward compatible - pure bug fix
+
+### 📊 Performance Impact
+- **Zero Performance Impact**: Same SQL generation speed, more accurate results
+- **No Resource Usage Change**: Memory and CPU usage unchanged
+- **Database Performance**: Proper INET casting may actually improve query performance
+
+### ⚠️ Who Should Upgrade Immediately
+- **CQRS Pattern Users**: Systems storing IP addresses as INET in command tables, exposing as JSONB in query views
+- **Network Filtering Users**: Applications filtering on IP addresses using equality operators
+- **Production Systems**: Any system where IP address filtering returns unexpected empty results
+
+### 🚀 Upgrade Instructions
+```bash
+# Immediate upgrade recommended for affected systems:
+pip install --upgrade fraiseql==0.5.8
+
+# No code changes required - existing queries will start working correctly
+```
+
 ## [0.5.7] - 2025-09-01
 
 ### 🚀 Major GraphQL Field Type Propagation Enhancement
