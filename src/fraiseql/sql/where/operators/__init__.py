@@ -10,7 +10,7 @@ from psycopg.sql import SQL, Composed
 
 from fraiseql.sql.where.core.field_detection import FieldType
 
-from . import basic, lists, mac_address, network, nulls, text
+from . import basic, lists, ltree, mac_address, network, nulls, text
 
 # Simple operator mapping - much cleaner than complex strategy pattern
 OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
@@ -46,6 +46,16 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.MAC_ADDRESS, "in_"): mac_address.build_mac_in_sql,
     (FieldType.MAC_ADDRESS, "in"): mac_address.build_mac_in_sql,
     (FieldType.MAC_ADDRESS, "notin"): mac_address.build_mac_notin_sql,
+    # LTree hierarchical path operators
+    (FieldType.LTREE, "eq"): ltree.build_ltree_eq_sql,
+    (FieldType.LTREE, "neq"): ltree.build_ltree_neq_sql,
+    (FieldType.LTREE, "in_"): ltree.build_ltree_in_sql,
+    (FieldType.LTREE, "in"): ltree.build_ltree_in_sql,
+    (FieldType.LTREE, "notin"): ltree.build_ltree_notin_sql,
+    (FieldType.LTREE, "ancestor_of"): ltree.build_ancestor_of_sql,
+    (FieldType.LTREE, "descendant_of"): ltree.build_descendant_of_sql,
+    (FieldType.LTREE, "matches_lquery"): ltree.build_matches_lquery_sql,
+    (FieldType.LTREE, "matches_ltxtquery"): ltree.build_matches_ltxtquery_sql,
 }
 
 

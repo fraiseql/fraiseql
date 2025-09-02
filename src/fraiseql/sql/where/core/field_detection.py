@@ -202,6 +202,32 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
     ):
         return FieldType.MAC_ADDRESS
 
+    # LTree path patterns - handle both snake_case and camelCase
+    ltree_patterns = [
+        "category_path",
+        "categorypath",
+        "navigation_path",
+        "navigationpath",
+        "tree_path",
+        "treepath",
+        "hierarchy_path",
+        "hierarchypath",
+        "taxonomy_path",
+        "taxonomypath",
+    ]
+
+    # Check LTree pattern matches
+    if any(pattern in field_lower for pattern in ltree_patterns):
+        return FieldType.LTREE
+
+    # Additional LTree patterns that should be whole words or at start/end
+    if (
+        field_lower in ["path", "tree", "hierarchy"]
+        or field_lower.endswith(("_path", "path", "_tree", "tree"))
+        or field_lower.startswith(("path_", "path", "tree_", "tree"))
+    ):
+        return FieldType.LTREE
+
     return FieldType.ANY
 
 
