@@ -83,6 +83,11 @@ class BaseOperatorStrategy(ABC):
             # Check for IP addresses (after MAC addresses to avoid collision)
             if self._looks_like_ip_address_value(val, op):
                 # Apply IP address casting to fix JSONB text comparison issue
+                # For equality operators, cast directly to inet without host() function
+                # host() strips CIDR notation but we want exact equality matching
+                if op in ("eq", "neq", "in", "notin"):
+                    return Composed([SQL("("), path_sql, SQL(")::inet")])
+                # For pattern operators (contains, startswith, endswith), use host() to get clean IP
                 return Composed([SQL("host("), path_sql, SQL("::inet)")])
 
             # Check for LTree paths
