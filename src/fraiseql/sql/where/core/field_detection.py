@@ -24,6 +24,9 @@ class FieldType(Enum):
     MAC_ADDRESS = "mac_address"
     LTREE = "ltree"
     DATE_RANGE = "date_range"
+    HOSTNAME = "hostname"
+    EMAIL = "email"
+    PORT = "port"
 
     def is_ip_address(self) -> bool:
         """Check if this field type is IP address."""

@@ -10,7 +10,19 @@ from psycopg.sql import SQL, Composed
 
 from fraiseql.sql.where.core.field_detection import FieldType
 
-from . import basic, date_range, lists, ltree, mac_address, network, nulls, text
+from . import (
+    basic,
+    date_range,
+    email,
+    hostname,
+    lists,
+    ltree,
+    mac_address,
+    network,
+    nulls,
+    port,
+    text,
+)
 
 # Simple operator mapping - much cleaner than complex strategy pattern
 OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
@@ -69,6 +81,28 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.DATE_RANGE, "strictly_right"): date_range.build_strictly_right_sql,
     (FieldType.DATE_RANGE, "not_left"): date_range.build_not_left_sql,
     (FieldType.DATE_RANGE, "not_right"): date_range.build_not_right_sql,
+    # Hostname operators for DNS hostname validation
+    (FieldType.HOSTNAME, "eq"): hostname.build_hostname_eq_sql,
+    (FieldType.HOSTNAME, "neq"): hostname.build_hostname_neq_sql,
+    (FieldType.HOSTNAME, "in_"): hostname.build_hostname_in_sql,
+    (FieldType.HOSTNAME, "in"): hostname.build_hostname_in_sql,
+    (FieldType.HOSTNAME, "notin"): hostname.build_hostname_notin_sql,
+    # Email operators for email address validation
+    (FieldType.EMAIL, "eq"): email.build_email_eq_sql,
+    (FieldType.EMAIL, "neq"): email.build_email_neq_sql,
+    (FieldType.EMAIL, "in_"): email.build_email_in_sql,
+    (FieldType.EMAIL, "in"): email.build_email_in_sql,
+    (FieldType.EMAIL, "notin"): email.build_email_notin_sql,
+    # Port operators for network port validation and comparison
+    (FieldType.PORT, "eq"): port.build_port_eq_sql,
+    (FieldType.PORT, "neq"): port.build_port_neq_sql,
+    (FieldType.PORT, "in_"): port.build_port_in_sql,
+    (FieldType.PORT, "in"): port.build_port_in_sql,
+    (FieldType.PORT, "notin"): port.build_port_notin_sql,
+    (FieldType.PORT, "gt"): port.build_port_gt_sql,
+    (FieldType.PORT, "gte"): port.build_port_gte_sql,
+    (FieldType.PORT, "lt"): port.build_port_lt_sql,
+    (FieldType.PORT, "lte"): port.build_port_lte_sql,
 }
 
 
