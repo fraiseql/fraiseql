@@ -65,7 +65,7 @@ class TestAllOperatorStrategiesCoverage:
         # Test that it now has all expected operators
         expected_operators = {
             # Basic operators (were missing, now added)
-            "eq", "neq", "in", "notin",
+            "eq", "neq", "in", "notin", "nin",
             # Network-specific operators (were always there)
             "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"
         }

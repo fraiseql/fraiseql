@@ -117,6 +117,15 @@ class BaseOperatorStrategy(ABC):
 
     def _is_ip_address_type(self, field_type: type) -> bool:
         """Check if field_type is an IP address type."""
+        # Handle FieldType enum values (from WHERE generator)
+        try:
+            from fraiseql.sql.where.core.field_detection import FieldType
+
+            if field_type == FieldType.IP_ADDRESS:
+                return True
+        except ImportError:
+            pass
+
         # Import here to avoid circular imports
         try:
             from fraiseql.types.scalars.ip_address import IpAddressField
@@ -938,7 +947,8 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                 "eq",
                 "neq",
                 "in",
-                "notin",  # Basic operations
+                "notin",
+                "nin",  # Basic operations
                 "inSubnet",
                 "inRange",
                 "isPrivate",
@@ -990,7 +1000,7 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
         casted_path = Composed([SQL("("), path_sql, SQL(")::inet")])
 
         # For basic operations, cast both sides to inet for proper PostgreSQL handling
-        if op in ("eq", "neq", "in", "notin"):
+        if op in ("eq", "neq", "in", "notin", "nin"):
             if op == "eq":
                 return Composed([casted_path, SQL(" = "), Literal(val), SQL("::inet")])
             if op == "neq":
@@ -1010,6 +1020,19 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             if op == "notin":
                 if not isinstance(val, list):
                     msg = f"'notin' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" NOT IN (")]
+                for i, ip in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    parts.extend([Literal(ip), SQL("::inet")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+            if op == "nin":
+                # nin is an alias for notin
+                if not isinstance(val, list):
+                    msg = f"'nin' operator requires a list, got {type(val)}"
                     raise TypeError(msg)
 
                 parts = [casted_path, SQL(" NOT IN (")]

@@ -27,7 +27,7 @@ class TestNetworkOperatorStrategy:
         """Test that all expected operators are now supported."""
         expected_operators = [
             # Basic comparison operators (newly added)
-            "eq", "neq", "in", "notin",
+            "eq", "neq", "in", "notin", "nin",
             # Network-specific operators (existing)
             "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"
         ]

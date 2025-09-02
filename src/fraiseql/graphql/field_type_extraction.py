@@ -194,11 +194,14 @@ def enhance_type_hints_with_graphql_context(
     """
     enhanced_hints = type_hints.copy() if type_hints else {}
 
-    # Extract field types from GraphQL context for any missing fields
+    # Extract field types from GraphQL context, overriding generic types with specific ones
     for field_name in field_names:
-        if field_name not in enhanced_hints:
-            field_type = extract_field_type_from_graphql_info(graphql_info, field_name)
-            if field_type:
+        # Always try to extract GraphQL field type
+        field_type = extract_field_type_from_graphql_info(graphql_info, field_name)
+        if field_type:
+            existing_type = enhanced_hints.get(field_name)
+            # Override if field doesn't exist or is a generic type (str, int, etc.)
+            if existing_type is None or existing_type in (str, int, float, bool):
                 enhanced_hints[field_name] = field_type
 
     return enhanced_hints
