@@ -372,6 +372,298 @@ query {
 }
 ```
 
+### Logical Operators (OR, AND, NOT)
+
+**🆕 New in v0.6.0**: FraiseQL now supports logical operators for complex filtering conditions, similar to Hasura and Prisma.
+
+Every `WhereInput` type automatically includes logical operators:
+
+```graphql
+input UserWhereInput {
+  # Field filters
+  name: StringFilter
+  age: IntFilter
+  is_active: BooleanFilter
+
+  # Logical operators
+  OR: [UserWhereInput!]
+  AND: [UserWhereInput!]
+  NOT: UserWhereInput
+}
+```
+
+#### OR Operator
+Match entities where ANY of the conditions are true:
+
+```graphql
+query {
+  products(where: {
+    OR: [
+      {category: {eq: "electronics"}},
+      {category: {eq: "computers"}},
+      {price: {lt: 50}}
+    ]
+  }) {
+    id
+    name
+    category
+    price
+  }
+}
+```
+
+This finds products that are either electronics, computers, OR cost less than $50.
+
+#### AND Operator
+Match entities where ALL conditions are true (explicit AND):
+
+```graphql
+query {
+  users(where: {
+    AND: [
+      {age: {gte: 18}},
+      {is_active: {eq: true}},
+      {created_at: {gte: "2024-01-01T00:00:00Z"}}
+    ]
+  }) {
+    id
+    name
+    age
+  }
+}
+```
+
+**Note**: Fields at the same level are implicitly combined with AND, so this is equivalent to:
+
+```graphql
+query {
+  users(where: {
+    age: {gte: 18}
+    is_active: {eq: true}
+    created_at: {gte: "2024-01-01T00:00:00Z"}
+  }) {
+    id
+    name
+    age
+  }
+}
+```
+
+#### NOT Operator
+Match entities where the condition is NOT true:
+
+```graphql
+query {
+  users(where: {
+    NOT: {
+      is_active: {eq: false}
+    }
+  }) {
+    id
+    name
+    is_active
+  }
+}
+```
+
+This finds all users that are NOT inactive (i.e., active users).
+
+#### Complex Nested Logic
+Combine logical operators for sophisticated queries:
+
+```graphql
+query {
+  products(where: {
+    # Must be in electronics category
+    category: {eq: "electronics"}
+
+    # AND (cheap OR high stock)
+    OR: [
+      {price: {lt: 100}},
+      {stock: {gt: 50}}
+    ]
+
+    # AND NOT discontinued
+    NOT: {
+      status: {eq: "discontinued"}
+    }
+  }) {
+    id
+    name
+    price
+    stock
+    status
+  }
+}
+```
+
+This query finds electronics that are either:
+- Cheap (< $100) OR well-stocked (> 50 units)
+- AND are not discontinued
+
+#### Mixing Field and Logical Operators
+
+```graphql
+query {
+  orders(where: {
+    # Field-level filters (implicit AND)
+    customer_id: {eq: "user-123"}
+    status: {eq: "pending"}
+
+    # Logical OR condition
+    OR: [
+      {total: {gt: 1000}},           # High-value orders
+      {priority: {eq: "urgent"}}     # OR urgent priority
+    ]
+  }) {
+    id
+    total
+    status
+    priority
+  }
+}
+```
+
+#### Repository-Level Logical Operators
+
+You can also use logical operators in repository queries:
+
+```python
+@fraiseql.query
+async def complex_product_search(
+    info,
+    category: str,
+    max_price: float | None = None,
+    min_stock: int | None = None
+) -> list[Product]:
+    repo = info.context["repo"]
+
+    # Build complex where condition
+    where_conditions = [
+        # Must match category
+        {"category": category}
+    ]
+
+    # Add OR condition for price or stock
+    or_conditions = []
+    if max_price:
+        or_conditions.append({"price__lt": max_price})
+    if min_stock:
+        or_conditions.append({"stock__gte": min_stock})
+
+    if or_conditions:
+        where_conditions.append({"OR": or_conditions})
+
+    # Add NOT condition (exclude discontinued)
+    where_conditions.append({
+        "NOT": {"status": "discontinued"}
+    })
+
+    # Combine all with AND
+    where = {"AND": where_conditions}
+
+    return await repo.find("v_product", where=where, order_by="created_at DESC")
+```
+
+#### Performance Considerations
+
+**Indexing for Logical Operators:**
+Complex logical conditions may require composite indexes:
+
+```sql
+-- For OR conditions on multiple fields
+CREATE INDEX idx_product_category_price ON tb_product
+((data->>'category'), (data->>'price')::numeric);
+
+-- For complex conditions
+CREATE INDEX idx_product_complex ON tb_product
+((data->>'category'), (data->>'status'), (data->>'price')::numeric);
+```
+
+**Query Planning:**
+- OR conditions can be less efficient than AND conditions
+- Put most selective filters first, even within OR clauses
+- Consider using separate queries with UNION for complex OR conditions
+
+**Testing Logical Operators:**
+
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_logical_or_filtering(app_client):
+    """Test OR operator with multiple conditions."""
+
+    query = """
+        query {
+            products(where: {
+                OR: [
+                    {category: {eq: "electronics"}},
+                    {price: {lt: 50}}
+                ]
+            }) {
+                id
+                category
+                price
+            }
+        }
+    """
+
+    result = await app_client.post("/graphql", json={"query": query})
+
+    assert result.status_code == 200
+    products = result.json()["data"]["products"]
+
+    # Verify OR logic: each product should match at least one condition
+    for product in products:
+        assert (
+            product["category"] == "electronics" or
+            product["price"] < 50
+        )
+
+@pytest.mark.asyncio
+async def test_complex_nested_logic(app_client):
+    """Test complex nested logical operators."""
+
+    query = """
+        query {
+            products(where: {
+                category: {eq: "electronics"}
+                AND: [
+                    {
+                        OR: [
+                            {price: {lt: 100}},
+                            {stock: {gt: 50}}
+                        ]
+                    },
+                    {
+                        NOT: {
+                            status: {eq: "discontinued"}
+                        }
+                    }
+                ]
+            }) {
+                id
+                category
+                price
+                stock
+                status
+            }
+        }
+    """
+
+    result = await app_client.post("/graphql", json={"query": query})
+
+    assert result.status_code == 200
+    products = result.json()["data"]["products"]
+
+    # Verify complex logic
+    for product in products:
+        assert product["category"] == "electronics"
+        assert product["price"] < 100 or product["stock"] > 50
+        assert product["status"] != "discontinued"
+```
+
 ### Repository-Level Where Clauses
 
 You can also build where clauses in your resolvers:
@@ -754,6 +1046,330 @@ class NetworkDevice:
     """
     mac_address: MacAddress
 ```
+
+## Advanced Filtering Examples
+
+### Complex Real-World Query
+
+This example demonstrates the full power of FraiseQL's filtering system by combining logical operators with specialized network filtering in a realistic network audit scenario.
+
+#### Business Scenario: DNS Server Network Audit
+
+Find servers that meet specific security and operational criteria:
+
+**Include servers that are:**
+1. **Production servers** (containing "delete", "prod", or "server") with high allocations (>2) in private networks
+2. **Development ranges** (21.43.* or 21.44.*) that are publicly accessible
+3. **Utility servers** (containing "utility", "service", "config") with moderate load (1-10 allocations)
+
+**But exclude:**
+- Servers with suspicious high-number suffixes (_3, _4, _5, _6)
+- Servers in the management subnet (192.168.1.0/24)
+
+#### GraphQL Query Implementation
+
+```python
+from fraiseql.sql import StringFilter, IntFilter, create_graphql_where_input
+from fraiseql.sql.graphql_where_generator import NetworkAddressFilter
+
+@fraiseql.type
+class DnsServer:
+    id: uuid.UUID
+    identifier: str
+    ip_address: str
+    n_total_allocations: int
+
+# Create the WHERE input type
+DnsServerWhereInput = create_graphql_where_input(DnsServer)
+
+# Complex filtering query with 4-level nesting
+complex_filter = DnsServerWhereInput(
+    AND=[
+        # Main inclusion criteria - Triple OR condition
+        DnsServerWhereInput(
+            OR=[
+                # Branch 1: Production servers in private networks
+                DnsServerWhereInput(
+                    AND=[
+                        # Multiple server type patterns
+                        DnsServerWhereInput(
+                            OR=[
+                                DnsServerWhereInput(identifier=StringFilter(contains="delete")),
+                                DnsServerWhereInput(identifier=StringFilter(contains="prod")),
+                                DnsServerWhereInput(identifier=StringFilter(contains="server")),
+                            ]
+                        ),
+                        # High allocation threshold
+                        DnsServerWhereInput(n_total_allocations=IntFilter(gt=2)),
+                        # Network security requirement
+                        DnsServerWhereInput(ip_address=NetworkAddressFilter(isPrivate=True)),
+                    ]
+                ),
+
+                # Branch 2: Development ranges that are public
+                DnsServerWhereInput(
+                    AND=[
+                        # Specific development IP ranges
+                        DnsServerWhereInput(
+                            OR=[
+                                DnsServerWhereInput(ip_address=StringFilter(startswith="21.43")),
+                                DnsServerWhereInput(ip_address=StringFilter(startswith="21.44")),
+                            ]
+                        ),
+                        # Must be publicly accessible
+                        DnsServerWhereInput(ip_address=NetworkAddressFilter(isPublic=True)),
+                        # Any allocation level acceptable
+                        DnsServerWhereInput(n_total_allocations=IntFilter(gte=0)),
+                    ]
+                ),
+
+                # Branch 3: Utility servers with moderate load
+                DnsServerWhereInput(
+                    AND=[
+                        # Utility server identification
+                        DnsServerWhereInput(
+                            OR=[
+                                DnsServerWhereInput(identifier=StringFilter(contains="utility")),
+                                DnsServerWhereInput(identifier=StringFilter(contains="service")),
+                                DnsServerWhereInput(identifier=StringFilter(contains="config")),
+                            ]
+                        ),
+                        # Moderate allocation range
+                        DnsServerWhereInput(
+                            AND=[
+                                DnsServerWhereInput(n_total_allocations=IntFilter(gte=1)),
+                                DnsServerWhereInput(n_total_allocations=IntFilter(lte=10)),
+                            ]
+                        ),
+                    ]
+                ),
+            ]
+        ),
+
+        # Exclusion criteria with NOT operator
+        DnsServerWhereInput(
+            NOT=DnsServerWhereInput(
+                OR=[
+                    # Exclude suspicious high-number suffixes
+                    DnsServerWhereInput(
+                        OR=[
+                            DnsServerWhereInput(identifier=StringFilter(endswith="_3")),
+                            DnsServerWhereInput(identifier=StringFilter(endswith="_4")),
+                            DnsServerWhereInput(identifier=StringFilter(endswith="_5")),
+                            DnsServerWhereInput(identifier=StringFilter(endswith="_6")),
+                        ]
+                    ),
+                    # Exclude management subnet
+                    DnsServerWhereInput(ip_address=NetworkAddressFilter(inSubnet="192.168.1.0/24")),
+                ]
+            )
+        ),
+    ]
+)
+```
+
+#### Query Analysis
+
+**Complexity Metrics:**
+- **Logical Depth**: 4 levels (AND → OR → AND → OR)
+- **Total Conditions**: 15+ individual filter conditions
+- **Filter Types**: 4 different specialized filters
+  - `StringFilter`: contains, startswith, endswith
+  - `IntFilter`: gt, gte, lt, lte
+  - `NetworkAddressFilter`: isPrivate, isPublic, inSubnet
+  - Logical operators: OR, AND, NOT
+
+#### Generated SQL
+
+The above query generates optimized PostgreSQL with proper JSONB operations:
+
+```sql
+SELECT data FROM v_dns_server WHERE (
+  (
+    -- Production servers in private networks
+    (
+      (
+        (data ->> 'identifier') LIKE '%delete%' OR
+        (data ->> 'identifier') LIKE '%prod%' OR
+        (data ->> 'identifier') LIKE '%server%'
+      ) AND
+      ((data ->> 'n_total_allocations')::numeric) > 2 AND
+      -- Network function call for private IP detection
+      is_private_ip((data ->> 'ip_address')::inet)
+    ) OR
+    -- Development ranges that are public
+    (
+      (
+        (data ->> 'ip_address') LIKE '21.43%' OR
+        (data ->> 'ip_address') LIKE '21.44%'
+      ) AND
+      NOT is_private_ip((data ->> 'ip_address')::inet) AND
+      ((data ->> 'n_total_allocations')::numeric) >= 0
+    ) OR
+    -- Utility servers with moderate load
+    (
+      (
+        (data ->> 'identifier') LIKE '%utility%' OR
+        (data ->> 'identifier') LIKE '%service%' OR
+        (data ->> 'identifier') LIKE '%config%'
+      ) AND
+      ((data ->> 'n_total_allocations')::numeric) >= 1 AND
+      ((data ->> 'n_total_allocations')::numeric) <= 10
+    )
+  ) AND
+  NOT (
+    -- Exclude suspicious suffixes
+    (
+      (data ->> 'identifier') LIKE '%_3' OR
+      (data ->> 'identifier') LIKE '%_4' OR
+      (data ->> 'identifier') LIKE '%_5' OR
+      (data ->> 'identifier') LIKE '%_6'
+    ) OR
+    -- Exclude management subnet
+    (data ->> 'ip_address')::inet << '192.168.1.0/24'::inet
+  )
+)
+```
+
+#### Performance Characteristics
+
+- **JSONB Optimization**: Direct field extraction with type casting
+- **Network Functions**: PostgreSQL native inet operations
+- **Proper Parentheses**: Ensures correct logical precedence
+- **Index-Friendly**: Generated conditions work with GIN indexes
+
+### Filter Type Combinations
+
+#### String + Network + Numeric
+
+```python
+# Find web servers in development networks with moderate load
+web_servers = ServerWhereInput(
+    AND=[
+        # String identification
+        ServerWhereInput(
+            OR=[
+                ServerWhereInput(hostname=StringFilter(contains="web")),
+                ServerWhereInput(hostname=StringFilter(contains="http")),
+            ]
+        ),
+        # Network classification
+        ServerWhereInput(ip_address=NetworkAddressFilter(isPrivate=True)),
+        # Load balancing
+        ServerWhereInput(
+            AND=[
+                ServerWhereInput(cpu_usage=IntFilter(gte=10)),
+                ServerWhereInput(cpu_usage=IntFilter(lt=80)),
+            ]
+        )
+    ]
+)
+```
+
+#### Temporal + Geographic + Status
+
+```python
+# Find recent events in specific regions with active status
+events_filter = EventWhereInput(
+    AND=[
+        # Time window
+        EventWhereInput(created_at=DateTimeFilter(gte="2024-01-01T00:00:00Z")),
+        # Geographic constraint
+        EventWhereInput(region=StringFilter(in_=["us-east", "us-west", "eu-central"])),
+        # Status filtering with exclusions
+        EventWhereInput(
+            NOT=EventWhereInput(
+                OR=[
+                    EventWhereInput(status=StringFilter(eq="cancelled")),
+                    EventWhereInput(status=StringFilter(eq="expired")),
+                ]
+            )
+        )
+    ]
+)
+```
+
+### Testing Complex Filters
+
+```python
+@pytest.mark.asyncio
+async def test_complex_network_audit_query(graphql_client):
+    """Test the complex DNS server audit query."""
+
+    query = """
+        query ComplexNetworkAudit(
+            $where: DnsServerWhereInput
+        ) {
+            dnsServers(where: $where) {
+                id
+                identifier
+                ipAddress
+                nTotalAllocations
+            }
+        }
+    """
+
+    # Use the complex filter from above
+    variables = {"where": complex_filter.to_dict()}
+
+    result = await graphql_client.execute(query, variables=variables)
+
+    assert "errors" not in result
+    servers = result["data"]["dnsServers"]
+
+    # Validate business logic
+    for server in servers:
+        identifier = server["identifier"]
+        ip = server["ipAddress"]
+        allocations = server["nTotalAllocations"]
+
+        # Should match at least one inclusion criteria
+        is_production = any(keyword in identifier for keyword in ["delete", "prod", "server"]) and allocations > 2
+        is_dev_range = ip.startswith("21.43") or ip.startswith("21.44")
+        is_utility = any(keyword in identifier for keyword in ["utility", "service", "config"]) and 1 <= allocations <= 10
+
+        assert is_production or is_dev_range or is_utility
+
+        # Should not match exclusion criteria
+        assert not any(identifier.endswith(suffix) for suffix in ["_3", "_4", "_5", "_6"])
+        assert not ip.startswith("192.168.1.")
+```
+
+### Performance Optimization for Complex Queries
+
+#### Index Strategy
+
+```sql
+-- Support string pattern matching
+CREATE INDEX idx_dns_server_identifier_gin
+ON tb_dns_server USING gin(to_tsvector('english', data->>'identifier'));
+
+-- Support numeric comparisons
+CREATE INDEX idx_dns_server_allocations
+ON tb_dns_server ((data->>'n_total_allocations')::numeric);
+
+-- Support network operations
+CREATE INDEX idx_dns_server_ip
+ON tb_dns_server ((data->>'ip_address')::inet);
+
+-- Composite index for common combinations
+CREATE INDEX idx_dns_server_composite
+ON tb_dns_server (
+    ((data->>'identifier')),
+    ((data->>'n_total_allocations')::numeric),
+    ((data->>'ip_address')::inet)
+);
+```
+
+#### Query Optimization Tips
+
+1. **Filter Ordering**: Place most selective filters first
+2. **Index Usage**: Ensure GIN indexes exist for JSONB text search
+3. **Network Functions**: Use PostgreSQL native inet operations
+4. **Type Casting**: Explicit casting helps query planner
+5. **Logical Grouping**: Group related conditions to leverage indexes
+
+This advanced example demonstrates FraiseQL's capability to handle enterprise-level filtering requirements with clean, maintainable code while generating optimized PostgreSQL queries.
 
 ## Next Steps
 

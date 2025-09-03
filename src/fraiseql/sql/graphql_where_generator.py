@@ -168,6 +168,18 @@ class NetworkAddressFilter:
     isIPv4: bool | None = None  # IPv4 address  # noqa: N815
     isIPv6: bool | None = None  # IPv6 address  # noqa: N815
 
+    # Advanced network classification (v0.6.1+)
+    isLoopback: bool | None = None  # Loopback address (127.0.0.1, ::1)  # noqa: N815
+    isMulticast: bool | None = None  # Multicast address (224.0.0.0/4, ff00::/8)  # noqa: N815
+    isBroadcast: bool | None = None  # Broadcast address (255.255.255.255)  # noqa: N815
+    isLinkLocal: bool | None = None  # Link-local address (169.254.0.0/16, fe80::/10)  # noqa: N815
+    isDocumentation: bool | None = None  # RFC 3849/5737 documentation ranges  # noqa: N815
+    isReserved: bool | None = None  # Reserved/unspecified address (0.0.0.0, ::)  # noqa: N815
+    isCarrierGrade: bool | None = None  # Carrier-Grade NAT (100.64.0.0/10)  # noqa: N815
+    isSiteLocal: bool | None = None  # Site-local IPv6 (fec0::/10 - deprecated)  # noqa: N815
+    isUniqueLocal: bool | None = None  # Unique local IPv6 (fc00::/7)  # noqa: N815
+    isGlobalUnicast: bool | None = None  # Global unicast address  # noqa: N815
+
     # Intentionally excludes: contains, startswith, endswith
 
 
@@ -344,8 +356,21 @@ def _convert_graphql_input_to_where_type(graphql_input: Any, target_class: type)
         for field_name in graphql_input.__gql_fields__:
             filter_value = getattr(graphql_input, field_name)
             if filter_value is not None:
+                # Handle logical operators specially
+                if field_name in ("OR", "AND"):
+                    # These are lists of WhereInput objects
+                    if isinstance(filter_value, list):
+                        converted_list = []
+                        for item in filter_value:
+                            if hasattr(item, "_to_sql_where"):
+                                converted_list.append(item._to_sql_where())
+                        setattr(where_obj, field_name, converted_list)
+                elif field_name == "NOT":
+                    # This is a single WhereInput object
+                    if hasattr(filter_value, "_to_sql_where"):
+                        setattr(where_obj, field_name, filter_value._to_sql_where())
                 # Check if this is a nested where input
-                if hasattr(filter_value, "_target_class") and hasattr(
+                elif hasattr(filter_value, "_target_class") and hasattr(
                     filter_value, "_to_sql_where"
                 ):
                     # Convert nested where input recursively
@@ -363,8 +388,21 @@ def _convert_graphql_input_to_where_type(graphql_input: Any, target_class: type)
     elif hasattr(graphql_input, "__dict__"):
         for field_name, filter_value in graphql_input.__dict__.items():
             if filter_value is not None:
+                # Handle logical operators specially
+                if field_name in ("OR", "AND"):
+                    # These are lists of WhereInput objects
+                    if isinstance(filter_value, list):
+                        converted_list = []
+                        for item in filter_value:
+                            if hasattr(item, "_to_sql_where"):
+                                converted_list.append(item._to_sql_where())
+                        setattr(where_obj, field_name, converted_list)
+                elif field_name == "NOT":
+                    # This is a single WhereInput object
+                    if hasattr(filter_value, "_to_sql_where"):
+                        setattr(where_obj, field_name, filter_value._to_sql_where())
                 # Check if this is a nested where input
-                if hasattr(filter_value, "_target_class") and hasattr(
+                elif hasattr(filter_value, "_target_class") and hasattr(
                     filter_value, "_to_sql_where"
                 ):
                     # Convert nested where input recursively
@@ -452,6 +490,22 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
 
         # Generate class name
         class_name = name or f"{cls.__name__}WhereInput"
+
+        # Add logical operators fields using safer types for GraphQL schema generation
+        # These will work at runtime but won't break GraphQL type conversion
+        logical_fields = [
+            ("OR", Optional[list], None),
+            ("AND", Optional[list], None),
+            (
+                "NOT",
+                Optional[dict],
+                None,
+            ),  # Use dict instead of object for better GraphQL compatibility
+        ]
+
+        # Add logical operators to field definitions
+        field_definitions.extend(logical_fields)
+        field_defaults.update({field_name: default for field_name, _, default in logical_fields})
 
         # Create the dataclass
         WhereInputClass = make_dataclass(
