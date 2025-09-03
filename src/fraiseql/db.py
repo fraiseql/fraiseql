@@ -1172,6 +1172,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             if field_filter is None:
                 continue
 
+            # Convert GraphQL field names to database field names
+            db_field_name = self._convert_field_name_to_database(field_name)
+
             if isinstance(field_filter, dict):
                 # Handle operator-based filtering: {'contains': 'router', 'gt': 10}
                 field_conditions = []
@@ -1180,8 +1183,8 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     if value is None:
                         continue
 
-                    # Build SQL condition using the same pattern as where_generator.py
-                    condition_sql = self._build_dict_where_condition(field_name, operator, value)
+                    # Build SQL condition using converted database field name
+                    condition_sql = self._build_dict_where_condition(db_field_name, operator, value)
                     if condition_sql:
                         field_conditions.append(condition_sql)
 
@@ -1200,7 +1203,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
 
             else:
                 # Handle simple equality: {'status': 'active'}
-                condition_sql = self._build_dict_where_condition(field_name, "eq", field_filter)
+                condition_sql = self._build_dict_where_condition(db_field_name, "eq", field_filter)
                 if condition_sql:
                     conditions.append(condition_sql)
 
@@ -1301,3 +1304,29 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
 
         # Generate basic condition
         return basic_operators[operator](path_sql, value)
+
+    def _convert_field_name_to_database(self, field_name: str) -> str:
+        """Convert GraphQL field name to database field name.
+
+        Automatically converts camelCase to snake_case while preserving
+        existing snake_case names for backward compatibility.
+
+        Args:
+            field_name: GraphQL field name (camelCase or snake_case)
+
+        Returns:
+            Database field name in snake_case
+
+        Examples:
+            'ipAddress' -> 'ip_address'
+            'status' -> 'status' (unchanged)
+        """
+        if not field_name or not isinstance(field_name, str):
+            return field_name or ""
+
+        # Preserve existing snake_case for backward compatibility
+        if "_" in field_name:
+            return field_name
+
+        # Convert camelCase to snake_case
+        return to_snake_case(field_name)
