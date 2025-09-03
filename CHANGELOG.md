@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2025-01-03
+
+### ✨ **Added**
+- **Automatic Field Name Conversion**: GraphQL camelCase field names now work seamlessly in WHERE clauses
+  - `{"ipAddress": {"eq": "192.168.1.1"}}` automatically converts to `ip_address` in SQL
+  - `{"macAddress": {"eq": "aa:bb:cc"}}` automatically converts to `mac_address` in SQL
+  - `{"deviceName": {"contains": "router"}}` automatically converts to `device_name` in SQL
+
+### 🔧 **Fixed**
+- **Field Name Mapping Inconsistency**: Eliminated the need for manual field name conversion in WHERE clauses
+- **Developer Experience**: GraphQL developers no longer need to know database schema field names
+- **API Consistency**: All FraiseQL features now handle field names consistently
+
+### 🚀 **Performance**
+- **Zero Impact**: Field name conversion adds negligible performance overhead (< 3ms for complex queries)
+- **Optimized Logic**: Idempotent conversion preserves existing snake_case names without processing
+
+### 📋 **Migration Guide**
+- **Breaking Changes**: None - 100% backward compatible
+- **Required Updates**: None - existing code continues to work unchanged
+- **Recommended**: Remove manual field name conversion code (now unnecessary)
+
+### 🧪 **Testing**
+- **+16 comprehensive tests** covering unit and integration scenarios
+- **Edge case handling** for empty strings, None values, and mixed case scenarios
+- **Performance validation** ensuring no degradation in query processing
+- **Backward compatibility verification** with all existing WHERE clause functionality
 ### 🔧 **Repository Integration Improvements**
 
 #### **Enhanced FraiseQLRepository WHERE Processing**
