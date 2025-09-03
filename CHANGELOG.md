@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 **Repository Integration Improvements**
+
+#### **Enhanced FraiseQLRepository WHERE Processing**
+- **Fixed**: `FraiseQLRepository.find()` now properly uses operator strategy system instead of primitive SQL templates
+- **Enabled**: Complete integration with v0.7.1 IP filtering fixes through repository layer
+- **Added**: Comprehensive repository integration tests for ALL specialized types (IP, MAC, LTree, Port, DateRange, etc.)
+- **Improved**: SQL injection protection via field name escaping
+- **Enhanced**: Error handling with graceful fallback to basic condition building
+
+#### **📊 Test Coverage Expansion**
+- **+15 new integration tests** verifying repository layer works with specialized types
+- **2,826 total tests passing** (expanded from 2,811)
+- **Complete verification** that operator strategies work through `FraiseQLRepository.find()`
+- **Fallback behavior testing** ensures graceful degradation for unsupported operators
+
+#### **🎯 Production Impact**
+- ✅ All GraphQL queries with specialized type filtering now work through repository layer
+- ✅ PrintOptim Backend and similar applications fully operational
+- ✅ Complete specialized type support: IP addresses, MAC addresses, LTree paths, ports, date ranges, CIDR networks, hostnames, emails
+- ✅ Maintains backward compatibility with existing repository usage patterns
+
 ## [0.7.1] - 2025-09-03
 
 ### 🚨 **Critical Production Fix: IP Filtering in CQRS Patterns**
