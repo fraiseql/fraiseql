@@ -140,7 +140,7 @@ class TestRepositoryFindWhereProcessing:
 
         print(f"\nCorrect operator strategy SQL: {sql_str}")
 
-        # This should have INET casting (v0.7.1 fix)
+        # This should have INET casting (v0.7.2 fix)
         has_inet_casting = "::inet" in sql_str
         print(f"Has INET casting: {has_inet_casting}")
 
