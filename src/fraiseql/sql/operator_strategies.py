@@ -398,9 +398,21 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
         field_type: type | None = None,
     ) -> Composed:
         """Build SQL for comparison operators."""
-        path_sql = self._apply_type_cast(path_sql, val, op, field_type)
+        casted_path = self._apply_type_cast(path_sql, val, op, field_type)
         sql_op = self.operator_map[op]
-        return Composed([path_sql, SQL(sql_op), Literal(val)])
+
+        # CRITICAL FIX: If we detected IP address and cast the field to ::inet,
+        # we must also cast the literal value to ::inet for PostgreSQL compatibility
+        if (
+            not field_type  # Only when field_type is missing (production CQRS pattern)
+            and op in ("eq", "neq")
+            and self._looks_like_ip_address_value(val, op)
+            and casted_path != path_sql  # Path was modified
+            and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
+        ):
+            return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::inet")])
+
+        return Composed([casted_path, SQL(sql_op), Literal(val)])
 
 
 class JsonOperatorStrategy(BaseOperatorStrategy):
@@ -495,6 +507,15 @@ class ListOperatorStrategy(BaseOperatorStrategy):
         # Apply type-specific casting (including IP address handling)
         casted_path = self._apply_type_cast(path_sql, val[0] if val else None, op, field_type)
 
+        # CRITICAL FIX: Detect if we're dealing with IP addresses without field_type
+        is_ip_list_without_field_type = (
+            not field_type  # Production CQRS pattern
+            and val  # List is not empty
+            and self._looks_like_ip_address_value(val, op)  # Detects IP lists
+            and casted_path != path_sql  # Path was modified
+            and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
+        )
+
         # Check if we need numeric casting (but not for IP addresses)
         if not (field_type and self._is_ip_address_type(field_type)):
             if val and all(isinstance(v, (int, float, Decimal)) for v in val):
@@ -503,7 +524,11 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             else:
                 # Convert booleans to strings for JSONB text comparison
                 converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
-                literals = [Literal(v) for v in converted_vals]
+                if is_ip_list_without_field_type:
+                    # For IP addresses detected without field_type, use original values
+                    literals = [Literal(v) for v in val]
+                else:
+                    literals = [Literal(v) for v in converted_vals]
         else:
             # For IP addresses, use string literals
             literals = [Literal(str(v)) for v in val]
@@ -516,6 +541,9 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             if i > 0:
                 parts.append(SQL(", "))
             parts.append(lit)
+            # CRITICAL FIX: Cast each literal to ::inet if we detected IP addresses
+            if is_ip_list_without_field_type:
+                parts.append(SQL("::inet"))
 
         parts.append(SQL(")"))
         return Composed(parts)
