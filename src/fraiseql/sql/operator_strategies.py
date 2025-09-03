@@ -407,7 +407,8 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
             not field_type  # Only when field_type is missing (production CQRS pattern)
             and op in ("eq", "neq")
             and self._looks_like_ip_address_value(val, op)
-            and casted_path != path_sql  # Path was modified (cast to inet)
+            and casted_path != path_sql  # Path was modified
+            and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
         ):
             return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::inet")])
 
@@ -511,7 +512,8 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             not field_type  # Production CQRS pattern
             and val  # List is not empty
             and self._looks_like_ip_address_value(val, op)  # Detects IP lists
-            and casted_path != path_sql  # Path was modified (cast to inet)
+            and casted_path != path_sql  # Path was modified
+            and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
         )
 
         # Check if we need numeric casting (but not for IP addresses)
