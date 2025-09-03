@@ -158,6 +158,9 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 /private/
+*debug*.py
+test_*.py
+!tests/
 
 # Benchmark results
 benchmarks/performance-benchmarks/results-aggregator/*.json

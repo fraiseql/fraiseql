@@ -968,7 +968,8 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
 class NetworkOperatorStrategy(BaseOperatorStrategy):
     """Strategy for network-specific operators with 100% functionality.
 
-    Enhanced network operations available since v0.6.0+, expanded in v0.7.0.
+    Enhanced network operations available since v0.6.0+, expanded in v0.7.0,
+    critical fixes in v0.7.1.
     """
 
     def __init__(self) -> None:
