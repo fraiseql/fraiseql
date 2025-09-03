@@ -1,7 +1,7 @@
 name: Quality Gate
 
-# This workflow provides comprehensive quality checks that must pass
-# before any code can be merged to main or released
+# Comprehensive quality checks for all PR and main branch protection
+# This is the single unified workflow replacing legacy test/lint/security workflows
 on:
   push:
     branches: [ main, dev ]
@@ -54,27 +54,14 @@ jobs:
         echo "Installing with uv (bypassing pip caching issues)..."
         uv pip install --system -e ".[dev,all]" --no-cache
 
-    - name: Debug CI Environment
+    - name: Verify Environment
       run: |
-        echo "=== CI Environment Debug Info ==="
+        echo "=== Environment Verification ==="
         python --version
-        pip --version
         uv --version
-        postgres --version || echo "Direct postgres command not available"
         pytest --version
-        echo "Available disk space:"
-        df -h | head -10
-        echo "Python environment info:"
-        python -c "import sys; print(f'Python: {sys.executable}'); print(f'Sys path: {sys.path[:3]}...')"
-        echo "PostgreSQL service status:"
         pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
-        echo "Database connection test:"
         python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
-        echo "Critical packages installed:"
-        pip list | grep -E "(pytest|psycopg|fraiseql|coverage)" || echo "No matching packages found"
-        echo "Pytest collection test:"
-        pytest --collect-only tests/integration/database/sql/test_jsonb_network_filtering_bug.py -q || echo "❌ Collection failed"
-        echo "================================="
 
     - name: Run core tests
       env:
@@ -92,24 +79,16 @@ jobs:
         printenv | grep -E "(DATABASE_URL|DB_|PYTEST_)" || echo "No relevant env vars"
         echo "Running pytest with explicit configuration..."
 
-        # Run with more explicit options to avoid any caching issues
-        # Note: Coverage removed from Quality Gate - handled by Test (Legacy) workflow
         python -m pytest tests/ \
+          --cov=src/fraiseql \
+          --cov-report=xml \
+          --cov-report=term-missing \
           -v \
           -m "not blog_simple and not blog_enterprise" \
           --tb=short \
           --disable-warnings \
           || {
             echo "❌ Core tests failed with exit code $?"
-            echo "=== Test failure details ==="
-            echo "Last few lines of pytest output (if available):"
-            tail -20 ~/.pytest_cache/README.md 2>/dev/null || echo "No pytest cache info available"
-            echo "This typically indicates either:"
-            echo "1. Database connection issues"
-            echo "2. Missing dependencies"
-            echo "3. Test environment setup problems"
-            echo "4. Python version compatibility issues"
-            echo "5. CI infrastructure/caching issues"
             exit 1
           }
         echo "✅ Core tests completed successfully"
@@ -162,8 +141,14 @@ jobs:
         }
         echo "✅ Example integration tests completed successfully"
 
-    # Note: Coverage upload handled by Test (Legacy) workflow
-    # Quality Gate focuses on test execution validation only
+    - name: Upload coverage
+      uses: codecov/codecov-action@v5
+      with:
+        files: ./coverage.xml
+        flags: unittests
+        name: Python-3.13
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     name: Lint
@@ -182,6 +167,11 @@ jobs:
       run: ruff check .
     - name: Run ruff format check
       run: ruff format --check .
+    - name: Run type checker
+      run: |
+        pip install pyright
+        pyright src/
+      continue-on-error: true
 
   security:
     name: Security
@@ -196,8 +186,18 @@ jobs:
       uses: astral-sh/setup-uv@v6
     - name: Install dependencies
       run: uv pip install --system -e ".[dev]"
-    - name: Run bandit
-      run: bandit -r src/ -f json || true
+    - name: Run bandit security scan
+      run: |
+        pip install bandit
+        bandit -r src/ -f json || true
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+        severity: 'CRITICAL,HIGH'
+      continue-on-error: true
 
   # Quality gate summary job - this job fails if any quality check fails
   quality-gate:
