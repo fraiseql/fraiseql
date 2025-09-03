@@ -1223,136 +1223,81 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
     def _build_dict_where_condition(
         self, field_name: str, operator: str, value: Any
     ) -> Composed | None:
-        """Build a single WHERE condition from field, operator, and value.
+        """Build a single WHERE condition using FraiseQL's operator strategy system.
+
+        This method now uses the sophisticated operator strategy system instead of
+        primitive SQL templates, enabling features like IP address type casting,
+        MAC address handling, and other advanced field type detection.
 
         Args:
-            field_name: Database field name
+            field_name: Database field name (e.g., 'ip_address', 'port', 'status')
             operator: Filter operator (eq, contains, gt, in, etc.)
             value: Filter value
 
         Returns:
-            Composed SQL condition or None if operator not supported
+            Composed SQL condition with intelligent type casting, or None if operator not supported
+        """
+        from psycopg.sql import SQL
+
+        from fraiseql.sql.operator_strategies import get_operator_registry
+
+        try:
+            # Get the operator strategy registry (contains the v0.7.1 IP filtering fixes)
+            registry = get_operator_registry()
+
+            # Build JSONB path expression: (data->>'field_name')
+            # Note: Using ->> to get text value from JSONB, strategy will cast as needed
+            # Escape single quotes to prevent SQL injection
+            escaped_field_name = field_name.replace("'", "''")
+            path_sql = SQL(f"(data->>'{escaped_field_name}')")
+
+            # Get the appropriate strategy for this operator
+            # field_type=None triggers fallback detection (IP addresses, MAC addresses, etc.)
+            strategy = registry.get_strategy(operator, field_type=None)
+
+            if strategy is None:
+                # Operator not supported by strategy system, fall back to basic handling
+                return self._build_basic_dict_condition(field_name, operator, value)
+
+            # Use the strategy to build intelligent SQL with type detection
+            # This is where the IP filtering fixes from v0.7.1 are applied
+            sql_condition = strategy.build_sql(path_sql, operator, value, field_type=None)
+
+            return sql_condition
+
+        except Exception as e:
+            # If strategy system fails, fall back to basic condition building
+            logger.warning(f"Operator strategy failed for {field_name} {operator} {value}: {e}")
+            return self._build_basic_dict_condition(field_name, operator, value)
+
+    def _build_basic_dict_condition(
+        self, field_name: str, operator: str, value: Any
+    ) -> Composed | None:
+        """Fallback method for basic WHERE condition building.
+
+        This provides basic SQL generation when the operator strategy system
+        is not available or fails. Used as a safety fallback.
         """
         from psycopg.sql import SQL, Composed, Literal
 
-        # Map operators to SQL - using the same patterns from the existing codebase
-        operator_templates = {
-            # String operators
-            "eq": "({path}) = {value}",
-            "neq": "({path}) != {value}",
-            "contains": "({path}) ILIKE {value}",
-            "startswith": "({path}) ILIKE {value}",
-            "endswith": "({path}) ILIKE {value}",
-            "in": "({path}) = ANY({value})",
-            "nin": "({path}) != ALL({value})",
-            "isnull": "({path}) IS NULL",
-            # Numeric operators
-            "gt": "({path})::numeric > {value}",
-            "gte": "({path})::numeric >= {value}",
-            "lt": "({path})::numeric < {value}",
-            "lte": "({path})::numeric <= {value}",
-            # Network operators (basic support)
-            "isPrivate": (
-                "inet({path}) << '10.0.0.0/8'::inet OR "
-                "inet({path}) << '172.16.0.0/12'::inet OR "
-                "inet({path}) << '192.168.0.0/16'::inet"
-            ),
-            "isPublic": (
-                "NOT (inet({path}) << '10.0.0.0/8'::inet OR "
-                "inet({path}) << '172.16.0.0/12'::inet OR "
-                "inet({path}) << '192.168.0.0/16'::inet)"
+        # Basic operator templates for fallback scenarios
+        basic_operators = {
+            "eq": lambda path, val: Composed([path, SQL(" = "), Literal(val)]),
+            "neq": lambda path, val: Composed([path, SQL(" != "), Literal(val)]),
+            "gt": lambda path, val: Composed([path, SQL("::numeric > "), Literal(val)]),
+            "gte": lambda path, val: Composed([path, SQL("::numeric >= "), Literal(val)]),
+            "lt": lambda path, val: Composed([path, SQL("::numeric < "), Literal(val)]),
+            "lte": lambda path, val: Composed([path, SQL("::numeric <= "), Literal(val)]),
+            "isnull": lambda path, val: Composed(
+                [path, SQL(" IS NULL" if val else " IS NOT NULL")]
             ),
         }
 
-        if operator not in operator_templates:
+        if operator not in basic_operators:
             return None
 
-        # Build JSONB path expression: (data ->> 'field_name')
+        # Build JSONB path expression
         path_sql = Composed([SQL("(data ->> "), Literal(field_name), SQL(")")])
 
-        # Get template for reference (not used directly)
-        _ = operator_templates[operator]
-
-        # Handle special operators that don't need values
-        if operator == "isnull":
-            if value:  # IS NULL
-                return Composed([path_sql, SQL(" IS NULL")])
-            # IS NOT NULL
-            return Composed([path_sql, SQL(" IS NOT NULL")])
-
-        # Handle network operators that don't use parameterized values
-        if operator in ("isPrivate", "isPublic"):
-            if operator == "isPrivate" and value:
-                return Composed(
-                    [
-                        SQL("(inet("),
-                        path_sql,
-                        SQL(") << '10.0.0.0/8'::inet OR inet("),
-                        path_sql,
-                        SQL(") << '172.16.0.0/12'::inet OR inet("),
-                        path_sql,
-                        SQL(") << '192.168.0.0/16'::inet)"),
-                    ]
-                )
-            if operator == "isPublic" and value:
-                return Composed(
-                    [
-                        SQL("NOT (inet("),
-                        path_sql,
-                        SQL(") << '10.0.0.0/8'::inet OR inet("),
-                        path_sql,
-                        SQL(") << '172.16.0.0/12'::inet OR inet("),
-                        path_sql,
-                        SQL(") << '192.168.0.0/16'::inet)"),
-                    ]
-                )
-            return None
-
-        # Handle string pattern operators
-        if operator in ("contains", "startswith", "endswith"):
-            if operator == "contains":
-                pattern_value = f"%{value}%"
-            elif operator == "startswith":
-                pattern_value = f"{value}%"
-            elif operator == "endswith":
-                pattern_value = f"%{value}"
-
-            return Composed([path_sql, SQL(" ILIKE "), Literal(pattern_value)])
-
-        # Handle array operators
-        if operator in ("in", "nin"):
-            if not isinstance(value, (list, tuple)):
-                value = [value]  # Convert single value to list
-
-            if operator == "in":
-                return Composed([path_sql, SQL(" = ANY("), Literal(value), SQL(")")])
-            # nin
-            return Composed([path_sql, SQL(" != ALL("), Literal(value), SQL(")")])
-
-        # Handle standard operators with parameterized values
-        value_sql = Literal(value)
-
-        if operator in ("gt", "gte", "lt", "lte"):
-            # Numeric operators need casting
-            return Composed(
-                [
-                    SQL("("),
-                    path_sql,
-                    SQL(")::numeric "),
-                    SQL(
-                        " > "
-                        if operator == "gt"
-                        else " >= "
-                        if operator == "gte"
-                        else " < "
-                        if operator == "lt"
-                        else " <= "
-                    ),
-                    value_sql,
-                ]
-            )
-        # String equality operators
-        op_sql = SQL(" = " if operator == "eq" else " != ")
-        return Composed([path_sql, op_sql, value_sql])
-
-        return None
+        # Generate basic condition
+        return basic_operators[operator](path_sql, value)
