@@ -1,11 +1,9 @@
 # FraiseQL
 
-[![Test](https://github.com/fraiseql/fraiseql/actions/workflows/test.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/test.yml)
-[![Lint](https://github.com/fraiseql/fraiseql/actions/workflows/lint.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/lint.yml)
-[![Security](https://github.com/fraiseql/fraiseql/actions/workflows/security.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/security.yml)
+[![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
-[![PyPI version](https://badge.fury.io/py/fraiseql.svg)](https://pypi.org/project/fraiseql/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/fraiseql.svg)](https://pypi.org/project/fraiseql/)
+[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A high-performance GraphQL-to-PostgreSQL framework with **database-native camelCase transformation**, automatic type generation, built-in caching, and comprehensive security features. **The world's first GraphQL framework with intelligent database-native field transformation.**

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2025-01-04
+
+### 🔧 **Release Infrastructure & Quality Improvements**
+
+#### **🎯 PyPI & Badge Management**
+- **Fixed GitHub Workflow Badges**: Updated README badges to reference `quality-gate.yml` instead of deprecated individual workflow files
+- **Enhanced Release Process**: Streamlined version management across all components for cleaner PyPI releases
+- **Branch Synchronization**: Aligned main branch with latest dev improvements for production-ready releases
+
+#### **📦 Version Consistency**
+- **Unified Versioning**: Consistent v0.7.5 across `__init__.py`, CLI, and `pyproject.toml`
+- **Release Automation**: Improved release branch workflow for main branch PRs
+- **Quality Assurance**: Enhanced badge accuracy reflecting actual CI/CD pipeline status
+
 ## [0.5.0] - 2025-08-23
 
 ### 🚀 **Major Release: Ultimate PrintOptim Integration & Zero-Inheritance Pattern**
@@ -23,7 +37,7 @@ from fraiseql import MutationResultBase
 class CreateUserSuccess(MutationResultBase):  # Inheritance required
     user: dict | None = None
 
-@fraiseql.failure  
+@fraiseql.failure
 class CreateUserError(MutationResultBase):   # Inheritance required
     conflict_user: dict | None = None
 ```
@@ -55,7 +69,7 @@ class CreateUserError:    # Just your fields!
 - **Added**: Built-in `Error` type exported from main `fraiseql` module
 - **Added**: `MutationResultBase` type (still available but not required thanks to auto-injection)
 - **Enhanced**: `DEFAULT_ERROR_CONFIG` with PrintOptim-friendly patterns:
-  - Success keywords: `"created"`, `"cancelled"` 
+  - Success keywords: `"created"`, `"cancelled"`
   - Error-as-data prefixes: `"duplicate:"` (in addition to `"noop:"`, `"blocked:"`)
 
 #### **🎯 PrintOptim Integration Impact**
@@ -101,7 +115,7 @@ class CreateUserError:    # Just your fields!
 
 #### **Testing & Verification**
 - **Added**: Comprehensive integration tests (`test_graphql_error_serialization.py`)
-- **Added**: Extensive unit tests (`test_fraise_type_json_serialization.py`) 
+- **Added**: Extensive unit tests (`test_fraise_type_json_serialization.py`)
 - **Verified**: All existing tests continue to pass (no regressions)
 - **Confirmed**: Bug reproduction cases now work correctly
 
