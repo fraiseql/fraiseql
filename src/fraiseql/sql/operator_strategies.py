@@ -966,10 +966,23 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
 
 
 class NetworkOperatorStrategy(BaseOperatorStrategy):
-    """Strategy for network-specific operators with 100% functionality.
+    """Strategy for network-specific operators with comprehensive IP address classification.
 
-    Enhanced network operations available since v0.6.0+, expanded in v0.7.0,
-    critical fixes in v0.7.1.
+    Provides complete network analysis capabilities for IP address fields:
+
+    Core Operations (v0.6.0+):
+    - Basic: eq, neq, in, notin, nin
+    - Subnet: inSubnet, inRange
+    - Classification: isPrivate, isPublic, isIPv4, isIPv6
+
+    Enhanced Operations (v0.7.3+):
+    - Loopback: isLoopback (RFC 3330/4291)
+    - Link-local: isLinkLocal (RFC 3927/4291)
+    - Multicast: isMulticast (RFC 3171/4291)
+    - Documentation: isDocumentation (RFC 5737/3849)
+    - Carrier-grade: isCarrierGrade (RFC 6598)
+
+    All operators support both IPv4 and IPv6 addresses where applicable.
     """
 
     def __init__(self) -> None:
@@ -987,6 +1000,11 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
                 "isPublic",
                 "isIPv4",
                 "isIPv6",  # Network-specific operations
+                "isLoopback",
+                "isLinkLocal",
+                "isMulticast",
+                "isDocumentation",
+                "isCarrierGrade",  # Enhanced network-specific operations
             ]
         )
 
@@ -1000,7 +1018,19 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             return False
 
         # Define network-specific operators that we can safely handle without field type info
-        network_specific_ops = {"inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"}
+        network_specific_ops = {
+            "inSubnet",
+            "inRange",
+            "isPrivate",
+            "isPublic",
+            "isIPv4",
+            "isIPv6",
+            "isLoopback",
+            "isLinkLocal",
+            "isMulticast",
+            "isDocumentation",
+            "isCarrierGrade",
+        }
 
         # If no field type provided, only handle network-specific operators
         # Generic operators (eq, neq, in, notin) should go to appropriate generic strategies
@@ -1194,6 +1224,139 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
             if val:
                 return Composed([SQL("family("), casted_path, SQL(") = 6")])
             return Composed([SQL("family("), casted_path, SQL(") != 6")])
+
+        if op == "isLoopback":
+            # RFC 3330 (IPv4) / RFC 4291 (IPv6) loopback addresses
+            # IPv4: 127.0.0.0/8, IPv6: ::1/128
+            if val:
+                return Composed(
+                    [
+                        SQL("("),
+                        casted_path,
+                        SQL(" <<= '127.0.0.0/8'::inet OR "),
+                        casted_path,
+                        SQL(" = '::1'::inet"),
+                        SQL(")"),
+                    ]
+                )
+            # isLoopback=False: NOT (IPv4 loopback OR IPv6 loopback)
+            return Composed(
+                [
+                    SQL("NOT ("),
+                    casted_path,
+                    SQL(" <<= '127.0.0.0/8'::inet OR "),
+                    casted_path,
+                    SQL(" = '::1'::inet"),
+                    SQL(")"),
+                ]
+            )
+
+        if op == "isLinkLocal":
+            # RFC 3927 (IPv4) / RFC 4291 (IPv6) link-local addresses
+            # IPv4: 169.254.0.0/16 (APIPA), IPv6: fe80::/10
+            if val:
+                return Composed(
+                    [
+                        SQL("("),
+                        casted_path,
+                        SQL(" <<= '169.254.0.0/16'::inet OR "),
+                        casted_path,
+                        SQL(" <<= 'fe80::/10'::inet"),
+                        SQL(")"),
+                    ]
+                )
+            # isLinkLocal=False: NOT (IPv4 link-local OR IPv6 link-local)
+            return Composed(
+                [
+                    SQL("NOT ("),
+                    casted_path,
+                    SQL(" <<= '169.254.0.0/16'::inet OR "),
+                    casted_path,
+                    SQL(" <<= 'fe80::/10'::inet"),
+                    SQL(")"),
+                ]
+            )
+
+        if op == "isMulticast":
+            # RFC 3171 (IPv4) / RFC 4291 (IPv6) multicast addresses
+            # IPv4: 224.0.0.0/4, IPv6: ff00::/8
+            if val:
+                return Composed(
+                    [
+                        SQL("("),
+                        casted_path,
+                        SQL(" <<= '224.0.0.0/4'::inet OR "),
+                        casted_path,
+                        SQL(" <<= 'ff00::/8'::inet"),
+                        SQL(")"),
+                    ]
+                )
+            # isMulticast=False: NOT (IPv4 multicast OR IPv6 multicast)
+            return Composed(
+                [
+                    SQL("NOT ("),
+                    casted_path,
+                    SQL(" <<= '224.0.0.0/4'::inet OR "),
+                    casted_path,
+                    SQL(" <<= 'ff00::/8'::inet"),
+                    SQL(")"),
+                ]
+            )
+
+        if op == "isDocumentation":
+            # RFC 5737 (IPv4) / RFC 3849 (IPv6) documentation addresses
+            # IPv4: 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24
+            # IPv6: 2001:db8::/32
+            if val:
+                return Composed(
+                    [
+                        SQL("("),
+                        casted_path,
+                        SQL(" <<= '192.0.2.0/24'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '198.51.100.0/24'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '203.0.113.0/24'::inet OR "),
+                        casted_path,
+                        SQL(" <<= '2001:db8::/32'::inet"),
+                        SQL(")"),
+                    ]
+                )
+            # isDocumentation=False: NOT (any documentation range)
+            return Composed(
+                [
+                    SQL("NOT ("),
+                    casted_path,
+                    SQL(" <<= '192.0.2.0/24'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '198.51.100.0/24'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '203.0.113.0/24'::inet OR "),
+                    casted_path,
+                    SQL(" <<= '2001:db8::/32'::inet"),
+                    SQL(")"),
+                ]
+            )
+
+        if op == "isCarrierGrade":
+            # RFC 6598 Carrier-Grade NAT addresses
+            # IPv4: 100.64.0.0/10 (IPv6 has no equivalent)
+            if val:
+                return Composed(
+                    [
+                        casted_path,
+                        SQL(" <<= '100.64.0.0/10'::inet"),
+                    ]
+                )
+            # isCarrierGrade=False: NOT in carrier-grade range
+            return Composed(
+                [
+                    SQL("NOT ("),
+                    casted_path,
+                    SQL(" <<= '100.64.0.0/10'::inet"),
+                    SQL(")"),
+                ]
+            )
 
         raise ValueError(f"Unsupported network operator: {op}")
 

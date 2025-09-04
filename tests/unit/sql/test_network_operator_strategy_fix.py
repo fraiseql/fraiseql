@@ -29,14 +29,16 @@ class TestNetworkOperatorStrategy:
             # Basic comparison operators (newly added)
             "eq", "neq", "in", "notin", "nin",
             # Network-specific operators (existing)
-            "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"
+            "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6",
+            # Enhanced network-specific operators (added)
+            "isLoopback", "isLinkLocal", "isMulticast", "isDocumentation", "isCarrierGrade"
         ]
 
         assert self.strategy.operators == expected_operators
 
     def test_can_handle_network_specific_without_field_type(self):
         """Test that network-specific operators work without field_type."""
-        network_ops = ["inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"]
+        network_ops = ["inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6", "isLoopback", "isLinkLocal", "isMulticast", "isDocumentation", "isCarrierGrade"]
 
         for op in network_ops:
             assert self.strategy.can_handle(op, field_type=None), f"Should handle {op} without field_type"
@@ -50,7 +52,7 @@ class TestNetworkOperatorStrategy:
 
     def test_can_handle_all_operators_with_ip_field_type(self):
         """Test that all operators work with IP address field type."""
-        all_ops = ["eq", "neq", "in", "notin", "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"]
+        all_ops = ["eq", "neq", "in", "notin", "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6", "isLoopback", "isLinkLocal", "isMulticast", "isDocumentation", "isCarrierGrade"]
 
         for op in all_ops:
             assert self.strategy.can_handle(op, field_type=IpAddress), f"Should handle {op} with IpAddress field_type"

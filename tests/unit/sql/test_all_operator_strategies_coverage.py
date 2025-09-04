@@ -67,7 +67,9 @@ class TestAllOperatorStrategiesCoverage:
             # Basic operators (were missing, now added)
             "eq", "neq", "in", "notin", "nin",
             # Network-specific operators (were always there)
-            "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"
+            "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6",
+            # Enhanced network-specific operators (newly added)
+            "isLoopback", "isLinkLocal", "isMulticast", "isDocumentation", "isCarrierGrade"
         }
 
         strategy_operators = set(strategy.operators)
