@@ -11,7 +11,7 @@ FraiseQL provides comprehensive network operators for IP address classification 
 - **Subnet**: `inSubnet`, `inRange`
 - **Classification**: `isPrivate`, `isPublic`, `isIPv4`, `isIPv6`
 
-### Enhanced Operations (v0.7.3+)
+### Enhanced Operations (v0.7.4+)
 - **`isLoopback`** - RFC 3330 (IPv4) / RFC 4291 (IPv6)
   - IPv4: `127.0.0.0/8`
   - IPv6: `::1/128`

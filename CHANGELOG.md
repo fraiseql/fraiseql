@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] - 2025-09-04
+
+### ✨ **Added**
+- **Comprehensive Enhanced Network Operators**: 5 new RFC-compliant IP address classification operators
+  - `isLoopback`: RFC 3330/4291 loopback addresses (127.0.0.0/8, ::1/128)
+  - `isLinkLocal`: RFC 3927/4291 link-local addresses (169.254.0.0/16, fe80::/10)
+  - `isMulticast`: RFC 3171/4291 multicast addresses (224.0.0.0/4, ff00::/8)
+  - `isDocumentation`: RFC 5737/3849 documentation addresses (TEST-NET ranges, 2001:db8::/32)
+  - `isCarrierGrade`: RFC 6598 Carrier-Grade NAT addresses (100.64.0.0/10)
+- **Full IPv4/IPv6 Support**: All new operators handle both IP versions where applicable
+- **Comprehensive Documentation**: Complete operator reference with RFC citations and usage examples
+- **TDD Implementation**: RED→GREEN→REFACTOR methodology with comprehensive test coverage
+
+### 🔧 **Enhanced**
+- **Network Operator Strategy**: Extended with 5 additional operators following established patterns
+- **Boolean Logic Support**: All new operators accept true/false for positive/negative filtering
+- **PostgreSQL Integration**: Uses native inet type with subnet containment operators for optimal performance
+- **Test Coverage**: 17 new tests for enhanced operators, 42 total network-related tests passing
+
+### 📖 **Documentation**
+- **Network Operators Guide**: New comprehensive documentation in `docs/network-operators.md`
+- **Design Decision Rationale**: Explains inclusion/exclusion criteria using Marie Kondo approach
+- **Usage Examples**: Complete GraphQL query examples for all new operators
+
+### 🏗️ **Technical**
+- **Backward Compatibility**: All existing functionality preserved
+- **Type Safety**: Proper field type validation and error handling
+- **Code Quality**: Perfect QA scores across all automated checks
+
 ## [0.7.3] - 2025-01-03
 
 ### ✨ **Added**

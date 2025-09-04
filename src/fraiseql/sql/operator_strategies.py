@@ -975,7 +975,7 @@ class NetworkOperatorStrategy(BaseOperatorStrategy):
     - Subnet: inSubnet, inRange
     - Classification: isPrivate, isPublic, isIPv4, isIPv6
 
-    Enhanced Operations (v0.7.3+):
+    Enhanced Operations (v0.7.4+):
     - Loopback: isLoopback (RFC 3330/4291)
     - Link-local: isLinkLocal (RFC 3927/4291)
     - Multicast: isMulticast (RFC 3171/4291)
