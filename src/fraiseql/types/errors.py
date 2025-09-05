@@ -26,3 +26,31 @@ class Error:
     code: int
     identifier: str
     details: Any | None = None
+
+    def __json__(self) -> dict[str, Any]:
+        """Enable JSON serialization for GraphQL responses.
+
+        This method ensures Error objects can be properly serialized in GraphQL
+        responses and other JSON contexts, resolving the serialization issue
+        described in the error report.
+
+        Returns:
+            dict[str, Any]: Dictionary with all error fields for JSON serialization.
+        """
+        return {
+            "message": self.message,
+            "code": self.code,
+            "identifier": self.identifier,
+            "details": self.details,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert Error to dictionary representation.
+
+        Public API for converting Error objects to dictionaries, primarily
+        used for testing and manual serialization scenarios.
+
+        Returns:
+            dict[str, Any]: Dictionary representation of the Error.
+        """
+        return self.__json__()
