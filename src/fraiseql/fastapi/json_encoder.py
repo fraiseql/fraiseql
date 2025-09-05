@@ -44,6 +44,10 @@ class FraiseQLJSONEncoder(json.JSONEncoder):
 
         # Handle FraiseQL types (classes decorated with @fraiseql.type)
         if hasattr(obj, "__fraiseql_definition__"):
+            # Check if the object has a custom __json__ method and use it
+            if hasattr(obj, "__json__") and callable(obj.__json__):
+                return obj.__json__()
+
             # Convert FraiseQL type instance to dictionary using its __dict__
             # This allows proper JSON serialization of @fraiseql.type decorated classes
             obj_dict = {}
