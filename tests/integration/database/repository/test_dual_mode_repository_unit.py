@@ -333,7 +333,8 @@ class TestDualModeRepositoryUnit:
         product_id = uuid4()
         query = repo._build_find_one_query("tv_product", id=product_id)
         assert query.statement is not None
-        # Check that params contain the expected ID
-        assert len(query.params) == 1
-        # The param uses a generated name like param_0
-        assert product_id in query.params.values()
+        # After fix for %r placeholder bug: kwargs are embedded as Literals in Composed SQL
+        assert query.params == {}  # No separate params - values embedded in statement
+        # Verify the statement contains the expected value as Literal
+        statement_str = str(query.statement)
+        assert str(product_id) in statement_str
