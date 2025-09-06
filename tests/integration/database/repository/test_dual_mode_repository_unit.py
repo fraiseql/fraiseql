@@ -311,12 +311,12 @@ class TestDualModeRepositoryUnit:
         product_id = uuid4()
         query = repo._build_find_query("tv_product", id=product_id, status="available")
         assert query.statement is not None
-        # Check that params contain the expected values
-        assert len(query.params) == 2
-        # The params use generated names like param_0, param_1
-        param_values = list(query.params.values())
-        assert product_id in param_values
-        assert "available" in param_values
+        # After fix for %r placeholder bug: kwargs are embedded as Literals in Composed SQL
+        assert query.params == {}  # No separate params - values embedded in statement
+        # Verify the statement contains the expected values as Literals
+        statement_str = str(query.statement)
+        assert str(product_id) in statement_str
+        assert "available" in statement_str
 
     def test_build_find_one_query(self, mock_pool):
         """Test query building for find_one method."""
@@ -333,7 +333,8 @@ class TestDualModeRepositoryUnit:
         product_id = uuid4()
         query = repo._build_find_one_query("tv_product", id=product_id)
         assert query.statement is not None
-        # Check that params contain the expected ID
-        assert len(query.params) == 1
-        # The param uses a generated name like param_0
-        assert product_id in query.params.values()
+        # After fix for %r placeholder bug: kwargs are embedded as Literals in Composed SQL
+        assert query.params == {}  # No separate params - values embedded in statement
+        # Verify the statement contains the expected value as Literal
+        statement_str = str(query.statement)
+        assert str(product_id) in statement_str
