@@ -88,16 +88,20 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                         f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                     )
 
-                # Handle different statement types appropriately for parameter passing
-                if isinstance(query.statement, Composed):
-                    # For Composed objects with embedded Literals, never pass params
-                    # This fixes the "%r" placeholder bug when WHERE clauses mix parameter styles
+                # Handle statement execution based on type and parameter presence
+                if isinstance(query.statement, Composed) and not query.params:
+                    # Composed objects without params have only embedded literals
+                    # This fixes the "%r" placeholder bug from WHERE clause generation
                     await cursor.execute(query.statement)
-                elif isinstance(query.statement, SQL) and not query.params:
-                    # For SQL objects without params, execute directly
+                elif isinstance(query.statement, (Composed, SQL)) and query.params:
+                    # Composed/SQL objects with params - pass parameters normally
+                    # This handles legitimate cases like SQL.format() with remaining placeholders
+                    await cursor.execute(query.statement, query.params)
+                elif isinstance(query.statement, SQL):
+                    # SQL objects without params execute directly
                     await cursor.execute(query.statement)
                 else:
-                    # For string statements and SQL objects with params, use parameters normally
+                    # String statements use parameters normally
                     await cursor.execute(query.statement, query.params)
                 if query.fetch_result:
                     return await cursor.fetchall()
