@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2025-01-04
+
+### 🔧 **PyPI & Badge Management**
+
+#### **🎯 GitHub Workflow Badges**
+- **Fixed GitHub Workflow Badges**: Updated README badges to reference `quality-gate.yml` instead of deprecated individual workflow files (`test.yml`, `lint.yml`, `security.yml`)
+- **Unified Quality Gate**: All CI checks now run through single comprehensive `quality-gate.yml` workflow
+- **Badge Consistency**: Ensures PyPI page displays accurate build status for main branch
+
+#### **📦 Release Management**
+- **Version Alignment**: Synchronized version across `__init__.py`, `cli/main.py`, and `pyproject.toml` for clean PyPI publishing
+- **Clean Release**: Minimal focused release for PyPI package update with correct metadata
+
 ## [0.7.4] - 2025-09-04
 
 ### ✨ **Added**

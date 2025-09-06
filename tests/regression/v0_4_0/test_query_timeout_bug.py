@@ -117,4 +117,5 @@ async def test_find_one_with_fixed_timeout():
     # Second statement should be the actual query
     query_sql, query_params = executed_statements[1]
     assert "SELECT" in query_sql
-    assert query_params is not None
+    # After fix for %r placeholder bug: kwargs are embedded as Literals, no separate params
+    assert query_params is None  # Parameters embedded in Composed statement
