@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.7] - 2025-01-06
+
+### 🐛 **Fixed**
+
+#### **Critical psycopg Placeholder Bug**
+- **Fixed Critical psycopg %r Placeholder Bug**: Resolved serious string contains filter bug where `%r` placeholders were causing PostgreSQL syntax errors and query failures
+- **String Contains Filters**: Fixed `contains`, `startsWith`, `endsWith`, and `iContains` operators that were generating malformed SQL with `%r` instead of proper string literals
+- **SQL Generation**: Corrected SQL generation to use proper quoted string literals instead of repr() format specifiers
+- **Database Compatibility**: Ensures all string-based WHERE clause operations work correctly with PostgreSQL backend
+
+### 🔧 **Enhanced**
+- **Query Reliability**: All string-based filtering operations now generate syntactically correct SQL
+- **Error Prevention**: Eliminates PostgreSQL syntax errors from malformed query generation
+- **Filter Stability**: String matching operations (`contains`, `startsWith`, `endsWith`, `iContains`) now work as expected
+
+### 🏗️ **Technical**
+- **Backward Compatibility**: All existing functionality preserved
+- **SQL Generation**: Fixed string literal generation in WHERE clause builders
+- **Test Coverage**: Added comprehensive tests for string filter operations to prevent regression
+
 ## [0.7.5] - 2025-01-04
 
 ### 🔧 **PyPI & Badge Management**
