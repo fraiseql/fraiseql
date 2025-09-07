@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.9] - 2025-09-07
+
+### 🐛 **Fixed**
+
+#### **Field Name Conversion Bug Fix**
+- **Fixed critical camelCase to snake_case conversion**: Resolved field name conversion bug where camelCase fields with numbers followed by 'Id' were incorrectly converted
+- **Problem**: Client sends `dns1Id`, `dns2Id` but FraiseQL converted to `dns1_id` instead of expected `dns_1_id`, `dns_2_id`
+- **Root cause**: Regex patterns in `camel_to_snake()` function were insufficient for letter→number and number→capital transitions
+- **Solution**: Added two new regex patterns to handle these specific transition cases
+- **Impact**:
+  - Eliminates PostgreSQL "got an unexpected keyword argument" errors
+  - Ensures round-trip conversion works correctly: `dns_1_id` → `dns1Id` → `dns_1_id`
+  - Maintains full backward compatibility with existing field naming
+- **Test coverage**: Added comprehensive unit tests and regression tests for the specific bug case
+- **Affected systems**: Fixes integration issues with PrintOptim Backend and similar PostgreSQL CQRS systems
+
+### 🔧 **Technical Details**
+- **Files modified**: `src/fraiseql/utils/naming.py` - enhanced `camel_to_snake()` function
+- **New regex patterns**:
+  - `r'([a-zA-Z])(\d)'` - handles letter-to-number transitions (e.g., `dns1` → `dns_1`)
+  - `r'(\d)([A-Z])'` - handles number-to-capital transitions (e.g., `1Id` → `1_id`)
+- **Backward compatibility**: All existing field conversions preserved, no breaking changes
+- **Performance**: Minimal impact, only affects field name conversion during GraphQL processing
+
 ## [0.7.8] - 2025-01-07
 
 ### 🚀 **Enhanced**
