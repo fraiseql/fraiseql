@@ -53,12 +53,17 @@ def camel_to_snake(name: str) -> str:
         camel_to_snake("getUserById") -> "get_user_by_id"
         camel_to_snake("isActive") -> "is_active"
         camel_to_snake("HTTPTimeout") -> "http_timeout"
+        camel_to_snake("dns1Id") -> "dns_1_id"
     """
-    # Handle sequences of capitals followed by a lowercase letter
-    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    # Handle letter followed by number (dns1Id -> dns_1Id)
+    s0 = re.sub("([a-z])([0-9])", r"\1_\2", name)
+    # Handle number followed directly by capital letter (dns_1Id -> dns_1_Id)
+    s1 = re.sub("([0-9])([A-Z][a-z]*)", r"\1_\2", s0)
+    # Handle sequences of capitals followed by a lowercase letter (but not after underscores)
+    s2 = re.sub("([^_])([A-Z][a-z]+)", r"\1_\2", s1)
     # Handle lowercase followed by capital
-    s2 = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1)
-    return s2.lower()
+    s3 = re.sub("([a-z])([A-Z])", r"\1_\2", s2)
+    return s3.lower()
 
 
 def is_snake_case(name: str) -> bool:
