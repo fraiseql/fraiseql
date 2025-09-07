@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.8] - 2025-01-07
+
+### 🚀 **Enhanced**
+
+#### **TurboRouter Hash Normalization Fix**
+- **Fixed hash mismatch issue**: Resolved critical issue where TurboRouter queries registered with raw hashes (like those from PrintOptim Backend database) wouldn't match FraiseQL's normalized hash calculation, preventing turbo router activation
+- **Enhanced hash_query() normalization**: Improved whitespace normalization using regex patterns for better GraphQL syntax handling
+- **Added hash_query_raw()**: New method for backward compatibility with systems using pre-computed raw hashes
+- **Added register_with_raw_hash()**: Allows registration of queries with specific pre-computed database hashes
+- **Enhanced get() with fallback**: Registry lookup now tries normalized hash first, then falls back to raw hash for maximum compatibility
+- **Performance impact**: Fixed queries now activate turbo mode correctly (`mode: "turbo"`, <20ms) instead of falling back to normal mode (~140ms)
+- **Integration example**: Added comprehensive PrintOptim Backend integration example demonstrating database query loading
+- **Complete test coverage**: New test suite reproduces issue and validates fix workflow
+
+### 🔧 **Technical Details**
+- **Root cause**: Hash mismatch between external systems calculating raw query hashes and FraiseQL's normalized hash calculation
+- **Solution**: Multi-strategy lookup with backward compatibility methods
+- **Backward compatibility**: All existing registration workflows preserved, new methods are purely additive
+- **Validated integration**: Tested with PrintOptim Backend scenario (hash: `859f5d3b94c4c1add28a74674c83d6b49cc4406c1292e21822d4ca3beb76d269`)
+
 ## [0.7.7] - 2025-01-06
 
 ### 🐛 **Fixed**
