@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.10-beta.1] - 2025-09-08
+
+### 🐛 **Fixed**
+
+#### **Nested Array Resolution for JSONB Fields**
+- **Fixed critical GraphQL field resolver issue**: Resolved issue where GraphQL field resolvers failed to convert raw dictionary arrays from JSONB data to typed FraiseQL objects
+- **Problem**: Field resolvers only worked with `hasattr(field_type, "__args__")` which was unreliable for Optional[list[T]] patterns, causing nested arrays to return raw dictionaries instead of properly typed objects
+- **Root cause**: Unreliable type detection for Optional and generic list types in GraphQL field resolution
+- **Solution**:
+  - Replace unreliable `hasattr(..., "__args__")` with robust `get_args()` from typing module
+  - Add proper type unwrapping for Optional[list[T]] → list[T] → T patterns
+  - Extract reusable `_extract_list_item_type()` helper function for better maintainability
+  - Maintain full backward compatibility with existing field resolution patterns
+- **Impact**:
+  - Fixes the core value proposition of FraiseQL: seamless JSONB to GraphQL object mapping now works correctly for nested arrays
+  - Eliminates issues where nested arrays would return raw dictionaries instead of typed FraiseQL objects
+  - Improves type safety and developer experience when working with complex nested data structures
+- **Test coverage**: Added comprehensive test suite with 7 edge cases including empty arrays, null values, mixed content, and deeply nested arrays
+- **Affected systems**: Critical fix for PrintOptim Backend and other systems relying on nested array field resolution
+
+### 🔧 **Technical Details**
+- **Files modified**: `src/fraiseql/core/graphql_type.py` - enhanced field resolver type detection
+- **New helper function**: `_extract_list_item_type()` for robust type extraction from Optional[list[T]] patterns
+- **Improved type detection**: Using `typing.get_args()` instead of unreliable `hasattr()` checks
+- **Backward compatibility**: All existing field resolution behavior preserved, no breaking changes
+- **Performance**: No performance impact, same resolution speed with improved reliability
+
 ## [0.7.9] - 2025-09-07
 
 ### 🐛 **Fixed**
