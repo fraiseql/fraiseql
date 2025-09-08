@@ -184,14 +184,41 @@ def should_use_nested_resolver(field_type: Any) -> bool:
 def create_nested_array_field_resolver_with_where(
     field_name: str, field_type: Any, field_metadata: Any = None
 ):
-    """Create a field resolver for nested arrays that supports where parameter filtering.
+    """Create a field resolver for nested arrays with comprehensive logical operator filtering.
 
-    This resolver extends the standard nested field resolver to support where parameter
-    filtering on nested array elements. It handles:
+    This resolver provides complete AND/OR/NOT logical operator support for filtering
+    nested array elements. It handles:
 
-    1. Embedded data filtering (when data is already present in parent)
-    2. Database-level filtering (for sql_source queries)
-    3. Automatic WhereInput type application
+    1. Complete logical operators (AND/OR/NOT with unlimited nesting depth)
+    2. All standard field operators (equals, contains, gte, isnull, etc.)
+    3. Embedded data filtering (when data is already present in parent)
+    4. Database-level filtering (for sql_source queries)
+    5. Automatic WhereInput type generation and application
+    6. Client-side filtering with efficient evaluation
+
+    Logical Operators Supported:
+    - AND: All conditions must be true (implicit for multiple fields)
+    - OR: Any condition can be true
+    - NOT: Inverts condition result
+    - Complex nesting: Unlimited depth combinations
+
+    Field Operators Supported:
+    - String: equals, not, contains, startsWith, endsWith, in, notIn, isnull
+    - Numeric: equals, not, gt, gte, lt, lte, in, notIn, isnull
+    - Boolean: equals, not, isnull
+
+    Example GraphQL Query:
+        printServers(where: {
+          AND: [
+            { operatingSystem: { in: ["Linux", "Windows"] } }
+            { OR: [
+                { nTotalAllocations: { gte: 100 } }
+                { hostname: { contains: "critical" } }
+              ]
+            }
+            { NOT: { ipAddress: { isnull: true } } }
+          ]
+        })
 
     Args:
         field_name: The name of the field being resolved
@@ -199,7 +226,8 @@ def create_nested_array_field_resolver_with_where(
         field_metadata: FraiseQLField metadata with where configuration
 
     Returns:
-        An async resolver function that handles where parameter filtering
+        An async resolver function that handles comprehensive where parameter filtering
+        with complete logical operator support
     """
 
     async def resolve_nested_array_with_where(
@@ -258,11 +286,53 @@ async def _item_matches_where_criteria(item: Any, where_filter: Any) -> bool:
     # Convert where filter to SQL where type if it has the conversion method
     if hasattr(where_filter, "_to_sql_where"):
         sql_where = where_filter._to_sql_where()
-        return _evaluate_sql_where_on_item(item, sql_where)
+        return await _evaluate_sql_where_on_item(item, sql_where)
+
+    # Check if this has logical operators and process them exclusively
+    if hasattr(where_filter, "__dict__"):
+        filter_dict = where_filter.__dict__
+
+        # Handle AND operator
+        if "AND" in filter_dict and filter_dict["AND"] is not None:
+            and_conditions = filter_dict["AND"]
+            if isinstance(and_conditions, list):
+                if not and_conditions:  # Empty AND array = all match
+                    return True
+                logger.debug(
+                    f"Processing AND conditions for item: {getattr(item, 'hostname', 'unknown')}"
+                )
+                for i, condition in enumerate(and_conditions):
+                    result = await _item_matches_where_criteria(item, condition)
+                    logger.debug(f"  AND condition {i}: {result}")
+                    if not result:
+                        logger.debug(f"  AND failed on condition {i}")
+                        return False
+                logger.debug("  All AND conditions passed")
+                return True
+
+        # Handle OR operator
+        if "OR" in filter_dict and filter_dict["OR"] is not None:
+            or_conditions = filter_dict["OR"]
+            if isinstance(or_conditions, list):
+                if not or_conditions:  # Empty OR array = none match
+                    return False
+                for condition in or_conditions:
+                    if await _item_matches_where_criteria(item, condition):
+                        return True
+                return False
+
+        # Handle NOT operator
+        if "NOT" in filter_dict and filter_dict["NOT"] is not None:
+            not_condition = filter_dict["NOT"]
+            return not await _item_matches_where_criteria(item, not_condition)
 
     # Handle direct field filtering
     if hasattr(where_filter, "__gql_fields__"):
         for field_name in where_filter.__gql_fields__:
+            # Skip logical operators in field iteration
+            if field_name in ("AND", "OR", "NOT"):
+                continue
+
             field_filter = getattr(where_filter, field_name, None)
             if field_filter is None:
                 continue
@@ -275,7 +345,8 @@ async def _item_matches_where_criteria(item: Any, where_filter: Any) -> bool:
     # Fallback - try to use the filter as a dict
     if hasattr(where_filter, "__dict__"):
         for field_name, field_filter in where_filter.__dict__.items():
-            if field_filter is None:
+            # Skip logical operators in dict iteration
+            if field_name in ("AND", "OR", "NOT") or field_filter is None:
                 continue
 
             item_value = getattr(item, field_name, None)
@@ -286,16 +357,45 @@ async def _item_matches_where_criteria(item: Any, where_filter: Any) -> bool:
     return True
 
 
-def _evaluate_sql_where_on_item(item: Any, sql_where: Any) -> bool:
+async def _evaluate_sql_where_on_item(item: Any, sql_where: Any) -> bool:
     """Evaluate SQL where conditions on a Python object."""
-    # This is a simplified implementation
-    # In a full implementation, this would properly handle SQL where types
-
     if not sql_where or not hasattr(sql_where, "__dict__"):
         return True
 
-    for field_name, field_conditions in sql_where.__dict__.items():
-        if field_conditions is None:
+    # Handle logical operators first
+    where_dict = sql_where.__dict__
+
+    # Handle AND operator
+    if "AND" in where_dict and where_dict["AND"] is not None:
+        and_conditions = where_dict["AND"]
+        if isinstance(and_conditions, list):
+            if not and_conditions:  # Empty AND array = all match
+                return True
+            for condition in and_conditions:
+                if not await _evaluate_sql_where_on_item(item, condition):
+                    return False
+            return True
+
+    # Handle OR operator
+    if "OR" in where_dict and where_dict["OR"] is not None:
+        or_conditions = where_dict["OR"]
+        if isinstance(or_conditions, list):
+            if not or_conditions:  # Empty OR array = none match
+                return False
+            for condition in or_conditions:
+                if await _evaluate_sql_where_on_item(item, condition):
+                    return True
+            return False
+
+    # Handle NOT operator
+    if "NOT" in where_dict and where_dict["NOT"] is not None:
+        not_condition = where_dict["NOT"]
+        return not await _evaluate_sql_where_on_item(item, not_condition)
+
+    # Handle field conditions (implicit AND for multiple fields)
+    for field_name, field_conditions in where_dict.items():
+        # Skip logical operators in field iteration
+        if field_name in ("AND", "OR", "NOT") or field_conditions is None:
             continue
 
         item_value = getattr(item, field_name, None)
@@ -331,9 +431,10 @@ def _apply_field_filter_operators(item_value: Any, filter_conditions: Any) -> bo
 
 def _apply_single_operator(item_value: Any, operator: str, filter_value: Any) -> bool:
     """Apply a single filter operator to a value."""
-    if operator == "eq":
+    # Handle both GraphQL standard names and internal names
+    if operator in ("eq", "equals"):
         return item_value == filter_value
-    if operator == "neq":
+    if operator in ("neq", "not"):
         return item_value != filter_value
     if operator == "gt":
         return item_value is not None and item_value > filter_value
@@ -345,13 +446,13 @@ def _apply_single_operator(item_value: Any, operator: str, filter_value: Any) ->
         return item_value is not None and item_value <= filter_value
     if operator == "contains":
         return item_value is not None and str(filter_value) in str(item_value)
-    if operator == "startswith":
+    if operator in ("startswith", "startsWith"):
         return item_value is not None and str(item_value).startswith(str(filter_value))
-    if operator == "endswith":
+    if operator in ("endswith", "endsWith"):
         return item_value is not None and str(item_value).endswith(str(filter_value))
     if operator in {"in", "in_"}:
         return item_value in filter_value if filter_value else False
-    if operator == "nin":
+    if operator in ("nin", "notIn"):
         return item_value not in filter_value if filter_value else True
     if operator == "isnull":
         if filter_value:

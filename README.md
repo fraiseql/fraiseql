@@ -27,6 +27,7 @@
 ### **🔧 Developer Experience**
 - **Type-safe**: Full Python 3.13+ type hints with automatic GraphQL schema generation
 - **One command setup**: `fraiseql init my-api && fraiseql dev`
+- **Convention over Configuration**: Clean registration-based API with `@auto_nested_array_filters`
 - **Intelligent WHERE clauses**: Automatic type-aware SQL optimization for network types, dates, and more
 - **Built-in security**: Field-level authorization, rate limiting, CSRF protection
 
@@ -81,7 +82,7 @@ Your GraphQL API is live at `http://localhost:8000/graphql` 🎉
 ## 🎯 Core Features
 
 ### **Advanced Type System**
-Specialized operators for network types, hierarchical data, and ranges:
+Specialized operators for network types, hierarchical data, ranges, and **comprehensive nested array filtering**:
 
 ```graphql
 query {
@@ -91,6 +92,20 @@ query {
     macAddress: { eq: "aa:bb:cc:dd:ee:ff" } # → ::macaddr casting
     location: { ancestor_of: "US.CA" }      # → ltree operations
     dateRange: { overlaps: "[2024-01-01,2024-12-31)" }
+    # Nested array filtering with logical operators
+    printServers(where: {
+      AND: [
+        { operatingSystem: { in: ["Linux", "Windows"] } }
+        { OR: [
+            { nTotalAllocations: { gte: 100 } }
+            { hostname: { contains: "critical" } }
+          ]
+        }
+        { NOT: { ipAddress: { isnull: true } } }
+      ]
+    }) {
+      hostname operatingSystem nTotalAllocations
+    }
   }) {
     id name ipAddress port
   }
@@ -102,6 +117,9 @@ query {
 - **Hierarchical**: `LTree` with ancestor/descendant queries
 - **Temporal**: `DateRange` with overlap/containment operations
 - **Standard**: `EmailAddress`, `UUID`, `JSON` with validation
+- **Nested Arrays**: Complete AND/OR/NOT logical operators for filtering array elements
+
+> 📖 **[Complete Nested Array Filtering Guide →](docs/nested-array-filtering.md)**
 
 ### **Intelligent Mutations**
 PostgreSQL functions handle business logic with structured error handling:
