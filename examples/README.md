@@ -387,6 +387,39 @@ SELECT * FROM pg_stat_activity;
 
 ## 🌟 Advanced Features
 
+### Nested Array Filtering (`nested_array_filtering.py`) **NEW**
+**Complete demonstration of sophisticated nested array filtering with logical operators**
+
+A comprehensive example showcasing the clean registration-based approach for nested array where filtering:
+- **Clean API**: No verbose field definitions with `@auto_nested_array_filters`
+- **Complete Logical Operators**: Full AND/OR/NOT support with unlimited nesting depth
+- **All Field Operators**: equals, contains, gte, isnull, and more
+- **Performance Optimized**: Client-side filtering with efficient evaluation
+- **5 Practical Examples**: From simple implicit AND to complex nested logic
+
+**Quick Start:**
+```bash
+python examples/nested_array_filtering.py
+```
+
+**Example Query Patterns:**
+```graphql
+# Complex nested logic
+printServers(where: {
+  AND: [
+    { operatingSystem: { in: ["Linux", "Windows"] } }
+    { OR: [
+        { nTotalAllocations: { gte: 100 } }
+        { hostname: { contains: "critical" } }
+      ]
+    }
+    { NOT: { ipAddress: { isnull: true } } }
+  ]
+})
+```
+
+> 📖 **[Complete Guide](../docs/nested-array-filtering.md)** | Features all registration approaches, operator reference, and advanced usage patterns.
+
 ### Custom Scalars
 ```python
 from fraiseql import scalar

@@ -7,6 +7,159 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.11] - 2025-09-08
+
+### 🚀 **New Feature**
+
+#### **Complete Nested Array WHERE Filtering with Logical Operators**
+- **Comprehensive Logical Operators**: Full AND/OR/NOT expression support with unlimited nesting depth for nested array filtering
+- **Clean Registration API**: New `@auto_nested_array_filters` decorator for effortless setup without verbose field definitions
+- **26+ Field Operators**: Complete operator set including equals, contains, gte, isnull, startsWith, endsWith, in, notIn, and more
+- **Client-Side Filtering**: Efficient evaluation with optimized performance and early termination
+- **Dynamic WhereInput Generation**: Automatic GraphQL schema generation from FraiseQL types with complete type safety
+
+#### **Advanced Query Capabilities**
+- **Complex GraphQL Queries**: Support for sophisticated nested filtering expressions
+- **Unlimited Nesting Depth**: AND/OR/NOT operators can be nested to any depth for complex business logic
+- **All Standard Field Types**: String, numeric, boolean, UUID, date/datetime operations fully supported
+- **Performance Optimized**: Efficient client-side filtering with smart evaluation strategies
+
+#### **Developer Experience**
+- **Convention over Configuration**: Simple `@auto_nested_array_filters` decorator automatically enables filtering
+- **Backward Compatibility**: Zero breaking changes - purely additive feature that works with existing code
+- **Complete Documentation**: Comprehensive docs and examples in `docs/nested-array-filtering.md`
+- **Working Examples**: Full demonstration in `examples/nested_array_filtering.py`
+
+### 🔧 **Implementation Details**
+- **Enhanced Field Resolver**: `create_nested_array_field_resolver_with_where()` with complete logical operator evaluation
+- **GraphQL Integration**: Automatic GraphQL field argument creation with WhereInput types
+- **Registry System**: Clean registration-based approach in `src/fraiseql/nested_array_filters.py`
+- **Type Safety**: Full type inference and validation for WhereInput generation
+
+### 📝 **Example Usage**
+```python
+from fraiseql.nested_array_filters import auto_nested_array_filters
+
+@auto_nested_array_filters  # One line setup
+@fraise_type(sql_source="tv_network_configuration", jsonb_column="data")
+class NetworkConfiguration:
+    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+```
+
+```graphql
+printServers(where: {
+  AND: [
+    { operatingSystem: { in: ["Linux", "Windows"] } }
+    { OR: [
+        { nTotalAllocations: { gte: 100 } }
+        { hostname: { contains: "critical" } }
+      ]
+    }
+    { NOT: { ipAddress: { isnull: true } } }
+  ]
+})
+```
+
+### 📋 **Files Added/Modified**
+- `src/fraiseql/nested_array_filters.py` - New registration API and decorators
+- `src/fraiseql/core/nested_field_resolver.py` - Enhanced resolver with logical operators
+- `src/fraiseql/core/graphql_type.py` - Enhanced resolver integration
+- `src/fraiseql/fields.py` - Extended field metadata for where filtering
+- `docs/nested-array-filtering.md` - Complete documentation and examples
+- `examples/nested_array_filtering.py` - Comprehensive demonstration
+- Multiple comprehensive test files for complete coverage
+
+## [0.7.10-beta.1] - 2025-09-08
+
+### 🐛 **Fixed**
+
+#### **Nested Array Resolution for JSONB Fields**
+- **Fixed critical GraphQL field resolver issue**: Resolved issue where GraphQL field resolvers failed to convert raw dictionary arrays from JSONB data to typed FraiseQL objects
+- **Problem**: Field resolvers only worked with `hasattr(field_type, "__args__")` which was unreliable for Optional[list[T]] patterns, causing nested arrays to return raw dictionaries instead of properly typed objects
+- **Root cause**: Unreliable type detection for Optional and generic list types in GraphQL field resolution
+- **Solution**:
+  - Replace unreliable `hasattr(..., "__args__")` with robust `get_args()` from typing module
+  - Add proper type unwrapping for Optional[list[T]] → list[T] → T patterns
+  - Extract reusable `_extract_list_item_type()` helper function for better maintainability
+  - Maintain full backward compatibility with existing field resolution patterns
+- **Impact**:
+  - Fixes the core value proposition of FraiseQL: seamless JSONB to GraphQL object mapping now works correctly for nested arrays
+  - Eliminates issues where nested arrays would return raw dictionaries instead of typed FraiseQL objects
+  - Improves type safety and developer experience when working with complex nested data structures
+- **Test coverage**: Added comprehensive test suite with 7 edge cases including empty arrays, null values, mixed content, and deeply nested arrays
+- **Affected systems**: Critical fix for PrintOptim Backend and other systems relying on nested array field resolution
+
+### 🔧 **Technical Details**
+- **Files modified**: `src/fraiseql/core/graphql_type.py` - enhanced field resolver type detection
+- **New helper function**: `_extract_list_item_type()` for robust type extraction from Optional[list[T]] patterns
+- **Improved type detection**: Using `typing.get_args()` instead of unreliable `hasattr()` checks
+- **Backward compatibility**: All existing field resolution behavior preserved, no breaking changes
+- **Performance**: No performance impact, same resolution speed with improved reliability
+
+## [0.7.9] - 2025-09-07
+
+### 🐛 **Fixed**
+
+#### **Field Name Conversion Bug Fix**
+- **Fixed critical camelCase to snake_case conversion**: Resolved field name conversion bug where camelCase fields with numbers followed by 'Id' were incorrectly converted
+- **Problem**: Client sends `dns1Id`, `dns2Id` but FraiseQL converted to `dns1_id` instead of expected `dns_1_id`, `dns_2_id`
+- **Root cause**: Regex patterns in `camel_to_snake()` function were insufficient for letter→number and number→capital transitions
+- **Solution**: Added two new regex patterns to handle these specific transition cases
+- **Impact**:
+  - Eliminates PostgreSQL "got an unexpected keyword argument" errors
+  - Ensures round-trip conversion works correctly: `dns_1_id` → `dns1Id` → `dns_1_id`
+  - Maintains full backward compatibility with existing field naming
+- **Test coverage**: Added comprehensive unit tests and regression tests for the specific bug case
+- **Affected systems**: Fixes integration issues with PrintOptim Backend and similar PostgreSQL CQRS systems
+
+### 🔧 **Technical Details**
+- **Files modified**: `src/fraiseql/utils/naming.py` - enhanced `camel_to_snake()` function
+- **New regex patterns**:
+  - `r'([a-zA-Z])(\d)'` - handles letter-to-number transitions (e.g., `dns1` → `dns_1`)
+  - `r'(\d)([A-Z])'` - handles number-to-capital transitions (e.g., `1Id` → `1_id`)
+- **Backward compatibility**: All existing field conversions preserved, no breaking changes
+- **Performance**: Minimal impact, only affects field name conversion during GraphQL processing
+
+## [0.7.8] - 2025-01-07
+
+### 🚀 **Enhanced**
+
+#### **TurboRouter Hash Normalization Fix**
+- **Fixed hash mismatch issue**: Resolved critical issue where TurboRouter queries registered with raw hashes (like those from PrintOptim Backend database) wouldn't match FraiseQL's normalized hash calculation, preventing turbo router activation
+- **Enhanced hash_query() normalization**: Improved whitespace normalization using regex patterns for better GraphQL syntax handling
+- **Added hash_query_raw()**: New method for backward compatibility with systems using pre-computed raw hashes
+- **Added register_with_raw_hash()**: Allows registration of queries with specific pre-computed database hashes
+- **Enhanced get() with fallback**: Registry lookup now tries normalized hash first, then falls back to raw hash for maximum compatibility
+- **Performance impact**: Fixed queries now activate turbo mode correctly (`mode: "turbo"`, <20ms) instead of falling back to normal mode (~140ms)
+- **Integration example**: Added comprehensive PrintOptim Backend integration example demonstrating database query loading
+- **Complete test coverage**: New test suite reproduces issue and validates fix workflow
+
+### 🔧 **Technical Details**
+- **Root cause**: Hash mismatch between external systems calculating raw query hashes and FraiseQL's normalized hash calculation
+- **Solution**: Multi-strategy lookup with backward compatibility methods
+- **Backward compatibility**: All existing registration workflows preserved, new methods are purely additive
+- **Validated integration**: Tested with PrintOptim Backend scenario (hash: `859f5d3b94c4c1add28a74674c83d6b49cc4406c1292e21822d4ca3beb76d269`)
+
+## [0.7.7] - 2025-01-06
+
+### 🐛 **Fixed**
+
+#### **Critical psycopg Placeholder Bug**
+- **Fixed Critical psycopg %r Placeholder Bug**: Resolved serious string contains filter bug where `%r` placeholders were causing PostgreSQL syntax errors and query failures
+- **String Contains Filters**: Fixed `contains`, `startsWith`, `endsWith`, and `iContains` operators that were generating malformed SQL with `%r` instead of proper string literals
+- **SQL Generation**: Corrected SQL generation to use proper quoted string literals instead of repr() format specifiers
+- **Database Compatibility**: Ensures all string-based WHERE clause operations work correctly with PostgreSQL backend
+
+### 🔧 **Enhanced**
+- **Query Reliability**: All string-based filtering operations now generate syntactically correct SQL
+- **Error Prevention**: Eliminates PostgreSQL syntax errors from malformed query generation
+- **Filter Stability**: String matching operations (`contains`, `startsWith`, `endsWith`, `iContains`) now work as expected
+
+### 🏗️ **Technical**
+- **Backward Compatibility**: All existing functionality preserved
+- **SQL Generation**: Fixed string literal generation in WHERE clause builders
+- **Test Coverage**: Added comprehensive tests for string filter operations to prevent regression
+
 ## [0.7.5] - 2025-01-04
 
 ### 🔧 **PyPI & Badge Management**

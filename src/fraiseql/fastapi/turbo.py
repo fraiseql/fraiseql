@@ -60,17 +60,52 @@ class TurboRegistry:
     def hash_query(self, query: str) -> str:
         """Generate a normalized hash for a GraphQL query.
 
+        This method normalizes whitespace to ensure consistent hashing
+        regardless of formatting differences in the query string.
+
         Args:
             query: GraphQL query string
 
         Returns:
             Hex string hash of the normalized query
         """
-        # Normalize whitespace
-        normalized = " ".join(query.split())
+        import re
+
+        # Step 1: Remove comments
+        query_no_comments = re.sub(r"#.*", "", query)
+
+        # Step 2: Normalize whitespace (collapse all whitespace to single spaces)
+        # This handles spaces, tabs, newlines, etc.
+        normalized = re.sub(r"\s+", " ", query_no_comments.strip())
+
+        # Step 3: Remove spaces around GraphQL syntax characters for better normalization
+        # This ensures "query{user{id}}" and "query { user { id } }" hash the same
+        normalized = re.sub(r"\s*([{}():,])\s*", r"\1", normalized)
+
+        # Step 4: Add back minimal spaces for readability and consistency
+        # Add space after keywords and before opening braces
+        normalized = re.sub(
+            r"\b(query|mutation|subscription|fragment)\b(?=\w|\{)", r"\1 ", normalized
+        )
+        normalized = re.sub(r"(\w)(\{)", r"\1 \2", normalized)
+        normalized = re.sub(r"(\})(\w)", r"\1 \2", normalized)
 
         # Use SHA-256 for consistent hashing
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def hash_query_raw(self, query: str) -> str:
+        """Generate a hash for a GraphQL query without normalization.
+
+        This method is provided for backward compatibility and debugging purposes.
+        It computes the hash directly from the raw query string.
+
+        Args:
+            query: GraphQL query string (used as-is)
+
+        Returns:
+            Hex string hash of the raw query
+        """
+        return hashlib.sha256(query.encode("utf-8")).hexdigest()
 
     def register(self, turbo_query: TurboQuery) -> str:
         """Register a TurboQuery for fast execution.
@@ -96,8 +131,38 @@ class TurboRegistry:
 
         return query_hash
 
+    def register_with_raw_hash(self, turbo_query: TurboQuery, raw_hash: str) -> str:
+        """Register a TurboQuery with a specific raw hash.
+
+        This method is useful for backward compatibility with systems that
+        have pre-computed raw hashes stored in databases.
+
+        Args:
+            turbo_query: The TurboQuery to register
+            raw_hash: The pre-computed raw hash to use as the key
+
+        Returns:
+            The raw hash that was used for registration
+        """
+        # Move to end if already exists (LRU behavior)
+        if raw_hash in self._queries:
+            self._queries.move_to_end(raw_hash)
+        else:
+            # Add new query
+            self._queries[raw_hash] = turbo_query
+
+            # Evict oldest if over limit
+            if len(self._queries) > self.max_size:
+                self._queries.popitem(last=False)
+
+        return raw_hash
+
     def get(self, query: str) -> TurboQuery | None:
         """Get a registered TurboQuery by GraphQL query string.
+
+        This method tries multiple hash strategies for maximum compatibility:
+        1. Normalized hash (default FraiseQL behavior)
+        2. Raw hash (for backward compatibility with external registrations)
 
         Args:
             query: GraphQL query string
@@ -105,12 +170,19 @@ class TurboRegistry:
         Returns:
             TurboQuery if registered, None otherwise
         """
-        query_hash = self.hash_query(query)
-
-        if query_hash in self._queries:
+        # Try normalized hash first (preferred)
+        normalized_hash = self.hash_query(query)
+        if normalized_hash in self._queries:
             # Move to end for LRU
-            self._queries.move_to_end(query_hash)
-            return self._queries[query_hash]
+            self._queries.move_to_end(normalized_hash)
+            return self._queries[normalized_hash]
+
+        # Try raw hash for backward compatibility
+        raw_hash = self.hash_query_raw(query)
+        if raw_hash in self._queries:
+            # Move to end for LRU
+            self._queries.move_to_end(raw_hash)
+            return self._queries[raw_hash]
 
         return None
 

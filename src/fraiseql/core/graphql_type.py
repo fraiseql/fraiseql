@@ -270,6 +270,34 @@ def convert_type_to_graphql_input(
     raise TypeError(msg)
 
 
+def _extract_list_item_type(field_type: Any) -> Any | None:
+    """Extract the item type from a list field type.
+
+    Handles patterns like:
+    - list[T] -> T
+    - Optional[list[T]] -> T
+    - list[T] | None -> T
+
+    Returns None if the type is not a list or cannot be extracted.
+    """
+    actual_field_type = field_type
+    field_origin = get_origin(field_type)
+
+    # Handle Optional[list[T]] - extract list[T]
+    if field_origin is Union or field_origin is types.UnionType:
+        field_args = get_args(field_type)
+        non_none_types = [t for t in field_args if t is not type(None)]
+        if non_none_types and len(non_none_types) == 1:
+            actual_field_type = non_none_types[0]
+
+    # Now check if actual_field_type is list[T] and extract T
+    if get_origin(actual_field_type) is list:
+        list_args = get_args(actual_field_type)
+        return list_args[0] if list_args else None
+
+    return None
+
+
 def convert_type_to_graphql_output(
     typ: Any,
 ) -> (
@@ -379,6 +407,66 @@ def convert_type_to_graphql_output(
                 for name, field in fields.items():
                     field_type = field.field_type or type_hints.get(name)
                     if field_type is not None:
+                        # Check if we should use enhanced resolver for where filtering support
+                        # This takes priority over the standard nested resolver
+                        if (
+                            hasattr(field, "supports_where_filtering")
+                            and field.supports_where_filtering
+                        ):
+                            # Use enhanced resolver with where parameter support
+                            from fraiseql.core.nested_field_resolver import (
+                                create_nested_array_field_resolver_with_where,
+                            )
+
+                            enhanced_resolver = create_nested_array_field_resolver_with_where(
+                                name, field_type, field
+                            )
+
+                            # Wrap with enum serialization
+                            from fraiseql.gql.enum_serializer import (
+                                wrap_resolver_with_enum_serialization,
+                            )
+
+                            # Use explicit graphql_name if provided, otherwise convert to
+                            # camelCase if configured
+                            config = SchemaConfig.get_instance()
+                            if field.graphql_name:
+                                graphql_field_name = field.graphql_name
+                            else:
+                                graphql_field_name = (
+                                    snake_to_camel(name) if config.camel_case_fields else name
+                                )
+
+                            # Create GraphQL field with where parameter
+                            from graphql import GraphQLArgument
+
+                            # Determine the WhereInput type
+                            where_input_type = None
+                            if field.where_input_type:
+                                where_input_type = field.where_input_type
+                            elif field.nested_where_type:
+                                from fraiseql.sql.graphql_where_generator import (
+                                    create_graphql_where_input,
+                                )
+
+                                where_input_type = create_graphql_where_input(
+                                    field.nested_where_type
+                                )
+
+                            # Create args dict with where parameter
+                            gql_args = {}
+                            if where_input_type:
+                                where_gql_type = convert_type_to_graphql_input(where_input_type)
+                                gql_args["where"] = GraphQLArgument(where_gql_type)
+
+                            gql_fields[graphql_field_name] = GraphQLField(
+                                type_=convert_type_to_graphql_output(field_type),
+                                description=field.description,
+                                args=gql_args,
+                                resolve=wrap_resolver_with_enum_serialization(enhanced_resolver),
+                            )
+                            continue  # Skip other resolver creation
+
                         # Check if we should use nested resolver (only if explicitly requested)
                         # By default (resolve_nested=False), nested objects are assumed to be
                         # embedded in the parent's JSONB data and use the standard resolver.
@@ -425,6 +513,43 @@ def convert_type_to_graphql_output(
                                     # For JSONPassthrough, getattr already handles everything
                                     # including nested object wrapping and caching
                                     value = getattr(obj, field_name, None)
+
+                                    # Handle nested arrays from JSONPassthrough
+                                    if isinstance(value, list) and value:
+                                        # Check if the field type is a list of FraiseQL types
+                                        list_item_type = _extract_list_item_type(field_type)
+
+                                        if list_item_type and hasattr(
+                                            list_item_type, "__fraiseql_definition__"
+                                        ):
+                                            result = []
+                                            for item in value:
+                                                # Convert JSONPassthrough items to typed objects
+                                                if is_json_passthrough(item):
+                                                    # Extract dict data from JSONPassthrough
+                                                    if hasattr(item, "_data"):
+                                                        raw_data = item._data
+                                                        # Convert dict to typed object
+                                                        if hasattr(list_item_type, "from_dict"):
+                                                            result.append(
+                                                                list_item_type.from_dict(raw_data)
+                                                            )
+                                                        else:
+                                                            result.append(raw_data)
+                                                    else:
+                                                        result.append(item)
+                                                elif isinstance(item, dict):
+                                                    # Handle raw dicts
+                                                    if hasattr(list_item_type, "from_dict"):
+                                                        result.append(
+                                                            list_item_type.from_dict(item)
+                                                        )
+                                                    else:
+                                                        result.append(item)
+                                                else:
+                                                    result.append(item)
+                                            return result
+
                                     return value
 
                                 value = getattr(obj, field_name, None)
@@ -488,15 +613,10 @@ def convert_type_to_graphql_output(
                                                     result.append(item.value)
                                             else:
                                                 result.append(item.value)
-                                        elif isinstance(item, dict) and hasattr(
-                                            field_type, "__args__"
-                                        ):
+                                        elif isinstance(item, dict):
                                             # Check if list has FraiseQL types needing conversion
-                                            list_item_type = (
-                                                field_type.__args__[0]
-                                                if field_type.__args__
-                                                else None
-                                            )
+                                            list_item_type = _extract_list_item_type(field_type)
+
                                             if list_item_type and hasattr(
                                                 list_item_type, "__fraiseql_definition__"
                                             ):

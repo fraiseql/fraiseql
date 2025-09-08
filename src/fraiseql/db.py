@@ -88,10 +88,20 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                         f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                     )
 
-                # If we have a Composed statement with embedded Literals, execute without params
-                if isinstance(query.statement, (Composed, SQL)) and not query.params:
+                # Handle statement execution based on type and parameter presence
+                if isinstance(query.statement, Composed) and not query.params:
+                    # Composed objects without params have only embedded literals
+                    # This fixes the "%r" placeholder bug from WHERE clause generation
+                    await cursor.execute(query.statement)
+                elif isinstance(query.statement, (Composed, SQL)) and query.params:
+                    # Composed/SQL objects with params - pass parameters normally
+                    # This handles legitimate cases like SQL.format() with remaining placeholders
+                    await cursor.execute(query.statement, query.params)
+                elif isinstance(query.statement, SQL):
+                    # SQL objects without params execute directly
                     await cursor.execute(query.statement)
                 else:
+                    # String statements use parameters normally
                     await cursor.execute(query.statement, query.params)
                 if query.fetch_result:
                     return await cursor.fetchall()
@@ -916,8 +926,6 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         from psycopg.sql import SQL, Composed, Identifier, Literal
 
         where_parts = []
-        params = {}
-        param_counter = 0
 
         # Extract special parameters
         where_obj = kwargs.pop("where", None)
@@ -946,10 +954,12 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     where_parts.append(where_composed)
 
         # Process remaining kwargs as simple equality filters
-        for param_counter, (key, value) in enumerate(kwargs.items()):
-            param_name = f"param_{param_counter}"
-            where_parts.append(f"{key} = %({param_name})s")
-            params[param_name] = value
+        # Use Composed SQL with Literal values to avoid parameter mixing with WHERE clauses
+        for key, value in kwargs.items():
+            # Use SQL composition with Literal instead of parameter placeholders
+            # This prevents mixing parameter styles when WHERE clauses use Composed objects
+            where_condition = Composed([Identifier(key), SQL(" = "), Literal(value)])
+            where_parts.append(where_condition)
 
         # Build SQL using proper composition
         if raw_json and field_paths is not None and len(field_paths) > 0:
@@ -1049,7 +1059,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                 if offset is not None:
                     statement = statement + SQL(" OFFSET ") + Literal(offset)
 
-            return DatabaseQuery(statement=statement, params=params, fetch_result=True)
+            return DatabaseQuery(statement=statement, params={}, fetch_result=True)
         if raw_json:
             # For raw JSON without field paths, select the JSONB column as JSON text
             if jsonb_column:
@@ -1131,7 +1141,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                 query_parts.append(SQL(" OFFSET ") + Literal(offset))
 
         statement = SQL("").join(query_parts)
-        return DatabaseQuery(statement=statement, params=params, fetch_result=True)
+        # Since we now use Composed SQL with embedded Literals for all conditions,
+        # params should be empty to avoid parameter mixing
+        return DatabaseQuery(statement=statement, params={}, fetch_result=True)
 
     def _build_find_one_query(
         self,

@@ -137,6 +137,9 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
+# Ruff cache
+.ruff_cache/
+
 # Cython debug symbols
 cython_debug/
 
@@ -159,7 +162,6 @@ Thumbs.db
 *.sqlite3
 /private/
 *debug*.py
-test_*.py
 !tests/
 
 # Benchmark results

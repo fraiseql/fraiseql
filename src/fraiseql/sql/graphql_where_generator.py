@@ -311,6 +311,10 @@ def _convert_filter_to_dict(filter_obj: Any) -> dict[str, Any]:
     if filter_obj is None:
         return {}
 
+    # Check if this is already a plain dict - return it directly
+    if isinstance(filter_obj, dict):
+        return filter_obj
+
     # Check if this is a nested where input (has _target_class and _to_sql_where)
     if hasattr(filter_obj, "_target_class") and hasattr(filter_obj, "_to_sql_where"):
         # This is a nested where input, convert it recursively
