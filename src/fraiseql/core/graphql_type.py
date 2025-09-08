@@ -270,6 +270,34 @@ def convert_type_to_graphql_input(
     raise TypeError(msg)
 
 
+def _extract_list_item_type(field_type: Any) -> Any | None:
+    """Extract the item type from a list field type.
+
+    Handles patterns like:
+    - list[T] -> T
+    - Optional[list[T]] -> T
+    - list[T] | None -> T
+
+    Returns None if the type is not a list or cannot be extracted.
+    """
+    actual_field_type = field_type
+    field_origin = get_origin(field_type)
+
+    # Handle Optional[list[T]] - extract list[T]
+    if field_origin is Union or field_origin is types.UnionType:
+        field_args = get_args(field_type)
+        non_none_types = [t for t in field_args if t is not type(None)]
+        if non_none_types and len(non_none_types) == 1:
+            actual_field_type = non_none_types[0]
+
+    # Now check if actual_field_type is list[T] and extract T
+    if get_origin(actual_field_type) is list:
+        list_args = get_args(actual_field_type)
+        return list_args[0] if list_args else None
+
+    return None
+
+
 def convert_type_to_graphql_output(
     typ: Any,
 ) -> (
@@ -488,15 +516,10 @@ def convert_type_to_graphql_output(
                                                     result.append(item.value)
                                             else:
                                                 result.append(item.value)
-                                        elif isinstance(item, dict) and hasattr(
-                                            field_type, "__args__"
-                                        ):
+                                        elif isinstance(item, dict):
                                             # Check if list has FraiseQL types needing conversion
-                                            list_item_type = (
-                                                field_type.__args__[0]
-                                                if field_type.__args__
-                                                else None
-                                            )
+                                            list_item_type = _extract_list_item_type(field_type)
+
                                             if list_item_type and hasattr(
                                                 list_item_type, "__fraiseql_definition__"
                                             ):
