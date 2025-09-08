@@ -4,6 +4,7 @@ This test validates the complete functionality from FraiseQL type definition
 through GraphQL schema generation to query execution.
 """
 
+import asyncio
 import uuid
 from typing import List, Optional
 
