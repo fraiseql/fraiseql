@@ -37,6 +37,10 @@ class FraiseQLField:
     field_type: type[Any] | None = None
     description: str | None
     graphql_name: str | None = None
+    # New attributes for nested array where filtering support
+    where_input_type: type | None = None
+    supports_where_filtering: bool = False
+    nested_where_type: type | None = None
     __fraiseql_field__: bool = True
 
     def __init__(
@@ -51,6 +55,9 @@ class FraiseQLField:
         purpose: FraiseQLFieldPurpose = "both",
         description: str | None = None,
         graphql_name: str | None = None,
+        where_input_type: type | None = None,
+        supports_where_filtering: bool = False,
+        nested_where_type: type | None = None,
     ) -> None:
         """Initialize a FraiseQL field with metadata.
 
@@ -64,6 +71,9 @@ class FraiseQLField:
             purpose: Field usage - "input", "output", or "both"
             description: Human-readable field description
             graphql_name: Custom GraphQL field name (defaults to Python name)
+            where_input_type: Pre-defined WhereInput type for nested array filtering
+            supports_where_filtering: Enable where parameter support for this field
+            nested_where_type: Type to generate WhereInput from for nested arrays
         """
         if default is not FRAISE_MISSING and default_factory is not None:
             msg = "Cannot specify both default and default_factory"
@@ -78,6 +88,9 @@ class FraiseQLField:
         self.purpose = purpose
         self.description = description
         self.graphql_name = graphql_name
+        self.where_input_type = where_input_type
+        self.supports_where_filtering = supports_where_filtering
+        self.nested_where_type = nested_where_type
 
     def has_default(self) -> bool:
         """Return True if a default value or factory is present."""
@@ -101,6 +114,9 @@ def fraise_field(
     description: str | None = None,
     graphql_name: str | None = None,
     inferred_type: type | None = None,  # Added this for automatic annotation inference
+    where_input_type: type | None = None,
+    supports_where_filtering: bool = False,
+    nested_where_type: type | None = None,
 ) -> FraiseQLField:
     """Create a new FraiseQLField with metadata for schema building and codegen.
 
@@ -127,6 +143,12 @@ def fraise_field(
             attribute name, but this allows customization for API compatibility.
         inferred_type: Internal parameter for automatic type inference. Users should
             not set this directly.
+        where_input_type: Pre-defined WhereInput type for nested array filtering.
+            Use this when you have a custom WhereInput type.
+        supports_where_filtering: Enable where parameter support for nested arrays.
+            When True, allows filtering of nested array elements.
+        nested_where_type: Type to automatically generate WhereInput from for nested arrays.
+            FraiseQL will create a WhereInput type from this type's fields.
 
     Returns:
         FraiseQLField: A field descriptor with the specified metadata.
@@ -183,6 +205,18 @@ def fraise_field(
                     description="User password (will be hashed)"
                 )
 
+        Nested array field with where filtering::
+
+            @fraise_type
+            class Organization:
+                id: UUID
+                users: List[User] = fraise_field(
+                    default_factory=list,
+                    supports_where_filtering=True,
+                    nested_where_type=User,
+                    description="Users in this organization"
+                )
+
     Notes:
         - default and default_factory are mutually exclusive
         - Fields without defaults are required in GraphQL schema
@@ -209,4 +243,7 @@ def fraise_field(
         purpose=purpose,
         description=description,
         graphql_name=graphql_name,
+        where_input_type=where_input_type,
+        supports_where_filtering=supports_where_filtering,
+        nested_where_type=nested_where_type,
     )
