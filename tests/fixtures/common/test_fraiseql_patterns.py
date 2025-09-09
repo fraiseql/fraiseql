@@ -1,4 +1,4 @@
-"""Integration test for FraiseQL-style patterns with FraiseQL defaults."""
+"""Integration tests for FraiseQL framework patterns with built-in defaults."""
 
 from typing import Any
 
@@ -17,7 +17,7 @@ class TestFraiseQLStyleMutations:
         """Test creating a mutation using only FraiseQL built-in types."""
         from fraiseql import MutationResultBase
 
-        # This mirrors FraiseQL's typical mutation structure but uses FraiseQL defaults
+        # This demonstrates typical FraiseQL mutation structure with framework defaults
         @fraiseql.input
         class CreateContractInput:
             name: str
@@ -115,7 +115,7 @@ class TestFraiseQLStyleMutations:
         assert error.details == {"conflictId": "existing-id"}
 
     def test_no_custom_base_class_needed(self):
-        """Test that FraiseQL no longer needs FraiseQLMutation base class."""
+        """Test that FraiseQL works with standard base classes."""
         from fraiseql import MutationResultBase
 
         # This should work without any custom base classes
@@ -132,7 +132,7 @@ class TestFraiseQLStyleMutations:
         class CreateUserError(MutationResultBase):
             conflict_user: dict | None = None
 
-        # Can be used directly with @fraiseql.mutation - no custom base class needed
+        # Can be used directly with @fraiseql.mutation using framework defaults
         @fraiseql.mutation(
             function="create_user",
             schema="app",
@@ -144,11 +144,11 @@ class TestFraiseQLStyleMutations:
             success: CreateUserSuccess
             failure: CreateUserError
 
-        # Should work exactly like FraiseQL's FraiseQLMutation pattern
+        # Should work with FraiseQL's standard mutation patterns
         assert hasattr(CreateUser, "__fraiseql_mutation__")
 
-    def test_all_fraiseql_error_patterns_supported(self):
-        """Test that all FraiseQL error patterns work with defaults."""
+    def test_all_error_patterns_supported(self):
+        """Test that all error patterns work with framework defaults."""
         from fraiseql import Error, MutationResultBase
 
         @fraiseql.type
@@ -159,7 +159,7 @@ class TestFraiseQLStyleMutations:
         class TestError(MutationResultBase):
             pass
 
-        # Test all FraiseQL status patterns
+        # Test all framework status patterns
         test_cases = [
             # Success patterns
             ("success", "Created successfully", TestSuccess),
@@ -195,9 +195,9 @@ class TestFraiseQLStyleMutations:
                 assert len(parsed.errors) >= 1
                 assert isinstance(parsed.errors[0], Error)
 
-    def test_default_config_optimal_for_fraiseql(self):
-        """Test that DEFAULT_ERROR_CONFIG is optimized for FraiseQL patterns."""
-        # The enhanced DEFAULT_ERROR_CONFIG should handle all FraiseQL needs
+    def test_default_config_comprehensive(self):
+        """Test that DEFAULT_ERROR_CONFIG is comprehensive for framework patterns."""
+        # The enhanced DEFAULT_ERROR_CONFIG should handle all framework needs
         assert "noop:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
         assert "blocked:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
         assert "duplicate:" in DEFAULT_ERROR_CONFIG.error_as_data_prefixes
