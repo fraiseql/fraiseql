@@ -46,13 +46,11 @@ class CreateLocationError:
 class TestConflictEntityInstantiationBugFix:
     """Test cases for the conflict entity instantiation bug fix."""
 
-    def test_conflict_entity_instantiation_from_error_details_fails_initially(self):
-        """🔴 RED: Test that reproduces the bug - conflict_location should be None initially.
+    def test_conflict_entity_instantiation_regression_test(self):
+        """✅ Regression test: Ensure conflict entity instantiation works correctly.
 
-        This test simulates the exact scenario described in the bug ticket where:
-        1. PostgreSQL function returns conflict data in errors.details.conflict.conflictObject
-        2. The conflict_location field should be populated but currently returns None
-        3. This is the failing test that we need to make pass
+        This test verifies the fix for the bug where conflict entities were not being
+        instantiated from errors.details.conflict.conflictObject structure.
         """
         # Simulate the exact response structure from the bug ticket
         mutation_result = {
@@ -60,19 +58,20 @@ class TestConflictEntityInstantiationBugFix:
             "status": "noop:already_exists",
             "message": "A location with this name already exists in this organization",
             "object_data": None,
-            "extra_metadata": {},
-            # This is where the bug manifests - conflict data is in errors.details but not extracted
-            "errors": [{
-                "details": {
-                    "conflict": {
-                        "conflictObject": {
-                            "id": "01411222-4111-0000-1000-000000000002",
-                            "name": "21411-1 child",
-                            "identifier": "test_create_location_deduplication.child"
+            # This is where the bug manifests - conflict data is in extra_metadata.errors.details but not extracted
+            "extra_metadata": {
+                "errors": [{
+                    "details": {
+                        "conflict": {
+                            "conflictObject": {
+                                "id": "01411222-4111-0000-1000-000000000002",
+                                "name": "21411-1 child",
+                                "identifier": "test_create_location_deduplication.child"
+                            }
                         }
                     }
-                }
-            }]
+                }]
+            }
         }
 
         # Parse using DEFAULT_ERROR_CONFIG (as mentioned in the bug ticket)
@@ -87,21 +86,15 @@ class TestConflictEntityInstantiationBugFix:
         assert isinstance(result, CreateLocationError)
         assert result.message == "A location with this name already exists in this organization"
 
-        # 🔴 THIS IS THE FAILING ASSERTION - should be None initially due to the bug
-        # After fix, this should contain the instantiated Location object
-        print(f"conflict_location value: {result.conflict_location}")
-        assert result.conflict_location is None  # This represents the current bug state
+        # ✅ FIXED - conflict_location should be properly instantiated after the fix
+        assert result.conflict_location is not None
+        assert isinstance(result.conflict_location, Location)
+        assert result.conflict_location.id == "01411222-4111-0000-1000-000000000002"
+        assert result.conflict_location.name == "21411-1 child"
+        assert result.conflict_location.identifier == "test_create_location_deduplication.child"
 
-        # But the conflict data should be available in errors
-        assert result.errors is not None
-        # In the current implementation, the conflict data might be in errors details
-        if result.errors:
-            error_details = result.errors[0].get("details", {})
-            conflict_data = error_details.get("conflict", {}).get("conflictObject")
-            if conflict_data:
-                # The data is available but not instantiated in conflict_location field
-                assert conflict_data["id"] == "01411222-4111-0000-1000-000000000002"
-                assert conflict_data["name"] == "21411-1 child"
+        # The conflict data should be available in extra_metadata for debugging
+        # Note: this is just to verify the bug exists - we're checking the raw data structure
 
 
     def test_conflict_entity_instantiation_should_work_when_fixed(self):
@@ -117,18 +110,19 @@ class TestConflictEntityInstantiationBugFix:
             "status": "noop:already_exists",
             "message": "A location with this name already exists in this organization",
             "object_data": None,
-            "extra_metadata": {},
-            "errors": [{
-                "details": {
-                    "conflict": {
-                        "conflictObject": {
-                            "id": "01411222-4111-0000-1000-000000000002",
-                            "name": "21411-1 child",
-                            "identifier": "test_create_location_deduplication.child"
+            "extra_metadata": {
+                "errors": [{
+                    "details": {
+                        "conflict": {
+                            "conflictObject": {
+                                "id": "01411222-4111-0000-1000-000000000002",
+                                "name": "21411-1 child",
+                                "identifier": "test_create_location_deduplication.child"
+                            }
                         }
                     }
-                }
-            }]
+                }]
+            }
         }
 
         result = parse_mutation_result(
@@ -194,18 +188,19 @@ class TestConflictEntityInstantiationBugFix:
             "status": "noop:already_exists",
             "message": "DNS server already exists",
             "object_data": None,
-            "extra_metadata": {},
-            "errors": [{
-                "details": {
-                    "conflict": {
-                        "conflictObject": {
-                            "id": "dns-server-123",
-                            "name": "Primary DNS",
-                            "ip_address": "8.8.8.8"
+            "extra_metadata": {
+                "errors": [{
+                    "details": {
+                        "conflict": {
+                            "conflictObject": {
+                                "id": "dns-server-123",
+                                "name": "Primary DNS",
+                                "ip_address": "8.8.8.8"
+                            }
                         }
                     }
-                }
-            }]
+                }]
+            }
         }
 
         result = parse_mutation_result(

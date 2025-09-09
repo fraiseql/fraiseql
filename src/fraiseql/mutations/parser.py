@@ -278,6 +278,30 @@ def _parse_error(
                 if value is not None:
                     fields[field_name] = value
 
+    # NEW: Handle conflict entity instantiation from errors.details.conflict.conflictObject
+    # This fixes the bug where DEFAULT_ERROR_CONFIG doesn't populate conflict_* fields
+    if (
+        hasattr(result, "extra_metadata")
+        and result.extra_metadata
+        and "errors" in result.extra_metadata
+    ):
+        errors_list = result.extra_metadata.get("errors", [])
+        if isinstance(errors_list, list) and len(errors_list) > 0:
+            first_error = errors_list[0]
+            if isinstance(first_error, dict):
+                details = first_error.get("details", {})
+                if "conflict" in details:
+                    conflict_data = details["conflict"]
+                    if isinstance(conflict_data, dict) and "conflictObject" in conflict_data:
+                        conflict_object = conflict_data["conflictObject"]
+                        # Try to map this to conflict_* fields
+                        for field_name, field_type in annotations.items():
+                            if field_name.startswith("conflict_") and field_name not in fields:
+                                # Try to instantiate the conflict entity
+                                value = _instantiate_type(field_type, conflict_object)
+                                if value is not None:
+                                    fields[field_name] = value
+
     # Try to populate remaining fields from object_data
     if result.object_data:
         for field_name, field_type in annotations.items():
