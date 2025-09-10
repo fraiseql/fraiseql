@@ -4,7 +4,7 @@ This test reproduces the bug described in the ticket where DEFAULT_ERROR_CONFIG
 is not automatically instantiating conflict entities from errors.details.conflict.conflictObject
 into the conflict_* fields of error classes.
 
-Bug Report: FraiseQL v0.7.10 Bug Report: Conflict Entity Instantiation Failure
+Bug Report: FraiseQL v0.7.10 Bug Report: Conflict Entity Instantiation Failure (Fixed in v0.7.11)
 """
 
 import uuid
