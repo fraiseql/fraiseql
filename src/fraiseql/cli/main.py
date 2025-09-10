@@ -8,12 +8,13 @@ from .commands import check, dev, generate, init_command, sql
 
 
 @click.group()
-@click.version_option(version="0.7.11", prog_name="fraiseql")
+@click.version_option(version="0.7.12", prog_name="fraiseql")
 def cli() -> None:
-    """FraiseQL - Lightweight GraphQL-to-PostgreSQL query builder.
+    """FraiseQL - Production-ready GraphQL API framework for PostgreSQL.
 
-    A complete GraphQL API framework that provides strongly-typed
-    GraphQL-to-PostgreSQL translation with built-in FastAPI integration.
+    A comprehensive GraphQL framework with CQRS architecture, type-safe mutations,
+    JSONB optimization, and enterprise-grade features like conflict resolution,
+    authentication, caching, and FastAPI integration.
     """
 
 
