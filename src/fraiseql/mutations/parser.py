@@ -278,6 +278,10 @@ def _parse_error(
                 if value is not None:
                     fields[field_name] = value
 
+    # Handle conflict entity instantiation from errors.details.conflict.conflictObject
+    # This fixes the bug where DEFAULT_ERROR_CONFIG doesn't populate conflict_* fields
+    _populate_conflict_fields(result, annotations, fields)
+
     # Try to populate remaining fields from object_data
     if result.object_data:
         for field_name, field_type in annotations.items():
@@ -607,3 +611,67 @@ def _is_single_entity_object_data(
         return True
 
     return False
+
+
+def _populate_conflict_fields(
+    result: MutationResult,
+    annotations: dict[str, type],
+    fields: dict[str, Any],
+) -> None:
+    """Populate conflict_* fields from errors.details.conflict.conflictObject.
+
+    This function fixes the bug where DEFAULT_ERROR_CONFIG doesn't automatically
+    instantiate conflict entities from the nested error structure returned by
+    PostgreSQL functions.
+
+    Args:
+        result: The parsed mutation result containing extra_metadata
+        annotations: Field annotations from the error class
+        fields: Dictionary to populate with conflict field values
+    """
+    # Check if we have the expected nested structure
+    if not (
+        result.extra_metadata
+        and isinstance(result.extra_metadata, dict)
+        and "errors" in result.extra_metadata
+    ):
+        return
+
+    errors_list = result.extra_metadata.get("errors", [])
+    if not isinstance(errors_list, list) or len(errors_list) == 0:
+        return
+
+    # Extract conflict data from first error entry
+    first_error = errors_list[0]
+    if not isinstance(first_error, dict):
+        return
+
+    details = first_error.get("details", {})
+    if not isinstance(details, dict) or "conflict" not in details:
+        return
+
+    conflict_data = details["conflict"]
+    if not isinstance(conflict_data, dict) or "conflictObject" not in conflict_data:
+        return
+
+    conflict_object = conflict_data["conflictObject"]
+    if not isinstance(conflict_object, dict):
+        return
+
+    # Map conflict object to all conflict_* fields that haven't been populated yet
+    for field_name, field_type in annotations.items():
+        if (
+            field_name.startswith("conflict_")
+            and field_name not in fields
+            and conflict_object  # Ensure we have data to work with
+        ):
+            try:
+                # Try to instantiate the conflict entity using the type system
+                value = _instantiate_type(field_type, conflict_object)
+                if value is not None:
+                    fields[field_name] = value
+            except Exception as e:
+                # If instantiation fails, don't break the entire parsing process
+                # This maintains backward compatibility with existing error handling
+                logger.debug("Failed to instantiate conflict field %s: %s", field_name, e)
+                continue
