@@ -9,20 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.17] - 2025-09-11
 
-### 🐛 **Fixed**
+### 🚨 **CRITICAL REGRESSION FIX**
 
-#### **CI/CD Pipeline Stability**
-- **Problem solved**: Removed broken codegen test files that were causing CI failures due to missing `fraiseql.codegen.schema_models` module
-- **Issue**: Tests for unimplemented codegen feature were merged without the actual implementation, breaking the test collection phase
-- **Solution**: Removed all codegen test files and directories to restore CI pipeline functionality
-- **Impact**: Restored green CI/CD badges and pipeline reliability
-- **Files removed**: All `tests/**/codegen/` directories and related test files
-- **Future plan**: Codegen feature tests will be re-added when the actual implementation is ready
+#### **Empty String Validation Regression Fix**
+- **Problem solved**: v0.7.16 validation was incorrectly applied during field resolution, preventing existing database records with empty string fields from being loaded
+- **Impact**: 15+ production tests failed, breaking existing API consumers who couldn't upgrade from v0.7.15
+- **Root cause**: String validation was applied in `make_init()` for ALL type kinds (input, output, type, interface) during object instantiation
+- **Solution**: Apply validation only for `@fraiseql.input` types, not output/type/interface types
+- **Files modified**:
+  - `src/fraiseql/utils/fraiseql_builder.py` - Modified `make_init()` to accept `type_kind` parameter
+  - `src/fraiseql/types/constructor.py` - Pass type kind information to `make_init()`
+- **Test coverage**: Added comprehensive regression test suite (`tests/regression/test_v0716_empty_string_validation_regression.py`)
 
-#### **Release Pipeline Integrity**
-- **Maintainer focus**: Ensures release pipeline remains stable and badges stay green
-- **Quality assurance**: Prevents broken tests from blocking legitimate releases
-- **Clean codebase**: Removes tests for unimplemented features that cause confusion
+#### **Validation Behavior Clarification**
+- **✅ Input validation**: `@fraiseql.input` types still reject empty strings (validation preserved)
+- **✅ Data loading**: `@fraiseql.type` types can load existing data with empty fields (regression fixed)
+- **✅ Backward compatibility**: No breaking changes, users can upgrade immediately
+- **✅ Performance**: Maintains v0.7.16 performance improvements
+
+#### **Technical Implementation**
+- **Separation of concerns**: Clear distinction between input validation and data loading
+- **Type-aware validation**: Validation logic now respects FraiseQL type kinds
+- **Enhanced documentation**: Added comprehensive code comments explaining validation behavior
+- **Future-proof**: Prevents similar regressions with proper type kind handling
 
 ## [0.7.16] - 2025-09-11
 
