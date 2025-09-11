@@ -29,6 +29,26 @@ def _extract_type(field_type: Any) -> Any:
     return field_type
 
 
+def _serialize_field_value(field_value: Any) -> Any:
+    """Helper function to serialize a field value recursively.
+
+    Handles nested FraiseQL objects, lists, and primitive values.
+    """
+    # Handle nested FraiseQL input objects
+    if hasattr(field_value, "to_dict") and callable(field_value.to_dict):
+        return field_value.to_dict()
+
+    # Handle lists of FraiseQL objects or primitives
+    if isinstance(field_value, list):
+        return [
+            item.to_dict() if (hasattr(item, "to_dict") and callable(item.to_dict)) else item
+            for item in field_value
+        ]
+
+    # Handle primitive values
+    return field_value
+
+
 def _process_field_value(value: Any, field_type: Any) -> Any:
     """Process a field value based on its type hint.
 
@@ -166,5 +186,30 @@ def define_fraiseql_type(
             return cls(**snake_case_data)
 
         typed_cls.from_dict = from_dict
+
+    # Add JSON serialization methods for input types
+    if kind == "input":
+
+        def to_dict(self) -> dict[str, Any]:
+            """Convert FraiseQL input object to dictionary for JSON serialization.
+
+            Excludes UNSET values and handles nested FraiseQL objects recursively.
+            """
+            from fraiseql.types.definitions import UNSET
+
+            result = {}
+            for field_name in getattr(self, "__annotations__", {}):
+                if hasattr(self, field_name):
+                    field_value = getattr(self, field_name)
+                    if field_value is not UNSET:
+                        result[field_name] = _serialize_field_value(field_value)
+            return result
+
+        def __json__(self) -> dict[str, Any]:
+            """JSON serialization method for FraiseQL input objects."""
+            return self.to_dict()
+
+        typed_cls.to_dict = to_dict
+        typed_cls.__json__ = __json__
 
     return cast("type[T]", typed_cls)
