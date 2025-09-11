@@ -33,7 +33,11 @@ def _serialize_field_value(field_value: Any) -> Any:
     """Helper function to serialize a field value recursively.
 
     Handles nested FraiseQL objects, lists, and primitive values.
+    Uses the existing serialization logic from the SQL generator.
     """
+    # Import here to avoid circular imports
+    from fraiseql.mutations.sql_generator import _serialize_basic
+    
     # Handle nested FraiseQL input objects
     if hasattr(field_value, "to_dict") and callable(field_value.to_dict):
         return field_value.to_dict()
@@ -41,12 +45,12 @@ def _serialize_field_value(field_value: Any) -> Any:
     # Handle lists of FraiseQL objects or primitives
     if isinstance(field_value, list):
         return [
-            item.to_dict() if (hasattr(item, "to_dict") and callable(item.to_dict)) else item
+            item.to_dict() if (hasattr(item, "to_dict") and callable(item.to_dict)) else _serialize_basic(item)
             for item in field_value
         ]
 
-    # Handle primitive values
-    return field_value
+    # Handle primitive values using existing serialization logic
+    return _serialize_basic(field_value)
 
 
 def _process_field_value(value: Any, field_type: Any) -> Any:
