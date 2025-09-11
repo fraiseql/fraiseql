@@ -15,6 +15,33 @@ from fraiseql.utils.field_counter import next_field_index
 T = TypeVar("T")
 
 
+def _is_string_field(field: FraiseQLField) -> bool:
+    """Check if a field is a string type (str)."""
+    if field.field_type is None:
+        return False
+
+    # Import here to avoid circular imports
+    from fraiseql.types.constructor import _extract_type
+
+    # Extract the base type from Optional/Union types
+    actual_type = _extract_type(field.field_type)
+    return actual_type is str
+
+
+def _validate_string_value(field_name: str, value: Any) -> None:
+    """Validate that a string value is not empty or whitespace-only.
+
+    Args:
+        field_name: The name of the field being validated
+        value: The value to validate
+
+    Raises:
+        ValueError: If the value is a string but empty or contains only whitespace
+    """
+    if isinstance(value, str) and not value.strip():
+        raise ValueError(f"Field '{field_name}' cannot be empty")
+
+
 def collect_annotations(cls: type) -> dict[str, Any]:
     """Collect type annotations across MRO with full support for Annotated/Extras."""
     annotations: dict[str, Any] = {}
@@ -216,6 +243,12 @@ def make_init(fields: dict[str, FraiseQLField], *, kw_only: bool = True) -> Call
             final_value = value
             if final_value is None and field.default_factory is not None:
                 final_value = field.default_factory()
+
+            # Validate string fields - reject empty strings and whitespace-only strings
+            # but allow None values for optional fields
+            if _is_string_field(field) and final_value is not None:
+                _validate_string_value(name, final_value)
+
             setattr(self, name, final_value)
 
     _fraiseql_init.__signature__ = inspect.Signature(
