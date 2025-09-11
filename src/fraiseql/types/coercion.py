@@ -1,6 +1,7 @@
 """Module for coercing input data into FraiseQL objects based on type hints."""
 
 import inspect
+import types
 from collections.abc import Callable
 from typing import (
     Any,
@@ -52,8 +53,8 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
     }:
         return coerce_input(cast("type", field_type), cast("dict[str, object]", raw_value))
 
-    # Case 2: Union containing a FraiseQL object
-    if origin is Union and args:
+    # Case 2: Union containing a FraiseQL object (handles both typing.Union and types.UnionType)
+    if (origin is Union or origin is types.UnionType) and args:
         for arg in args:
             if isinstance(arg, HasFraiseDefinition) and arg.__fraiseql_definition__.kind in {
                 "input",

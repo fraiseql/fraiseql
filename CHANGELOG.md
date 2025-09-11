@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.14] - 2025-09-11
+
+### 🐛 **Fixed**
+
+#### **Critical Nested Input Conversion Fix**
+- **Fixed critical nested input conversion bug in v0.7.13**: Resolved the actual root cause where nested FraiseQL input objects were not being properly converted from GraphQL camelCase to Python snake_case field names
+- **Problem**: The v0.7.13 release claimed to fix nested input conversion but the issue persisted - nested input objects still retained camelCase field names, causing PostgreSQL functions to receive inconsistent data formats
+- **Root cause**: The `_coerce_field_value()` function in coercion system only checked for `typing.Union` but not `types.UnionType` (Python 3.10+ syntax). Fields defined as `NestedInput | None` used `types.UnionType` and bypassed proper coercion
+- **Solution**: Enhanced Union type detection in `src/fraiseql/types/coercion.py` to handle both `typing.Union` and `types.UnionType`, ensuring all nested input objects get properly converted
+- **Impact**:
+  - **BREAKING**: All nested input field names now consistently convert to snake_case - remove any dual-format workarounds from PostgreSQL functions
+  - Eliminates architectural inconsistency where direct mutations and nested objects had different field naming
+  - Database functions can now rely on consistent snake_case field names across all mutation patterns
+- **Verification**: Added comprehensive test suite covering direct vs nested input conversion, Union type handling, and real-world scenario replication
+
+### 🧪 **Testing**
+- **Added comprehensive test coverage**: 12 new tests covering nested input conversion edge cases, Union type coercion, and real-world scenarios
+- **Regression prevention**: Added specific tests for `types.UnionType` vs `typing.Union` handling to prevent future regressions
+- **Real-world validation**: Tests replicate the exact scenarios described in user bug reports
+
+### 📁 **Files Modified**
+- `src/fraiseql/types/coercion.py` - Enhanced Union type detection for Python 3.10+ compatibility
+- `tests/unit/mutations/test_nested_input_conversion_comprehensive.py` - New comprehensive test suite
+- `tests/unit/mutations/test_real_world_nested_input_scenario.py` - Real-world scenario validation
+
 ## [0.7.13] - 2025-09-11
 
 ### 🐛 **Fixed**
