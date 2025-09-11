@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.13] - 2025-09-11
+
+### 🐛 **Fixed**
+
+#### **Nested Input Object Field Name Conversion**
+- **Fixed nested input field naming inconsistency**: Resolved issue where nested input objects bypassed camelCase→snake_case field name conversion, causing inconsistent data formats sent to PostgreSQL functions
+- **Problem**: Direct mutations correctly converted `streetNumber` → `street_number`, but nested input objects passed raw GraphQL field names, forcing database functions to handle dual formats
+- **Root cause**: The `_serialize_value()` function in SQL generator didn't apply field name conversion to nested dictionaries and FraiseQL input objects
+- **Solution**:
+  - Enhanced `_serialize_value()` to apply `to_snake_case()` conversion to all dict keys
+  - Added special handling for FraiseQL input objects (`__fraiseql_definition__` detection)
+  - Ensured recursive conversion for deeply nested structures
+- **Impact**:
+  - Eliminates architectural inconsistency in mutation pipeline
+  - Database functions no longer need to handle dual naming formats (`streetNumber` vs `street_number`)
+  - Maintains full backward compatibility with existing mutations
+- **Test coverage**: Added comprehensive test suite covering direct vs nested comparison, recursive conversion, mixed format handling, and edge cases
+
+### 🔧 **Infrastructure**
+
+#### **Linting Tooling Alignment**
+- **Updated ruff dependency**: Aligned local development with CI environment by updating ruff requirement from `>=0.8.4` to `>=0.13.0`
+- **Fixed new lint warnings**: Resolved RUF059 unused variable warnings introduced in ruff 0.13.0 by prefixing unused variables with underscore
+- **Fixed Generic inheritance order**: Moved `Generic` to last position in `DataLoader` class inheritance to comply with PYI059 rule
+- **Impact**: Eliminates CI/local environment inconsistencies and ensures reliable linting pipeline
+
+### 🧪 **Testing**
+- **Enhanced test coverage**: Added 6 new tests for nested input conversion covering edge cases and regression prevention
+- **All existing tests pass**: Verified no regressions with full test suite (2901+ tests)
+
+### 📁 **Files Modified**
+- `src/fraiseql/mutations/sql_generator.py` - Enhanced nested input serialization
+- `tests/unit/mutations/test_nested_input_conversion.py` - New comprehensive test suite
+- `pyproject.toml` - Updated ruff dependency version
+- `src/fraiseql/security/rate_limiting.py` - Fixed unused variable warnings
+- `src/fraiseql/security/validators.py` - Fixed unused variable warnings
+- `src/fraiseql/optimization/dataloader.py` - Fixed Generic inheritance order
+
 ## [0.7.10-beta.1] - 2025-09-08
 
 ### 🐛 **Fixed**
