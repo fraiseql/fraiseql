@@ -138,7 +138,7 @@ def define_fraiseql_type(
                 field.purpose = "output"
 
     typed_cls.__annotations__ = patched_annotations
-    typed_cls.__init__ = make_init(field_map, kw_only=True)
+    typed_cls.__init__ = make_init(field_map, kw_only=True, type_kind=kind)
 
     # Set FraiseQL runtime metadata
     typed_cls.__gql_typename__ = typed_cls.__name__

@@ -28,8 +28,13 @@ def _is_string_field(field: FraiseQLField) -> bool:
     return actual_type is str
 
 
-def _validate_string_value(field_name: str, value: Any) -> None:
-    """Validate that a string value is not empty or whitespace-only.
+def _validate_input_string_value(field_name: str, value: Any) -> None:
+    """Validate that a string value in INPUT types is not empty or whitespace-only.
+
+    This validation is ONLY applied to @fraiseql.input decorated classes to prevent
+    empty strings from being accepted as valid input. It is NOT applied to output
+    types (@fraiseql.type) to allow existing database records with empty fields
+    to be loaded successfully.
 
     Args:
         field_name: The name of the field being validated
@@ -199,8 +204,29 @@ def collect_fraise_fields(
     return gql_fields, annotations
 
 
-def make_init(fields: dict[str, FraiseQLField], *, kw_only: bool = True) -> Callable[..., None]:
-    """Create a custom __init__ method from FraiseQL fields."""
+def make_init(
+    fields: dict[str, FraiseQLField],
+    *,
+    kw_only: bool = True,
+    type_kind: Literal["input", "output", "type", "interface"] = "input",
+) -> Callable[..., None]:
+    """Create a custom __init__ method from FraiseQL fields.
+
+    This function creates an __init__ method that handles field initialization
+    and applies validation rules based on the type kind. String validation is
+    only applied to "input" types to prevent regressions where existing database
+    data with empty string fields cannot be loaded into "output"/"type" objects.
+
+    Args:
+        fields: Dictionary of field names to FraiseQLField instances
+        kw_only: Whether to make parameters keyword-only
+        type_kind: The FraiseQL type kind:
+                  - "input": Apply string validation (reject empty strings)
+                  - "output"/"type"/"interface": Skip validation (allow empty strings)
+
+    Returns:
+        A custom __init__ method that validates input appropriately based on type kind
+    """
     sorted_fields = sorted(fields.values(), key=lambda f: f.index or 0)
 
     positional: list[inspect.Parameter] = []
@@ -244,10 +270,10 @@ def make_init(fields: dict[str, FraiseQLField], *, kw_only: bool = True) -> Call
             if final_value is None and field.default_factory is not None:
                 final_value = field.default_factory()
 
-            # Validate string fields - reject empty strings and whitespace-only strings
-            # but allow None values for optional fields
-            if _is_string_field(field) and final_value is not None:
-                _validate_string_value(name, final_value)
+            # Apply string validation only for INPUT types to prevent regression
+            # where existing database data with empty fields cannot be loaded
+            if type_kind == "input" and _is_string_field(field) and final_value is not None:
+                _validate_input_string_value(name, final_value)
 
             setattr(self, name, final_value)
 
