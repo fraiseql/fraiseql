@@ -278,7 +278,7 @@ class GraphQLRateLimiter:
 
     async def _check_limit(self, key: str, rate_limit: RateLimit) -> bool:
         """Check if rate limit is exceeded."""
-        timestamp, count = await self.store.increment(key, rate_limit.window)
+        _timestamp, count = await self.store.increment(key, rate_limit.window)
         return count > rate_limit.requests
 
     def _create_error_response(self, message: str, rate_limit: RateLimit) -> JSONResponse:
@@ -476,7 +476,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def _check_limit(self, key: str, rate_limit: RateLimit) -> bool:
         """Check if rate limit is exceeded."""
-        timestamp, count = await self.store.increment(key, rate_limit.window)
+        _timestamp, count = await self.store.increment(key, rate_limit.window)
         return count > rate_limit.requests
 
     def _create_error_response(self, message: str, rate_limit: RateLimit) -> JSONResponse:

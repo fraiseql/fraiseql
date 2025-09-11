@@ -329,7 +329,7 @@ class InputValidator:
             )
 
         # Check for invalid domain patterns
-        local_part, domain_part = email.split("@", 1)
+        _local_part, domain_part = email.split("@", 1)
         if domain_part.startswith(".") or domain_part.endswith("."):
             return ValidationResult(
                 is_valid=False,
