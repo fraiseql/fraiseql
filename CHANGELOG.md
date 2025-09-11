@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.16] - 2025-09-11
+
+### 🐛 **Fixed**
+
+#### **FraiseQL Empty String Validation for Required Fields**
+- **Enhancement**: FraiseQL now properly validates required string fields to reject empty strings and whitespace-only values
+- **Problem solved**: Previously, FraiseQL accepted empty strings (`""`) and whitespace-only strings (`"   "`) for required string fields, creating inconsistent validation behavior
+- **Key features**:
+  - **Empty string rejection**: Required string fields (`name: str`) now reject `""` and `"   "` with clear error messages
+  - **Consistent behavior**: Aligns with existing `null` value rejection for required fields
+  - **Optional field support**: Optional string fields (`name: str | None`) still accept `None` but reject empty strings when explicitly provided
+  - **Clear error messages**: Validation failures show `"Field 'field_name' cannot be empty"` for easy debugging
+  - **Type-aware validation**: Only applies to string fields, preserves existing behavior for other types
+- **Framework-level validation**: Automatic validation with no boilerplate code required
+- **GraphQL compatibility**: Error messages suitable for GraphQL error responses
+- **Zero breaking changes**: Only adds validation where it was missing, maintains backward compatibility
+
+#### **Technical Implementation**
+- **Validation location**: Integrated into `make_init()` function for automatic enforcement
+- **Type detection**: Uses existing `_extract_type()` function to handle `Optional`/`Union` types correctly
+- **Performance**: Minimal overhead, only validates string fields during object construction
+- **Test coverage**: 15 comprehensive tests covering all scenarios including inheritance and nested types
+
+### 🧪 **Testing**
+- **New test suite**: Added comprehensive test coverage for empty string validation scenarios
+- **Integration tests**: Verified functionality works correctly in nested inputs and complex scenarios
+- **Regression testing**: All existing 501 type system tests continue to pass
+
 ## [0.7.15] - 2025-09-11
 
 ### ✨ **Added**
