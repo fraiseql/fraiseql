@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.15] - 2025-09-11
+
+### ✨ **Added**
+
+#### **Built-in JSON Serialization for FraiseQL Input Objects**
+- **New feature**: All FraiseQL input objects now have native JSON serialization support via built-in `to_dict()` and `__json__()` methods
+- **Problem solved**: Resolves v0.7.14 JSON serialization errors where nested FraiseQL input objects could not be JSON serialized, causing `"Object of type X is not JSON serializable"` errors
+- **Key features**:
+  - **`to_dict()` method**: Converts input objects to dictionaries, automatically excluding UNSET values
+  - **`__json__()` method**: Provides direct JSON serialization compatibility
+  - **Recursive serialization**: Handles nested FraiseQL objects and lists seamlessly
+  - **UNSET filtering**: Automatically excludes UNSET values during serialization
+  - **Type consistency**: Properly handles dates, UUIDs, enums using existing SQL generator logic
+- **Zero breaking changes**: Fully backward compatible with existing code
+- **Framework integration**: Built into core type system - no user setup required
+
+### 🐛 **Fixed**
+- **JSON Serialization**: Fixed critical issue where FraiseQL input objects failed JSON serialization when used as nested objects
+- **Date serialization**: Ensured date, UUID, enum, and other special types are properly serialized to string formats in `to_dict()` method
+- **Recursive handling**: Fixed serialization of complex nested structures with multiple levels of FraiseQL objects
+
+### 🧪 **Testing**
+- **Comprehensive test coverage**: Added 20+ tests covering all JSON serialization scenarios
+- **Red-Green-Refactor**: Followed TDD methodology with failing tests, minimal fixes, and clean refactoring
+- **Edge cases**: Tests cover nested objects, lists, UNSET values, date serialization, and complex structures
+- **Backward compatibility**: Verified existing functionality remains unaffected
+
+### 🛠️ **Technical Implementation**
+- Enhanced `define_fraiseql_type()` in `src/fraiseql/types/constructor.py` to add serialization methods to input types
+- Added `_serialize_field_value()` helper for recursive serialization with existing type handling
+- Integrated with existing `_serialize_basic()` from SQL generator for consistent type serialization
+- Maintains full compatibility with existing `FraiseQLJSONEncoder`
+
+### 📝 **Usage Example**
+```python
+@fraiseql.input
+class CreateAddressInput:
+    street: str
+    city: str
+    postal_code: str | None = UNSET
+    created_at: datetime.date
+
+# Before v0.7.15: ❌ JSON serialization failed
+# After v0.7.15: ✅ Works seamlessly
+
+address = CreateAddressInput(
+    street="123 Main St", 
+    city="New York",
+    created_at=datetime.date(2025, 1, 15)
+)
+
+result = json.dumps(address, cls=FraiseQLJSONEncoder)  # ✅ Works!
+dict_result = address.to_dict()  
+# ✅ {'street': '123 Main St', 'city': 'New York', 'created_at': '2025-01-15'}
+```
+
+### 📁 **Files Modified**
+- `src/fraiseql/types/constructor.py` - Added JSON serialization methods to input types
+- `tests/unit/mutations/test_nested_input_json_serialization*.py` - Comprehensive test coverage
+- `tests/unit/mutations/test_date_serialization_in_to_dict.py` - Date serialization verification
+
 ## [0.7.14] - 2025-09-11
 
 ### 🐛 **Fixed**
