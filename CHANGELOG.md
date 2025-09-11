@@ -53,13 +53,13 @@ class CreateAddressInput:
 # After v0.7.15: ✅ Works seamlessly
 
 address = CreateAddressInput(
-    street="123 Main St", 
+    street="123 Main St",
     city="New York",
     created_at=datetime.date(2025, 1, 15)
 )
 
 result = json.dumps(address, cls=FraiseQLJSONEncoder)  # ✅ Works!
-dict_result = address.to_dict()  
+dict_result = address.to_dict()
 # ✅ {'street': '123 Main St', 'city': 'New York', 'created_at': '2025-01-15'}
 ```
 
