@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 
 from fraiseql.db import DatabaseQuery
 from fraiseql.types.definitions import UNSET
+from fraiseql.utils.casing import to_snake_case
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,13 @@ def _serialize_value(value: object, field_type: object = None) -> object:
             for f in dataclass_fields(value)
             if getattr(value, f.name) is not UNSET
         }
+    elif hasattr(value, "__fraiseql_definition__"):
+        # Handle FraiseQL input objects (not dataclasses but similar structure)
+        result = {
+            field_name: _serialize_value(getattr(value, field_name), field_type)
+            for field_name, field_type in value.__annotations__.items()
+            if hasattr(value, field_name) and getattr(value, field_name) is not UNSET
+        }
     elif isinstance(value, list):
         result = [_serialize_value(v) for v in value if v is not UNSET]
         if not result and field_type and getattr(field_type, "__origin__", None) is list:
@@ -56,7 +64,10 @@ def _serialize_value(value: object, field_type: object = None) -> object:
             if args and args[0] is uuid.UUID:
                 result = []
     elif isinstance(value, dict):
-        result = {k: _serialize_value(v) for k, v in value.items() if v is not UNSET}
+        # Convert camelCase keys to snake_case for consistent database field naming
+        # This ensures nested input objects use the same field naming convention
+        # as direct input objects, fixing the inconsistency described in the issue
+        result = {to_snake_case(k): _serialize_value(v) for k, v in value.items() if v is not UNSET}
     else:
         result = _serialize_basic(value)
 
