@@ -37,7 +37,7 @@ def _serialize_field_value(field_value: Any) -> Any:
     """
     # Import here to avoid circular imports
     from fraiseql.mutations.sql_generator import _serialize_basic
-    
+
     # Handle nested FraiseQL input objects
     if hasattr(field_value, "to_dict") and callable(field_value.to_dict):
         return field_value.to_dict()
@@ -45,7 +45,9 @@ def _serialize_field_value(field_value: Any) -> Any:
     # Handle lists of FraiseQL objects or primitives
     if isinstance(field_value, list):
         return [
-            item.to_dict() if (hasattr(item, "to_dict") and callable(item.to_dict)) else _serialize_basic(item)
+            item.to_dict()
+            if (hasattr(item, "to_dict") and callable(item.to_dict))
+            else _serialize_basic(item)
             for item in field_value
         ]
 
@@ -209,7 +211,7 @@ def define_fraiseql_type(
                         result[field_name] = _serialize_field_value(field_value)
             return result
 
-        def __json__(self) -> dict[str, Any]:
+        def __json__(self) -> dict[str, Any]:  # noqa: N807
             """JSON serialization method for FraiseQL input objects."""
             return self.to_dict()
 
