@@ -106,14 +106,17 @@ class PrintOptimBackendMockDB:
             raise TypeError(error_msg)
 
         return {
-            "success": True,
+            "status": "success",
             "object_data": {
                 "id": str(uuid.uuid4()),
                 "ip_address": str(input_data.get('ip_address', '10.0.0.1')),
                 "dns_1_id": input_data.get('dns_1_id'),
                 "dns_2_id": input_data.get('dns_2_id'),
             },
-            "message": "Network configuration created successfully"
+            "message": "Network configuration created successfully",
+            "extra_metadata": {
+                "entity": "network_configuration"
+            }
         }
 
 
