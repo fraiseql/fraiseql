@@ -116,10 +116,7 @@ def coerce_input(cls: type, raw: dict[str, object]) -> object:
             msg = f"Missing required field '{name}' for {cls.__name__}"
             raise ValueError(msg)
 
-    instance = object.__new__(cls)
-    for key, value in coerced_data.items():
-        setattr(instance, key, value)
-    return instance
+    return cls(**coerced_data)
 
 
 def coerce_input_arguments(
