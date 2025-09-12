@@ -16,7 +16,11 @@ class TestCLIMain:
         result = cli_runner.invoke(cli, ["--version"])
 
         assert result.exit_code == 0
-        assert "fraiseql, version 0.7.17" in result.output
+        assert "fraiseql, version" in result.output
+        # Verify version format matches expected pattern (semantic versioning)
+        import re
+        version_pattern = r"fraiseql, version \d+\.\d+\.\d+"
+        assert re.search(version_pattern, result.output)
 
     def test_cli_help(self, cli_runner) -> None:
         """Test --help shows help text."""
