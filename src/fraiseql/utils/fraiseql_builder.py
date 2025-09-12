@@ -28,7 +28,7 @@ def _is_string_field(field: FraiseQLField) -> bool:
     return actual_type is str
 
 
-def _validate_input_string_value(field_name: str, value: Any) -> None:
+def _validate_input_string_value(field_name: str, value: Any, field: FraiseQLField) -> None:
     """Validate that a string value in INPUT types is not empty or whitespace-only.
 
     This validation is ONLY applied to @fraiseql.input decorated classes to prevent
@@ -39,10 +39,20 @@ def _validate_input_string_value(field_name: str, value: Any) -> None:
     Args:
         field_name: The name of the field being validated
         value: The value to validate
+        field: The FraiseQLField instance for additional validation context
 
     Raises:
-        ValueError: If the value is a string but empty or contains only whitespace
+        ValueError: If the value is None for a required string field, or if the value
+                   is a string but empty or contains only whitespace
     """
+    # Check if field is required (no default value and no default factory)
+    is_required = field.default is FRAISE_MISSING and field.default_factory is None
+
+    # Validate None values for required string fields
+    if value is None and is_required:
+        raise ValueError(f"Field '{field_name}' is required and cannot be None")
+
+    # Validate empty strings
     if isinstance(value, str) and not value.strip():
         raise ValueError(f"Field '{field_name}' cannot be empty")
 
@@ -272,8 +282,8 @@ def make_init(
 
             # Apply string validation only for INPUT types to prevent regression
             # where existing database data with empty fields cannot be loaded
-            if type_kind == "input" and _is_string_field(field) and final_value is not None:
-                _validate_input_string_value(name, final_value)
+            if type_kind == "input" and _is_string_field(field):
+                _validate_input_string_value(name, final_value, field)
 
             setattr(self, name, final_value)
 

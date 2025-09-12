@@ -122,6 +122,14 @@ class TestV0717GraphQLValidationBypassRegression:
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
             coerce_input(TestValidationInput, whitespace_data)
 
+        # None data should also be rejected for required fields (v0.7.18 specific regression)
+        none_data = {
+            "name": None,  # None should be rejected for required string field
+            "email": "john@example.com"
+        }
+        with pytest.raises(ValueError, match="Field 'name' is required and cannot be None"):
+            coerce_input(TestValidationInput, none_data)
+
     def test_coerce_input_with_missing_required_fields(self):
         """Test that coerce_input() properly handles missing required fields."""
         # Missing required field should raise proper error
@@ -243,6 +251,18 @@ class TestV0717GraphQLValidationBypassRegression:
 
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
             coerce_input_arguments(mock_create_user_resolver, whitespace_raw_args)
+
+        # Test 4: None arguments should also be rejected for required fields (v0.7.18 regression)
+        none_raw_args = {
+            "input": {
+                "name": None,  # None should be rejected for required field
+                "email": "john@example.com",
+                "password": "secretpass"
+            }
+        }
+
+        with pytest.raises(ValueError, match="Field 'name' is required and cannot be None"):
+            coerce_input_arguments(mock_create_user_resolver, none_raw_args)
 
     def test_regression_case_from_bug_report(self):
         """Test the specific case from the bug report that was failing.

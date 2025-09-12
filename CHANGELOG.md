@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.19] - 2025-09-12
+
+### 🚨 **CRITICAL SECURITY FIX**
+
+#### **None Value Validation Bypass Regression Fix**
+- **Problem solved**: v0.7.18 still allowed `None` values for required string fields in GraphQL input processing, bypassing validation completely
+- **Security impact**: 🔴 **CRITICAL** - Data integrity violation, complete validation bypass for `None` values
+- **Root cause**: Validation logic in `make_init()` checked `final_value is not None` before applying string validation, allowing `None` to completely bypass required field validation
+- **Solution**: Enhanced `_validate_input_string_value()` to validate `None` values for required fields before string-specific validation
+- **Files modified**:
+  - `src/fraiseql/utils/fraiseql_builder.py` - Enhanced validation logic to check for `None` values in required fields
+- **Test coverage**: Added `None` value validation test cases to existing regression tests
+- **Validation behavior**:
+  - **✅ Required fields**: `name: str` now properly rejects `None` values with "Field 'name' is required and cannot be None"
+  - **✅ Empty strings**: Still rejected with "Field 'name' cannot be empty"
+  - **✅ Optional fields**: `name: str | None = None` continues to work correctly
+  - **✅ Backward compatibility**: No breaking changes for valid code
+
+#### **Enhanced Error Messages**
+- **None value errors**: Clear distinction between `None` and empty string validation failures
+- **Field context**: Error messages include field names for precise debugging
+- **GraphQL compatibility**: Error format suitable for GraphQL mutation responses
+
+## [0.7.18] - 2025-09-12
+
+### 🐛 **Note**
+This version contained a validation regression where `None` values bypassed validation for required fields. **Upgrade to v0.7.19 immediately**.
+
 ## [0.7.17] - 2025-09-11
 
 ### 🚨 **CRITICAL REGRESSION FIX**
