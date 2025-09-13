@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.20] - 2025-09-13
+
+### 🐛 **Bug Fixes**
+
+#### **JSONB Numeric Ordering Fix**
+- **Problem solved**: ORDER BY clauses were using JSONB text extraction (`data->>'field'`) causing lexicographic sorting where `"125.0" > "1234.53"` due to string comparison
+- **Impact**: 🔴 **Critical** - Data integrity issue for financial data, amounts, quantities, and all numeric field ordering
+- **Root cause**: `order_by_generator.py` generated `ORDER BY data ->> 'amount' ASC` (text) instead of `ORDER BY data -> 'amount' ASC` (JSONB numeric)
+- **Solution**: Changed `OrderBy.to_sql()` to use JSONB extraction preserving original data types for proper PostgreSQL numeric comparison
+- **Files modified**:
+  - `src/fraiseql/sql/order_by_generator.py` - Core fix + enhanced documentation explaining JSONB vs text extraction
+  - 6 existing test files updated to expect correct JSONB extraction behavior
+- **Test coverage**: Added comprehensive `test_numeric_ordering_bug.py` with 7 test scenarios covering single/multiple fields, nested paths, financial amounts, and decimal precision
+- **Performance benefits**:
+  - **✅ Native PostgreSQL numeric comparison** instead of text parsing
+  - **✅ Better index utilization** potential for numeric fields
+  - **✅ Reduced conversion overhead** in sorting operations
+- **Backward compatibility**: ✅ **Fully maintained** - no breaking changes, existing GraphQL queries work unchanged
+- **Before/After behavior**:
+  - **❌ Before**: `['1000.0', '1234.53', '125.0', '25.0']` (lexicographic)
+  - **✅ After**: `[25.0, 125.0, 1000.0, 1234.53]` (proper numeric)
+
+#### **Architecture Design Note**
+- **WHERE clauses remain unchanged**: Correctly use text extraction with casting `(data->>'field')::numeric` for PostgreSQL type conversion
+- **ORDER BY clauses now fixed**: Use JSONB extraction `data->'field'` for type preservation and proper sorting
+- **Design principle**: Text extraction for casting operations, JSONB extraction for type-preserving operations
+
 ## [0.7.19] - 2025-09-12
 
 ### 🚨 **CRITICAL SECURITY FIX**
