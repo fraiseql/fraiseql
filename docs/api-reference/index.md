@@ -20,6 +20,7 @@ Complete reference documentation for all FraiseQL APIs, decorators, types, and u
 | [**Repository**](repository.md) | Database access methods | `find()`, `find_one()`, `call_function()` |
 | [**Types**](types.md) | Built-in GraphQL types | `ID`, `EmailAddress`, `UUID`, `JSON` |
 | [**Filtering**](../core-concepts/filtering-and-where-clauses.md) | Where clauses and filtering | `StringFilter`, `NetworkAddressFilter`, `LTreeFilter` |
+| [**Ordering**](../core-concepts/ordering-and-sorting.md) | ORDER BY and sorting (v0.7.20+) | `OrderBy`, numeric sorting, JSONB optimization |
 | [**Context**](context.md) | Request context and info | `info.context`, resolver info |
 | [**Errors**](errors.md) | Error handling and codes | Exception types, error codes |
 | [**Utilities**](utilities.md) | CLI and helpers | `fraiseql init`, `fraiseql dev` |

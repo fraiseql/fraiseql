@@ -10,6 +10,111 @@
 
 Common issues and their solutions when working with FraiseQL.
 
+## 🔧 **Ordering and Sorting Issues (v0.7.20+)**
+
+### Problem: Numeric Fields Sorted Incorrectly
+
+**Symptoms:**
+```python
+# Financial amounts showing wrong order
+products = [
+    {"price": "1000.0"},   # Should be 3rd
+    {"price": "1234.53"},  # Should be 1st
+    {"price": "125.0"},    # Should be 4th
+    {"price": "25.0"}      # Should be 5th
+]
+```
+
+**Cause:**
+- Using FraiseQL version < 0.7.20
+- JSONB text extraction causing lexicographic sorting
+
+**Solution:**
+
+1. **Upgrade to FraiseQL v0.7.20+:**
+```bash
+pip install --upgrade fraiseql>=0.7.20
+```
+
+2. **Verify the fix works:**
+```python
+# Test numeric ordering
+from fraiseql.sql.order_by_generator import OrderBy
+
+order_by = OrderBy(field="price", direction="asc")
+sql = order_by.to_sql().as_string(None)
+
+# ✅ Should now generate: "data -> 'price' ASC" (JSONB extraction)
+# ❌ Old behavior was: "data ->> 'price' ASC" (text extraction)
+assert "data -> 'price'" in sql
+```
+
+3. **Test your application:**
+```python
+# Verify numeric ordering works correctly
+products = await repo.find(
+    "v_product",
+    order_by=[OrderBy(field="price", direction="asc")]
+)
+prices = [p.price for p in products]
+assert prices == sorted(prices)  # Should pass with v0.7.20+
+```
+
+**Related Documentation:** [Ordering and Sorting](../core-concepts/ordering-and-sorting.md)
+
+### Problem: Mixed Data Type Ordering Issues
+
+**Symptoms:**
+```python
+# Inconsistent ordering with mixed field types
+users = [
+    {"age": "25", "name": "Bob"},
+    {"age": "120", "name": "Alice"},  # Wrong: "120" < "25" as strings
+    {"age": "30", "name": "Charlie"}
+]
+```
+
+**Cause:**
+- Inconsistent data types in JSONB fields
+- Missing type validation
+
+**Solution:**
+
+1. **Use FraiseQL v0.7.20+ with proper type definitions:**
+```python
+@fraiseql.type
+class User:
+    id: UUID
+    name: str
+    age: int  # ✅ Explicit int type ensures numeric ordering
+    email: str
+```
+
+2. **Validate data consistency:**
+```sql
+-- Check for type inconsistencies in your data
+SELECT
+    data -> 'age' as age_value,
+    jsonb_typeof(data -> 'age') as age_type,
+    count(*) as count
+FROM tb_user
+GROUP BY data -> 'age', jsonb_typeof(data -> 'age')
+ORDER BY age_type, age_value;
+```
+
+3. **Clean up inconsistent data:**
+```sql
+-- Convert string numbers to proper numbers
+UPDATE tb_user
+SET data = jsonb_set(
+    data,
+    '{age}',
+    to_jsonb((data ->> 'age')::int)
+)
+WHERE jsonb_typeof(data -> 'age') = 'string'
+AND data ->> 'age' ~ '^[0-9]+$';
+```
+
 ## Connection Issues
 
 ### Problem: "connection refused" Error
