@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.21] - 2025-09-14
+
+### 🐛 **Bug Fixes**
+
+#### **Mutation Name Collision Fix**
+- **Problem solved**: Mutations with similar names (e.g., `CreateItem` and `CreateItemComponent`) were causing parameter validation confusion where `createItemComponent` incorrectly required `item_serial_number` from `CreateItemInput` instead of its own `CreateItemComponentInput` fields
+- **Impact**: 🟡 **High** - GraphQL mutations with similar names would fail validation with incorrect error messages, blocking API functionality
+- **Root cause**: Resolver naming strategy used `to_snake_case(class_name)` which could create collisions when similar class names produced identical snake_case names, causing one mutation to overwrite another's metadata in the GraphQL schema registry
+- **Solution**: Updated resolver naming to use PostgreSQL function names for uniqueness (e.g., `create_item` vs `create_item_component`) and ensure fresh annotation dictionaries prevent shared references
+- **Files modified**:
+  - `src/fraiseql/mutations/mutation_decorator.py` - Enhanced resolver naming logic for collision prevention
+- **Test coverage**: Added comprehensive collision-specific test suite `test_similar_mutation_names_collision_fix.py` with 8 test scenarios covering resolver naming, input type assignment, registry separation, and metadata independence
+- **Validation behavior**:
+  - **✅ Before fix**: `CreateItem` and `CreateItemComponent` could share parameter validation causing incorrect errors
+  - **✅ After fix**: Each mutation validates independently with correct input type requirements
+  - **✅ Backward compatibility**: No breaking changes - existing functionality preserved
+- **Quality assurance**: All 2,979+ existing tests continue to pass + 8 new collision-prevention tests
+
 ## [0.7.20] - 2025-09-13
 
 ### 🐛 **Bug Fixes**

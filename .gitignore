@@ -167,3 +167,13 @@ benchmarks/performance-benchmarks/results-aggregator/*.json
 
 # Private tickets
 /tickets/
+
+# Test fixture caches
+tests/fixtures/examples/.database_state_cache.json
+tests/fixtures/examples/.dependency_cache.json
+tests/fixtures/examples/.install_log.txt
+
+# Additional caches and logs
+.ruff_cache/
+.mypy_cache/
+security_events.log
