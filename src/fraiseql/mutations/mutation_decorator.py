@@ -187,7 +187,16 @@ class MutationDefinition:
             return parsed_result
 
         # Set metadata for GraphQL introspection
-        resolver.__name__ = to_snake_case(self.name)
+        # Create unique resolver name to prevent collisions between similar mutation names
+        # Add the PostgreSQL function name as disambiguation when available
+        base_name = to_snake_case(self.name)
+        if hasattr(self, "function_name") and self.function_name:
+            # Use function name to ensure uniqueness (e.g., create_item vs create_item_component)
+            resolver_name = self.function_name
+        else:
+            resolver_name = base_name
+
+        resolver.__name__ = resolver_name
         resolver.__doc__ = self.mutation_class.__doc__ or f"Mutation for {self.name}"
 
         # Store mutation definition for schema building
@@ -202,6 +211,7 @@ class MutationDefinition:
         else:
             return_type = self.success_type or self.error_type
 
+        # Create a fresh annotations dict to avoid any shared reference issues
         resolver.__annotations__ = {"input": self.input_type, "return": return_type}
 
         return resolver
