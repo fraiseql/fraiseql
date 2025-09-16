@@ -65,6 +65,57 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         # Get query timeout from context or use default (30 seconds)
         self.query_timeout = self.context.get("query_timeout", 30)
 
+    async def _set_session_variables(self, cursor_or_conn) -> None:
+        """Set PostgreSQL session variables from context.
+
+        Sets app.tenant_id and app.contact_id session variables if present in context.
+        Uses SET LOCAL to scope variables to the current transaction.
+
+        Args:
+            cursor_or_conn: Either a psycopg cursor or an asyncpg connection
+        """
+        from psycopg.sql import SQL, Literal
+
+        # Check if this is a cursor (psycopg) or connection (asyncpg)
+        is_cursor = hasattr(cursor_or_conn, "execute") and hasattr(cursor_or_conn, "fetchone")
+
+        if "tenant_id" in self.context:
+            if is_cursor:
+                await cursor_or_conn.execute(
+                    SQL("SET LOCAL app.tenant_id = {}").format(
+                        Literal(str(self.context["tenant_id"]))
+                    )
+                )
+            else:
+                # asyncpg connection
+                await cursor_or_conn.execute(
+                    "SET LOCAL app.tenant_id = $1", str(self.context["tenant_id"])
+                )
+
+        if "contact_id" in self.context:
+            if is_cursor:
+                await cursor_or_conn.execute(
+                    SQL("SET LOCAL app.contact_id = {}").format(
+                        Literal(str(self.context["contact_id"]))
+                    )
+                )
+            else:
+                # asyncpg connection
+                await cursor_or_conn.execute(
+                    "SET LOCAL app.contact_id = $1", str(self.context["contact_id"])
+                )
+        elif "user" in self.context:
+            # Fallback to 'user' if 'contact_id' not set
+            if is_cursor:
+                await cursor_or_conn.execute(
+                    SQL("SET LOCAL app.contact_id = {}").format(Literal(str(self.context["user"])))
+                )
+            else:
+                # asyncpg connection
+                await cursor_or_conn.execute(
+                    "SET LOCAL app.contact_id = $1", str(self.context["user"])
+                )
+
     async def run(self, query: DatabaseQuery) -> list[dict[str, object]]:
         """Execute a SQL query using a connection from the pool.
 
@@ -87,6 +138,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     await cursor.execute(
                         f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                     )
+
+                # Set session variables from context
+                await self._set_session_variables(cursor)
 
                 # Handle statement execution based on type and parameter presence
                 if isinstance(query.statement, Composed) and not query.params:
@@ -184,6 +238,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                         f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                     )
 
+                # Set session variables from context
+                await self._set_session_variables(cursor)
+
                 # Validate function name to prevent SQL injection
                 if not function_name.replace("_", "").replace(".", "").isalnum():
                     msg = f"Invalid function name: {function_name}"
@@ -264,6 +321,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                         f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                     )
 
+                # Set session variables from context
+                await self._set_session_variables(cursor)
+
                 await cursor.execute(
                     f"SELECT * FROM {function_name}({placeholders})",
                     tuple(params),
@@ -289,6 +349,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     decoder=json.loads,
                     schema="pg_catalog",
                 )
+
+                # Set session variables from context
+                await self._set_session_variables(conn)
 
                 result = await conn.fetchrow(
                     f"SELECT * FROM {function_name}({placeholders})",
@@ -500,6 +563,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                             f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                         )
 
+                    # Set session variables from context
+                    await self._set_session_variables(cursor)
+
                     # If we have a Composed statement with embedded Literals, execute without params
                     if isinstance(query.statement, (Composed, SQL)) and not query.params:
                         await cursor.execute(query.statement)
@@ -533,6 +599,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                 await cursor.execute(
                     f"SET LOCAL statement_timeout = '{timeout_ms}ms'",
                 )
+
+            # Set session variables from context
+            await self._set_session_variables(cursor)
 
             # If we have a Composed statement with embedded Literals, execute without params
             if isinstance(query.statement, (Composed, SQL)) and not query.params:
