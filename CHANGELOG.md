@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.25] - 2025-09-17
+
+### 🐛 Fixed
+
+#### Critical WHERE Clause Generation Bugs
+- **FIX**: Hostname filtering no longer incorrectly applies ltree casting for `.local` domains
+- **FIX**: Proper parentheses placement for type casting: `((path))::type` instead of `path::type`
+- **FIX**: Boolean operations consistently use text comparison (`= 'true'/'false'`) instead of `::boolean` casting
+- **FIX**: Numeric operations consistently use `::numeric` casting for proper PostgreSQL comparison
+- **FIX**: Resolves production issues where `printserver01.local` caused SQL syntax errors
+
+### 🧪 Testing
+
+#### Industrial-Grade Test Coverage
+- **TEST**: Comprehensive regression tests for WHERE clause generation edge cases
+- **TEST**: 41+ new regression tests covering hostname, boolean, and numeric filtering
+- **TEST**: SQL injection resistance validation
+- **TEST**: PostgreSQL syntax compliance verification
+- **TEST**: Production scenario validation for enterprise use cases
+
+### 🔒 Security
+
+- **SEC**: Enhanced SQL injection prevention in type casting operations
+- **SEC**: Parameterized query validation for all operator strategies
+
 ## [0.7.24] - 2025-09-17
 
 ### 🚀 Added
