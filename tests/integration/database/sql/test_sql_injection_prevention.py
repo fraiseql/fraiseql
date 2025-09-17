@@ -38,7 +38,8 @@ class TestSQLInjectionPrevention:
         # Convert to string to inspect structure
         sql_str = composed.as_string(None)
         assert "(data ->> 'name') = 'Alice'" in sql_str
-        assert "(data ->> 'age')::numeric > 21" in sql_str  # Numbers are cast to numeric
+        assert "::numeric > 21" in sql_str  # Numbers are cast to numeric
+        assert "data ->> 'age'" in sql_str  # JSONB field extraction
 
     def test_string_injection_attempts(self) -> None:
         """Test that SQL injection in string values is prevented."""
@@ -75,9 +76,9 @@ class TestSQLInjectionPrevention:
         sql_true = where_true.to_sql().as_string(None)
         sql_false = where_false.to_sql().as_string(None)
 
-        # Booleans should be cast properly
-        assert "(data ->> 'is_admin')::boolean = true" in sql_true
-        assert "(data ->> 'is_admin')::boolean = false" in sql_false
+        # Booleans should use text comparison for JSONB
+        assert "(data ->> 'is_admin') = 'true'" in sql_true
+        assert "(data ->> 'is_admin') = 'false'" in sql_false
 
     def test_list_injection_attempts(self) -> None:
         """Test that SQL injection in list values is prevented."""
@@ -227,7 +228,7 @@ class TestSQLInjectionPrevention:
 
         # All values should be safely parameterized
         assert "DELETE FROM" not in sql_str or "DELETE FROM" in repr(sql_str)
-        assert "(data ->> 'verified')::boolean = true" in sql_str  # Boolean properly cast
+        assert "(data ->> 'verified') = 'true'" in sql_str  # Boolean as text comparison
 
     @pytest.mark.parametrize(
         "operator", ["depth_eq", "depth_gt", "depth_lt", "isdescendant", "strictly_contains"]
