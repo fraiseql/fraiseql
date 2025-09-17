@@ -15,8 +15,8 @@ class Status(Enum):
     INACTIVE = "INACTIVE"
 
 
-async def test_resolver(info: GraphQLResolveInfo, status: Status) -> str:
-    """Test resolver."""
+async def sample_resolver(info: GraphQLResolveInfo, status: Status) -> str:
+    """Sample resolver for testing enum conversion."""
     return f"{type(status).__name__}:{status}"
 
 
@@ -24,7 +24,7 @@ async def test_resolver(info: GraphQLResolveInfo, status: Status) -> str:
 async def test_enum_parameter_conversion_direct():
     """Test enum conversion directly in wrap_resolver."""
     # Wrap the resolver
-    field = wrap_resolver(test_resolver)
+    field = wrap_resolver(sample_resolver)
 
     # Create mock info object
     class MockInfo:
@@ -46,7 +46,7 @@ async def test_enum_instance_check():
     """Test that we can detect enum types."""
     from inspect import signature
 
-    sig = signature(test_resolver)
+    sig = signature(sample_resolver)
     status_param = sig.parameters["status"]
 
     # Check if we can detect it's an enum
