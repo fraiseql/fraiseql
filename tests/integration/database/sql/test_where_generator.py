@@ -496,7 +496,7 @@ class TestEdgeCases:
         sql_str = sql.as_string(None)
 
         assert "name" not in sql_str
-        assert "(data ->> 'age')::numeric > 21" in sql_str
+        assert "((data ->> 'age'))::numeric > 21" in sql_str
 
     def test_unsupported_operators_ignored(self):
         """Test that unsupported operators are silently ignored."""
