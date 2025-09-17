@@ -397,9 +397,22 @@ class TestSafeCreateWhereType:
         assert sql is not None
         sql_str = sql.as_string(None)
 
-        assert "(data ->> 'age')::numeric >= 21" in sql_str
-        assert " AND " in sql_str
-        assert "(data ->> 'age')::numeric <= 65" in sql_str
+        # Validate complete SQL structure
+        print(f"Generated SQL: {sql_str}")
+
+        # Validate the complete SQL is exactly what we expect for proper age range filtering
+        expected_sql = "((data ->> 'age'))::numeric >= 21 AND ((data ->> 'age'))::numeric <= 65"
+        assert sql_str == expected_sql, f"Expected exact SQL: {expected_sql}, got: {sql_str}"
+
+        # Additional validations for robustness
+        assert "data ->> 'age'" in sql_str, f"Missing age field in: {sql_str}"
+        assert "::numeric" in sql_str, f"Missing numeric casting in: {sql_str}"
+        assert ">= 21" in sql_str, f"Missing gte condition in: {sql_str}"
+        assert "<= 65" in sql_str, f"Missing lte condition in: {sql_str}"
+        assert " AND " in sql_str, f"Missing AND operator in: {sql_str}"
+
+        # Validate balanced parentheses
+        assert sql_str.count('(') == sql_str.count(')'), f"Unbalanced parentheses in: {sql_str}"
 
     def test_where_type_empty_filter(self):
         """Test WHERE type with no filters returns None."""

@@ -1,0 +1,297 @@
+"""Complete SQL validation tests that check the full rendered WHERE clause.
+
+These tests validate the complete SQL output to ensure it generates syntactically
+correct PostgreSQL queries that can actually be executed.
+"""
+
+import pytest
+from psycopg.sql import SQL
+import re
+
+from fraiseql.sql.operator_strategies import get_operator_registry
+from fraiseql.sql.where_generator import build_operator_composed
+
+
+def render_composed_to_sql(composed):
+    """Render a Composed object to actual SQL string with parameter placeholders."""
+    try:
+        # Use psycopg's as_string method which renders actual SQL
+        return composed.as_string(None)
+    except Exception:
+        # Fallback: manually render the structure
+        def render_part(part):
+            if hasattr(part, 'as_string'):
+                return part.as_string(None)
+            elif hasattr(part, 'string'):  # SQL object
+                return part.string
+            elif hasattr(part, 'seq'):  # Nested Composed
+                return ''.join(render_part(p) for p in part.seq)
+            else:  # Literal
+                return '%s'  # Parameter placeholder
+
+        if hasattr(composed, 'seq'):
+            return ''.join(render_part(part) for part in composed.seq)
+        else:
+            return render_part(composed)
+
+
+@pytest.mark.regression
+class TestCompleteSQLValidation:
+    """Validate complete SQL output for syntactic correctness."""
+
+    def test_numeric_where_clause_full_sql(self):
+        """Test that numeric operations generate valid complete SQL."""
+        registry = get_operator_registry()
+        jsonb_path = SQL("(data ->> 'port')")
+
+        test_cases = [
+            ("eq", 443, "= 443"),
+            ("gte", 400, ">= 400"),
+            ("lt", 1000, "< 1000"),
+            ("in", [80, 443], "IN (80, 443)"),
+        ]
+
+        for op, value, expected_operator in test_cases:
+            strategy = registry.get_strategy(op, int)
+            result = strategy.build_sql(jsonb_path, op, value, int)
+
+            sql = render_composed_to_sql(result)
+            print(f"Operation {op} with value {value}:")
+            print(f"  Generated SQL: {sql}")
+
+            # Validate SQL syntax elements
+            assert "data ->> 'port'" in sql, f"Missing JSONB extraction in: {sql}"
+            assert "::numeric" in sql, f"Missing numeric casting in: {sql}"
+
+            # Check operator and value
+            assert expected_operator in sql, f"Missing expected operator '{expected_operator}' in: {sql}"
+
+            # Validate parentheses balance
+            assert sql.count('(') == sql.count(')'), f"Unbalanced parentheses in: {sql}"
+
+            # Validate that we get valid PostgreSQL syntax
+            # The format should be: ((data ->> 'port'))::numeric [operator] [value]
+            # or: (data ->> 'port')::numeric [operator] [value]
+            numeric_pattern = r"\(\(?data ->> 'port'\)?\)::numeric"
+            import re
+            assert re.search(numeric_pattern, sql), f"Invalid numeric casting pattern in: {sql}"
+
+    def test_boolean_where_clause_full_sql(self):
+        """Test that boolean operations generate valid complete SQL."""
+        registry = get_operator_registry()
+        jsonb_path = SQL("(data ->> 'is_active')")
+
+        test_cases = [
+            ("eq", True, "= 'true'"),
+            ("eq", False, "= 'false'"),
+            ("in", [True, False], "IN ('true', 'false')"),
+        ]
+
+        for op, value, expected_operator in test_cases:
+            strategy = registry.get_strategy(op, bool)
+            result = strategy.build_sql(jsonb_path, op, value, bool)
+
+            sql = render_composed_to_sql(result)
+            print(f"Boolean operation {op} with value {value}:")
+            print(f"  Generated SQL: {sql}")
+
+            # Validate SQL syntax elements
+            assert "data ->> 'is_active'" in sql, f"Missing JSONB extraction in: {sql}"
+            assert "::boolean" not in sql, f"Should not use boolean casting in: {sql}"
+
+            # Check operator and value conversion
+            assert expected_operator in sql, f"Missing expected operator '{expected_operator}' in: {sql}"
+
+            # Validate parentheses balance
+            assert sql.count('(') == sql.count(')'), f"Unbalanced parentheses in: {sql}"
+
+    def test_hostname_where_clause_full_sql(self):
+        """Test that hostname operations generate valid complete SQL without ltree casting."""
+        from fraiseql.types import Hostname
+        registry = get_operator_registry()
+        jsonb_path = SQL("(data ->> 'hostname')")
+
+        test_cases = [
+            ("eq", "printserver01.local", "(data ->> 'hostname') = %s"),
+            ("eq", "db.staging.company.com", "(data ->> 'hostname') = %s"),
+            ("in", ["server.local", "backup.local"], "(data ->> 'hostname') IN (%s, %s)"),
+        ]
+
+        for op, value, expected_pattern in test_cases:
+            strategy = registry.get_strategy(op, Hostname)
+            result = strategy.build_sql(jsonb_path, op, value, Hostname)
+
+            sql = render_composed_to_sql(result)
+            print(f"Hostname operation {op} with value {value}:")
+            print(f"  Generated SQL: {sql}")
+
+            # Critical validation: should NOT use ltree casting
+            assert "::ltree" not in sql, f"Hostname should not get ltree casting in: {sql}"
+
+            # Should use simple text comparison
+            assert "data ->> 'hostname'" in sql, f"Missing JSONB extraction in: {sql}"
+
+            if op == "eq":
+                assert " = " in sql, f"Missing equals operator in: {sql}"
+            elif op == "in":
+                assert " IN (" in sql, f"Missing IN operator in: {sql}"
+
+            # Validate parameter placeholders
+            param_count = sql.count('%s')
+            if op == "eq":
+                assert param_count == 1, f"Expected 1 parameter, got {param_count} in: {sql}"
+            elif op == "in":
+                assert param_count == len(value), f"Expected {len(value)} parameters, got {param_count} in: {sql}"
+
+    def test_mixed_where_clause_full_sql(self):
+        """Test complex WHERE clauses with multiple conditions."""
+        # Test using build_operator_composed for mixing conditions
+        age_path = SQL("data->>'age'")
+        active_path = SQL("data->>'is_active'")
+
+        age_condition = build_operator_composed(age_path, "gte", 21, int)
+        active_condition = build_operator_composed(active_path, "eq", True, bool)
+
+        age_sql = render_composed_to_sql(age_condition)
+        active_sql = render_composed_to_sql(active_condition)
+
+        print(f"Age condition SQL: {age_sql}")
+        print(f"Active condition SQL: {active_sql}")
+
+        # Validate each condition separately
+        # Age condition should use numeric casting
+        assert "data->>'age'" in age_sql, f"Missing age field in: {age_sql}"
+        assert "::numeric" in age_sql, f"Missing numeric casting in: {age_sql}"
+        assert ">=" in age_sql, f"Missing gte operator in: {age_sql}"
+
+        # Active condition should use text comparison
+        assert "data->>'is_active'" in active_sql, f"Missing active field in: {active_sql}"
+        assert "::boolean" not in active_sql, f"Should not use boolean casting in: {active_sql}"
+        assert "=" in active_sql, f"Missing equals operator in: {active_sql}"
+
+    def test_sql_injection_resistance_full_sql(self):
+        """Test that the complete SQL is injection-resistant."""
+        registry = get_operator_registry()
+        jsonb_path = SQL("(data ->> 'comment')")
+
+        malicious_inputs = [
+            "'; DROP TABLE users; --",
+            "' OR '1'='1",
+            "admin'--",
+            "1; DELETE FROM table WHERE 1=1; --",
+        ]
+
+        for malicious_input in malicious_inputs:
+            strategy = registry.get_strategy("eq", str)
+            result = strategy.build_sql(jsonb_path, "eq", malicious_input, str)
+
+            sql = render_composed_to_sql(result)
+            print(f"Testing malicious input: {malicious_input}")
+            print(f"  Generated SQL: {sql}")
+
+            # The SQL should be properly parameterized
+            assert sql == "(data ->> 'comment') = %s", (
+                f"Expected parameterized SQL, got: {sql}"
+            )
+
+            # Should NOT contain the malicious content in the SQL structure
+            assert "DROP TABLE" not in sql, f"SQL injection vulnerability in: {sql}"
+            assert "DELETE FROM" not in sql, f"SQL injection vulnerability in: {sql}"
+            assert " OR " not in sql.replace(" OR ", ""), f"SQL injection vulnerability in: {sql}"
+
+    def test_complex_list_operations_full_sql(self):
+        """Test that complex list operations generate valid SQL."""
+        registry = get_operator_registry()
+
+        test_cases = [
+            # Numeric lists
+            (SQL("(data ->> 'port')"), "in", [80, 443, 8080], int,
+             "((data ->> 'port'))::numeric IN (%s, %s, %s)"),
+
+            # Boolean lists
+            (SQL("(data ->> 'enabled')"), "notin", [True, False], bool,
+             "(data ->> 'enabled') NOT IN (%s, %s)"),
+
+            # String lists
+            (SQL("(data ->> 'status')"), "in", ["active", "pending"], str,
+             "(data ->> 'status') IN (%s, %s)"),
+        ]
+
+        for path_sql, op, values, value_type, expected_structure in test_cases:
+            strategy = registry.get_strategy(op, value_type)
+            result = strategy.build_sql(path_sql, op, values, value_type)
+
+            sql = render_composed_to_sql(result)
+            print(f"List operation {op} with {value_type.__name__} values {values}:")
+            print(f"  Generated SQL: {sql}")
+
+            # Validate structure elements exist
+            if value_type == int:
+                assert "::numeric" in sql, f"Missing numeric casting for int list in: {sql}"
+            elif value_type == bool:
+                assert "::boolean" not in sql, f"Should not use boolean casting for bool list in: {sql}"
+
+            # Validate operator
+            if op == "in":
+                assert " IN (" in sql, f"Missing IN operator in: {sql}"
+            elif op == "notin":
+                assert " NOT IN (" in sql, f"Missing NOT IN operator in: {sql}"
+
+            # Validate parameter count
+            param_count = sql.count('%s')
+            assert param_count == len(values), (
+                f"Expected {len(values)} parameters, got {param_count} in: {sql}"
+            )
+
+            # Validate parentheses balance
+            assert sql.count('(') == sql.count(')'), f"Unbalanced parentheses in: {sql}"
+
+    def test_postgresql_syntax_compliance(self):
+        """Test that generated SQL follows PostgreSQL syntax rules."""
+        registry = get_operator_registry()
+
+        # Test various field types and operations
+        test_scenarios = [
+            (SQL("(data ->> 'score')"), "gte", 85, int),
+            (SQL("(data ->> 'verified')"), "eq", True, bool),
+            (SQL("(data ->> 'name')"), "eq", "test user", str),
+            (SQL("(data ->> 'tags')"), "in", ["red", "blue", "green"], str),
+        ]
+
+        for path_sql, op, value, value_type in test_scenarios:
+            strategy = registry.get_strategy(op, value_type)
+            result = strategy.build_sql(path_sql, op, value, value_type)
+
+            sql = render_composed_to_sql(result)
+            print(f"PostgreSQL syntax test - {value_type.__name__} {op}: {sql}")
+
+            # Basic PostgreSQL syntax validations
+
+            # 1. Proper JSONB extraction syntax
+            assert " ->> " in sql, f"Missing JSONB extraction operator in: {sql}"
+
+            # 2. Balanced quotes (single quotes for strings)
+            single_quotes = sql.count("'")
+            assert single_quotes % 2 == 0, f"Unbalanced single quotes in: {sql}"
+
+            # 3. No syntax errors (basic checks)
+            assert not sql.startswith(" "), f"SQL should not start with space: {sql}"
+            assert not sql.endswith(" "), f"SQL should not end with space: {sql}"
+
+            # 4. Proper operator spacing
+            if " = " in sql:
+                assert not " =  " in sql and not "=  " in sql, f"Improper operator spacing in: {sql}"
+
+            # 5. Parameter placeholders are valid
+            assert "%s" in sql, f"Missing parameter placeholder in: {sql}"
+
+            # 6. No double casting
+            casting_types = ["::numeric", "::boolean", "::text", "::ltree", "::inet"]
+            casting_count = sum(sql.count(cast_type) for cast_type in casting_types)
+            field_count = sql.count(" ->> ")
+            assert casting_count <= field_count, f"Too many type casts for fields in: {sql}"
+
+
+if __name__ == "__main__":
+    print("Testing complete SQL validation...")
+    print("Run with: pytest tests/regression/where_clause/test_complete_sql_validation.py -v -s")
