@@ -17,6 +17,46 @@ from fraiseql.graphql.passthrough_type import PassthroughResult
 logger = logging.getLogger(__name__)
 
 
+def _should_block_introspection(enable_introspection: bool, context_value: Any) -> tuple[bool, str]:
+    """Check if introspection should be blocked based on configuration and authentication.
+
+    Args:
+        enable_introspection: Traditional boolean flag for introspection
+        context_value: GraphQL context containing config and user information
+
+    Returns:
+        Tuple of (should_block, reason) indicating if introspection should be blocked
+    """
+    if not enable_introspection:
+        # Traditional boolean-based blocking
+        return True, "Introspection is disabled"
+
+    if not context_value or not hasattr(context_value.get("config", {}), "introspection_policy"):
+        # No policy configuration, use default (allow)
+        return False, ""
+
+    # New policy-based checking
+    from fraiseql.fastapi.config import IntrospectionPolicy
+
+    config = context_value.get("config", {})
+    policy = getattr(config, "introspection_policy", IntrospectionPolicy.PUBLIC)
+
+    if policy == IntrospectionPolicy.DISABLED:
+        return True, "Introspection is disabled by policy"
+    if policy == IntrospectionPolicy.PUBLIC:
+        return False, ""
+    if policy == IntrospectionPolicy.AUTHENTICATED:
+        # Check if user is authenticated
+        user_context = context_value.get("user")
+        if not user_context:
+            return True, "Introspection requires authentication"
+        logger.info(f"Introspection allowed for authenticated user: {user_context}")
+        return False, ""
+
+    # Unknown policy, default to blocking for security
+    return True, f"Unknown introspection policy: {policy}"
+
+
 async def execute_with_passthrough_check(
     schema: GraphQLSchema,
     source: str,
@@ -113,19 +153,26 @@ async def execute_with_passthrough_check(
     # Always validate the document against the schema
     validation_rules = []
 
-    # Add introspection validation rule if disabled
-    if not enable_introspection:
+    # Check if introspection should be blocked
+    should_block_introspection, introspection_block_reason = _should_block_introspection(
+        enable_introspection, context_value
+    )
+
+    # Add introspection validation rule if should be blocked
+    if should_block_introspection:
         from graphql import NoSchemaIntrospectionCustomRule
 
         validation_rules.append(NoSchemaIntrospectionCustomRule)
-        logger.info("Introspection disabled - adding NoSchemaIntrospectionCustomRule")
+        logger.info(f"Introspection blocked: {introspection_block_reason}")
 
     # Validate the document against the schema
     validation_errors = validate(schema, document, validation_rules or None)
     if validation_errors:
-        if not enable_introspection and validation_rules:
+        if should_block_introspection and validation_rules:
             logger.warning(
-                "Introspection query blocked: %s", [err.message for err in validation_errors]
+                "Introspection query blocked: %s (reason: %s)",
+                [err.message for err in validation_errors],
+                introspection_block_reason,
             )
         else:
             logger.warning(

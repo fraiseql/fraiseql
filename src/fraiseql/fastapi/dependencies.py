@@ -184,6 +184,7 @@ async def build_graphql_context(
         "authenticated": user is not None,
         "loader_registry": loader_registry,
         "mode": mode,
+        "config": config,  # Add config for introspection policy access
     }
 
     # Add query timeout to context if configured

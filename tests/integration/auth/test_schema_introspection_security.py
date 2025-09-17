@@ -30,7 +30,7 @@ class TestSchemaIntrospectionSecurity:
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
             environment="development",
-            enable_introspection=True,
+            introspection_policy="public",
         )
 
         app = create_fraiseql_app(config=config, queries=[simple_test_query], production=False)
@@ -103,7 +103,7 @@ class TestSchemaIntrospectionSecurity:
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
             environment="development",
-            enable_introspection=True,
+            introspection_policy="public",
         )
 
         app = create_fraiseql_app(
@@ -127,12 +127,13 @@ class TestSchemaIntrospectionSecurity:
     def test_introspection_configurable_override(self):
         """RED: Introspection should be configurable via explicit setting."""
         # Explicitly enable introspection in production (override default)
+        from fraiseql.fastapi.config import IntrospectionPolicy
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
             environment="production",
         )
         # Override the validator by setting it after creation
-        config.enable_introspection = True
+        config.introspection_policy = IntrospectionPolicy.PUBLIC
 
         app = create_fraiseql_app(
             config=config,
