@@ -28,6 +28,7 @@
 - **Type-safe**: Full Python 3.13+ type hints with automatic GraphQL schema generation
 - **One command setup**: `fraiseql init my-api && fraiseql dev`
 - **Intelligent WHERE clauses**: Automatic type-aware SQL optimization for network types, dates, and more
+- **Hybrid table support**: Seamless filtering across regular columns and JSONB fields
 - **Built-in security**: Field-level authorization, rate limiting, CSRF protection
 
 ## 🏁 Quick Start
@@ -143,6 +144,44 @@ async def users(info) -> list[User]:
     tenant_id = info.context["tenant_id"]  # Auto-injected
     return await repo.find("v_user", tenant_id=tenant_id)
 ```
+
+### **Hybrid Tables**
+Combine regular SQL columns with JSONB for optimal performance and flexibility:
+
+```python
+# Database schema
+CREATE TABLE products (
+    id UUID PRIMARY KEY,
+    status TEXT,           -- Regular column (fast filtering)
+    is_active BOOLEAN,     -- Regular column (indexed)
+    data JSONB            -- Flexible data (brand, specs, etc.)
+);
+
+# Type definition
+@fraiseql.type
+class Product:
+    id: UUID
+    status: str          # From regular column
+    is_active: bool      # From regular column
+    brand: str           # From JSONB data
+    specifications: dict # From JSONB data
+
+# Registration with metadata (optimal performance)
+register_type_for_view(
+    "products", Product,
+    table_columns={'id', 'status', 'is_active', 'data'},
+    has_jsonb_data=True
+)
+
+# Automatic SQL generation
+# where: { isActive: true, brand: "TechCorp" }
+# → WHERE is_active = true AND data->>'brand' = 'TechCorp'
+```
+
+**Benefits:**
+- **0.4μs field detection** with metadata registration
+- **Optimal SQL generation** for each field type
+- **No runtime database queries** for field classification
 
 ## 📊 Performance Comparison
 

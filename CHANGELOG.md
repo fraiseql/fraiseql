@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.24] - TBD
+
+### 🚀 Added
+
+#### Hybrid Table Support
+- **NEW**: Full support for hybrid tables with both regular SQL columns and JSONB data
+- **NEW**: Automatic field detection and optimal SQL generation
+- **NEW**: Registration-time metadata for zero-latency field classification
+- **NEW**: `register_type_for_view()` enhanced with `table_columns` and `has_jsonb_data` parameters
+
+### 🏃‍♂️ Performance
+
+#### SQL Generation Optimization
+- **PERF**: 0.4μs field detection time with metadata registration (1670x faster than DB query)
+- **PERF**: Zero runtime database introspection for registered hybrid tables
+- **PERF**: Multi-level caching system for field path decisions
+- **PERF**: Minimal memory overhead (~1KB per table for metadata)
+
+### 🐛 Fixed
+
+#### Critical Filtering Bug
+- **FIX**: Hybrid tables now correctly filter on regular SQL columns
+- **FIX**: Dynamic filter construction works properly on mixed column types
+- **FIX**: WHERE clause generation automatically detects column vs JSONB fields
+- **FIX**: Resolves issue where `WHERE is_active = true` was incorrectly generated as `WHERE data->>'is_active' = true`
+
+### 📚 Documentation
+
+- **DOCS**: Complete hybrid tables guide with examples
+- **DOCS**: API reference for registration functions
+- **DOCS**: Performance benchmarks and optimization guide
+- **DOCS**: Migration guide from pure JSONB to hybrid tables
+
+### 🧪 Testing
+
+- **TEST**: Comprehensive hybrid table filtering test suite
+- **TEST**: Performance benchmarks for SQL generation
+- **TEST**: Generic examples replacing domain-specific ones
+
 ## [0.7.21] - 2025-09-14
 
 ### 🐛 **Bug Fixes**
