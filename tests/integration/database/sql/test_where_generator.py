@@ -236,17 +236,15 @@ class TestBuildOperatorComposed:
         """Test boolean value conversion to proper SQL."""
         path_sql = SQL("data->>'is_active'")
 
-        # Boolean true
+        # Boolean true - now uses text comparison for JSONB consistency
         result = build_operator_composed(path_sql, "eq", True)
         sql_str = result.as_string(None)
-        assert "::boolean" in sql_str
-        assert "= true" in sql_str  # Boolean literal, not string
+        assert "= 'true'" in sql_str  # Text literal for JSONB consistency
 
         # Boolean false
         result = build_operator_composed(path_sql, "eq", False)
         sql_str = result.as_string(None)
-        assert "::boolean" in sql_str
-        assert "= false" in sql_str  # Boolean literal, not string
+        assert "= 'false'" in sql_str  # Text literal for JSONB consistency
 
     def test_uuid_value_handling(self):
         """Test UUID value handling with type hints."""
