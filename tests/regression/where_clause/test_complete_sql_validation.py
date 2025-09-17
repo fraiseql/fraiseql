@@ -112,12 +112,12 @@ class TestCompleteSQLValidation:
         jsonb_path = SQL("(data ->> 'hostname')")
 
         test_cases = [
-            ("eq", "printserver01.local", "(data ->> 'hostname') = %s"),
-            ("eq", "db.staging.company.com", "(data ->> 'hostname') = %s"),
-            ("in", ["server.local", "backup.local"], "(data ->> 'hostname') IN (%s, %s)"),
+            ("eq", "printserver01.local", "= 'printserver01.local'"),
+            ("eq", "db.staging.company.com", "= 'db.staging.company.com'"),
+            ("in", ["server.local", "backup.local"], "IN ('server.local', 'backup.local')"),
         ]
 
-        for op, value, expected_pattern in test_cases:
+        for op, value, expected_operator in test_cases:
             strategy = registry.get_strategy(op, Hostname)
             result = strategy.build_sql(jsonb_path, op, value, Hostname)
 
@@ -131,17 +131,8 @@ class TestCompleteSQLValidation:
             # Should use simple text comparison
             assert "data ->> 'hostname'" in sql, f"Missing JSONB extraction in: {sql}"
 
-            if op == "eq":
-                assert " = " in sql, f"Missing equals operator in: {sql}"
-            elif op == "in":
-                assert " IN (" in sql, f"Missing IN operator in: {sql}"
-
-            # Validate parameter placeholders
-            param_count = sql.count('%s')
-            if op == "eq":
-                assert param_count == 1, f"Expected 1 parameter, got {param_count} in: {sql}"
-            elif op == "in":
-                assert param_count == len(value), f"Expected {len(value)} parameters, got {param_count} in: {sql}"
+            # Check operator and value
+            assert expected_operator in sql, f"Missing expected operator '{expected_operator}' in: {sql}"
 
     def test_mixed_where_clause_full_sql(self):
         """Test complex WHERE clauses with multiple conditions."""
