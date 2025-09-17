@@ -1015,7 +1015,8 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     # The where type returns a Composed object with JSONB paths
                     # We need to add it as a SQL fragment
                     where_parts.append(where_composed)
-            # **FIX: Handle plain dictionary where clauses**
+            # Handle plain dictionary where clauses (used in dynamic filter construction)
+            # These use regular column names, not JSONB paths
             elif isinstance(where_obj, dict):
                 # Convert dictionary where clause to SQL conditions
                 where_composed = self._convert_dict_where_to_sql(where_obj)
@@ -1238,6 +1239,10 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
     def _convert_dict_where_to_sql(self, where_dict: dict[str, Any]) -> Composed | None:
         """Convert a dictionary WHERE clause to SQL conditions.
 
+        This method handles dynamically constructed where clauses used in GraphQL resolvers.
+        Unlike WhereInput types (which use JSONB paths), dictionary filters use direct
+        column names for regular tables.
+
         Args:
             where_dict: Dictionary with field names as keys and operator dictionaries as values
                        e.g., {'name': {'contains': 'router'}, 'port': {'gt': 20}}
@@ -1321,7 +1326,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         Returns:
             Composed SQL condition with intelligent type casting, or None if operator not supported
         """
-        from psycopg.sql import SQL
+        from psycopg.sql import Identifier
 
         from fraiseql.sql.operator_strategies import get_operator_registry
 
@@ -1329,11 +1334,10 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             # Get the operator strategy registry (contains the v0.7.1 IP filtering fixes)
             registry = get_operator_registry()
 
-            # Build JSONB path expression: (data->>'field_name')
-            # Note: Using ->> to get text value from JSONB, strategy will cast as needed
-            # Escape single quotes to prevent SQL injection
-            escaped_field_name = field_name.replace("'", "''")
-            path_sql = SQL(f"(data->>'{escaped_field_name}')")
+            # For dictionary filters, use direct column names instead of JSONB paths
+            # This fixes the issue where dynamic filters were trying to use
+            # non-existent 'data' column
+            path_sql = Identifier(field_name)
 
             # Get the appropriate strategy for this operator
             # field_type=None triggers fallback detection (IP addresses, MAC addresses, etc.)
@@ -1362,16 +1366,18 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         This provides basic SQL generation when the operator strategy system
         is not available or fails. Used as a safety fallback.
         """
-        from psycopg.sql import SQL, Composed, Literal
+        from psycopg.sql import SQL, Composed, Identifier, Literal
 
         # Basic operator templates for fallback scenarios
         basic_operators = {
             "eq": lambda path, val: Composed([path, SQL(" = "), Literal(val)]),
             "neq": lambda path, val: Composed([path, SQL(" != "), Literal(val)]),
-            "gt": lambda path, val: Composed([path, SQL("::numeric > "), Literal(val)]),
-            "gte": lambda path, val: Composed([path, SQL("::numeric >= "), Literal(val)]),
-            "lt": lambda path, val: Composed([path, SQL("::numeric < "), Literal(val)]),
-            "lte": lambda path, val: Composed([path, SQL("::numeric <= "), Literal(val)]),
+            "gt": lambda path, val: Composed([path, SQL(" > "), Literal(val)]),
+            "gte": lambda path, val: Composed([path, SQL(" >= "), Literal(val)]),
+            "lt": lambda path, val: Composed([path, SQL(" < "), Literal(val)]),
+            "lte": lambda path, val: Composed([path, SQL(" <= "), Literal(val)]),
+            "ilike": lambda path, val: Composed([path, SQL(" ILIKE "), Literal(val)]),
+            "like": lambda path, val: Composed([path, SQL(" LIKE "), Literal(val)]),
             "isnull": lambda path, val: Composed(
                 [path, SQL(" IS NULL" if val else " IS NOT NULL")]
             ),
@@ -1380,8 +1386,8 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         if operator not in basic_operators:
             return None
 
-        # Build JSONB path expression
-        path_sql = Composed([SQL("(data ->> "), Literal(field_name), SQL(")")])
+        # Use direct column name instead of JSONB path
+        path_sql = Identifier(field_name)
 
         # Generate basic condition
         return basic_operators[operator](path_sql, value)
