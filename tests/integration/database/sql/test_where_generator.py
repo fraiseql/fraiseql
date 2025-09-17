@@ -336,9 +336,18 @@ class TestSafeCreateWhereType:
         assert sql is not None
         sql_str = sql.as_string(None)
 
+        # Test string field - should be exact text comparison
         assert "(data ->> 'name') = 'test'" in sql_str
-        assert "(data ->> 'age')::numeric > 21" in sql_str
-        assert "(data ->> 'is_active')::boolean = true" in sql_str
+
+        # Test numeric field - should have proper casting structure
+        # Valid patterns: (data ->> 'age')::numeric > 21 OR ((data ->> 'age'))::numeric > 21
+        import re
+        numeric_pattern = r"\(\(data ->> 'age'\)\)::numeric > 21|\(data ->> 'age'\)::numeric > 21"
+        assert re.search(numeric_pattern, sql_str), f"Expected numeric casting pattern not found in: {sql_str}"
+
+        # Test boolean field - should use text comparison, not boolean casting
+        assert "(data ->> 'is_active') = 'true'" in sql_str
+        assert "::boolean" not in sql_str, f"Boolean fields should not use ::boolean casting, found in: {sql_str}"
 
     def test_where_type_with_complex_filters(self):
         """Test WHERE type with complex filters."""
