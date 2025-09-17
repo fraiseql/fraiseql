@@ -1,12 +1,36 @@
 """Configuration for FraiseQL FastAPI integration."""
 
 import logging
+from enum import Enum
 from typing import Annotated, Any, Literal
 
 from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
+
+
+class IntrospectionPolicy(str, Enum):
+    """Policy for GraphQL schema introspection access control.
+
+    - DISABLED: No introspection allowed for anyone
+    - PUBLIC: Introspection allowed for everyone (default)
+    - AUTHENTICATED: Introspection only allowed for authenticated users
+    """
+
+    DISABLED = "disabled"
+    PUBLIC = "public"
+    AUTHENTICATED = "authenticated"
+
+    def allows_introspection(self, is_authenticated: bool = False) -> bool:
+        """Check if introspection is allowed based on policy and authentication status."""
+        if self == IntrospectionPolicy.DISABLED:
+            return False
+        if self == IntrospectionPolicy.PUBLIC:
+            return True
+        if self == IntrospectionPolicy.AUTHENTICATED:
+            return is_authenticated
+        return False
 
 
 def validate_postgres_url(v: Any) -> str:
@@ -72,7 +96,7 @@ class FraiseQLConfig(BaseSettings):
         app_name: Application name displayed in API documentation.
         app_version: Application version string.
         environment: Current environment (development/production/testing).
-        enable_introspection: Allow GraphQL schema introspection queries.
+        introspection_policy: Policy for GraphQL schema introspection access control.
         enable_playground: Enable GraphQL playground IDE.
         playground_tool: Which GraphQL IDE to use (graphiql or apollo-sandbox).
         max_query_depth: Maximum allowed query depth to prevent abuse.
@@ -137,7 +161,7 @@ class FraiseQLConfig(BaseSettings):
     environment: Literal["development", "production", "testing"] = "development"
 
     # GraphQL settings
-    enable_introspection: bool = True
+    introspection_policy: IntrospectionPolicy = IntrospectionPolicy.PUBLIC
     enable_playground: bool = True
     playground_tool: Literal["graphiql", "apollo-sandbox"] = "graphiql"  # Which GraphQL IDE to use
     max_query_depth: int | None = None
@@ -257,12 +281,24 @@ class FraiseQLConfig(BaseSettings):
     default_mutation_schema: str = "public"  # Default schema for mutations when not specified
     default_query_schema: str = "public"  # Default schema for queries when not specified
 
-    @field_validator("enable_introspection")
+    @property
+    def enable_introspection(self) -> bool:
+        """Backward compatibility property for enable_introspection.
+
+        Returns True if introspection_policy allows any introspection.
+        For authenticated-only policies, this returns True to allow
+        the GraphQL execution layer to handle auth checks.
+        """
+        return self.introspection_policy != IntrospectionPolicy.DISABLED
+
+    @field_validator("introspection_policy")
     @classmethod
-    def introspection_for_dev_only(cls, v: bool, info) -> bool:
-        """Disable introspection in production unless explicitly enabled."""
-        if info.data.get("environment") == "production" and v is True:
-            return False
+    def set_production_introspection_default(
+        cls, v: IntrospectionPolicy, info
+    ) -> IntrospectionPolicy:
+        """Set introspection policy to DISABLED in production unless explicitly set."""
+        if info.data.get("environment") == "production" and v == IntrospectionPolicy.PUBLIC:
+            return IntrospectionPolicy.DISABLED
         return v
 
     @field_validator("enable_playground")
