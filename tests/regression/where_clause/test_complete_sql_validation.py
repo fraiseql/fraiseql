@@ -181,7 +181,9 @@ class TestCompleteSQLValidation:
             print(f"  Generated SQL: {sql}")
 
             # The SQL should contain the literal value properly escaped
-            expected_sql = f"(data ->> 'comment') = '{malicious_input}'"
+            # Note: Single quotes in SQL are escaped by doubling them
+            escaped_input = malicious_input.replace("'", "''")
+            expected_sql = f"(data ->> 'comment') = '{escaped_input}'"
             assert sql == expected_sql, f"Expected: {expected_sql}, got: {sql}"
 
             # The malicious content should be within the quoted literal, not as executable SQL
