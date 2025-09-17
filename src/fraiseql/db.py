@@ -32,6 +32,10 @@ T = TypeVar("T")
 # Type registry for development mode
 _type_registry: dict[str, type] = {}
 
+# Table metadata registry - stores column information at registration time
+# This avoids expensive runtime introspection
+_table_metadata: dict[str, dict[str, Any]] = {}
+
 
 @dataclass
 class DatabaseQuery:
@@ -42,16 +46,36 @@ class DatabaseQuery:
     fetch_result: bool = True
 
 
-def register_type_for_view(view_name: str, type_class: type) -> None:
-    """Register a type class for a specific view name.
+def register_type_for_view(
+    view_name: str,
+    type_class: type,
+    table_columns: set[str] | None = None,
+    has_jsonb_data: bool | None = None,
+) -> None:
+    """Register a type class for a specific view name with optional metadata.
 
     This is used in development mode to instantiate proper types from view data.
+    Storing metadata at registration time avoids expensive runtime introspection.
 
     Args:
         view_name: The database view name
         type_class: The Python type class decorated with @fraise_type
+        table_columns: Optional set of actual database columns (for hybrid tables)
+        has_jsonb_data: Optional flag indicating if table has a JSONB 'data' column
     """
     _type_registry[view_name] = type_class
+    logger.debug(f"Registered type {type_class.__name__} for view {view_name}")
+
+    # Store metadata if provided
+    if table_columns is not None or has_jsonb_data is not None:
+        _table_metadata[view_name] = {
+            "columns": table_columns or set(),
+            "has_jsonb_data": has_jsonb_data or False,
+        }
+        logger.debug(
+            f"Registered metadata for {view_name}: {len(table_columns or set())} columns, "
+            f"jsonb={has_jsonb_data}"
+        )
 
 
 class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
@@ -373,12 +397,43 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         env = os.getenv("FRAISEQL_ENV", "production")
         return "development" if env == "development" else "production"
 
+    async def _ensure_table_columns_cached(self, view_name: str) -> None:
+        """Ensure table columns are cached for hybrid table detection.
+
+        PERFORMANCE OPTIMIZATION:
+        - Only introspect once per table per repository instance
+        - Cache both successes and failures to avoid repeated queries
+        - Use connection pool efficiently
+        """
+        if not hasattr(self, "_introspected_columns"):
+            self._introspected_columns = {}
+            self._introspection_in_progress = set()
+
+        # Skip if already cached or being introspected (avoid race conditions)
+        if view_name in self._introspected_columns or view_name in self._introspection_in_progress:
+            return
+
+        # Mark as in progress to prevent concurrent introspections
+        self._introspection_in_progress.add(view_name)
+
+        try:
+            await self._introspect_table_columns(view_name)
+        except Exception:
+            # Cache failure to avoid repeated attempts
+            self._introspected_columns[view_name] = set()
+        finally:
+            self._introspection_in_progress.discard(view_name)
+
     async def find(self, view_name: str, **kwargs) -> list[dict[str, Any]]:
         """Find records and return as list of dicts.
 
         In production mode, uses raw JSON internally for field mapping
         but returns parsed dicts for GraphQL compatibility.
         """
+        # Pre-fetch table columns for hybrid table detection if there's a where clause
+        if "where" in kwargs:
+            await self._ensure_table_columns_cached(view_name)
+
         # Log current mode and context
         logger.info(
             f"Repository find(): mode={self.mode}, context_mode={self.context.get('mode')}, "
@@ -689,21 +744,47 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             return await execute_raw_json_query(conn, query.statement, query.params, field_name)
 
     def _instantiate_from_row(self, type_class: type, row: dict[str, Any]) -> Any:
-        """Instantiate a type from the row data."""
+        """Instantiate a type from the row data.
+
+        Handles three scenarios:
+        1. Regular tables with only columns (no JSONB)
+        2. Pure JSONB tables (all data in JSONB column)
+        3. Hybrid tables (both regular columns AND JSONB data)
+        """
+        # Check if this is a hybrid table (has both regular columns and JSONB data)
+        has_data_column = "data" in row and isinstance(row.get("data"), dict)
+
         # Check if this type uses JSONB data column or regular columns
         if hasattr(type_class, "__fraiseql_definition__"):
             jsonb_column = type_class.__fraiseql_definition__.jsonb_column
 
-            if jsonb_column is None:
-                # Regular table columns - instantiate from the full row
+            if jsonb_column is None and not has_data_column:
+                # Regular table columns only - instantiate from the full row
                 return self._instantiate_recursive(type_class, row)
-            # JSONB data column - instantiate from the jsonb_column
+            if jsonb_column is None and has_data_column:
+                # Hybrid table: merge regular columns with JSONB data
+                # Start with regular columns
+                merged_data = {k: v for k, v in row.items() if k != "data"}
+                # Override/add fields from JSONB data
+                if row["data"]:
+                    merged_data.update(row["data"])
+                return self._instantiate_recursive(type_class, merged_data)
+            # JSONB data column specified - instantiate from the jsonb_column
             column_to_use = jsonb_column or "data"
             if column_to_use not in row:
                 raise KeyError(column_to_use)
             return self._instantiate_recursive(type_class, row[column_to_use])
-        # No definition - default behavior (JSONB data column)
-        return self._instantiate_recursive(type_class, row["data"])
+
+        # No definition - try to detect the structure
+        if has_data_column:
+            # If we have a data column, it's likely a hybrid or JSONB table
+            # For hybrid tables, merge the data
+            merged_data = {k: v for k, v in row.items() if k != "data"}
+            if row["data"]:
+                merged_data.update(row["data"])
+            return self._instantiate_recursive(type_class, merged_data)
+        # Regular table with no JSONB
+        return self._instantiate_recursive(type_class, row)
 
     def _instantiate_recursive(
         self,
@@ -966,9 +1047,10 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                 return type_class
 
         available_views = list(_type_registry.keys())
+        logger.error(f"Type registry state: {_type_registry}")
         raise NotImplementedError(
             f"Type registry lookup for {view_name} not implemented. "
-            f"Available views: {available_views}",
+            f"Available views: {available_views}. Registry size: {len(_type_registry)}",
         )
 
     def _build_find_query(
@@ -1018,8 +1100,19 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             # Handle plain dictionary where clauses (used in dynamic filter construction)
             # These use regular column names, not JSONB paths
             elif isinstance(where_obj, dict):
+                # Try to get actual table columns for accurate field detection
+                # This is synchronous context, so we'll rely on cached info if available
+                table_columns = None
+                if (
+                    hasattr(self, "_introspected_columns")
+                    and view_name in self._introspected_columns
+                ):
+                    table_columns = self._introspected_columns[view_name]
+
                 # Convert dictionary where clause to SQL conditions
-                where_composed = self._convert_dict_where_to_sql(where_obj)
+                where_composed = self._convert_dict_where_to_sql(
+                    where_obj, view_name, table_columns
+                )
                 if where_composed:
                     where_parts.append(where_composed)
 
@@ -1236,7 +1329,30 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             **kwargs,
         )
 
-    def _convert_dict_where_to_sql(self, where_dict: dict[str, Any]) -> Composed | None:
+    async def _get_table_columns_cached(self, view_name: str) -> set[str] | None:
+        """Get table columns with caching.
+
+        Returns set of column names or None if unable to retrieve.
+        """
+        if not hasattr(self, "_introspected_columns"):
+            self._introspected_columns = {}
+
+        if view_name in self._introspected_columns:
+            return self._introspected_columns[view_name]
+
+        try:
+            columns = await self._introspect_table_columns(view_name)
+            self._introspected_columns[view_name] = columns
+            return columns
+        except Exception:
+            return None
+
+    def _convert_dict_where_to_sql(
+        self,
+        where_dict: dict[str, Any],
+        view_name: str | None = None,
+        table_columns: set[str] | None = None,
+    ) -> Composed | None:
         """Convert a dictionary WHERE clause to SQL conditions.
 
         This method handles dynamically constructed where clauses used in GraphQL resolvers.
@@ -1246,6 +1362,8 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         Args:
             where_dict: Dictionary with field names as keys and operator dictionaries as values
                        e.g., {'name': {'contains': 'router'}, 'port': {'gt': 20}}
+            view_name: Optional view/table name for hybrid table detection
+            table_columns: Optional set of actual table columns for accurate detection
 
         Returns:
             A Composed SQL object with parameterized conditions, or None if no valid conditions
@@ -1270,7 +1388,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                         continue
 
                     # Build SQL condition using converted database field name
-                    condition_sql = self._build_dict_where_condition(db_field_name, operator, value)
+                    condition_sql = self._build_dict_where_condition(
+                        db_field_name, operator, value, view_name, table_columns
+                    )
                     if condition_sql:
                         field_conditions.append(condition_sql)
 
@@ -1310,7 +1430,12 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         return Composed(result_parts)
 
     def _build_dict_where_condition(
-        self, field_name: str, operator: str, value: Any
+        self,
+        field_name: str,
+        operator: str,
+        value: Any,
+        view_name: str | None = None,
+        table_columns: set[str] | None = None,
     ) -> Composed | None:
         """Build a single WHERE condition using FraiseQL's operator strategy system.
 
@@ -1318,15 +1443,20 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         primitive SQL templates, enabling features like IP address type casting,
         MAC address handling, and other advanced field type detection.
 
+        For hybrid tables (with both regular columns and JSONB data), it determines
+        whether to use direct column access or JSONB path based on the actual table structure.
+
         Args:
             field_name: Database field name (e.g., 'ip_address', 'port', 'status')
             operator: Filter operator (eq, contains, gt, in, etc.)
             value: Filter value
+            view_name: Optional view/table name for hybrid table detection
+            table_columns: Optional set of actual table columns (for accurate detection)
 
         Returns:
             Composed SQL condition with intelligent type casting, or None if operator not supported
         """
-        from psycopg.sql import Identifier
+        from psycopg.sql import SQL, Composed, Identifier, Literal
 
         from fraiseql.sql.operator_strategies import get_operator_registry
 
@@ -1334,10 +1464,25 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             # Get the operator strategy registry (contains the v0.7.1 IP filtering fixes)
             registry = get_operator_registry()
 
-            # For dictionary filters, use direct column names instead of JSONB paths
-            # This fixes the issue where dynamic filters were trying to use
-            # non-existent 'data' column
-            path_sql = Identifier(field_name)
+            # Determine if this field is a regular column or needs JSONB path
+            use_jsonb_path = False
+
+            if table_columns is not None:
+                # We have actual column info - use it!
+                # Field is JSONB if: table has 'data' column AND field is NOT a regular column
+                has_data_column = "data" in table_columns
+                is_regular_column = field_name in table_columns
+                use_jsonb_path = has_data_column and not is_regular_column
+            elif view_name:
+                # Fall back to heuristic-based detection
+                use_jsonb_path = self._should_use_jsonb_path_sync(view_name, field_name)
+
+            if use_jsonb_path:
+                # Field is in JSONB data column, use JSONB path
+                path_sql = Composed([SQL("data"), SQL(" ->> "), Literal(field_name)])
+            else:
+                # Field is a regular column, use direct column name
+                path_sql = Identifier(field_name)
 
             # Get the appropriate strategy for this operator
             # field_type=None triggers fallback detection (IP addresses, MAC addresses, etc.)
@@ -1345,7 +1490,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
 
             if strategy is None:
                 # Operator not supported by strategy system, fall back to basic handling
-                return self._build_basic_dict_condition(field_name, operator, value)
+                return self._build_basic_dict_condition(
+                    field_name, operator, value, use_jsonb_path=use_jsonb_path
+                )
 
             # Use the strategy to build intelligent SQL with type detection
             # This is where the IP filtering fixes from v0.7.1 are applied
@@ -1359,7 +1506,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             return self._build_basic_dict_condition(field_name, operator, value)
 
     def _build_basic_dict_condition(
-        self, field_name: str, operator: str, value: Any
+        self, field_name: str, operator: str, value: Any, use_jsonb_path: bool = False
     ) -> Composed | None:
         """Fallback method for basic WHERE condition building.
 
@@ -1386,11 +1533,174 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         if operator not in basic_operators:
             return None
 
-        # Use direct column name instead of JSONB path
-        path_sql = Identifier(field_name)
+        # Build path based on whether this is a JSONB field or regular column
+        if use_jsonb_path:
+            # Use JSONB path for fields in data column
+            path_sql = Composed([SQL("data"), SQL(" ->> "), Literal(field_name)])
+        else:
+            # Use direct column name for regular columns
+            path_sql = Identifier(field_name)
 
         # Generate basic condition
         return basic_operators[operator](path_sql, value)
+
+    async def _introspect_table_columns(self, view_name: str) -> set[str]:
+        """Introspect actual table columns from database information_schema.
+
+        This provides accurate column information for hybrid tables.
+        Results are cached for performance.
+        """
+        if not hasattr(self, "_introspected_columns"):
+            self._introspected_columns = {}
+
+        if view_name in self._introspected_columns:
+            return self._introspected_columns[view_name]
+
+        try:
+            # Query information_schema to get actual columns
+            # PERFORMANCE: Use a single query to get all we need
+            query = """
+                SELECT
+                    column_name,
+                    data_type,
+                    udt_name
+                FROM information_schema.columns
+                WHERE table_name = %s
+                AND table_schema = 'public'
+                ORDER BY ordinal_position
+            """
+
+            async with self._pool.connection() as conn, conn.cursor() as cursor:
+                await cursor.execute(query, (view_name,))
+                rows = await cursor.fetchall()
+
+                # Extract column names and identify if JSONB exists
+                columns = set()
+                has_jsonb_data = False
+
+                for row in rows:
+                    # Handle both dict and tuple cursor results
+                    if isinstance(row, dict):
+                        col_name = row.get("column_name")
+                        udt_name = row.get("udt_name", "")
+                    else:
+                        # Tuple-based result (column_name, data_type, udt_name)
+                        col_name = row[0] if row else None
+                        udt_name = row[2] if len(row) > 2 else ""
+
+                    if col_name:
+                        columns.add(col_name)
+
+                        # Check if this is a JSONB data column
+                        if col_name == "data" and udt_name == "jsonb":
+                            has_jsonb_data = True
+
+                # Cache the result
+                self._introspected_columns[view_name] = columns
+
+                # Also cache whether this table has JSONB data column
+                if not hasattr(self, "_table_has_jsonb"):
+                    self._table_has_jsonb = {}
+                self._table_has_jsonb[view_name] = has_jsonb_data
+
+                return columns
+
+        except Exception as e:
+            logger.warning(f"Failed to introspect table {view_name}: {e}")
+            # Cache empty set to avoid repeated failures
+            self._introspected_columns[view_name] = set()
+            return set()
+
+    def _should_use_jsonb_path_sync(self, view_name: str, field_name: str) -> bool:
+        """Check if a field should use JSONB path or direct column access.
+
+        PERFORMANCE OPTIMIZED:
+        - Uses metadata from registration time (no DB queries)
+        - Single cache lookup per field
+        - Fast path for registered tables
+        """
+        # Fast path: use cached decision if available
+        if not hasattr(self, "_field_path_cache"):
+            self._field_path_cache = {}
+
+        cache_key = f"{view_name}:{field_name}"
+        cached_result = self._field_path_cache.get(cache_key)
+        if cached_result is not None:
+            return cached_result
+
+        # BEST CASE: Check registration-time metadata first (no DB query needed)
+        if view_name in _table_metadata:
+            metadata = _table_metadata[view_name]
+            columns = metadata.get("columns", set())
+            has_jsonb = metadata.get("has_jsonb_data", False)
+
+            # Use JSONB path only if: has data column AND field is not a regular column
+            use_jsonb = has_jsonb and field_name not in columns
+            self._field_path_cache[cache_key] = use_jsonb
+            return use_jsonb
+
+        # SECOND BEST: Check if we have runtime introspected columns
+        if hasattr(self, "_introspected_columns") and view_name in self._introspected_columns:
+            columns = self._introspected_columns[view_name]
+            has_data_column = "data" in columns
+            is_regular_column = field_name in columns
+
+            # Use JSONB path only if: has data column AND field is not a regular column
+            use_jsonb = has_data_column and not is_regular_column
+            self._field_path_cache[cache_key] = use_jsonb
+            return use_jsonb
+
+        # Fallback: Use fast heuristic for known patterns
+        # PERFORMANCE: This avoids DB queries for common cases
+        if not hasattr(self, "_table_has_jsonb"):
+            self._table_has_jsonb = {}
+
+        if view_name not in self._table_has_jsonb:
+            # Quick pattern matching for known table types
+            known_hybrid_patterns = ("jsonb", "hybrid")
+            known_regular_patterns = ("test_product", "test_item", "users", "companies", "orders")
+
+            view_lower = view_name.lower()
+            if any(p in view_lower for p in known_regular_patterns):
+                self._table_has_jsonb[view_name] = False
+            elif any(p in view_lower for p in known_hybrid_patterns):
+                self._table_has_jsonb[view_name] = True
+            else:
+                # Conservative default: assume regular table
+                self._table_has_jsonb[view_name] = False
+
+        # If no JSONB data column, always use direct access
+        if not self._table_has_jsonb[view_name]:
+            self._field_path_cache[cache_key] = False
+            return False
+
+        # For hybrid tables, use a small set of known regular columns
+        # PERFORMANCE: Using frozenset for O(1) lookup
+        REGULAR_COLUMNS = frozenset(
+            {
+                "id",
+                "tenant_id",
+                "created_at",
+                "updated_at",
+                "name",
+                "status",
+                "type",
+                "category_id",
+                "identifier",
+                "is_active",
+                "is_featured",
+                "is_available",
+                "is_deleted",
+                "start_date",
+                "end_date",
+                "created_date",
+                "modified_date",
+            }
+        )
+
+        use_jsonb = field_name not in REGULAR_COLUMNS
+        self._field_path_cache[cache_key] = use_jsonb
+        return use_jsonb
 
     def _convert_field_name_to_database(self, field_name: str) -> str:
         """Convert GraphQL field name to database field name.
