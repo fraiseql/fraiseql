@@ -666,28 +666,302 @@ async def test_complex_nested_logic(app_client):
 
 ### Repository-Level Where Clauses
 
-You can also build where clauses in your resolvers:
+You can build where clauses in your resolvers using two different approaches: WhereInput types or dictionary filters.
+
+## WhereInput Types vs Dictionary Filters
+
+**🆕 New in v0.8.0**: FraiseQL now properly distinguishes between WhereInput types (for JSONB views) and dictionary filters (for regular tables).
+
+### Understanding the Two Approaches
+
+FraiseQL supports two distinct filtering mechanisms, each designed for different use cases:
+
+#### 1. WhereInput Types (for JSONB Views)
+
+WhereInput types are generated using `safe_create_where_type()` and are designed for views with JSONB `data` columns. They generate SQL that uses JSONB path expressions.
+
+```python
+from fraiseql.sql.where_generator import safe_create_where_type
+
+@fraiseql.type
+class Product:
+    id: UUID
+    name: str
+    price: Decimal
+    category: str
+
+# Generate WhereInput type
+ProductWhere = safe_create_where_type(Product)
+
+@fraiseql.query
+async def products_with_where_type(
+    info,
+    where: ProductWhere | None = None
+) -> list[Product]:
+    """Use WhereInput type for views with JSONB data column."""
+    repo = info.context["repo"]
+
+    # This generates SQL like: WHERE (data->>'price')::numeric > 100
+    return await repo.find("v_product_jsonb", where=where)
+```
+
+**SQL Generated**: `WHERE (data->>'category')::text = 'electronics'`
+
+**Requirements**:
+- View must have a JSONB `data` column
+- Typically used with materialized views that aggregate data
+
+#### 2. Dictionary Filters (for Regular Tables)
+
+Dictionary filters are plain Python dictionaries and are ideal for:
+- Regular tables without JSONB columns
+- Dynamic filter construction in resolvers
+- Simple filtering scenarios
 
 ```python
 @fraiseql.query
-async def active_users(
+async def products_with_dict_filter(
     info,
-    name_contains: str | None = None,
-    min_age: int | None = None
-) -> list[User]:
+    category: str | None = None,
+    min_price: float | None = None
+) -> list[Product]:
+    """Use dictionary filters for regular tables or dynamic filtering."""
     repo = info.context["repo"]
 
+    # Build filters dynamically
+    where = {}
+
+    if category:
+        where["category"] = {"eq": category}
+
+    if min_price:
+        where["price"] = {"gte": min_price}
+
+    # This generates SQL like: WHERE category = 'electronics' AND price >= 100
+    return await repo.find("tb_product", where=where)
+```
+
+**SQL Generated**: `WHERE category = 'electronics' AND price >= 100`
+
+**Benefits**:
+- Works with regular table columns
+- Easy dynamic construction
+- No JSONB overhead
+
+### When to Use Each Approach
+
+| Scenario | Recommended Approach | Example |
+|----------|---------------------|---------|
+| GraphQL schema with complex filtering | WhereInput types | `ProductWhereInput` in GraphQL schema |
+| Views with JSONB `data` columns | WhereInput types | Materialized views with aggregated data |
+| Regular database tables | Dictionary filters | Direct table queries |
+| Dynamic filter construction | Dictionary filters | Building filters based on user permissions |
+| Simple resolver filters | Dictionary filters | Adding filters conditionally |
+
+### Dynamic Filter Construction Examples
+
+#### Example 1: Permission-Based Filtering
+
+```python
+@fraiseql.query
+async def my_documents(
+    info,
+    status: str | None = None,
+    search: str | None = None
+) -> list[Document]:
+    """Dynamically add filters based on user permissions."""
+    repo = info.context["repo"]
+    user = info.context["user"]
+
+    # Start with base filters
+    where = {}
+
+    # Always filter by user's organization
+    where["organization_id"] = {"eq": user.organization_id}
+
+    # Add optional status filter
+    if status:
+        where["status"] = {"eq": status}
+
+    # Add text search if provided
+    if search:
+        where["title"] = {"ilike": f"%{search}%"}
+
+    # Admin users can see all, others only see their own
+    if not user.is_admin:
+        where["owner_id"] = {"eq": user.id}
+
+    return await repo.find("tb_document", where=where)
+```
+
+#### Example 2: Complex Business Logic
+
+```python
+@fraiseql.query
+async def available_inventory(
+    info,
+    warehouse_id: str | None = None,
+    product_type: str | None = None,
+    min_quantity: int = 0
+) -> list[Inventory]:
+    """Build complex filters based on business rules."""
+    repo = info.context["repo"]
+
+    where = {}
+
+    # Base availability criteria
+    where["is_available"] = {"eq": True}
+    where["quantity"] = {"gt": min_quantity}
+
+    # Optional warehouse filter
+    if warehouse_id:
+        where["warehouse_id"] = {"eq": warehouse_id}
+
+    # Product type with special handling
+    if product_type:
+        if product_type == "PERISHABLE":
+            # Perishable items need expiry check
+            where["expiry_date"] = {"gt": datetime.now()}
+        where["product_type"] = {"eq": product_type}
+
+    # Exclude reserved items
+    where["is_reserved"] = {"eq": False}
+
+    return await repo.find("tb_inventory", where=where)
+```
+
+#### Example 3: Combining WhereInput with Dynamic Filters
+
+```python
+from fraiseql.sql.where_generator import safe_create_where_type
+
+ProductWhere = safe_create_where_type(Product)
+
+@fraiseql.query
+async def search_products(
+    info,
+    where: ProductWhere | None = None,
+    in_stock_only: bool = False,
+    featured_only: bool = False
+) -> list[Product]:
+    """Combine GraphQL WhereInput with additional dynamic filters."""
+    repo = info.context["repo"]
+
+    # Convert WhereInput to SQL if provided
+    base_where = where._to_sql_where() if where else None
+
+    # For JSONB views, we need to be careful about mixing approaches
+    # Option 1: Use custom SQL query
+    if in_stock_only or featured_only:
+        conditions = []
+
+        if base_where:
+            conditions.append(str(base_where))
+
+        if in_stock_only:
+            conditions.append("(data->>'stock')::int > 0")
+
+        if featured_only:
+            conditions.append("(data->>'is_featured')::boolean = true")
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+        return await repo.raw_query(f"""
+            SELECT data FROM v_product_jsonb
+            WHERE {where_clause}
+            ORDER BY data->>'created_at' DESC
+        """)
+
+    # Option 2: Use base WhereInput only
+    return await repo.find("v_product_jsonb", where=base_where)
+```
+
+### Common Pitfall: Mixing JSONB and Regular Columns
+
+**❌ Don't do this:**
+```python
+# This will fail - WhereInput expects JSONB paths but table has regular columns
+ProductWhere = safe_create_where_type(Product)
+results = await repo.find("tb_product", where=ProductWhere(name={"eq": "Widget"}))
+# Error: column "data" does not exist
+```
+
+**✅ Do this instead:**
+```python
+# Use dictionary filters for regular tables
+where = {"name": {"eq": "Widget"}}
+results = await repo.find("tb_product", where=where)
+```
+
+### Testing Different Filter Types
+
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_whereinput_with_jsonb_view(db_pool):
+    """Test WhereInput types work with JSONB views."""
+    repo = FraiseQLRepository(db_pool)
+
+    # Use WhereInput for JSONB view
+    where = ProductWhere(
+        category={"eq": "electronics"},
+        price={"gte": 100}
+    )
+
+    results = await repo.find("v_product_jsonb", where=where)
+    assert all(r.category == "electronics" for r in results)
+
+@pytest.mark.asyncio
+async def test_dict_filter_with_regular_table(db_pool):
+    """Test dictionary filters work with regular tables."""
+    repo = FraiseQLRepository(db_pool)
+
+    # Use dict filter for regular table
     where = {
-        "is_active": True  # Always filter for active users
+        "category": {"eq": "electronics"},
+        "price": {"gte": 100}
     }
 
-    if name_contains:
-        where["name__contains"] = name_contains
+    results = await repo.find("tb_product", where=where)
+    assert all(r["category"] == "electronics" for r in results)
 
-    if min_age:
-        where["age__gte"] = min_age
+@pytest.mark.asyncio
+async def test_dynamic_filter_construction(db_pool):
+    """Test building filters dynamically."""
+    repo = FraiseQLRepository(db_pool)
 
-    return await repo.find("v_user", where=where, order_by="created_at DESC")
+    # Build filter conditionally
+    where = {}
+
+    # Add filters based on conditions
+    should_filter_active = True
+    if should_filter_active:
+        where["is_active"] = {"eq": True}
+
+    min_price = 50
+    if min_price:
+        where["price"] = {"gte": min_price}
+
+    results = await repo.find("tb_product", where=where)
+    assert all(r["is_active"] and r["price"] >= 50 for r in results)
+```
+
+### Migration Guide: From JSONB-Only to Mixed Approach
+
+If you're upgrading from an older version where all filters used JSONB paths:
+
+```python
+# Old approach (pre-v0.8.0) - Everything used JSONB paths
+where = {"name": {"eq": "Widget"}}  # Generated: data->>'name' = 'Widget'
+
+# New approach (v0.8.0+) - Context-aware filtering
+# For JSONB views - use WhereInput types
+ProductWhere = safe_create_where_type(Product)
+where = ProductWhere(name={"eq": "Widget"})  # Generates: data->>'name' = 'Widget'
+
+# For regular tables - use dict filters
+where = {"name": {"eq": "Widget"}}  # Generates: name = 'Widget'
 ```
 
 ## Migration from v0.3.6 to v0.3.7
