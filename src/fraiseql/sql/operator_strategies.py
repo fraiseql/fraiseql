@@ -78,7 +78,8 @@ class BaseOperatorStrategy(ABC):
             # Check MAC addresses first (most specific - before IP addresses)
             if self._looks_like_mac_address_value(val, op):
                 # Apply MAC address casting for network hardware operations
-                return Composed([path_sql, SQL("::macaddr")])
+                # CRITICAL FIX: Proper parentheses for casting JSONB extracted value
+                return Composed([SQL("("), path_sql, SQL(")::macaddr")])
 
             # Check for IP addresses (after MAC addresses to avoid collision)
             if self._looks_like_ip_address_value(val, op):
@@ -93,25 +94,34 @@ class BaseOperatorStrategy(ABC):
             # Check for LTree paths
             if self._looks_like_ltree_value(val, op):
                 # Apply LTree casting for hierarchical path operations
-                return Composed([path_sql, SQL("::ltree")])
+                # CRITICAL FIX: Proper parentheses for casting JSONB extracted value
+                return Composed([SQL("("), path_sql, SQL(")::ltree")])
 
             # Check for DateRange values
             if self._looks_like_daterange_value(val, op):
                 # Apply DateRange casting for temporal range operations
-                return Composed([path_sql, SQL("::daterange")])
+                # CRITICAL FIX: Proper parentheses for casting JSONB extracted value
+                return Composed([SQL("("), path_sql, SQL(")::daterange")])
 
-        # Handle booleans first
+        # CRITICAL FIX: Consistent type casting for JSONB fields based on value types
+        # JSONB ->> extracts as text, but we need type-aware operations for proper behavior
+
+        # Cast based on value type for consistent behavior across all operations
+        # CRITICAL: Check bool BEFORE int since bool is subclass of int in Python
         if isinstance(val, bool):
-            return Composed([path_sql, SQL("::boolean")])
-
-        # For comparison operators, apply type casting
-        if op in ("gt", "gte", "lt", "lte") or (op in ("eq", "neq") and not isinstance(val, str)):
-            if isinstance(val, (int, float, Decimal)):
-                return Composed([path_sql, SQL("::numeric")])
-            if isinstance(val, datetime):
-                return Composed([path_sql, SQL("::timestamp")])
-            if isinstance(val, date):
-                return Composed([path_sql, SQL("::date")])
+            # CRITICAL: For boolean operations, convert value to JSONB text representation
+            # JSONB stores booleans as "true"/"false" text when extracted with ->>
+            # So we compare text-to-text rather than casting to boolean
+            return (
+                path_sql  # No casting - will handle value conversion in ComparisonOperatorStrategy
+            )
+        if isinstance(val, (int, float, Decimal)):
+            # All numeric operations need numeric casting for proper comparison
+            return Composed([SQL("("), path_sql, SQL(")::numeric")])
+        if isinstance(val, datetime):
+            return Composed([SQL("("), path_sql, SQL(")::timestamp")])
+        if isinstance(val, date):
+            return Composed([SQL("("), path_sql, SQL(")::date")])
 
         return path_sql
 
@@ -252,6 +262,7 @@ class BaseOperatorStrategy(ABC):
             "app",
             "api",
             "www",
+            "local",  # CRITICAL FIX: .local domains (mDNS) are NOT ltree paths
         }
 
         # If the last part is a common domain extension, probably not an LTree
@@ -401,7 +412,9 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
         casted_path = self._apply_type_cast(path_sql, val, op, field_type)
         sql_op = self.operator_map[op]
 
-        # CRITICAL FIX: If we detected IP address and cast the field to ::inet,
+        # CRITICAL FIX: Handle value type conversion for JSONB fields
+
+        # If we detected IP address and cast the field to ::inet,
         # we must also cast the literal value to ::inet for PostgreSQL compatibility
         if (
             not field_type  # Only when field_type is missing (production CQRS pattern)
@@ -411,6 +424,28 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
             and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
         ):
             return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::inet")])
+
+        # CRITICAL FIX: If we kept the path as text (for booleans only),
+        # convert boolean values to JSONB text representation for text-to-text comparison
+        if (
+            casted_path == path_sql  # Path was NOT cast (still text from JSONB ->>)
+            and isinstance(val, bool)  # Only for boolean values
+            and op in ("eq", "neq", "in", "notin")  # Only for equality/membership
+        ):
+            # Convert Python boolean to JSONB text representation
+            string_val = "true" if val else "false"
+            return Composed([casted_path, SQL(sql_op), Literal(string_val)])
+
+        # Handle boolean lists for membership tests
+        if (
+            casted_path == path_sql  # Path was NOT cast
+            and isinstance(val, list)
+            and op in ("in", "notin")
+            and all(isinstance(v, bool) for v in val)  # All values are booleans
+        ):
+            # Convert boolean list to string list
+            string_vals = ["true" if v else "false" for v in val]
+            return Composed([casted_path, SQL(sql_op), Literal(string_vals)])
 
         return Composed([casted_path, SQL(sql_op), Literal(val)])
 
@@ -516,19 +551,20 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
         )
 
-        # Check if we need numeric casting (but not for IP addresses)
+        # Handle value conversion based on type (aligned with _apply_type_cast logic)
         if not (field_type and self._is_ip_address_type(field_type)):
-            if val and all(isinstance(v, (int, float, Decimal)) for v in val):
-                casted_path = Composed([casted_path, SQL("::numeric")])
+            # Check if this is a boolean list (check bool first since bool is subclass of int)
+            if val and all(isinstance(v, bool) for v in val):
+                # For boolean lists, use text comparison with converted values
+                converted_vals = ["true" if v else "false" for v in val]
+                literals = [Literal(v) for v in converted_vals]
+            elif val and all(isinstance(v, (int, float, Decimal)) for v in val):
+                # For numeric lists, the _apply_type_cast already added ::numeric
+                # Don't add it again to avoid double-casting
                 literals = [Literal(v) for v in val]
             else:
-                # Convert booleans to strings for JSONB text comparison
-                converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
-                if is_ip_list_without_field_type:
-                    # For IP addresses detected without field_type, use original values
-                    literals = [Literal(v) for v in val]
-                else:
-                    literals = [Literal(v) for v in converted_vals]
+                # For other types (strings, etc.), use values as-is
+                literals = [Literal(v) for v in val]
         else:
             # For IP addresses, use string literals
             literals = [Literal(str(v)) for v in val]

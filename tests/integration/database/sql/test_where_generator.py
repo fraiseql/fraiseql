@@ -236,17 +236,15 @@ class TestBuildOperatorComposed:
         """Test boolean value conversion to proper SQL."""
         path_sql = SQL("data->>'is_active'")
 
-        # Boolean true
+        # Boolean true - now uses text comparison for JSONB consistency
         result = build_operator_composed(path_sql, "eq", True)
         sql_str = result.as_string(None)
-        assert "::boolean" in sql_str
-        assert "= true" in sql_str  # Boolean literal, not string
+        assert "= 'true'" in sql_str  # Text literal for JSONB consistency
 
         # Boolean false
         result = build_operator_composed(path_sql, "eq", False)
         sql_str = result.as_string(None)
-        assert "::boolean" in sql_str
-        assert "= false" in sql_str  # Boolean literal, not string
+        assert "= 'false'" in sql_str  # Text literal for JSONB consistency
 
     def test_uuid_value_handling(self):
         """Test UUID value handling with type hints."""
@@ -338,9 +336,18 @@ class TestSafeCreateWhereType:
         assert sql is not None
         sql_str = sql.as_string(None)
 
+        # Test string field - should be exact text comparison
         assert "(data ->> 'name') = 'test'" in sql_str
-        assert "(data ->> 'age')::numeric > 21" in sql_str
-        assert "(data ->> 'is_active')::boolean = true" in sql_str
+
+        # Test numeric field - should have proper casting structure
+        # Valid patterns: (data ->> 'age')::numeric > 21 OR ((data ->> 'age'))::numeric > 21
+        import re
+        numeric_pattern = r"\(\(data ->> 'age'\)\)::numeric > 21|\(data ->> 'age'\)::numeric > 21"
+        assert re.search(numeric_pattern, sql_str), f"Expected numeric casting pattern not found in: {sql_str}"
+
+        # Test boolean field - should use text comparison, not boolean casting
+        assert "(data ->> 'is_active') = 'true'" in sql_str
+        assert "::boolean" not in sql_str, f"Boolean fields should not use ::boolean casting, found in: {sql_str}"
 
     def test_where_type_with_complex_filters(self):
         """Test WHERE type with complex filters."""
@@ -390,9 +397,22 @@ class TestSafeCreateWhereType:
         assert sql is not None
         sql_str = sql.as_string(None)
 
-        assert "(data ->> 'age')::numeric >= 21" in sql_str
-        assert " AND " in sql_str
-        assert "(data ->> 'age')::numeric <= 65" in sql_str
+        # Validate complete SQL structure
+        print(f"Generated SQL: {sql_str}")
+
+        # Validate the complete SQL is exactly what we expect for proper age range filtering
+        expected_sql = "((data ->> 'age'))::numeric >= 21 AND ((data ->> 'age'))::numeric <= 65"
+        assert sql_str == expected_sql, f"Expected exact SQL: {expected_sql}, got: {sql_str}"
+
+        # Additional validations for robustness
+        assert "data ->> 'age'" in sql_str, f"Missing age field in: {sql_str}"
+        assert "::numeric" in sql_str, f"Missing numeric casting in: {sql_str}"
+        assert ">= 21" in sql_str, f"Missing gte condition in: {sql_str}"
+        assert "<= 65" in sql_str, f"Missing lte condition in: {sql_str}"
+        assert " AND " in sql_str, f"Missing AND operator in: {sql_str}"
+
+        # Validate balanced parentheses
+        assert sql_str.count('(') == sql_str.count(')'), f"Unbalanced parentheses in: {sql_str}"
 
     def test_where_type_empty_filter(self):
         """Test WHERE type with no filters returns None."""
@@ -416,7 +436,9 @@ class TestSafeCreateWhereType:
         sql_str = sql.as_string(None)
 
         assert "name" not in sql_str
-        assert "(data ->> 'age')::numeric > 21" in sql_str
+        # Validate complete SQL - should be exactly this with our casting approach
+        expected_sql = "((data ->> 'age'))::numeric > 21"
+        assert sql_str == expected_sql, f"Expected: {expected_sql}, got: {sql_str}"
 
     def test_where_type_caching(self):
         """Test that safe_create_where_type uses caching."""
@@ -451,7 +473,8 @@ class TestSafeCreateWhereType:
         assert sql is not None
         sql_str = sql.as_string(None)
 
-        assert "(data ->> 'id')::numeric = 1" in sql_str
+        # Validate complete SQL - adjusted for our casting approach
+        assert "((data ->> 'id'))::numeric = 1" in sql_str
         assert "(data ->> 'name') = 'test'" in sql_str
 
 
@@ -473,7 +496,7 @@ class TestEdgeCases:
         sql_str = sql.as_string(None)
 
         assert "name" not in sql_str
-        assert "(data ->> 'age')::numeric > 21" in sql_str
+        assert "((data ->> 'age'))::numeric > 21" in sql_str
 
     def test_unsupported_operators_ignored(self):
         """Test that unsupported operators are silently ignored."""

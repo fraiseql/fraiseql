@@ -89,7 +89,7 @@ def test_translate_query_with_where_clause() -> None:
 
     assert 'FROM "tb_sessions"' in sql_str
     assert "WHERE" in sql_str
-    assert "(data ->> 'active')::boolean = true" in sql_str
+    assert "(data ->> 'active') = 'true'" in sql_str
 
 
 def test_translate_query_invalid_graphql() -> None:
