@@ -436,7 +436,9 @@ class TestSafeCreateWhereType:
         sql_str = sql.as_string(None)
 
         assert "name" not in sql_str
-        assert "(data ->> 'age')::numeric > 21" in sql_str
+        # Validate complete SQL - should be exactly this with our casting approach
+        expected_sql = "((data ->> 'age'))::numeric > 21"
+        assert sql_str == expected_sql, f"Expected: {expected_sql}, got: {sql_str}"
 
     def test_where_type_caching(self):
         """Test that safe_create_where_type uses caching."""
