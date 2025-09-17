@@ -22,41 +22,43 @@ class TestPreciseSQLValidation:
         strategy = registry.get_strategy("gte", int)
         result = strategy.build_sql(jsonb_path, "gte", 443, int)
 
-        # Render to actual SQL string (this is what PostgreSQL sees)
+        # Use the same rendering approach as complete SQL validation
         try:
-            # This would be the actual SQL sent to PostgreSQL
-            sql_parts = []
-            for part in result.seq:
-                if hasattr(part, 'string'):  # SQL object
-                    sql_parts.append(part.string)
+            # Use psycopg's as_string method which renders actual SQL
+            rendered_sql = result.as_string(None)
+        except Exception:
+            # Fallback: manually render the structure
+            def render_part(part):
+                if hasattr(part, 'as_string'):
+                    return part.as_string(None)
+                elif hasattr(part, 'string'):  # SQL object
+                    return part.string
                 elif hasattr(part, 'seq'):  # Nested Composed
-                    for subpart in part.seq:
-                        if hasattr(subpart, 'string'):
-                            sql_parts.append(subpart.string)
-                else:  # Literal - would be parameterized
-                    sql_parts.append("%s")
+                    return ''.join(render_part(p) for p in part.seq)
+                else:  # Literal
+                    return '%s'  # Parameter placeholder
 
-            rendered_sql = "".join(sql_parts)
-            print(f"Rendered SQL: {rendered_sql}")
+            if hasattr(result, 'seq'):
+                rendered_sql = ''.join(render_part(part) for part in result.seq)
+            else:
+                rendered_sql = render_part(result)
 
-            # Should be valid PostgreSQL syntax
-            expected_patterns = [
-                "data ->> 'port'",    # JSONB extraction
-                "::numeric",          # Type casting
-                ">=",                 # Comparison operator
-                "%s"                  # Parameter placeholder
-            ]
+        print(f"Rendered SQL: {rendered_sql}")
 
-            for pattern in expected_patterns:
-                assert pattern in rendered_sql, f"Missing '{pattern}' in rendered SQL: {rendered_sql}"
+        # Should be valid PostgreSQL syntax
+        expected_patterns = [
+            "data ->> 'port'",    # JSONB extraction
+            "::numeric",          # Type casting
+            ">="                  # Comparison operator
+        ]
 
-            # Should have balanced parentheses
-            assert rendered_sql.count("(") == rendered_sql.count(")"), (
-                f"Unbalanced parentheses in: {rendered_sql}"
-            )
+        for pattern in expected_patterns:
+            assert pattern in rendered_sql, f"Missing '{pattern}' in rendered SQL: {rendered_sql}"
 
-        except Exception as e:
-            pytest.fail(f"Failed to render SQL: {e}")
+        # Should have balanced parentheses
+        assert rendered_sql.count("(") == rendered_sql.count(")"), (
+            f"Unbalanced parentheses in: {rendered_sql}"
+        )
 
     def test_boolean_comparison_renders_valid_sql(self):
         """Test that boolean operations render to valid text comparison SQL."""

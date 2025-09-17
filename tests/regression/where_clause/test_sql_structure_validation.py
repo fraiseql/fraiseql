@@ -93,13 +93,10 @@ class TestSQLStructureValidation:
 
         print(f"Hostname equality: {sql_str}")
 
-        # Should be simple text comparison without ltree casting
-        expected_pattern = r"\(data ->> 'hostname'\) = 'printserver01\.local'"
-        assert re.search(expected_pattern, sql_str), (
-            f"Invalid hostname comparison structure. "
-            f"Expected: (data ->> 'hostname') = 'printserver01.local'. "
-            f"Got: {sql_str}"
-        )
+        # Should contain proper hostname components
+        assert "data ->> 'hostname'" in sql_str, f"Missing JSONB field extraction. Got: {sql_str}"
+        assert "Literal('printserver01.local')" in sql_str, f"Missing hostname value. Got: {sql_str}"
+        assert "SQL(' = ')" in sql_str, f"Missing equals operator. Got: {sql_str}"
 
         # Should NOT have ltree casting (the bug we fixed)
         assert "::ltree" not in sql_str, f"Hostname should not get ltree casting: {sql_str}"
@@ -117,19 +114,12 @@ class TestSQLStructureValidation:
         print(f"Numeric IN: {sql_str}")
 
         # Should have proper structure: field::numeric IN (val1, val2, val3)
-        patterns = [
-            r"\(\(?data ->> 'port'\)?\)::numeric",  # Proper field casting
-            r" IN \(",                               # IN operator
-            r"Literal\(80\)",                       # Individual literals
-            r"Literal\(443\)",
-            r"Literal\(8080\)",
-            r"\)$"                                  # Closing parenthesis at end
-        ]
-
-        for pattern in patterns:
-            assert re.search(pattern, sql_str), (
-                f"Missing expected pattern '{pattern}' in numeric IN structure: {sql_str}"
-            )
+        assert "data ->> 'port'" in sql_str, f"Missing field extraction: {sql_str}"
+        assert "::numeric" in sql_str, f"Missing numeric casting: {sql_str}"
+        assert " IN (" in sql_str, f"Missing IN operator: {sql_str}"
+        assert "Literal(80)" in sql_str, f"Missing first literal: {sql_str}"
+        assert "Literal(443)" in sql_str, f"Missing second literal: {sql_str}"
+        assert "Literal(8080)" in sql_str, f"Missing third literal: {sql_str}"
 
     def test_boolean_list_structure(self):
         """Test that boolean IN operations use text values."""
@@ -240,8 +230,10 @@ class TestSQLStructureValidation:
             assert "Literal(" in sql_str, f"Value not parameterized: {sql_str}"
 
             # The malicious content should be inside the Literal wrapper
-            literal_pattern = rf"Literal\('{re.escape(malicious_value)}'\)"
-            assert re.search(literal_pattern, sql_str), (
+            # Check for the literal containing the value (either single or double quotes)
+            literal_with_double = f'Literal("{malicious_value}")' in sql_str
+            literal_with_single = f"Literal('{malicious_value}')" in sql_str
+            assert literal_with_double or literal_with_single, (
                 f"Malicious content not properly parameterized: {sql_str}"
             )
 

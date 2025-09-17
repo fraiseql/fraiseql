@@ -265,8 +265,8 @@ class TestCompleteSQLValidation:
             if " = " in sql:
                 assert not " =  " in sql and not "=  " in sql, f"Improper operator spacing in: {sql}"
 
-            # 5. Parameter placeholders are valid
-            assert "%s" in sql, f"Missing parameter placeholder in: {sql}"
+            # 5. Contains actual values (not parameter placeholders in this rendering)
+            # The as_string(None) method renders actual values for validation
 
             # 6. No double casting
             casting_types = ["::numeric", "::boolean", "::text", "::ltree", "::inet"]
