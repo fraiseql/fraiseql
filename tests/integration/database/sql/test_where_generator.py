@@ -473,7 +473,8 @@ class TestSafeCreateWhereType:
         assert sql is not None
         sql_str = sql.as_string(None)
 
-        assert "(data ->> 'id')::numeric = 1" in sql_str
+        # Validate complete SQL - adjusted for our casting approach
+        assert "((data ->> 'id'))::numeric = 1" in sql_str
         assert "(data ->> 'name') = 'test'" in sql_str
 
 
