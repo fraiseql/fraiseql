@@ -7,8 +7,9 @@ keyword arguments.
 
 from collections.abc import Awaitable, Callable
 from dataclasses import is_dataclass
+from enum import Enum
 from inspect import isclass, signature
-from typing import Any, cast
+from typing import Any, Union, cast, get_args, get_origin
 
 from graphql import (
     GraphQLArgument,
@@ -24,8 +25,57 @@ from fraiseql.core.graphql_type import (
 )
 
 
+def _coerce_to_enum(value: Any, enum_class: type[Enum]) -> Enum:
+    """Convert a value to an enum instance.
+
+    Args:
+        value: The value to convert (typically a string or int from GraphQL)
+        enum_class: The target enum class
+
+    Returns:
+        The corresponding enum instance
+
+    Raises:
+        ValueError: If the value cannot be converted to the enum
+    """
+    # Handle already-enum case (shouldn't happen with current check, but safe)
+    if isinstance(value, enum_class):
+        return value
+
+    # Try to match by value (most common case for GraphQL enums)
+    for member in enum_class:
+        if member.value == value:
+            return member
+
+    # Fallback: try by name (less common but possible)
+    if isinstance(value, str):
+        try:
+            return enum_class[value]
+        except KeyError:
+            pass
+
+    # If all conversions fail, raise an error with helpful message
+    valid_values = [f"{member.name}={member.value}" for member in enum_class]
+    raise ValueError(
+        f"Cannot convert '{value}' to {enum_class.__name__}. "
+        f"Valid values are: {', '.join(valid_values)}"
+    )
+
+
 def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
-    """Wrap an async resolver function into a GraphQLField with typed arguments and input coercion."""  # noqa: E501
+    """Wrap an async resolver function into a GraphQLField with typed arguments and input coercion.
+
+    This function handles automatic type conversion for:
+    - Dataclasses: Dict arguments are converted to dataclass instances
+    - Enums: String/int values are converted to enum instances
+    - Optional types: Properly extracts the underlying type for conversion
+
+    Args:
+        fn: An async resolver function to wrap
+
+    Returns:
+        A GraphQLField with proper argument definitions and type coercion
+    """
     sig = signature(fn)
     args: dict[str, GraphQLArgument] = {}
 
@@ -47,15 +97,43 @@ def wrap_resolver(fn: Callable[..., Awaitable[object]]) -> GraphQLField:
             param = sig.parameters.get(name)
             expected_type = param.annotation if param else None
 
+            # Extract the actual type from Optional[T] or Union[T, None]
+            actual_type = expected_type
+            if expected_type is not None:
+                origin = get_origin(expected_type)
+                if origin is Union:
+                    # Handle Optional[T] which is Union[T, None]
+                    args = get_args(expected_type)
+                    # Find the non-None type
+                    for arg in args:
+                        if arg is not type(None):
+                            actual_type = arg
+                            break
+
             if (
                 isinstance(value, dict)
-                and expected_type is not None
-                and isclass(expected_type)
-                and (
-                    is_dataclass(expected_type) or hasattr(expected_type, "__fraiseql_definition__")
-                )
+                and actual_type is not None
+                and isclass(actual_type)
+                and (is_dataclass(actual_type) or hasattr(actual_type, "__fraiseql_definition__"))
             ):
-                coerced_kwargs[name] = expected_type(**value)
+                coerced_kwargs[name] = actual_type(**value)
+            elif (
+                actual_type is not None
+                and isclass(actual_type)
+                and issubclass(actual_type, Enum)
+                and value is not None
+                and not isinstance(value, actual_type)
+            ):
+                # Convert GraphQL enum values to Python Enum instances
+                # GraphQL passes enum values as strings/ints (e.g., "ACTIVE" or 1)
+                # We need to convert these to the actual Python Enum instances
+                # (e.g., Status.ACTIVE) for proper type safety in resolvers
+                try:
+                    coerced_kwargs[name] = _coerce_to_enum(value, actual_type)
+                except ValueError:
+                    # Pass the original value if conversion fails
+                    # This allows GraphQL's type validation to handle the error
+                    coerced_kwargs[name] = value
             else:
                 coerced_kwargs[name] = value
 
