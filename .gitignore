@@ -159,7 +159,8 @@ Thumbs.db
 *.sqlite3
 /private/
 *debug*.py
-test_*.py
+# Only ignore test_*.py files in the root directory, not in tests/
+/test_*.py
 !tests/
 
 # Benchmark results
