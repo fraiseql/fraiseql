@@ -93,15 +93,12 @@ class MutationTypeBuilder:
             config = SchemaConfig.get_instance()
             graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
-            # Try to get original class docstring, fallback to resolver docstring
             description = None
             if hasattr(fn, "__fraiseql_mutation__") and hasattr(
                 fn.__fraiseql_mutation__, "mutation_class"
             ):
-                # Use original class docstring, not the auto-generated one
                 description = _clean_docstring(fn.__fraiseql_mutation__.mutation_class.__doc__)
             else:
-                # Fallback to function docstring for non-mutation functions
                 description = _clean_docstring(fn.__doc__)
 
             fields[graphql_field_name] = GraphQLField(
