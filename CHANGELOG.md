@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2025-09-20
+
+### ✨ Automatic Docstring Extraction for GraphQL Schema Descriptions
+
+This release introduces **automatic docstring extraction** that transforms Python docstrings into GraphQL schema descriptions visible in Apollo Studio, providing zero-configuration documentation for your GraphQL APIs.
+
+#### **🎯 Key Features**
+- **Type-Level Descriptions**: `@fraise_type` classes automatically use their docstrings as GraphQL type descriptions
+- **Query/Mutation Descriptions**: `@query` functions and `@mutation` classes automatically extract docstrings for field descriptions
+- **Multiline Support**: Automatic cleaning and formatting of multiline docstrings using `inspect.cleandoc`
+- **Apollo Studio Integration**: All descriptions appear automatically in GraphQL introspection and Apollo Studio
+
+#### **🔧 Implementation**
+- **Zero Configuration**: No code changes required - existing docstrings automatically become GraphQL descriptions
+- **Backward Compatibility**: Existing explicit `description` parameters continue to work unchanged
+- **Smart Extraction**: Mutation classes use original docstrings, not auto-generated fallback descriptions
+- **Clean Formatting**: Proper indentation and whitespace handling for professional documentation
+
+#### **📚 Developer Experience**
+```python
+@fraiseql.type
+class User:
+    """A user account with authentication and profile information."""  # ✅ Apollo Studio
+    id: UUID
+    name: str
+
+@fraiseql.query
+async def get_users(info) -> list[User]:
+    """Get all users with their profile information."""  # ✅ Apollo Studio
+    return await repo.find("v_user")
+```
+
+#### **🧪 Testing**
+- **12 comprehensive unit tests** covering all functionality and edge cases
+- **Type descriptions**: Automatic extraction, multiline cleaning, missing docstrings
+- **Query/mutation descriptions**: Function docstrings, class docstrings, backward compatibility
+- **Integration tests**: Full GraphQL schema generation and introspection
+
+#### **📖 Documentation**
+- **Enhanced type system docs** with automatic documentation examples
+- **Updated README** showcasing the feature in quick start guide
+- **Code purification** achieving eternal sunshine repository state
+
+This release significantly enhances the developer experience by providing automatic, rich documentation for GraphQL schemas without requiring any configuration or code changes.
+
 ## [0.8.1] - 2025-09-20
 
 ### ✨ Entity-Aware Query Routing
