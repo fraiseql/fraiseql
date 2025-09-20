@@ -291,6 +291,25 @@ class FraiseQLConfig(BaseSettings):
     default_mutation_schema: str = "public"  # Default schema for mutations when not specified
     default_query_schema: str = "public"  # Default schema for queries when not specified
 
+    # Entity routing settings
+    entity_routing: Any = None
+    """Configuration for entity-aware query routing (optional)."""
+
+    @field_validator("entity_routing", mode="before")
+    @classmethod
+    def validate_entity_routing(cls, v: Any) -> Any:
+        """Validate entity routing configuration."""
+        if v is None:
+            return None
+
+        from fraiseql.routing.config import EntityRoutingConfig
+
+        if isinstance(v, dict):
+            return EntityRoutingConfig(**v)
+        if isinstance(v, EntityRoutingConfig):
+            return v
+        raise ValueError("entity_routing must be an EntityRoutingConfig instance or dict")
+
     @property
     def enable_introspection(self) -> bool:
         """Backward compatibility property for enable_introspection.
