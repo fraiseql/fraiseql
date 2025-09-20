@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2025-09-20
+
+### ✨ Entity-Aware Query Routing
+
+This release introduces **intelligent query routing** that automatically determines execution mode based on entity complexity, optimizing performance while ensuring cache consistency.
+
+#### **🎯 Key Features**
+- **EntityRoutingConfig**: Declarative entity classification system for configuring which entities should use turbo vs normal mode
+- **EntityExtractor**: GraphQL query analysis engine that automatically detects entities using schema introspection
+- **QueryRouter**: Intelligent execution mode determination based on entity types and configurable strategies
+- **ModeSelector Integration**: Seamless integration with existing execution pipeline
+
+#### **🚀 Benefits**
+- **Performance Optimization**: Complex entities with materialized views automatically get turbo caching
+- **Cache Consistency**: Simple entities without materialized views get real-time data to avoid stale cache issues
+- **Developer Experience**: Configuration-driven approach with automatic routing - no manual mode hints needed
+- **Backward Compatibility**: Optional feature that preserves all existing behavior when not configured
+
+#### **📝 Usage**
+```python
+FraiseQLConfig(
+    entity_routing=EntityRoutingConfig(
+        turbo_entities=["allocation", "contract", "machine"],  # Complex entities
+        normal_entities=["dnsServer", "gateway"],              # Simple entities
+        mixed_query_strategy="normal",                         # Mixed query strategy
+        auto_routing_enabled=True,
+    )
+)
+```
+
+#### **🔄 Query Routing Logic**
+- **Mode hints** (e.g., `# @mode: turbo`) → Always override entity routing
+- **Turbo entities only** → `ExecutionMode.TURBO` (optimized caching)
+- **Normal entities only** → `ExecutionMode.NORMAL` (real-time data)
+- **Mixed queries** → Use configured strategy (normal/turbo/split)
+- **Unknown entities** → Safe fallback to normal mode
+
 ## [0.8.0] - 2025-09-20
 
 ### 🚀 Major Features - APQ Storage Backend Abstraction
