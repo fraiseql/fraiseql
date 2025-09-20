@@ -15,7 +15,11 @@ from graphql import (
 )
 
 from fraiseql.config.schema_config import SchemaConfig
-from fraiseql.core.graphql_type import convert_type_to_graphql_input, convert_type_to_graphql_output
+from fraiseql.core.graphql_type import (
+    _clean_docstring,
+    convert_type_to_graphql_input,
+    convert_type_to_graphql_output,
+)
 from fraiseql.mutations.decorators import resolve_union_annotation
 from fraiseql.types.coercion import wrap_resolver_with_input_coercion
 from fraiseql.utils.naming import snake_to_camel
@@ -89,10 +93,22 @@ class MutationTypeBuilder:
             config = SchemaConfig.get_instance()
             graphql_field_name = snake_to_camel(name) if config.camel_case_fields else name
 
+            # Try to get original class docstring, fallback to resolver docstring
+            description = None
+            if hasattr(fn, "__fraiseql_mutation__") and hasattr(
+                fn.__fraiseql_mutation__, "mutation_class"
+            ):
+                # Use original class docstring, not the auto-generated one
+                description = _clean_docstring(fn.__fraiseql_mutation__.mutation_class.__doc__)
+            else:
+                # Fallback to function docstring for non-mutation functions
+                description = _clean_docstring(fn.__doc__)
+
             fields[graphql_field_name] = GraphQLField(
                 type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 resolve=resolver,
+                description=description,
             )
 
         return GraphQLObjectType(name="Mutation", fields=MappingProxyType(fields))
