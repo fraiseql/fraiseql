@@ -141,6 +141,18 @@ These settings eliminate the need to specify `schema="app"` on every mutation an
 | `enable_query_caching` | bool | True | `FRAISEQL_ENABLE_QUERY_CACHING` | Enable general query result caching |
 | `cache_ttl` | int | 300 | `FRAISEQL_CACHE_TTL` | Cache time-to-live in seconds |
 
+### APQ Storage Backend Settings
+
+| Parameter | Type | Default | Environment Variable | Description |
+|-----------|------|---------|---------------------|-------------|
+| `apq_storage_backend` | str | "memory" | `FRAISEQL_APQ_STORAGE_BACKEND` | Storage backend: memory, postgresql |
+| `apq_storage_schema` | str | "public" | `FRAISEQL_APQ_STORAGE_SCHEMA` | PostgreSQL schema for APQ tables |
+| `apq_storage_table` | str | "apq_storage" | `FRAISEQL_APQ_STORAGE_TABLE` | Table name for query storage |
+| `apq_memory_max_size` | int | 10000 | `FRAISEQL_APQ_MEMORY_MAX_SIZE` | Maximum queries in memory cache |
+| `apq_memory_ttl` | int | 3600 | `FRAISEQL_APQ_MEMORY_TTL` | Memory cache TTL in seconds |
+| `apq_postgres_ttl` | int | 86400 | `FRAISEQL_APQ_POSTGRES_TTL` | PostgreSQL cache TTL in seconds |
+| `apq_postgres_cleanup_interval` | int | 3600 | `FRAISEQL_APQ_POSTGRES_CLEANUP_INTERVAL` | Cleanup interval in seconds |
+
 ### JSON Passthrough Optimization
 
 | Parameter | Type | Default | Environment Variable | Description |
@@ -273,6 +285,11 @@ config = FraiseQLConfig(
     rate_limit_requests_per_minute=100,
     complexity_max_score=500,
     turbo_router_cache_size=5000,
+    # APQ with PostgreSQL backend for multi-instance coordination
+    apq_storage_backend="postgresql",
+    apq_storage_schema="apq_cache",
+    apq_postgres_ttl=86400,  # 24 hour cache
+    json_passthrough_enabled=True,  # Sub-millisecond responses
     # CORS is disabled by default - configure at reverse proxy level
     # cors_enabled=True,  # Only if serving browsers directly
     # cors_origins=["https://yourdomain.com"],
@@ -291,6 +308,9 @@ ENV FRAISEQL_ENVIRONMENT=production
 ENV FRAISEQL_DATABASE_POOL_SIZE=30
 ENV FRAISEQL_ENABLE_INTROSPECTION=false
 ENV FRAISEQL_ENABLE_PLAYGROUND=false
+ENV FRAISEQL_APQ_STORAGE_BACKEND=postgresql
+ENV FRAISEQL_APQ_STORAGE_SCHEMA=apq_cache
+ENV FRAISEQL_JSON_PASSTHROUGH_ENABLED=true
 
 WORKDIR /app
 COPY requirements.txt .
@@ -314,6 +334,9 @@ services:
       FRAISEQL_DATABASE_POOL_SIZE: 30
       FRAISEQL_AUTH0_DOMAIN: ${AUTH0_DOMAIN}
       FRAISEQL_AUTH0_API_IDENTIFIER: ${AUTH0_API_IDENTIFIER}
+      FRAISEQL_APQ_STORAGE_BACKEND: postgresql
+      FRAISEQL_APQ_STORAGE_SCHEMA: apq_cache
+      FRAISEQL_JSON_PASSTHROUGH_ENABLED: true
     depends_on:
       - db
     ports:

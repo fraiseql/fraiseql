@@ -130,6 +130,10 @@ class FraiseQLConfig(BaseSettings):
         camelforge_enabled: Enable CamelForge database-native camelCase transformation.
         camelforge_function: Name of the CamelForge function to use (default: turbo.fn_camelforge).
         camelforge_entity_mapping: Auto-derive entity type from GraphQL type names.
+        apq_storage_backend: Storage backend for APQ (memory/postgresql/redis/custom).
+        apq_cache_responses: Enable JSON response caching for APQ queries.
+        apq_response_cache_ttl: Cache TTL for APQ responses in seconds.
+        apq_backend_config: Backend-specific configuration options.
 
     Example:
         ```python
@@ -244,6 +248,12 @@ class FraiseQLConfig(BaseSettings):
     rate_limit_window_type: str = "sliding"  # "sliding" or "fixed"
     rate_limit_whitelist: list[str] = []
     rate_limit_blacklist: list[str] = []
+
+    # APQ Backend Configuration
+    apq_storage_backend: Literal["memory", "postgresql", "redis", "custom"] = "memory"
+    apq_cache_responses: bool = False
+    apq_response_cache_ttl: int = Field(default=600, ge=0)
+    apq_backend_config: dict[str, Any] = {}
 
     # CORS settings
     cors_enabled: bool = False  # Disabled by default to avoid conflicts with reverse proxies

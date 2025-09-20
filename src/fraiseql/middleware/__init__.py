@@ -28,6 +28,15 @@ except ImportError:
             )
 
 
+# Import APQ middleware components
+from .apq import (
+    create_apq_error_response,
+    get_apq_hash,
+    handle_apq_request,
+    is_apq_request,
+    is_apq_with_query_request,
+)
+
 __all__ = [
     "InMemoryRateLimiter",
     "RateLimitConfig",
@@ -36,4 +45,10 @@ __all__ = [
     "RateLimiterMiddleware",
     "RedisRateLimiter",
     "SlidingWindowRateLimiter",
+    # APQ middleware
+    "create_apq_error_response",
+    "get_apq_hash",
+    "handle_apq_request",
+    "is_apq_request",
+    "is_apq_with_query_request",
 ]

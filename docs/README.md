@@ -76,6 +76,8 @@ Our documentation follows **Progressive Disclosure** principles:
 ```
 📍 ADVANCED & EXTENDING
 ├── advanced/               # Advanced patterns & techniques
+│   ├── performance-optimization-layers.md # Three-layer performance architecture
+│   ├── apq-storage-backends.md # APQ storage backend abstraction
 │   ├── custom-scalars.md   # Building custom scalar types
 │   ├── middleware.md       # Custom middleware patterns
 │   └── extensions.md       # Framework extensions

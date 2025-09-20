@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from graphql import GraphQLSchema
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.auth.base import AuthProvider
@@ -35,11 +35,42 @@ _default_context_dependency = Depends(build_graphql_context)
 
 
 class GraphQLRequest(BaseModel):
-    """GraphQL request model."""
+    """GraphQL request model supporting Apollo Automatic Persisted Queries (APQ)."""
 
-    query: str
+    query: str | None = None
     variables: dict[str, Any] | None = None
     operationName: str | None = None  # noqa: N815 - GraphQL spec requires this name
+    extensions: dict[str, Any] | None = None
+
+    @field_validator("extensions")
+    @classmethod
+    def validate_extensions(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate extensions field structure for APQ compliance."""
+        if v is None:
+            return v
+
+        # If extensions contains persistedQuery, validate APQ structure
+        if "persistedQuery" in v:
+            persisted_query = v["persistedQuery"]
+            if not isinstance(persisted_query, dict):
+                raise ValueError("persistedQuery must be an object")
+
+            # APQ requires version and sha256Hash
+            if "version" not in persisted_query:
+                raise ValueError("persistedQuery.version is required")
+            if "sha256Hash" not in persisted_query:
+                raise ValueError("persistedQuery.sha256Hash is required")
+
+            # Version must be 1 (APQ v1)
+            if persisted_query["version"] != 1:
+                raise ValueError("Only APQ version 1 is supported")
+
+            # sha256Hash must be a non-empty string
+            sha256_hash = persisted_query["sha256Hash"]
+            if not isinstance(sha256_hash, str) or not sha256_hash:
+                raise ValueError("persistedQuery.sha256Hash must be a non-empty string")
+
+        return v
 
 
 def create_graphql_router(
@@ -151,15 +182,66 @@ def create_graphql_router(
         context: dict[str, Any] = context_dependency,
     ):
         """Execute GraphQL query with adaptive behavior."""
-        # Check authentication if required
+        # Check authentication first (before APQ processing to ensure security)
+        # For APQ requests, we need to check auth regardless of query availability
         if (
             config.auth_enabled
             and auth_provider
             and not context.get("authenticated", False)
-            and not (config.environment == "development" and "__schema" in request.query)
+            and not (
+                config.environment == "development"
+                and request.query
+                and "__schema" in request.query
+            )
         ):
             # Return 401 for unauthenticated requests when auth is required
             raise HTTPException(status_code=401, detail="Authentication required")
+
+        # Initialize APQ backend for potential caching
+        apq_backend = None
+        is_apq_request = request.extensions and "persistedQuery" in request.extensions
+
+        # Handle APQ (Automatic Persisted Queries) if detected
+        if is_apq_request:
+            from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
+            from fraiseql.middleware.apq_caching import (
+                get_apq_backend,
+                handle_apq_request_with_cache,
+            )
+
+            logger.debug("APQ request detected, processing...")
+
+            persisted_query = request.extensions["persistedQuery"]
+            sha256_hash = persisted_query.get("sha256Hash")
+
+            # Validate hash format
+            if not sha256_hash or not isinstance(sha256_hash, str) or not sha256_hash.strip():
+                logger.debug("APQ request failed: invalid hash format")
+                return create_apq_error_response(
+                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                )
+
+            # 1. Try cached response first (JSON passthrough)
+            apq_backend = get_apq_backend(config)
+            cached_response = handle_apq_request_with_cache(request, apq_backend, config)
+            if cached_response:
+                logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
+                return cached_response
+
+            # 2. Fallback to query resolution
+            persisted_query_text = get_persisted_query(sha256_hash)
+            if not persisted_query_text:
+                logger.debug(f"APQ request failed: hash not found: {sha256_hash[:8]}...")
+                return create_apq_error_response(
+                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                )
+
+            # Replace request query with persisted query for normal execution
+            logger.debug(
+                f"APQ request resolved: hash {sha256_hash[:8]}... -> "
+                f"query length {len(persisted_query_text)}"
+            )
+            request.query = persisted_query_text
 
         try:
             # Determine execution mode from headers and config
@@ -274,6 +356,17 @@ def create_graphql_router(
                 response["errors"] = [
                     _format_error(error, is_production_env) for error in result.errors
                 ]
+
+            # Cache response for APQ if it was an APQ request and response is cacheable
+            if is_apq_request and apq_backend:
+                from fraiseql.middleware.apq_caching import (
+                    get_apq_hash_from_request,
+                    store_response_in_cache,
+                )
+
+                apq_hash = get_apq_hash_from_request(request)
+                if apq_hash:
+                    store_response_in_cache(apq_hash, response, apq_backend, config)
 
             return response
 

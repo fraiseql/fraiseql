@@ -7,6 +7,9 @@ Deep technical guides for FraiseQL v0.1.0 advanced features, performance optimiz
 ### [Performance Guide](./performance.md)
 Complete guide to FraiseQL performance optimization including connection pooling, query optimization, caching strategies, and monitoring.
 
+### [Performance Optimization Layers](./performance-optimization-layers.md)
+Comprehensive analysis of FraiseQL's three-layer optimization architecture (APQ, TurboRouter, JSON Passthrough) and how they work together to achieve 100-500x performance improvements.
+
 ### [TurboRouter](./turbo-router.md)
 High-performance direct SQL execution for registered queries, bypassing GraphQL parsing overhead for optimal response times.
 
@@ -42,6 +45,9 @@ Implementing authentication and authorization with Auth0, custom providers, and 
 Production security guide covering SQL injection prevention, rate limiting, query complexity analysis, and CORS.
 
 ## Advanced Features
+
+### [APQ Storage Backend Abstraction](./apq-storage-backends.md)
+Complete guide to FraiseQL's Automatic Persisted Queries (APQ) system with pluggable storage backends. Covers memory and PostgreSQL backends, enterprise deployment patterns, and sub-millisecond response optimization.
 
 ### [Identifier Management](./identifier-management.md)
 Comprehensive guide to the Triple ID Pattern (internal ID, UUID primary key, business identifier) including generation strategies, recalculation patterns, lookup optimization, and migration techniques for enterprise-grade identifier management.

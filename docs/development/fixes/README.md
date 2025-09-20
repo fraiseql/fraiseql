@@ -1,18 +1,18 @@
 # Fixes and Workarounds
 
 ## Purpose
-Documentation of fixes, workarounds, and production issues with their resolutions.
+Documentation of current fixes, workarounds, and production issues with their resolutions.
 
-## Contents
-- **NETWORK_OPERATOR_FIX.md**: Network operator implementation fixes
-- **v055_production_workarounds.md**: Production workarounds for v0.5.5 issues
+## Current Status
+This directory contains documentation for ongoing fixes and workarounds. Historical fixes have been archived or removed.
 
 ## When to Add Files Here
-- Production issue fixes
-- Temporary workarounds
-- Bug fix documentation
-- Post-mortem analyses
+- Active production issue fixes
+- Current temporary workarounds
+- Bug fix documentation for in-progress issues
+- Post-mortem analyses for recent issues
 
 ## Related Documentation
 - [Errors](../../errors/) for error handling guides
 - [Fixes](../../fixes/) for additional fix documentation
+- [CHANGELOG.md](../../../CHANGELOG.md) for historical fix documentation

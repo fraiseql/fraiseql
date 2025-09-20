@@ -12,12 +12,17 @@ Comprehensive guide to optimizing FraiseQL applications for maximum performance 
 
 ## Performance Philosophy
 
-FraiseQL achieves high performance through:
-1. **Direct SQL generation** - No ORM overhead
-2. **Composable views** - Single queries for complex data
-3. **JSONB optimization** - Native PostgreSQL performance
-4. **Connection pooling** - Efficient resource usage
-5. **Multiple execution modes** - Automatic optimization
+FraiseQL achieves high performance through a **three-layer optimization architecture**:
+
+1. **APQ Layer** - Protocol optimization (bandwidth & caching)
+2. **TurboRouter Layer** - Execution optimization (pre-compilation)
+3. **JSON Passthrough Layer** - Runtime optimization (serialization bypass)
+4. **Direct SQL generation** - No ORM overhead
+5. **Composable views** - Single queries for complex data
+6. **JSONB optimization** - Native PostgreSQL performance
+7. **Connection pooling** - Efficient resource usage
+
+> **📖 For comprehensive analysis** of how these layers work together to achieve 100-500x performance improvements, see [Performance Optimization Layers](./performance-optimization-layers.md)
 
 ## Query Optimization
 
