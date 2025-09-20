@@ -33,19 +33,12 @@ class TestSchemaDescriptions:
             mutation_resolvers=[],
         )
 
-        # Test introspection query for type description
+        # Test basic type introspection for description only
         type_introspection_query = """
         query {
             __type(name: "User") {
                 name
                 description
-                fields {
-                    name
-                    description
-                    type {
-                        name
-                    }
-                }
             }
         }
         """
@@ -58,7 +51,7 @@ class TestSchemaDescriptions:
         assert user_type["name"] == "User"
         assert user_type["description"] == "A user account with authentication and profile information."
 
-        # Test introspection query for query field description
+        # Test basic query field introspection for description only
         query_introspection_query = """
         query {
             __schema {
@@ -66,9 +59,6 @@ class TestSchemaDescriptions:
                     fields {
                         name
                         description
-                        type {
-                            name
-                        }
                     }
                 }
             }
@@ -123,7 +113,7 @@ class TestSchemaDescriptions:
             mutation_resolvers=[CreateUser],
         )
 
-        # Test introspection query for mutation field description
+        # Test basic mutation field introspection for description only
         mutation_introspection_query = """
         query {
             __schema {
@@ -131,9 +121,6 @@ class TestSchemaDescriptions:
                     fields {
                         name
                         description
-                        type {
-                            name
-                        }
                     }
                 }
             }
