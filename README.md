@@ -27,6 +27,7 @@
 
 ### **🔧 Developer Experience**
 - **Type-safe**: Full Python 3.13+ type hints with automatic GraphQL schema generation
+- **Automatic documentation**: Python docstrings become GraphQL descriptions in Apollo Studio
 - **One command setup**: `fraiseql init my-api && fraiseql dev`
 - **Intelligent WHERE clauses**: Automatic type-aware SQL optimization for network types, dates, and more
 - **Hybrid table support**: Seamless filtering across regular columns and JSONB fields
@@ -46,6 +47,7 @@ from fraiseql import ID, EmailAddress
 
 @fraiseql.type
 class User:
+    """A user account with authentication and profile information."""
     id: ID
     email: EmailAddress
     name: str
@@ -70,6 +72,7 @@ from .types import User
 
 @fraiseql.query
 async def users(info) -> list[User]:
+    """Get all users with their profile information."""
     repo = info.context["repo"]
     return await repo.find("v_user")
 EOF

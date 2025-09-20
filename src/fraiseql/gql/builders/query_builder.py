@@ -16,7 +16,11 @@ from graphql import (
 )
 
 from fraiseql.config.schema_config import SchemaConfig
-from fraiseql.core.graphql_type import convert_type_to_graphql_input, convert_type_to_graphql_output
+from fraiseql.core.graphql_type import (
+    _clean_docstring,
+    convert_type_to_graphql_input,
+    convert_type_to_graphql_output,
+)
 from fraiseql.gql.enum_serializer import wrap_resolver_with_enum_serialization
 from fraiseql.types.coercion import wrap_resolver_with_input_coercion
 from fraiseql.utils.naming import snake_to_camel
@@ -125,6 +129,7 @@ class QueryTypeBuilder:
                 type_=cast("GraphQLOutputType", gql_return_type),
                 args=gql_args,
                 resolve=wrapped_resolver,
+                description=_clean_docstring(fn.__doc__),
             )
 
             logger.debug(

@@ -32,6 +32,44 @@ class User:
     roles: list[str] = field(default_factory=list)
 ```
 
+## Automatic Documentation
+
+FraiseQL automatically extracts Python docstrings and converts them to GraphQL schema descriptions that appear in Apollo Studio and GraphQL introspection.
+
+### Type Descriptions
+```python
+@fraiseql.type
+class User:
+    """A user account with authentication and profile information."""
+    id: UUID
+    email: str
+    name: str
+```
+
+The docstring automatically becomes the GraphQL type description visible in Apollo Studio.
+
+### Query & Mutation Descriptions
+```python
+@fraiseql.query
+async def get_user_profile(info, user_id: UUID) -> User:
+    """Retrieve a user's complete profile with preferences and settings."""
+    return await db.get_user(user_id)
+
+@fraiseql.mutation
+class CreateUser:
+    """Create a new user account with validation and welcome email."""
+
+    input: CreateUserInput
+    success: CreateUserSuccess
+    failure: CreateUserError
+
+    async def resolve(self, info):
+        # Implementation
+        pass
+```
+
+All docstrings are automatically cleaned and formatted for GraphQL schema documentation.
+
 ### Input Types
 ```python
 @fraiseql.input
