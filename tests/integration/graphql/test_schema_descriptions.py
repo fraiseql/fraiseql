@@ -24,7 +24,8 @@ class TestSchemaDescriptions:
         @fraiseql.query
         async def get_user(info, user_id: int) -> User:
             """Retrieve a specific user by their ID."""
-            return User(id=user_id, name="Test User", email="test@example.com")
+            # Mock implementation for testing
+            return None
 
         # Build schema
         schema = build_fraiseql_schema(
@@ -188,10 +189,8 @@ class TestSchemaDescriptions:
             failure: UpdatePriceError
 
             async def resolve(self, info):
-                return UpdatePriceSuccess(
-                    product=Product(id=1, name="Test", description="Test product", price=10.0),
-                    message="Price updated"
-                )
+                # Mock implementation for testing
+                return None
 
         # Build schema
         schema = build_fraiseql_schema(
