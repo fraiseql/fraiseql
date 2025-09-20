@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from graphql import GraphQLSchema
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.auth.base import AuthProvider
@@ -35,11 +35,42 @@ _default_context_dependency = Depends(build_graphql_context)
 
 
 class GraphQLRequest(BaseModel):
-    """GraphQL request model."""
+    """GraphQL request model supporting Apollo Automatic Persisted Queries (APQ)."""
 
-    query: str
+    query: str | None = None
     variables: dict[str, Any] | None = None
     operationName: str | None = None  # noqa: N815 - GraphQL spec requires this name
+    extensions: dict[str, Any] | None = None
+
+    @field_validator("extensions")
+    @classmethod
+    def validate_extensions(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate extensions field structure for APQ compliance."""
+        if v is None:
+            return v
+
+        # If extensions contains persistedQuery, validate APQ structure
+        if "persistedQuery" in v:
+            persisted_query = v["persistedQuery"]
+            if not isinstance(persisted_query, dict):
+                raise ValueError("persistedQuery must be an object")
+
+            # APQ requires version and sha256Hash
+            if "version" not in persisted_query:
+                raise ValueError("persistedQuery.version is required")
+            if "sha256Hash" not in persisted_query:
+                raise ValueError("persistedQuery.sha256Hash is required")
+
+            # Version must be 1 (APQ v1)
+            if persisted_query["version"] != 1:
+                raise ValueError("Only APQ version 1 is supported")
+
+            # sha256Hash must be a non-empty string
+            sha256_hash = persisted_query["sha256Hash"]
+            if not isinstance(sha256_hash, str) or not sha256_hash:
+                raise ValueError("persistedQuery.sha256Hash must be a non-empty string")
+
+        return v
 
 
 def create_graphql_router(
