@@ -1,13 +1,18 @@
-"""APQ query storage implementation for FraiseQL."""
+"""APQ query storage implementation for FraiseQL.
+
+This module maintains backward compatibility while using the new backend system internally.
+"""
 
 import hashlib
 import logging
 from typing import Dict, Optional
 
+from .backends.memory import MemoryAPQBackend
+
 logger = logging.getLogger(__name__)
 
-# In-memory storage for APQ queries
-_apq_storage: Dict[str, str] = {}
+# Global memory backend instance for backward compatibility
+_backend = MemoryAPQBackend()
 
 
 def store_persisted_query(hash_value: str, query: str) -> None:
@@ -35,8 +40,7 @@ def store_persisted_query(hash_value: str, query: str) -> None:
             f"computed={actual_hash[:8]}... - storing anyway for APQ compatibility"
         )
 
-    _apq_storage[hash_value] = query
-    logger.debug(f"Stored APQ query with hash {hash_value[:8]}...")
+    _backend.store_persisted_query(hash_value, query)
 
 
 def get_persisted_query(hash_value: str) -> Optional[str]:
@@ -48,23 +52,12 @@ def get_persisted_query(hash_value: str) -> Optional[str]:
     Returns:
         GraphQL query string if found, None otherwise
     """
-    if not hash_value:
-        return None
-
-    query = _apq_storage.get(hash_value)
-    if query:
-        logger.debug(f"Retrieved APQ query with hash {hash_value[:8]}...")
-    else:
-        logger.debug(f"APQ query not found for hash {hash_value[:8]}...")
-
-    return query
+    return _backend.get_persisted_query(hash_value)
 
 
 def clear_storage() -> None:
     """Clear all stored persisted queries."""
-    count = len(_apq_storage)
-    _apq_storage.clear()
-    logger.debug(f"Cleared {count} APQ queries from storage")
+    _backend.clear_storage()
 
 
 def compute_query_hash(query: str) -> str:
@@ -85,7 +78,9 @@ def get_storage_stats() -> Dict[str, int]:
     Returns:
         Dictionary with storage statistics
     """
+    stats = _backend.get_storage_stats()
+    # Return only the fields that existed in the original function for backward compatibility
     return {
-        "stored_queries": len(_apq_storage),
-        "total_size_bytes": sum(len(query.encode("utf-8")) for query in _apq_storage.values()),
+        "stored_queries": stats["stored_queries"],
+        "total_size_bytes": stats["total_query_size_bytes"],
     }

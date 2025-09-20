@@ -197,9 +197,17 @@ def create_graphql_router(
             # Return 401 for unauthenticated requests when auth is required
             raise HTTPException(status_code=401, detail="Authentication required")
 
+        # Initialize APQ backend for potential caching
+        apq_backend = None
+        is_apq_request = request.extensions and "persistedQuery" in request.extensions
+
         # Handle APQ (Automatic Persisted Queries) if detected
-        if request.extensions and "persistedQuery" in request.extensions:
+        if is_apq_request:
             from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
+            from fraiseql.middleware.apq_caching import (
+                get_apq_backend,
+                handle_apq_request_with_cache,
+            )
 
             logger.debug("APQ request detected, processing...")
 
@@ -213,7 +221,14 @@ def create_graphql_router(
                     "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
                 )
 
-            # Retrieve persisted query
+            # 1. Try cached response first (JSON passthrough)
+            apq_backend = get_apq_backend(config)
+            cached_response = handle_apq_request_with_cache(request, apq_backend, config)
+            if cached_response:
+                logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
+                return cached_response
+
+            # 2. Fallback to query resolution
             persisted_query_text = get_persisted_query(sha256_hash)
             if not persisted_query_text:
                 logger.debug(f"APQ request failed: hash not found: {sha256_hash[:8]}...")
@@ -341,6 +356,17 @@ def create_graphql_router(
                 response["errors"] = [
                     _format_error(error, is_production_env) for error in result.errors
                 ]
+
+            # Cache response for APQ if it was an APQ request and response is cacheable
+            if is_apq_request and apq_backend:
+                from fraiseql.middleware.apq_caching import (
+                    get_apq_hash_from_request,
+                    store_response_in_cache,
+                )
+
+                apq_hash = get_apq_hash_from_request(request)
+                if apq_hash:
+                    store_response_in_cache(apq_hash, response, apq_backend, config)
 
             return response
 
