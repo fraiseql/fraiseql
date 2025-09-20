@@ -182,15 +182,51 @@ def create_graphql_router(
         context: dict[str, Any] = context_dependency,
     ):
         """Execute GraphQL query with adaptive behavior."""
-        # Check authentication if required
+        # Check authentication first (before APQ processing to ensure security)
+        # For APQ requests, we need to check auth regardless of query availability
         if (
             config.auth_enabled
             and auth_provider
             and not context.get("authenticated", False)
-            and not (config.environment == "development" and "__schema" in request.query)
+            and not (
+                config.environment == "development"
+                and request.query
+                and "__schema" in request.query
+            )
         ):
             # Return 401 for unauthenticated requests when auth is required
             raise HTTPException(status_code=401, detail="Authentication required")
+
+        # Handle APQ (Automatic Persisted Queries) if detected
+        if request.extensions and "persistedQuery" in request.extensions:
+            from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
+
+            logger.debug("APQ request detected, processing...")
+
+            persisted_query = request.extensions["persistedQuery"]
+            sha256_hash = persisted_query.get("sha256Hash")
+
+            # Validate hash format
+            if not sha256_hash or not isinstance(sha256_hash, str) or not sha256_hash.strip():
+                logger.debug("APQ request failed: invalid hash format")
+                return create_apq_error_response(
+                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                )
+
+            # Retrieve persisted query
+            persisted_query_text = get_persisted_query(sha256_hash)
+            if not persisted_query_text:
+                logger.debug(f"APQ request failed: hash not found: {sha256_hash[:8]}...")
+                return create_apq_error_response(
+                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                )
+
+            # Replace request query with persisted query for normal execution
+            logger.debug(
+                f"APQ request resolved: hash {sha256_hash[:8]}... -> "
+                f"query length {len(persisted_query_text)}"
+            )
+            request.query = persisted_query_text
 
         try:
             # Determine execution mode from headers and config
