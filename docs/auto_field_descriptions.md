@@ -337,4 +337,4 @@ See `examples/auto_field_descriptions.py` for a complete working example demonst
 
 ---
 
-*This feature enhances the existing v0.9.0 automatic docstring extraction by adding field-level description support, providing comprehensive zero-configuration GraphQL schema documentation.*
+*This feature enhances the existing v0.9.1 automatic docstring extraction by adding field-level description support, providing comprehensive zero-configuration GraphQL schema documentation.*

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2025-09-21
+
+### ✨ Comprehensive Automatic Field Description Extraction
+
+This release introduces **comprehensive automatic field description extraction** that transforms Python docstrings into detailed GraphQL field descriptions, building on the v0.9.0 automatic docstring extraction foundation.
+
+#### **🎯 Key Features**
+- **Automatic Field Descriptions**: Extracts field descriptions from docstring `Fields:`, `Attributes:`, and `Args:` sections
+- **Enhanced Where Clause Documentation**: 35+ filter operations automatically documented with type-aware descriptions
+- **Multiple Documentation Sources**: Intelligent priority system supporting various docstring formats
+- **Apollo Studio Integration**: Field descriptions appear as tooltips with comprehensive operation explanations
+- **Zero Configuration**: Works with existing code without any changes required
+
+#### **🧪 Quality Assurance**
+- **35 Comprehensive Unit Tests**: Full coverage of field description extraction functionality
+- **3200+ Integration Tests**: Complete test suite ensuring backward compatibility
+- **Performance Optimized**: Minimal overhead with intelligent caching
+- **Type-Safe Implementation**: Maintains existing type safety guarantees
+
+#### **📚 Documentation & Examples**
+- **Complete Feature Documentation**: Comprehensive guides and API reference
+- **3 Working Examples**: Demonstrating all aspects of automatic field descriptions
+- **Migration Guide**: Easy adoption for existing codebases
+- **Best Practices**: Usage patterns and optimization recommendations
+
+#### **🔄 Implementation Details**
+- **2 New Utility Modules**: `docstring_extractor.py` and `where_clause_descriptions.py`
+- **Seamless Pipeline Integration**: Works with existing FraiseQL type system
+- **Automatic Filter Enhancement**: All existing filter types gain comprehensive documentation
+- **Clean Architecture**: Maintainable code following project conventions
+
 ## [0.9.0] - 2025-09-20
 
 ### ✨ Automatic Docstring Extraction for GraphQL Schema Descriptions
