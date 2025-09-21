@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 
 class PostgreSQLAPQBackend(APQStorageBackend):
-    """PostgreSQL APQ storage backend.
+    """PostgreSQL APQ storage backend with tenant isolation.
 
-    This backend stores both persisted queries and cached responses in PostgreSQL.
-    It's designed to work with the existing database connection and provide
-    enterprise-grade persistence and scalability.
+    This backend stores persisted queries and cached responses in PostgreSQL,
+    with automatic tenant isolation using a composite primary key.
 
     Features:
-    - Automatic table creation
+    - Automatic table creation with tenant support
+    - Tenant-isolated response caching
     - JSON response serialization
     - Connection pooling support
     - Graceful error handling
@@ -96,11 +96,14 @@ class PostgreSQLAPQBackend(APQStorageBackend):
         except Exception as e:
             logger.warning(f"Failed to store persisted query: {e}")
 
-    def get_cached_response(self, hash_value: str) -> Optional[Dict[str, Any]]:
-        """Get cached JSON response for APQ hash.
+    def get_cached_response(
+        self, hash_value: str, context: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Get cached JSON response for APQ hash with tenant isolation.
 
         Args:
             hash_value: SHA256 hash of the persisted query
+            context: Optional request context containing user/tenant information
 
         Returns:
             Cached GraphQL response dict if found, None otherwise
@@ -109,37 +112,62 @@ class PostgreSQLAPQBackend(APQStorageBackend):
             return None
 
         try:
-            sql = f"SELECT response FROM {self._responses_table} WHERE hash = %s"
-            result = self._fetch_one(sql, (hash_value,))
+            # Extract tenant_id from context
+            tenant_id = self.extract_tenant_id(context) if context else None
+
+            # Query with tenant isolation
+            if tenant_id:
+                sql = (
+                    f"SELECT response FROM {self._responses_table} "
+                    f"WHERE hash = %s AND tenant_id = %s"
+                )
+                result = self._fetch_one(sql, (hash_value, tenant_id))
+                log_suffix = f" for tenant {tenant_id}"
+            else:
+                sql = (
+                    f"SELECT response FROM {self._responses_table} "
+                    f"WHERE hash = %s AND tenant_id IS NULL"
+                )
+                result = self._fetch_one(sql, (hash_value,))
+                log_suffix = " (global)"
 
             if result:
-                logger.debug(f"Retrieved cached response for hash {hash_value[:8]}...")
+                logger.debug(f"Retrieved cached response for hash {hash_value[:8]}...{log_suffix}")
                 return json.loads(result[0])
-            logger.debug(f"Cached response not found for hash {hash_value[:8]}...")
+            logger.debug(f"Cached response not found for hash {hash_value[:8]}...{log_suffix}")
             return None
 
         except Exception as e:
             logger.warning(f"Failed to retrieve cached response: {e}")
             return None
 
-    def store_cached_response(self, hash_value: str, response: Dict[str, Any]) -> None:
-        """Store pre-computed JSON response for APQ hash.
+    def store_cached_response(
+        self, hash_value: str, response: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Store pre-computed JSON response for APQ hash with tenant isolation.
 
         Args:
             hash_value: SHA256 hash of the persisted query
             response: GraphQL response dict to cache
+            context: Optional request context containing user/tenant information
         """
         try:
+            # Extract tenant_id from context
+            tenant_id = self.extract_tenant_id(context) if context else None
             response_json = json.dumps(response)
+
+            # Store with tenant isolation
             sql = f"""
-                INSERT INTO {self._responses_table} (hash, response, created_at)
-                VALUES (%s, %s, NOW())
-                ON CONFLICT (hash) DO UPDATE SET
+                INSERT INTO {self._responses_table} (hash, tenant_id, response, created_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (hash, COALESCE(tenant_id, '')) DO UPDATE SET
                     response = EXCLUDED.response,
                     updated_at = NOW()
             """
-            self._execute_query(sql, (hash_value, response_json))
-            logger.debug(f"Stored cached response for hash {hash_value[:8]}...")
+            self._execute_query(sql, (hash_value, tenant_id, response_json))
+
+            log_suffix = f" for tenant {tenant_id}" if tenant_id else " (global)"
+            logger.debug(f"Stored cached response for hash {hash_value[:8]}...{log_suffix}")
 
         except Exception as e:
             logger.warning(f"Failed to store cached response: {e}")
@@ -172,14 +200,18 @@ class PostgreSQLAPQBackend(APQStorageBackend):
         """
 
     def _get_create_responses_table_sql(self) -> str:
-        """Get SQL for creating the responses table."""
+        """Get SQL for creating the responses table with tenant support."""
         return f"""
             CREATE TABLE IF NOT EXISTS {self._responses_table} (
-                hash VARCHAR(64) PRIMARY KEY,
+                hash VARCHAR(64) NOT NULL,
+                tenant_id VARCHAR(255),
                 response JSONB NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            )
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                PRIMARY KEY (hash, COALESCE(tenant_id, ''))
+            );
+            CREATE INDEX IF NOT EXISTS idx_{self._responses_table}_tenant
+                ON {self._responses_table} (tenant_id) WHERE tenant_id IS NOT NULL;
         """
 
     def _get_connection(self):
