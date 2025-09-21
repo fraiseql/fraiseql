@@ -96,11 +96,14 @@ class PostgreSQLAPQBackend(APQStorageBackend):
         except Exception as e:
             logger.warning(f"Failed to store persisted query: {e}")
 
-    def get_cached_response(self, hash_value: str) -> Optional[Dict[str, Any]]:
+    def get_cached_response(
+        self, hash_value: str, context: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
         """Get cached JSON response for APQ hash.
 
         Args:
             hash_value: SHA256 hash of the persisted query
+            context: Optional request context containing user/tenant information
 
         Returns:
             Cached GraphQL response dict if found, None otherwise
@@ -122,12 +125,15 @@ class PostgreSQLAPQBackend(APQStorageBackend):
             logger.warning(f"Failed to retrieve cached response: {e}")
             return None
 
-    def store_cached_response(self, hash_value: str, response: Dict[str, Any]) -> None:
+    def store_cached_response(
+        self, hash_value: str, response: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Store pre-computed JSON response for APQ hash.
 
         Args:
             hash_value: SHA256 hash of the persisted query
             response: GraphQL response dict to cache
+            context: Optional request context containing user/tenant information
         """
         try:
             response_json = json.dumps(response)

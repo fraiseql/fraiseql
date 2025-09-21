@@ -54,11 +54,14 @@ class MemoryAPQBackend(APQStorageBackend):
         self._query_storage[hash_value] = query
         logger.debug(f"Stored APQ query with hash {hash_value[:8]}...")
 
-    def get_cached_response(self, hash_value: str) -> Optional[Dict[str, Any]]:
+    def get_cached_response(
+        self, hash_value: str, context: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
         """Get cached JSON response for APQ hash.
 
         Args:
             hash_value: SHA256 hash of the persisted query
+            context: Optional request context containing user/tenant information
 
         Returns:
             Cached GraphQL response dict if found, None otherwise
@@ -66,6 +69,8 @@ class MemoryAPQBackend(APQStorageBackend):
         if not hash_value:
             return None
 
+        # For now, ignore context for backward compatibility
+        # Phase 3 will implement tenant-specific caching
         response = self._response_storage.get(hash_value)
         if response:
             logger.debug(f"Retrieved cached response for hash {hash_value[:8]}...")
@@ -74,13 +79,18 @@ class MemoryAPQBackend(APQStorageBackend):
 
         return response
 
-    def store_cached_response(self, hash_value: str, response: Dict[str, Any]) -> None:
+    def store_cached_response(
+        self, hash_value: str, response: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Store pre-computed JSON response for APQ hash.
 
         Args:
             hash_value: SHA256 hash of the persisted query
             response: GraphQL response dict to cache
+            context: Optional request context containing user/tenant information
         """
+        # For now, ignore context for backward compatibility
+        # Phase 3 will implement tenant-specific caching
         self._response_storage[hash_value] = response
         logger.debug(f"Stored cached response for hash {hash_value[:8]}...")
 
