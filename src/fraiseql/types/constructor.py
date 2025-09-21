@@ -145,6 +145,11 @@ def define_fraiseql_type(
     typed_cls.__gql_fields__ = field_map
     typed_cls.__gql_type_hints__ = type_hints
 
+    # Apply automatic field descriptions for fields without explicit descriptions
+    from fraiseql.utils.field_descriptions import apply_auto_descriptions
+
+    apply_auto_descriptions(typed_cls)
+
     definition = FraiseQLTypeDefinition(
         python_type=typed_cls,
         is_input=(kind == "input"),
