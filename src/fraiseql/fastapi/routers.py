@@ -208,6 +208,7 @@ def create_graphql_router(
                 get_apq_backend,
                 handle_apq_request_with_cache,
             )
+            from fraiseql.storage.apq_store import store_persisted_query
 
             logger.debug("APQ request detected, processing...")
 
@@ -221,27 +222,56 @@ def create_graphql_router(
                     "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
                 )
 
-            # 1. Try cached response first (JSON passthrough)
+            # Get APQ backend for caching
             apq_backend = get_apq_backend(config)
-            cached_response = handle_apq_request_with_cache(request, apq_backend, config)
-            if cached_response:
-                logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
-                return cached_response
 
-            # 2. Fallback to query resolution
-            persisted_query_text = get_persisted_query(sha256_hash)
-            if not persisted_query_text:
-                logger.debug(f"APQ request failed: hash not found: {sha256_hash[:8]}...")
-                return create_apq_error_response(
-                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+            # Check if this is a registration request (has both hash and query)
+            if request.query:
+                # This is a registration request - store the query
+                logger.debug(f"APQ registration: storing query with hash {sha256_hash[:8]}...")
+
+                # Store in the global store (for backward compatibility)
+                store_persisted_query(sha256_hash, request.query)
+
+                # Also store in the backend if available
+                if apq_backend:
+                    apq_backend.store_persisted_query(sha256_hash, request.query)
+
+                # Continue with normal execution using the provided query
+                # The response will be cached after execution (see lines 361-370)
+
+            else:
+                # This is a hash-only request - try to retrieve the query
+
+                # 1. Try cached response first (JSON passthrough)
+                cached_response = handle_apq_request_with_cache(request, apq_backend, config)
+                if cached_response:
+                    logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
+                    return cached_response
+
+                # 2. Fallback to query resolution from backend
+                persisted_query_text = None
+
+                # Try backend first
+                if apq_backend:
+                    persisted_query_text = apq_backend.get_persisted_query(sha256_hash)
+
+                # Fallback to global store
+                if not persisted_query_text:
+                    persisted_query_text = get_persisted_query(sha256_hash)
+
+                if not persisted_query_text:
+                    logger.debug(f"APQ request failed: hash not found: {sha256_hash[:8]}...")
+                    return create_apq_error_response(
+                        "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                    )
+
+                # Replace request query with persisted query for normal execution
+                logger.debug(
+                    f"APQ request resolved: hash {sha256_hash[:8]}... -> "
+                    f"query length {len(persisted_query_text)}"
                 )
-
-            # Replace request query with persisted query for normal execution
-            logger.debug(
-                f"APQ request resolved: hash {sha256_hash[:8]}... -> "
-                f"query length {len(persisted_query_text)}"
-            )
-            request.query = persisted_query_text
+                request.query = persisted_query_text
 
         try:
             # Determine execution mode from headers and config
@@ -366,7 +396,14 @@ def create_graphql_router(
 
                 apq_hash = get_apq_hash_from_request(request)
                 if apq_hash:
+                    # Store the response in cache for future requests
                     store_response_in_cache(apq_hash, response, apq_backend, config)
+
+                    # Also store the cached response in the backend
+                    import json
+
+                    response_json = json.dumps(response, separators=(",", ":"))
+                    apq_backend.store_cached_response(apq_hash, response_json)
 
             return response
 
