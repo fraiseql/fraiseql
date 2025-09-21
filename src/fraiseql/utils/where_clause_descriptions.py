@@ -47,6 +47,10 @@ OPERATOR_DESCRIPTIONS = {
     # Range operations
     "from_": "Range start - starting value for range filtering",
     "to": "Range end - ending value for range filtering",
+    # Logical operators (future enhancement)
+    "AND": "Logical AND - all conditions in the list must be true",
+    "OR": "Logical OR - at least one condition in the list must be true",
+    "NOT": "Logical NOT - negates the given condition",
 }
 
 
@@ -96,6 +100,11 @@ FILTER_TYPE_DESCRIPTIONS = {
         "description": "IP address range specification for network filtering operations.",
         "note": "Define from/to range for IP address filtering.",
     },
+    # Logical operator containers (for any WhereInput type)
+    "WhereInput": {
+        "description": "Advanced filtering with logical operators and field-specific filters.",
+        "note": "Combine field filters with AND, OR, NOT for complex queries.",
+    },
 }
 
 
@@ -136,8 +145,8 @@ def generate_filter_docstring(filter_class_name: str, fields: Dict[str, FraiseQL
 def apply_filter_descriptions(cls: type) -> None:
     """Apply automatic descriptions to filter type fields.
 
-    This function enhances filter classes (StringFilter, IntFilter, etc.) with
-    comprehensive field descriptions that will appear in Apollo Studio.
+    This function enhances filter classes (StringFilter, IntFilter, etc.) and
+    WhereInput classes with comprehensive field descriptions that will appear in Apollo Studio.
 
     Args:
         cls: The filter class to enhance with descriptions
@@ -147,8 +156,8 @@ def apply_filter_descriptions(cls: type) -> None:
 
     class_name = cls.__name__
 
-    # Only apply to filter classes
-    if not class_name.endswith("Filter") and class_name not in ["IPRange"]:
+    # Apply to filter classes, where input classes, and special types
+    if not (class_name.endswith(("Filter", "WhereInput")) or class_name in ["IPRange"]):
         return
 
     # Generate and set the class docstring if it's basic
