@@ -151,9 +151,9 @@ class TestTenantSpecificCaching:
             cached = backend.get_cached_response(query_hash, context=ctx)
             assert cached == test_response, f"Failed for context: {ctx}"
 
-    def test_memory_backend_without_tenant_awareness(self):
-        """Test that regular MemoryAPQBackend ignores context (Phase 1-2 behavior)."""
-        backend = MemoryAPQBackend()  # Regular backend, not tenant-aware
+    def test_memory_backend_with_tenant_awareness(self):
+        """Test that regular MemoryAPQBackend now implements tenant isolation."""
+        backend = MemoryAPQBackend()  # Regular backend now has tenant awareness
 
         query_hash = "regular123"
 
@@ -167,15 +167,17 @@ class TestTenantSpecificCaching:
         # Store for tenant A
         backend.store_cached_response(query_hash, response_a, context=context_a)
 
-        # Store for tenant B (overwrites A because context is ignored)
+        # Store for tenant B (doesn't overwrite A due to tenant isolation)
         backend.store_cached_response(query_hash, response_b, context=context_b)
 
-        # Both get the same (last stored) response
+        # Each tenant gets their own response
         cached_a = backend.get_cached_response(query_hash, context=context_a)
         cached_b = backend.get_cached_response(query_hash, context=context_b)
 
-        # This is current behavior - no tenant isolation
-        assert cached_a == cached_b == response_b, "Regular backend doesn't isolate by tenant"
+        # New behavior - tenant isolation is built-in
+        assert cached_a == response_a, "Tenant A gets their own response"
+        assert cached_b == response_b, "Tenant B gets their own response"
+        assert cached_a != cached_b, "Regular backend now isolates by tenant"
 
 
 class TestBackwardCompatibility:

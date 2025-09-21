@@ -31,11 +31,10 @@ class TestContextAwareAPQBackend:
         }
 
         # This should not raise TypeError
-        # Currently fails: store_cached_response() takes 3 positional arguments but 4 were given
         backend.store_cached_response(test_hash, test_response, context=test_context)
 
-        # Verify it was stored (context handling comes in Phase 2)
-        stored = backend.get_cached_response(test_hash)
+        # Verify it was stored - must use same context to retrieve tenant-specific cache
+        stored = backend.get_cached_response(test_hash, context=test_context)
         assert stored is not None
 
     def test_get_cached_response_accepts_context(self):
@@ -51,13 +50,18 @@ class TestContextAwareAPQBackend:
             }
         }
 
-        # Store without context (backward compatibility)
+        # Store without context (global cache)
         backend.store_cached_response(test_hash, test_response)
 
         # This should not raise TypeError
-        # Currently fails: get_cached_response() takes 2 positional arguments but 3 were given
-        cached = backend.get_cached_response(test_hash, context=test_context)
-        assert cached is not None
+        cached_with_context = backend.get_cached_response(test_hash, context=test_context)
+
+        # With tenant isolation, context query won't find global cache
+        assert cached_with_context is None
+
+        # But global query will find it
+        cached_global = backend.get_cached_response(test_hash)
+        assert cached_global == test_response
 
     def test_backward_compatibility_without_context(self):
         """Test that existing code without context still works."""
@@ -169,7 +173,7 @@ class TestContextAwareAPQBackend:
             backend.get_cached_response(test_hash, context=test_context)
 
     def test_cache_key_generation_with_tenant(self):
-        """Test that cache keys can include tenant_id when context is provided."""
+        """Test that base backend implements tenant isolation."""
         backend = MemoryAPQBackend()
 
         test_hash = "query123"
@@ -184,12 +188,11 @@ class TestContextAwareAPQBackend:
         context_b = {"user": {"metadata": {"tenant_id": "tenant-b"}}}
         backend.store_cached_response(test_hash, response_b, context=context_b)
 
-        # Retrieve should be tenant-specific
-        # Currently this test would fail because context isn't used for cache keys yet
+        # Base backend now implements tenant isolation
         cached_a = backend.get_cached_response(test_hash, context=context_a)
         cached_b = backend.get_cached_response(test_hash, context=context_b)
 
-        # Each tenant should get their own cached response
+        # Each tenant should get their own response
         assert cached_a == test_response
         assert cached_b == response_b
         assert cached_a != cached_b

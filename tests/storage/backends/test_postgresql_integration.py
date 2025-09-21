@@ -50,7 +50,10 @@ def test_postgresql_backend_table_creation():
     assert "CREATE TABLE IF NOT EXISTS apq_queries" in create_queries_sql
     assert "CREATE TABLE IF NOT EXISTS apq_responses" in create_responses_sql
     assert "hash VARCHAR(64) PRIMARY KEY" in create_queries_sql
-    assert "hash VARCHAR(64) PRIMARY KEY" in create_responses_sql
+    # Responses table now has composite key for tenant support
+    assert "hash VARCHAR(64) NOT NULL" in create_responses_sql
+    assert "tenant_id VARCHAR(255)" in create_responses_sql
+    assert "PRIMARY KEY (hash, COALESCE(tenant_id, ''))" in create_responses_sql
 
 
 @patch('fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._execute_query')
@@ -127,7 +130,8 @@ def test_postgresql_backend_store_cached_response(mock_execute, mock_config):
     args = mock_execute.call_args[0]
     assert "INSERT INTO test_apq_responses" in args[0]
     assert args[1][0] == hash_value  # hash
-    assert '"data"' in args[1][1]  # JSON response
+    assert args[1][1] is None  # tenant_id (None for global)
+    assert '"data"' in args[1][2]  # JSON response
 
 
 @patch('fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one')
@@ -223,5 +227,7 @@ def test_postgresql_backend_json_serialization(mock_config):
         backend.store_cached_response("hash", complex_response)
         # Should have called with JSON string
         args = mock_execute.call_args[0]
-        assert '"users"' in args[1][1]
-        assert '"extensions"' in args[1][1]
+        assert args[1][0] == "hash"  # hash
+        assert args[1][1] is None  # tenant_id
+        assert '"users"' in args[1][2]  # JSON response
+        assert '"extensions"' in args[1][2]
