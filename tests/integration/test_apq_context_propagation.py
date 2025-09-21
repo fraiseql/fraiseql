@@ -1,20 +1,13 @@
-"""Tests for APQ context propagation from router to backend.
-
-Phase 2 RED: These tests verify that context is properly passed from
-the router to APQ backend methods when processing requests.
-"""
+"""Tests for APQ context propagation from router to backend."""
 
 import hashlib
-import json
 from typing import Any, Dict, Optional
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-from httpx import AsyncClient
 
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import GraphQLRequest
-from fraiseql.storage.backends.base import APQStorageBackend
 from fraiseql.storage.backends.memory import MemoryAPQBackend
 
 
@@ -77,8 +70,8 @@ class TestAPQContextPropagation:
         store_response_in_cache(query_hash, test_response, backend, config, context=test_context)
 
         # Verify context was passed to backend
-        assert backend.captured_store_context is not None, "Context was not passed to store_cached_response"
-        assert "user" in backend.captured_store_context, "User not in context passed to backend"
+        assert backend.captured_store_context is not None
+        assert "user" in backend.captured_store_context
         assert backend.captured_store_context["user"]["metadata"]["tenant_id"] == "tenant-123"
 
     def test_router_passes_context_when_getting_cached_response(self):
@@ -119,20 +112,18 @@ class TestAPQContextPropagation:
         config = Mock(spec=FraiseQLConfig)
         config.apq_cache_responses = True
 
-        # Call the function WITH context - it should pass context to backend
-        cached = handle_apq_request_with_cache(request, backend, config, context=test_context)
+        # Call the function WITH context
+        handle_apq_request_with_cache(request, backend, config, context=test_context)
 
-        # Now this should pass in GREEN phase
-        assert backend.captured_get_context is not None, "Context was not passed to get_cached_response"
-        assert "user" in backend.captured_get_context, "User not in context"
+        # Verify context was passed
+        assert backend.captured_get_context is not None
+        assert "user" in backend.captured_get_context
         assert backend.captured_get_context["user"]["metadata"]["tenant_id"] == "tenant-456"
 
     @pytest.mark.asyncio
     @pytest.mark.skip(reason="Integration test requires full app setup")
     async def test_full_apq_flow_with_context(self):
         """Integration test: Full APQ flow with context propagation."""
-        # This test is skipped for now as it requires full app setup
-        # It can be enabled when doing integration testing
         pass
 
 
@@ -141,9 +132,6 @@ class TestContextExtraction:
 
     def test_context_available_at_apq_processing_time(self):
         """Verify that context is built before APQ processing."""
-        # This test verifies the claim that context is built before APQ
-        # It should pass even in RED phase since this is existing behavior
-
         call_order = []
 
         def mock_build_context(*args, **kwargs):
@@ -156,13 +144,12 @@ class TestContextExtraction:
 
         with patch('fraiseql.fastapi.dependencies.build_graphql_context', side_effect=mock_build_context):
             with patch('fraiseql.middleware.apq_caching.handle_apq_request_with_cache', side_effect=mock_apq_processing):
-                # Simulate the call sequence - context built first, then APQ processing
+                # Simulate the call sequence
                 mock_build_context()
                 mock_apq_processing()
 
                 # Verify order
-                assert call_order.index("build_context") < call_order.index("apq_processing"), \
-                    "Context must be built before APQ processing"
+                assert call_order.index("build_context") < call_order.index("apq_processing")
 
     def test_context_includes_jwt_tenant_info(self):
         """Test that JWT tenant_id is included in context."""

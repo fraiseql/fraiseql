@@ -9,11 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class MemoryAPQBackend(APQStorageBackend):
-    """In-memory APQ storage backend.
+    """In-memory APQ storage backend with tenant isolation.
 
-    This backend stores both persisted queries and cached responses in memory.
-    It maintains backward compatibility with the original APQ storage while
-    adding support for response caching.
+    This backend stores persisted queries and cached responses in memory,
+    with automatic tenant isolation when context is provided.
 
     Note: This storage is not persistent across application restarts and
     is not shared between different backend instances.

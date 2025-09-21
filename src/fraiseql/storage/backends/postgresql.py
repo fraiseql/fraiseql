@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 
 class PostgreSQLAPQBackend(APQStorageBackend):
-    """PostgreSQL APQ storage backend.
+    """PostgreSQL APQ storage backend with tenant isolation.
 
-    This backend stores both persisted queries and cached responses in PostgreSQL.
-    It's designed to work with the existing database connection and provide
-    enterprise-grade persistence and scalability.
+    This backend stores persisted queries and cached responses in PostgreSQL,
+    with automatic tenant isolation using a composite primary key.
 
     Features:
-    - Automatic table creation
+    - Automatic table creation with tenant support
+    - Tenant-isolated response caching
     - JSON response serialization
     - Connection pooling support
     - Graceful error handling
