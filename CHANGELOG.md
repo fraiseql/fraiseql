@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2025-09-21
+
+### ✨ Built-in Tenant-Aware APQ Caching
+
+This release adds native tenant isolation support to FraiseQL's APQ (Automatic Persisted Queries) caching system, enabling secure multi-tenant applications without custom implementations.
+
+#### **🎯 Key Features**
+- **Automatic Tenant Isolation**: Both `MemoryAPQBackend` and `PostgreSQLAPQBackend` now automatically isolate cached responses by tenant
+- **Zero Configuration**: Works out of the box - just pass context with tenant_id
+- **Security by Default**: Prevents cross-tenant data leakage with built-in isolation
+- **Context Propagation**: Router automatically passes JWT context to APQ backends
+
+#### **🏗️ Implementation Details**
+
+**MemoryAPQBackend**:
+- Generates tenant-specific cache keys: `{tenant_id}:{hash}`
+- Maintains separate cache spaces per tenant
+- Global cache available for non-tenant requests
+
+**PostgreSQLAPQBackend**:
+- Added `tenant_id` column to responses table
+- Composite primary key `(hash, COALESCE(tenant_id, ''))`
+- Indexed tenant_id for optimal performance
+
+#### **📚 Documentation**
+- Comprehensive guide: `docs/apq_tenant_context_guide.md`
+- Multi-tenant example: `examples/apq_multi_tenant.py`
+- Full test coverage with tenant isolation validation
+
+#### **🔧 Usage**
+```python
+# Tenant isolation is automatic!
+context = {"user": {"metadata": {"tenant_id": "acme-corp"}}}
+response = backend.get_cached_response(hash, context=context)
+```
+
 ## [0.9.2] - 2025-09-21
 
 ### 🐛 APQ Backend Integration Fix
