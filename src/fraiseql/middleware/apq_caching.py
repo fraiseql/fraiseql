@@ -41,7 +41,10 @@ def get_apq_backend(config: FraiseQLConfig) -> APQStorageBackend:
 
 
 def handle_apq_request_with_cache(
-    request: GraphQLRequest, backend: APQStorageBackend, config: FraiseQLConfig
+    request: GraphQLRequest,
+    backend: APQStorageBackend,
+    config: FraiseQLConfig,
+    context: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Handle APQ request with response caching support.
 
@@ -54,6 +57,7 @@ def handle_apq_request_with_cache(
         request: GraphQL request with APQ extensions
         backend: APQ storage backend
         config: FraiseQL configuration
+        context: Optional request context containing user/tenant information
 
     Returns:
         Cached response dict if found, None if cache miss or caching disabled
@@ -74,7 +78,7 @@ def handle_apq_request_with_cache(
 
     # Try to get cached response
     try:
-        cached_response = backend.get_cached_response(sha256_hash)
+        cached_response = backend.get_cached_response(sha256_hash, context=context)
         if cached_response:
             logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
             return cached_response
@@ -86,7 +90,11 @@ def handle_apq_request_with_cache(
 
 
 def store_response_in_cache(
-    hash_value: str, response: Dict[str, Any], backend: APQStorageBackend, config: FraiseQLConfig
+    hash_value: str,
+    response: Dict[str, Any],
+    backend: APQStorageBackend,
+    config: FraiseQLConfig,
+    context: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Store GraphQL response in cache for future APQ requests.
 
@@ -98,6 +106,7 @@ def store_response_in_cache(
         response: GraphQL response dict to cache
         backend: APQ storage backend
         config: FraiseQL configuration
+        context: Optional request context containing user/tenant information
     """
     if not config.apq_cache_responses:
         return
@@ -113,7 +122,7 @@ def store_response_in_cache(
         return
 
     try:
-        backend.store_cached_response(hash_value, response)
+        backend.store_cached_response(hash_value, response, context=context)
         logger.debug(f"Stored response in cache: {hash_value[:8]}...")
     except Exception as e:
         logger.warning(f"Failed to store response in cache: {e}")

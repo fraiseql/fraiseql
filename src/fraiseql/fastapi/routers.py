@@ -244,7 +244,9 @@ def create_graphql_router(
                 # This is a hash-only request - try to retrieve the query
 
                 # 1. Try cached response first (JSON passthrough)
-                cached_response = handle_apq_request_with_cache(request, apq_backend, config)
+                cached_response = handle_apq_request_with_cache(
+                    request, apq_backend, config, context=context
+                )
                 if cached_response:
                     logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
                     return cached_response
@@ -397,13 +399,15 @@ def create_graphql_router(
                 apq_hash = get_apq_hash_from_request(request)
                 if apq_hash:
                     # Store the response in cache for future requests
-                    store_response_in_cache(apq_hash, response, apq_backend, config)
+                    store_response_in_cache(
+                        apq_hash, response, apq_backend, config, context=context
+                    )
 
                     # Also store the cached response in the backend
                     import json
 
                     response_json = json.dumps(response, separators=(",", ":"))
-                    apq_backend.store_cached_response(apq_hash, response_json)
+                    apq_backend.store_cached_response(apq_hash, response_json, context=context)
 
             return response
 
