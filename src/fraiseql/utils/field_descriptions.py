@@ -151,6 +151,12 @@ def apply_auto_descriptions(cls: type) -> None:
     if not hasattr(cls, "__gql_fields__"):
         return
 
+    # First apply filter-specific descriptions for where clause types
+    from fraiseql.utils.where_clause_descriptions import apply_filter_descriptions
+
+    apply_filter_descriptions(cls)
+
+    # Then apply general automatic descriptions from docstrings/annotations
     auto_descriptions = extract_field_descriptions(cls)
 
     for field_name, field in cls.__gql_fields__.items():
