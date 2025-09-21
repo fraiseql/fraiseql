@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2025-09-21
+
+### 🐛 APQ Backend Integration Fix
+
+This release fixes a critical issue with Automatic Persisted Queries (APQ) backend integration, enabling custom storage backends to properly store and retrieve persisted queries and cached responses.
+
+#### **🎯 Problem Solved**
+- Custom APQ backends (PostgreSQL, MongoDB, Redis) were not being called during APQ request processing
+- Backend methods `store_persisted_query()` and `store_cached_response()` were never invoked
+- Made it impossible to use database-backed APQ storage in production environments
+
+#### **✅ Solution Implemented**
+- **Query Registration**: APQ registration requests (query + hash) now properly store queries in custom backends
+- **Backend Priority**: Custom backends are checked first before falling back to memory storage
+- **Response Caching**: Successful query responses are now cached in custom backends for performance
+- **Backward Compatibility**: Maintains full compatibility with existing memory-only APQ implementations
+
+#### **🔒 Security & Multi-tenancy**
+- **JWT Context Preserved**: Authentication context including `tenant_id` from JWT metadata flows through entire APQ lifecycle
+- **Tenant Isolation**: Multi-tenant applications maintain proper query isolation
+- **Authentication First**: Security checks occur before APQ processing
+- **Full Context Preservation**: User context, permissions, and metadata remain intact
+
+#### **🚀 Impact**
+- Enables production-ready APQ with persistent storage
+- Supports distributed caching across multiple servers
+- Allows custom backend implementations for specific infrastructure needs
+- Fixes integration with custom backends like `printoptim_backend`
+
+#### **🧪 Testing**
+- All 19 APQ-specific tests pass
+- Full test suite of 3246 tests maintains 100% pass rate
+- Added verification for backend integration and tenant ID preservation
+
 ## [0.9.1] - 2025-09-21
 
 ### ✨ Comprehensive Automatic Field Description Extraction
