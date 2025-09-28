@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2025-09-28
+
+### 🐛 Critical Fix: Nested Object Filtering in JSONB WHERE Clauses
+
+This release fixes a critical bug where nested object filters in GraphQL WHERE clauses were generating incorrect SQL for JSONB-backed tables, causing filters to fail silently.
+
+#### **🚨 Issue Fixed**
+- Nested object filters were accessing fields at root level instead of proper nested paths
+- Before: `WHERE (data ->> 'id') = '...'` (incorrect root-level access)
+- After: `WHERE (data -> 'machine' ->> 'id') = '...'` (correct nested path)
+
+#### **🔧 Technical Details**
+- Modified `where_generator.py` to pass `parent_path` through the `to_sql()` chain
+- Added `_build_nested_path()` helper for cleaner path construction
+- Fixed logical operators (AND, OR, NOT) to maintain parent context
+- Enhanced test coverage for deep nesting (3+ levels)
+
+#### **✅ Impact**
+- **Severity**: High - filters were silently failing
+- **Affected**: JSONB tables with nested object filtering
+- **Migration**: No action required - existing code automatically benefits
+
 ## [0.9.3] - 2025-09-21
 
 ### ✨ Built-in Tenant-Aware APQ Caching
