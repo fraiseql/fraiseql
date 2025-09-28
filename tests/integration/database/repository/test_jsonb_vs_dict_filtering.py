@@ -163,23 +163,28 @@ class TestJSONBvsDictFiltering:
             assert float(product["price"]) >= 100
 
     @pytest.mark.asyncio
-    async def test_whereinput_on_regular_table_fails(self, db_pool, setup_test_data):
-        """Test that WhereInput fails gracefully on tables without JSONB data column."""
+    async def test_whereinput_on_regular_table_works(self, db_pool, setup_test_data):
+        """Test that WhereInput now works on regular tables after hybrid table fix.
+
+        Previously, WhereInput would fail on regular tables because it generated
+        JSONB paths. After the v0.9.5 fix for hybrid tables, WhereInput is converted
+        to dict format which works correctly on regular tables too.
+        """
         # setup_test_data is already executed as a fixture
 
         register_type_for_view("test_products_regular", TestProduct)
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
-        # WhereInput type expects JSONB paths
+        # WhereInput type now works on regular tables
         where = TestProductWhere(category={"eq": "electronics"})
 
-        # This should fail because regular table doesn't have 'data' column
-        with pytest.raises(Exception) as exc_info:
-            await repo.find("test_products_regular", where=where)
+        # This should now work correctly
+        results = await repo.find("test_products_regular", where=where)
 
-        # Should get a column does not exist error
-        assert "column" in str(exc_info.value).lower()
-        assert "data" in str(exc_info.value).lower()
+        # Should return electronics products
+        assert len(results) == 2  # Widget B and Gadget C
+        for product in results:
+            assert product.category == "electronics"
 
     @pytest.mark.asyncio
     async def test_mixed_whereinput_and_kwargs(self, db_pool, setup_test_data):
