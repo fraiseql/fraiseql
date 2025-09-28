@@ -38,8 +38,11 @@ TValue = TypeVar("TValue", bound=object)
 class DynamicType(Protocol):
     """Protocol for dynamic filter types convertible to SQL WHERE clause strings."""
 
-    def to_sql(self) -> Composed | None:
+    def to_sql(self, parent_path: str | None = None) -> Composed | None:
         """Return a properly parameterized SQL snippet representing this filter.
+
+        Args:
+            parent_path: Optional JSONB path from parent for nested objects.
 
         Returns:
             A psycopg Composed object with parameterized SQL, or None if no condition.
@@ -68,6 +71,21 @@ def build_operator_composed(
     """
     registry = get_operator_registry()
     return registry.build_sql(path_sql, op, val, field_type)
+
+
+def _build_nested_path(parent_path: str | None, field_name: str) -> str:
+    """Build a JSONB path for nested object fields.
+
+    Args:
+        parent_path: The parent JSONB path (e.g., "data -> 'parent'")
+        field_name: The field name to append to the path
+
+    Returns:
+        A JSONB path string for the nested field
+    """
+    if parent_path:
+        return f"{parent_path} -> '{field_name}'"
+    return f"data -> '{field_name}'"
 
 
 def _make_filter_field_composed(
@@ -118,7 +136,7 @@ def _build_where_to_sql(
     fields: list[str],
     type_hints: dict[str, type] | None = None,
     graphql_info: Any | None = None,
-) -> Callable[[object], Composed | None]:
+) -> Callable[[object, str | None], Composed | None]:
     """Build a `to_sql` method for a dynamic filter dataclass.
 
     Args:
@@ -127,10 +145,10 @@ def _build_where_to_sql(
         graphql_info: Optional GraphQL resolve info context for field type extraction.
 
     Returns:
-        A function suitable as a `to_sql(self)` method returning Composed SQL.
+        A function suitable as a `to_sql(self, parent_path)` method returning Composed SQL.
     """
 
-    def to_sql(self: object) -> Composed | None:
+    def to_sql(self: object, parent_path: str | None = None) -> Composed | None:
         # Enhance type hints with GraphQL context if available
         enhanced_type_hints = type_hints
         if graphql_info:
@@ -161,33 +179,36 @@ def _build_where_to_sql(
                 if isinstance(val, list):
                     for item in val:
                         if hasattr(item, "to_sql"):
-                            item_sql = item.to_sql()
+                            item_sql = item.to_sql(parent_path)
                             if item_sql:
                                 logical_or.append(item_sql)
             elif name == "AND":
                 if isinstance(val, list):
                     for item in val:
                         if hasattr(item, "to_sql"):
-                            item_sql = item.to_sql()
+                            item_sql = item.to_sql(parent_path)
                             if item_sql:
                                 logical_and.append(item_sql)
             elif name == "NOT":
                 if hasattr(val, "to_sql"):
-                    not_sql = val.to_sql()
+                    not_sql = val.to_sql(parent_path)
                     if not_sql:
                         logical_not = Composed([SQL("NOT ("), not_sql, SQL(")")])
             # Handle regular fields
             elif hasattr(val, "to_sql"):
-                # Assume val is another DynamicType
-                sql = val.to_sql()
+                # For nested objects, build the JSONB path by appending the field name
+                nested_path = _build_nested_path(parent_path, name)
+                sql = val.to_sql(nested_path)
                 if sql:
                     conditions.append(sql)
             elif isinstance(val, dict):
                 field_type = enhanced_type_hints.get(name) if enhanced_type_hints else None
+                # Use parent_path if provided, otherwise default to "data"
+                json_path = parent_path if parent_path else "data"
                 cond = _make_filter_field_composed(
                     name,
                     cast("dict[str, object]", val),
-                    "data",
+                    json_path,
                     field_type,
                 )
                 if cond:

@@ -475,7 +475,8 @@ class TestSafeCreateWhereType:
 
         # Validate complete SQL - adjusted for our casting approach
         assert "((data ->> 'id'))::numeric = 1" in sql_str
-        assert "(data ->> 'name') = 'test'" in sql_str
+        # Child's name should now be accessed via nested path: data -> 'child' ->> 'name'
+        assert "(data -> 'child' ->> 'name') = 'test'" in sql_str
 
 
 class TestEdgeCases:
