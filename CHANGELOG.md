@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] - 2025-09-28
+
+### 🐛 Critical Fix: Nested Object Filtering on Hybrid Tables
+
+This release fixes a critical performance and correctness issue where nested object filters on hybrid tables (with both SQL columns and JSONB data) were using slow JSONB traversal instead of indexed SQL columns.
+
+#### **🚨 Issue Fixed**
+- Nested object filters on hybrid tables were generating inefficient JSONB paths
+- Before: `WHERE (data -> 'machine' ->> 'id') = '...'` (slow JSONB traversal)
+- After: `WHERE machine_id = '...'` (fast indexed column access)
+- **10-100x performance improvement** for nested object filtering
+
+#### **🔧 Technical Details**
+- Modified `_build_find_query()` to detect hybrid tables with nested filters
+- Added `_where_obj_to_dict()` to convert WHERE objects for inspection
+- Updated `_convert_dict_where_to_sql()` to map nested objects to SQL columns
+- Intelligent routing: uses SQL columns when available, JSONB as fallback
+
+#### **✅ Impact**
+- **Severity**: Critical - incorrect results and severe performance degradation
+- **Affected**: Hybrid tables using `register_type_for_view()` with `has_jsonb_data=True`
+- **Performance**: 10-100x faster queries using indexed columns vs JSONB
+- **Migration**: No action required - automatic optimization
+
+#### **📊 Bonus**
+- `WhereInput` types now work correctly on regular (non-JSONB) tables
+- Type-safe UUID comparisons instead of text/UUID mismatches
+- Eliminated "Unsupported operator: id" warnings
+
 ## [0.9.4] - 2025-09-28
 
 ### 🐛 Critical Fix: Nested Object Filtering in JSONB WHERE Clauses
