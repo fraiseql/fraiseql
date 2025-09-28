@@ -1092,11 +1092,42 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
 
             # Process the SQL where type
             if hasattr(where_obj, "to_sql"):
-                where_composed = where_obj.to_sql()
-                if where_composed:
-                    # The where type returns a Composed object with JSONB paths
-                    # We need to add it as a SQL fragment
-                    where_parts.append(where_composed)
+                # HYBRID TABLE FIX (v0.9.5): Handle nested object filters in hybrid tables
+                # When a table has both SQL columns (e.g., machine_id) and JSONB data
+                # (e.g., data->'machine'->>'id'), nested object filters like
+                # {machine: {id: {eq: value}}} should use the SQL column for performance.
+                #
+                # Without this fix, FraiseQL generates JSONB paths which:
+                # 1. Fail with type mismatches (text = uuid)
+                # 2. Are slower than direct column access
+                # 3. Return incorrect results
+                if view_name and hasattr(self, "_introspected_columns"):
+                    table_columns = self._introspected_columns.get(view_name)
+                    if table_columns:
+                        # Convert WHERE object to dict to detect nested object filters
+                        where_dict = self._where_obj_to_dict(where_obj, table_columns)
+                        if where_dict:
+                            # Use dict-based processing which handles hybrid tables correctly
+                            where_composed = self._convert_dict_where_to_sql(
+                                where_dict, view_name, table_columns
+                            )
+                            if where_composed:
+                                where_parts.append(where_composed)
+                        else:
+                            # Fallback to standard processing if conversion fails
+                            where_composed = where_obj.to_sql()
+                            if where_composed:
+                                where_parts.append(where_composed)
+                    else:
+                        # No table columns info, use standard processing
+                        where_composed = where_obj.to_sql()
+                        if where_composed:
+                            where_parts.append(where_composed)
+                else:
+                    # No view name or introspection, use standard processing
+                    where_composed = where_obj.to_sql()
+                    if where_composed:
+                        where_parts.append(where_composed)
             # Handle plain dictionary where clauses (used in dynamic filter construction)
             # These use regular column names, not JSONB paths
             elif isinstance(where_obj, dict):
@@ -1380,32 +1411,55 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             db_field_name = self._convert_field_name_to_database(field_name)
 
             if isinstance(field_filter, dict):
-                # Handle operator-based filtering: {'contains': 'router', 'gt': 10}
-                field_conditions = []
+                # Check if this might be a nested object filter (e.g., {machine: {id: {eq: value}}})
+                # Nested object filters have 'id' as a key with a dict value containing operators
+                is_nested_object = False
+                if "id" in field_filter and isinstance(field_filter["id"], dict):
+                    # This looks like a nested object filter
+                    # Check if we have a corresponding SQL column for this relationship
+                    potential_fk_column = f"{db_field_name}_id"
+                    if table_columns and potential_fk_column in table_columns:
+                        # We have a SQL column for this relationship, use it directly
+                        is_nested_object = True
+                        # Extract the filter value from the nested structure
+                        id_filter = field_filter["id"]
+                        for operator, value in id_filter.items():
+                            if value is None:
+                                continue
+                            # Build condition using the FK column directly
+                            condition_sql = self._build_dict_where_condition(
+                                potential_fk_column, operator, value, view_name, table_columns
+                            )
+                            if condition_sql:
+                                conditions.append(condition_sql)
 
-                for operator, value in field_filter.items():
-                    if value is None:
-                        continue
+                if not is_nested_object:
+                    # Handle regular operator-based filtering: {'contains': 'router', 'gt': 10}
+                    field_conditions = []
 
-                    # Build SQL condition using converted database field name
-                    condition_sql = self._build_dict_where_condition(
-                        db_field_name, operator, value, view_name, table_columns
-                    )
-                    if condition_sql:
-                        field_conditions.append(condition_sql)
+                    for operator, value in field_filter.items():
+                        if value is None:
+                            continue
 
-                # Combine multiple conditions for the same field with AND
-                if field_conditions:
-                    if len(field_conditions) == 1:
-                        conditions.append(field_conditions[0])
-                    else:
-                        # Multiple conditions for same field: (cond1 AND cond2 AND ...)
-                        combined_parts = []
-                        for i, cond in enumerate(field_conditions):
-                            if i > 0:
-                                combined_parts.append(SQL(" AND "))
-                            combined_parts.append(cond)
-                        conditions.append(Composed([SQL("("), *combined_parts, SQL(")")]))
+                        # Build SQL condition using converted database field name
+                        condition_sql = self._build_dict_where_condition(
+                            db_field_name, operator, value, view_name, table_columns
+                        )
+                        if condition_sql:
+                            field_conditions.append(condition_sql)
+
+                    # Combine multiple conditions for the same field with AND
+                    if field_conditions:
+                        if len(field_conditions) == 1:
+                            conditions.append(field_conditions[0])
+                        else:
+                            # Multiple conditions for same field: (cond1 AND cond2 AND ...)
+                            combined_parts = []
+                            for i, cond in enumerate(field_conditions):
+                                if i > 0:
+                                    combined_parts.append(SQL(" AND "))
+                                combined_parts.append(cond)
+                            conditions.append(Composed([SQL("("), *combined_parts, SQL(")")]))
 
             else:
                 # Handle simple equality: {'status': 'active'}
@@ -1701,6 +1755,57 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         use_jsonb = field_name not in REGULAR_COLUMNS
         self._field_path_cache[cache_key] = use_jsonb
         return use_jsonb
+
+    def _where_obj_to_dict(self, where_obj: Any, table_columns: set[str]) -> dict[str, Any] | None:
+        """Convert a WHERE object to a dictionary for hybrid table processing.
+
+        This method examines a WHERE object and converts it to a dictionary format
+        that can be processed by our dict-based WHERE handler, which knows how to
+        handle nested objects in hybrid tables correctly.
+
+        Args:
+            where_obj: The WHERE object with to_sql() method
+            table_columns: Set of actual table column names
+
+        Returns:
+            Dictionary representation of the WHERE clause, or None if conversion fails
+        """
+        result = {}
+
+        # Iterate through attributes of the where object
+        if hasattr(where_obj, "__dict__"):
+            for field_name, field_value in where_obj.__dict__.items():
+                if field_value is None:
+                    continue
+
+                # Skip special fields
+                if field_name.startswith("_"):
+                    continue
+
+                # Check if this is a nested object filter
+                if hasattr(field_value, "__dict__"):
+                    # Check if it has an 'id' field with filter operators
+                    id_value = getattr(field_value, "id", None)
+                    if hasattr(field_value, "id") and isinstance(id_value, dict):
+                        # This is a nested object filter, convert to dict format
+                        result[field_name] = {"id": id_value}
+                    else:
+                        # Try to convert recursively
+                        nested_dict = {
+                            nested_field: nested_value
+                            for nested_field, nested_value in field_value.__dict__.items()
+                            if nested_value is not None and not nested_field.startswith("_")
+                        }
+                        if nested_dict:
+                            result[field_name] = nested_dict
+                elif isinstance(field_value, dict):
+                    # Direct dict value, use as-is
+                    result[field_name] = field_value
+                elif isinstance(field_value, (str, int, float, bool)):
+                    # Scalar value, wrap in eq operator
+                    result[field_name] = {"eq": field_value}
+
+        return result if result else None
 
     def _convert_field_name_to_database(self, field_name: str) -> str:
         """Convert GraphQL field name to database field name.
