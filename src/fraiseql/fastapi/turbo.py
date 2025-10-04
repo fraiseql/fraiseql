@@ -159,7 +159,7 @@ class TurboRegistry:
 
             # Evict oldest if over limit
             if len(self._queries) > self.max_size:
-                evicted_hash, evicted_query = self._queries.popitem(last=False)
+                _evicted_hash, evicted_query = self._queries.popitem(last=False)
                 # Clean up apollo hash mapping if it exists
                 if evicted_query.apollo_client_hash:
                     self._apollo_hash_to_primary.pop(evicted_query.apollo_client_hash, None)
