@@ -479,7 +479,7 @@ wheels = [
 
 [[package]]
 name = "fraiseql"
-version = "0.9.4"
+version = "0.9.6"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
