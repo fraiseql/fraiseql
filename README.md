@@ -316,6 +316,14 @@ FraiseQL draws inspiration from:
 - **Eric Evans' "Domain-Driven Design"** - Database-centric domain modeling
 - **PostgreSQL community** - For building the world's most advanced open source database
 
+## 👤 Author
+
+**Lionel Hamayon** - Creator and maintainer of FraiseQL
+
+- 🏢 [Évolution digitale](https://evolution-digitale.fr)
+- 📧 lionel.hamayon@evolution-digitale.fr
+- 💼 [GitHub](https://github.com/fraiseql/fraiseql)
+
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) for details.
