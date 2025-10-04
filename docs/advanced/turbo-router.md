@@ -52,6 +52,7 @@ class TurboQuery:
     param_mapping: dict        # Variable mapping
     operation_name: str        # Optional operation name
     apollo_client_hash: str    # Optional Apollo Client APQ hash (v0.9.6+)
+    context_params: dict       # Optional context parameters (v0.10.0+)
 ```
 
 ### Execution Flow
