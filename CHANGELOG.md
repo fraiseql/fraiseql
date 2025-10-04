@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2025-10-04
+
+### ✨ Context Parameters Support for Turbo Queries
+
+This release adds `context_params` support to TurboQuery, enabling multi-tenant turbo-optimized queries with row-level security. This mirrors the mutation pattern and allows passing authentication context (tenant_id, user_id) from JWT to SQL functions.
+
+#### **🎯 Problem Solved**
+- Turbo queries could not access context parameters (tenant_id, user_id) from JWT
+- Multi-tenant applications had to choose between turbo performance OR tenant isolation
+- Required workarounds with session variables that didn't work with FraiseQL
+- Security risk if trying to pass tenant_id via GraphQL variables (client-controlled)
+
+#### **✨ New Features**
+- **`context_params` field** in `TurboQuery` for context-to-SQL parameter mapping
+- **Automatic context injection** in `TurboRouter.execute()` (mirrors mutation pattern)
+- **Error handling** for missing required context parameters
+- **100% backward compatible** - context_params is optional
+
+#### **🔧 Usage**
+```python
+from fraiseql.fastapi import TurboQuery
+
+# Register turbo query with context parameters
+turbo_query = TurboQuery(
+    graphql_query=query,
+    sql_template="SELECT turbo.fn_get_allocations(%(period)s, %(tenant_id)s)::json",
+    param_mapping={"period": "period"},         # From GraphQL variables
+    operation_name="GetAllocations",
+    context_params={"tenant_id": "tenant_id"},  # ✨ NEW: From JWT context
+)
+
+registry.register(turbo_query)
+
+# Execute with context (from JWT authentication)
+result = await turbo_router.execute(
+    query=query,
+    variables={"period": "CURRENT"},
+    context={"db": db, "tenant_id": "tenant-123"}  # From JWT
+)
+
+# SQL receives: fn_get_allocations('CURRENT', 'tenant-123')
+# ✅ Both variable AND context parameter!
+```
+
+#### **✅ Benefits**
+- **Multi-tenant support** for turbo queries with row-level security
+- **10x+ performance** with tenant isolation (no compromise needed)
+- **Security** - tenant_id from server-side JWT, not client input
+- **Consistent API** - matches mutation `context_params` pattern
+- **Audit trails** - pass user_id for created_by/updated_by tracking
+
+#### **📚 Documentation**
+- Full test coverage in `tests/integration/caching/test_turbo_router.py`
+- Error handling tests for missing context parameters
+
+#### **🔍 Technical Details**
+- Added `context_params: dict[str, str] | None` to `TurboQuery` dataclass
+- Updated `TurboRouter.execute()` to map context values to SQL params
+- Follows exact same pattern as `MutationDefinition.create_resolver()`
+- Raises `ValueError` for missing required context parameters
+
+#### **🎨 Use Cases**
+- **Multi-tenant SaaS** - Enforce tenant isolation in turbo queries
+- **Audit logging** - Track user_id for all data access
+- **Row-level security** - Pass authentication context to PostgreSQL RLS
+- **Cache isolation** - Include tenant_id in cache keys
+
 ## [0.9.6] - 2025-10-04
 
 ### ✨ Native Dual-Hash Support for Apollo Client APQ

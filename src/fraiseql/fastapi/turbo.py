@@ -19,6 +19,7 @@ class TurboQuery:
     param_mapping: dict[str, str]  # GraphQL variable path -> SQL parameter name
     operation_name: str | None = None
     apollo_client_hash: str | None = None  # Apollo Client APQ hash (if different from server hash)
+    context_params: dict[str, str] | None = None  # Context key -> SQL parameter name
 
     def map_variables(self, graphql_variables: dict[str, Any]) -> dict[str, Any]:
         """Map GraphQL variables to SQL parameters.
@@ -279,6 +280,18 @@ class TurboRouter:
 
         # Map GraphQL variables to SQL parameters
         sql_params = turbo_query.map_variables(variables)
+
+        # Map context parameters to SQL parameters (like mutations do)
+        if turbo_query.context_params:
+            for context_key, sql_param in turbo_query.context_params.items():
+                context_value = context.get(context_key)
+                if context_value is None:
+                    msg = (
+                        f"Required context parameter '{context_key}' "
+                        f"not found in GraphQL context for turbo query"
+                    )
+                    raise ValueError(msg)
+                sql_params[sql_param] = context_value
 
         # Execute the SQL directly using FraiseQLRepository
 
