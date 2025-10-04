@@ -47,10 +47,11 @@ TurboRouter maintains a registry of pre-validated query patterns:
 from fraiseql.fastapi import TurboRegistry, TurboQuery
 
 class TurboQuery:
-    graphql_query: str      # Original GraphQL query
-    sql_template: str       # Pre-generated SQL (often calls lazy cache)
-    param_mapping: dict     # Variable mapping
-    operation_name: str     # Optional operation name
+    graphql_query: str         # Original GraphQL query
+    sql_template: str          # Pre-generated SQL (often calls lazy cache)
+    param_mapping: dict        # Variable mapping
+    operation_name: str        # Optional operation name
+    apollo_client_hash: str    # Optional Apollo Client APQ hash (v0.9.6+)
 ```
 
 ### Execution Flow
@@ -248,6 +249,157 @@ def register_turbo_queries(registry: TurboRegistry):
     for query in queries:
         registry.register(query)
 ```
+
+## Apollo Client APQ Compatibility
+
+### The Hash Mismatch Problem
+
+When using Apollo Client's Automatic Persisted Queries (APQ) with FraiseQL's TurboRouter, hash mismatches can occur between frontend and backend:
+
+**Frontend (Apollo Client):**
+- Uses GraphQL-JS to compute SHA-256: `sha256(print(sortTopLevelDefinitions(query)))`
+- Example hash: `ce8fae62da0e39bec38cb8523593ea889b611c6c934cd08ccf9070314f7f71df`
+
+**Backend (FraiseQL/Python):**
+- Uses graphql-core to compute SHA-256: `hashlib.sha256(print_ast(parse(query)).encode()).hexdigest()`
+- Example hash: `bfbd52ba92790ee7bca4e99a779bddcdf3881c1164b6acb5313ce1a13b1b7190`
+
+**Root Cause:**
+The mismatch occurs specifically for queries with **parameters** (e.g., `$period: Period = CURRENT`). Apollo Client and Python's graphql-core normalize queries differently, while queries without parameters produce identical hashes.
+
+### Native Dual-Hash Support
+
+FraiseQL TurboRouter v0.9.6+ provides native dual-hash support to resolve this issue cleanly:
+
+```python
+from fraiseql.fastapi import TurboQuery
+
+# Query with parameters that causes hash mismatch
+query = """
+query GetMetrics($period: Period = CURRENT) {
+    metrics(period: $period) {
+        id
+        value
+        timestamp
+    }
+}
+"""
+
+# Hashes computed by different systems
+fraiseql_server_hash = "bfbd52ba92790ee7bca4e99a779bddcdf3881c1164b6acb5313ce1a13b1b7190"
+apollo_client_hash = "ce8fae62da0e39bec38cb8523593ea889b611c6c934cd08ccf9070314f7f71df"
+
+# Register with dual-hash support
+turbo_query = TurboQuery(
+    graphql_query=query,
+    sql_template="SELECT * FROM metrics WHERE period = :period",
+    param_mapping={"period": "period"},
+    operation_name="GetMetrics",
+    apollo_client_hash=apollo_client_hash,  # ✨ NEW: Optional Apollo Client hash
+)
+
+# Register with server hash
+turbo_registry.register_with_raw_hash(turbo_query, fraiseql_server_hash)
+
+# ✅ Query is now retrievable by EITHER hash
+result = turbo_registry.get_by_hash(fraiseql_server_hash)  # Works
+result = turbo_registry.get_by_hash(apollo_client_hash)    # Also works!
+```
+
+### Benefits
+
+1. **✅ No hash mismatch warnings** when `apollo_client_hash` is provided
+2. **✅ Single registration** instead of registering the query twice
+3. **✅ Cleaner API** for Apollo Client + FraiseQL integration
+4. **✅ First-class support** for APQ use cases
+5. **✅ Backward compatible** - `apollo_client_hash` is optional
+
+### Direct Hash Lookup
+
+The new `get_by_hash()` method enables direct hash-based query retrieval:
+
+```python
+# Traditional query string lookup
+result = turbo_registry.get(query_string)
+
+# New: Direct hash lookup (supports both server and Apollo hashes)
+result = turbo_registry.get_by_hash("ce8fae62...")  # Apollo hash
+result = turbo_registry.get_by_hash("bfbd52ba...")  # Server hash
+```
+
+### Database Integration Example
+
+For systems storing queries in a database:
+
+```sql
+CREATE TABLE turbo.tb_turbo_query (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    pk_turbo_query UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
+    identifier VARCHAR(255) UNIQUE NOT NULL,
+
+    -- Hash identifiers
+    fraiseql_server_hash VARCHAR(64) UNIQUE NOT NULL,  -- Computed by Python
+    apollo_client_hash VARCHAR(64) UNIQUE,              -- Sent by frontend (optional)
+
+    -- Query details
+    graphql_query TEXT NOT NULL,
+    sql_template TEXT NOT NULL,
+    param_mapping JSONB NOT NULL,
+    operation_name VARCHAR(255)
+);
+```
+
+Loading and registering queries:
+
+```python
+async def load_turbo_queries(registry: TurboRegistry):
+    """Load queries from database with Apollo Client APQ support."""
+
+    sql = """
+    SELECT
+        fraiseql_server_hash,
+        apollo_client_hash,
+        graphql_query,
+        sql_template,
+        param_mapping,
+        operation_name
+    FROM turbo.tb_turbo_query
+    WHERE is_active = true
+    """
+
+    async with db.cursor() as cursor:
+        await cursor.execute(sql)
+        rows = await cursor.fetchall()
+
+        for row in rows:
+            turbo_query = TurboQuery(
+                graphql_query=row["graphql_query"],
+                sql_template=row["sql_template"],
+                param_mapping=row["param_mapping"],
+                operation_name=row["operation_name"],
+                apollo_client_hash=row["apollo_client_hash"],  # Can be None
+            )
+
+            # Single registration handles both hashes automatically
+            registry.register_with_raw_hash(
+                turbo_query,
+                row["fraiseql_server_hash"]
+            )
+```
+
+### When to Use Apollo Client Hash
+
+**Use dual-hash support when:**
+- Using Apollo Client with Automatic Persisted Queries (APQ)
+- Queries have parameters with default values
+- Frontend and backend compute hashes independently
+- Production deployments with frontend/backend separation
+
+**Not needed when:**
+- Queries have no parameters
+- Using only FraiseQL server-side hashing
+- Development/testing environments
+- Hashes already match between frontend and backend
 
 ## Performance Characteristics
 

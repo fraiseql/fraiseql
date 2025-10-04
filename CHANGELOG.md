@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.6] - TBD
+
+### ✨ Native Dual-Hash Support for Apollo Client APQ
+
+This release adds first-class support for Apollo Client's Automatic Persisted Queries (APQ) with native dual-hash compatibility, eliminating hash mismatches between frontend and backend.
+
+#### **🎯 Problem Solved**
+- Apollo Client and FraiseQL compute different SHA-256 hashes for queries with parameters
+- Previous workaround required registering queries twice (once per hash)
+- "Hash mismatch" warnings appeared even though both hashes were valid
+
+#### **✨ New Features**
+- **`apollo_client_hash` field** in `TurboQuery` for Apollo Client hash
+- **Dual-hash registration** - single registration, both hashes work
+- **`get_by_hash()` method** for direct hash-based query retrieval
+- **Automatic LRU cleanup** for apollo hash mappings
+- **100% backward compatible** - apollo_client_hash is optional
+
+#### **🔧 Usage**
+```python
+from fraiseql.fastapi import TurboQuery
+
+turbo_query = TurboQuery(
+    graphql_query=query,
+    sql_template=template,
+    param_mapping=mapping,
+    operation_name="GetMetrics",
+    apollo_client_hash="ce8fae62...",  # ✨ NEW: Apollo Client's hash
+)
+
+# Single registration handles both hashes
+registry.register_with_raw_hash(turbo_query, fraiseql_server_hash)
+
+# ✅ Works with either hash!
+result = registry.get_by_hash(fraiseql_server_hash)  # Works
+result = registry.get_by_hash(apollo_client_hash)    # Also works!
+```
+
+#### **✅ Benefits**
+- **Single registration** instead of double
+- **No hash mismatch warnings** when apollo_client_hash provided
+- **Cleaner API** for Apollo Client + FraiseQL integration
+- **First-class APQ support** as a core feature
+- **Memory efficient** - no query duplication
+
+#### **📚 Documentation**
+- Comprehensive section in `docs/advanced/turbo-router.md`
+- Full test coverage in `tests/test_apollo_client_apq_dual_hash.py`
+- Database schema examples for production use
+
+#### **🔍 Technical Details**
+- Added `_apollo_hash_to_primary` mapping in `TurboRegistry`
+- Enhanced `register_with_raw_hash()` for automatic dual-hash registration
+- New `get_by_hash()` method supports both server and Apollo hashes
+- Updated `clear()` and LRU eviction to clean up mappings
+
+#### **🎨 Related Issues**
+- Resolves #72: Feature Request: Native dual-hash support for Apollo Client APQ compatibility
+
 ## [0.9.5] - 2025-09-28
 
 ### 🐛 Critical Fix: Nested Object Filtering on Hybrid Tables
