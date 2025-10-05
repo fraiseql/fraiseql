@@ -177,6 +177,7 @@ class TurboRegistry:
         This method tries multiple hash strategies for maximum compatibility:
         1. Normalized hash (default FraiseQL behavior)
         2. Raw hash (for backward compatibility with external registrations)
+        3. Apollo hash mapping (for dual-hash queries where client hash differs from server hash)
 
         Args:
             query: GraphQL query string
@@ -197,6 +198,20 @@ class TurboRegistry:
             # Move to end for LRU
             self._queries.move_to_end(raw_hash)
             return self._queries[raw_hash]
+
+        # Try apollo_client_hash mapping for dual-hash queries
+        # Check if either computed hash is an Apollo hash that maps to a primary hash
+        if normalized_hash in self._apollo_hash_to_primary:
+            primary_hash = self._apollo_hash_to_primary[normalized_hash]
+            if primary_hash in self._queries:
+                self._queries.move_to_end(primary_hash)
+                return self._queries[primary_hash]
+
+        if raw_hash in self._apollo_hash_to_primary:
+            primary_hash = self._apollo_hash_to_primary[raw_hash]
+            if primary_hash in self._queries:
+                self._queries.move_to_end(primary_hash)
+                return self._queries[primary_hash]
 
         return None
 
