@@ -178,3 +178,63 @@ class TestApolloClientAPQDualHash:
         # Test with non-existent hash
         result = registry.get_by_hash("nonexistent_hash")
         assert result is None
+
+    def test_get_by_query_text_with_dual_hash_apollo_format(
+        self,
+        sample_query_with_params,
+        fraiseql_server_hash,
+        apollo_client_hash,
+    ):
+        """Test that get() works when query text hashes to apollo_client_hash.
+
+        This reproduces the GetAllocations bug: when a query is registered with
+        dual-hash support, and the query text from APQ hashes to the apollo_client_hash
+        instead of the server hash, get() should still find it by checking the
+        _apollo_hash_to_primary mapping.
+        """
+        registry = TurboRegistry()
+
+        # Create a turbo query with dual-hash support
+        turbo_query = TurboQuery(
+            graphql_query=sample_query_with_params,
+            sql_template="SELECT * FROM metrics WHERE period = :period",
+            param_mapping={"period": "period"},
+            operation_name="GetMetrics",
+            apollo_client_hash=apollo_client_hash,
+        )
+
+        # Register with server hash (stores apollo -> server mapping)
+        registry.register_with_raw_hash(turbo_query, fraiseql_server_hash)
+
+        # Simulate APQ scenario: query text that hashes to apollo_client_hash
+        # We'll mock this by creating a query that when hashed (raw or normalized)
+        # produces the apollo_client_hash
+
+        # Create a mock query text that we know will hash to apollo hash
+        # For this test, we'll directly test the scenario where computed hashes
+        # match apollo_client_hash
+
+        # Override the hash methods temporarily to simulate the scenario
+        original_hash_query = registry.hash_query
+        original_hash_query_raw = registry.hash_query_raw
+
+        def mock_hash_query(query):
+            # Simulate query text hashing to apollo hash
+            return apollo_client_hash
+
+        def mock_hash_query_raw(query):
+            # First try returns apollo hash, triggering the apollo mapping check
+            return apollo_client_hash
+
+        registry.hash_query = mock_hash_query
+        registry.hash_query_raw = mock_hash_query_raw
+
+        try:
+            # This should find the query via apollo_hash -> server_hash mapping
+            result = registry.get(sample_query_with_params)
+            assert result is not None, "Should find query when text hashes to apollo_client_hash"
+            assert result.operation_name == "GetMetrics"
+        finally:
+            # Restore original methods
+            registry.hash_query = original_hash_query
+            registry.hash_query_raw = original_hash_query_raw

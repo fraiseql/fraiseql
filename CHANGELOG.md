@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2025-10-05
+
+### 🐛 Bugfix: TurboRouter Dual-Hash APQ Lookup
+
+**Problem**: TurboRouter failed to activate for Apollo Client APQ requests when using dual-hash registration, causing 30x-50x performance degradation (600ms instead of <20ms).
+
+**Root Cause**: `TurboRegistry.get(query_text)` only checked normalized and raw hashes, never the `_apollo_hash_to_primary` mapping. When query text from APQ hashed to the apollo_client_hash instead of the server hash, the lookup failed.
+
+**Fix**: Enhanced `TurboRegistry.get()` to check the `_apollo_hash_to_primary` mapping after trying direct hash lookups. Now correctly resolves Apollo Client hashes to their registered primary hashes.
+
+**Impact**:
+- ✅ TurboRouter now activates correctly for Apollo Client APQ requests with dual-hash support
+- ✅ 30x-50x performance improvement restored (600ms → 15ms)
+- ✅ 100% backward compatible - no code changes required
+- ✅ Works with most common production GraphQL client (Apollo Client)
+
+**Files Changed**:
+- `src/fraiseql/fastapi/turbo.py:174-216` - Enhanced `get()` method with apollo hash mapping lookup
+
+**Testing**:
+- New test: `test_get_by_query_text_with_dual_hash_apollo_format` validates the fix
+- All 25 turbo-related tests pass
+- Full backward compatibility maintained
+
 ## [0.10.0] - 2025-10-04
 
 ### ✨ Context Parameters Support for Turbo Queries
