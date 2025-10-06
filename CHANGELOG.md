@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.3] - 2025-10-06
+
+### ✨ IpAddressString Scalar CIDR Notation Support
+
+This release enhances the `IpAddressString` scalar to accept CIDR notation for improved PostgreSQL INET compatibility.
+
+#### **Enhancement (Fixes #77)**
+
+**IpAddressString now accepts CIDR notation** while remaining fully backward compatible.
+
+**What's New:**
+- Accepts both plain IP addresses and CIDR notation
+- Extracts just the IP address from CIDR input
+- Maintains backward compatibility with existing code
+
+**Examples:**
+```python
+# Plain IP (existing behavior)
+"192.168.1.1" → IPv4Address("192.168.1.1")
+
+# CIDR notation (new)
+"192.168.1.1/24" → IPv4Address("192.168.1.1")  # Extracts IP only
+"2001:db8::1/64" → IPv6Address("2001:db8::1")  # Works for IPv6 too
+```
+
+**Use Cases:**
+1. **PostgreSQL INET compatibility**: Accept CIDR input from frontend forms
+2. **Flexible input patterns**: Support both traditional IP+subnet and CIDR notation
+3. **Network configuration APIs**: Users can provide network info in familiar formats
+
+**Implementation:**
+- Changed from `ip_address()` to `ip_interface()` for parsing
+- Returns only the IP address part (discards prefix length)
+- Full test coverage for IPv4 and IPv6 with CIDR notation
+
+**GraphQL Usage:**
+```graphql
+mutation {
+  updateNetworkConfig(
+    ipAddress: "192.168.1.1/24"  # CIDR accepted, stores IP only
+  ) {
+    success
+  }
+}
+```
+
+**PostgreSQL Integration Patterns:**
+
+For applications storing CIDR in PostgreSQL INET columns, use mutually exclusive input fields:
+
+```python
+from fraiseql import UNSET
+from fraiseql.types import IpAddress, SubnetMask, CIDR
+
+@fraise_input
+class NetworkConfigInput:
+    # Pattern 1: Traditional IP + Subnet Mask
+    ip_address: IpAddress | None = UNSET
+    subnet_mask: SubnetMask | None = UNSET
+
+    # Pattern 2: CIDR notation
+    ip_address_cidr: CIDR | None = UNSET
+```
+
+Validate exactly one pattern in your resolver and convert to PostgreSQL INET format.
+
+#### **Files Changed**
+
+- `src/fraiseql/types/scalars/ip_address.py` - Updated parsing logic
+- `tests/unit/core/type_system/test_ip_address_scalar.py` - Added CIDR tests
+
+#### **Breaking Changes**
+
+None - fully backward compatible.
+
 ## [0.10.2] - 2025-10-06
 
 ### ✨ Mutation Input Transformation and Empty String Handling

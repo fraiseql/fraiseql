@@ -236,8 +236,8 @@ from fraiseql.scalars import JSONB, INET, CIDR, MacAddress, LTree
 @fraiseql.type
 class ServerLog:
     data: JSONB  # PostgreSQL JSONB
-    client_ip: INET  # IP address
-    network: CIDR  # Network range
+    client_ip: INET  # IP address (accepts CIDR notation, stores IP only)
+    network: CIDR  # Network range with prefix (e.g., "192.168.1.0/24")
     mac_address: MacAddress  # MAC address
     path: LTree  # Hierarchical path
 ```
@@ -637,6 +637,20 @@ from fraiseql.types import IpAddress, CIDR
 class Server:
     ip_address: IpAddress  # Uses NetworkAddressFilter
     network: CIDR         # Uses NetworkAddressFilter
+```
+
+**IpAddress Scalar (v0.10.3+):**
+- Accepts both plain IP addresses and CIDR notation
+- Input: `"192.168.1.1"` or `"192.168.1.1/24"` (CIDR)
+- Stores: Just the IP address (discards prefix if CIDR provided)
+- Supports both IPv4 and IPv6
+
+```graphql
+# Both formats accepted
+mutation {
+  updateServer(ipAddress: "192.168.1.1")      # Plain IP
+  updateServer(ipAddress: "192.168.1.1/24")   # CIDR (extracts IP)
+}
 ```
 
 **NetworkAddressFilter** only exposes: `eq`, `neq`, `in_`, `nin`, `isnull`
