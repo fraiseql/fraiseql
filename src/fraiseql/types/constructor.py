@@ -34,9 +34,17 @@ def _serialize_field_value(field_value: Any) -> Any:
 
     Handles nested FraiseQL objects, lists, and primitive values.
     Uses the existing serialization logic from the SQL generator.
+
+    Empty strings are converted to None to support frontends that send "" when
+    clearing text fields, aligning with database NULL semantics.
     """
     # Import here to avoid circular imports
     from fraiseql.mutations.sql_generator import _serialize_basic
+
+    # Convert empty strings to None for database NULL semantics
+    # This supports frontends that send "" when clearing text fields
+    if isinstance(field_value, str) and not field_value.strip():
+        return None
 
     # Handle nested FraiseQL input objects
     if hasattr(field_value, "to_dict") and callable(field_value.to_dict):

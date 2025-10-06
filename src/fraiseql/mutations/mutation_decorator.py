@@ -110,6 +110,10 @@ class MutationDefinition:
             # Convert input to dict
             input_data = _to_dict(input)
 
+            # Call prepare_input hook if defined on mutation class
+            if hasattr(self.mutation_class, "prepare_input"):
+                input_data = self.mutation_class.prepare_input(input_data)
+
             # Call PostgreSQL function
             full_function_name = f"{self.schema}.{self.function_name}"
 
@@ -428,6 +432,69 @@ def mutation(
                     {"avatar_url": file_url}
                 )
 
+        Mutation with input transformation using prepare_input hook::\
+
+            @fraise_input
+            class NetworkConfigInput:
+                ip_address: str
+                subnet_mask: str
+
+            @mutation
+            class CreateNetworkConfig:
+                input: NetworkConfigInput
+                success: NetworkConfigSuccess
+                error: NetworkConfigError
+
+                @staticmethod
+                def prepare_input(input_data: dict) -> dict:
+                    \"\"\"Transform IP + subnet mask to CIDR notation before database call.\"\"\"
+                    ip = input_data.get("ip_address")
+                    mask = input_data.get("subnet_mask")
+
+                    if ip and mask:
+                        # Convert subnet mask to CIDR prefix
+                        cidr_prefix = {
+                            "255.255.255.0": 24,
+                            "255.255.0.0": 16,
+                            "255.0.0.0": 8,
+                        }.get(mask, 32)
+
+                        return {
+                            "ip_address": f"{ip}/{cidr_prefix}",
+                            # subnet_mask field is removed
+                        }
+                    return input_data
+
+            # Frontend sends: { ipAddress: "192.168.1.1", subnetMask: "255.255.255.0" }
+            # Database receives: { ip_address: "192.168.1.1/24" }
+
+        Mutation with empty string to null conversion::\
+
+            @fraise_input
+            class UpdateNoteInput:
+                id: UUID
+                notes: str | None = None
+
+            @mutation
+            class UpdateNote:
+                input: UpdateNoteInput
+                success: UpdateNoteSuccess
+                error: UpdateNoteError
+
+                @staticmethod
+                def prepare_input(input_data: dict) -> dict:
+                    \"\"\"Convert empty strings to None for nullable fields.\"\"\"
+                    result = input_data.copy()
+
+                    # Convert empty strings to None for optional string fields
+                    if "notes" in result and result["notes"] == "":
+                        result["notes"] = None
+
+                    return result
+
+            # Frontend sends: { id: "...", notes: "" }
+            # Database receives: { id: "...", notes: null }
+
     PostgreSQL Function Requirements:
         For class-based mutations, the PostgreSQL function should:
 
@@ -489,6 +556,9 @@ def mutation(
         - Context parameters enable tenant isolation and user tracking
         - Success/error types provide structured response handling
         - All mutations are automatically registered with the GraphQL schema
+        - The prepare_input hook allows transforming input data before database calls
+        - prepare_input is called after GraphQL validation but before the PostgreSQL function
+        - Use prepare_input for multi-field transformations, empty string normalization, etc.
     """
 
     def decorator(
@@ -547,11 +617,16 @@ def _to_dict(obj: Any) -> dict[str, Any]:
 
     UNSET values are excluded from the dictionary to enable partial updates.
     Only fields that were explicitly provided (including explicit None) are included.
+
+    Empty strings are converted to None to support frontends that send "" when
+    clearing text fields. This aligns with database NULL semantics and prevents
+    empty string pollution in the database.
     """
     if hasattr(obj, "to_dict"):
         return obj.to_dict()
     if hasattr(obj, "__dict__"):
         # Convert UUIDs to strings for JSON serialization
+        # Convert empty strings to None for database compatibility
         result = {}
         for k, v in obj.__dict__.items():
             if not k.startswith("_"):
@@ -562,6 +637,9 @@ def _to_dict(obj: Any) -> dict[str, Any]:
                     result[k] = str(v)
                 elif hasattr(v, "isoformat"):  # date, datetime, time
                     result[k] = v.isoformat()
+                elif isinstance(v, str) and not v.strip():
+                    # Convert empty strings to None for database NULL semantics
+                    result[k] = None
                 else:
                     result[k] = v
         return result

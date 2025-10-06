@@ -36,6 +36,9 @@ def _validate_input_string_value(field_name: str, value: Any, field: FraiseQLFie
     types (@fraiseql.type) to allow existing database records with empty fields
     to be loaded successfully.
 
+    For optional fields (fields with defaults or None-able types), empty strings are
+    allowed but will be converted to None by _to_dict() in the mutation decorator.
+
     Args:
         field_name: The name of the field being validated
         value: The value to validate
@@ -43,7 +46,7 @@ def _validate_input_string_value(field_name: str, value: Any, field: FraiseQLFie
 
     Raises:
         ValueError: If the value is None for a required string field, or if the value
-                   is a string but empty or contains only whitespace
+                   is a string but empty or contains only whitespace (for required fields only)
     """
     # Check if field is required (no default value and no default factory)
     is_required = field.default is FRAISE_MISSING and field.default_factory is None
@@ -52,8 +55,9 @@ def _validate_input_string_value(field_name: str, value: Any, field: FraiseQLFie
     if value is None and is_required:
         raise ValueError(f"Field '{field_name}' is required and cannot be None")
 
-    # Validate empty strings
-    if isinstance(value, str) and not value.strip():
+    # Validate empty strings - ONLY for required fields
+    # Optional fields can accept empty strings (will be converted to None later)
+    if isinstance(value, str) and not value.strip() and is_required:
         raise ValueError(f"Field '{field_name}' cannot be empty")
 
 

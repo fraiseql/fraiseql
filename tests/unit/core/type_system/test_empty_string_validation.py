@@ -92,18 +92,22 @@ def test_optional_string_allows_none():
 
 
 @pytest.mark.unit
-def test_optional_string_still_rejects_empty_when_provided():
-    """Optional string fields should still reject empty strings when explicitly provided."""
+def test_optional_string_accepts_empty_when_provided():
+    """Optional string fields should accept empty strings (they will be converted to None)."""
     @fraise_input
     class TestInput:
         name: str | None = None
 
-    # Even optional fields should reject empty strings when provided
-    with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-        TestInput(name="")
+    # Optional fields should accept empty strings (will be converted to None by to_dict)
+    instance1 = TestInput(name="")
+    assert instance1.name == ""  # Stored as empty string in the object
 
-    with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-        TestInput(name="  ")
+    instance2 = TestInput(name="  ")
+    assert instance2.name == "  "  # Stored as whitespace in the object
+
+    # But when converted to dict for database, empty strings become None
+    assert instance1.to_dict()["name"] is None
+    assert instance2.to_dict()["name"] is None
 
 
 @pytest.mark.unit
