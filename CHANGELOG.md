@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2025-10-06
+
+### ✨ Mutation Input Transformation and Empty String Handling
+
+This release adds powerful input transformation capabilities to mutations and improves frontend compatibility with automatic empty string handling.
+
+#### **New Features**
+
+**1. `prepare_input` Hook for Mutations (Fixes #75)**
+
+Adds an optional `prepare_input` static method to mutation classes that allows transforming input data after GraphQL validation but before the PostgreSQL function call.
+
+**Use Cases:**
+- Multi-field transformations (IP + subnet mask → CIDR notation)
+- Empty string normalization
+- Date format conversions
+- Coordinate transformations
+- Unit conversions
+
+**Example:**
+```python
+@mutation
+class CreateNetworkConfig:
+    input: NetworkConfigInput
+    success: NetworkConfigSuccess
+    error: NetworkConfigError
+
+    @staticmethod
+    def prepare_input(input_data: dict) -> dict:
+        """Transform IP + subnet mask to CIDR notation."""
+        ip = input_data.get("ip_address")
+        mask = input_data.get("subnet_mask")
+
+        if ip and mask:
+            cidr_prefix = {
+                "255.255.255.0": 24,
+                "255.255.0.0": 16,
+            }.get(mask, 32)
+            return {"ip_address": f"{ip}/{cidr_prefix}"}
+        return input_data
+```
+
+**2. Automatic Empty String to NULL Conversion**
+
+Frontends commonly send empty strings (`""`) when users clear text fields. FraiseQL now automatically converts empty strings to `None` for optional fields while maintaining data quality validation for required fields.
+
+**Behavior:**
+- **Optional fields** (`notes: str | None`): Accept `""`, convert to `None` ✅
+- **Required fields** (`name: str`): Reject `""` with validation error ❌
+
+**Example:**
+```python
+# Frontend sends:
+{ id: "123", notes: "" }
+
+# Backend receives and stores:
+{ id: "123", notes: null }
+```
+
+#### **Benefits**
+
+- ✅ Clean separation of frontend and backend data formats
+- ✅ No need for custom resolvers or middleware
+- ✅ Maintains type safety and data quality validation
+- ✅ Supports standard frontend form behavior with nullable fields
+- ✅ Non-breaking: existing mutations work unchanged
+
+#### **Test Coverage**
+
+- 3 new `prepare_input` hook tests
+- 6 new empty string conversion tests
+- All 3,295 existing tests pass (no regressions)
+
+#### **Files Changed**
+
+- `src/fraiseql/mutations/mutation_decorator.py` - Added `prepare_input` hook and documentation
+- `src/fraiseql/types/constructor.py` - Empty string → None conversion in serialization
+- `src/fraiseql/utils/fraiseql_builder.py` - Updated validation for optional fields
+- `tests/unit/decorators/test_mutation_decorator.py` - Hook tests
+- `tests/unit/decorators/test_empty_string_to_null.py` - Conversion tests (new)
+- `tests/unit/core/type_system/test_empty_string_validation.py` - Updated test
+
 ## [0.10.1] - 2025-10-05
 
 ### 🐛 Bugfix: TurboRouter Dual-Hash APQ Lookup
