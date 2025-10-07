@@ -185,7 +185,7 @@ FraiseQL is perfect for teams who:
 
 <div class="grid cards" markdown>
 
--   :material-baby-carriage:{ .lg .middle } **For Beginners**
+-   👶 **For Beginners**
 
     ---
 
@@ -198,7 +198,7 @@ FraiseQL is perfect for teams who:
 
     **Next:** [Type System](core-concepts/type-system.md)
 
--   :material-database:{ .lg .middle } **For Backend Developers**
+-   💾 **For Backend Developers**
 
     ---
 
@@ -211,7 +211,7 @@ FraiseQL is perfect for teams who:
 
     **Next:** [Advanced Patterns](advanced/database-api-patterns.md)
 
--   :material-web:{ .lg .middle } **For Frontend Developers**
+-   🌐 **For Frontend Developers**
 
     ---
 
@@ -224,7 +224,7 @@ FraiseQL is perfect for teams who:
 
     **Next:** [API Reference](api-reference/index.md)
 
--   :material-rocket-launch:{ .lg .middle } **For Production**
+-   🚀 **For Production**
 
     ---
 
@@ -266,7 +266,7 @@ FraiseQL is perfect for teams who:
 
 <div class="grid cards" markdown>
 
--   :material-clock-fast:{ .lg .middle } **5-Minute Quickstart**
+-   ⚡ **5-Minute Quickstart**
 
     ---
 
@@ -274,7 +274,7 @@ FraiseQL is perfect for teams who:
 
     [:octicons-arrow-right-24: Quick Start](getting-started/quickstart.md)
 
--   :material-book-open-variant:{ .lg .middle } **Learn Core Concepts**
+-   📖 **Learn Core Concepts**
 
     ---
 
@@ -282,7 +282,7 @@ FraiseQL is perfect for teams who:
 
     [:octicons-arrow-right-24: Core Concepts](core-concepts/index.md)
 
--   :material-school:{ .lg .middle } **Build a Blog API**
+-   🎓 **Build a Blog API**
 
     ---
 
@@ -290,7 +290,7 @@ FraiseQL is perfect for teams who:
 
     [:octicons-arrow-right-24: Tutorial](tutorials/blog-api.md)
 
--   :material-api:{ .lg .middle } **API Reference**
+-   ⚙️ **API Reference**
 
     ---
 

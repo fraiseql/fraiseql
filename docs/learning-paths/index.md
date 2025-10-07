@@ -14,7 +14,7 @@ Select a learning path based on your background and goals. Each path is designed
 
 <div class="grid cards" markdown>
 
--   :material-baby-carriage:{ .lg .middle } **[Beginner Path](beginner.md)**
+-   👶 **[Beginner Path](beginner.md)**
 
     ---
 
@@ -31,7 +31,7 @@ Select a learning path based on your background and goals. Each path is designed
 
     [:octicons-arrow-right-24: Start Learning](beginner.md)
 
--   :material-database:{ .lg .middle } **[Backend Developer Path](backend-developer.md)**
+-   💾 **[Backend Developer Path](backend-developer.md)**
 
     ---
 
@@ -48,7 +48,7 @@ Select a learning path based on your background and goals. Each path is designed
 
     [:octicons-arrow-right-24: Start Learning](backend-developer.md)
 
--   :material-web:{ .lg .middle } **[Frontend Developer Path](frontend-developer.md)**
+-   🌐 **[Frontend Developer Path](frontend-developer.md)**
 
     ---
 
@@ -65,7 +65,7 @@ Select a learning path based on your background and goals. Each path is designed
 
     [:octicons-arrow-right-24: Start Learning](frontend-developer.md)
 
--   :material-swap-horizontal:{ .lg .middle } **[Migration Path](migrating.md)**
+-   🔄 **[Migration Path](migrating.md)**
 
     ---
 
