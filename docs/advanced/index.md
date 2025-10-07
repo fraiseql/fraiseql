@@ -82,22 +82,26 @@ graph LR
 FraiseQL automatically selects the optimal execution mode:
 
 1. **TurboRouter with Lazy Cache**
+
    - Pre-computed GraphQL responses
    - Sub-millisecond cache hits
    - Automatic invalidation via bounded contexts
    - Perfect for hot paths
 
 2. **TurboRouter Direct SQL**
+
    - Pre-compiled SQL templates
    - Zero GraphQL parsing overhead
    - Fresh data every time
 
 3. **JSON Passthrough**
+
    - Direct JSONB extraction
    - Minimal transformation
    - Ideal for view-based queries
 
 4. **Standard Mode**
+
    - Full GraphQL processing
    - Maximum flexibility
    - Complex query support
@@ -114,6 +118,7 @@ config = FraiseQLConfig(
 ```
 
 **Sizing Guidelines**:
+
 - Small apps: 10-20 connections
 - Medium apps: 20-50 connections
 - Large apps: 50-100 connections
@@ -227,6 +232,7 @@ config = FraiseQLConfig(
 ```
 
 Prevents:
+
 - Deeply nested queries
 - Expensive list operations
 - Cartesian products

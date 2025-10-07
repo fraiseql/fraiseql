@@ -103,19 +103,24 @@ spec:
         runAsUser: 1001
         fsGroup: 1001
       containers:
+
       - name: fraiseql
         image: fraiseql/api:latest
         imagePullPolicy: Always
         ports:
+
         - name: http
           containerPort: 8000
           protocol: TCP
+
         - name: metrics
           containerPort: 9090
           protocol: TCP
         envFrom:
+
         - configMapRef:
             name: fraiseql-config
+
         - secretRef:
             name: fraiseql-secrets
         resources:
@@ -144,25 +149,32 @@ spec:
           successThreshold: 1
           failureThreshold: 3
         volumeMounts:
+
         - name: tmp
           mountPath: /tmp
+
         - name: cache
           mountPath: /app/.cache
       volumes:
+
       - name: tmp
         emptyDir: {}
+
       - name: cache
         emptyDir: {}
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
+
           - weight: 100
             podAffinityTerm:
               labelSelector:
                 matchExpressions:
+
                 - key: app
                   operator: In
                   values:
+
                   - fraiseql
               topologyKey: kubernetes.io/hostname
 ```
@@ -181,10 +193,12 @@ metadata:
 spec:
   type: ClusterIP
   ports:
+
   - name: http
     port: 80
     targetPort: http
     protocol: TCP
+
   - name: metrics
     port: 9090
     targetPort: metrics
@@ -216,13 +230,17 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
 spec:
   tls:
+
   - hosts:
+
     - api.example.com
     secretName: fraiseql-tls
   rules:
+
   - host: api.example.com
     http:
       paths:
+
       - path: /
         pathType: Prefix
         backend:
@@ -249,12 +267,14 @@ spec:
   minReplicas: 2
   maxReplicas: 10
   metrics:
+
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
         averageUtilization: 70
+
   - type: Resource
     resource:
       name: memory
@@ -265,15 +285,18 @@ spec:
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
+
       - type: Percent
         value: 50
         periodSeconds: 60
     scaleUp:
       stabilizationWindowSeconds: 0
       policies:
+
       - type: Percent
         value: 100
         periodSeconds: 15
+
       - type: Pods
         value: 4
         periodSeconds: 15
@@ -294,42 +317,57 @@ spec:
     matchLabels:
       app: fraiseql
   policyTypes:
+
   - Ingress
   - Egress
   ingress:
+
   - from:
+
     - namespaceSelector:
         matchLabels:
           name: ingress-nginx
+
     - podSelector:
         matchLabels:
           app: prometheus
     ports:
+
     - protocol: TCP
       port: 8000
+
     - protocol: TCP
       port: 9090
   egress:
+
   - to:
+
     - podSelector:
         matchLabels:
           app: postgres
     ports:
+
     - protocol: TCP
       port: 5432
+
   - to:
+
     - podSelector:
         matchLabels:
           app: redis
     ports:
+
     - protocol: TCP
       port: 6379
+
   - to:
+
     - namespaceSelector: {}
       podSelector:
         matchLabels:
           k8s-app: kube-dns
     ports:
+
     - protocol: UDP
       port: 53
 ```
@@ -425,27 +463,34 @@ spec:
         app: postgres
     spec:
       containers:
+
       - name: postgres
         image: postgres:15-alpine
         ports:
+
         - containerPort: 5432
           name: postgres
         env:
+
         - name: POSTGRES_DB
           value: fraiseql
+
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
               name: postgres-secret
               key: username
+
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
               name: postgres-secret
               key: password
+
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
         volumeMounts:
+
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
         resources:
@@ -456,6 +501,7 @@ spec:
             memory: "2Gi"
             cpu: "1000m"
   volumeClaimTemplates:
+
   - metadata:
       name: postgres-storage
     spec:
@@ -486,17 +532,21 @@ spec:
         app: redis
     spec:
       containers:
+
       - name: redis
         image: redis:7-alpine
         command:
+
         - redis-server
         - --appendonly
         - "yes"
         - --requirepass
         - $(REDIS_PASSWORD)
         ports:
+
         - containerPort: 6379
         env:
+
         - name: REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -510,9 +560,11 @@ spec:
             memory: "512Mi"
             cpu: "200m"
         volumeMounts:
+
         - name: redis-data
           mountPath: /data
       volumes:
+
       - name: redis-data
         persistentVolumeClaim:
           claimName: redis-pvc
@@ -526,6 +578,7 @@ spec:
   selector:
     app: redis
   ports:
+
   - port: 6379
     targetPort: 6379
 ```
@@ -561,20 +614,25 @@ type: application
 version: 1.0.0
 appVersion: "1.0.0"
 keywords:
+
   - fraiseql
   - graphql
   - api
 home: https://fraiseql.dev
 sources:
+
   - https://github.com/your-org/fraiseql
 maintainers:
+
   - name: Your Team
     email: team@example.com
 dependencies:
+
   - name: postgresql
     version: "12.x.x"
     repository: https://charts.bitnami.com/bitnami
     condition: postgresql.enabled
+
   - name: redis
     version: "17.x.x"
     repository: https://charts.bitnami.com/bitnami
@@ -614,6 +672,7 @@ podSecurityContext:
 securityContext:
   capabilities:
     drop:
+
     - ALL
   readOnlyRootFilesystem: true
   runAsNonRoot: true
@@ -632,13 +691,17 @@ ingress:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/rate-limit: "100"
   hosts:
+
     - host: api.example.com
       paths:
+
         - path: /
           pathType: Prefix
   tls:
+
     - secretName: fraiseql-tls
       hosts:
+
         - api.example.com
 
 resources:
@@ -663,13 +726,16 @@ tolerations: []
 affinity:
   podAntiAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
+
     - weight: 100
       podAffinityTerm:
         labelSelector:
           matchExpressions:
+
           - key: app.kubernetes.io/name
             operator: In
             values:
+
             - fraiseql
         topologyKey: kubernetes.io/hostname
 
@@ -778,21 +844,26 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
+
       - name: {{ .Chart.Name }}
         securityContext:
           {{- toYaml .Values.securityContext | nindent 12 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
+
         - name: http
           containerPort: {{ .Values.service.targetPort }}
           protocol: TCP
+
         - name: metrics
           containerPort: {{ .Values.config.metricsPort }}
           protocol: TCP
         envFrom:
+
         - configMapRef:
             name: {{ include "fraiseql.fullname" . }}
+
         - secretRef:
             name: {{ include "fraiseql.fullname" . }}
         livenessProbe:
@@ -810,13 +881,17 @@ spec:
         resources:
           {{- toYaml .Values.resources | nindent 12 }}
         volumeMounts:
+
         - name: tmp
           mountPath: /tmp
+
         - name: cache
           mountPath: /app/.cache
       volumes:
+
       - name: tmp
         emptyDir: {}
+
       - name: cache
         emptyDir: {}
       {{- with .Values.nodeSelector }}
@@ -894,13 +969,17 @@ image:
 ingress:
   enabled: true
   hosts:
+
     - host: api.mycompany.com
       paths:
+
         - path: /
           pathType: Prefix
   tls:
+
     - secretName: api-tls
       hosts:
+
         - api.mycompany.com
 
 resources:
@@ -940,6 +1019,7 @@ spec:
     matchLabels:
       app: fraiseql
   endpoints:
+
   - port: metrics
     interval: 30s
     path: /metrics
@@ -999,6 +1079,7 @@ metadata:
   name: fraiseql
   namespace: fraiseql
 rules:
+
 - apiGroups: [""]
   resources: ["configmaps", "secrets"]
   verbs: ["get", "list", "watch"]
@@ -1013,6 +1094,7 @@ roleRef:
   kind: Role
   name: fraiseql
 subjects:
+
 - kind: ServiceAccount
   name: fraiseql
   namespace: fraiseql
@@ -1030,8 +1112,10 @@ spec:
   privileged: false
   allowPrivilegeEscalation: false
   requiredDropCapabilities:
+
     - ALL
   volumes:
+
     - 'configMap'
     - 'emptyDir'
     - 'projected'
@@ -1107,13 +1191,16 @@ metadata:
   namespace: fraiseql
 spec:
   containers:
+
   - name: debug
     image: fraiseql/api:latest
     command: ["/bin/bash"]
     args: ["-c", "sleep 3600"]
     envFrom:
+
     - configMapRef:
         name: fraiseql-config
+
     - secretRef:
         name: fraiseql-secrets
 ```

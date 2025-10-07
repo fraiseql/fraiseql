@@ -3,6 +3,7 @@
 This guide explains how FraiseQL handles nested objects that have their own `sql_source`, and how to control whether they should be resolved via separate queries or use embedded data from the parent's JSONB column.
 
 ## Table of Contents
+
 - [Overview](#overview)
 - [Default Behavior: Embedded Data](#default-behavior-embedded-data)
 - [Explicit Nested Resolution](#explicit-nested-resolution)
@@ -14,6 +15,7 @@ This guide explains how FraiseQL handles nested objects that have their own `sql
 ## Overview
 
 When a GraphQL type with `sql_source` appears as a field in another type, FraiseQL needs to know whether to:
+
 1. **Use embedded data** from the parent's JSONB column (default)
 2. **Make a separate query** to the nested type's sql_source table
 
@@ -88,6 +90,7 @@ query GetUser {
 ```
 
 ### Benefits
+
 - ✅ **No N+1 queries** - All data fetched in one query
 - ✅ **No tenant_id required** for nested objects
 - ✅ **Better performance** - Single database roundtrip
@@ -159,6 +162,7 @@ query GetEmployee {
 ```
 
 ### Requirements
+
 - Context must include necessary parameters (e.g., `tenant_id`)
 - Parent must have the foreign key field (e.g., `department_id`)
 - Nested type's sql_source must be queryable with available context
@@ -166,6 +170,7 @@ query GetEmployee {
 ## When to Use Each Approach
 
 ### Use Default (Embedded Data) When:
+
 - ✅ Your views pre-join and embed related data
 - ✅ You want optimal performance (single query)
 - ✅ The nested data is relatively small
@@ -173,6 +178,7 @@ query GetEmployee {
 - ✅ You want to avoid N+1 query problems
 
 ### Use `resolve_nested=True` When:
+
 - ✅ Nested data is truly relational (not embedded)
 - ✅ You need fresh data from the source table
 - ✅ The nested data is large and rarely accessed
@@ -247,6 +253,7 @@ class Product:
 Query: { user { organization { name } } }
 
 Execution:
+
 1. SELECT data FROM v_users WHERE id = ?
    ↓
    Returns: { user: { organization: { name: "Acme Corp" } } }
@@ -259,8 +266,10 @@ Total queries: 1
 Query: { employees { department { name } } }  # N employees
 
 Execution:
+
 1. SELECT data FROM v_employees
    ↓
+
 2. SELECT data FROM v_departments WHERE id = ? (for each unique dept)
    ↓
    Returns merged data
@@ -275,6 +284,7 @@ Total queries: 1 + number of unique departments
 **Cause**: A nested type with `sql_source` is trying to resolve separately but lacks required context.
 
 **Solutions**:
+
 1. Remove `resolve_nested=True` if data should be embedded
 2. Ensure the view includes embedded data in JSONB
 3. If separate resolution is needed, provide `tenant_id` in context
@@ -284,6 +294,7 @@ Total queries: 1 + number of unique departments
 **Cause**: Expected embedded data is missing from parent's JSONB.
 
 **Solutions**:
+
 1. Update view to include nested object in JSONB
 2. Use LEFT JOIN to handle optional relationships
 3. Set field as `Optional[Type]` in Python
@@ -293,6 +304,7 @@ Total queries: 1 + number of unique departments
 **Symptom**: Many queries executed for a list with nested objects.
 
 **Solution**:
+
 - Remove `resolve_nested=True` unless absolutely necessary
 - Ensure views embed frequently accessed nested data
 - Consider using DataLoader pattern for `resolve_nested=True` cases

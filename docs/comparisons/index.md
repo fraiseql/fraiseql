@@ -5,6 +5,7 @@ FraiseQL offers a unique approach to GraphQL APIs by leveraging PostgreSQL as th
 ## Quick Decision Guide
 
 ### Choose FraiseQL when you:
+
 - ✅ Have an existing PostgreSQL database
 - ✅ Want sub-millisecond query performance
 - ✅ Need type-safe APIs without manual schema writing
@@ -14,6 +15,7 @@ FraiseQL offers a unique approach to GraphQL APIs by leveraging PostgreSQL as th
 - ✅ Want caching built into the database
 
 ### Consider alternatives when you:
+
 - ❌ Need to support multiple database types
 - ❌ Require complex real-time subscriptions across many clients
 - ❌ Have primarily non-relational data sources
@@ -229,6 +231,7 @@ app.use(postgraphile(
 ## Making the Decision
 
 ### Choose FraiseQL for:
+
 - **Performance-critical applications** where every millisecond counts
 - **PostgreSQL-heavy projects** that embrace database features
 - **Rapid prototyping** with existing databases
@@ -236,16 +239,19 @@ app.use(postgraphile(
 - **Teams comfortable with SQL** who want to leverage that knowledge
 
 ### Choose Hasura for:
+
 - **No-code/low-code environments** where non-developers manage the API
 - **Real-time subscriptions** as the primary feature
 - **Multi-database setups** beyond PostgreSQL
 
 ### Choose PostGraphile for:
+
 - **Existing PostGraphile projects** (similar philosophy to FraiseQL)
 - **Complex PostgreSQL RLS** requirements
 - **Teams preferring Node.js** ecosystem
 
 ### Choose Strawberry/Graphene for:
+
 - **Complex business logic** in Python that can't be expressed in SQL
 - **Existing Django/Flask applications** with deep integration needs
 - **Machine learning pipelines** integrated with GraphQL

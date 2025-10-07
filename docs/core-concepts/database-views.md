@@ -499,6 +499,7 @@ jsonb_build_object(
 ```
 
 ### 3. Consistent Field Naming
+
 - Use snake_case throughout the database
 - FraiseQL handles conversion to camelCase for GraphQL
 ```sql

@@ -83,12 +83,14 @@ CREATE TABLE tenant.tb_entity (
 #### Required Fields Strategy
 
 **Always Required:**
+
 - `created_at` - Essential for all audit trails
 - `created_by` - Required for accountability
 - `updated_at` - Tracks last modification
 - `version` - Enables optimistic locking
 
 **Contextually Required:**
+
 - `updated_by` - Required for user-initiated changes, NULL for system changes
 - `deleted_at` / `deleted_by` - Only set during soft delete operations
 
@@ -147,6 +149,7 @@ CREATE TABLE audit.tb_data_processing_log (
 ```
 
 **Required Audit Capabilities:**
+
 - ✅ Track all data processing activities
 - ✅ Record lawful basis for processing
 - ✅ Maintain data retention schedules

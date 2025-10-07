@@ -1250,6 +1250,7 @@ GraphQL → app.* functions → core.* functions → Database
 ```
 
 **Separation of concerns:**
+
 - **app.* schema**: Thin wrapper functions handling JSONB input from GraphQL
 - **core.* schema**: Pure business logic with typed parameters
 - **Clear boundaries**: No business logic in app, no JSONB handling in core
@@ -1257,6 +1258,7 @@ GraphQL → app.* functions → core.* functions → Database
 ### Why Split Functions Into Layers?
 
 **Benefits:**
+
 1. **Testability**: Core functions can be tested with typed parameters
 2. **Reusability**: Core functions can be called by different app functions
 3. **Maintainability**: Business logic centralized in core schema
@@ -1280,6 +1282,7 @@ SELECT * FROM core.create_user(
 The app schema contains thin wrapper functions that handle JSONB input from GraphQL resolvers and delegate to core functions.
 
 **Purpose of app.* functions:**
+
 - Accept JSONB input from GraphQL resolvers
 - Convert JSONB to typed PostgreSQL records
 - Call corresponding core.* function
@@ -1328,6 +1331,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 **Key app function characteristics:**
+
 - **Thin wrapper**: No business logic, only input handling
 - **Type conversion**: JSONB → PostgreSQL composite types
 - **Minimal validation**: Only check for required fields
@@ -1339,6 +1343,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 The core schema contains the actual business logic, working with typed parameters instead of JSONB.
 
 **Purpose of core.* functions:**
+
 - Contain ALL business logic
 - Work with typed parameters (not JSONB)
 - Perform complex validation
@@ -1437,6 +1442,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Key core function characteristics:**
+
 - **All business logic**: Complex validation, rules, side effects
 - **Typed parameters**: Work with PostgreSQL composite types
 - **Call other core functions**: Build complex operations from smaller ones
@@ -1571,6 +1577,7 @@ $$ LANGUAGE plpgsql;
 ### Best Practices for App/Core Split
 
 **Do's:**
+
 - Keep app functions as thin wrappers only
 - Put ALL business logic in core functions
 - Use typed parameters in core functions
@@ -1578,6 +1585,7 @@ $$ LANGUAGE plpgsql;
 - Use consistent naming: `app.action_entity` → `core.action_entity`
 
 **Don'ts:**
+
 - Don't put business logic in app functions
 - Don't parse JSONB in core functions (except for logging)
 - Don't call app functions from core functions

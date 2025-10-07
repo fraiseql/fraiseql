@@ -13,6 +13,7 @@ As a backend developer, you'll appreciate FraiseQL's approach: your database is 
 ## Prerequisites
 
 You should have:
+
 - Strong PostgreSQL knowledge (views, functions, JSONB)
 - Experience with database design and optimization
 - Understanding of API design principles
@@ -25,16 +26,19 @@ You should have:
 Understand FraiseQL's database-centric architecture:
 
 1. **[Architecture Overview](../core-concepts/architecture.md)** *(10 min)*
+
    - CQRS implementation
    - Domain-Driven Design with PostgreSQL
    - Request flow and optimization
 
 2. **[Database Views](../core-concepts/database-views.md)** *(10 min)*
+
    - View patterns for APIs
    - JSONB aggregation techniques
    - Performance considerations
 
 3. **[Query Translation](../core-concepts/query-translation.md)** *(10 min)*
+
    - GraphQL to SQL mapping
    - Query optimization strategies
    - Index utilization
@@ -44,16 +48,19 @@ Understand FraiseQL's database-centric architecture:
 Master FraiseQL's database patterns:
 
 4. **[Database API Patterns](../advanced/database-api-patterns.md)** *(15 min)*
+
    - View design principles
    - Denormalization strategies
    - Composite views for performance
 
 5. **[PostgreSQL Functions](../mutations/postgresql-functions.md)** *(15 min)*
+
    - Function-based mutations
    - Transaction management
    - Business logic in database
 
 6. **[CQRS Implementation](../advanced/cqrs.md)** *(15 min)*
+
    - Command vs Query separation
    - Event sourcing patterns
    - Bounded contexts
@@ -63,16 +70,19 @@ Master FraiseQL's database patterns:
 Optimize for production workloads:
 
 7. **[Performance Guide](../advanced/performance.md)** *(15 min)*
+
    - Query optimization
    - Index strategies
    - EXPLAIN ANALYZE usage
 
 8. **[Lazy Caching](../advanced/lazy-caching.md)** *(15 min)*
+
    - Database-native caching
    - Cache invalidation strategies
    - Version tracking
 
 9. **[TurboRouter](../advanced/turbo-router.md)** *(15 min)*
+
    - Bypass GraphQL parsing
    - Direct SQL execution
    - 50-1000x performance gains
@@ -82,16 +92,19 @@ Optimize for production workloads:
 Deploy with confidence:
 
 10. **[Security Best Practices](../advanced/security.md)** *(10 min)*
+
     - SQL injection prevention
     - Row-level security
     - Field authorization
 
 11. **[Authentication](../advanced/authentication.md)** *(10 min)*
+
     - JWT implementation
     - Session management
     - Role-based access
 
 12. **[Production Readiness](../advanced/production-readiness.md)** *(10 min)*
+
     - Health checks
     - Monitoring
     - Deployment strategies
@@ -349,6 +362,7 @@ LIMIT 10;
 ## Production Checklist
 
 ### Database Setup
+
 - [ ] Connection pooling configured (pgBouncer/pgPool)
 - [ ] Read replicas for scaling queries
 - [ ] Backup strategy implemented
@@ -356,6 +370,7 @@ LIMIT 10;
 - [ ] Query performance baselines established
 
 ### FraiseQL Configuration
+
 - [ ] Lazy caching enabled for hot paths
 - [ ] TurboRouter configured for known queries
 - [ ] Error handling and logging configured
@@ -363,6 +378,7 @@ LIMIT 10;
 - [ ] Rate limiting configured
 
 ### Security
+
 - [ ] Row-level security policies defined
 - [ ] Field-level authorization implemented
 - [ ] SQL injection prevention verified
@@ -417,15 +433,18 @@ async def execute_command(
 ## Next Steps
 
 ### Continue Learning
+
 - **[Frontend Developer Path](frontend-developer.md)** - API consumption patterns
 - **[Migration Path](migrating.md)** - Migrating from other frameworks
 
 ### Advanced Topics
+
 - **[Event Sourcing](../advanced/event-sourcing.md)** - Event-driven architecture
 - **[Multi-tenancy](../advanced/multi-tenancy.md)** - Tenant isolation strategies
 - **[Bounded Contexts](../advanced/bounded-contexts.md)** - Domain boundaries
 
 ### References
+
 - **[PostgreSQL Documentation](https://www.postgresql.org/docs/)** - Official PostgreSQL docs
 - **[EXPLAIN Visualizer](https://explain.depesz.com/)** - Query plan analysis
 - **[pgBadger](https://pgbadger.darold.net/)** - Log analysis tool

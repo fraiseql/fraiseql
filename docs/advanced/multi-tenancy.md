@@ -532,6 +532,7 @@ async def archive_tenant(info, tenant_id: ID) -> bool:
 ## Best Practices
 
 ### Security
+
 - Always validate tenant context in every request
 - Use parameterized queries to prevent injection
 - Implement proper role-based access within tenants
@@ -539,12 +540,14 @@ async def archive_tenant(info, tenant_id: ID) -> bool:
 - Regular security audits of tenant isolation
 
 ### Performance
+
 - Use connection pooling per tenant for schema-per-tenant
 - Implement tenant-aware caching strategies
 - Consider tenant data distribution for sharding
 - Monitor query performance per tenant
 
 ### Operational
+
 - Automate tenant provisioning and deprovisioning
 - Implement tenant-aware monitoring and alerting
 - Plan for tenant data migration and archival
@@ -553,16 +556,19 @@ async def archive_tenant(info, tenant_id: ID) -> bool:
 ## See Also
 
 ### Related Concepts
+
 - [**Security Patterns**](security.md) - Authentication and authorization
 - [**Performance Tuning**](performance.md) - Optimization strategies
 - [**Database Views**](../core-concepts/database-views.md) - View design patterns
 
 ### Implementation
+
 - [**Authentication**](authentication.md) - User authentication patterns
 - [**CQRS**](cqrs.md) - Multi-tenant CQRS patterns
 - [**Testing**](../testing/integration-testing.md) - Multi-tenant testing
 
 ### Advanced Topics
+
 - [**Bounded Contexts**](bounded-contexts.md) - Domain boundaries
 - [**Event Sourcing**](event-sourcing.md) - Multi-tenant event stores
 - [**Deployment**](../deployment/index.md) - Multi-tenant deployment

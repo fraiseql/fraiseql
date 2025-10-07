@@ -11,6 +11,7 @@ FraiseQL's execution system unifies three complementary modes under a single `Un
 - **Normal Mode** (~10-50ms): Full GraphQL parsing with type safety and validation
 
 The system automatically selects the optimal mode based on:
+
 - Query registration status
 - Complexity analysis
 - Environment configuration
@@ -31,6 +32,7 @@ The system automatically selects the optimal mode based on:
 **Purpose**: Development mode with complete type safety, validation, and IDE support.
 
 **When Used**:
+
 - Development environments with `environment != "production"`
 - Complex business logic validation required
 - Full GraphQL introspection and debugging
@@ -84,6 +86,7 @@ assert hasattr(result.data.product.category, 'name')
 **Purpose**: High-performance production mode bypassing Python object creation overhead.
 
 **When Used**:
+
 - Production environments with simple to moderate queries
 - Mobile and web API backends requiring fast responses
 - Queries under complexity threshold (default: 50 points, depth: 3)
@@ -150,6 +153,7 @@ result = await executor.execute("""
 **Purpose**: Ultra-fast responses for frequently accessed queries using PostgreSQL-native caching.
 
 **When Used**:
+
 - Pre-registered query patterns
 - Frequently accessed dashboard data
 - Public APIs with predictable query patterns
@@ -454,6 +458,7 @@ config = FraiseQLConfig(
 ### Per-Query Configuration
 
 **Mode Hints**:
+
 - Use `# @mode: turbo` for guaranteed fast responses
 - Use `# @mode: passthrough` for production APIs
 - Use `# @mode: normal` for development/debugging
@@ -507,18 +512,21 @@ Based on integration test results with a PostgreSQL database containing 10,000 p
 ### When to Use Each Mode
 
 **Turbo Mode Decision Matrix**:
+
 - ✅ Query is pre-registered
 - ✅ High frequency access (> 100 req/min)
 - ✅ Response time critical (< 2ms required)
 - ✅ Stable query pattern
 
 **Passthrough Mode Decision Matrix**:
+
 - ✅ Production environment
 - ✅ Moderate complexity (< 50 points)
 - ✅ Simple data structures
 - ✅ No complex business logic required
 
 **Normal Mode Decision Matrix**:
+
 - ✅ Development environment
 - ✅ Complex business rules
 - ✅ Type safety required
@@ -876,18 +884,21 @@ app = setup_metrics(
 ### Mode Selection Strategy
 
 **Development Workflow**:
+
 1. Start with Normal mode for full type safety
 2. Use schema introspection and GraphQL playground
 3. Implement comprehensive tests with Normal mode
 4. Profile query performance and identify bottlenecks
 
 **Production Deployment**:
+
 1. Enable Passthrough mode for general APIs
 2. Set appropriate complexity limits based on your infrastructure
 3. Monitor mode selection and performance metrics
 4. Identify hot queries for Turbo optimization
 
 **Performance Optimization**:
+
 1. Use Turbo mode for < 5% of queries (highest impact)
 2. Optimize database queries used by Turbo functions
 3. Regular cache invalidation strategy
@@ -1354,6 +1365,7 @@ class ModeSelector:
 **3. PostgreSQL Integration Strategy**:
 
 The system leverages PostgreSQL's native features:
+
 - **Function caching** for Turbo mode via migrations
 - **JSONB operations** for efficient data structures
 - **View composition** for query optimization

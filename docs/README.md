@@ -5,6 +5,7 @@ Welcome to the FraiseQL documentation hub! This directory contains comprehensive
 ## 🎯 Documentation Philosophy
 
 Our documentation follows **Progressive Disclosure** principles:
+
 - **Multiple Entry Points**: Start from where you are in your journey
 - **Layered Learning**: From quick start to advanced patterns
 - **Workflow-Oriented**: Organized by what you want to accomplish
@@ -137,6 +138,7 @@ Our documentation follows **Progressive Disclosure** principles:
 
 ### 🟢 Complete & Current
 **Actively maintained, comprehensive coverage**
+
 - `getting-started/` - New user onboarding
 - `core-concepts/` - Framework fundamentals
 - `api-reference/` - Complete API documentation
@@ -145,6 +147,7 @@ Our documentation follows **Progressive Disclosure** principles:
 
 ### 🟡 Good & Stable
 **Solid coverage, periodic updates**
+
 - `tutorials/` - Step-by-step guides
 - `architecture/` - Design documentation
 - `deployment/` - Production guidance
@@ -152,6 +155,7 @@ Our documentation follows **Progressive Disclosure** principles:
 
 ### 🟠 Growing & Evolving
 **Active development, expanding coverage**
+
 - `advanced/` - Advanced patterns
 - `development/` - Internal documentation
 - `comparisons/` - Framework comparisons
@@ -161,6 +165,7 @@ Our documentation follows **Progressive Disclosure** principles:
 
 ### For Contributors
 **Adding new documentation:**
+
 1. **Identify audience**: New user? Advanced developer? Contributor?
 2. **Choose location**: Use the journey-based organization above
 3. **Follow templates**: Use existing documents as templates
@@ -169,6 +174,7 @@ Our documentation follows **Progressive Disclosure** principles:
 
 ### For Maintainers
 **Regular maintenance tasks:**
+
 - **Update examples**: Keep code examples current with latest version
 - **Review accuracy**: Validate documentation matches current behavior
 - **Fix broken links**: Regular link checking and repair
@@ -176,6 +182,7 @@ Our documentation follows **Progressive Disclosure** principles:
 - **Metrics review**: Analyze most/least used documentation
 
 ### Documentation Standards
+
 - **Code examples**: All code must be tested and working
 - **Screenshots**: Keep UI screenshots current
 - **Links**: Use relative links within documentation
@@ -185,12 +192,14 @@ Our documentation follows **Progressive Disclosure** principles:
 ## 🌟 Getting Help with Documentation
 
 ### Finding Information
+
 1. **Start with README files**: Each directory has organization overview
 2. **Use search**: Full-text search across all documentation
 3. **Follow cross-references**: Documentation is heavily interlinked
 4. **Check examples**: Working code often answers questions
 
 ### Improving Documentation
+
 - **Report issues**: Use GitHub issues for documentation problems
 - **Suggest improvements**: PRs welcome for clarifications and additions
 - **Ask questions**: Questions often reveal documentation gaps

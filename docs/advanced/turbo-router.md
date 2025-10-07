@@ -81,6 +81,7 @@ sql_template = 'SELECT turbo.fn_get_cached_response(
 ```
 
 This means:
+
 - **Cache hit**: < 1ms response (just fetching pre-computed JSON)
 - **Cache miss**: 5-10ms response (rebuild from table views, then cache)
 - **No GraphQL overhead**: Direct SQL execution bypasses parsing
@@ -258,10 +259,12 @@ def register_turbo_queries(registry: TurboRegistry):
 When using Apollo Client's Automatic Persisted Queries (APQ) with FraiseQL's TurboRouter, hash mismatches can occur between frontend and backend:
 
 **Frontend (Apollo Client):**
+
 - Uses GraphQL-JS to compute SHA-256: `sha256(print(sortTopLevelDefinitions(query)))`
 - Example hash: `ce8fae62da0e39bec38cb8523593ea889b611c6c934cd08ccf9070314f7f71df`
 
 **Backend (FraiseQL/Python):**
+
 - Uses graphql-core to compute SHA-256: `hashlib.sha256(print_ast(parse(query)).encode()).hexdigest()`
 - Example hash: `bfbd52ba92790ee7bca4e99a779bddcdf3881c1164b6acb5313ce1a13b1b7190`
 
@@ -391,12 +394,14 @@ async def load_turbo_queries(registry: TurboRegistry):
 ### When to Use Apollo Client Hash
 
 **Use dual-hash support when:**
+
 - Using Apollo Client with Automatic Persisted Queries (APQ)
 - Queries have parameters with default values
 - Frontend and backend compute hashes independently
 - Production deployments with frontend/backend separation
 
 **Not needed when:**
+
 - Queries have no parameters
 - Using only FraiseQL server-side hashing
 - Development/testing environments
@@ -657,6 +662,7 @@ async def analyze_turbo_performance():
 ### When to Use TurboRouter
 
 **Ideal for:**
+
 - Frequently called queries (> 100 calls/min)
 - Simple to moderate complexity
 - Stable query patterns
@@ -664,6 +670,7 @@ async def analyze_turbo_performance():
 - Public API endpoints
 
 **Not recommended for:**
+
 - Ad-hoc queries
 - Highly dynamic queries
 - Rarely used queries
@@ -740,6 +747,7 @@ async def analyze_cache_effectiveness():
 ### Query Not Using TurboRouter
 
 **Check:**
+
 1. Query registered correctly
 2. Query normalization matches
 3. TurboRouter enabled in config
@@ -761,6 +769,7 @@ def debug_turbo_miss(query: str):
 ### Performance Degradation
 
 **Common causes:**
+
 1. Cache thrashing (size too small)
 2. Complex queries in cache
 3. Database connection issues

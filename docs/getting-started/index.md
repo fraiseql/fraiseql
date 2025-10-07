@@ -157,16 +157,19 @@ async def create_user(info, name: str, email: str) -> User:
 ## Key Concepts to Remember
 
 !!! info "View Naming Conventions"
+
     - `v_` - Regular views (computed on demand)
     - `tv_` - Table views (materialized for performance)
     - `fn_` - PostgreSQL functions for mutations
 
 !!! tip "Performance Tips"
+
     - Include commonly filtered columns separately in views
     - Use JSONB aggregation for nested data
     - Let PostgreSQL handle joins and optimization
 
 !!! warning "Common Mistakes"
+
     - Forgetting the `data` column with JSONB in views
     - Missing type hints (they define your schema!)
     - Not handling `None` values with `| None` syntax

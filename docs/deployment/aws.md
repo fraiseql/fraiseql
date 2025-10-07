@@ -178,12 +178,15 @@ spec:
   networkConfiguration:
     awsvpcConfiguration:
       subnets:
+
         - subnet-xxx
         - subnet-yyy
       securityGroups:
+
         - sg-fraiseql-app
       assignPublicIp: DISABLED
   loadBalancers:
+
     - targetGroupArn: arn:aws:elasticloadbalancing:REGION:ACCOUNT:targetgroup/fraiseql-tg
       containerName: fraiseql
       containerPort: 8000
@@ -217,9 +220,11 @@ Resources:
     Properties:
       DBSubnetGroupDescription: Subnet group for FraiseQL RDS
       SubnetIds:
+
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
       Tags:
+
         - Key: Name
           Value: fraiseql-db-subnet-group
 
@@ -229,11 +234,13 @@ Resources:
       GroupDescription: Security group for FraiseQL RDS
       VpcId: !Ref VPC
       SecurityGroupIngress:
+
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
           SourceSecurityGroupId: !Ref AppSecurityGroup
       Tags:
+
         - Key: Name
           Value: fraiseql-db-sg
 
@@ -252,6 +259,7 @@ Resources:
       MasterUsername: fraiseql_admin
       MasterUserPassword: !Ref DBPassword
       VPCSecurityGroups:
+
         - !Ref DBSecurityGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
       BackupRetentionPeriod: 30
@@ -262,11 +270,14 @@ Resources:
       MonitoringInterval: 60
       MonitoringRoleArn: !GetAtt DBMonitoringRole.Arn
       EnableCloudwatchLogsExports:
+
         - postgresql
       DeletionProtection: true
       Tags:
+
         - Key: Name
           Value: fraiseql-database
+
         - Key: Environment
           Value: production
 
@@ -278,8 +289,10 @@ Resources:
       DBInstanceClass: db.t3.small
       PubliclyAccessible: false
       Tags:
+
         - Key: Name
           Value: fraiseql-database-read
+
         - Key: Environment
           Value: production
 
@@ -307,6 +320,7 @@ Resources:
     Properties:
       Description: Subnet group for FraiseQL Redis
       SubnetIds:
+
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
 
@@ -316,6 +330,7 @@ Resources:
       GroupDescription: Security group for FraiseQL Redis
       VpcId: !Ref VPC
       SecurityGroupIngress:
+
         - IpProtocol: tcp
           FromPort: 6379
           ToPort: 6379
@@ -343,6 +358,7 @@ Resources:
       MultiAZEnabled: true
       CacheSubnetGroupName: !Ref RedisSubnetGroup
       SecurityGroupIds:
+
         - !Ref RedisSecurityGroup
       CacheParameterGroupName: !Ref RedisParameterGroup
       AtRestEncryptionEnabled: true
@@ -350,8 +366,10 @@ Resources:
       SnapshotRetentionLimit: 7
       SnapshotWindow: "03:00-05:00"
       Tags:
+
         - Key: Name
           Value: fraiseql-redis
+
         - Key: Environment
           Value: production
 ```
@@ -369,11 +387,14 @@ Resources:
       Scheme: internet-facing
       IpAddressType: ipv4
       Subnets:
+
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
       SecurityGroups:
+
         - !Ref ALBSecurityGroup
       Tags:
+
         - Key: Name
           Value: fraiseql-alb
 
@@ -395,12 +416,16 @@ Resources:
       Matcher:
         HttpCode: 200
       TargetGroupAttributes:
+
         - Key: deregistration_delay.timeout_seconds
           Value: 30
+
         - Key: stickiness.enabled
           Value: true
+
         - Key: stickiness.type
           Value: app_cookie
+
         - Key: stickiness.app_cookie.duration_seconds
           Value: 86400
 
@@ -411,8 +436,10 @@ Resources:
       Port: 443
       Protocol: HTTPS
       Certificates:
+
         - CertificateArn: !Ref Certificate
       DefaultActions:
+
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
 
@@ -423,6 +450,7 @@ Resources:
       Port: 80
       Protocol: HTTP
       DefaultActions:
+
         - Type: redirect
           RedirectConfig:
             Protocol: HTTPS
@@ -512,6 +540,7 @@ Resources:
       Threshold: 80
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
+
         - !Ref SNSTopic
 
   HighMemoryAlarm:
@@ -527,6 +556,7 @@ Resources:
       Threshold: 80
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
+
         - !Ref SNSTopic
 
   DatabaseConnectionsAlarm:
@@ -542,6 +572,7 @@ Resources:
       Threshold: 80
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
+
         - !Ref SNSTopic
 ```
 
@@ -559,8 +590,10 @@ Resources:
         Type: S3
         Location: !Ref ArtifactBucket
       Stages:
+
         - Name: Source
           Actions:
+
             - Name: Source
               ActionTypeId:
                 Category: Source
@@ -573,10 +606,12 @@ Resources:
                 Branch: main
                 OAuthToken: !Ref GitHubToken
               OutputArtifacts:
+
                 - Name: SourceOutput
 
         - Name: Build
           Actions:
+
             - Name: Build
               ActionTypeId:
                 Category: Build
@@ -586,12 +621,15 @@ Resources:
               Configuration:
                 ProjectName: !Ref BuildProject
               InputArtifacts:
+
                 - Name: SourceOutput
               OutputArtifacts:
+
                 - Name: BuildOutput
 
         - Name: Deploy
           Actions:
+
             - Name: Deploy
               ActionTypeId:
                 Category: Deploy
@@ -603,6 +641,7 @@ Resources:
                 ServiceName: fraiseql-service
                 FileName: imagedefinitions.json
               InputArtifacts:
+
                 - Name: BuildOutput
 ```
 
@@ -615,6 +654,7 @@ version: 0.2
 phases:
   pre_build:
     commands:
+
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
       - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/fraiseql
@@ -623,6 +663,7 @@ phases:
 
   build:
     commands:
+
       - echo Build started on `date`
       - echo Building the Docker image...
       - docker build -t $REPOSITORY_URI:latest .
@@ -630,6 +671,7 @@ phases:
 
   post_build:
     commands:
+
       - echo Build completed on `date`
       - echo Pushing the Docker images...
       - docker push $REPOSITORY_URI:latest
@@ -751,26 +793,31 @@ module "alb" {
 ## Security Best Practices
 
 1. **VPC Configuration**
+
    - Private subnets for application and database
    - Public subnets only for load balancer
    - NAT Gateway for outbound internet access
 
 2. **IAM Roles**
+
    - Least privilege principle
    - Separate roles for task and execution
    - No hardcoded credentials
 
 3. **Secrets Management**
+
    - Use AWS Secrets Manager
    - Rotate secrets regularly
    - Encrypt at rest and in transit
 
 4. **Network Security**
+
    - Security groups with minimal access
    - Network ACLs for additional protection
    - VPC Flow Logs enabled
 
 5. **Compliance**
+
    - Enable AWS Config
    - Use AWS Security Hub
    - Regular security audits
@@ -805,6 +852,7 @@ psql $DATABASE_URL -c "SELECT 1"
 ```
 
 #### High Latency
+
 - Check CloudWatch metrics
 - Review X-Ray traces
 - Analyze RDS Performance Insights

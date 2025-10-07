@@ -8,6 +8,7 @@ Learn FraiseQL through practical, hands-on tutorials that demonstrate real-world
 **Level:** Intermediate | **Time:** 45 minutes
 
 Build a complete blog API with posts, comments, and user management. Learn:
+
 - CQRS architecture with PostgreSQL
 - Composed views to eliminate N+1 queries
 - Type-safe GraphQL with modern Python
@@ -15,6 +16,7 @@ Build a complete blog API with posts, comments, and user management. Learn:
 - Performance optimization techniques
 
 **Prerequisites:**
+
 - Basic PostgreSQL knowledge
 - Python 3.10+ experience
 - Understanding of GraphQL concepts
@@ -107,11 +109,13 @@ query GetPostWithComments {
 ## Tutorial Prerequisites
 
 ### System Requirements
+
 - PostgreSQL 14 or higher
 - Python 3.10 or higher
 - Basic terminal/command line knowledge
 
 ### Recommended Knowledge
+
 - **SQL Basics**: SELECT, INSERT, UPDATE, DELETE
 - **Python**: Classes, async/await, type hints
 - **GraphQL**: Queries, mutations, schema basics
@@ -266,6 +270,7 @@ async def database():
 ## Performance Considerations
 
 ### View Optimization
+
 - Create indexes on filter columns
 - Use materialized views for expensive aggregations
 - Compose views to reduce query count
@@ -303,16 +308,19 @@ async def track_performance(request, call_next):
 ### Common Issues
 
 1. **"View not found" error**
+
    - Ensure view names follow `v_` prefix convention
    - Check that views have a JSONB `data` column
    - Verify camelCase field names in JSONB
 
 2. **Type mismatch errors**
+
    - Use proper Python type hints (3.10+ syntax)
    - Map PostgreSQL types correctly (UUID → UUID, not str)
    - Check nullable fields match (`| None`)
 
 3. **N+1 query detection**
+
    - Enable query analysis to identify issues
    - Create composed views for related data
    - Use DataLoader for remaining cases
@@ -329,16 +337,19 @@ async def track_performance(request, call_next):
 After completing the tutorials:
 
 1. **Explore Advanced Topics**
+
    - [Subscriptions](../advanced/subscriptions.md) for real-time updates
    - [DataLoader Integration](../advanced/dataloader.md) for batching
    - [Performance Monitoring](../advanced/monitoring.md)
 
 2. **Build Your Application**
+
    - Start with the [blog API](./blog-api.md) as a template
    - Customize types and views for your domain
    - Add authentication and authorization
 
 3. **Deploy to Production**
+
    - Review [deployment guide](../deployment/index.md)
    - Configure monitoring and logging
    - Set up database backups and migrations
@@ -353,6 +364,7 @@ We welcome tutorial contributions! If you've built something interesting with Fr
 4. Submit a pull request
 
 Tutorial guidelines:
+
 - Include complete, runnable code
 - Explain the "why" not just the "how"
 - Add performance considerations

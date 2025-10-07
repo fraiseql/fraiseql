@@ -98,11 +98,13 @@ FraiseQL automatically generates the correct SQL based on field type:
 ## Performance
 
 ### With Metadata Registration
+
 - **Field detection**: 0.4 microseconds per field
 - **No database queries** during filtering
 - **Memory overhead**: ~1KB per table
 
 ### Without Metadata (Fallback)
+
 - Falls back to heuristic-based detection
 - May require one-time database introspection
 - Less accurate field classification
@@ -122,6 +124,7 @@ register_type_for_view(
 
 ### 2. Use Regular Columns for Common Filters
 Store frequently-filtered fields as regular columns:
+
 - IDs and foreign keys
 - Status and state fields
 - Boolean flags
@@ -129,6 +132,7 @@ Store frequently-filtered fields as regular columns:
 
 ### 3. Use JSONB for Flexible Data
 Store variable or nested data in JSONB:
+
 - User preferences
 - Configuration objects
 - Metadata and tags

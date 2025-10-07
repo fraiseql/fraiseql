@@ -20,12 +20,14 @@ This isn't just using a database - it's designing your entire domain model withi
 FraiseQL implements Command Query Responsibility Segregation naturally:
 
 **Queries (Read Model)**
+
 - Database views (`v_` prefix) for on-demand computation
 - Materialized views (`tv_` prefix) for cached results
 - Optimized for reading with JSONB aggregation
 - Zero N+1 query problems
 
 **Commands (Write Model)**
+
 - PostgreSQL functions (`fn_` prefix) for mutations
 - Transactional integrity built-in
 - Business logic close to data
@@ -104,6 +106,7 @@ One query. No loops. No N+1 problems.
 ### Not a Limitation, a Feature
 
 FraiseQL is PostgreSQL-only by design:
+
 - **Leverage full power**: CTEs, window functions, full-text search
 - **No abstraction penalty**: Direct SQL, no ORM overhead
 - **Production-proven**: PostgreSQL handles Fortune 500 scale

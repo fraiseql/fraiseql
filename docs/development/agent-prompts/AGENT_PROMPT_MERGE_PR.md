@@ -7,12 +7,14 @@ A comprehensive fix for FraiseQL v0.5.5 network filtering issues has been implem
 Check PR #27 status, squash/rebase if needed, and merge into dev branch if all GitHub QC checks pass.
 
 ## PR Details
+
 - **Branch**: `fix/network-operator-eq-support`
 - **PR Number**: #27
 - **Target Branch**: `dev`
 - **Title**: "fix: Add basic comparison operators to NetworkOperatorStrategy"
 
 ## What Was Fixed
+
 - Added `eq`, `neq`, `in`, `notin` operators to NetworkOperatorStrategy
 - Fixed IP address equality filtering: `{ ipAddress: { eq: "8.8.8.8" } }`
 - Proper PostgreSQL `::inet` type casting in generated SQL
@@ -28,6 +30,7 @@ gh pr view 27 --json state,statusCheckRollupState,mergeable
 
 ### 2. Verify GitHub QC Status
 Confirm all checks pass:
+
 - ✅ GitHub Actions CI/CD pipeline
 - ✅ All tests passing
 - ✅ Code quality checks
@@ -75,6 +78,7 @@ fix: Add basic comparison operators to NetworkOperatorStrategy
 - Verify other operator strategies don't need similar fixes
 
 Resolves IP filtering issues:
+
 - ipAddress: { eq: "8.8.8.8" } now works correctly
 - ipAddress: { in: ["8.8.8.8", "1.1.1.1"] } now works correctly
 - Maintains backward compatibility with network-specific operators
@@ -87,21 +91,25 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 ## Failure Scenarios
 
 ### If GitHub QC Fails
+
 1. Check specific failure: `gh pr checks 27`
 2. DO NOT merge - report the failure details
 3. Leave PR open for fixes
 
 ### If Merge Conflicts
+
 1. Check conflict details: `gh pr view 27`
 2. DO NOT auto-resolve - report conflicts need manual resolution
 3. Suggest rebase strategy if appropriate
 
 ### If PR Not Ready
+
 1. Report current status
 2. DO NOT force merge
 3. Wait for all checks to complete
 
 ## Success Criteria
+
 - [x] All GitHub QC checks passing
 - [x] PR successfully merged into dev branch
 - [x] Feature branch deleted (local and remote)
@@ -109,12 +117,14 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - [x] Clean git history (squashed commits if multiple)
 
 ## Important Notes
+
 - **Target branch**: `dev` (not `main`)
 - **Squash preferred**: Multiple commits should be squashed into single commit
 - **Test after merge**: Run the NetworkOperatorStrategy tests to confirm
 - **Delete branches**: Clean up feature branch after successful merge
 
 ## Context Files for Reference
+
 - `src/fraiseql/sql/operator_strategies.py` - Main fix implementation
 - `tests/unit/sql/test_network_operator_strategy_fix.py` - Primary test suite
 - `tests/unit/sql/test_all_operator_strategies_coverage.py` - Comprehensive verification

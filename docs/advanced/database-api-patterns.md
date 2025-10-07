@@ -5,6 +5,7 @@ FraiseQL enables sophisticated database-backed API patterns that leverage Postgr
 ## Pattern Catalog Overview
 
 This document covers essential patterns for:
+
 - Schema evolution without breaking changes
 - Complex view composition for optimal performance
 - Multi-tenant architectures with isolation guarantees
@@ -1102,6 +1103,7 @@ async def create_comment(input: CreateCommentInput, context) -> CreateCommentSuc
 ```
 
 This sync pattern approach has several advantages:
+
 1. **NO triggers on tb_ tables** - No hidden side effects from triggers on base tables
 2. **Explicit control** - You know exactly when projections are updated
 3. **Better debugging** - Easier to trace when and why projections change

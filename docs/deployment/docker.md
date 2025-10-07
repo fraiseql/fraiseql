@@ -112,9 +112,11 @@ services:
       POSTGRES_USER: fraiseql
       POSTGRES_PASSWORD: development_password
     volumes:
+
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
+
       - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql"]
@@ -127,8 +129,10 @@ services:
     container_name: fraiseql-redis
     command: redis-server --appendonly yes
     volumes:
+
       - redis_data:/data
     ports:
+
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -148,8 +152,10 @@ services:
       FRAISEQL_MODE: development
       LOG_LEVEL: INFO
     ports:
+
       - "8000:8000"
     volumes:
+
       - ./src:/app/src
     depends_on:
       postgres:
@@ -179,9 +185,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=en_US.utf8 --lc-ctype=en_US.utf8"
     volumes:
+
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
     networks:
+
       - fraiseql-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
@@ -201,8 +209,10 @@ services:
     container_name: fraiseql-redis-prod
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
+
       - redis_data:/data
     networks:
+
       - fraiseql-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -230,6 +240,7 @@ services:
       MAX_CONNECTIONS: ${MAX_CONNECTIONS:-100}
       STATEMENT_TIMEOUT: ${STATEMENT_TIMEOUT:-30000}
     networks:
+
       - fraiseql-network
     depends_on:
       postgres:
@@ -253,15 +264,19 @@ services:
     image: nginx:alpine
     container_name: fraiseql-nginx
     ports:
+
       - "80:80"
       - "443:443"
     volumes:
+
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_cache:/var/cache/nginx
     networks:
+
       - fraiseql-network
     depends_on:
+
       - app
     restart: always
     deploy:
@@ -634,6 +649,7 @@ echo "my_secret_password" | docker secret create db_password -
 services:
   app:
     secrets:
+
       - db_password
     environment:
       DATABASE_PASSWORD_FILE: /run/secrets/db_password

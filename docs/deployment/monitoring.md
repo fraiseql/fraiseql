@@ -504,10 +504,12 @@ async def get_user_by_id(user_id: int):
 ```yaml
 # alerts/fraiseql.rules.yml
 groups:
+
 - name: fraiseql
   rules:
 
   # High error rate
+
   - alert: FraiseQLHighErrorRate
     expr: (
       rate(fraiseql_requests_total{status=~"5.."}[5m]) /
@@ -521,6 +523,7 @@ groups:
       description: "Error rate is {{ $value | humanizePercentage }} for 5 minutes"
 
   # High response time
+
   - alert: FraiseQLHighLatency
     expr: histogram_quantile(0.95, rate(fraiseql_request_duration_seconds_bucket[5m])) > 1
     for: 5m
@@ -531,6 +534,7 @@ groups:
       description: "95th percentile latency is {{ $value }}s"
 
   # Database connection issues
+
   - alert: FraiseQLDatabaseConnections
     expr: fraiseql_database_connections_active > 80
     for: 2m
@@ -541,6 +545,7 @@ groups:
       description: "Active connections: {{ $value }}"
 
   # Low cache hit rate
+
   - alert: FraiseQLLowCacheHitRate
     expr: fraiseql_cache_hit_rate < 0.8
     for: 10m
@@ -551,6 +556,7 @@ groups:
       description: "Cache hit rate is {{ $value | humanizePercentage }}"
 
   # Application down
+
   - alert: FraiseQLDown
     expr: up{job="fraiseql"} == 0
     for: 1m
@@ -576,20 +582,25 @@ route:
   repeat_interval: 1h
   receiver: 'web.hook'
   routes:
+
   - match:
       severity: critical
     receiver: 'critical-alerts'
+
   - match:
       severity: warning
     receiver: 'warning-alerts'
 
 receivers:
+
 - name: 'web.hook'
   webhook_configs:
+
   - url: 'http://webhook.example.com/alerts'
 
 - name: 'critical-alerts'
   email_configs:
+
   - to: 'oncall@example.com'
     subject: 'CRITICAL: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
     body: |
@@ -600,16 +611,19 @@ receivers:
       {{ end }}
 
   slack_configs:
+
   - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
     channel: '#alerts'
     title: 'FraiseQL Critical Alert'
     text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
 
   pagerduty_configs:
+
   - integration_key: 'YOUR_PAGERDUTY_KEY'
 
 - name: 'warning-alerts'
   slack_configs:
+
   - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
     channel: '#monitoring'
     title: 'FraiseQL Warning'

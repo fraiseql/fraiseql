@@ -74,11 +74,13 @@ CREATE TABLE tb_entity (
 ### CQRS Separation
 
 #### Command Side (Write)
+
 - Tables: `tb_*` prefix
 - Focus: Transactional integrity, normalization
 - Access: Write operations only
 
 #### Query Side (Read)
+
 - Objects: `v_*` views, `tv_*` projection tables
 - Focus: Denormalized, optimized for queries
 - Access: Read operations only
@@ -113,16 +115,19 @@ EXECUTE FUNCTION turbo.fn_increment_version('product');
 **NEVER place triggers on tb_ base tables**. All mutations to base tables must be through explicit function calls:
 
 1. **Command Side (tb_ tables)**: NO TRIGGERS
+
    - All operations via explicit functions: `create_product()`, `update_product()`, `delete_product()`
    - Clear control flow and debuggability
    - Predictable side effects
 
 2. **Query Side (tv_ tables)**: ONLY cache invalidation triggers
+
    - Single purpose: increment domain version for cache invalidation
    - Triggered after projection updates
    - No business logic in triggers
 
 **Data Flow**:
+
 1. Application calls mutation function (e.g., `create_product()`)
 2. Function updates `tb_*` base tables directly
 3. Function calls `refresh_product()` to update `tv_product`

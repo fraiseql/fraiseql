@@ -371,26 +371,31 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_with_stats;
 ## Quick Debugging Checklist
 
 1. **Connection Issues**
+
    - Is PostgreSQL running?
    - Is DATABASE_URL correct?
    - Can you connect with psql?
 
 2. **Schema Issues**
+
    - Does the view exist?
    - Are all columns present?
    - Do types match?
 
 3. **Query Issues**
+
    - Is the WHERE clause valid?
    - Are you using supported operators?
    - Check the SQL being generated
 
 4. **Mutation Issues**
+
    - Does the function exist?
    - Are parameters correct?
    - Test function directly in psql
 
 5. **Performance Issues**
+
    - Are you using composed views to avoid N+1?
    - Do you have proper indexes?
    - Consider materialized views for complex aggregations

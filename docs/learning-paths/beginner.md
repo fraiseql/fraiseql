@@ -13,6 +13,7 @@ Welcome to FraiseQL! This learning path will take you from zero to building your
 ## Prerequisites
 
 Before starting, ensure you have:
+
 - Python 3.10 or higher installed
 - PostgreSQL installed and running
 - Basic understanding of SQL queries
@@ -25,16 +26,19 @@ Before starting, ensure you have:
 Start here to understand what FraiseQL is and why it's different:
 
 1. **[Introduction](../index.md)** *(5 min)*
+
    - What is FraiseQL?
    - Key benefits and use cases
    - Architecture overview
 
 2. **[Core Concepts](../core-concepts/index.md)** *(10 min)*
+
    - Database-first philosophy
    - CQRS pattern basics
    - Type safety principles
 
 3. **[Architecture Overview](../core-concepts/architecture.md)** *(15 min)*
+
    - How FraiseQL works
    - Request flow
    - Database views concept
@@ -44,21 +48,25 @@ Start here to understand what FraiseQL is and why it's different:
 Get your hands dirty with actual code:
 
 4. **[5-Minute Quickstart](../getting-started/quickstart.md)** *(5 min)*
+
    - Copy-paste example
    - See FraiseQL in action
    - Understand the basic pattern
 
 5. **[Installation Guide](../getting-started/installation.md)** *(10 min)*
+
    - Detailed setup instructions
    - Environment configuration
    - Troubleshooting tips
 
 6. **[GraphQL Playground](../getting-started/graphql-playground.md)** *(10 min)*
+
    - Interactive testing
    - Writing queries
    - Understanding responses
 
 7. **[Your First API](../getting-started/first-api.md)** *(20 min)*
+
    - Build a real user management API
    - Add authentication
    - Handle errors properly
@@ -68,16 +76,19 @@ Get your hands dirty with actual code:
 Deepen your understanding of key concepts:
 
 8. **[Type System](../core-concepts/type-system.md)** *(15 min)*
+
    - GraphQL types in Python
    - Built-in scalar types
    - Custom type definitions
 
 9. **[Database Views](../core-concepts/database-views.md)** *(15 min)*
+
    - View patterns
    - JSONB optimization
    - Query performance
 
 10. **[Query Translation](../core-concepts/query-translation.md)** *(15 min)*
+
     - GraphQL to SQL conversion
     - N+1 query prevention
     - Performance optimization
@@ -87,6 +98,7 @@ Deepen your understanding of key concepts:
 Put it all together with a real application:
 
 11. **[Blog API Tutorial](../tutorials/blog-api.md)** *(30 min)*
+
     - Complete production example
     - Posts, comments, users
     - Best practices demonstrated
@@ -201,16 +213,19 @@ class User:
 ## Next Steps
 
 ### Continue Learning
+
 - **[Backend Developer Path](backend-developer.md)** - PostgreSQL-focused approach
 - **[Frontend Developer Path](frontend-developer.md)** - Consuming GraphQL APIs
 - **[Migration Path](migrating.md)** - Coming from other frameworks
 
 ### Explore Advanced Topics
+
 - **[Authentication](../advanced/authentication.md)** - User authentication patterns
 - **[Performance](../advanced/performance.md)** - Optimization techniques
 - **[Security](../advanced/security.md)** - Production best practices
 
 ### Get Help
+
 - **[Error Reference](../errors/error-types.md)** - Common errors explained
 - **[Troubleshooting](../errors/troubleshooting.md)** - Solutions to common issues
 - **[API Reference](../api-reference/index.md)** - Complete API documentation

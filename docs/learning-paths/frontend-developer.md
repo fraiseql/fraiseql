@@ -13,6 +13,7 @@ As a frontend developer, you'll love FraiseQL's predictable GraphQL API, strong 
 ## Prerequisites
 
 You should have:
+
 - Experience with GraphQL clients (Apollo, urql, or graphql-request)
 - Understanding of async JavaScript/TypeScript
 - Basic knowledge of API consumption
@@ -25,11 +26,13 @@ You should have:
 Understand FraiseQL's GraphQL implementation:
 
 1. **[GraphQL Playground](../getting-started/graphql-playground.md)** *(10 min)*
+
    - Interactive query testing
    - Schema exploration
    - Documentation browsing
 
 2. **[Type System](../core-concepts/type-system.md)** *(10 min)*
+
    - Available scalar types
    - Custom types
    - Nullability and lists
@@ -39,11 +42,13 @@ Understand FraiseQL's GraphQL implementation:
 Master data fetching patterns:
 
 3. **[Query Examples](#query-examples)** *(15 min)*
+
    - Basic queries
    - Filtering and pagination
    - Nested relationships
 
 4. **[Advanced Queries](#advanced-queries)** *(15 min)*
+
    - Fragments and variables
    - Aliases and directives
    - Batch queries
@@ -53,11 +58,13 @@ Master data fetching patterns:
 Learn to modify data:
 
 5. **[Mutation Patterns](#mutation-patterns)** *(15 min)*
+
    - Creating records
    - Updating data
    - Deleting records
 
 6. **[Error Handling](../errors/handling-patterns.md)** *(15 min)*
+
    - Error types
    - Client-side handling
    - Retry strategies
@@ -67,11 +74,13 @@ Learn to modify data:
 Implement secure API access:
 
 7. **[Authentication](../advanced/authentication.md)** *(10 min)*
+
    - Token management
    - Headers and cookies
    - Refresh patterns
 
 8. **[Security Best Practices](../advanced/security.md)** *(10 min)*
+
    - CSRF protection
    - Rate limiting
    - Field-level permissions
@@ -648,6 +657,7 @@ documents: "src/**/*.graphql"
 generates:
   src/generated/graphql.ts:
     plugins:
+
       - typescript
       - typescript-operations
     config:
@@ -853,15 +863,18 @@ function PostList() {
 ## Next Steps
 
 ### Continue Learning
+
 - **[Backend Developer Path](backend-developer.md)** - Understand the API internals
 - **[Migration Path](migrating.md)** - Migrate from REST or other GraphQL servers
 
 ### Advanced Topics
+
 - **[Caching Strategies](../advanced/lazy-caching.md)** - Server-side caching
 - **[TurboRouter](../advanced/turbo-router.md)** - Performance optimization
 - **[Rate Limiting](../advanced/security.md#rate-limiting)** - API protection
 
 ### Tools & Resources
+
 - [GraphQL Playground](../getting-started/graphql-playground.md) - Interactive testing
 - [Apollo DevTools](https://www.apollographql.com/docs/react/development-testing/developer-tools/) - Browser extension
 - [GraphQL Code Generator](https://graphql-code-generator.com/) - Type generation

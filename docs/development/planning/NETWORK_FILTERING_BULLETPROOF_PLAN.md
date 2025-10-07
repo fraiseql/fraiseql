@@ -5,6 +5,7 @@
 **Problem**: Special type filtering functionality (Network, LTree, DateRange, MAC Address) has triggered **3 distinct releases** with critical failures, damaging FraiseQL's reputation and user trust.
 
 **Impact**:
+
 - Production outages in applications using specialized PostgreSQL types
 - User frustration with inconsistent behavior between test/production environments
 - Framework credibility crisis in enterprise deployments requiring advanced type support
@@ -17,12 +18,14 @@
 ## 🎯 Strategic Objectives
 
 ### Primary Goals
+
 1. **Zero False Positives**: Every special type filter test that passes must work identically in production
 2. **Complete Coverage**: All special type operators work consistently across all supported data patterns
 3. **Predictable Behavior**: Identical results in test environments, staging, and production
 4. **Type Safety**: Robust handling of all PostgreSQL special types (Network, LTree, DateRange, MAC Address)
 
 ### Success Metrics
+
 - ✅ 100% pass rate on comprehensive special types filtering test suite
 - ✅ Identical behavior across all environments (test/staging/production)
 - ✅ Zero regression in existing functionality
@@ -60,12 +63,14 @@ scenarios = ["direct_column", "jsonb_extraction", "materialized_view", "subquery
 ### Micro TDD Cycle 2: JSONB Type Casting for All Special Types
 ```
 RED: Write tests showing JSONB text fails for all special type operations
+
 - Network: JSONB text fails ::inet operations
 - LTree: JSONB text fails ::ltree operations
 - DateRange: JSONB text fails ::daterange operations
 - MacAddress: JSONB text fails ::macaddr operations
 
 GREEN: Implement proper type casting for all special types in JSONB
+
 - Add ::inet casting for network operations
 - Add ::ltree casting for hierarchical operations
 - Add ::daterange casting for temporal operations
@@ -109,11 +114,13 @@ def test_ip_equality_jsonb_fails():
     assert len(result) == 1  # FAILS
 
 GREEN:
+
 - Fix ComparisonOperatorStrategy to handle IP addresses in JSONB
 - Ensure proper ::inet casting for IP comparisons
 - Add IP address validation in strategy selection
 
 REFACTOR:
+
 - Extract IP address handling into reusable utilities
 - Add comprehensive error messages for debugging
 - Optimize SQL generation for IP comparisons
@@ -128,11 +135,13 @@ def test_private_ip_detection_jsonb_fails():
     assert len(result) == 2  # Should find 192.168.1.1 and 10.0.0.1
 
 GREEN:
+
 - Fix NetworkOperatorStrategy.isPrivate for JSONB fields
 - Ensure all private IP ranges are properly detected
 - Add support for IPv6 private ranges
 
 REFACTOR:
+
 - Create constants for all private IP ranges
 - Add utility functions for IP classification
 - Optimize complex OR conditions in SQL
@@ -146,11 +155,13 @@ def test_public_ip_detection_jsonb_fails():
     assert len(result) == 1  # Should find 8.8.8.8
 
 GREEN:
+
 - Fix NetworkOperatorStrategy.isPublic logic
 - Ensure proper inversion of private IP logic
 - Handle edge cases (localhost, link-local, etc.)
 
 REFACTOR:
+
 - Unify private/public detection logic
 - Add comprehensive IP classification tests
 - Document all supported IP ranges
@@ -167,11 +178,13 @@ def test_ltree_hierarchy_jsonb_fails():
     assert len(result) == 2  # Should find "top" and "top.middle"
 
 GREEN:
+
 - Fix LTreeOperatorStrategy for JSONB fields
 - Ensure proper ::ltree casting for hierarchical operations
 - Add support for all ltree operators (ancestor_of, descendant_of, matches_lquery)
 
 REFACTOR:
+
 - Create LTree path utilities and validation
 - Add hierarchical query optimization
 - Document LTree path conventions and examples
@@ -195,11 +208,13 @@ def test_ltree_pattern_matching():
         assert (len(result) > 0) == expected
 
 GREEN:
+
 - Implement LTree pattern matching with lquery and ltxtquery
 - Add pattern validation and error handling
 - Support complex hierarchical pattern queries
 
 REFACTOR:
+
 - Add LTree pattern utilities and validation
 - Optimize pattern matching SQL generation
 - Add comprehensive pattern matching examples
@@ -216,11 +231,13 @@ def test_daterange_operations_jsonb_fails():
     assert len(result) == 1  # Should find range containing this date
 
 GREEN:
+
 - Fix DateRangeOperatorStrategy for JSONB fields
 - Ensure proper ::daterange casting for temporal operations
 - Add support for all range operators (contains_date, overlaps, adjacent, etc.)
 
 REFACTOR:
+
 - Create DateRange utilities and validation
 - Add temporal query optimization
 - Document DateRange usage patterns and examples
@@ -243,11 +260,13 @@ def test_daterange_complex_operations():
         assert isinstance(result, list)
 
 GREEN:
+
 - Implement all DateRange operators with proper PostgreSQL range logic
 - Add range validation and boundary handling
 - Support exclusive/inclusive range boundaries
 
 REFACTOR:
+
 - Add comprehensive DateRange utilities
 - Optimize complex range condition SQL
 - Add range operation performance optimization
@@ -264,11 +283,13 @@ def test_mac_address_jsonb_fails():
     assert len(result) == 1  # Should find exact MAC match
 
 GREEN:
+
 - Fix MacAddressOperatorStrategy for JSONB fields
 - Ensure proper ::macaddr casting for MAC operations
 - Add MAC address format validation and normalization
 
 REFACTOR:
+
 - Create MAC address utilities and validation
 - Add MAC address format standardization
 - Document MAC address usage patterns
@@ -291,11 +312,13 @@ def test_subnet_matching_comprehensive():
         assert (len(result) > 0) == expected
 
 GREEN:
+
 - Implement robust subnet matching with proper CIDR handling
 - Add IPv6 subnet support
 - Handle edge cases (invalid subnets, malformed IPs)
 
 REFACTOR:
+
 - Add subnet validation utilities
 - Optimize SQL for complex subnet queries
 - Add comprehensive error handling
@@ -309,11 +332,13 @@ def test_ip_range_operations():
     assert len(result) == 1  # Should find 8.8.8.8
 
 GREEN:
+
 - Implement IP range comparisons with proper sorting
 - Support both IPv4 and IPv6 ranges
 - Handle range validation and edge cases
 
 REFACTOR:
+
 - Create IP range utilities and validation
 - Optimize range queries for performance
 - Add support for alternative range formats
@@ -374,11 +399,13 @@ def test_malformed_special_type_handling():
                 query(where={field: {operator: bad_value}})
 
 GREEN:
+
 - Add validation for all special types at query construction time
 - Provide clear error messages for invalid inputs of each type
 - Handle type coercion gracefully across all special types
 
 REFACTOR:
+
 - Create comprehensive validation utilities for all special types
 - Add validation middleware for all special type operators
 - Standardize error responses across all special type strategies
@@ -412,11 +439,13 @@ def test_special_type_data_consistency():
     assert all(validate_mac_format(r['mac']) for r in mac_results)
 
 GREEN:
+
 - Ensure all special type filtering logic is mathematically correct
 - Add proper data validation and consistency checks for each type
 - Implement comprehensive result verification across all special types
 
 REFACTOR:
+
 - Create data validation utilities for all special types
 - Add result consistency checking functions for each type
 - Optimize basic special type condition SQL generation
@@ -436,11 +465,13 @@ def test_postgresql_version_compatibility():
             assert len(result) > 0  # Should work across all versions
 
 GREEN:
+
 - Ensure network operators work across all supported PostgreSQL versions
 - Handle version-specific inet/cidr behavior differences
 - Add fallback strategies for older PostgreSQL versions
 
 REFACTOR:
+
 - Create database compatibility testing framework
 - Document minimum PostgreSQL version requirements
 - Add version-specific optimization strategies
@@ -473,11 +504,13 @@ def test_different_schema_patterns_all_types():
                 assert len(result) >= 0  # Should not crash with any pattern
 
 GREEN:
+
 - Support all common special type storage patterns across all types
 - Add automatic schema pattern detection for each special type
 - Implement appropriate SQL generation for each pattern and type combination
 
 REFACTOR:
+
 - Create schema pattern detection utilities for all special types
 - Add comprehensive pattern documentation covering all type/pattern combinations
 - Standardize handling across different storage approaches and types
@@ -516,11 +549,13 @@ def test_complex_network_queries():
         assert isinstance(result, list)  # Should not crash
 
 GREEN:
+
 - Implement support for complex network query combinations
 - Ensure proper SQL generation for nested conditions
 - Add optimization for common query patterns
 
 REFACTOR:
+
 - Create query pattern optimization utilities
 - Add query complexity analysis and warnings
 - Implement query result caching for expensive operations
@@ -548,11 +583,13 @@ def test_production_data_patterns():
             validate_result_consistency(result, pattern)
 
 GREEN:
+
 - Ensure all production query patterns work correctly
 - Add proper result validation for complex queries
 - Implement consistent behavior across pattern types
 
 REFACTOR:
+
 - Create production pattern testing utilities
 - Add query pattern optimization
 - Document best practices for common patterns
@@ -599,6 +636,7 @@ test_matrix = {
 ## Phase 5B: Documentation & Runbooks (Duration: 1 day)
 
 ### Required Deliverables
+
 1. **Special Types Complete Guide** - Every operator for all types with examples
 2. **Troubleshooting Runbook** - Step-by-step debugging for all special type failures
 3. **Performance Optimization Guide** - Best practices for each special type
@@ -618,6 +656,7 @@ test_matrix = {
 🔴 RED: Create failing test that exactly reproduces the production failure
 
 Test Requirements:
+
 - [ ] Exact production data patterns (JSONB with special type values)
 - [ ] Realistic query volumes and complexity across all special types
 - [ ] Multiple PostgreSQL versions (12-17)
@@ -626,6 +665,7 @@ Test Requirements:
 - [ ] Consistent behavior requirements across all types
 
 Expected Failure Mode:
+
 - Special type filtering returns empty results despite valid data
 - SQL generation errors with type casting (::inet, ::ltree, ::daterange, ::macaddr)
 - Strategy selection chooses wrong operator handler for each type
@@ -639,6 +679,7 @@ Test Must Fail Before Any Code Changes!
 🟢 GREEN: Implement minimal code to make test pass
 
 Implementation Requirements:
+
 - [ ] Fix strategy selection to properly route all special type operators
 - [ ] Add proper type casting for all JSONB special type fields (::inet, ::ltree, ::daterange, ::macaddr)
 - [ ] Implement robust validation and error handling for all special types
@@ -654,6 +695,7 @@ Code must be ugly but functional - refactoring comes next.
 🔵 REFACTOR: Clean up code while maintaining passing tests
 
 Refactoring Requirements:
+
 - [ ] Extract reusable utilities and constants for all special types
 - [ ] Optimize SQL generation for all special type operations
 - [ ] Add comprehensive error handling and validation for each type
@@ -672,30 +714,35 @@ No new functionality - only improve existing working code.
 ## Pre-Release Validation Checklist
 
 ### Core Functionality ✅
+
 - [ ] All 2,880 test combinations pass at 100%
 - [ ] Identical behavior verified across test/staging/production
 - [ ] Performance benchmarks meet or exceed requirements
 - [ ] Memory usage and connection handling optimized
 
 ### Adverse Conditions ✅
+
 - [ ] Malformed input handling with clear error messages
 - [ ] Schema pattern compatibility across different storage approaches
 - [ ] Data validation and consistency across realistic datasets
 - [ ] PostgreSQL version compatibility (12-17)
 
 ### Production Readiness ✅
+
 - [ ] Comprehensive monitoring and alerting implemented
 - [ ] Troubleshooting runbooks tested by separate team
 - [ ] Migration path validated on production-like data
 - [ ] Rollback procedures tested and documented
 
 ### Documentation ✅
+
 - [ ] Complete API documentation with all network operators
 - [ ] Performance optimization guide for large datasets
 - [ ] Troubleshooting guide tested by independent team
 - [ ] Example code validated in separate test environment
 
 ## Success Metrics
+
 - **Zero Production Incidents** related to any special type filtering
 - **100% Test Pass Rate** across all environments and all special types
 - **Consistent Behavior** across all schema patterns, PostgreSQL versions, and special types
@@ -706,6 +753,7 @@ No new functionality - only improve existing working code.
 # ⚡ Emergency Protocols
 
 ## If Any Phase Fails
+
 1. **STOP ALL DEVELOPMENT** - Do not proceed to next phase
 2. **Root Cause Analysis** - Document exact failure mode
 3. **Fix & Validate** - Ensure fix works across all test scenarios

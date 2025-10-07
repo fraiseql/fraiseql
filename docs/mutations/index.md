@@ -24,12 +24,14 @@ For production applications requiring audit trails, field-level change tracking,
 ## Philosophy
 
 In FraiseQL's CQRS architecture:
+
 - **Queries** read from views (`v_` prefix)
 - **Mutations** execute PostgreSQL functions (`fn_` prefix)
 - **Tables** (`tb_` prefix) are only modified through functions
 - Business logic lives in the database for consistency
 
 This design ensures:
+
 - Transactional consistency
 - Centralized validation
 - Database-enforced constraints
@@ -646,6 +648,7 @@ $$ LANGUAGE plpgsql;
 ## Summary
 
 FraiseQL's mutation pattern provides:
+
 - **Transactional consistency** through PostgreSQL functions
 - **Type safety** with Python type hints and GraphQL schema
 - **Clear error handling** with union return types

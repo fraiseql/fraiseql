@@ -65,6 +65,7 @@ extensions = {
 ```
 
 ### Performance Benefits
+
 - **70% bandwidth reduction** for large queries
 - **99.9% cache hit rates** in production
 - **Client-side caching** with localStorage/IndexedDB
@@ -118,6 +119,7 @@ turbo_query = TurboQuery(
 ```
 
 ### Performance Benefits
+
 - **4-10x faster** than standard GraphQL execution
 - **Predictable latency** with pre-compiled queries
 - **Lower CPU usage** (no parsing overhead)
@@ -160,6 +162,7 @@ def get_user(id: UUID) -> JSONPassthrough[User]:
 ```
 
 ### Performance Benefits
+
 - **5-20x faster** than object instantiation
 - **Sub-millisecond responses** for simple queries
 - **Lower memory usage** (no object creation)
@@ -324,6 +327,7 @@ config = FraiseQLConfig(
 ```python
 # Symptoms: <50% turbo execution rate
 # Solutions:
+
 1. # Identify hot queries for registration
    SELECT query_hash, COUNT(*) as frequency
    FROM query_logs
@@ -440,6 +444,7 @@ optimized_throughput = 5000 req/s  # 5x improvement
 ```
 
 ### Development Velocity Impact
+
 - **Faster local development** (passthrough mode)
 - **Predictable performance** (TurboRouter)
 - **Simplified client logic** (APQ)
@@ -448,17 +453,21 @@ optimized_throughput = 5000 req/s  # 5x improvement
 ## Future Roadmap
 
 ### Planned Enhancements
+
 1. **Machine Learning Query Classification**
+
    - Automatic TurboRouter registration based on usage patterns
    - Dynamic complexity limit adjustment
    - Predictive passthrough eligibility
 
 2. **Advanced Caching Strategies**
+
    - Multi-tier APQ storage (memory + PostgreSQL + Redis)
    - Intelligent cache warming
    - Cross-query dependency tracking
 
 3. **Query Optimization Hints**
+
    - Inline performance directives
    - Query plan visualization
    - Automatic query rewriting

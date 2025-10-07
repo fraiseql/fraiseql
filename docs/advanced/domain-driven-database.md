@@ -194,6 +194,7 @@ async def create_order(
 ```
 
 The architecture benefits:
+
 1. **Type safety** in Python with GraphQL schema generation
 2. **Flexible JSONB** parameters in PostgreSQL for easy evolution
 3. **Thin Python layer** that mainly handles type conversion

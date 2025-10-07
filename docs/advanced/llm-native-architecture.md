@@ -17,6 +17,7 @@ FraiseQL treats AI systems as primary API consumers, not secondary integrations.
 ### Human + AI Collaboration
 
 The architecture supports both human developers and AI systems working together:
+
 - Humans design the domain model and business rules
 - AI generates queries, mutations, and client code
 - Database enforces correctness regardless of who wrote the code
@@ -88,6 +89,7 @@ COMMENT ON VIEW v_subscription_plans IS
 'Subscription plans available for purchase. Includes calculated yearly discount percentage
 and normalized limits structure. Use this view for plan selection UI and billing flows.
 Example queries:
+
 - Find plans under $50/month: WHERE monthly_price < 50
 - Find plans with API access: WHERE (data->''features''->>''api_access'')::boolean = true
 - Find unlimited plans: WHERE (data->''limits''->>''unlimited_users'')::boolean = true';
@@ -197,6 +199,7 @@ COMMENT ON VIEW v_customer_analytics IS
 'Comprehensive customer analytics including lifetime value, purchase patterns, and automatic segmentation.
 
 AI Query Examples:
+
 - Find high-value customers: WHERE (data->''metrics''->>''lifetime_value'')::numeric > 10000
 - Find recent customers: WHERE created_at > NOW() - INTERVAL ''30 days''
 - Find customers who haven''t purchased recently: WHERE (data->''metrics''->>''days_since_last_purchase'')::int > 90
@@ -205,6 +208,7 @@ AI Query Examples:
 - Customer cohort analysis: GROUP BY DATE_TRUNC(''month'', created_at)
 
 Business Use Cases:
+
 - Customer segmentation for marketing campaigns
 - Churn prediction (customers with high days_since_last_purchase)
 - Lifetime value optimization
@@ -259,6 +263,7 @@ COMMENT ON VIEW v_orders_filterable IS
 'Orders with consistent filtering patterns. All filter columns are exposed for standard queries.
 
 Standard Filter Patterns:
+
 - By customer: WHERE customer_id = $1
 - By status: WHERE status = $1 or WHERE status IN ($1, $2, $3)
 - By date range: WHERE created_at >= $1 AND created_at <= $2
@@ -335,6 +340,7 @@ COMMENT ON VIEW v_sales_aggregations IS
 'Sales metrics aggregated by time period. Supports daily and weekly aggregations.
 
 AI Query Patterns:
+
 - Last 30 days daily: WHERE period_type = ''daily'' AND period >= CURRENT_DATE - 30
 - This week: WHERE period_type = ''weekly'' AND period = DATE_TRUNC(''week'', CURRENT_DATE)
 - Revenue trend: ORDER BY period to see growth over time
@@ -342,6 +348,7 @@ AI Query Patterns:
 - Customer acquisition: Focus on new_customers metric
 
 Combine with other filters:
+
 - High revenue days: WHERE (data->''metrics''->>''total_revenue'')::numeric > 10000
 - Low order days: WHERE (data->''metrics''->>''total_orders'')::int < 10';
 ```
@@ -438,6 +445,7 @@ COMMENT ON VIEW v_products_nlp_friendly IS
 'Product catalog optimized for natural language queries and AI understanding.
 
 Natural Language Query Mappings:
+
 - "expensive products" → WHERE (data->''price''->>''is_expensive'')::boolean = true
 - "budget products" → WHERE (data->''price''->>''is_budget_friendly'')::boolean = true
 - "out of stock items" → WHERE data->''availability''->>''stock_level'' = ''out_of_stock''
@@ -513,6 +521,7 @@ COMMENT ON VIEW v_business_insights IS
 'Business insights derived from customer behavior patterns. Designed for AI to answer natural language business questions.
 
 Natural Language Questions Supported:
+
 - "Which customers are at risk of churning?" → WHERE data->''risk_score'' IN (''high'', ''medium'')
 - "Who are our high-value customers at risk?" → WHERE data->''risk_score'' = ''high'' AND (data->''metrics''->>''lifetime_value'')::numeric > 1000
 - "What should we do about churning customers?" → Look at data->''recommendations''
@@ -606,12 +615,14 @@ COMMENT ON VIEW v_orders_typed IS
 'Strongly typed orders view with validation helpers. AI can safely query this without type errors.
 
 Type-Safe Query Examples:
+
 - Valid statuses only: WHERE status = ''pending'' (will error if invalid status used)
 - Status transitions: Use status_info to check what operations are allowed
 - Date validation: All date constraints are enforced at database level
 - Amount validation: total_amount is guaranteed to be >= 0
 
 AI Benefits:
+
 - Cannot insert invalid enum values
 - Cannot set negative amounts
 - Cannot set delivered_at before shipped_at
@@ -746,6 +757,7 @@ COMMENT ON FUNCTION fn_change_subscription_plan IS
 'Safely changes customer subscription plans with automatic validation and business rule enforcement.
 
 AI Usage:
+
 - All business rules are enforced by database constraints
 - Function handles upgrade/downgrade logic automatically
 - Cannot create invalid changes (same plan, past dates, etc.)
@@ -939,6 +951,7 @@ COMMENT ON VIEW v_customers_with_operations IS
 'Customer data with operation metadata to guide AI interactions.
 
 AI Usage:
+
 - Check available_operations before attempting operations
 - Use state_transitions to understand valid next states
 - Use related_operations to discover related endpoints
@@ -1166,6 +1179,7 @@ class FraiseQLQueryEngine:
         Generate a PostgreSQL query to answer: {question}
 
         Use these FraiseQL conventions:
+
         - Query views (v_*) not tables (tb_*)
         - Extract data from JSONB 'data' column
         - Use proper JSONB operators (->>, ->, ?)
@@ -1444,6 +1458,7 @@ COMMENT ON VIEW v_customers_ai_optimized IS
 'AI-optimized customer view with pre-computed segments and fast filtering.
 
 Optimized AI Query Patterns:
+
 - Segment filtering: WHERE segment = ''vip''
 - Value range: WHERE lifetime_value BETWEEN 1000 AND 5000
 - Churn analysis: WHERE days_since_last_order > 90

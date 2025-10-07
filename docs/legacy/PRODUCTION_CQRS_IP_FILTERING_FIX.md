@@ -72,22 +72,26 @@ if is_ip_list_without_field_type:
 ## Key Features
 
 ### ✅ Automatic IP Detection
+
 - Uses sophisticated IP address pattern matching
 - Supports IPv4 and IPv6 addresses
 - Handles CIDR notation
 - Works without field_type information
 
 ### ✅ Production CQRS Support
+
 - Specifically designed for missing field_type scenarios
 - Handles `data->>'ip_address'` JSONB extraction patterns
 - Compatible with existing `NetworkOperatorStrategy` behavior
 
 ### ✅ PostgreSQL Compatibility
+
 - Ensures both sides of comparisons use `::inet` casting
 - Generates valid PostgreSQL network operation SQL
 - Works with all IP-based operators
 
 ### ✅ Zero Regression Risk
+
 - Only activates when field_type is missing
 - Preserves existing behavior when field_type is provided
 - Maintains backward compatibility with all existing tests
@@ -102,6 +106,7 @@ if is_ip_list_without_field_type:
 ## Production Impact
 
 This fix resolves the critical production issue where:
+
 - ✅ DNS server IP filtering now works correctly
 - ✅ Network management functionality restored
 - ✅ IP-based security filtering operational

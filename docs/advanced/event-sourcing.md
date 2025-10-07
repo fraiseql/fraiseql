@@ -457,16 +457,19 @@ $$ LANGUAGE plpgsql;
 ## Event Sourcing Benefits
 
 ### Complete Audit Trail
+
 - Every change is recorded with timestamp and user
 - Full history available for compliance and debugging
 - Immutable event log prevents data tampering
 
 ### Time Travel Capabilities
+
 - Reconstruct any past state
 - Debug issues by examining historical states
 - Temporal queries and analysis
 
 ### Flexible Read Models
+
 - Multiple projections from same events
 - Add new read models without data migration
 - Optimized views for different use cases
@@ -503,6 +506,7 @@ def apply_event(self, event_type: str, event_data: dict, version: int = 1):
 ```
 
 ### Performance Considerations
+
 - Use snapshots for long event streams
 - Index events by stream_id and created_at
 - Consider event archival for old streams
@@ -511,16 +515,19 @@ def apply_event(self, event_type: str, event_data: dict, version: int = 1):
 ## See Also
 
 ### Related Concepts
+
 - [**CQRS Implementation**](cqrs.md) - Command Query Responsibility Segregation
 - [**Audit Logging**](../security.md#audit-logging) - Security audit trails
 - [**Database Views**](../core-concepts/database-views.md) - Read model patterns
 
 ### Implementation
+
 - [**PostgreSQL Functions**](../mutations/postgresql-function-based.md) - Command implementation
 - [**Testing Event Sourced Systems**](../testing/integration-testing.md) - Testing strategies
 - [**Performance Tuning**](performance.md) - Event store optimization
 
 ### Advanced Topics
+
 - [**Bounded Contexts**](bounded-contexts.md) - Context boundaries
 - [**Domain-Driven Design**](database-api-patterns.md) - DDD patterns
 - [**Multi-tenancy**](multi-tenancy.md) - Multi-tenant event stores

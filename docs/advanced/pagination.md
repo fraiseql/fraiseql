@@ -50,11 +50,13 @@ result = await app.repository.query(
 **When to use**: Small datasets, simple UIs, prototyping
 
 **Pros**:
+
 - Dead simple to implement
 - Works with any ordering
 - Easy to jump to specific pages
 
 **Cons**:
+
 - Performance degrades with large offsets
 - Can miss or duplicate items if data changes
 - Not suitable for real-time data
@@ -123,12 +125,14 @@ async def get_products(pagination: OffsetPagination, category: str | None = None
 **When to use**: Large datasets, infinite scroll, real-time feeds, GraphQL APIs
 
 **Pros**:
+
 - Consistent performance regardless of position
 - No missed/duplicate items
 - Perfect for GraphQL Relay spec
 - Supports bi-directional navigation
 
 **Cons**:
+
 - Can't jump to arbitrary pages
 - Slightly more complex implementation
 - Requires unique, orderable field
@@ -262,12 +266,14 @@ type PageInfo {
 **When to use**: Very large tables (millions of rows), consistent read performance, data exports
 
 **Pros**:
+
 - Best performance for large datasets
 - Consistent query time
 - Works well with indexes
 - No offset performance penalty
 
 **Cons**:
+
 - Requires stable sort order
 - Complex for multi-column sorting
 - No backward navigation without reversing

@@ -7,12 +7,14 @@ Understanding why FraiseQL works the way it does helps you leverage its full pow
 **Decision**: FraiseQL only supports PostgreSQL, not multiple databases.
 
 **Reasoning**:
+
 - PostgreSQL's advanced features (JSONB, views, functions, CTEs) enable incredible performance optimizations
 - Single database focus means we can leverage PostgreSQL-specific features fully
 - 90% of applications only use one database anyway
 - PostgreSQL has become the de facto standard for modern applications
 
 **Trade-offs**:
+
 - ✅ **Pro**: 10-100x better performance through PostgreSQL-specific optimizations
 - ✅ **Pro**: Simpler codebase, fewer bugs, faster development
 - ✅ **Pro**: Can use advanced features like JSONB, arrays, full-text search
@@ -27,12 +29,14 @@ Your API responses complete in 1-10ms instead of 50-500ms. Complex queries that 
 **Decision**: Use PostgreSQL views (`v_`) as the primary abstraction layer, not ORM models.
 
 **Reasoning**:
+
 - Views are declarative - you describe what you want, PostgreSQL figures out how to get it
 - Database optimizer has full visibility into your query patterns
 - Views can be indexed, materialized, and optimized at the database level
 - No impedance mismatch between objects and relations
 
 **Trade-offs**:
+
 - ✅ **Pro**: Predictable, optimizable performance
 - ✅ **Pro**: Full power of SQL available (window functions, CTEs, etc.)
 - ✅ **Pro**: Changes to views don't require application restarts
@@ -63,6 +67,7 @@ FROM users u;
 **Decision**: Every view returns a single `data` column containing JSONB.
 
 **Reasoning**:
+
 - JSONB perfectly matches GraphQL's nested structure
 - PostgreSQL can index and query inside JSONB efficiently
 - Allows schema evolution without migrations
@@ -70,6 +75,7 @@ FROM users u;
 - **Views can compose other views' pre-built JSONB structures**
 
 **Trade-offs**:
+
 - ✅ **Pro**: Direct GraphQL to JSON mapping
 - ✅ **Pro**: Flexible schema evolution
 - ✅ **Pro**: Native PostgreSQL indexing support
@@ -123,18 +129,21 @@ FROM posts p;
 ## Why Separate Tables from Views?
 
 **Decision**: Use prefixes to distinguish object types:
+
 - `tb_` for tables (source data)
 - `v_` for views (GraphQL queries)
 - `tv_` for table views (denormalized entities)
 - `fn_` for functions (mutations)
 
 **Reasoning**:
+
 - Clear separation of concerns
 - Instantly know an object's purpose from its name
 - Can have multiple views of the same table
 - Easier to manage permissions and optimization
 
 **Trade-offs**:
+
 - ✅ **Pro**: Clear code organization
 - ✅ **Pro**: Multiple API shapes from same data
 - ✅ **Pro**: Easy to identify performance bottlenecks
@@ -183,12 +192,14 @@ FROM tb_users u;
 **Decision**: All mutations are PostgreSQL functions (`fn_`), not direct table writes.
 
 **Reasoning**:
+
 - Functions encapsulate business logic at the database level
 - Atomic operations with proper transaction handling
 - Can return complex results (created entity + side effects)
 - Built-in validation and error handling
 
 **Trade-offs**:
+
 - ✅ **Pro**: Guaranteed data consistency
 - ✅ **Pro**: Complex business logic in transactions
 - ✅ **Pro**: Reusable across different APIs
@@ -239,12 +250,14 @@ $$ LANGUAGE plpgsql;
 **Decision**: Use table views (`tv_`) as materialized, denormalized entities for extreme performance.
 
 **Reasoning**:
+
 - Pre-compute expensive joins and aggregations
 - Serve complex queries from a single table scan
 - Trade storage (cheap) for computation (expensive)
 - Enable sub-millisecond response times
 
 **Trade-offs**:
+
 - ✅ **Pro**: 50-100x performance improvement
 - ✅ **Pro**: Predictable query performance
 - ✅ **Pro**: Reduced database CPU usage
@@ -267,12 +280,14 @@ SELECT data FROM tv_user WHERE id = $1;
 **Decision**: Separate write models (normalized tables) from read models (denormalized views).
 
 **Reasoning**:
+
 - Optimize reads and writes independently
 - Most applications are read-heavy (90%+ reads)
 - Can scale read and write paths differently
 - Matches how developers think about APIs
 
 **Trade-offs**:
+
 - ✅ **Pro**: Optimal performance for both reads and writes
 - ✅ **Pro**: Clear separation of concerns
 - ✅ **Pro**: Can evolve read/write models independently
@@ -280,6 +295,7 @@ SELECT data FROM tv_user WHERE id = $1;
 - ❌ **Con**: Eventual consistency considerations
 
 **Real-world impact**:
+
 - Writes go to normalized tables with full constraints
 - Reads come from optimized views/table views
 - Can handle 100,000+ reads/second from table views
@@ -290,6 +306,7 @@ SELECT data FROM tv_user WHERE id = $1;
 **Decision**: Built FraiseQL in Python rather than Node.js/TypeScript.
 
 **Reasoning**:
+
 - Python has excellent PostgreSQL support (asyncpg, psycopg3)
 - Strong typing with Python 3.10+ and mypy
 - Rich ecosystem for data processing and analytics
@@ -297,6 +314,7 @@ SELECT data FROM tv_user WHERE id = $1;
 - Better integration with data science tools
 
 **Trade-offs**:
+
 - ✅ **Pro**: Excellent PostgreSQL drivers
 - ✅ **Pro**: Clean async/await without callback hell
 - ✅ **Pro**: Type hints provide IDE support

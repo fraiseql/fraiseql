@@ -33,6 +33,7 @@ httpx>=0.25.0              # HTTP client for GraphQL requests
 
 ### 1. Unit Tests
 Test individual components in isolation:
+
 - **Type Validation**: FraiseQL types and their field validations
 - **Query Resolvers**: Logic without database interactions (mocked)
 - **Mutation Handlers**: Business logic with mocked dependencies
@@ -40,6 +41,7 @@ Test individual components in isolation:
 
 ### 2. Integration Tests
 Test component interactions with real databases:
+
 - **Repository Operations**: CRUD operations with PostgreSQL
 - **Transaction Handling**: Rollback behavior and isolation
 - **Database Function Calls**: PostgreSQL stored procedures
@@ -47,6 +49,7 @@ Test component interactions with real databases:
 
 ### 3. GraphQL API Tests
 End-to-end testing of the GraphQL API:
+
 - **Query Execution**: Full GraphQL query processing
 - **Mutation Operations**: Complete mutation workflows
 - **Error Handling**: GraphQL error responses and codes
@@ -55,6 +58,7 @@ End-to-end testing of the GraphQL API:
 
 ### 4. Performance Tests
 Ensure your API meets performance requirements:
+
 - **Response Time Testing**: Latency measurements
 - **Load Testing**: Concurrent user simulation
 - **Query Optimization**: N+1 detection and prevention
@@ -202,9 +206,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
+
           - 5432:5432
 
     steps:
+
     - uses: actions/checkout@v4
 
     - name: Set up Python

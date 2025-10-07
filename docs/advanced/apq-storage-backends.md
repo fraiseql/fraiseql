@@ -43,6 +43,7 @@ app = create_fraiseql_app(types=[User], config=config)
 ```
 
 **Characteristics:**
+
 - **Zero configuration** - works out of the box
 - **Lightning fast** - O(1) dictionary lookup
 - **Memory efficient** - LRU eviction with size limits
@@ -65,6 +66,7 @@ app = create_fraiseql_app(types=[User], config=config)
 ```
 
 **Characteristics:**
+
 - **Persistent storage** - queries survive restarts
 - **Multi-instance coordination** - shared cache across all instances
 - **Automatic cleanup** - configurable TTL and maintenance
@@ -218,6 +220,7 @@ config = FraiseQLConfig(
 | Cleanup | O(n) during eviction | Minimal overhead |
 
 **Benchmark Results:**
+
 - **Lookup**: ~0.01ms per operation
 - **Storage**: ~0.02ms per operation
 - **Memory**: ~1KB per cached query
@@ -232,6 +235,7 @@ config = FraiseQLConfig(
 | Cleanup | O(n) batch | Background |
 
 **Benchmark Results:**
+
 - **Lookup**: ~1-2ms per operation
 - **Storage**: ~2-3ms per operation
 - **Throughput**: 1,000-5,000 operations/second
@@ -280,15 +284,20 @@ spec:
   template:
     spec:
       containers:
+
       - name: api
         image: myapp/fraiseql:latest
         env:
+
         - name: FRAISEQL_APQ_STORAGE_BACKEND
           value: "postgresql"
+
         - name: FRAISEQL_APQ_STORAGE_SCHEMA
           value: "apq_shared"
+
         - name: FRAISEQL_APQ_POSTGRES_TTL
           value: "86400"
+
         - name: FRAISEQL_JSON_PASSTHROUGH_ENABLED
           value: "true"
 ```
@@ -337,6 +346,7 @@ LIMIT 10;
 **Symptoms:** Gradual memory increase over time
 
 **Solutions:**
+
 1. Reduce `apq_memory_max_size`
 2. Lower `apq_memory_ttl`
 3. Enable more frequent cleanup
@@ -354,6 +364,7 @@ config = FraiseQLConfig(
 **Symptoms:** Increased response times for cached queries
 
 **Solutions:**
+
 1. Add database indexes
 2. Optimize cleanup frequency
 3. Use connection pooling
@@ -370,6 +381,7 @@ CREATE INDEX CONCURRENTLY idx_apq_storage_hash_partial
 **Symptoms:** Low cache hit rates, poor performance
 
 **Solutions:**
+
 1. Increase cache size/TTL
 2. Implement cache warming
 3. Monitor query patterns

@@ -774,6 +774,7 @@ async def test_user_authorization_for_post_editing(self, authenticated_user, oth
 
     This test verifies that the authorization system correctly prevents
     users from editing posts that belong to other users. It should:
+
     1. Allow users to edit their own posts
     2. Prevent users from editing others' posts
     3. Return appropriate error codes for unauthorized attempts
@@ -783,6 +784,7 @@ async def test_user_authorization_for_post_editing(self, authenticated_user, oth
         other_user_post: Fixture providing a post by a different user
 
     Expected behavior:
+
         - Attempting to edit another user's post should raise PermissionError
         - Error should include the specific post ID and user ID
         - Original post should remain unchanged
@@ -795,12 +797,14 @@ async def test_database_connection_pool_under_load(self, database_url):
     Test that database connection pool handles concurrent load properly.
 
     This test creates 50 concurrent database operations to verify:
+
     1. Connection pool doesn't leak connections
     2. All operations complete successfully
     3. Performance remains acceptable under load
     4. Pool properly queues requests when at capacity
 
     Performance expectations:
+
         - All 50 operations should complete within 10 seconds
         - No connection leaks (verified by checking pg_stat_activity)
         - Error rate should be 0%
@@ -892,9 +896,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
+
           - 5432:5432
 
     steps:
+
     - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
