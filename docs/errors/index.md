@@ -24,6 +24,7 @@ FraiseQL implements a dual-layer error system:
 
 ### Core Exceptions
 Lightweight exceptions for internal operations:
+
 - `FraiseQLError` - Base exception class
 - `SchemaError` - Schema-related issues
 - `ValidationError` - Input validation failures
@@ -32,6 +33,7 @@ Lightweight exceptions for internal operations:
 
 ### Enhanced Exceptions
 Rich, context-aware exceptions with:
+
 - Query context information
 - Helpful resolution hints
 - Structured error codes
@@ -110,12 +112,14 @@ FraiseQL returns errors in standard GraphQL format:
 ## Production vs Development
 
 ### Development Mode
+
 - Full error details with stack traces
 - SQL query context
 - Helpful hints and suggestions
 - Documentation links
 
 ### Production Mode
+
 - Sanitized error messages
 - No internal details leaked
 - Structured error codes for clients

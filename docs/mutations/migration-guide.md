@@ -621,6 +621,7 @@ async def test_create_post_mutation():
 ## Migration Checklist
 
 ### Pre-Migration
+
 - [ ] Identify all mutations to migrate
 - [ ] Document current business logic
 - [ ] Map error codes and messages
@@ -628,6 +629,7 @@ async def test_create_post_mutation():
 - [ ] Design return types
 
 ### Function Creation
+
 - [ ] Follow `fn_` naming convention
 - [ ] Accept JSON input parameter
 - [ ] Return JSON with success/error structure
@@ -637,6 +639,7 @@ async def test_create_post_mutation():
 - [ ] Use transactions appropriately
 
 ### Python Integration
+
 - [ ] Define input types with `@input`
 - [ ] Create success types with `@success`
 - [ ] Create failure types with `@failure`
@@ -646,6 +649,7 @@ async def test_create_post_mutation():
 - [ ] Handle context properly
 
 ### Testing
+
 - [ ] Write SQL function tests
 - [ ] Create integration tests
 - [ ] Test error cases
@@ -655,6 +659,7 @@ async def test_create_post_mutation():
 - [ ] Validate performance
 
 ### Documentation
+
 - [ ] Document function parameters
 - [ ] Explain business logic
 - [ ] List error codes

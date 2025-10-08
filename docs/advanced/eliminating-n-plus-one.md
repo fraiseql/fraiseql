@@ -128,6 +128,7 @@ Queries: 11 similar queries in 0.23s
 Average execution time: 0.021s per query
 
 Suggested solutions:
+
 1. Use a DataLoader:
    @dataloader_field(UserDataLoader, key_field="author_id")
    async def author(self, info) -> User:

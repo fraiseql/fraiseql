@@ -5,18 +5,21 @@ Learn how to migrate your existing GraphQL APIs to FraiseQL's database-first app
 ## Why Migrate to FraiseQL?
 
 ### Performance Benefits
+
 - **4-100x faster** query execution compared to resolver-based approaches
 - **No N+1 queries** - Single SQL query per GraphQL request
 - **Reduced latency** - Direct database to GraphQL translation
 - **Lower resource usage** - No ORM overhead or resolver chains
 
 ### Development Benefits
+
 - **Simpler architecture** - Remove layers of abstraction
 - **Type safety** - Database schema drives GraphQL schema
 - **CQRS pattern** - Clear separation of reads and writes
 - **PostgreSQL power** - Leverage advanced database features
 
 ### Operational Benefits
+
 - **Predictable performance** - SQL EXPLAIN for every query
 - **Easier debugging** - Trace directly to SQL
 - **Better caching** - Three-layer caching strategy
@@ -38,21 +41,25 @@ graph LR
 ```
 
 **Phase 1: Analytics & Reporting** (Week 1-2)
+
 - Migrate read-only queries
 - Create materialized views for complex aggregations
 - Keep existing mutations unchanged
 
 **Phase 2: CRUD Operations** (Week 3-4)
+
 - Migrate simple CRUD queries
 - Create PostgreSQL functions for mutations
 - Run both systems in parallel
 
 **Phase 3: Complex Business Logic** (Week 5-6)
+
 - Migrate complex queries with joins
 - Convert business logic to PostgreSQL functions
 - Implement transaction patterns
 
 **Phase 4: Cleanup** (Week 7)
+
 - Remove old resolver code
 - Optimize views and indexes
 - Performance testing
@@ -90,6 +97,7 @@ services:
   main-api:
     image: existing-graphql-api
     ports:
+
       - "4000:4000"
 
   analytics-api:
@@ -97,14 +105,17 @@ services:
     environment:
       DATABASE_URL: "postgresql://..."
     ports:
+
       - "4001:4001"
 
   api-gateway:
     image: apollo-gateway
     environment:
       SERVICES: |
+
         - name: main
           url: http://main-api:4000
+
         - name: analytics
           url: http://analytics-api:4001
 ```
@@ -622,6 +633,7 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_change();
 ## Migration Checklist
 
 ### Pre-Migration
+
 - [ ] Analyze current schema complexity
 - [ ] Identify performance bottlenecks
 - [ ] Document business logic
@@ -629,6 +641,7 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_change();
 - [ ] Choose migration strategy
 
 ### Database Setup
+
 - [ ] Design tables with proper normalization
 - [ ] Create views following FraiseQL patterns
 - [ ] Implement PostgreSQL functions for mutations
@@ -636,6 +649,7 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_change();
 - [ ] Set up row-level security if needed
 
 ### Implementation
+
 - [ ] Migrate read operations first
 - [ ] Convert mutations to functions
 - [ ] Implement authentication patterns
@@ -643,6 +657,7 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_change();
 - [ ] Set up monitoring
 
 ### Testing
+
 - [ ] Compare outputs with existing API
 - [ ] Benchmark performance improvements
 - [ ] Test error handling
@@ -650,6 +665,7 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_change();
 - [ ] Load test at scale
 
 ### Deployment
+
 - [ ] Run parallel for validation period
 - [ ] Gradual traffic migration
 - [ ] Monitor error rates
@@ -659,18 +675,21 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_change();
 ## Success Stories
 
 ### E-commerce Platform
+
 - **Before:** 500ms average query time, 50 req/s max
 - **After:** 50ms average query time, 500 req/s max
 - **Migration time:** 4 weeks
 - **Strategy:** Gradual migration starting with product catalog
 
 ### Analytics Dashboard
+
 - **Before:** 3-5 second load times for dashboards
 - **After:** 200-300ms with materialized views
 - **Migration time:** 2 weeks
 - **Strategy:** Complete rewrite using CQRS pattern
 
 ### Social Media API
+
 - **Before:** Severe N+1 problems with feeds
 - **After:** Single query for entire feed
 - **Migration time:** 6 weeks
@@ -679,21 +698,25 @@ FOR EACH ROW EXECUTE FUNCTION notify_post_change();
 ## Next Steps
 
 1. **Start with Analysis**
+
    - Run the schema analyzer on your existing API
    - Identify the most expensive queries
    - Plan your migration phases
 
 2. **Proof of Concept**
+
    - Pick one complex query
    - Create the necessary views
    - Compare performance
 
 3. **Plan the Migration**
+
    - Choose your strategy
    - Set up parallel infrastructure
    - Create migration scripts
 
 4. **Execute Gradually**
+
    - Start with read operations
    - Add mutations incrementally
    - Monitor continuously

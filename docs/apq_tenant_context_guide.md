@@ -9,6 +9,7 @@ FraiseQL provides built-in tenant-aware caching for Automatic Persisted Queries 
 ### Automatic Tenant Isolation
 
 When you pass context with tenant information to APQ operations, FraiseQL automatically:
+
 - Generates tenant-specific cache keys
 - Isolates cached responses between tenants
 - Prevents cross-tenant data leakage
@@ -167,6 +168,7 @@ Tenant caching: N queries × M tenants cached (isolated per tenant)
 ### Memory Management
 
 For high-tenant-count applications, consider:
+
 - Implementing cache eviction policies (LRU, TTL)
 - Using external cache stores (Redis, PostgreSQL)
 - Monitoring memory usage per tenant
@@ -248,6 +250,7 @@ response = backend.get_cached_response(hash_value, context=context)
 ## Support
 
 For issues or questions:
+
 - GitHub Issues: https://github.com/fraiseql/fraiseql/issues
 - Documentation: https://fraiseql.dev/docs/apq
 - Examples: `/examples/apq_multi_tenant.py`

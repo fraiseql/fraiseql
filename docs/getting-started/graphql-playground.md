@@ -257,6 +257,7 @@ config = FraiseQLConfig(
 ### Query History
 
 The playground saves your query history locally. Access previous queries using:
+
 - History panel (clock icon)
 - Keyboard shortcut: `Ctrl+Shift+H`
 
@@ -351,6 +352,7 @@ app = secure_playground(app, allowed_origins=["https://admin.example.com"])
 ### Alternative Access Methods
 
 For production environments, consider:
+
 - **GraphQL clients**: Insomnia, Postman
 - **Apollo Studio**: Cloud-based schema registry
 - **Custom admin panel**: Restricted access playground
@@ -360,6 +362,7 @@ For production environments, consider:
 ### Playground Not Loading
 
 1. Check environment configuration:
+
 ```python
 print(config.enable_playground)  # Should be True
 print(config.environment)  # Should not be "production"
@@ -375,6 +378,7 @@ curl http://localhost:8000/graphql
 ### Schema Not Updating
 
 Clear playground cache:
+
 - Hard refresh: `Ctrl+Shift+R`
 - Clear localStorage: `localStorage.clear()`
 

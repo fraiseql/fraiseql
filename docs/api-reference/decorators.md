@@ -347,6 +347,7 @@ def field_name(self, info) -> type:
 Adds field-level authorization to GraphQL fields.
 
 #### Parameters
+
 - `permission` (str): Required permission to access this field
 - `roles` (list[str], optional): List of roles allowed to access
 - `check_func` (callable, optional): Custom authorization function
@@ -496,6 +497,7 @@ class UserWithPosts:
 ```
 
 **Use DataLoader for**:
+
 - External API calls
 - Cross-database joins
 - Dynamic computations that can't be expressed in SQL

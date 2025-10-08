@@ -338,8 +338,10 @@ services:
       FRAISEQL_APQ_STORAGE_SCHEMA: apq_cache
       FRAISEQL_JSON_PASSTHROUGH_ENABLED: true
     depends_on:
+
       - db
     ports:
+
       - "8000:8000"
 
   db:
@@ -349,6 +351,7 @@ services:
       POSTGRES_USER: fraiseql
       POSTGRES_PASSWORD: password
     volumes:
+
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
@@ -399,11 +402,14 @@ spec:
   template:
     spec:
       containers:
+
       - name: api
         image: myapp/fraiseql:latest
         envFrom:
+
         - configMapRef:
             name: fraiseql-config
+
         - secretRef:
             name: fraiseql-secrets
         resources:

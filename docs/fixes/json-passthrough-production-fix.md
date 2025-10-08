@@ -52,6 +52,7 @@ The passthrough mode is now properly controlled by two configuration flags:
 
 ## Impact
 This fix ensures that:
+
 - APIs can properly disable JSON passthrough in production when needed
 - Field name conversion (snake_case → camelCase) works correctly when passthrough is disabled
 - Frontend applications receive the expected field format
@@ -59,6 +60,7 @@ This fix ensures that:
 
 ## Testing
 Comprehensive tests have been added in:
+
 - `tests/fastapi/test_router_passthrough_final.py` - Core logic verification
 - `tests/fastapi/test_json_passthrough_production_fix.py` - Integration tests
 - `tests/fastapi/test_passthrough_fix_verification.py` - Full configuration matrix testing
@@ -94,9 +96,11 @@ If you were affected by this bug:
    ```
 3. **Test your API** to ensure field names are in the expected format
 4. **Use explicit headers** for fine-grained control:
+
    - `x-json-passthrough: true/false` - Override passthrough setting per request
    - `x-mode: production/staging/development` - Override environment mode per request
 
 ## Version History
+
 - **v0.3.0**: Bug introduced - production forces passthrough
 - **v0.3.1**: Bug fixed - configuration properly respected

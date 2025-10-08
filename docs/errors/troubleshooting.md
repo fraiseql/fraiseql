@@ -26,6 +26,7 @@ products = [
 ```
 
 **Cause:**
+
 - Using FraiseQL version < 0.7.20
 - JSONB text extraction causing lexicographic sorting
 
@@ -75,6 +76,7 @@ users = [
 ```
 
 **Cause:**
+
 - Inconsistent data types in JSONB fields
 - Missing type validation
 
@@ -125,6 +127,7 @@ psycopg.OperationalError: connection to server at "localhost" (127.0.0.1), port 
 ```
 
 **Causes:**
+
 - PostgreSQL not running
 - Wrong port number
 - Firewall blocking connection
@@ -199,6 +202,7 @@ asyncpg.exceptions.UndefinedTableError: relation "v_user" does not exist
 ```
 
 **Causes:**
+
 - View not created
 - Wrong schema
 - Migrations not run
@@ -275,6 +279,7 @@ PartialInstantiationError: Cannot instantiate User - missing required fields: ['
 ```
 
 **Causes:**
+
 - View not returning all required fields
 - NULL values in non-nullable fields
 - Type mismatch
@@ -465,6 +470,7 @@ GRANT editor_role TO current_user;
 ### Problem: Slow Queries
 
 **Symptoms:**
+
 - Queries taking >1 second
 - Timeout errors
 - High database CPU usage
@@ -509,6 +515,7 @@ async def get_expensive_data(info):
 ### Problem: Memory Issues
 
 **Symptoms:**
+
 - Out of memory errors
 - Process killed
 - Slow response times
@@ -587,6 +594,7 @@ WHERE proname = 'fn_create_user';
 ### Problem: Changes Not Reflected
 
 **Symptoms:**
+
 - Code changes not working
 - Old schema still active
 - Cached responses
@@ -702,6 +710,7 @@ fraiseql schema:export > schema.graphql
 ### Report Issues
 
 When reporting issues, include:
+
 1. Error message and stack trace
 2. FraiseQL version: `fraiseql --version`
 3. PostgreSQL version: `psql --version`

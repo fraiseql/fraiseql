@@ -147,6 +147,7 @@ def create_production_app(
 Creates a production-optimized FastAPI application with FraiseQL.
 
 Automatically enables:
+
 - TurboRouter for registered queries
 - JSON passthrough optimization
 - Connection pooling with optimal settings
@@ -344,6 +345,7 @@ Creates an async database connection pool with FraiseQL's custom type handling.
 ### Type Handling
 
 The pool automatically configures PostgreSQL type adapters to:
+
 - Keep dates as ISO strings instead of Python objects
 - Preserve exact PostgreSQL formatting
 - Optimize for JSON serialization

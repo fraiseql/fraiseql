@@ -222,6 +222,7 @@ async def sensitive_operation(info, data: str) -> Result:
 ### Audit Events
 
 Common events to track:
+
 - Authentication attempts (success/failure)
 - Authorization denials
 - Data modifications
@@ -720,6 +721,7 @@ WHERE revoked_at > NOW() - INTERVAL '24 hours';
 ## Security Checklist
 
 ### Development Phase
+
 - [ ] Enable query depth limiting
 - [ ] Configure rate limiting
 - [ ] Set up input validation
@@ -729,6 +731,7 @@ WHERE revoked_at > NOW() - INTERVAL '24 hours';
 - [ ] Set up audit logging
 
 ### Pre-Production
+
 - [ ] Disable GraphQL introspection
 - [ ] Disable GraphQL playground
 - [ ] Review all field authorizations
@@ -738,6 +741,7 @@ WHERE revoked_at > NOW() - INTERVAL '24 hours';
 - [ ] Perform security scan
 
 ### Production Deployment
+
 - [ ] Use HTTPS only
 - [ ] Implement proper authentication
 - [ ] Enable all security features

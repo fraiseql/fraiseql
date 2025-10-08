@@ -162,6 +162,7 @@ input UUIDFilter {
 ### Why Restrictions Were Added
 
 PostgreSQL automatically normalizes certain data types:
+
 - **IP addresses**: `10.0.0.1` becomes `10.0.0.1/32` when converted to text
 - **MAC addresses**: `aa:bb:cc:dd:ee:ff` becomes canonical form `aa:bb:cc:dd:ee:ff`
 - **CIDR ranges**: Stored with network masks that break string pattern matching
@@ -498,6 +499,7 @@ query {
 ```
 
 This query finds electronics that are either:
+
 - Cheap (< $100) OR well-stocked (> 50 units)
 - AND are not discontinued
 
@@ -581,6 +583,7 @@ CREATE INDEX idx_product_complex ON tb_product
 ```
 
 **Query Planning:**
+
 - OR conditions can be less efficient than AND conditions
 - Put most selective filters first, even within OR clauses
 - Consider using separate queries with UNION for complex OR conditions
@@ -708,12 +711,14 @@ async def products_with_where_type(
 **SQL Generated**: `WHERE (data->>'category')::text = 'electronics'`
 
 **Requirements**:
+
 - View must have a JSONB `data` column
 - Typically used with materialized views that aggregate data
 
 #### 2. Dictionary Filters (for Regular Tables)
 
 Dictionary filters are plain Python dictionaries and are ideal for:
+
 - Regular tables without JSONB columns
 - Dynamic filter construction in resolvers
 - Simple filtering scenarios
@@ -744,6 +749,7 @@ async def products_with_dict_filter(
 **SQL Generated**: `WHERE category = 'electronics' AND price >= 100`
 
 **Benefits**:
+
 - Works with regular table columns
 - Easy dynamic construction
 - No JSONB overhead
@@ -1268,6 +1274,7 @@ async def test_network_filtering_v3_8(app_client):
 ## Best Practices
 
 ### 1. Use Appropriate Filter Types
+
 - **Standard strings**: Use all available operators (`contains`, `startswith`, etc.)
 - **Exotic types**: Stick to exact matching or implement custom resolvers
 - **Numeric fields**: Leverage range operators (`gte`, `lt`) for efficient queries
@@ -1332,11 +1339,13 @@ This example demonstrates the full power of FraiseQL's filtering system by combi
 Find servers that meet specific security and operational criteria:
 
 **Include servers that are:**
+
 1. **Production servers** (containing "delete", "prod", or "server") with high allocations (>2) in private networks
 2. **Development ranges** (21.43.* or 21.44.*) that are publicly accessible
 3. **Utility servers** (containing "utility", "service", "config") with moderate load (1-10 allocations)
 
 **But exclude:**
+
 - Servers with suspicious high-number suffixes (_3, _4, _5, _6)
 - Servers in the management subnet (192.168.1.0/24)
 
@@ -1445,9 +1454,11 @@ complex_filter = DnsServerWhereInput(
 #### Query Analysis
 
 **Complexity Metrics:**
+
 - **Logical Depth**: 4 levels (AND → OR → AND → OR)
 - **Total Conditions**: 15+ individual filter conditions
 - **Filter Types**: 4 different specialized filters
+
   - `StringFilter`: contains, startswith, endswith
   - `IntFilter`: gt, gte, lt, lte
   - `NetworkAddressFilter`: isPrivate, isPublic, inSubnet

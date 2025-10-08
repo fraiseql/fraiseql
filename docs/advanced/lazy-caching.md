@@ -13,6 +13,7 @@ Deep dive into FraiseQL's database-native lazy caching system that delivers sub-
 ## Overview
 
 Lazy caching is FraiseQL's approach to achieving extreme performance by:
+
 1. **Pre-computing complete GraphQL responses** at the database level
 2. **Storing responses in PostgreSQL** alongside the data
 3. **Automatic invalidation** through version tracking on bounded contexts

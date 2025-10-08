@@ -2404,6 +2404,7 @@ Common validation issues and their solutions.
 
 **Problem**: Validation queries are slow
 **Solution**:
+
 - Add appropriate indexes on JSONB fields
 - Use batch validation for multiple items
 - Implement early exit patterns
@@ -2413,6 +2414,7 @@ Common validation issues and their solutions.
 
 **Problem**: Different validation results between layers
 **Solution**:
+
 - Ensure validation rules are consistent across layers
 - Use shared validation functions where possible
 - Test the complete validation pipeline
@@ -2422,6 +2424,7 @@ Common validation issues and their solutions.
 
 **Problem**: Difficult to determine which validation failed
 **Solution**:
+
 - Use structured error types with layer identification
 - Include validation context in error metadata
 - Implement proper error mapping in GraphQL resolvers
@@ -2431,6 +2434,7 @@ Common validation issues and their solutions.
 
 **Problem**: Need to update validation rules without breaking existing data
 **Solution**:
+
 - Plan validation rule versioning strategy
 - Implement gradual rule changes with warnings
 - Use feature flags for new validation rules

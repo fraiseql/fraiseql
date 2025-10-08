@@ -140,25 +140,32 @@ spec:
       timeoutSeconds: 300
       serviceAccountName: fraiseql-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
       containers:
+
       - image: gcr.io/YOUR_PROJECT_ID/fraiseql:latest
         ports:
+
         - name: http1
           containerPort: 8000
         env:
+
         - name: FRAISEQL_MODE
           value: "production"
+
         - name: GCP_PROJECT
           value: "YOUR_PROJECT_ID"
+
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: database-url
               key: latest
+
         - name: REDIS_URL
           valueFrom:
             secretKeyRef:
               name: redis-url
               key: latest
+
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:
@@ -445,26 +452,32 @@ gcloud compute ssl-certificates create fraiseql-cert \
 ```yaml
 steps:
   # Run tests
+
   - name: 'python:3.11'
     entrypoint: 'bash'
     args:
+
     - '-c'
     - |
       pip install -r requirements.txt
       pytest tests/
 
   # Build Docker image
+
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/fraiseql:$COMMIT_SHA', '.']
 
   # Push to Container Registry
+
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/fraiseql:$COMMIT_SHA']
 
   # Deploy to Cloud Run
+
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
+
     - 'run'
     - 'deploy'
     - 'fraiseql'
@@ -473,13 +486,16 @@ steps:
     - '--platform=managed'
 
   # Run database migrations
+
   - name: 'gcr.io/$PROJECT_ID/fraiseql:$COMMIT_SHA'
     entrypoint: 'python'
     args: ['-m', 'fraiseql', 'migrate']
     env:
+
     - 'DATABASE_URL=${_DATABASE_URL}'
 
 images:
+
   - 'gcr.io/$PROJECT_ID/fraiseql:$COMMIT_SHA'
 
 options:
@@ -586,6 +602,7 @@ logger.info(
 # alerting.yaml
 displayName: "FraiseQL High Error Rate"
 conditions:
+
   - displayName: "Error rate above 5%"
     conditionThreshold:
       filter: |
@@ -597,9 +614,11 @@ conditions:
       thresholdValue: 0.05
       duration: 300s
       aggregations:
+
         - alignmentPeriod: 60s
           perSeriesAligner: ALIGN_RATE
 notificationChannels:
+
   - projects/YOUR_PROJECT_ID/notificationChannels/CHANNEL_ID
 documentation:
   content: "FraiseQL service is experiencing high error rate"

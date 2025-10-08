@@ -150,6 +150,7 @@ python app.py
 Expected output:
 ```
 Found 3 tasks:
+
   - Learn FraiseQL (completed: False)
   - Build an API (completed: False)
   - Deploy to production (completed: False)
@@ -351,6 +352,7 @@ mutation MarkComplete($id: ID!) {
 ## 🎉 Success! You Have a Working API!
 
 In just 5 minutes, you've:
+
 - ✅ Set up a PostgreSQL database with the `tb_task` table
 - ✅ Created a `v_task` view for FraiseQL to read
 - ✅ Built a complete GraphQL API with queries
@@ -362,6 +364,7 @@ In just 5 minutes, you've:
 <summary>🔧 "psql: command not found"</summary>
 
 Install PostgreSQL:
+
 - Mac: `brew install postgresql`
 - Ubuntu/Debian: `sudo apt install postgresql`
 - Windows: Download from postgresql.org
@@ -423,6 +426,7 @@ export DATABASE_URL="postgresql://username:password@localhost/todo_app"
 ## Tips for Success
 
 !!! tip "Best Practices"
+
     1. **Include filter columns in views** - Keep commonly filtered fields as separate columns
     2. **Use functions for mutations** - Keep business logic in the database
     3. **Return JSONB in data column** - FraiseQL expects a `data` column with JSONB
@@ -430,6 +434,7 @@ export DATABASE_URL="postgresql://username:password@localhost/todo_app"
     5. **Test in playground first** - Before writing client code
 
 !!! warning "Common Pitfalls"
+
     - Forgetting to include ID as a separate column (impacts performance)
     - Missing type hints on function parameters
     - Not handling NULL values (use `| None` syntax)
@@ -438,22 +443,26 @@ export DATABASE_URL="postgresql://username:password@localhost/todo_app"
 ## See Also
 
 ### Related Concepts
+
 - [**Core Concepts**](../core-concepts/index.md) - Understand FraiseQL's philosophy
 - [**Type System**](../core-concepts/type-system.md) - Deep dive into GraphQL types
 - [**Database Views**](../core-concepts/database-views.md) - View patterns and optimization
 - [**Query Translation**](../core-concepts/query-translation.md) - How queries become SQL
 
 ### Next Steps
+
 - [**GraphQL Playground**](graphql-playground.md) - Master the interactive testing tool
 - [**Your First API**](first-api.md) - Build a more complex application
 - [**Blog Tutorial**](../tutorials/blog-api.md) - Complete production example
 
 ### Reference
+
 - [**API Documentation**](../api-reference/index.md) - Complete API reference
 - [**Decorators Reference**](../api-reference/decorators.md) - All available decorators
 - [**Error Codes**](../errors/error-types.md) - Troubleshooting guide
 
 ### Advanced Topics
+
 - [**Mutations Guide**](../mutations/index.md) - Advanced mutation patterns
 - [**Performance Tuning**](../advanced/performance.md) - Optimization techniques
 - [**Authentication**](../advanced/authentication.md) - Add user authentication

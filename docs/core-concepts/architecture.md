@@ -92,6 +92,7 @@ The JSONB result is directly returned to the client with minimal processing.
 FraiseQL strictly separates read and write operations:
 
 ### Write Side (Commands)
+
 - PostgreSQL functions handle all mutations
 - Prefix: `fn_` (e.g., `fn_create_user`)
 - Transactional consistency guaranteed
@@ -115,6 +116,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 ### Read Side (Queries)
+
 - PostgreSQL views provide data projection
 - Prefix: `v_` for views, `tv_` for table views
 - Pre-aggregated data eliminates N+1 queries
@@ -138,35 +140,43 @@ FROM tb_users;
 ## Component Responsibilities
 
 ### Schema Registry
+
 - **Location**: `src/fraiseql/gql/builders/registry.py`
 - **Responsibility**: Central registration of all GraphQL types
 - **Features**:
+
   - Automatic type discovery via decorators
   - Type validation and conflict detection
   - Schema generation from Python types
 
 ### Query Translator
+
 - **Location**: `src/fraiseql/core/translate_query.py`
 - **Responsibility**: GraphQL to SQL translation
 - **Features**:
+
   - AST parsing and analysis
   - Field path extraction
   - WHERE clause generation
   - JSONB projection building
 
 ### Repository Layer
+
 - **Location**: `src/fraiseql/cqrs/repository.py`
 - **Responsibility**: Database abstraction
 - **Features**:
+
   - CQRS command/query separation
   - Connection pooling
   - Transaction management
   - Result mapping
 
 ### Type System
+
 - **Location**: `src/fraiseql/types/`
 - **Responsibility**: Python-GraphQL type mapping
 - **Features**:
+
   - Dataclass-based type definitions
   - Automatic GraphQL schema generation
   - Input/output type validation
@@ -177,16 +187,19 @@ FROM tb_users;
 FraiseQL implements multiple caching layers:
 
 ### 1. PostgreSQL Query Cache
+
 - Prepared statements for repeated queries
 - Query plan caching
 - Shared buffer cache for hot data
 
 ### 2. View Materialization
+
 - Table views (`tv_*`) for expensive computations
 - Incremental refresh strategies
 - Background refresh jobs
 
 ### 3. Application-Level Caching
+
 - DataLoader pattern for batch loading
 - Request-scoped caching
 - Optional Redis integration
@@ -232,18 +245,21 @@ db = await FraiseQLRepository.create(
 ## Performance Considerations
 
 ### Query Performance
+
 - **Single Query Execution**: One database round-trip per request
 - **JSONB Indexing**: GIN indexes for fast JSON operations
 - **View Optimization**: Pre-computed aggregations
 - **Connection Pooling**: Efficient connection reuse
 
 ### Scaling Strategies
+
 - **Horizontal Scaling**: Read replicas for queries
 - **Vertical Scaling**: PostgreSQL optimization
 - **Caching**: Multi-level caching strategy
 - **Partitioning**: Table partitioning for large datasets
 
 ### Monitoring
+
 - Query execution time tracking
 - Slow query logging
 - Connection pool metrics
@@ -252,11 +268,13 @@ db = await FraiseQLRepository.create(
 ## Security Architecture
 
 ### SQL Injection Prevention
+
 - Parameterized queries only
 - Type validation at schema level
 - Input sanitization in repository layer
 
 ### Authentication & Authorization
+
 - Context-based authentication
 - Field-level authorization
 - Row-level security in PostgreSQL
@@ -287,10 +305,12 @@ services:
   postgres:
     image: postgres:16
     volumes:
+
       - pgdata:/var/lib/postgresql/data
 ```
 
 ### Connection Management
+
 - Connection pooling via asyncpg
 - Configurable pool size
 - Health checks and circuit breakers
@@ -299,18 +319,21 @@ services:
 ## Key Design Decisions
 
 ### Why PostgreSQL-Only?
+
 1. **Performance**: Native JSONB operations are incredibly fast
 2. **Consistency**: Single source of truth
 3. **Features**: Rich feature set (RLS, triggers, functions)
 4. **Simplicity**: No ORM impedance mismatch
 
 ### Why CQRS?
+
 1. **Scalability**: Read and write sides can scale independently
 2. **Performance**: Optimized views for queries
 3. **Clarity**: Clear separation of concerns
 4. **Flexibility**: Different models for different needs
 
 ### Why Database-First?
+
 1. **Type Safety**: Database schema as source of truth
 2. **Performance**: Leverage PostgreSQL optimizations
 3. **Maintainability**: Database migrations are explicit
@@ -334,22 +357,26 @@ services:
 ## See Also
 
 ### Core Concepts
+
 - [**Type System**](type-system.md) - GraphQL type definitions
 - [**Database Views**](database-views.md) - Database view patterns
 - [**Query Translation**](query-translation.md) - How GraphQL becomes SQL
 
 ### Implementation Guides
+
 - [**Getting Started**](../getting-started/index.md) - Begin with FraiseQL
 - [**Your First API**](../getting-started/first-api.md) - Build something real
 - [**Blog Tutorial**](../tutorials/blog-api.md) - Complete example
 
 ### Advanced Topics
+
 - [**CQRS Patterns**](../advanced/cqrs.md) - Deep dive into CQRS
 - [**Event Sourcing**](../advanced/event-sourcing.md) - Event-driven architecture
 - [**Domain-Driven Design**](../advanced/database-api-patterns.md) - DDD with FraiseQL
 - [**Performance**](../advanced/performance.md) - Optimization techniques
 
 ### Related Technologies
+
 - [**PostgreSQL Views**](database-views.md) - View design patterns
 - [**GraphQL Schema**](type-system.md) - Schema definition
 - [**SQL Generation**](query-translation.md) - Query building

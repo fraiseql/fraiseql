@@ -931,9 +931,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
         ports:
+
           - 5432:5432
 
     steps:
+
     - uses: actions/checkout@v4
 
     - name: Set up Python

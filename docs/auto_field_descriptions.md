@@ -96,6 +96,7 @@ class MixedExample:
 ```
 
 Result:
+
 - `field1`: "This inline comment takes priority"
 - `field2`: "Annotation description takes priority"
 - `field3`: "Only inline comment, no conflict"
@@ -139,6 +140,7 @@ class BackwardCompatible:
 ```
 
 Result:
+
 - `id`: "Auto description from comment"
 - `name`: "Explicit description preserved" (not overridden)
 - `email`: "Auto description from comment"

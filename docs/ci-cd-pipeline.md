@@ -32,6 +32,7 @@ graph LR
 **Purpose**: Comprehensive quality checks that must pass before merge.
 
 **Jobs**:
+
 - **Tests**: Full test suite including core and integration tests
 - **Lint**: Code formatting and style checks (ruff)
 - **Security**: Security vulnerability scanning (bandit)
@@ -51,6 +52,7 @@ publish:
 ```
 
 **Jobs**:
+
 1. **Test**: Full test suite (required for release)
 2. **Lint**: Code quality checks (required for release)
 3. **Security**: Security checks (required for release)
@@ -66,20 +68,24 @@ publish:
 ## Quality Standards
 
 ### Tests Must Pass ✅
+
 - Core test suite: `pytest tests/ -m "not blog_simple and not blog_enterprise"`
 - Integration tests: `pytest tests/integration/examples/`
 - Coverage reporting to Codecov
 
 ### Code Quality Must Pass ✅
+
 - Ruff linting: `ruff check .`
 - Ruff formatting: `ruff format --check .`
 
 ### Security Must Pass ✅
+
 - Bandit security scanning: `bandit -r src/`
 
 ## Release Process
 
 ### Safe Release Steps
+
 1. **Develop on feature branch**
 2. **Create PR to dev** → Quality gate runs
 3. **Merge to dev** (only if quality gate passes)
@@ -111,17 +117,21 @@ publish:
 ## Branch Protection Rules
 
 ### Recommended Settings for `main` branch:
+
 - ✅ Require status checks to pass before merging
 - ✅ Require up-to-date branches before merging
 - ✅ Required status checks:
+
   - `quality-gate / Tests`
   - `quality-gate / Lint`
   - `quality-gate / Security`
   - `quality-gate / Quality Gate ✅`
 
 ### Recommended Settings for `dev` branch:
+
 - ✅ Require status checks to pass before merging
 - ✅ Required status checks:
+
   - `quality-gate / Tests`
   - `quality-gate / Lint`
 
@@ -150,6 +160,7 @@ gh run list --branch main --limit 1 --json conclusion,workflowName
 ## Emergency Procedures
 
 ### If Bad Release is Published
+
 1. **Yank from PyPI** (if possible)
 2. **Create hotfix branch**
 3. **Fix issue**
@@ -157,6 +168,7 @@ gh run list --branch main --limit 1 --json conclusion,workflowName
 5. **Publish patched version**
 
 ### If Quality Gate Blocks Valid Code
+
 1. **Check workflow logs**: `gh run view <run-id> --log-failed`
 2. **Fix actual issue** (don't bypass unless critical)
 3. **For urgent fixes**: Use admin override with justification
@@ -164,12 +176,14 @@ gh run list --branch main --limit 1 --json conclusion,workflowName
 ## Best Practices
 
 ### For Developers
+
 - ✅ Run tests locally before pushing: `pytest tests/`
 - ✅ Run linting locally: `ruff check . && ruff format --check .`
 - ✅ Check quality gate status before requesting review
 - ✅ Address all quality gate failures
 
 ### For Maintainers
+
 - ✅ Never bypass quality gates without documented justification
 - ✅ Monitor failed releases and improve pipeline accordingly
 - ✅ Regularly review and update quality standards

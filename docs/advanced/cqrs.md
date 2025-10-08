@@ -238,16 +238,19 @@ async def create_post(info, input: CreatePostInput) -> Post:
 ## CQRS Benefits with FraiseQL
 
 ### Performance
+
 - **Optimized reads**: Views can be heavily optimized for query patterns
 - **Optimized writes**: Functions handle complex business logic efficiently
 - **Caching**: Read models can be cached independently
 
 ### Scalability
+
 - **Read replicas**: Query side can use read-only database replicas
 - **Materialized views**: Pre-computed aggregations for expensive queries
 - **Independent scaling**: Scale read and write operations separately
 
 ### Maintainability
+
 - **Clear separation**: Commands and queries have distinct responsibilities
 - **Business logic**: Encapsulated in PostgreSQL functions
 - **Domain modeling**: Tables represent write model, views represent read model
@@ -315,16 +318,19 @@ async def delete_post(info, post_id: ID) -> bool:
 ## See Also
 
 ### Related Concepts
+
 - [**Architecture Overview**](../core-concepts/architecture.md) - FraiseQL's CQRS foundation
 - [**Event Sourcing**](event-sourcing.md) - Event-driven CQRS patterns
 - [**Database Views**](../core-concepts/database-views.md) - Read model optimization
 
 ### Implementation Guides
+
 - [**PostgreSQL Functions**](../mutations/postgresql-function-based.md) - Command implementation
 - [**Performance Tuning**](performance.md) - Optimizing CQRS performance
 - [**Multi-tenancy**](multi-tenancy.md) - CQRS in multi-tenant systems
 
 ### Advanced Topics
+
 - [**Domain-Driven Design**](database-api-patterns.md) - DDD with CQRS
 - [**Bounded Contexts**](bounded-contexts.md) - Context boundaries
 - [**Testing**](../testing/index.md) - Testing CQRS implementations

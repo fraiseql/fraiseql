@@ -13,6 +13,7 @@ This tutorial walks through building a complete blog API using FraiseQL's CQRS a
 ## Overview
 
 We'll build:
+
 - User management with profiles
 - Blog posts with tagging and publishing
 - Threaded comments system
@@ -52,6 +53,7 @@ FraiseQL follows CQRS, separating writes (tables) from reads (views).
 **CRITICAL ARCHITECTURAL RULE: Triggers ONLY on tv_ tables for cache invalidation**
 
 Before we start, understand FraiseQL's strict trigger philosophy:
+
 - ❌ **NEVER** create triggers on `tb_` tables (base tables)
 - ✅ **ONLY** create triggers on `tv_` tables for cache invalidation
 - All business logic must be explicit in mutation functions
@@ -1017,6 +1019,7 @@ psql $DATABASE_URL -f db/views/composed_views.sql
 This blog API demonstrates several critical FraiseQL patterns:
 
 ### 1. **Trigger Philosophy: ONLY on tv_ Tables**
+
 - ❌ NO triggers on `tb_post`, `tb_comment`, `tb_users`
 - ✅ ONLY triggers on `tv_post_stats` for cache invalidation
 - All business logic handled explicitly in mutation functions
@@ -1043,6 +1046,7 @@ graph TD
 ```
 
 ### 4. **Benefits of This Architecture**
+
 - **Predictable**: Know exactly what each mutation does
 - **Debuggable**: No hidden side effects to trace
 - **Performance**: No surprise trigger overhead
@@ -1075,29 +1079,34 @@ See the [Mutations Guide](../mutations/index.md) for more complex mutation patte
 ## See Also
 
 ### Core Concepts
+
 - [**Architecture Overview**](../core-concepts/architecture.md) - Understand CQRS and DDD
 - [**Database Views**](../core-concepts/database-views.md) - View design patterns
 - [**Type System**](../core-concepts/type-system.md) - GraphQL type definitions
 - [**Query Translation**](../core-concepts/query-translation.md) - How queries work
 
 ### Related Guides
+
 - [**Mutations Guide**](../mutations/index.md) - Advanced mutation patterns
 - [**Authentication**](../advanced/authentication.md) - User authentication
 - [**Performance**](../advanced/performance.md) - Optimization techniques
 - [**Security**](../advanced/security.md) - Production security
 
 ### Advanced Features
+
 - [**Lazy Caching**](../advanced/lazy-caching.md) - Database-native caching
 - [**TurboRouter**](../advanced/turbo-router.md) - Skip GraphQL parsing
 - [**Event Sourcing**](../advanced/event-sourcing.md) - Event-driven patterns
 - [**Multi-tenancy**](../advanced/multi-tenancy.md) - Tenant isolation
 
 ### API Reference
+
 - [**Decorators**](../api-reference/decorators.md) - All decorators reference
 - [**Repository Methods**](../api-reference/application-api.md#repository) - Database access
 - [**Built-in Types**](../api-reference/decorators.md#scalar-types) - Available types
 
 ### Troubleshooting
+
 - [**Error Types**](../errors/error-types.md) - Common errors
 - [**Debugging Guide**](../errors/debugging.md) - Debug strategies
 - [**FAQ**](../errors/troubleshooting.md) - Common issues

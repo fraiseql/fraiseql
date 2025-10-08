@@ -291,6 +291,7 @@ async def get_popular_posts(info, limit: int = 10) -> list[Post]:
 ```
 
 Benefits over external caching:
+
 - **No network overhead** - Cache lives in PostgreSQL
 - **Automatic invalidation** - Version tracking by bounded contexts
 - **Sub-millisecond response** - Direct database access
@@ -486,6 +487,7 @@ async def bulk_create_users(
 ## Production Checklist
 
 ### Database Optimization
+
 - [ ] Create appropriate indexes
 - [ ] Build composable views with `v_` prefix
 - [ ] Set up materialized views for aggregations
@@ -495,6 +497,7 @@ async def bulk_create_users(
 - [ ] Configure autovacuum properly
 
 ### Application Optimization
+
 - [ ] Enable TurboRouter
 - [ ] Register hot queries
 - [ ] Enable JSON passthrough
@@ -504,6 +507,7 @@ async def bulk_create_users(
 - [ ] Enable monitoring
 
 ### Monitoring Setup
+
 - [ ] Configure Prometheus metrics
 - [ ] Set up slow query logging
 - [ ] Monitor connection pool usage

@@ -7,6 +7,7 @@ Comprehensive comparison of FraiseQL with other GraphQL frameworks and PostgreSQ
 FraiseQL's core philosophy: **Aggressively trade storage for massive performance gains**.
 
 FraiseQL differentiates itself through:
+
 - **Table views (`tv_`)** - One entity per record with complete denormalized data
 - **TurboRouter with lazy caching** - Pre-computed responses for registered queries stored in PostgreSQL
 - **Composable views (`v_`)** - Complex queries resolved at database level
@@ -18,6 +19,7 @@ FraiseQL differentiates itself through:
 ### Maximum Storage Investment for Ultimate Performance
 
 FraiseQL makes an aggressive architectural choice:
+
 - **Use significantly more storage** through table views and cached query responses
 - **Gain 50-100x performance** improvement over traditional approaches
 - **Achieve consistent sub-millisecond latencies** for cached queries
@@ -288,6 +290,7 @@ ORDER BY COUNT(*) DESC;
 | **Total Monthly Cost** | ~$2,215 | ~$705 |
 
 Key differences:
+
 - FraiseQL uses more database storage but eliminates separate cache infrastructure
 - Dramatic reduction in application servers due to faster response times
 - Cache invalidation is automatic via version tracking
@@ -324,6 +327,7 @@ ORDER BY calls * mean_time DESC;
 ```
 
 2. **Start with top 10% of queries**
+
    - These usually represent 90% of load
    - Create table views for their entities
    - Register with TurboRouter
@@ -337,6 +341,7 @@ CREATE TABLE turbo.tb_domain_version (...);
 ```
 
 4. **Monitor and expand**
+
    - Track cache hit rates
    - Add more queries as needed
    - Optimize cache refresh strategies

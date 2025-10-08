@@ -9,6 +9,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### System Requirements ✓
 
 - [ ] **Infrastructure sized correctly**
+
   - Minimum: 2 CPU cores, 4GB RAM
   - Recommended: 4+ CPU cores, 8GB+ RAM
   - PostgreSQL 14+ available
@@ -24,6 +25,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   - No memory leaks during sustained load
 
 - [ ] **Capacity planning documented**
+
   - Expected requests/second
   - Database size projections
   - Storage requirements
@@ -42,11 +44,13 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **Authorization rules defined**
+
   - Role-based access control (RBAC)
   - Field-level permissions
   - Query depth limiting
 
 - [ ] **API keys managed securely**
+
   - Stored in secrets manager
   - Rotation policy defined
   - Audit logging enabled
@@ -93,6 +97,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **DDoS protection configured**
+
   - CloudFlare or AWS Shield
   - Rate limiting at load balancer
   - Connection limits set
@@ -108,6 +113,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **Encryption in transit**
+
   - Database SSL connections
   - Redis TLS enabled
   - Inter-service TLS
@@ -217,6 +223,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **Recovery time objective (RTO) defined**
+
   - Target: < 1 hour
   - Documented recovery procedures
   - Regular recovery drills
@@ -231,6 +238,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **Failover tested**
+
   - Automatic failover configured
   - Manual failover documented
   - Connection string updates automated
@@ -300,6 +308,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **Graceful degradation**
+
   - Circuit breakers implemented
   - Fallback mechanisms ready
   - Cache serving during outages
@@ -346,6 +355,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Load Balancing
 
 - [ ] **Load balancer configured**
+
   - Health checks enabled
   - SSL termination configured
   - Session affinity if needed
@@ -355,6 +365,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```yaml
   # HPA configuration
   metrics:
+
   - type: Resource
     resource:
       name: cpu
@@ -366,16 +377,19 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Networking
 
 - [ ] **CDN configured** (if applicable)
+
   - Static assets cached
   - Geographic distribution
   - DDoS protection enabled
 
 - [ ] **DNS configured**
+
   - Multiple A records
   - TTL appropriately set
   - DNSSEC enabled
 
 - [ ] **SSL certificates**
+
   - Valid certificates installed
   - Auto-renewal configured
   - Certificate monitoring enabled
@@ -383,6 +397,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Storage
 
 - [ ] **Storage provisioned**
+
   - Adequate disk space
   - Fast SSD storage
   - Backup storage separate
@@ -413,12 +428,14 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **System metrics collected**
+
   - CPU usage
   - Memory usage
   - Disk I/O
   - Network I/O
 
 - [ ] **Business metrics tracked**
+
   - Request rate
   - Error rate
   - Response time
@@ -429,6 +446,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 - [ ] **Alerts configured**
   ```yaml
   # Example Prometheus alert
+
   - alert: HighErrorRate
     expr: rate(fraiseql_errors_total[5m]) > 0.05
     for: 5m
@@ -437,11 +455,13 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **Alert channels set up**
+
   - Email notifications
   - Slack/Teams integration
   - PagerDuty for critical alerts
 
 - [ ] **Runbooks created**
+
   - Common issues documented
   - Resolution steps defined
   - Escalation procedures clear
@@ -449,6 +469,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Logging
 
 - [ ] **Centralized logging**
+
   - Log aggregation configured
   - Log retention policy set
   - Search and analysis tools ready
@@ -464,6 +485,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **Audit logging**
+
   - Authentication events
   - Authorization failures
   - Data modifications
@@ -474,6 +496,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Optimization
 
 - [ ] **Query optimization**
+
   - N+1 queries eliminated
   - Batch loading implemented
   - Query complexity limits set
@@ -493,6 +516,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
   ```
 
 - [ ] **Connection pooling**
+
   - Database pool sized correctly
   - Redis pool configured
   - HTTP connection reuse
@@ -500,11 +524,13 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Testing
 
 - [ ] **Load testing passed**
+
   - Peak load handled
   - Sustained load stable
   - Graceful degradation verified
 
 - [ ] **Performance benchmarks met**
+
   - P50 < 100ms
   - P95 < 500ms
   - P99 < 1000ms
@@ -514,11 +540,13 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Backup Strategy
 
 - [ ] **Backup schedule defined**
+
   - Daily full backups
   - Hourly incremental backups
   - Transaction log backups
 
 - [ ] **Backup testing automated**
+
   - Weekly restore tests
   - Data integrity verification
   - Recovery time measurement
@@ -526,11 +554,13 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Recovery Procedures
 
 - [ ] **Runbooks documented**
+
   - Step-by-step procedures
   - Contact information
   - Decision trees
 
 - [ ] **Recovery drills conducted**
+
   - Quarterly DR drills
   - Lessons learned documented
   - Procedures updated
@@ -538,10 +568,12 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ### Business Continuity
 
 - [ ] **RTO/RPO defined**
+
   - Recovery Time Objective: < 1 hour
   - Recovery Point Objective: < 15 minutes
 
 - [ ] **Communication plan**
+
   - Stakeholder notifications
   - Status page updates
   - Customer communications
@@ -598,6 +630,7 @@ This comprehensive checklist ensures your FraiseQL deployment is production-read
 ## Notes
 
 Remember: This checklist is a living document. Update it based on:
+
 - Lessons learned from incidents
 - New security requirements
 - Performance optimizations

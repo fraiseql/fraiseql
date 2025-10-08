@@ -83,18 +83,21 @@ spec:
   minReplicas: 2
   maxReplicas: 50
   metrics:
+
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
         averageUtilization: 70
+
   - type: Resource
     resource:
       name: memory
       target:
         type: Utilization
         averageUtilization: 80
+
   - type: Pods
     pods:
       metric:
@@ -106,9 +109,11 @@ spec:
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
+
       - type: Percent
         value: 10
         periodSeconds: 60
+
       - type: Pods
         value: 2
         periodSeconds: 60
@@ -116,9 +121,11 @@ spec:
     scaleUp:
       stabilizationWindowSeconds: 0
       policies:
+
       - type: Percent
         value: 100
         periodSeconds: 15
+
       - type: Pods
         value: 4
         periodSeconds: 15
@@ -142,6 +149,7 @@ spec:
     updateMode: "Auto"
   resourcePolicy:
     containerPolicies:
+
     - containerName: fraiseql
       maxAllowed:
         cpu: 4
@@ -150,6 +158,7 @@ spec:
         cpu: 250m
         memory: 512Mi
       controlledResources:
+
       - cpu
       - memory
 ```
@@ -774,6 +783,7 @@ Resources:
         ImageId: ami-0123456789abcdef0
         InstanceType: t3.medium
         SecurityGroupIds:
+
           - !Ref InstanceSecurityGroup
         UserData:
           Fn::Base64: !Sub |
@@ -789,6 +799,7 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
+
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
       LaunchTemplate:
@@ -798,12 +809,15 @@ Resources:
       MaxSize: 20
       DesiredCapacity: 3
       TargetGroupARNs:
+
         - !Ref TargetGroup
       HealthCheckType: ELB
       HealthCheckGracePeriod: 300
       TerminationPolicies:
+
         - OldestInstance
       Tags:
+
         - Key: Name
           Value: fraiseql-instance
           PropagateAtLaunch: true
@@ -839,8 +853,10 @@ Resources:
       Threshold: 70
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
+
         - !Ref ScaleUpPolicy
       Dimensions:
+
         - Name: AutoScalingGroupName
           Value: !Ref AutoScalingGroup
 
@@ -857,8 +873,10 @@ Resources:
       Threshold: 20
       ComparisonOperator: LessThanThreshold
       AlarmActions:
+
         - !Ref ScaleDownPolicy
       Dimensions:
+
         - Name: AutoScalingGroupName
           Value: !Ref AutoScalingGroup
 ```
@@ -868,12 +886,14 @@ Resources:
 ```yaml
 # gcp-mig.yaml
 resources:
+
 - name: fraiseql-template
   type: compute.v1.instanceTemplate
   properties:
     properties:
       machineType: n1-standard-2
       disks:
+
       - deviceName: boot
         type: PERSISTENT
         boot: true
@@ -881,12 +901,15 @@ resources:
         initializeParams:
           sourceImage: projects/cos-cloud/global/images/family/cos-stable
       networkInterfaces:
+
       - network: global/networks/default
         accessConfigs:
+
         - name: External NAT
           type: ONE_TO_ONE_NAT
       metadata:
         items:
+
         - key: startup-script
           value: |
             #! /bin/bash
@@ -903,6 +926,7 @@ resources:
     targetSize: 3
     instanceTemplate: $(ref.fraiseql-template.selfLink)
     autoHealingPolicies:
+
     - healthCheck: $(ref.fraiseql-health-check.selfLink)
       initialDelaySec: 300
 
@@ -917,6 +941,7 @@ resources:
       cpuUtilization:
         utilizationTarget: 0.7
       customMetricUtilizations:
+
       - metric: custom.googleapis.com/fraiseql/requests_per_second
         utilizationTarget: 100
         utilizationTargetType: GAUGE
@@ -1286,16 +1311,19 @@ class CostOptimizer:
 ## Current Resource Utilization
 
 ### CPU Usage
+
 - Average: {analysis['cpu']['avg']:.1f}%
 - Peak (P95): {analysis['cpu']['p95']:.1f}%
 - Status: {analysis['cpu']['utilization']}
 
 ### Memory Usage
+
 - Average: {analysis['memory']['avg']:.1f}%
 - Peak (P95): {analysis['memory']['p95']:.1f}%
 - Status: {analysis['memory']['utilization']}
 
 ### Traffic Patterns
+
 - Pattern: {analysis['traffic'].get('pattern', 'unknown')}
 - Peak Hours: {analysis['traffic'].get('peak_hours', 'unknown')}
 - Off-Peak Utilization: {analysis['traffic'].get('off_peak_avg', 0):.1f}%
@@ -1317,6 +1345,7 @@ class CostOptimizer:
 ## Best Practices
 
 ### 1. Gradual Scaling
+
 - Start with conservative scaling policies
 - Monitor metrics during scale events
 - Adjust thresholds based on observed behavior

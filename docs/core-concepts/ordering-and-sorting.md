@@ -212,6 +212,7 @@ SELECT data ->> 'price' FROM products; -- Returns text string
 ```
 
 This architectural distinction ensures:
+
 - ✅ **ORDER BY**: Uses type-preserving JSONB extraction
 - ✅ **WHERE clauses**: Use text extraction with proper casting
 - ✅ **Performance**: Optimal for each use case
@@ -260,6 +261,7 @@ If you're upgrading from before v0.7.20:
 ### ✅ **No Action Required**
 
 The fix is **fully backward compatible**:
+
 - ✅ All existing GraphQL queries continue to work
 - ✅ No breaking changes to your application code
 - ✅ Ordering behavior automatically improves
@@ -283,6 +285,7 @@ assert prices == sorted(prices)  # Should now pass!
 ---
 
 **Key Takeaways:**
+
 - ✅ FraiseQL v0.7.20+ provides correct numeric ordering
 - ✅ JSONB extraction preserves data types for optimal sorting
 - ✅ No migration needed - improvement is automatic

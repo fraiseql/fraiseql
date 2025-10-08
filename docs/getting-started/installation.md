@@ -21,6 +21,7 @@ psql --version  # Should show 13 or higher
 ```
 
 !!! tip "PostgreSQL Installation"
+
     - **macOS**: `brew install postgresql@14`
     - **Ubuntu/Debian**: `apt-get install postgresql-14`
     - **Windows**: Download from [postgresql.org](https://www.postgresql.org/download/windows/)
@@ -209,8 +210,10 @@ services:
       POSTGRES_USER: fraiseql
       POSTGRES_PASSWORD: secret
     ports:
+
       - "5432:5432"
     volumes:
+
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
@@ -233,20 +236,24 @@ DATABASE_URL=postgresql://fraiseql:secret@localhost:5432/my_app_db
 ### Common Issues
 
 #### ImportError: No module named 'fraiseql'
+
 - **Solution**: Ensure you're using the correct Python environment
 - Check: `which python` and `pip list | grep fraiseql`
 
 #### psycopg2 Installation Fails
+
 - **macOS**: `brew install postgresql` before installing FraiseQL
 - **Ubuntu**: `apt-get install libpq-dev python3-dev`
 - **Alternative**: Use `psycopg2-binary` for development
 
 #### Connection Refused to PostgreSQL
+
 - **Check if PostgreSQL is running**: `pg_isready`
 - **Check connection details**: `psql -U username -d database -h localhost`
 - **Check PostgreSQL logs**: `tail -f /var/log/postgresql/*.log`
 
 #### JSONB Functions Not Available
+
 - **Ensure PostgreSQL 13+**: Older versions have limited JSONB support
 - **Check extensions**: `CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`
 

@@ -13,6 +13,7 @@ This path helps you migrate from Hasura, PostGraphile, Prisma, or other GraphQL 
 ## Prerequisites
 
 You should have:
+
 - Experience with your current GraphQL framework
 - Understanding of your existing schema
 - Basic PostgreSQL knowledge
@@ -54,6 +55,7 @@ graph LR
 ### Strategy 2: Feature-by-Feature
 
 Migrate one feature at a time:
+
 1. Start with read-only queries
 2. Add mutations for new features
 3. Migrate existing mutations
@@ -62,6 +64,7 @@ Migrate one feature at a time:
 ### Strategy 3: Big Bang (Risky)
 
 Complete rewrite - only for small projects:
+
 1. Build FraiseQL API in parallel
 2. Comprehensive testing
 3. Switch over completely
@@ -87,6 +90,7 @@ hasura metadata export
 ```
 
 Identify:
+
 - Tables and relationships
 - Permission rules
 - Custom actions
@@ -524,6 +528,7 @@ CREATE FUNCTION fn_update_user(...) ...
 
 ### Phase 5: Deprecation
 Week 9-10: Remove old system
+
 - Update clients
 - Remove old endpoints
 - Clean up code
@@ -584,6 +589,7 @@ async def handle_notifications():
 ## Migration Checklist
 
 ### Pre-Migration
+
 - [ ] Analyze existing schema
 - [ ] Document current API usage
 - [ ] Identify critical paths
@@ -591,6 +597,7 @@ async def handle_notifications():
 - [ ] Set up test environment
 
 ### During Migration
+
 - [ ] Create database views
 - [ ] Define Python types
 - [ ] Implement queries
@@ -600,6 +607,7 @@ async def handle_notifications():
 - [ ] Test thoroughly
 
 ### Post-Migration
+
 - [ ] Performance testing
 - [ ] Load testing
 - [ ] Monitor errors
@@ -610,16 +618,19 @@ async def handle_notifications():
 ## Success Stories
 
 ### Case Study 1: E-commerce Platform
+
 - **From:** Hasura with 200+ tables
 - **Migration time:** 8 weeks
 - **Result:** 10x performance improvement, 50% less code
 
 ### Case Study 2: SaaS Application
+
 - **From:** Custom Apollo Server
 - **Migration time:** 6 weeks
 - **Result:** Eliminated N+1 queries, 80% faster responses
 
 ### Case Study 3: Analytics Dashboard
+
 - **From:** PostGraphile
 - **Migration time:** 4 weeks
 - **Result:** 100x faster aggregations with materialized views
@@ -627,11 +638,13 @@ async def handle_notifications():
 ## Getting Help
 
 ### Resources
+
 - [Migration Guide](../migration/index.md) - Detailed migration docs
 - [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions) - Community help
 - [Discord Server](https://discord.gg/fraiseql) - Real-time chat
 
 ### Professional Services
+
 - Migration assessment
 - Custom training
 - Hands-on assistance
@@ -640,6 +653,7 @@ async def handle_notifications():
 ## Next Steps
 
 After migrating:
+
 1. **Optimize** - Review and optimize views
 2. **Monitor** - Set up performance monitoring
 3. **Document** - Update API documentation

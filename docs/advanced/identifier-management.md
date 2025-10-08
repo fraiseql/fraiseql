@@ -2310,6 +2310,7 @@ This pattern scales from simple applications to complex multi-tenant enterprise 
 ---
 
 **Related Documentation:**
+
 - [Database Views](database-views.md) - How identifiers are exposed in query views
 - [PostgreSQL Function-Based Mutations](../mutations/postgresql-function-based.md) - Using identifiers in mutations
 - [Multi-Tenancy](multi-tenancy.md) - Tenant-scoped identifier patterns

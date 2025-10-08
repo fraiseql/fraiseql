@@ -275,6 +275,7 @@ build:
     DOCKER_BUILDKIT: 1
 release:
   command:
+
     - python -m fraiseql migrate
   image: web
 run:
@@ -548,12 +549,14 @@ app.mount("/static", WhiteNoise(
 ### Total Monthly Cost Estimate
 
 **Small Production:**
+
 - 2× Basic dynos: $14
 - Standard-0 database: $50
 - Mini Redis: $5
 - **Total: ~$69/month**
 
 **Medium Production:**
+
 - 3× Standard-1X dynos: $75
 - Standard-2 database: $200
 - Premium-0 Redis: $15
@@ -661,6 +664,7 @@ print('Connected!')
    ```
 
 5. **Enable MFA**
+
    - Enable in Heroku account settings
    - Require for all team members
 

@@ -8,6 +8,7 @@ FraiseQL is designed to be deployed in various environments, from simple Docker 
 
 ### 🐳 [Docker Deployment](./docker.md)
 Simple containerized deployment with Docker and Docker Compose. Perfect for:
+
 - Development environments
 - Small to medium production workloads
 - Single-server deployments
@@ -17,6 +18,7 @@ Simple containerized deployment with Docker and Docker Compose. Perfect for:
 
 ### ☸️ [Kubernetes Deployment](./kubernetes.md)
 Scalable orchestration with Kubernetes and Helm charts. Ideal for:
+
 - Large-scale production deployments
 - Multi-region setups
 - Auto-scaling requirements
@@ -27,6 +29,7 @@ Scalable orchestration with Kubernetes and Helm charts. Ideal for:
 ### ☁️ Cloud Platform Deployments
 
 #### [AWS Deployment](./aws.md)
+
 - ECS Fargate for serverless containers
 - RDS PostgreSQL for managed database
 - Application Load Balancer
@@ -35,6 +38,7 @@ Scalable orchestration with Kubernetes and Helm charts. Ideal for:
 **Estimated Cost**: $200-1000/month
 
 #### [Google Cloud Platform](./gcp.md)
+
 - Cloud Run for serverless deployment
 - Cloud SQL for PostgreSQL
 - Load Balancing
@@ -43,6 +47,7 @@ Scalable orchestration with Kubernetes and Helm charts. Ideal for:
 **Estimated Cost**: $150-800/month
 
 #### [Heroku](./heroku.md)
+
 - One-click deployment
 - Managed PostgreSQL
 - Automatic SSL
@@ -121,6 +126,7 @@ graph TB
 ## System Requirements
 
 ### Minimum Requirements
+
 - **CPU**: 2 cores
 - **RAM**: 2GB
 - **Storage**: 10GB SSD
@@ -128,6 +134,7 @@ graph TB
 - **Python**: 3.11+
 
 ### Recommended Production Setup
+
 - **CPU**: 4+ cores
 - **RAM**: 8GB+
 - **Storage**: 100GB+ SSD
@@ -196,6 +203,7 @@ CREATE EXTENSION IF NOT EXISTS "btree_gist";
 ## Security Considerations
 
 ### Essential Security Measures
+
 1. **Use HTTPS/TLS** for all connections
 2. **Enable rate limiting** to prevent abuse
 3. **Implement authentication** (JWT, OAuth2)
@@ -216,11 +224,14 @@ spec:
     matchLabels:
       app: fraiseql
   ingress:
+
   - from:
+
     - podSelector:
         matchLabels:
           app: nginx
     ports:
+
     - protocol: TCP
       port: 8000
 ```
@@ -228,6 +239,7 @@ spec:
 ## Monitoring & Observability
 
 ### Key Metrics to Monitor
+
 - **Query response time** (P50, P95, P99)
 - **Database connection pool usage**
 - **Cache hit rate**
@@ -236,6 +248,7 @@ spec:
 - **Request throughput**
 
 ### Recommended Stack
+
 - **Metrics**: Prometheus + Grafana
 - **Logging**: ELK Stack or Loki
 - **Tracing**: Jaeger or Zipkin
@@ -245,12 +258,14 @@ spec:
 ## Scaling Strategies
 
 ### Horizontal Scaling
+
 - Add more application instances
 - Use load balancing
 - Implement connection pooling
 - Cache frequently accessed data
 
 ### Vertical Scaling
+
 - Increase CPU/RAM for instances
 - Optimize database queries
 - Use read replicas
@@ -274,6 +289,7 @@ Before going to production, ensure:
 ## Next Steps
 
 1. Choose your deployment platform:
+
    - [Docker](./docker.md) for simplicity
    - [Kubernetes](./kubernetes.md) for scale
    - [Cloud platforms](./aws.md) for managed services

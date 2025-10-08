@@ -123,6 +123,7 @@ async def product(info, id: ID) -> Product:
 ## API Categories
 
 ### Schema Definition
+
 - [`@fraiseql.type`](decorators.md#type) - Define GraphQL types
 - [`@fraiseql.input`](decorators.md#input) - Define input types
 - [`@fraiseql.query`](decorators.md#query) - Define queries
@@ -132,6 +133,7 @@ async def product(info, id: ID) -> Product:
 - [`@fraiseql.dataloader_field`](decorators.md#dataloader_field) - Batched fields
 
 ### Database Access
+
 - [`find()`](repository.md#find) - Query multiple records
 - [`find_one()`](repository.md#find_one) - Query single record
 - [`call_function()`](repository.md#call_function) - Call PostgreSQL functions
@@ -139,6 +141,7 @@ async def product(info, id: ID) -> Product:
 - [`transaction()`](repository.md#transaction) - Transaction management
 
 ### Type System
+
 - [`ID`](types.md#id) - GraphQL ID scalar
 - [`EmailAddress`](types.md#emailaddress) - Email validation
 - [`UUID`](types.md#uuid) - UUID type
@@ -147,12 +150,14 @@ async def product(info, id: ID) -> Product:
 - [Custom scalars](types.md#custom-scalars) - Create your own
 
 ### Context & Info
+
 - [`info.context`](context.md#context) - Request context
 - [`info.field_name`](context.md#field_name) - Current field
 - [`info.return_type`](context.md#return_type) - Return type info
 - [Authentication](context.md#authentication) - User context
 
 ### Error Handling
+
 - [`GraphQLError`](errors.md#graphqlerror) - Standard errors
 - [`ValidationError`](errors.md#validationerror) - Input validation
 - [Error codes](errors.md#error-codes) - Standard codes
@@ -174,22 +179,26 @@ async def product(info, id: ID) -> Product:
 ## See Also
 
 ### Essential Reading
+
 - [**Getting Started**](../getting-started/index.md) - Begin with FraiseQL
 - [**Core Concepts**](../core-concepts/index.md) - Understand the philosophy
 - [**Type System**](../core-concepts/type-system.md) - GraphQL type definitions
 
 ### Practical Examples
+
 - [**Quickstart**](../getting-started/quickstart.md) - 5-minute tutorial
 - [**Your First API**](../getting-started/first-api.md) - User management example
 - [**Blog Tutorial**](../tutorials/blog-api.md) - Complete application
 
 ### Advanced Topics
+
 - [**Performance**](../advanced/performance.md) - Optimization techniques
 - [**Security**](../advanced/security.md) - Best practices
 - [**Authentication**](../advanced/authentication.md) - User auth patterns
 - [**Caching**](../advanced/lazy-caching.md) - Database-native caching
 
 ### Troubleshooting
+
 - [**Error Types**](../errors/error-types.md) - Error reference
 - [**Debugging**](../errors/debugging.md) - Debug strategies
 - [**Common Issues**](../errors/troubleshooting.md) - FAQ

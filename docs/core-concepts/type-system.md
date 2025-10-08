@@ -640,6 +640,7 @@ class Server:
 ```
 
 **IpAddress Scalar (v0.10.3+):**
+
 - Accepts both plain IP addresses and CIDR notation
 - Input: `"192.168.1.1"` or `"192.168.1.1/24"` (CIDR)
 - Stores: Just the IP address (discards prefix if CIDR provided)
@@ -654,6 +655,7 @@ mutation {
 ```
 
 **NetworkAddressFilter** only exposes: `eq`, `neq`, `in_`, `nin`, `isnull`
+
 - ❌ **Removed**: `contains`, `startswith`, `endswith` (broken due to CIDR notation like `/32`)
 - ✅ **Working**: Exact matching and list operations
 
@@ -678,6 +680,7 @@ class NetworkDevice:
 ```
 
 **MacAddressFilter** only exposes: `eq`, `neq`, `in_`, `nin`, `isnull`
+
 - ❌ **Removed**: `contains`, `startswith`, `endswith` (broken due to MAC normalization)
 - ✅ **Working**: Exact matching and list operations
 
@@ -691,6 +694,7 @@ class Category:
 ```
 
 **LTreeFilter** only exposes: `eq`, `neq`, `isnull` (most conservative)
+
 - ❌ **Removed**: All pattern matching and list operations
 - 🔄 **Future**: Will add proper ltree operators (`ancestor_of`, `descendant_of`, `matches_lquery`)
 
@@ -704,6 +708,7 @@ class Event:
 ```
 
 **DateRangeFilter** only exposes: `eq`, `neq`, `isnull`
+
 - 🔄 **Future**: Will add proper range operators (`contains_date`, `overlaps`, `adjacent`)
 
 ### Migration Guide for v0.3.7

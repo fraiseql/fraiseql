@@ -28,6 +28,7 @@ raise SchemaError(
 ```
 
 **Common Causes:**
+
 - Missing database views
 - Type registration failures
 - Circular dependencies
@@ -53,6 +54,7 @@ if not email.endswith("@company.com"):
 ```
 
 **Common Causes:**
+
 - Invalid input format
 - Missing required fields
 - Type mismatches
@@ -95,6 +97,7 @@ except psycopg.OperationalError as e:
 ```
 
 **Common Causes:**
+
 - PostgreSQL not running
 - Invalid connection string
 - Network issues
@@ -117,6 +120,7 @@ except Exception as e:
 ```
 
 **Common Causes:**
+
 - Syntax errors
 - Missing tables/views
 - Permission issues
@@ -156,6 +160,7 @@ if not user_token:
 ```
 
 **Common Causes:**
+
 - Missing auth token
 - Expired token
 - Invalid credentials
@@ -180,6 +185,7 @@ if not user.has_permission("posts.delete"):
 ```
 
 **Common Causes:**
+
 - Insufficient permissions
 - Resource ownership
 - Role restrictions
@@ -345,6 +351,7 @@ raise PartialInstantiationError(
 ```
 
 **Common Causes:**
+
 - Incomplete view definitions
 - Missing JOIN conditions
 - NULL values in required fields

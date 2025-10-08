@@ -59,22 +59,26 @@ Status codes follow a structured pattern that enables consistent handling across
 NOOP statuses use the prefix `noop:` followed by a specific reason:
 
 **Creation NOOPs:**
+
 - **`noop:already_exists`** - Attempted to create entity with duplicate unique constraint
 - **`noop:invalid_parent`** - Referenced parent entity doesn't exist or isn't accessible
 
 **Update NOOPs:**
+
 - **`noop:not_found`** - Entity with specified ID doesn't exist
 - **`noop:no_changes`** - Update attempted but all provided values match current values
 - **`noop:invalid_status`** - Status transition not allowed by business rules
 - **`noop:invalid_[field]`** - Specific field validation failed (e.g., `noop:invalid_email`)
 
 **Delete NOOPs:**
+
 - **`noop:not_found`** - Entity doesn't exist or already deleted
 - **`noop:cannot_delete_has_children`** - Entity has dependent child records
 - **`noop:cannot_delete_referenced`** - Entity is referenced by other entities
 - **`noop:cannot_delete_protected`** - Entity is marked as protected/system entity
 
 **Authorization NOOPs:**
+
 - **`noop:insufficient_permissions`** - User lacks required permissions for this operation
 - **`noop:tenant_mismatch`** - Entity belongs to different tenant context
 
@@ -163,15 +167,19 @@ $$ LANGUAGE plpgsql;
 ### Parameter Details
 
 **Context Parameters:**
+
 - **`input_pk_organization`** - UUID of the tenant/organization for multi-tenant isolation
 - **`input_actor`** - UUID of the user performing the mutation (for audit trails)
 
 **Entity Parameters:**
+
 - **`input_entity_type`** - String identifying the entity type (matches table name without prefix)
 - **`input_entity_id`** - UUID primary key of the affected entity
 
 **Operation Parameters:**
+
 - **`input_modification_type`** - Database operation type:
+
   - `INSERT` - New record created
   - `UPDATE` - Existing record modified
   - `DELETE` - Record deleted/soft-deleted
@@ -179,11 +187,13 @@ $$ LANGUAGE plpgsql;
 - **`input_change_status`** - Semantic status code for the operation outcome
 
 **Change Tracking:**
+
 - **`input_fields`** - Array of field names that were modified (empty for creates, populated for updates)
 - **`input_payload_before`** - Complete entity state before modification (NULL for creates)
 - **`input_payload_after`** - Complete entity state after modification (NULL for deletes)
 
 **Metadata:**
+
 - **`input_message`** - Human-readable description of what happened
 - **`input_extra_metadata`** - Additional context like validation details, debug info, or business metadata
 
@@ -1721,6 +1731,7 @@ mutation CreateUser($input: CreateUserInput!) {
 ```
 
 **Performance Metrics:**
+
 - **Network Requests**: Reduced from 3-5 requests to 1 request
 - **Network Latency**: 70-80% reduction in total request time
 - **Bandwidth Usage**: Optimized through single comprehensive response
@@ -1859,6 +1870,7 @@ async def stream_mutation_events(mutation_result: dict):
 ```
 
 **Event Streaming Benefits:**
+
 - **Real-time Sync** - Immediate propagation of changes to downstream systems
 - **Audit Trail** - Complete change history for compliance and debugging
 - **Microservice Integration** - Other services can react to entity changes
@@ -1920,6 +1932,7 @@ ERROR: function app.create_user(uuid, uuid, jsonb) does not exist
 ```
 
 **Solution:**
+
 - Verify function exists in the correct schema
 - Check parameter types match exactly
 - Ensure migrations have been applied
@@ -1930,6 +1943,7 @@ ERROR: column "id" does not exist in relation "tb_user"
 ```
 
 **Solution:**
+
 - Use `pk_[entity]` for command-side tables
 - Use `id` only when querying views
 - Check your table structure
@@ -1943,6 +1957,7 @@ ERROR: column "id" does not exist in relation "tb_user"
 ```
 
 **Solution:**
+
 - Ensure the view query returns data
 - Check tenant isolation - entity may not be visible
 - Verify the view includes the new entity
@@ -1950,6 +1965,7 @@ ERROR: column "id" does not exist in relation "tb_user"
 **4. Audit Log Not Created**
 
 **Solution:**
+
 - Check if `audit` schema exists
 - Verify permissions for audit table
 - Ensure `core.log_and_return_mutation` is being called
@@ -1960,6 +1976,7 @@ GraphQL Error: Cannot return null for non-nullable field
 ```
 
 **Solution:**
+
 - Ensure all NOOP statuses are mapped to error types in resolver
 - Add proper error handling for unexpected status codes
 
@@ -2313,6 +2330,7 @@ class CacheInvalidationService:
 The Mutation Result Pattern establishes a standardized foundation for all mutations in FraiseQL applications. By using the `app.mutation_result` type and `core.log_and_return_mutation` function, you gain:
 
 **✅ Benefits Achieved:**
+
 - **Consistent API** - All mutations return the same structured response
 - **Network Performance** - Rich object returns eliminate 70-80% of follow-up API calls, dramatically reducing latency
 - **Resource Efficiency** - Single comprehensive response reduces backend load and frontend complexity
@@ -2325,6 +2343,7 @@ The Mutation Result Pattern establishes a standardized foundation for all mutati
 - **Performance Optimization** - Efficient change detection and caching hooks
 
 **🚀 Next Steps:**
+
 1. Implement the `app.mutation_result` type in your database
 2. Create the `core.log_and_return_mutation` helper function
 3. Migrate one mutation at a time using the patterns shown

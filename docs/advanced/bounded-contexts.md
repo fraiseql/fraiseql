@@ -640,18 +640,21 @@ class TestCrossContextIntegration:
 ## Best Practices
 
 ### Context Design
+
 - Keep contexts loosely coupled
 - Define clear interfaces between contexts
 - Use domain events for cross-context communication
 - Avoid direct database access across contexts
 
 ### Data Consistency
+
 - Use eventual consistency for cross-context operations
 - Implement compensating actions for failures
 - Monitor cross-context data integrity
 - Use sagas for complex multi-context transactions
 
 ### Performance
+
 - Optimize cross-context queries with materialized views
 - Cache frequently accessed cross-context data
 - Consider data duplication for performance-critical paths
@@ -660,16 +663,19 @@ class TestCrossContextIntegration:
 ## See Also
 
 ### Related Concepts
+
 - [**Domain-Driven Design**](database-api-patterns.md) - DDD fundamentals
 - [**CQRS Implementation**](cqrs.md) - Context separation patterns
 - [**Event Sourcing**](event-sourcing.md) - Cross-context events
 
 ### Implementation
+
 - [**Architecture Overview**](../core-concepts/architecture.md) - System design
 - [**Database Views**](../core-concepts/database-views.md) - View organization
 - [**Testing**](../testing/integration-testing.md) - Context testing
 
 ### Advanced Topics
+
 - [**Multi-tenancy**](multi-tenancy.md) - Tenant-aware contexts
 - [**Performance**](performance.md) - Context optimization
 - [**Security**](security.md) - Context-level security

@@ -660,6 +660,7 @@ config = FraiseQLConfig(
 ## Next Steps
 
 You've built a complete user management API with:
+
 - ✅ Database-first design with views
 - ✅ Type-safe GraphQL schema
 - ✅ Authentication and authorization
@@ -669,23 +670,27 @@ You've built a complete user management API with:
 ## See Also
 
 ### Related Concepts
+
 - [**Authentication Guide**](../advanced/authentication.md) - Complete auth implementation
 - [**Database Views**](../core-concepts/database-views.md) - View design patterns
 - [**Type System**](../core-concepts/type-system.md) - Advanced type features
 - [**CQRS Pattern**](../core-concepts/architecture.md#cqrs) - Command Query Responsibility Segregation
 
 ### Next Steps
+
 - [**Core Concepts**](../core-concepts/index.md) - Understand FraiseQL philosophy
 - [**Blog Tutorial**](../tutorials/blog-api.md) - Complete production example
 - [**API Reference**](../api-reference/index.md) - Complete API documentation
 
 ### Advanced Topics
+
 - [**Security Best Practices**](../advanced/security.md) - Production security
 - [**Performance Optimization**](../advanced/performance.md) - Query optimization
 - [**Multi-tenancy**](../advanced/multi-tenancy.md) - Isolate tenant data
 - [**Lazy Caching**](../advanced/lazy-caching.md) - Database-native caching
 
 ### Troubleshooting
+
 - [**Error Types**](../errors/error-types.md) - Common error reference
 - [**Debugging Guide**](../errors/debugging.md) - Debug strategies
 - [**FAQ**](../errors/troubleshooting.md) - Common issues
