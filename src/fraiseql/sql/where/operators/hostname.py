@@ -2,9 +2,14 @@
 
 This module provides clean functions to build SQL for hostname operations
 using standard text comparison for DNS hostname fields.
+
+These operators use no casting since hostname validation happens at the application
+layer and database storage is plain text.
 """
 
-from psycopg.sql import SQL, Composed, Literal
+from psycopg.sql import SQL, Composed
+
+from .base_builders import build_comparison_sql, build_in_list_sql
 
 
 def build_hostname_eq_sql(path_sql: SQL, value: str) -> Composed:
@@ -17,7 +22,7 @@ def build_hostname_eq_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: path = 'value'
     """
-    return Composed([path_sql, SQL(" = "), Literal(value)])
+    return build_comparison_sql(path_sql, value, "=", None)
 
 
 def build_hostname_neq_sql(path_sql: SQL, value: str) -> Composed:
@@ -30,7 +35,7 @@ def build_hostname_neq_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: path != 'value'
     """
-    return Composed([path_sql, SQL(" != "), Literal(value)])
+    return build_comparison_sql(path_sql, value, "!=", None)
 
 
 def build_hostname_in_sql(path_sql: SQL, value: list[str]) -> Composed:
@@ -46,18 +51,7 @@ def build_hostname_in_sql(path_sql: SQL, value: list[str]) -> Composed:
     Raises:
         TypeError: If value is not a list
     """
-    if not isinstance(value, list):
-        raise TypeError(f"'in' operator requires a list, got {type(value)}")
-
-    parts = [path_sql, SQL(" IN (")]
-
-    for i, hostname in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.append(Literal(hostname))
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+    return build_in_list_sql(path_sql, value, "IN", None)
 
 
 def build_hostname_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
@@ -73,15 +67,4 @@ def build_hostname_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
     Raises:
         TypeError: If value is not a list
     """
-    if not isinstance(value, list):
-        raise TypeError(f"'notin' operator requires a list, got {type(value)}")
-
-    parts = [path_sql, SQL(" NOT IN (")]
-
-    for i, hostname in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.append(Literal(hostname))
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+    return build_in_list_sql(path_sql, value, "NOT IN", None)

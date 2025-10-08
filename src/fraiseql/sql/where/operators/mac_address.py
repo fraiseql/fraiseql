@@ -2,9 +2,14 @@
 
 This module provides clean functions to build SQL for MAC address operations
 using proper PostgreSQL macaddr casting.
+
+These operators are thin wrappers around the generic base builders, specialized
+for PostgreSQL macaddr type.
 """
 
-from psycopg.sql import SQL, Composed, Literal
+from psycopg.sql import SQL, Composed
+
+from .base_builders import build_comparison_sql, build_in_list_sql
 
 
 def build_mac_eq_sql(path_sql: SQL, value: str) -> Composed:
@@ -17,7 +22,7 @@ def build_mac_eq_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::macaddr = 'value'::macaddr
     """
-    return Composed([SQL("("), path_sql, SQL(")::macaddr = "), Literal(value), SQL("::macaddr")])
+    return build_comparison_sql(path_sql, value, "=", "macaddr")
 
 
 def build_mac_neq_sql(path_sql: SQL, value: str) -> Composed:
@@ -30,7 +35,7 @@ def build_mac_neq_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::macaddr != 'value'::macaddr
     """
-    return Composed([SQL("("), path_sql, SQL(")::macaddr != "), Literal(value), SQL("::macaddr")])
+    return build_comparison_sql(path_sql, value, "!=", "macaddr")
 
 
 def build_mac_in_sql(path_sql: SQL, value: list[str]) -> Composed:
@@ -46,18 +51,7 @@ def build_mac_in_sql(path_sql: SQL, value: list[str]) -> Composed:
     Raises:
         TypeError: If value is not a list
     """
-    if not isinstance(value, list):
-        raise TypeError(f"'in' operator requires a list, got {type(value)}")
-
-    parts = [SQL("("), path_sql, SQL(")::macaddr IN (")]
-
-    for i, mac_addr in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.extend([Literal(mac_addr), SQL("::macaddr")])
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+    return build_in_list_sql(path_sql, value, "IN", "macaddr")
 
 
 def build_mac_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
@@ -73,15 +67,4 @@ def build_mac_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
     Raises:
         TypeError: If value is not a list
     """
-    if not isinstance(value, list):
-        raise TypeError(f"'notin' operator requires a list, got {type(value)}")
-
-    parts = [SQL("("), path_sql, SQL(")::macaddr NOT IN (")]
-
-    for i, mac_addr in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.extend([Literal(mac_addr), SQL("::macaddr")])
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+    return build_in_list_sql(path_sql, value, "NOT IN", "macaddr")
