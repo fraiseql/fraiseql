@@ -840,171 +840,442 @@ def report_error(error: Exception, context: dict = None):
 
 ## Health Checks
 
-### Comprehensive Health Check
+FraiseQL provides a composable **HealthCheck utility** for building production-ready health endpoints. The framework provides the pattern and pre-built checks, while applications control what to monitor.
+
+### Overview
+
+The `HealthCheck` utility allows you to:
+- ✅ **Register multiple health checks** (database, cache, external APIs, etc.)
+- ✅ **Use pre-built checks** (`check_database`, `check_pool_stats`)
+- ✅ **Create custom checks** for your specific needs
+- ✅ **Automatic exception handling** and status aggregation
+- ✅ **Kubernetes-ready** (readiness/liveness patterns)
+
+### Quick Start
 
 ```python
-# src/fraiseql/monitoring/health.py
-from fastapi import FastAPI, HTTPException
-from sqlalchemy import text
-from typing import Dict, Any
-import redis
-import asyncio
-import time
+from fastapi import APIRouter
+from fraiseql.monitoring import (
+    HealthCheck,
+    check_database,      # Pre-built: database connectivity
+    check_pool_stats,    # Pre-built: connection pool stats
+    CheckResult,
+    HealthStatus,
+)
 
-class HealthChecker:
-    def __init__(self, db_engine, redis_client):
-        self.db_engine = db_engine
-        self.redis_client = redis_client
-        self.checks = {
-            'database': self._check_database,
-            'redis': self._check_redis,
-            'disk_space': self._check_disk_space,
-            'memory': self._check_memory,
+# Create router
+router = APIRouter(tags=["Health"])
+
+# Initialize health check instance
+health = HealthCheck()
+
+# Register pre-built checks
+health.add_check("database", check_database)
+health.add_check("database_pool", check_pool_stats)
+
+@router.get("/health")
+async def health_endpoint():
+    """Comprehensive health check endpoint."""
+    result = await health.run_checks()
+    result["service"] = "my-service"
+    return result
+```
+
+**Example response:**
+```json
+{
+    "status": "healthy",
+    "service": "my-service",
+    "checks": {
+        "database": {
+            "status": "healthy",
+            "message": "Database connection successful (PostgreSQL 16.3)",
+            "metadata": {
+                "database_version": "16.3",
+                "full_version": "PostgreSQL 16.3 on x86_64-pc-linux-gnu"
+            }
+        },
+        "database_pool": {
+            "status": "healthy",
+            "message": "Pool healthy (50.0% utilized - 10/20 active)",
+            "metadata": {
+                "pool_size": 10,
+                "active_connections": 10,
+                "idle_connections": 0,
+                "max_connections": 20,
+                "min_connections": 5,
+                "usage_percentage": 50.0
+            }
         }
+    }
+}
+```
 
-    async def _check_database(self) -> Dict[str, Any]:
-        """Check database connectivity and performance"""
-        start_time = time.time()
+### Pre-built Health Checks
 
-        try:
-            async with self.db_engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
+FraiseQL provides ready-to-use health check functions:
 
-            duration = time.time() - start_time
+#### 1. Database Connectivity Check
 
-            return {
-                'status': 'healthy',
-                'response_time': duration,
-                'details': 'Database connection successful'
-            }
-        except Exception as e:
-            return {
-                'status': 'unhealthy',
-                'error': str(e),
-                'details': 'Database connection failed'
-            }
+```python
+from fraiseql.monitoring import check_database
 
-    async def _check_redis(self) -> Dict[str, Any]:
-        """Check Redis connectivity"""
-        try:
-            await self.redis_client.ping()
-            return {
-                'status': 'healthy',
-                'details': 'Redis connection successful'
-            }
-        except Exception as e:
-            return {
-                'status': 'unhealthy',
-                'error': str(e),
-                'details': 'Redis connection failed'
-            }
+health.add_check("database", check_database)
+```
 
-    async def _check_disk_space(self) -> Dict[str, Any]:
-        """Check available disk space"""
-        import shutil
+**What it checks:**
+- Database connection available
+- Can execute queries (`SELECT version()`)
+- Database version information
 
-        try:
-            usage = shutil.disk_usage('/')
-            free_percentage = (usage.free / usage.total) * 100
+**Returns:**
+- `HEALTHY` if connected
+- `UNHEALTHY` if connection fails
+- Includes PostgreSQL version in metadata
 
-            status = 'healthy' if free_percentage > 10 else 'unhealthy'
+#### 2. Connection Pool Statistics Check
 
-            return {
-                'status': status,
-                'free_percentage': free_percentage,
-                'free_bytes': usage.free,
-                'total_bytes': usage.total
-            }
-        except Exception as e:
-            return {
-                'status': 'unhealthy',
-                'error': str(e)
-            }
+```python
+from fraiseql.monitoring import check_pool_stats
 
-    async def _check_memory(self) -> Dict[str, Any]:
-        """Check memory usage"""
-        import psutil
+health.add_check("pool", check_pool_stats)
+```
 
-        try:
-            memory = psutil.virtual_memory()
-            status = 'healthy' if memory.percent < 90 else 'unhealthy'
+**What it checks:**
+- Connection pool availability
+- Active vs idle connections
+- Pool utilization percentage
 
-            return {
-                'status': status,
-                'usage_percentage': memory.percent,
-                'available_bytes': memory.available,
-                'total_bytes': memory.total
-            }
-        except Exception as e:
-            return {
-                'status': 'unhealthy',
-                'error': str(e)
-            }
+**Returns:**
+- `HEALTHY` with pool statistics
+- Warnings if utilization > 75%
+- `UNHEALTHY` if pool unavailable
 
-    async def check_all(self) -> Dict[str, Any]:
-        """Run all health checks"""
-        results = {}
+### Custom Health Checks
 
-        tasks = [
-            asyncio.create_task(check(), name=name)
-            for name, check in self.checks.items()
-        ]
+Create custom checks for your specific dependencies:
 
-        completed_tasks = await asyncio.gather(*tasks, return_exceptions=True)
+```python
+from fraiseql.monitoring import CheckResult, HealthStatus
 
-        for task, result in zip(tasks, completed_tasks):
-            name = task.get_name()
-            if isinstance(result, Exception):
-                results[name] = {
-                    'status': 'unhealthy',
-                    'error': str(result)
-                }
-            else:
-                results[name] = result
+async def check_redis() -> CheckResult:
+    """Custom Redis connectivity check."""
+    try:
+        # Your Redis connection logic
+        redis_client = get_redis_client()
+        await redis_client.ping()
 
-        # Overall status
-        overall_status = 'healthy' if all(
-            check.get('status') == 'healthy'
-            for check in results.values()
-        ) else 'degraded'
+        return CheckResult(
+            name="redis",
+            status=HealthStatus.HEALTHY,
+            message="Redis connection successful",
+            metadata={"version": "7.2"},
+        )
+    except Exception as e:
+        return CheckResult(
+            name="redis",
+            status=HealthStatus.UNHEALTHY,
+            message=f"Redis connection failed: {e!s}",
+        )
 
-        return {
-            'status': overall_status,
-            'timestamp': time.time(),
-            'checks': results
-        }
+# Register custom check
+health.add_check("redis", check_redis)
+```
 
-# FastAPI endpoints
-@app.get("/health")
-async def basic_health():
-    """Basic health check for load balancers"""
-    return {"status": "healthy"}
+**Custom check examples:**
 
-@app.get("/health/detailed")
-async def detailed_health():
-    """Detailed health check with all components"""
-    health_checker = HealthChecker(db_engine, redis_client)
-    result = await health_checker.check_all()
+```python
+async def check_s3_bucket() -> CheckResult:
+    """Check S3 bucket accessibility."""
+    try:
+        s3_client = boto3.client('s3')
+        s3_client.head_bucket(Bucket='my-bucket')
 
-    if result['status'] != 'healthy':
-        raise HTTPException(status_code=503, detail=result)
+        return CheckResult(
+            name="s3",
+            status=HealthStatus.HEALTHY,
+            message="S3 bucket accessible",
+        )
+    except Exception as e:
+        return CheckResult(
+            name="s3",
+            status=HealthStatus.UNHEALTHY,
+            message=f"S3 bucket check failed: {e!s}",
+        )
+
+async def check_external_api() -> CheckResult:
+    """Check external API reachability."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://api.example.com/health", timeout=5.0)
+            response.raise_for_status()
+
+        return CheckResult(
+            name="external_api",
+            status=HealthStatus.HEALTHY,
+            message="External API reachable",
+            metadata={"response_time_ms": response.elapsed.total_seconds() * 1000},
+        )
+    except Exception as e:
+        return CheckResult(
+            name="external_api",
+            status=HealthStatus.UNHEALTHY,
+            message=f"External API unreachable: {e!s}",
+        )
+```
+
+### Kubernetes Integration
+
+#### Readiness Probe
+
+Returns 503 if any check fails (application can't serve traffic):
+
+```python
+from fastapi import status
+from fastapi.responses import JSONResponse
+
+@router.get("/ready")
+async def readiness_endpoint():
+    """Kubernetes readiness probe - checks all dependencies."""
+    result = await health.run_checks()
+
+    if result["status"] == "degraded":
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=result,
+        )
+
+    return result
+```
+
+#### Liveness Probe
+
+Simple check that application process is alive:
+
+```python
+@router.get("/health/live")
+async def liveness_endpoint():
+    """Kubernetes liveness probe - is the process alive?"""
+    return {"status": "ok"}
+```
+
+#### Kubernetes Manifest Example
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fraiseql-api
+spec:
+  containers:
+  - name: api
+    image: fraiseql-api:latest
+    ports:
+    - containerPort: 8000
+
+    # Liveness probe - restart if unhealthy
+    livenessProbe:
+      httpGet:
+        path: /health/live
+        port: 8000
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+    # Readiness probe - remove from service if unhealthy
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8000
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+
+    # Startup probe - wait for app to start
+    startupProbe:
+      httpGet:
+        path: /health/live
+        port: 8000
+      initialDelaySeconds: 0
+      periodSeconds: 2
+      timeoutSeconds: 3
+      failureThreshold: 30
+```
+
+### Multiple Endpoints Pattern
+
+Provide different endpoints for different use cases:
+
+```python
+from fastapi import APIRouter
+
+router = APIRouter(tags=["Health"])
+health = HealthCheck()
+
+# Register all checks
+health.add_check("database", check_database)
+health.add_check("database_pool", check_pool_stats)
+# ... add more checks
+
+@router.get("/health")
+async def comprehensive_health():
+    """Full health check with all dependencies."""
+    result = await health.run_checks()
+    result["service"] = "fraiseql-api"
+    return result
+
+@router.get("/health/simple")
+async def simple_health():
+    """Lightweight health check for load balancers."""
+    return {
+        "status": "healthy",
+        "service": "fraiseql-api",
+    }
+
+@router.get("/ready")
+async def readiness():
+    """Kubernetes readiness probe."""
+    result = await health.run_checks()
+
+    if result["status"] == "degraded":
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content=result)
 
     return result
 
+@router.get("/health/live")
+async def liveness():
+    """Kubernetes liveness probe."""
+    return {"status": "ok"}
+```
+
+### Best Practices
+
+#### 1. Keep Liveness Lightweight
+
+Liveness probes should **not** check dependencies:
+
+```python
+# ✅ Good - lightweight
+@app.get("/health/live")
+async def liveness():
+    return {"status": "ok"}
+
+# ❌ Bad - checks dependencies
+@app.get("/health/live")
+async def liveness():
+    await check_database()  # Don't do this!
+    return {"status": "ok"}
+```
+
+**Why?** If database goes down, liveness fails → Kubernetes restarts pod → Pod still can't reach database → Restart loop!
+
+#### 2. Use Readiness for Dependencies
+
+Readiness probes **should** check dependencies:
+
+```python
+# ✅ Good - checks dependencies
 @app.get("/ready")
-async def readiness_check():
-    """Kubernetes readiness probe"""
-    health_checker = HealthChecker(db_engine, redis_client)
+async def readiness():
+    result = await health.run_checks()  # Checks database, Redis, etc.
+    if result["status"] == "degraded":
+        return JSONResponse(status_code=503, content=result)
+    return result
+```
 
-    # Check critical components only
-    critical_checks = ['database', 'redis']
+**Why?** If dependencies fail, remove pod from load balancer traffic until they recover.
 
-    for check_name in critical_checks:
-        result = await health_checker.checks[check_name]()
-        if result['status'] != 'healthy':
-            raise HTTPException(status_code=503, detail=f"{check_name} not ready")
+#### 3. Add Timeouts to External Checks
 
-    return {"status": "ready"}
+```python
+async def check_external_api() -> CheckResult:
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:  # ✅ Timeout!
+            response = await client.get("https://api.example.com/health")
+            response.raise_for_status()
+
+        return CheckResult(
+            name="external_api",
+            status=HealthStatus.HEALTHY,
+            message="API reachable",
+        )
+    except Exception as e:
+        return CheckResult(
+            name="external_api",
+            status=HealthStatus.UNHEALTHY,
+            message=f"API check failed: {e!s}",
+        )
+```
+
+#### 4. Include Metadata for Debugging
+
+```python
+async def check_with_metadata() -> CheckResult:
+    try:
+        start = time.time()
+        # ... perform check
+        duration = time.time() - start
+
+        return CheckResult(
+            name="service",
+            status=HealthStatus.HEALTHY,
+            message="Service operational",
+            metadata={
+                "response_time_ms": duration * 1000,
+                "version": "1.2.3",
+                "region": "us-west-2",
+            }
+        )
+    except Exception as e:
+        return CheckResult(
+            name="service",
+            status=HealthStatus.UNHEALTHY,
+            message=f"Check failed: {e!s}",
+        )
+```
+
+#### 5. Don't Expose Sensitive Information
+
+```python
+# ❌ Bad - exposes credentials
+return CheckResult(
+    metadata={"db_host": "secret-db.internal", "db_password": "secret"}
+)
+
+# ✅ Good - safe metadata
+return CheckResult(
+    metadata={"database_version": "16.3", "pool_utilization": 50.0}
+)
+```
+
+### Complete Example
+
+See `examples/health_check_example.py` for a complete production-ready example.
+
+### API Reference
+
+**Classes:**
+- `HealthCheck` - Composable health check runner
+- `CheckResult` - Health check result data class
+- `HealthStatus` - Enum: `HEALTHY`, `UNHEALTHY`, `DEGRADED`
+
+**Pre-built Checks:**
+- `check_database()` - Database connectivity check
+- `check_pool_stats()` - Connection pool statistics
+
+**Imports:**
+```python
+from fraiseql.monitoring import (
+    HealthCheck,
+    CheckResult,
+    HealthStatus,
+    CheckFunction,
+    check_database,
+    check_pool_stats,
+)
 ```
 
 ## Platform-Specific Monitoring
