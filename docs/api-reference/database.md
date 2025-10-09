@@ -565,38 +565,269 @@ print(f"Pool size: {pool.max_size}")
 
 ## Context and Session Variables
 
-**Automatic Session Variables**:
+**Automatic Session Variable Injection**:
 
-FraiseQL automatically sets PostgreSQL session variables from context:
+FraiseQL **automatically sets PostgreSQL session variables** from GraphQL context on every request. This is a powerful feature for multi-tenant applications and row-level security.
 
-- `app.tenant_id` - From `info.context["tenant_id"]`
-- `app.contact_id` - From `info.context["contact_id"]` or `info.context["user"]`
+**Automatically Set Variables**:
 
-**Usage in PostgreSQL**:
+| Session Variable | Source | Type | Purpose |
+|-----------------|--------|------|---------|
+| `app.tenant_id` | `info.context["tenant_id"]` | UUID | Multi-tenant isolation |
+| `app.contact_id` | `info.context["contact_id"]` or `info.context["user"]` | UUID | User identification |
+
+**How It Works**:
+
+1. You provide context in your FastAPI app:
+```python
+async def get_context(request: Request) -> dict:
+    return {
+        "tenant_id": extract_tenant_from_jwt(request),
+        "contact_id": extract_user_from_jwt(request)
+    }
+
+app = create_fraiseql_app(
+    config=config,
+    context_getter=get_context,
+    # ... other params
+)
+```
+
+2. FraiseQL automatically executes before each database operation:
 ```sql
--- Access session variables in functions
-CREATE FUNCTION get_my_data()
-RETURNS TABLE(...)
+SET LOCAL app.tenant_id = '<tenant_id_from_context>';
+SET LOCAL app.contact_id = '<contact_id_from_context>';
+```
+
+3. Your PostgreSQL functions can access these variables:
+```sql
+SELECT current_setting('app.tenant_id')::uuid;
+SELECT current_setting('app.contact_id')::uuid;
+```
+
+### Using Session Variables in PostgreSQL
+
+**In Views (Multi-Tenant Data Filtering)**:
+
+```sql
+-- View that automatically filters by tenant
+CREATE VIEW v_order AS
+SELECT
+    id,
+    tenant_id,
+    customer_id,
+    data
+FROM tb_order
+WHERE tenant_id = current_setting('app.tenant_id')::uuid;
+```
+
+Now all queries to `v_order` automatically see only their tenant's data:
+
+```python
+@query
+async def orders(info) -> list[Order]:
+    db = info.context["db"]
+    # Automatically filtered by tenant_id from context!
+    return await db.find("v_order")
+```
+
+**In Functions (Audit Logging)**:
+
+```sql
+CREATE FUNCTION graphql.create_order(input jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_tenant_id uuid;
+    v_user_id uuid;
+    v_order_id uuid;
+BEGIN
+    -- Get session variables
+    v_tenant_id := current_setting('app.tenant_id')::uuid;
+    v_user_id := current_setting('app.contact_id')::uuid;
+
+    -- Insert with automatic tenant_id and created_by
+    INSERT INTO tb_order (tenant_id, data)
+    VALUES (
+        v_tenant_id,
+        jsonb_set(
+            input,
+            '{created_by}',
+            to_jsonb(v_user_id)
+        )
+    )
+    RETURNING id INTO v_order_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'id', v_order_id
+    );
+END;
+$$;
+```
+
+**In Row-Level Security Policies**:
+
+```sql
+-- Enable RLS on table
+ALTER TABLE tb_document ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only see their tenant's documents
+CREATE POLICY tenant_isolation_policy ON tb_document
+    FOR ALL
+    TO PUBLIC
+    USING (tenant_id = current_setting('app.tenant_id')::uuid);
+
+-- Policy: Users can only modify documents they created
+CREATE POLICY user_modification_policy ON tb_document
+    FOR UPDATE
+    TO PUBLIC
+    USING (
+        tenant_id = current_setting('app.tenant_id')::uuid
+        AND (data->>'created_by')::uuid = current_setting('app.contact_id')::uuid
+    );
+```
+
+**In Triggers (Automatic Audit Fields)**:
+
+```sql
+CREATE FUNCTION fn_set_audit_fields()
+RETURNS TRIGGER
+LANGUAGE plpgsql
 AS $$
 BEGIN
-    RETURN QUERY
-    SELECT *
-    FROM data
-    WHERE tenant_id = current_setting('app.tenant_id')::uuid;
+    -- Automatically set created_by on insert
+    IF (TG_OP = 'INSERT') THEN
+        NEW.data := jsonb_set(
+            NEW.data,
+            '{created_by}',
+            to_jsonb(current_setting('app.contact_id')::uuid)
+        );
+    END IF;
+
+    -- Automatically set updated_by on update
+    IF (TG_OP = 'UPDATE') THEN
+        NEW.data := jsonb_set(
+            NEW.data,
+            '{updated_by}',
+            to_jsonb(current_setting('app.contact_id')::uuid)
+        );
+    END IF;
+
+    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
+CREATE TRIGGER trg_set_audit_fields
+    BEFORE INSERT OR UPDATE ON tb_order
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_set_audit_fields();
 ```
 
-**Setting Additional Variables**:
+### Complete Multi-Tenant Example
+
+**1. Context Provider (Python)**:
+
 ```python
-# In custom context provider
-async def get_context(request):
+from fastapi import Request
+import jwt
+
+async def get_context(request: Request) -> dict:
+    """Extract tenant and user from JWT."""
+    auth_header = request.headers.get("authorization", "")
+
+    if not auth_header.startswith("Bearer "):
+        return {}  # Anonymous request
+
+    token = auth_header.replace("Bearer ", "")
+    decoded = jwt.decode(token, options={"verify_signature": False})
+
     return {
-        "db": db,
-        "tenant_id": extract_tenant_id(request),
-        "contact_id": extract_user_id(request)
+        "tenant_id": decoded.get("tenant_id"),
+        "contact_id": decoded.get("user_id")
     }
 ```
+
+**2. Database View (SQL)**:
+
+```sql
+CREATE VIEW v_product AS
+SELECT
+    id,
+    tenant_id,
+    data->>'name' as name,
+    (data->>'price')::decimal as price,
+    data
+FROM tb_product
+WHERE tenant_id = current_setting('app.tenant_id')::uuid;
+```
+
+**3. GraphQL Query (Python)**:
+
+```python
+@query
+async def products(info) -> list[Product]:
+    """Get products for current tenant.
+
+    Automatically filtered by tenant_id from JWT token.
+    No need to pass tenant_id explicitly!
+    """
+    db = info.context["db"]
+    return await db.find("v_product")
+```
+
+**4. Result**:
+
+- User from Tenant A sees only Tenant A's products
+- User from Tenant B sees only Tenant B's products
+- **No tenant_id filtering needed in application code**
+
+### Error Handling
+
+If session variables are not set (e.g., unauthenticated request):
+
+```sql
+-- Handle missing session variable gracefully
+CREATE VIEW v_public_product AS
+SELECT *
+FROM tb_product
+WHERE
+    CASE
+        WHEN current_setting('app.tenant_id', true) IS NULL
+        THEN is_public = true  -- Show only public products
+        ELSE tenant_id = current_setting('app.tenant_id')::uuid
+    END;
+```
+
+### Custom Session Variables
+
+You can add custom session variables by including them in context:
+
+```python
+async def get_context(request: Request) -> dict:
+    return {
+        "tenant_id": extract_tenant(request),
+        "contact_id": extract_user(request),
+        "user_role": extract_role(request),  # Custom variable
+    }
+```
+
+Access in PostgreSQL (note: FraiseQL only auto-sets `app.tenant_id` and `app.contact_id`, so you'll need to set others manually if needed):
+
+```sql
+-- In your function
+SELECT current_setting('app.tenant_id')::uuid;  -- Auto-set by FraiseQL
+SELECT current_setting('app.contact_id')::uuid; -- Auto-set by FraiseQL
+```
+
+### Best Practices
+
+1. **Always use session variables for tenant isolation** - Don't pass tenant_id as query parameters
+2. **Combine with RLS policies** - Defense in depth for security
+3. **Set variables at transaction scope** - FraiseQL uses `SET LOCAL` automatically
+4. **Handle missing variables gracefully** - Use `current_setting('var', true)` to avoid errors
+5. **Don't use session variables for high-cardinality data** - They're perfect for tenant/user context, not for dynamic query data
 
 ## Performance Modes
 

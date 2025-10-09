@@ -246,13 +246,12 @@ class RegisterUser:
     success: RegistrationSuccess
     failure: RegistrationError
 
-# With context parameters
+# With context parameters - maps context to PostgreSQL function params
 @mutation(
     function="create_location",
-    schema="app",
     context_params={
         "tenant_id": "input_pk_organization",
-        "user": "input_created_by"
+        "user_id": "input_created_by"
     }
 )
 class CreateLocation:
@@ -260,6 +259,78 @@ class CreateLocation:
     success: CreateLocationSuccess
     failure: CreateLocationError
 ```
+
+**How context_params Works**:
+
+`context_params` automatically injects GraphQL context values as PostgreSQL function parameters:
+
+```python
+# GraphQL mutation
+@mutation(
+    function="create_location",
+    context_params={
+        "tenant_id": "input_pk_organization",  # info.context["tenant_id"] → p_pk_organization
+        "user_id": "input_created_by"          # info.context["user_id"] → p_created_by
+    }
+)
+class CreateLocation:
+    input: CreateLocationInput
+    success: CreateLocationSuccess
+    failure: CreateLocationError
+
+# PostgreSQL function signature
+# CREATE FUNCTION create_location(
+#     p_pk_organization uuid,   -- From info.context["tenant_id"]
+#     p_created_by uuid,         -- From info.context["user_id"]
+#     input jsonb                -- From mutation input
+# ) RETURNS jsonb
+```
+
+**Real-World Example**:
+
+```python
+# Context from JWT
+async def get_context(request: Request) -> dict:
+    token = extract_jwt(request)
+    return {
+        "tenant_id": token["tenant_id"],
+        "user_id": token["user_id"]
+    }
+
+# Mutation with context injection
+@mutation(
+    function="create_order",
+    context_params={
+        "tenant_id": "input_tenant_id",
+        "user_id": "input_created_by"
+    }
+)
+class CreateOrder:
+    input: CreateOrderInput
+    success: CreateOrderSuccess
+    failure: CreateOrderFailure
+
+# PostgreSQL function
+# CREATE FUNCTION create_order(
+#     p_tenant_id uuid,      -- Automatically from context!
+#     p_created_by uuid,     -- Automatically from context!
+#     input jsonb
+# ) RETURNS jsonb AS $$
+# BEGIN
+#     -- p_tenant_id and p_created_by are available
+#     -- No need to extract from input JSONB
+#     INSERT INTO tb_order (tenant_id, data)
+#     VALUES (p_tenant_id, jsonb_set(input, '{created_by}', to_jsonb(p_created_by)));
+# END;
+# $$ LANGUAGE plpgsql;
+```
+
+**Benefits**:
+
+- **Security**: Tenant/user IDs come from verified JWT, not user input
+- **Simplicity**: No need to pass tenant_id in mutation input
+- **Consistency**: Context injection happens automatically on every mutation
+
 
 **See Also**: [Queries and Mutations](../core/queries-and-mutations.md#mutation-decorator)
 
