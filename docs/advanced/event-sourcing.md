@@ -696,6 +696,6 @@ LIMIT 1;
 ## Next Steps
 
 - [Bounded Contexts](bounded-contexts.md) - Event-driven context integration
-- [CQRS](../core/cqrs.md) - Command Query Responsibility Segregation
+- [CQRS](../advanced/database-patterns.md) - Command Query Responsibility Segregation
 - [Monitoring](../production/monitoring.md) - Event sourcing metrics
-- [Performance](../core/performance.md) - Audit log optimization
+- [Performance](../performance/index.md) - Audit log optimization

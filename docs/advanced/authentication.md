@@ -981,6 +981,6 @@ security_logger.log_event(
 ## Next Steps
 
 - [Multi-Tenancy](multi-tenancy.md) - Tenant isolation and context propagation
-- [Field-Level Authorization](../core/field-resolvers.md) - Advanced authorization patterns
+- [Field-Level Authorization](../core/queries-and-mutations.md) - Advanced authorization patterns
 - [Security Best Practices](../production/security.md) - Production security hardening
 - [Monitoring](../production/monitoring.md) - Authentication metrics and alerts

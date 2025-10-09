@@ -681,4 +681,4 @@ result = await db.run_in_transaction(complex_operation, data)
 
 - [Queries and Mutations](../core/queries-and-mutations.md) - Using database in resolvers
 - [Configuration](../core/configuration.md) - Database configuration options
-- [PostgreSQL Functions](../advanced/postgresql-functions.md) - Writing database functions
+- [PostgreSQL Functions](../core/database-api.md) - Writing database functions

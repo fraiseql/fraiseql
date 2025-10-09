@@ -846,4 +846,4 @@ config = FraiseQLConfig(
 ## See Also
 
 - [Configuration Guide](../core/configuration.md) - Configuration patterns and examples
-- [Deployment](../deployment/docker.md) - Production configuration
+- [Deployment](../production/deployment.md) - Production configuration

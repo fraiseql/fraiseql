@@ -539,4 +539,4 @@ app = create_fraiseql_app(types=[User, Post, Comment], config=config)
 ## See Also
 
 - [API Reference - Config](../api-reference/config.md) - Complete config reference
-- [Deployment](../deployment/docker.md) - Production deployment guides
+- [Deployment](../production/deployment.md) - Production deployment guides

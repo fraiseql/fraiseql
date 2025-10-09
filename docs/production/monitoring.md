@@ -609,5 +609,4 @@ if error_rate > 0.1:
 
 - [Deployment](deployment.md) - Production deployment patterns
 - [Security](security.md) - Security monitoring
-- [Performance](../core/performance.md) - Performance optimization
-- [Health Checks](../api-reference/health.md) - Health monitoring patterns
+- [Performance](../performance/index.md) - Performance optimization

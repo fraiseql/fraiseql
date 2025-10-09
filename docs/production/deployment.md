@@ -734,5 +734,4 @@ echo "✓ Rollback completed successfully"
 
 - [Monitoring](monitoring.md) - Metrics, logs, and alerting
 - [Security](security.md) - Production security hardening
-- [Performance](../core/performance.md) - Production optimization
-- [Health Checks](../api-reference/health.md) - Custom health check patterns
+- [Performance](../performance/index.md) - Production optimization

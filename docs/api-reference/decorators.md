@@ -27,7 +27,7 @@ Complete reference for all FraiseQL decorators with signatures, parameters, and 
 | implements | list[type] \| None | None | List of GraphQL interface types |
 | resolve_nested | bool | False | Resolve nested instances via separate queries |
 
-**Examples**: See [Types and Schema](../core/types-and-schema.md#fraiseql_type--type)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @input / @fraise_input
 
@@ -43,7 +43,7 @@ class InputName:
 
 **Parameters**: None (decorator takes no arguments)
 
-**Examples**: See [Types and Schema](../core/types-and-schema.md#fraiseql_input--input)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @enum / @fraise_enum
 
@@ -59,7 +59,7 @@ class EnumName(Enum):
 
 **Parameters**: None
 
-**Examples**: See [Types and Schema](../core/types-and-schema.md#fraiseql_enum--enum)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ### @interface / @fraise_interface
 
@@ -75,7 +75,7 @@ class InterfaceName:
 
 **Parameters**: None
 
-**Examples**: See [Types and Schema](../core/types-and-schema.md#fraiseql_interface--interface)
+**Examples**: See [Types and Schema](../core/types-and-schema.md)
 
 ## Query Decorators
 

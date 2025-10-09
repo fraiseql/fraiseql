@@ -876,5 +876,5 @@ large_tenant_pool = DatabasePool(
 
 - [Authentication](authentication.md) - Tenant-scoped authentication
 - [Bounded Contexts](bounded-contexts.md) - Multi-tenant DDD patterns
-- [Performance](../core/performance.md) - Query optimization per tenant
+- [Performance](../performance/index.md) - Query optimization per tenant
 - [Security](../production/security.md) - Tenant isolation security
