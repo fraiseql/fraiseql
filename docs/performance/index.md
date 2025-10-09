@@ -34,7 +34,7 @@ The Rust transformer is FraiseQL's foundational performance layer that uses **fr
 All GraphQL types are automatically registered with the Rust transformer during schema building. When queries execute, JSON results from PostgreSQL are transformed via Rust:
 
 ```
-PostgreSQL JSONB (snake_case) ’ Rust Transform (0.2-2ms) ’ GraphQL JSON (camelCase + __typename)
+PostgreSQL JSONB (snake_case) â†’ Rust Transform (0.2-2ms) â†’ GraphQL JSON (camelCase + __typename)
 ```
 
 **Performance Impact**:
@@ -181,11 +181,11 @@ JSON Passthrough eliminates Python object instantiation and serialization overhe
 
 ```python
 # Standard Mode (with object instantiation)
-# PostgreSQL JSONB ’ Python objects ’ GraphQL serialization ’ JSON
+# PostgreSQL JSONB ï¿½ Python objects ï¿½ GraphQL serialization ï¿½ JSON
 # Overhead: 5-25ms
 
 # Passthrough Mode (direct JSON)
-# PostgreSQL JSONB ’ Rust transform ’ JSON
+# PostgreSQL JSONB ï¿½ Rust transform ï¿½ JSON
 # Overhead: 0.2-2ms (with Rust)
 ```
 

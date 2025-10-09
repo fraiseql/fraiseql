@@ -1,896 +1,677 @@
-# Decorators API Reference
+# Decorators Reference
 
-Complete reference for all FraiseQL decorators used to define GraphQL schemas, resolvers, and optimizations.
+Complete reference for all FraiseQL decorators with signatures, parameters, and examples.
 
-## Query & Mutation Decorators
+## Type Decorators
 
-### @query
+### @type / @fraise_type
 
+**Purpose**: Define GraphQL object types
+
+**Signature**:
 ```python
-@fraiseql.query
-def query_function(info, *args, **kwargs) -> ReturnType
-```
-
-Marks a function as a GraphQL query resolver. Automatically registers with the schema.
-
-#### Parameters
-
-- `info`: GraphQL resolver info object containing context
-- `*args, **kwargs`: Query parameters defined by function signature
-
-#### Returns
-
-The decorated function with GraphQL query metadata.
-
-#### Example
-
-```python
-from fraiseql import query, fraise_type
-from uuid import UUID
-
-@query
-async def get_user(info, id: UUID) -> User:
-    """Fetch a user by ID."""
-    db = info.context["db"]
-    return await db.find_one("users", {"id": id})
-
-@query
-async def search_users(
-    info,
-    name: str | None = None,
-    limit: int = 10
-) -> list[User]:
-    """Search users with optional filters."""
-    db = info.context["db"]
-    filters = {}
-    if name:
-        filters["name__icontains"] = name
-    return await db.find("users", filters, limit=limit)
-```
-
-### @mutation
-
-```python
-@fraiseql.mutation(
-    function: str | None = None,
-    schema: str | None = None,
-    context_params: dict[str, str] | None = None
-)
-def mutation_function(info, *args, **kwargs) -> MutationResult
-```
-
-Defines a GraphQL mutation with automatic error handling and result typing.
-
-#### Parameters
-
-- `function`: PostgreSQL function name (defaults to snake_case of class name)
-- `schema`: PostgreSQL schema containing the function (defaults to `default_mutation_schema` from config, or "public")
-- `context_params`: Maps GraphQL context keys to PostgreSQL function parameter names
-- `info`: GraphQL resolver info
-- `*args, **kwargs`: Mutation input parameters
-
-#### Returns
-
-Mutation result object with success/error states.
-
-#### Default Schema Configuration
-
-As of v0.1.3, you can configure a default schema for all mutations in your FraiseQLConfig:
-
-```python
-from fraiseql import FraiseQLConfig, create_fraiseql_app
-
-config = FraiseQLConfig(
-    database_url="postgresql://localhost/mydb",
-    default_mutation_schema="app",  # All mutations use this schema by default
-)
-
-# Now mutations don't need to specify schema repeatedly
-@mutation(function="create_user")  # Uses "app" schema
-class CreateUser:
-    input: CreateUserInput
-    success: CreateUserSuccess
-    failure: CreateUserError
-
-# Override when needed
-@mutation(function="system_function", schema="public")  # Explicit override
-class SystemFunction:
-    input: SystemInput
-    success: SystemSuccess
-    failure: SystemError
-```
-
-#### Configuration
-
-Mutations require result types decorated with `@result`, `@success`, and `@failure`:
-
-```python
-from fraiseql import mutation, result, success, failure, fraise_type
-
-@result
-class CreateUserResult:
-    pass
-
-@success
-@fraise_type
-class CreateUserSuccess(CreateUserResult):
-    user: User
-    message: str = "User created successfully"
-
-@failure
-@fraise_type
-class CreateUserError(CreateUserResult):
-    code: str
-    message: str
-
-@mutation
-async def create_user(
-    info,
-    name: str,
-    email: str
-) -> CreateUserResult:
-    """Create a new user."""
-    db = info.context["db"]
-
-    try:
-        user = await db.create("users", {
-            "name": name,
-            "email": email
-        })
-        return CreateUserSuccess(user=user)
-    except IntegrityError:
-        return CreateUserError(
-            code="DUPLICATE_EMAIL",
-            message="Email already exists"
-        )
-```
-
-### @subscription
-
-```python
-@fraiseql.subscription
-async def subscription_function(info, *args) -> AsyncIterator[Type]
-```
-
-Defines a GraphQL subscription for real-time updates.
-
-#### Requirements
-
-- Must be an async generator function
-- Must yield values over time
-- WebSocket support required
-
-#### Example
-
-```python
-from fraiseql import subscription
-import asyncio
-
-@subscription
-async def on_user_created(info):
-    """Subscribe to new user creation events."""
-    pubsub = info.context["pubsub"]
-
-    async for event in pubsub.subscribe("user.created"):
-        yield event["user"]
-
-@subscription
-async def countdown(info, from_number: int = 10):
-    """Countdown subscription example."""
-    for i in range(from_number, 0, -1):
-        await asyncio.sleep(1)
-        yield i
-```
-
-## Type Definition Decorators
-
-### @fraise_type
-
-```python
-@fraiseql.fraise_type(
+@type(
     sql_source: str | None = None,
-    jsonb_column: str | None = None,
+    jsonb_column: str | None = "data",
     implements: list[type] | None = None,
     resolve_nested: bool = False
 )
-class TypeName:
-    field1: type
-    field2: type
 ```
 
-Defines a GraphQL object type with automatic field inference and JSON serialization support.
+**Parameters**:
 
-#### Features
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| sql_source | str \| None | None | Database table/view name for automatic query generation |
+| jsonb_column | str \| None | "data" | JSONB column name. Use None for regular column tables |
+| implements | list[type] \| None | None | List of GraphQL interface types |
+| resolve_nested | bool | False | Resolve nested instances via separate queries |
 
-- Auto-converts Python types to GraphQL types
-- Supports nested types and lists
-- Optional fields with `| None`
-- Default values
-- Computed fields via `@field`
-- **Automatic JSON serialization** in GraphQL responses (v0.3.9+)
-- `from_dict()` class method for creating instances from dictionaries
+**Examples**: See [Types and Schema](../core/types-and-schema.md#fraiseql_type--type)
 
-#### Parameters
+### @input / @fraise_input
 
-- `sql_source`: Optional table/view name for automatic SQL queries
-- `jsonb_column`: JSONB column name (defaults to "data")
-- `implements`: List of interfaces this type implements
-- `resolve_nested`: Whether nested instances should be resolved separately
+**Purpose**: Define GraphQL input types
 
-#### Example
-
+**Signature**:
 ```python
-from fraiseql import fraise_type, field
-from datetime import datetime
-from uuid import UUID
-
-@fraise_type(sql_source="v_user")
-class User:
-    id: UUID
-    username: str
-    email: str
-    created_at: datetime
-    bio: str | None = None
-
-    @field
-    def display_name(self) -> str:
-        """Computed display name."""
-        return f"@{self.username}"
-
-    @field
-    async def post_count(self, info) -> int:
-        """Count user's posts."""
-        db = info.context["db"]
-        return await db.count("posts", {"author_id": self.id})
-
-# The decorator automatically provides JSON serialization support:
-user = User(
-    id=UUID("12345678-1234-1234-1234-123456789abc"),
-    username="johndoe",
-    email="john@example.com",
-    created_at=datetime.now()
-)
-
-# Works in GraphQL responses without additional configuration:
-# {
-#   "data": {
-#     "user": {
-#       "id": "12345678-1234-1234-1234-123456789abc",
-#       "username": "johndoe",
-#       "email": "john@example.com",
-#       "createdAt": "2024-01-15T10:30:00"
-#     }
-#   }
-# }
-
-# Also supports creating from dictionaries (e.g., from database):
-user_data = {
-    "id": "12345678-1234-1234-1234-123456789abc",
-    "username": "johndoe",
-    "email": "john@example.com",
-    "createdAt": "2024-01-15T10:30:00"  # camelCase automatically converted
-}
-user = User.from_dict(user_data)
+@input
+class InputName:
+    field1: str
+    field2: int | None = None
 ```
 
-### @fraise_input
+**Parameters**: None (decorator takes no arguments)
 
+**Examples**: See [Types and Schema](../core/types-and-schema.md#fraiseql_input--input)
+
+### @enum / @fraise_enum
+
+**Purpose**: Define GraphQL enum types from Python Enum classes
+
+**Signature**:
 ```python
-@fraiseql.fraise_input
-class InputTypeName:
-    field1: type
-    field2: type | None = None
-```
-
-Defines a GraphQL input type for mutations and queries.
-
-#### Example
-
-```python
-from fraiseql import fraise_input
-
-@fraise_input
-class CreateUserInput:
-    username: str
-    email: str
-    password: str
-    bio: str | None = None
-
-@fraise_input
-class UpdateUserInput:
-    username: str | None = None
-    email: str | None = None
-    bio: str | None = None
-```
-
-### @fraise_enum
-
-```python
-@fraiseql.fraise_enum
+@enum
 class EnumName(Enum):
     VALUE1 = "value1"
     VALUE2 = "value2"
 ```
 
-Defines a GraphQL enum type.
+**Parameters**: None
 
-#### Example
+**Examples**: See [Types and Schema](../core/types-and-schema.md#fraiseql_enum--enum)
 
+### @interface / @fraise_interface
+
+**Purpose**: Define GraphQL interface types
+
+**Signature**:
 ```python
-from fraiseql import fraise_enum
-from enum import Enum
-
-@fraise_enum
-class UserRole(Enum):
-    ADMIN = "admin"
-    MODERATOR = "moderator"
-    USER = "user"
-    GUEST = "guest"
-
-@fraise_enum
-class PostStatus(Enum):
-    DRAFT = "draft"
-    PUBLISHED = "published"
-    ARCHIVED = "archived"
+@interface
+class InterfaceName:
+    field1: str
+    field2: int
 ```
 
-## Authorization Decorators
+**Parameters**: None
 
-### @authorize_field
+**Examples**: See [Types and Schema](../core/types-and-schema.md#fraiseql_interface--interface)
 
+## Query Decorators
+
+### @query
+
+**Purpose**: Mark async functions as GraphQL queries
+
+**Signature**:
 ```python
-@fraiseql.authorize_field(permission="read:sensitive")
-def field_name(self, info) -> type:
+@query
+async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType:
     pass
 ```
 
-Adds field-level authorization to GraphQL fields.
+**Parameters**: None (decorator takes no arguments)
 
-#### Parameters
+**First Parameter**: Always `info` (GraphQL resolver info)
 
-- `permission` (str): Required permission to access this field
-- `roles` (list[str], optional): List of roles allowed to access
-- `check_func` (callable, optional): Custom authorization function
+**Return Type**: Any GraphQL type (fraise_type, list, scalar, Connection, etc.)
 
-#### Example
-
+**Examples**:
 ```python
-from fraiseql import fraise_type, authorize_field
+from fraiseql import query
 
-@fraise_type
+@query
+async def get_user(info, id: UUID) -> User:
+    db = info.context["db"]
+    return await db.find_one("v_user", where={"id": id})
+
+@query
+async def search_users(
+    info,
+    name_filter: str | None = None,
+    limit: int = 10
+) -> list[User]:
+    db = info.context["db"]
+    filters = {}
+    if name_filter:
+        filters["name__icontains"] = name_filter
+    return await db.find("v_user", where=filters, limit=limit)
+```
+
+**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#query-decorator)
+
+### @connection
+
+**Purpose**: Create cursor-based pagination queries
+
+**Signature**:
+```python
+@connection(
+    node_type: type,
+    view_name: str | None = None,
+    default_page_size: int = 20,
+    max_page_size: int = 100,
+    include_total_count: bool = True,
+    cursor_field: str = "id",
+    jsonb_extraction: bool | None = None,
+    jsonb_column: str | None = None
+)
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Required | Description |
+|-----------|------|---------|----------|-------------|
+| node_type | type | - | Yes | Type of objects in the connection |
+| view_name | str \| None | None | No | Database view name (inferred from function name if omitted) |
+| default_page_size | int | 20 | No | Default number of items per page |
+| max_page_size | int | 100 | No | Maximum allowed page size |
+| include_total_count | bool | True | No | Include total count in results |
+| cursor_field | str | "id" | No | Field to use for cursor ordering |
+| jsonb_extraction | bool \| None | None | No | Enable JSONB field extraction (inherits from global config) |
+| jsonb_column | str \| None | None | No | JSONB column name (inherits from global config) |
+
+**Must be used with**: @query decorator
+
+**Returns**: Connection[T]
+
+**Examples**:
+```python
+from fraiseql import connection, query, type
+from fraiseql.types import Connection
+
+@type(sql_source="v_user")
 class User:
     id: UUID
-    username: str
+    name: str
 
-    @authorize_field(permission="read:email")
-    def email(self, info) -> str:
-        return self._email
+@connection(node_type=User)
+@query
+async def users_connection(info, first: int | None = None) -> Connection[User]:
+    pass  # Implementation handled by decorator
 
-    @authorize_field(roles=["admin", "moderator"])
-    def admin_notes(self, info) -> str | None:
-        return self._admin_notes
-
-    @authorize_field(check_func=lambda user, info: user.id == info.context.user.id)
-    def private_data(self, info) -> dict:
-        return self._private_data
+@connection(
+    node_type=Post,
+    view_name="v_published_posts",
+    default_page_size=25,
+    max_page_size=50,
+    cursor_field="created_at"
+)
+@query
+async def posts_connection(
+    info,
+    first: int | None = None,
+    after: str | None = None
+) -> Connection[Post]:
+    pass
 ```
 
-### @fraise_interface
+**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#connection-decorator)
 
+## Mutation Decorators
+
+### @mutation
+
+**Purpose**: Define GraphQL mutations
+
+**Function-based Signature**:
 ```python
-@fraiseql.fraise_interface
-class InterfaceName:
-    common_field: type
+@mutation
+async def mutation_name(info, input: InputType) -> ReturnType:
+    pass
 ```
 
-Defines a GraphQL interface that other types can implement.
-
-#### Example
-
+**Class-based Signature**:
 ```python
-from fraiseql import fraise_interface, fraise_type
-
-@fraise_interface
-class Node:
-    id: UUID
-    created_at: datetime
-    updated_at: datetime
-
-@fraise_type
-class User(Node):
-    username: str
-    email: str
-
-@fraise_type
-class Post(Node):
-    title: str
-    content: str
-    author_id: UUID
+@mutation(
+    function: str | None = None,
+    schema: str | None = None,
+    context_params: dict[str, str] | None = None,
+    error_config: MutationErrorConfig | None = None
+)
+class MutationName:
+    input: InputType
+    success: SuccessType
+    failure: FailureType
 ```
+
+**Parameters (Class-based)**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
+| schema | str \| None | "public" | PostgreSQL schema containing the function |
+| context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
+| error_config | MutationErrorConfig \| None | None | Configuration for error detection behavior |
+
+**Examples**:
+```python
+# Function-based
+@mutation
+async def create_user(info, input: CreateUserInput) -> User:
+    db = info.context["db"]
+    return await db.create_one("v_user", data=input.__dict__)
+
+# Class-based
+@mutation
+class CreateUser:
+    input: CreateUserInput
+    success: CreateUserSuccess
+    failure: CreateUserError
+
+# With custom function
+@mutation(function="register_new_user", schema="auth")
+class RegisterUser:
+    input: RegistrationInput
+    success: RegistrationSuccess
+    failure: RegistrationError
+
+# With context parameters
+@mutation(
+    function="create_location",
+    schema="app",
+    context_params={
+        "tenant_id": "input_pk_organization",
+        "user": "input_created_by"
+    }
+)
+class CreateLocation:
+    input: CreateLocationInput
+    success: CreateLocationSuccess
+    failure: CreateLocationError
+```
+
+**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#mutation-decorator)
+
+### @success / @failure / @result
+
+**Purpose**: Helper decorators for mutation result types
+
+**Usage**:
+```python
+from fraiseql.mutations.decorators import success, failure, result
+
+@success
+class CreateUserSuccess:
+    user: User
+    message: str
+
+@failure
+class CreateUserError:
+    code: str
+    message: str
+    field: str | None = None
+
+@result
+class CreateUserResult:
+    success: CreateUserSuccess | None = None
+    error: CreateUserError | None = None
+```
+
+**Note**: These are type markers, not required for mutations. Use @type instead for most cases.
 
 ## Field Decorators
 
 ### @field
 
+**Purpose**: Mark methods as GraphQL fields with custom resolvers
+
+**Signature**:
 ```python
-@fraiseql.field
-def field_method(self, info=None) -> ReturnType
+@field(
+    resolver: Callable[..., Any] | None = None,
+    description: str | None = None,
+    track_n1: bool = True
+)
+def method_name(self, info, ...params) -> ReturnType:
+    pass
 ```
 
-Defines a computed field on a type.
+**Parameters**:
 
-#### Parameters
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| method | Callable | - | Method to decorate (when used without parentheses) |
+| resolver | Callable \| None | None | Optional custom resolver function |
+| description | str \| None | None | Field description for GraphQL schema |
+| track_n1 | bool | True | Track N+1 query patterns for performance monitoring |
 
-- `self`: The parent object instance
-- `info`: Optional GraphQL resolver info
-
-#### Example
-
+**Examples**:
 ```python
-@fraise_type
+@type
 class User:
     first_name: str
     last_name: str
 
-    @field
-    def full_name(self) -> str:
-        """Computed full name field."""
+    @field(description="Full display name")
+    def display_name(self) -> str:
         return f"{self.first_name} {self.last_name}"
 
-    @field
-    async def recent_posts(self, info, limit: int = 5) -> list[Post]:
-        """Fetch user's recent posts."""
+    @field(description="User's posts")
+    async def posts(self, info) -> list[Post]:
+        db = info.context["db"]
+        return await db.find("v_post", where={"user_id": self.id})
+
+    @field(description="Posts with parameters")
+    async def recent_posts(
+        self,
+        info,
+        limit: int = 10
+    ) -> list[Post]:
         db = info.context["db"]
         return await db.find(
-            "posts",
-            {"author_id": self.id},
+            "v_post",
+            where={"user_id": self.id},
             order_by="created_at DESC",
             limit=limit
         )
 ```
 
+**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#field-decorator)
+
 ### @dataloader_field
 
+**Purpose**: Automatically use DataLoader for field resolution
+
+**Signature**:
 ```python
-@fraiseql.dataloader_field(
-    loader_class=LoaderClass,
-    key_field="parent_field_name"
+@dataloader_field(
+    loader_class: type[DataLoader],
+    key_field: str,
+    description: str | None = None
 )
-async def field_name(self, info) -> ReturnType
+async def method_name(self, info) -> ReturnType:
+    pass  # Implementation is auto-generated
 ```
 
-Implements DataLoader-based field resolution for specific N+1 prevention cases.
+**Parameters**:
 
-**Note**: FraiseQL's recommended approach is to use composable SQL views where complex entities reference the data column of child entity views. This eliminates N+1 queries at the database level through proper view composition.
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| loader_class | type[DataLoader] | Yes | DataLoader class to use for loading |
+| key_field | str | Yes | Field name on parent object containing the key to load |
+| description | str \| None | No | Field description for GraphQL schema |
 
-#### Parameters
-
-- `loader_class`: DataLoader subclass to use
-- `key_field`: Field name on parent containing the key
-- `description`: Optional field description
-
-#### When to Use DataLoader vs Views
-
-**Prefer SQL Views (Recommended)**:
-```sql
--- Composable view with nested data
-CREATE VIEW v_user_with_posts AS
-SELECT
-    u.*,
-    jsonb_build_object(
-        'posts', (
-            SELECT jsonb_agg(p.data)
-            FROM v_post p
-            WHERE p.author_id = u.id
-        )
-    ) as data
-FROM v_user u;
-```
-
+**Examples**:
 ```python
-@fraise_type
-class UserWithPosts:
-    id: UUID
-    name: str
-    email: str
-    posts: list[Post]  # Automatically extracted from data column
-```
+from fraiseql import dataloader_field
+from fraiseql.optimization.dataloader import DataLoader
 
-**Use DataLoader for**:
+# Define DataLoader
+class UserDataLoader(DataLoader):
+    async def batch_load(self, keys: list[UUID]) -> list[User | None]:
+        db = self.context["db"]
+        users = await db.find("v_user", where={"id__in": keys})
+        # Return in same order as keys
+        user_map = {user.id: user for user in users}
+        return [user_map.get(key) for key in keys]
 
-- External API calls
-- Cross-database joins
-- Dynamic computations that can't be expressed in SQL
-
-#### Example
-
-```python
-from fraiseql import fraise_type, dataloader_field
-from fraiseql.optimization import DataLoader
-
-class UserLoader(DataLoader):
-    async def batch_load(self, user_ids: list[UUID]) -> list[User | None]:
-        users = await db.find("users", {"id__in": user_ids})
-        user_map = {u.id: u for u in users}
-        return [user_map.get(uid) for uid in user_ids]
-
-@fraise_type
+# Use in type
+@type
 class Post:
-    id: UUID
-    title: str
     author_id: UUID
 
-    @dataloader_field(UserLoader, key_field="author_id")
+    @dataloader_field(UserDataLoader, key_field="author_id")
     async def author(self, info) -> User | None:
-        """Load post author - implementation auto-generated."""
-        pass  # Auto-implemented by decorator
+        """Load post author using DataLoader."""
+        pass  # Implementation is auto-generated
+
+# GraphQL query automatically batches author loads
+# query {
+#   posts {
+#     title
+#     author { name }  # Batched into single query
+#   }
+# }
 ```
+
+**Benefits**:
+- Eliminates N+1 query problems
+- Automatic batching of requests
+- Built-in caching within single request
+- Type-safe implementation
+
+**See Also**: Optimization documentation
+
+## Subscription Decorators
+
+### @subscription
+
+**Purpose**: Mark async generator functions as GraphQL subscriptions
+
+**Signature**:
+```python
+@subscription
+async def subscription_name(info, ...params) -> AsyncGenerator[ReturnType, None]:
+    async for item in event_stream():
+        yield item
+```
+
+**Parameters**: None
+
+**Return Type**: Must be AsyncGenerator[YieldType, None]
+
+**Examples**:
+```python
+from typing import AsyncGenerator
+
+@subscription
+async def on_post_created(info) -> AsyncGenerator[Post, None]:
+    async for post in post_event_stream():
+        yield post
+
+@subscription
+async def on_user_posts(
+    info,
+    user_id: UUID
+) -> AsyncGenerator[Post, None]:
+    async for post in post_event_stream():
+        if post.user_id == user_id:
+            yield post
+```
+
+**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#subscription-decorator)
 
 ## Authentication Decorators
 
 ### @requires_auth
 
+**Purpose**: Require authentication for resolver
+
+**Signature**:
 ```python
-@fraiseql.requires_auth
-async def resolver(info, *args) -> Type
+@requires_auth
+async def resolver_name(info, ...params) -> ReturnType:
+    pass
 ```
 
-Requires authentication for resolver execution.
+**Parameters**: None
 
-#### Example
-
+**Examples**:
 ```python
-from fraiseql import query, requires_auth
+from fraiseql.auth import requires_auth
 
 @query
 @requires_auth
 async def get_my_profile(info) -> User:
-    """Get current user's profile."""
-    user_context = info.context["user"]
+    user = info.context["user"]  # Guaranteed to be authenticated
     db = info.context["db"]
-    return await db.find_one("users", {"id": user_context.id})
-```
-
-### @requires_role
-
-```python
-@fraiseql.requires_role("role_name")
-async def resolver(info, *args) -> Type
-```
-
-Requires specific role for access.
-
-#### Example
-
-```python
-from fraiseql import mutation, requires_role
+    return await db.find_one("v_user", where={"id": user.user_id})
 
 @mutation
-@requires_role("admin")
-async def delete_user(info, user_id: UUID) -> bool:
-    """Admin-only user deletion."""
+@requires_auth
+async def update_profile(info, input: UpdateProfileInput) -> User:
+    user = info.context["user"]
     db = info.context["db"]
-    await db.delete("users", {"id": user_id})
-    return True
+    return await db.update_one(
+        "v_user",
+        where={"id": user.user_id},
+        updates=input.__dict__
+    )
 ```
+
+**Raises**: GraphQLError with code "UNAUTHENTICATED" if not authenticated
 
 ### @requires_permission
 
+**Purpose**: Require specific permission for resolver
+
+**Signature**:
 ```python
-@fraiseql.requires_permission("permission_name")
-async def resolver(info, *args) -> Type
+@requires_permission(permission: str)
+async def resolver_name(info, ...params) -> ReturnType:
+    pass
 ```
 
-Requires specific permission for access.
+**Parameters**:
 
-#### Example
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| permission | str | Yes | Permission string required (e.g., "users:write") |
 
+**Examples**:
 ```python
+from fraiseql.auth import requires_permission
+
 @mutation
 @requires_permission("users:write")
-async def update_user(info, id: UUID, data: UpdateUserInput) -> User:
-    """Update user with permission check."""
+async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
-    return await db.update("users", {"id": id}, data)
-```
-
-## Mutation Result Decorators
-
-### @result
-
-```python
-@fraiseql.result
-class MutationResult:
-    pass
-```
-
-Base class for mutation results (union type).
-
-### @success (Deprecated)
-
-> ⚠️ **Deprecated:** With FraiseQL's clean default patterns, `@fraiseql.success` is no longer needed.
-> Use `FraiseQLMutation` which automatically decorates success and failure types.
-
-```python
-# OLD (deprecated)
-@fraiseql.success
-class MutationSuccess(MutationResult):
-    data: Type
-    message: str
-
-# NEW (clean default pattern)
-class MutationSuccess:
-    data: Type
-    message: str = "Operation successful"
-    errors: list[FraiseQLError] = []  # Native error arrays
-```
-
-### @failure (Deprecated)
-
-> ⚠️ **Deprecated:** With FraiseQL's clean default patterns, `@fraiseql.failure` is no longer needed.
-> Use `FraiseQLMutation` which automatically decorates success and failure types.
-
-```python
-# OLD (deprecated)
-@fraiseql.failure
-class MutationError(MutationResult):
-    code: str
-    message: str
-
-# NEW (clean default pattern)
-class MutationError:
-    message: str
-    errors: list[FraiseQLError]  # Comprehensive error information
-```
-
-#### Complete Example
-
-```python
-from fraiseql import mutation, result, success, failure, fraise_type
-
-@result
-class LoginResult:
-    pass
-
-@success
-@fraise_type
-class LoginSuccess(LoginResult):
-    token: str
-    user: User
-    expires_at: datetime
-
-@failure
-@fraise_type
-class LoginError(LoginResult):
-    code: str  # INVALID_CREDENTIALS, ACCOUNT_LOCKED, etc.
-    message: str
-    retry_after: datetime | None = None
+    return await db.create_one("v_user", data=input.__dict__)
 
 @mutation
-async def login(
-    info,
-    email: str,
-    password: str
-) -> LoginResult:
-    """Authenticate user and return token."""
+@requires_permission("users:delete")
+async def delete_user(info, id: UUID) -> bool:
     db = info.context["db"]
-
-    user = await db.find_one("users", {"email": email})
-    if not user or not verify_password(password, user.password_hash):
-        return LoginError(
-            code="INVALID_CREDENTIALS",
-            message="Invalid email or password"
-        )
-
-    if user.locked_until and user.locked_until > datetime.now():
-        return LoginError(
-            code="ACCOUNT_LOCKED",
-            message="Account temporarily locked",
-            retry_after=user.locked_until
-        )
-
-    token = generate_jwt_token(user)
-    return LoginSuccess(
-        token=token,
-        user=user,
-        expires_at=datetime.now() + timedelta(hours=24)
-    )
+    await db.delete_one("v_user", where={"id": id})
+    return True
 ```
 
-## Field Configuration
+**Raises**:
+- GraphQLError with code "UNAUTHENTICATED" if not authenticated
+- GraphQLError with code "FORBIDDEN" if missing permission
 
-### fraise_field
+### @requires_role
 
+**Purpose**: Require specific role for resolver
+
+**Signature**:
 ```python
-fraiseql.fraise_field(
-    default=value,
-    default_factory=callable,
-    description="Field description",
-    graphql_name="fieldName"
-)
+@requires_role(role: str)
+async def resolver_name(info, ...params) -> ReturnType:
+    pass
 ```
 
-Configures field metadata and behavior.
+**Parameters**:
 
-#### Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| role | str | Yes | Role name required (e.g., "admin") |
 
-- `default`: Default value for field
-- `default_factory`: Factory function for defaults
-- `description`: Field description in schema
-- `graphql_name`: Custom GraphQL field name
-- `init`: Include in `__init__` (default: True)
-- `repr`: Include in `__repr__` (default: True)
-- `compare`: Include in comparisons (default: True)
-
-#### Example
-
+**Examples**:
 ```python
-from fraiseql import fraise_type, fraise_field
-from datetime import datetime
+from fraiseql.auth import requires_role
 
-@fraise_type
-class Post:
-    id: UUID
-    title: str
-    content: str
+@query
+@requires_role("admin")
+async def get_all_users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user")
 
-    created_at: datetime = fraise_field(
-        default_factory=datetime.now,
-        description="Post creation timestamp"
-    )
-
-    view_count: int = fraise_field(
-        default=0,
-        description="Number of times post has been viewed"
-    )
-
-    internal_id: str = fraise_field(
-        graphql_name="internalId",
-        description="Internal tracking ID"
-    )
+@mutation
+@requires_role("admin")
+async def admin_action(info, input: AdminActionInput) -> Result:
+    # Admin-only mutation
+    pass
 ```
 
-## Decorator Composition
+**Raises**:
+- GraphQLError with code "UNAUTHENTICATED" if not authenticated
+- GraphQLError with code "FORBIDDEN" if missing role
 
-Decorators can be combined for complex behaviors:
+### @requires_any_permission
 
+**Purpose**: Require any of the specified permissions
+
+**Signature**:
 ```python
-from fraiseql import query, requires_auth, requires_role
+@requires_any_permission(*permissions: str)
+async def resolver_name(info, ...params) -> ReturnType:
+    pass
+```
 
+**Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *permissions | str | Yes | Variable number of permission strings |
+
+**Examples**:
+```python
+from fraiseql.auth import requires_any_permission
+
+@mutation
+@requires_any_permission("users:write", "admin:all")
+async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
+    # Can be performed by users:write OR admin:all
+    db = info.context["db"]
+    return await db.update_one("v_user", where={"id": id}, updates=input.__dict__)
+```
+
+**Raises**:
+- GraphQLError with code "UNAUTHENTICATED" if not authenticated
+- GraphQLError with code "FORBIDDEN" if missing all permissions
+
+### @requires_any_role
+
+**Purpose**: Require any of the specified roles
+
+**Signature**:
+```python
+@requires_any_role(*roles: str)
+async def resolver_name(info, ...params) -> ReturnType:
+    pass
+```
+
+**Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *roles | str | Yes | Variable number of role names |
+
+**Examples**:
+```python
+from fraiseql.auth import requires_any_role
+
+@query
+@requires_any_role("admin", "moderator")
+async def moderate_content(info, id: UUID) -> ModerationResult:
+    # Can be performed by admin OR moderator
+    pass
+```
+
+**Raises**:
+- GraphQLError with code "UNAUTHENTICATED" if not authenticated
+- GraphQLError with code "FORBIDDEN" if missing all roles
+
+## Decorator Combinations
+
+**Stacking decorators**:
+```python
+from fraiseql import query, connection, type
+from fraiseql.auth import requires_auth, requires_permission
+from fraiseql.types import Connection
+
+# Multiple decorators - order matters
+@connection(node_type=User)
 @query
 @requires_auth
-@requires_role("moderator")
-async def get_flagged_content(
-    info,
-    limit: int = 20,
-    offset: int = 0
-) -> list[Post]:
-    """Get flagged posts for moderation."""
-    db = info.context["db"]
-    return await db.find(
-        "posts",
-        {"flagged": True},
-        limit=limit,
-        offset=offset
-    )
-```
+@requires_permission("users:read")
+async def users_connection(info, first: int | None = None) -> Connection[User]:
+    pass
 
-## Performance Considerations
-
-| Decorator | Performance Impact | Use When |
-|-----------|-------------------|----------|
-| `@query` | Minimal | Always for queries |
-| `@mutation` | Minimal | Always for mutations |
-| `@subscription` | WebSocket overhead | Real-time needed |
-| `@field` | Per-field call | Computed values |
-| `@dataloader_field` | Batching overhead | External APIs, cross-DB |
-| `@requires_auth` | Auth check per call | Security required |
-
-## Best Practices
-
-1. **Type Everything**: Always include type hints for parameters and returns
-2. **Use SQL Views**: Prefer composable SQL views for related data over DataLoader
-3. **Error Handling**: Use result types for mutations
-4. **Documentation**: Include docstrings for schema documentation
-5. **Security First**: Apply auth decorators at resolver level
-6. **Composition**: Layer decorators for complex requirements
-
-## Common Patterns
-
-### Pagination Pattern
-
-```python
-@fraise_input
-class PaginationInput:
-    limit: int = 10
-    offset: int = 0
-    order_by: str | None = None
-
-@query
-async def list_users(
-    info,
-    pagination: PaginationInput = PaginationInput()
-) -> list[User]:
-    db = info.context["db"]
-    return await db.find(
-        "users",
-        limit=pagination.limit,
-        offset=pagination.offset,
-        order_by=pagination.order_by
-    )
-```
-
-### Filtering Pattern
-
-```python
-@fraise_input
-class UserFilter:
-    name_contains: str | None = None
-    email: str | None = None
-    role: UserRole | None = None
-    created_after: datetime | None = None
-
-@query
-async def search_users(
-    info,
-    filters: UserFilter | None = None
-) -> list[User]:
-    db = info.context["db"]
-    where = {}
-
-    if filters:
-        if filters.name_contains:
-            where["name__icontains"] = filters.name_contains
-        if filters.email:
-            where["email"] = filters.email
-        if filters.role:
-            where["role"] = filters.role.value
-        if filters.created_after:
-            where["created_at__gt"] = filters.created_after
-
-    return await db.find("users", where)
-```
-
-### Composable Views Pattern (Recommended)
-
-```python
-# Define views in PostgreSQL that compose data
-"""
-CREATE VIEW v_user_full AS
-SELECT
-    u.id,
-    u.name,
-    u.email,
-    jsonb_build_object(
-        'id', u.id,
-        'name', u.name,
-        'email', u.email,
-        'posts', (
-            SELECT jsonb_agg(p.data)
-            FROM v_post p
-            WHERE p.author_id = u.id
-        ),
-        'comments', (
-            SELECT jsonb_agg(c.data)
-            FROM v_comment c
-            WHERE c.user_id = u.id
-        )
-    ) as data
-FROM users u;
-"""
-
-# FraiseQL automatically extracts nested data
-@fraise_type
-class UserFull:
+# Field-level auth
+@type
+class User:
     id: UUID
     name: str
-    email: str
-    posts: list[Post]
-    comments: list[Comment]
 
-@query
-async def get_user_full(info, id: UUID) -> UserFull:
-    """Single query fetches complete user with relations."""
-    db = info.context["db"]
-    return await db.find_one("v_user_full", {"id": id})
+    @field(description="Private settings")
+    @requires_auth
+    async def settings(self, info) -> UserSettings:
+        # Only accessible to authenticated users
+        pass
 ```
+
+**Decorator Order Rules**:
+1. Type decorators (@type, @input, @enum, @interface) - First
+2. Query/Mutation/Subscription decorators - Second
+3. Connection decorator - Before @query
+4. Auth decorators - After query/mutation/field decorators
+5. Field decorators (@field, @dataloader_field) - On methods
+
+## See Also
+
+- [Types and Schema](../core/types-and-schema.md) - Type system details
+- [Queries and Mutations](../core/queries-and-mutations.md) - Query and mutation patterns
+- [Configuration](../core/configuration.md) - Configure decorator behavior
