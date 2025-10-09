@@ -314,9 +314,20 @@ pip install fraiseql
 
 ## Next Steps
 
+### Continue Learning
+
+**Structured Path** (Recommended):
+- [Beginner Learning Path](./tutorials/beginner-path.md) - Complete 2-3 hour journey from zero to production
+
+**Hands-On Tutorial**:
+- [Blog API Tutorial](./tutorials/blog-api.md) - Build complete blog with posts, comments, users (45 min)
+
+**Core Concepts**:
 - [Database API](./core/database-api.md) - Repository patterns and QueryOptions
-- [Performance](./performance/index.md) - Rust transformation, APQ caching
-- [Database Patterns](./advanced/database-patterns.md) - View design, N+1 prevention
+- [Database Patterns](./advanced/database-patterns.md) - View design, N+1 prevention, tv_ pattern
+
+**Performance**:
+- [Performance Optimization](./performance/index.md) - Rust transformation, APQ caching, TurboRouter
 
 ## Key Concepts
 

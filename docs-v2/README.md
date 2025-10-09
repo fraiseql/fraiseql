@@ -6,6 +6,12 @@ Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry.
 
 **Getting Started**
 - [5-Minute Quickstart](./quickstart.md) - Build a working API in minutes
+- [Beginner Learning Path](./tutorials/beginner-path.md) - Complete learning journey (2-3 hours)
+
+**Tutorials** (3 hands-on guides)
+- [Beginner Learning Path](./tutorials/beginner-path.md) - Zero to production in 2-3 hours
+- [Blog API Tutorial](./tutorials/blog-api.md) - Complete blog with posts, comments, users (45 min)
+- [Production Deployment](./tutorials/production-deployment.md) - Docker, monitoring, security (90 min)
 
 **Core Concepts** (4 docs)
 - Types and Schema - GraphQL type definitions and schema generation
@@ -146,6 +152,28 @@ This documentation follows an information-dense format optimized for both human 
 - Production-ready code samples
 - Performance characteristics where measured
 - Cross-references to related topics
+
+## Learning Paths
+
+### New to FraiseQL? Start Here
+
+1. **[5-Minute Quickstart](./quickstart.md)** - Get a working API immediately
+2. **[Beginner Learning Path](./tutorials/beginner-path.md)** - Structured 2-3 hour journey
+3. **[Blog API Tutorial](./tutorials/blog-api.md)** - Build complete application
+4. **[Database Patterns](./advanced/database-patterns.md)** - Production patterns
+
+### Building Production APIs?
+
+1. **[Performance Optimization](./performance/index.md)** - 4-layer optimization stack
+2. **[Database Patterns](./advanced/database-patterns.md)** - tv_ pattern, entity change log, lazy caching
+3. **[Production Deployment](./tutorials/production-deployment.md)** - Docker, monitoring, security
+4. **[Multi-Tenancy](./advanced/multi-tenancy.md)** - Tenant isolation
+
+### Quick Reference?
+
+- **[Database API](./core/database-api.md)** - Repository methods and QueryOptions
+- **[Performance](./performance/index.md)** - Rust, APQ, TurboRouter, JSON Passthrough
+- **[Database Patterns](./advanced/database-patterns.md)** - Real production patterns (2,023 lines)
 
 ## Contributing
 
