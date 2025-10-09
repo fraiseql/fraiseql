@@ -4,11 +4,19 @@ Integrate Large Language Models with FraiseQL GraphQL APIs: schema introspection
 
 ## Overview
 
-FraiseQL's GraphQL schema provides structured, type-safe interfaces that LLMs can understand and generate queries for. This enables natural language to SQL/GraphQL translation with built-in safety mechanisms.
+FraiseQL's GraphQL schema provides structured, type-safe interfaces that LLMs can understand and generate queries for. **FraiseQL automatically generates rich schema documentation from Python docstrings**, making your API self-documenting for LLM consumption.
+
+**Why FraiseQL is Ideal for LLM Integration:**
+
+- **Auto-documentation**: Docstrings automatically become GraphQL descriptions (no manual schema docs)
+- **Rich introspection**: LLMs can discover types, fields, and documentation via GraphQL introspection
+- **Type safety**: Strong typing prevents invalid query generation
+- **Built-in safety**: Complexity limits and validation protect against expensive queries
 
 **Key Patterns:**
+
 - Schema introspection for LLM context
-- Structured query generation
+- Structured query generation from natural language
 - Query validation and sanitization
 - Complexity limits for LLM-generated queries
 - Prompt engineering for schema understanding
@@ -475,35 +483,45 @@ def simplify_query(query_text: str) -> str:
 
 ## Best Practices
 
-### 1. Schema Documentation
+### 1. Auto-Documentation from Docstrings
 
-Include rich descriptions for LLM understanding:
+**FraiseQL automatically extracts Python docstrings into GraphQL schema descriptions**, making your API self-documenting for LLM consumption.
+
+**How It Works:**
+- Type docstrings become GraphQL type descriptions
+- `Fields:` section in docstring defines field descriptions
+- Query/mutation docstrings become operation descriptions
+- All descriptions are available via GraphQL introspection
+
+**Write Once, Document Everywhere:**
 
 ```python
-from fraiseql import type_, query
+from fraiseql import type, query
+from uuid import UUID
 
-@type_
+@type(sql_source="v_user")
 class User:
     """User account with profile information and order history.
 
     Users are created during registration and can place orders,
     manage their profile, and view order history.
+
+    Fields:
+        id: Unique user identifier (UUID format)
+        email: User's email address (used for login)
+        name: User's full name
+        created_at: Account creation timestamp
+        orders: All orders placed by this user, sorted by creation date descending
     """
 
-    id: str
-    """Unique user identifier (UUID format)."""
-
+    id: UUID
     email: str
-    """User's email address (used for login)."""
-
     name: str
-    """User's full name."""
-
+    created_at: datetime
     orders: list['Order']
-    """All orders placed by this user, sorted by creation date descending."""
 
 @query
-async def user(info, id: str) -> User | None:
+async def user(info, id: UUID) -> User | None:
     """Get a single user by ID.
 
     Args:
@@ -521,7 +539,89 @@ async def user(info, id: str) -> User | None:
           }
         }
     """
-    return await fetch_user(id)
+    db = info.context["db"]
+    return await db.find_one("v_user", where={"id": id})
+```
+
+**What LLMs See (via introspection):**
+
+```json
+{
+  "types": [
+    {
+      "name": "User",
+      "description": "User account with profile information and order history.\n\nUsers are created during registration and can place orders,\nmanage their profile, and view order history.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String!",
+          "description": "Unique user identifier (UUID format)."
+        },
+        {
+          "name": "email",
+          "type": "String!",
+          "description": "User's email address (used for login)."
+        },
+        {
+          "name": "name",
+          "type": "String!",
+          "description": "User's full name."
+        },
+        {
+          "name": "orders",
+          "type": "[Order!]!",
+          "description": "All orders placed by this user, sorted by creation date descending."
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "user",
+      "description": "Get a single user by ID.\n\nArgs:\n    id: User UUID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)\n\nReturns:\n    User object with all profile fields, or null if not found.\n\nExample:\n    query {\n      user(id: \"123e4567-e89b-12d3-a456-426614174000\") {\n        id\n        name\n        email\n      }\n    }",
+      "type": "User",
+      "args": [
+        {
+          "name": "id",
+          "type": "String!",
+          "description": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Best Practices for LLM-Friendly Docstrings:**
+
+1. **Include examples in query/mutation docstrings** - LLMs learn patterns from examples
+2. **Document field formats** - Specify UUID format, date formats, enum values
+3. **Explain relationships** - "User's orders" vs "Orders user can access"
+4. **Note sorting/filtering** - "sorted by creation date descending"
+5. **Document edge cases** - "returns null if not found", "empty list if no results"
+
+**No Manual Schema Documentation Needed:**
+
+```python
+# ✅ Good: Write docstrings once with Fields section
+@type(sql_source="v_product")
+class Product:
+    """Product available for purchase.
+
+    Fields:
+        sku: Stock keeping unit (format: ABC-12345)
+        name: Product name
+        price: Price in USD cents (e.g., 2999 = $29.99)
+        in_stock: Whether product is currently available
+    """
+
+    sku: str
+    name: str
+    price: Decimal
+    in_stock: bool
+
+# ❌ Bad: Don't manually maintain separate schema docs
+# LLMs automatically read descriptions from introspection
 ```
 
 ### 2. Query Templates
