@@ -16,7 +16,7 @@ By the end of this section, you'll understand:
 
 Before you begin, you should have:
 
-- **Python 3.10 or higher** - FraiseQL uses modern Python type hints
+- **Python 3.13 or higher** - FraiseQL uses modern Python type hints
 - **PostgreSQL 13 or higher** - For JSONB and advanced SQL features
 - **Basic SQL knowledge** - You'll be writing views and functions
 - **Familiarity with GraphQL concepts** - Helpful but not required

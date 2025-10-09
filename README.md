@@ -147,12 +147,10 @@ class CreateUserInput:
     name: str
     email: EmailAddress
 
-@fraiseql.success
 class CreateUserSuccess:
     user: User
     message: str = "User created successfully"
 
-@fraiseql.failure
 class CreateUserError:
     message: str
     error_code: str
@@ -316,13 +314,31 @@ FraiseQL draws inspiration from:
 - **Eric Evans' "Domain-Driven Design"** - Database-centric domain modeling
 - **PostgreSQL community** - For building the world's most advanced open source database
 
-## 👤 Author
+## 👨‍💻 About
 
-**Lionel Hamayon** - Creator and maintainer of FraiseQL
+FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evoludigit)), a self-taught developer and founder of [Évolution digitale](https://evolution-digitale.fr).
 
-- 🏢 [Évolution digitale](https://evolution-digitale.fr)
+**Started: April 2025**
+
+I built FraiseQL out of frustration with a stupid inefficiency: PostgreSQL returns JSON → Python deserializes to objects → GraphQL serializes back to JSON. Why are we doing this roundtrip?
+
+After years moving through Django, Flask, FastAPI, and Strawberry GraphQL with SQLAlchemy, I realized the entire approach was wrong. Just let PostgreSQL return the JSON directly. Skip the ORM. Skip the object mapping.
+
+But I also wanted something designed for the LLM era. SQL and Python are two of the most massively trained languages—LLMs understand them natively. Why not make a framework where AI can easily get context and generate correct code?
+
+FraiseQL is the result: database-first CQRS where PostgreSQL does what it does best, Python stays minimal, and the whole architecture is LLM-readable by design.
+
+Full disclosure: I built this while compulsively preparing for scale I didn't have. But that obsession led somewhere real—sub-millisecond responses, zero N+1 queries, and a framework that both humans and AI can understand.
+
+**Connect:**
+- 💼 GitHub: [@evoludigit](https://github.com/evoludigit)
 - 📧 lionel.hamayon@evolution-digitale.fr
-- 💼 [GitHub](https://github.com/fraiseql/fraiseql)
+- 🏢 [Évolution digitale](https://evolution-digitale.fr)
+
+**Support FraiseQL:**
+- ⭐ Star [fraiseql/fraiseql](https://github.com/fraiseql/fraiseql)
+- 💬 Join discussions and share feedback
+- 🤝 Contribute to the project
 
 ## 📄 License
 

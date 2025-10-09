@@ -13,32 +13,51 @@ Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry.
 - [Blog API Tutorial](./tutorials/blog-api.md) - Complete blog with posts, comments, users (45 min)
 - [Production Deployment](./tutorials/production-deployment.md) - Docker, monitoring, security (90 min)
 
-**Core Concepts** (4 docs)
-- Types and Schema - GraphQL type definitions and schema generation
-- Queries and Mutations - Resolver patterns and execution
+**Core Concepts** (5 docs)
+- [Types and Schema](./core/types-and-schema.md) - GraphQL type definitions and schema generation
+- [Queries and Mutations](./core/queries-and-mutations.md) - Resolver patterns and execution
 - [Database API](./core/database-api.md) - Repository patterns and query building
-- Configuration - Application setup and tuning
+- [Configuration](./core/configuration.md) - Application setup and tuning
+- [FraiseQL Philosophy](./core/fraiseql-philosophy.md) - Design principles and architecture decisions
 
 **Performance** (1 consolidated doc)
 - [Performance Optimization](./performance/index.md) - Complete optimization stack
 
 **Advanced Patterns** (6 docs)
-- Authentication - Auth patterns and security
-- Multi-Tenancy - Tenant isolation strategies
-- Bounded Contexts - Domain separation
-- Event Sourcing - Event-driven architecture
+- [Authentication](./advanced/authentication.md) - Auth patterns and security
+- [Multi-Tenancy](./advanced/multi-tenancy.md) - Tenant isolation strategies
+- [Bounded Contexts](./advanced/bounded-contexts.md) - Domain separation
+- [Event Sourcing](./advanced/event-sourcing.md) - Event-driven architecture
 - [Database Patterns](./advanced/database-patterns.md) - View design and N+1 prevention
-- LLM Integration - AI-native architecture
+- [LLM Integration](./advanced/llm-integration.md) - AI-native architecture
 
-**Production** (3 docs)
-- Deployment - Docker, Kubernetes, cloud platforms
-- Monitoring - Observability and metrics
-- Security - Production hardening
+**Production** (4 docs)
+- [Deployment](./production/deployment.md) - Docker, Kubernetes, cloud platforms
+- [Monitoring](./production/monitoring.md) - Observability and metrics
+- [Security](./production/security.md) - Production hardening
+- [Health Checks](./production/health-checks.md) - Application health monitoring
 
-**API Reference** (3 docs)
-- Decorators - @type, @query, @mutation
-- Configuration - FraiseQLConfig options
-- Database API - Repository methods
+**Reference** (4 docs)
+- [CLI Reference](./reference/cli.md) - Complete command-line interface guide
+- [Decorators](./reference/decorators.md) - @type, @query, @mutation
+- [Configuration](./reference/config.md) - FraiseQLConfig options
+- [Database API](./reference/database.md) - Repository methods
+
+## About FraiseQL
+
+FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evoludigit)), a self-taught developer frustrated with a fundamental inefficiency in GraphQL frameworks.
+
+**Started: April 2025**
+
+The trigger: watching PostgreSQL return JSON, Python deserialize it to objects, then GraphQL serialize it back to JSON. This roundtrip is ridiculous.
+
+After years with Django, Flask, FastAPI, and Strawberry GraphQL with SQLAlchemy, the answer became obvious: just let PostgreSQL return the JSON directly. Skip the ORM. Skip the object mapping. Let the database do what databases do best.
+
+But there was a second goal: make it LLM-first. SQL and Python are massively trained in every AI model. A framework built with these as primitives means LLMs can understand the context easily and generate correct code. In the age of AI-assisted development, this matters.
+
+FraiseQL is the result: database-first CQRS, minimal Python, maximum PostgreSQL, and architecture that's readable by both humans and AI.
+
+**Connect:** [@evoludigit](https://github.com/evoludigit) • [Évolution digitale](https://evolution-digitale.fr)
 
 ## Architecture Overview
 
@@ -54,12 +73,12 @@ FraiseQL implements CQRS pattern with PostgreSQL as the single source of truth. 
 
 | Feature | Description | Documentation |
 |---------|-------------|---------------|
-| Type-Safe Schema | Python decorators generate GraphQL types | Types and Schema |
+| Type-Safe Schema | Python decorators generate GraphQL types | [Types and Schema](./core/types-and-schema.md) |
 | Repository Pattern | Async database operations with structured queries | [Database API](./core/database-api.md) |
 | Rust Transformation | 10-80x faster JSON processing (optional) | [Performance](./performance/index.md) |
 | APQ Caching | Hash-based query persistence in PostgreSQL | [Performance](./performance/index.md) |
 | JSON Passthrough | Zero-copy responses from database | [Performance](./performance/index.md) |
-| Multi-Tenancy | Row-level security patterns | Multi-Tenancy |
+| Multi-Tenancy | Row-level security patterns | [Multi-Tenancy](./advanced/multi-tenancy.md) |
 | N+1 Prevention | Eliminated by design via view composition | [Database Patterns](./advanced/database-patterns.md) |
 
 ## System Requirements
@@ -171,6 +190,7 @@ This documentation follows an information-dense format optimized for both human 
 
 ### Quick Reference?
 
+- **[CLI Reference](./reference/cli.md)** - All commands, options, and workflows
 - **[Database API](./core/database-api.md)** - Repository methods and QueryOptions
 - **[Performance](./performance/index.md)** - Rust, APQ, TurboRouter, JSON Passthrough
 - **[Database Patterns](./advanced/database-patterns.md)** - Real production patterns (2,023 lines)

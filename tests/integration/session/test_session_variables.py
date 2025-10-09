@@ -303,31 +303,6 @@ class TestSessionVariablesAcrossExecutionModes:
         assert not any("SET LOCAL app.contact_id" in sql for sql in executed_sql_str)
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="asyncpg pool testing requires different setup for find_one")
-    async def test_session_variables_with_asyncpg(self, mock_pool_asyncpg):
-        """Test session variables work with asyncpg connection pool."""
-        tenant_id = str(uuid4())
-        contact_id = str(uuid4())
-
-        repo = FraiseQLRepository(mock_pool_asyncpg)
-        repo.context = {
-            "tenant_id": tenant_id,
-            "contact_id": contact_id,
-            "execution_mode": ExecutionMode.NORMAL
-        }
-
-        await repo.find_one("test_view", id=1)
-
-        executed_sql = mock_pool_asyncpg.executed_statements
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
-
-        # asyncpg uses $1, $2 style parameters
-        assert any("SET LOCAL app.tenant_id" in sql for sql in executed_sql_str), \
-            f"Expected SET LOCAL app.tenant_id with asyncpg. SQL: {executed_sql_str}"
-        assert any("SET LOCAL app.contact_id" in sql for sql in executed_sql_str), \
-            f"Expected SET LOCAL app.contact_id with asyncpg. SQL: {executed_sql_str}"
-
-    @pytest.mark.asyncio
     async def test_session_variables_transaction_scope(self, mock_pool_psycopg):
         """Test that session variables use SET LOCAL for transaction scope."""
         repo = FraiseQLRepository(mock_pool_psycopg)

@@ -40,6 +40,13 @@ from .metrics import (
     setup_metrics,
     with_metrics,
 )
+from .sentry import (
+    capture_exception,
+    capture_message,
+    init_sentry,
+    set_context,
+    set_user,
+)
 
 __all__ = [
     "CheckFunction",
@@ -49,9 +56,14 @@ __all__ = [
     "HealthStatus",
     "MetricsConfig",
     "MetricsMiddleware",
+    "capture_exception",
+    "capture_message",
     "check_database",
     "check_pool_stats",
     "get_metrics",
+    "init_sentry",
+    "set_context",
+    "set_user",
     "setup_metrics",
     "with_metrics",
 ]

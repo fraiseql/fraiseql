@@ -150,7 +150,7 @@ worker: celery -A src.fraiseql.worker worker --loglevel=info
 ### runtime.txt
 
 ```
-python-3.11.7
+python-3.13
 ```
 
 ### requirements.txt

@@ -2,6 +2,157 @@
 
 Complete reference for all FraiseQL decorators used to define GraphQL schemas, resolvers, and optimizations.
 
+## Decorator Usage Patterns
+
+FraiseQL provides two ways to use decorators, both equally valid:
+
+### Method 1: Module-Level Decorators (Recommended for Learning)
+
+Import decorators directly from the `fraiseql` module:
+
+```python
+from fraiseql import query, mutation, fraise_type, fraise_input
+
+@fraise_type
+class User:
+    id: int
+    name: str
+
+@query
+async def users(info) -> list[User]:
+    """Get all users."""
+    repo = info.context["repo"]
+    return await repo.find("v_user")
+
+@mutation
+async def create_user(info, name: str) -> User:
+    """Create a new user."""
+    repo = info.context["repo"]
+    user_id = await repo.insert("users", {"name": name}, returning="id")
+    return await repo.find_one("v_user", id=user_id)
+```
+
+**When to use:**
+- Learning FraiseQL for the first time
+- Small to medium projects
+- When you prefer explicit imports
+- Following examples from documentation
+
+**Advantages:**
+- Clear, explicit imports
+- Works exactly like standard Python decorators
+- Easy to understand for beginners
+- Matches most documentation examples
+
+### Method 2: Instance Method Decorators (Recommended for Production)
+
+Use decorators as methods on a `FraiseQL` instance:
+
+```python
+from fraiseql import FraiseQL
+
+app = FraiseQL(database_url="postgresql://localhost/mydb")
+
+@app.type
+class User:
+    id: int
+    name: str
+
+@app.query
+async def users(info) -> list[User]:
+    """Get all users."""
+    repo = info.context["repo"]
+    return await repo.find("v_user")
+
+@app.mutation
+async def create_user(info, name: str) -> User:
+    """Create a new user."""
+    repo = info.context["repo"]
+    user_id = await repo.insert("users", {"name": name}, returning="id")
+    return await repo.find_one("v_user", id=user_id)
+```
+
+**When to use:**
+- Production applications
+- Larger projects with multiple modules
+- When you want explicit app binding
+- When using multiple FraiseQL instances (e.g., different databases)
+
+**Advantages:**
+- Types and queries are explicitly bound to an app instance
+- Better for multi-app scenarios
+- Clearer dependency structure
+- Matches real-world production code
+
+### Both Patterns Work Identically
+
+Under the hood, both patterns use the same decorator functions. The choice is purely stylistic:
+
+```python
+# These are equivalent:
+from fraiseql import query
+@query
+async def users1(info) -> list[User]:
+    pass
+
+# Same as:
+from fraiseql import FraiseQL
+app = FraiseQL(database_url="...")
+@app.query
+async def users2(info) -> list[User]:
+    pass
+```
+
+### Mixing Patterns (Not Recommended)
+
+While technically possible, avoid mixing both patterns in the same project:
+
+```python
+# ❌ DON'T: Mixing patterns is confusing
+from fraiseql import FraiseQL, fraise_type
+
+app = FraiseQL(database_url="...")
+
+@fraise_type  # Module-level decorator
+class User:
+    id: int
+
+@app.query  # Instance method decorator
+async def users(info) -> list[User]:
+    pass
+```
+
+```python
+# ✅ DO: Choose one pattern and stick with it
+from fraiseql import FraiseQL
+
+app = FraiseQL(database_url="...")
+
+@app.type  # Consistent with app.query below
+class User:
+    id: int
+
+@app.query  # All decorators use app instance
+async def users(info) -> list[User]:
+    pass
+```
+
+### Quick Reference: Decorator Names
+
+| Concept | Module Import | Instance Method |
+|---------|--------------|-----------------|
+| Query | `@query` | `@app.query` |
+| Mutation | `@mutation` | `@app.mutation` |
+| Subscription | `@subscription` | `@app.subscription` |
+| Type | `@fraise_type` | `@app.type` |
+| Input | `@fraise_input` | `@app.input` |
+| Enum | `@fraise_enum` | `@app.enum` |
+| Field | `@field` | `@field` (always module-level) |
+
+**Note**: Field decorators (`@field`, `@dataloader_field`) are always imported from the module - they don't have instance method equivalents since they're used within class definitions.
+
+---
+
 ## Query & Mutation Decorators
 
 ### @query
@@ -212,10 +363,22 @@ Defines a GraphQL object type with automatic field inference and JSON serializat
 
 #### Parameters
 
-- `sql_source`: Optional table/view name for automatic SQL queries
-- `jsonb_column`: JSONB column name (defaults to "data")
-- `implements`: List of interfaces this type implements
-- `resolve_nested`: Whether nested instances should be resolved separately
+- `sql_source` (str | None): Optional PostgreSQL table/view name for automatic queries
+  - **If omitted**: Automatically inferred from class name converted to snake_case
+  - **Example**: `User` → `"user"`, `UserProfile` → `"user_profile"`
+  - **Explicit override**: Use when view name doesn't match class name
+  - **Common pattern**: Prefix views with `v_` → `sql_source="v_user"`
+
+- `jsonb_column` (str | None): Name of JSONB column containing data (defaults to `"data"`)
+  - **Standard pattern**: Views return `jsonb_build_object(...) AS data`
+  - **Custom column**: Specify if your view uses a different column name
+
+- `implements` (list[type] | None): List of GraphQL interfaces this type implements
+  - **Usage**: For polymorphic types and interface inheritance
+
+- `resolve_nested` (bool): Whether nested object instances should be resolved separately
+  - **Default**: `False` (nested objects included in parent query)
+  - **Use `True`**: When nested data requires separate database queries
 
 #### Example
 
@@ -224,7 +387,7 @@ from fraiseql import fraise_type, field
 from datetime import datetime
 from uuid import UUID
 
-@fraise_type(sql_source="v_user")
+@fraise_type(sql_source="v_user")  # Explicit view name
 class User:
     id: UUID
     username: str
@@ -242,6 +405,19 @@ class User:
         """Count user's posts."""
         db = info.context["db"]
         return await db.count("posts", {"author_id": self.id})
+
+# Auto-inferred sql_source examples:
+@fraise_type  # sql_source="user" (auto-inferred from class name)
+class User:
+    ...
+
+@fraise_type  # sql_source="user_profile" (CamelCase → snake_case)
+class UserProfile:
+    ...
+
+@fraise_type(sql_source="v_active_users")  # Explicit override
+class User:
+    ...
 
 # The decorator automatically provides JSON serialization support:
 user = User(

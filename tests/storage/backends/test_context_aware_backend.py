@@ -101,11 +101,6 @@ class TestContextAwareAPQBackend:
         # None context
         assert backend.extract_tenant_id(None) is None
 
-    @pytest.mark.skip(reason="PostgreSQL backend requires psycopg2")
-    def test_postgresql_backend_accepts_context(self):
-        """Test that PostgreSQL backend accepts context parameter."""
-        pass
-
     def test_cache_key_generation_with_tenant(self):
         """Test that base backend implements tenant isolation."""
         backend = MemoryAPQBackend()

@@ -5,7 +5,7 @@
 # 5-Minute Quickstart
 
 > **In this section:** Build a working GraphQL API in 5 minutes with copy-paste examples
-> **Prerequisites:** Python 3.10+, PostgreSQL installed
+> **Prerequisites:** Python 3.13+, PostgreSQL installed
 > **Time to complete:** 5 minutes
 
 Get a working GraphQL API in 5 minutes! No complex setup, just copy-paste and run.
@@ -14,7 +14,7 @@ Get a working GraphQL API in 5 minutes! No complex setup, just copy-paste and ru
 
 ```bash
 # Check you have these installed:
-python --version  # 3.10 or higher
+python --version  # 3.13 or higher
 psql --version    # PostgreSQL client
 pip --version     # Python package manager
 
@@ -91,6 +91,8 @@ class Task:
 @app.query
 async def tasks(info, completed: bool | None = None) -> list[Task]:
     """Get all tasks, optionally filtered by completion status"""
+    # Access the repository from context (automatically provided by FraiseQL)
+    # Learn more: https://fraiseql.readthedocs.io/en/stable/api-reference/repository/
     repo = info.context["repo"]
 
     # Build WHERE clause if filter provided
@@ -99,6 +101,7 @@ async def tasks(info, completed: bool | None = None) -> list[Task]:
         where["completed"] = completed
 
     # Fetch from our view - FraiseQL uses the separate columns for filtering
+    # Repository API: https://fraiseql.readthedocs.io/en/stable/api-reference/repository/#find
     results = await repo.find("v_task", where=where)
     return [Task(**result) for result in results]
 
@@ -107,6 +110,7 @@ async def task(info, id: ID) -> Task | None:
     """Get a single task by ID"""
     repo = info.context["repo"]
     # This efficiently uses WHERE id = ? on the view
+    # Repository find_one() API: https://fraiseql.readthedocs.io/en/stable/api-reference/repository/#find_one
     result = await repo.find_one("v_task", where={"id": id})
     return Task(**result) if result else None
 
@@ -410,12 +414,14 @@ export DATABASE_URL="postgresql://username:password@localhost/todo_app"
 1. **[GraphQL Playground Guide](graphql-playground.md)** - Learn advanced playground features
 2. **[Build Your First Real API](first-api.md)** - Create a more complex API
 3. **[Core Concepts](../core-concepts/index.md)** - Understand FraiseQL's architecture
+4. **[Parameter Injection Guide](../core-concepts/parameter-injection.md)** - How `info` and GraphQL arguments work
 
 ### Key Concepts to Explore
 
 - **[Database Views](../core-concepts/database-views.md)** - Learn view patterns and optimization
 - **[Type System](../core-concepts/type-system.md)** - Advanced typing features
 - **[CQRS Pattern](../core-concepts/architecture.md)** - Understand the architecture
+- **[Repository API](../api-reference/repository.md)** - Complete guide to `repo.find()`, `repo.find_one()`, etc.
 
 ### Build Something Real
 
@@ -445,6 +451,7 @@ export DATABASE_URL="postgresql://username:password@localhost/todo_app"
 ### Related Concepts
 
 - [**Core Concepts**](../core-concepts/index.md) - Understand FraiseQL's philosophy
+- [**Parameter Injection**](../core-concepts/parameter-injection.md) - How `info` and arguments work
 - [**Type System**](../core-concepts/type-system.md) - Deep dive into GraphQL types
 - [**Database Views**](../core-concepts/database-views.md) - View patterns and optimization
 - [**Query Translation**](../core-concepts/query-translation.md) - How queries become SQL
@@ -458,7 +465,9 @@ export DATABASE_URL="postgresql://username:password@localhost/todo_app"
 ### Reference
 
 - [**API Documentation**](../api-reference/index.md) - Complete API reference
+- [**Repository API**](../api-reference/repository.md) - Database operations guide
 - [**Decorators Reference**](../api-reference/decorators.md) - All available decorators
+- [**Application Setup**](../api-reference/application.md) - FraiseQL() vs create_fraiseql_app()
 - [**Error Codes**](../errors/error-types.md) - Troubleshooting guide
 
 ### Advanced Topics

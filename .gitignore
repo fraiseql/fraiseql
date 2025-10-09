@@ -178,3 +178,6 @@ tests/fixtures/examples/.install_log.txt
 .ruff_cache/
 .mypy_cache/
 security_events.log
+
+# TODO directory (deployment analysis and guides)
+TODO/

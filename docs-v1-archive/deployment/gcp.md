@@ -453,7 +453,7 @@ gcloud compute ssl-certificates create fraiseql-cert \
 steps:
   # Run tests
 
-  - name: 'python:3.11'
+  - name: 'python:3.13'
     entrypoint: 'bash'
     args:
 

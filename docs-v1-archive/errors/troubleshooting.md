@@ -317,6 +317,162 @@ class User:
     bio: Optional[str] = None
 ```
 
+## Parameter and Argument Issues
+
+### Problem: "got multiple values for argument"
+
+**Symptoms:**
+```json
+{
+  "errors": [{
+    "message": "users() got multiple values for argument 'limit'",
+    "path": ["users"]
+  }]
+}
+```
+
+**Cause:**
+
+This error occurs when GraphQL arguments conflict with how parameters are passed to your resolver function. Common scenarios:
+
+1. The function signature includes parameters that are being passed implicitly
+2. You're passing the same parameter multiple times
+3. The `info` parameter is missing or incorrectly positioned
+
+**Solutions:**
+
+1. **Ensure `info` is the first parameter:**
+```python
+# ❌ WRONG: Missing 'info' parameter
+@query
+async def users(limit: int = 10) -> list[User]:
+    repo = ???  # Can't access context!
+    return await repo.find("v_user", limit=limit)
+
+# ✅ CORRECT: 'info' is first parameter
+@query
+async def users(info, limit: int = 10) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user", limit=limit)
+```
+
+2. **Don't pass GraphQL arguments to repository methods directly:**
+```python
+# ❌ WRONG: Passing limit twice
+@query
+async def users(info, limit: int = 10) -> list[User]:
+    repo = info.context["repo"]
+    # This fails: limit is passed by GraphQL AND hardcoded
+    return await repo.find("v_user", limit=limit, limit=20)
+
+# ✅ CORRECT: Use the GraphQL argument value
+@query
+async def users(info, limit: int = 10) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user", limit=limit)
+```
+
+3. **Check parameter names match GraphQL field names:**
+```python
+# ❌ WRONG: Parameter name doesn't match usage
+@query
+async def users(info, max_results: int = 10) -> list[User]:
+    repo = info.context["repo"]
+    # This fails: 'max_results' expected but 'limit' used
+    return await repo.find("v_user", limit=max_results)
+
+# ✅ CORRECT: Parameter name matches usage
+@query
+async def users(info, limit: int = 10) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user", limit=limit)
+```
+
+4. **Use correct decorator pattern:**
+```python
+# ❌ WRONG: Using both module and instance decorators
+from fraiseql import FraiseQL, query
+
+app = FraiseQL(database_url="...")
+
+@query  # Module decorator
+@app.query  # Instance decorator - conflicts!
+async def users(info) -> list[User]:
+    pass
+
+# ✅ CORRECT: Choose one pattern
+@app.query  # Instance decorator only
+async def users(info) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user")
+```
+
+**Related Documentation:**
+- [Parameter Injection Guide](../core-concepts/parameter-injection.md) - Complete guide to how arguments work
+- [Decorator Usage Patterns](../api-reference/decorators.md#decorator-usage-patterns) - Choosing between decorator styles
+
+### Problem: "unexpected keyword argument"
+
+**Symptoms:**
+```python
+TypeError: users() got an unexpected keyword argument 'where'
+```
+
+**Cause:**
+
+The GraphQL query includes arguments that aren't in your function signature.
+
+**Solutions:**
+
+1. **Add missing parameters to function signature:**
+```python
+# ❌ WRONG: 'where' argument not in signature
+@query
+async def users(info, limit: int = 10) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user", limit=limit)
+
+# Query fails: users(limit: 10, where: { active: true })
+# Error: unexpected keyword argument 'where'
+
+# ✅ CORRECT: Include all GraphQL arguments in signature
+@query
+async def users(
+    info,
+    limit: int = 10,
+    where: Optional[dict] = None  # Add missing parameter
+) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user", limit=limit, where=where)
+```
+
+2. **Use input types for complex arguments:**
+```python
+from fraiseql import fraise_input
+
+@fraise_input
+class UserFilters:
+    name: Optional[str] = None
+    email: Optional[str] = None
+    active: Optional[bool] = None
+
+# ✅ CORRECT: Structured input type
+@query
+async def users(info, filters: Optional[UserFilters] = None) -> list[User]:
+    repo = info.context["repo"]
+
+    where = {}
+    if filters:
+        if filters.name:
+            where["name__icontains"] = filters.name
+        if filters.email:
+            where["email"] = filters.email
+        if filters.active is not None:
+            where["active"] = filters.active
+
+    return await repo.find("v_user", where=where)
+```
+
 ## Query Issues
 
 ### Problem: "Invalid WHERE clause"
@@ -359,7 +515,48 @@ Warning: N+1 query pattern detected for User.posts
 
 **Solutions:**
 
-1. **Use DataLoader:**
+1. **Use Nested Arrays with JSON Passthrough (Recommended):**
+
+The fastest solution - embed arrays in JSONB for zero N+1 queries:
+
+```sql
+-- Aggregation view
+CREATE VIEW v_posts_per_user AS
+SELECT user_id AS id,
+    jsonb_agg(v_post.data ORDER BY created_at DESC) AS data
+FROM v_post
+GROUP BY user_id;
+
+-- Main view with embedded posts
+CREATE VIEW v_user_with_posts AS
+SELECT u.id,
+    jsonb_build_object(
+        'id', u.id,
+        'name', u.name,
+        'posts', COALESCE(posts.data, '[]'::jsonb)
+    ) AS data
+FROM users u
+LEFT JOIN v_posts_per_user posts ON u.id = posts.id;
+```
+
+```python
+@fraiseql.type
+class EmbeddedPost:
+    id: int
+    title: str
+
+@fraiseql.type(sql_source="v_user_with_posts", resolve_nested=False)
+class User:
+    id: int
+    name: str
+    posts: list[EmbeddedPost]  # Automatically deserialized!
+```
+
+**Performance:** 0.5-2ms (with APQ)
+
+See: [Nested Arrays with JSON Passthrough](../optimization/nested-arrays-json-passthrough.md)
+
+2. **Use DataLoader (For Dynamic Relationships):**
 ```python
 from fraiseql import dataloader_field
 
@@ -374,17 +571,7 @@ class User:
         return await load_user_posts(self.id)
 ```
 
-2. **Use JOIN in view:**
-```sql
-CREATE OR REPLACE VIEW v_user_with_posts AS
-SELECT
-    u.id,
-    u.name,
-    json_agg(p.*) as posts
-FROM users u
-LEFT JOIN posts p ON p.user_id = u.id
-GROUP BY u.id, u.name;
-```
+**Performance:** 5-15ms
 
 ## Authentication Issues
 

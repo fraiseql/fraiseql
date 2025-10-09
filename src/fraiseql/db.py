@@ -702,11 +702,27 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             view_name, raw_json=True, field_paths=field_paths, info=info, **kwargs
         )
 
-        # Execute and return raw JSON
+        # Execute and get raw JSON
         async with self._pool.connection() as conn:
-            return await execute_raw_json_list_query(
+            result = await execute_raw_json_list_query(
                 conn, query.statement, query.params, field_name
             )
+
+        # Get type name for transformation
+        type_name = None
+        try:
+            type_class = self._get_type_for_view(view_name)
+            if hasattr(type_class, "__name__"):
+                type_name = type_class.__name__
+        except Exception:
+            # If we can't get the type, continue without transformation
+            pass
+
+        # Transform to camelCase with __typename if type info available
+        if type_name:
+            result = result.transform(type_name)
+
+        return result
 
     async def find_one_raw_json(
         self, view_name: str, field_name: str, info: Any = None, **kwargs
@@ -739,9 +755,25 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             view_name, raw_json=True, field_paths=field_paths, info=info, **kwargs
         )
 
-        # Execute and return raw JSON
+        # Execute and get raw JSON
         async with self._pool.connection() as conn:
-            return await execute_raw_json_query(conn, query.statement, query.params, field_name)
+            result = await execute_raw_json_query(conn, query.statement, query.params, field_name)
+
+        # Get type name for transformation
+        type_name = None
+        try:
+            type_class = self._get_type_for_view(view_name)
+            if hasattr(type_class, "__name__"):
+                type_name = type_class.__name__
+        except Exception:
+            # If we can't get the type, continue without transformation
+            pass
+
+        # Transform to camelCase with __typename if type info available
+        if type_name:
+            result = result.transform(type_name)
+
+        return result
 
     def _instantiate_from_row(self, type_class: type, row: dict[str, Any]) -> Any:
         """Instantiate a type from the row data.

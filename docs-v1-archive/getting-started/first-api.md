@@ -13,7 +13,7 @@ Build a complete user management API with FraiseQL in 15 minutes. This guide dem
 ## Prerequisites
 
 - PostgreSQL 12+ installed and running
-- Python 3.10+ with FraiseQL installed
+- Python 3.13+ with FraiseQL installed
 - Basic SQL knowledge
 
 ## Database Design

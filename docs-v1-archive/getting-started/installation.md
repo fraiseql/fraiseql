@@ -10,7 +10,7 @@ Before installing FraiseQL, make sure you have:
 FraiseQL uses modern Python type hints and requires Python 3.13 or later.
 
 ```bash
-python --version  # Should show 3.10 or higher
+python --version  # Should show 3.13 or higher
 ```
 
 ### PostgreSQL 13+
@@ -27,6 +27,19 @@ psql --version  # Should show 13 or higher
     - **Windows**: Download from [postgresql.org](https://www.postgresql.org/download/windows/)
 
 ## Install FraiseQL
+
+### Choosing Your Installation Method
+
+Pick the right installation method for your use case:
+
+| Your Situation | Recommended Method | Command |
+|----------------|-------------------|---------|
+| 🎓 **Learning FraiseQL** | pip (simplest) | `pip install fraiseql` |
+| 🏗️ **New project with dependency management** | poetry or pip | `poetry add fraiseql` or `pip install fraiseql` |
+| 💻 **Contributing to FraiseQL** | editable install | `pip install -e ".[dev]"` |
+| 🐳 **Docker/Production deployment** | uv (fastest) | `uv pip install fraiseql` |
+| 🔌 **Need optional features (Redis/Auth0)** | pip with extras | `pip install fraiseql[redis,auth0]` |
+| 📦 **Reproducible production installs** | pip with requirements.txt | `pip install fraiseql` |
 
 ### Using pip (Recommended)
 

@@ -12,8 +12,9 @@ Comprehensive guide to optimizing FraiseQL applications for maximum performance 
 
 ## Performance Philosophy
 
-FraiseQL achieves high performance through a **three-layer optimization architecture**:
+FraiseQL achieves high performance through a **four-layer optimization architecture**:
 
+0. **Rust Transformation Layer** - Ultra-fast JSON processing (10-80x faster)
 1. **APQ Layer** - Protocol optimization (bandwidth & caching)
 2. **TurboRouter Layer** - Execution optimization (pre-compilation)
 3. **JSON Passthrough Layer** - Runtime optimization (serialization bypass)
@@ -23,6 +24,42 @@ FraiseQL achieves high performance through a **three-layer optimization architec
 7. **Connection pooling** - Efficient resource usage
 
 > **📖 For comprehensive analysis** of how these layers work together to achieve 100-500x performance improvements, see [Performance Optimization Layers](./performance-optimization-layers.md)
+
+> **⚡ For foundational performance** with Rust-powered JSON transformation, see [Rust Transformer](./rust-transformer.md)
+
+## Rust Transformation (Layer 0)
+
+### Ultra-Fast JSON Processing
+
+The Rust Transformer is FraiseQL's **foundational performance layer** that accelerates all JSON transformations:
+
+```bash
+# Install Rust extensions for 10-80x faster transformations
+pip install fraiseql[rust]
+```
+
+### Automatic Integration
+
+```python
+# Rust transformation is automatic - no configuration needed!
+app = create_fraiseql_app(types=[User, Post])
+
+# All JSON transformations now use Rust:
+# - snake_case → camelCase conversion (10-80x faster)
+# - __typename injection (automatic)
+# - Nested object handling (zero-copy)
+# - GIL-free execution (true parallelism)
+```
+
+### Performance Impact
+
+| Operation | Python | Rust | Speedup |
+|-----------|--------|------|---------|
+| 1KB JSON transformation | 15ms | 0.2ms | **75x** |
+| 10KB nested objects | 50ms | 2ms | **25x** |
+| 100KB complex payload | 450ms | 25ms | **18x** |
+
+**See [Rust Transformer Guide](./rust-transformer.md) for complete documentation.**
 
 ## Query Optimization
 
@@ -498,6 +535,7 @@ async def bulk_create_users(
 
 ### Application Optimization
 
+- [ ] Install Rust extensions (`pip install fraiseql[rust]`)
 - [ ] Enable TurboRouter
 - [ ] Register hot queries
 - [ ] Enable JSON passthrough
@@ -581,6 +619,8 @@ config = FraiseQLConfig(
 
 ## Next Steps
 
+- [Rust Transformer](./rust-transformer.md) - 10-80x faster JSON processing
 - [TurboRouter Configuration](./turbo-router.md) - Maximize performance
+- [Performance Optimization Layers](./performance-optimization-layers.md) - Complete optimization stack
 - [Database API Patterns](./database-api-patterns.md) - Optimal schema design
 - [Monitoring Guide](./monitoring.md) - Production observability

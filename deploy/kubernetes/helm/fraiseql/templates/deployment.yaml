@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fraiseql.fullname" . }}
+  labels:
+    {{- include "fraiseql.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "fraiseql.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "fraiseql.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "fraiseql.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Chart.Name }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: metrics
+          containerPort: 8000
+          protocol: TCP
+        env:
+        # Environment from ConfigMap
+        - name: ENVIRONMENT
+          value: {{ .Values.config.environment | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.config.logLevel | quote }}
+        - name: GRAPHQL_PATH
+          value: {{ .Values.config.graphql.path | quote }}
+        - name: GRAPHQL_DEPTH_LIMIT
+          value: {{ .Values.config.graphql.depthLimit | quote }}
+        - name: APQ_ENABLED
+          value: {{ .Values.config.apq.enabled | quote }}
+        - name: JSON_PASSTHROUGH_ENABLED
+          value: {{ .Values.config.performance.jsonPassthroughEnabled | quote }}
+
+        # Database configuration
+        - name: DB_HOST
+          value: {{ .Values.database.host | quote }}
+        - name: DB_PORT
+          value: {{ .Values.database.port | quote }}
+        - name: DB_NAME
+          value: {{ .Values.database.name | quote }}
+
+        # Secrets from Secret resource
+        {{- if .Values.database.existingSecret }}
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.database.existingSecret }}
+              key: {{ .Values.database.existingSecretKeys.username }}
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.database.existingSecret }}
+              key: {{ .Values.database.existingSecretKeys.password }}
+        {{- end }}
+
+        {{- if .Values.sentry.enabled }}
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.existingSecret }}
+              key: SENTRY_DSN
+        - name: SENTRY_ENVIRONMENT
+          value: {{ .Values.sentry.environment | quote }}
+        {{- end }}
+
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+
+        {{- if .Values.healthCheck.liveness.enabled }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.healthCheck.liveness.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.healthCheck.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.liveness.periodSeconds }}
+          timeoutSeconds: {{ .Values.healthCheck.liveness.timeoutSeconds }}
+          failureThreshold: {{ .Values.healthCheck.liveness.failureThreshold }}
+        {{- end }}
+
+        {{- if .Values.healthCheck.readiness.enabled }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.healthCheck.readiness.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.healthCheck.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.readiness.periodSeconds }}
+          timeoutSeconds: {{ .Values.healthCheck.readiness.timeoutSeconds }}
+          failureThreshold: {{ .Values.healthCheck.readiness.failureThreshold }}
+        {{- end }}
+
+        {{- if .Values.healthCheck.startup.enabled }}
+        startupProbe:
+          httpGet:
+            path: {{ .Values.healthCheck.startup.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.healthCheck.startup.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.startup.periodSeconds }}
+          timeoutSeconds: {{ .Values.healthCheck.startup.timeoutSeconds }}
+          failureThreshold: {{ .Values.healthCheck.startup.failureThreshold }}
+        {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}

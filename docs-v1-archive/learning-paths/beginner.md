@@ -14,7 +14,7 @@ Welcome to FraiseQL! This learning path will take you from zero to building your
 
 Before starting, ensure you have:
 
-- Python 3.10 or higher installed
+- Python 3.13 or higher installed
 - PostgreSQL installed and running
 - Basic understanding of SQL queries
 - Familiarity with Python functions and decorators

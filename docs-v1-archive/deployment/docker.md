@@ -36,7 +36,7 @@ curl http://localhost:8000/graphql
 
 ```dockerfile
 # Build stage
-FROM python:3.11-slim as builder
+FROM python:3.13-slim as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -53,7 +53,7 @@ RUN pip install --no-cache-dir uv && \
     uv pip install --system --no-cache -r pyproject.toml
 
 # Runtime stage
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
@@ -69,7 +69,7 @@ RUN useradd -m -u 1001 fraiseql && \
 WORKDIR /app
 
 # Copy Python packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
@@ -578,7 +578,7 @@ EOF
 
 ```dockerfile
 # Optimize layer caching
-FROM python:3.11-slim as builder
+FROM python:3.13-slim as builder
 
 # Install dependencies first (changes less frequently)
 COPY pyproject.toml uv.lock ./
@@ -628,7 +628,7 @@ USER fraiseql
 
 ### 2. Minimal Base Image
 ```dockerfile
-FROM python:3.11-slim  # Not python:3.11
+FROM python:3.13-slim  # Not python:3.11
 ```
 
 ### 3. Security Scanning

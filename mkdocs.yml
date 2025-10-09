@@ -80,6 +80,7 @@ nav:
     - Production Deployment: tutorials/production-deployment.md
 
   - Core Concepts:
+    - FraiseQL Philosophy: core-concepts/fraiseql-philosophy.md
     - Types & Schema: core/types-and-schema.md
     - Queries & Mutations: core/queries-and-mutations.md
     - Database API: core/database-api.md
@@ -98,7 +99,9 @@ nav:
 
   - Production:
     - Deployment: production/deployment.md
-    - Monitoring: production/monitoring.md
+    - Monitoring:
+      - Overview: production/monitoring.md
+      - Health Checks: monitoring/health-checks.md
     - Security: production/security.md
 
   - API Reference:

@@ -23,7 +23,7 @@ We'll build:
 ## Prerequisites
 
 - PostgreSQL 14+
-- Python 3.10+
+- Python 3.13+
 - Basic understanding of GraphQL
 - Familiarity with CQRS concepts (see [Architecture](../core-concepts/architecture.md))
 
@@ -416,7 +416,7 @@ $$ LANGUAGE plpgsql;
 
 ## Step 3: GraphQL Types
 
-Define types using modern Python 3.10+ syntax:
+Define types using modern Python 3.13+ syntax:
 
 ```python
 from datetime import datetime

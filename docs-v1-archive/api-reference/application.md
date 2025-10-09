@@ -2,6 +2,234 @@
 
 Complete reference for FraiseQL application factory functions and configuration.
 
+## Choosing Your Application Setup
+
+FraiseQL provides two approaches for creating applications. Choose based on your needs:
+
+### Method 1: `FraiseQL()` Class (Simple, Direct)
+
+Use the `FraiseQL` class for straightforward applications where you want direct control:
+
+```python
+from fraiseql import FraiseQL
+
+# Create FraiseQL instance
+app = FraiseQL(database_url="postgresql://localhost/mydb")
+
+# Define types and queries using instance decorators
+@app.type
+class User:
+    id: int
+    name: str
+
+@app.query
+async def users(info) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user")
+
+# Convert to FastAPI when ready
+from fraiseql.fastapi import create_app
+fastapi_app = create_app(app)
+```
+
+**When to use:**
+- Simple applications with minimal configuration
+- You want explicit control over the FraiseQL instance
+- You're learning FraiseQL
+- You plan to create the FastAPI app separately
+
+**Advantages:**
+- Clear separation between FraiseQL and FastAPI layers
+- Easy to test FraiseQL components independently
+- Explicit configuration via FraiseQL constructor
+- Matches quickstart examples
+
+### Method 2: `create_fraiseql_app()` (Integrated, Production-Ready)
+
+Use the factory function for production applications with complex configurations:
+
+```python
+from fraiseql import create_fraiseql_app, query, fraise_type
+
+# Define types and queries using module decorators
+@fraise_type
+class User:
+    id: int
+    name: str
+
+@query
+async def users(info) -> list[User]:
+    repo = info.context["repo"]
+    return await repo.find("v_user")
+
+# Create FastAPI app with all settings in one call
+app = create_fraiseql_app(
+    database_url="postgresql://localhost/mydb",
+    types=[User],
+    auth=auth_config,
+    context_getter=get_context,
+    production=True
+)
+```
+
+**When to use:**
+- Production applications with authentication
+- Complex configuration requirements
+- Need custom context, auth, or CORS setup
+- Want all-in-one application setup
+
+**Advantages:**
+- Single function call creates complete application
+- Built-in authentication support
+- Custom context and lifespan handling
+- Production optimizations included
+
+### Quick Comparison
+
+| Feature | `FraiseQL()` | `create_fraiseql_app()` |
+|---------|--------------|------------------------|
+| **Setup Complexity** | Simple | More options |
+| **Configuration** | Constructor args | Many parameters |
+| **FastAPI Integration** | Manual (via `create_app()`) | Automatic |
+| **Authentication** | Manual setup | Built-in support |
+| **Context Customization** | Via `create_app()` | Via `context_getter` param |
+| **Best For** | Learning, simple apps | Production, complex apps |
+| **Type Registration** | Via decorators (`@app.type`) | Via `types` parameter |
+
+### Example: Progression from Simple to Production
+
+**Step 1: Start Simple with `FraiseQL()`**
+
+```python
+from fraiseql import FraiseQL
+
+app = FraiseQL(database_url="postgresql://localhost/mydb")
+
+@app.type
+class User:
+    id: int
+    name: str
+
+@app.query
+async def users(info) -> list[User]:
+    return await info.context["repo"].find("v_user")
+```
+
+**Step 2: Add FastAPI**
+
+```python
+from fraiseql.fastapi import create_app
+fastapi_app = create_app(app, database_url="postgresql://localhost/mydb")
+```
+
+**Step 3: Upgrade to Production with `create_fraiseql_app()`**
+
+```python
+from fraiseql import create_fraiseql_app, query, fraise_type, FraiseQLConfig
+
+# Define types with module decorators
+@fraise_type
+class User:
+    id: int
+    name: str
+
+@query
+async def users(info) -> list[User]:
+    return await info.context["repo"].find("v_user")
+
+# Production configuration
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    environment="production",
+    database_pool_size=50,
+    enable_turbo_router=True,
+    auth_provider="auth0",
+    auth0_domain="myapp.auth0.com"
+)
+
+# Create production app
+app = create_fraiseql_app(config=config, types=[User])
+```
+
+### Common Patterns
+
+#### Pattern 1: Simple Development Setup
+
+```python
+from fraiseql import FraiseQL
+
+app = FraiseQL(database_url="postgresql://localhost/devdb")
+
+@app.type
+class Todo:
+    id: int
+    title: str
+    completed: bool
+
+@app.query
+async def todos(info) -> list[Todo]:
+    return await info.context["repo"].find("v_todo")
+```
+
+#### Pattern 2: Production with Authentication
+
+```python
+from fraiseql import create_fraiseql_app
+from fraiseql.auth import Auth0Config
+
+auth = Auth0Config(
+    domain="myapp.auth0.com",
+    api_identifier="https://api.myapp.com"
+)
+
+app = create_fraiseql_app(
+    database_url="postgresql://prod-server/db",
+    types=[User, Todo, Project],
+    auth=auth,
+    production=True
+)
+```
+
+#### Pattern 3: Custom Context with Both Approaches
+
+**Using `FraiseQL()`:**
+```python
+from fraiseql import FraiseQL
+from fraiseql.fastapi import create_app
+
+fraiseql_app = FraiseQL(database_url="...")
+
+async def get_context(request):
+    return {
+        "user_id": request.headers.get("X-User-ID"),
+        "tenant_id": request.headers.get("X-Tenant-ID")
+    }
+
+fastapi_app = create_app(
+    fraiseql_app,
+    context_getter=get_context
+)
+```
+
+**Using `create_fraiseql_app()`:**
+```python
+from fraiseql import create_fraiseql_app
+
+async def get_context(request):
+    return {
+        "user_id": request.headers.get("X-User-ID"),
+        "tenant_id": request.headers.get("X-Tenant-ID")
+    }
+
+app = create_fraiseql_app(
+    database_url="...",
+    types=[User],
+    context_getter=get_context
+)
+```
+
+---
+
 ## create_fraiseql_app
 
 ```python

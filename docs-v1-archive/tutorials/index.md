@@ -18,7 +18,7 @@ Build a complete blog API with posts, comments, and user management. Learn:
 **Prerequisites:**
 
 - Basic PostgreSQL knowledge
-- Python 3.10+ experience
+- Python 3.13+ experience
 - Understanding of GraphQL concepts
 
 ---
@@ -111,7 +111,7 @@ query GetPostWithComments {
 ### System Requirements
 
 - PostgreSQL 14 or higher
-- Python 3.10 or higher
+- Python 3.13 or higher
 - Basic terminal/command line knowledge
 
 ### Recommended Knowledge
