@@ -1,0 +1,35 @@
+# yamllint configuration for Kubernetes manifests
+# Allows multi-document YAML files (common in K8s)
+
+extends: default
+
+rules:
+  # Allow multi-document YAML files (---separator)
+  document-start: disable  # Allow --- anywhere or nowhere
+
+  # Kubernetes manifests often have long lines
+  line-length:
+    max: 120
+    level: warning
+
+  # Allow trailing spaces (sometimes needed in multiline strings)
+  trailing-spaces: disable
+
+  # Indentation rules for Kubernetes (relaxed for auto-generated files)
+  indentation:
+    spaces: consistent  # Allow any consistent indentation
+    indent-sequences: consistent
+
+  # Allow empty values (common in K8s for optional fields)
+  empty-values:
+    forbid-in-block-mappings: false
+    forbid-in-flow-mappings: false
+
+  # Comments are OK
+  comments:
+    min-spaces-from-content: 1
+
+  # Truthy values - K8s uses true/false/yes/no/on/off
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+    check-keys: false
