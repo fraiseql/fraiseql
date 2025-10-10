@@ -3,6 +3,9 @@
 This example demonstrates how to protect your GraphQL API from:
 1. Complex queries that could overload the database
 2. Excessive requests from a single client
+
+Note: Uses in-memory rate limiting. For distributed rate limiting,
+consider PostgreSQL-based rate limiting (shared across instances).
 """
 
 import asyncio
@@ -10,7 +13,6 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Request
-from redis.asyncio import Redis
 
 from fraiseql import fraise_type
 from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
@@ -19,7 +21,6 @@ from fraiseql.middleware import (
     InMemoryRateLimiter,
     RateLimitConfig,
     RateLimiterMiddleware,
-    RedisRateLimiter,
 )
 
 
@@ -72,38 +73,24 @@ async def lifespan(app):
     )
     complexity_analyzer = QueryComplexityAnalyzer(complexity_config)
 
-    # Initialize rate limiter
-    if app.state.config.redis_url:
-        # Use Redis for distributed rate limiting
-        redis = Redis.from_url(app.state.config.redis_url)
-        rate_limiter = RedisRateLimiter(
-            redis,
-            RateLimitConfig(
-                requests_per_minute=30,  # 30 requests per minute
-                requests_per_hour=1000,  # 1000 requests per hour
-                burst_size=5,  # Allow bursts of 5 requests
-                key_func=get_rate_limit_key,  # Custom key function
-            ),
+    # Initialize in-memory rate limiter
+    # For distributed rate limiting, use PostgreSQL-based rate limiter
+    # (shared across all app instances)
+    rate_limiter = InMemoryRateLimiter(
+        RateLimitConfig(
+            requests_per_minute=30,  # 30 requests per minute
+            requests_per_hour=1000,  # 1000 requests per hour
+            burst_size=5,  # Allow bursts of 5 requests
+            key_func=get_rate_limit_key,  # Custom key function
         )
-    else:
-        # Use in-memory rate limiter for development
-        rate_limiter = InMemoryRateLimiter(
-            RateLimitConfig(
-                requests_per_minute=30,
-                requests_per_hour=1000,
-                burst_size=5,
-                key_func=get_rate_limit_key,
-            )
-        )
+    )
 
     # Add middleware
     app.add_middleware(RateLimiterMiddleware, rate_limiter=rate_limiter)
 
     yield
 
-    # Cleanup
-    if isinstance(rate_limiter, RedisRateLimiter):
-        await redis.close()
+    # Cleanup (none needed for in-memory rate limiter)
 
 
 def get_rate_limit_key(request: Request) -> str:
@@ -223,7 +210,6 @@ def create_app(config: FraiseQLConfig | None = None) -> Any:
         config = FraiseQLConfig(
             database_url="postgresql://localhost/myapp",
             environment="production",
-            redis_url="redis://localhost:6379",
         )
 
     app = create_fraiseql_app(

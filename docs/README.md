@@ -31,9 +31,10 @@ Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry.
 - [Database Patterns](./advanced/database-patterns.md) - View design and N+1 prevention
 - [LLM Integration](./advanced/llm-integration.md) - AI-native architecture
 
-**Production** (4 docs)
+**Production** (5 docs)
 - [Deployment](./production/deployment.md) - Docker, Kubernetes, cloud platforms
-- [Monitoring](./production/monitoring.md) - Observability and metrics
+- [Monitoring](./production/monitoring.md) - PostgreSQL-native error tracking and caching
+- [Observability](./production/observability.md) - Complete observability stack in PostgreSQL
 - [Security](./production/security.md) - Production hardening
 - [Health Checks](./production/health-checks.md) - Application health monitoring
 

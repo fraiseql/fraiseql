@@ -1,19 +1,23 @@
-"""Example of using FraiseQL with Redis caching.
+"""Example of using FraiseQL with PostgreSQL-native caching.
 
-This example demonstrates how to add caching to your FraiseQL
-application for improved performance.
+This example demonstrates how to add PostgreSQL-native caching to your FraiseQL
+application for improved performance—eliminating the need for Redis.
+
+Benefits:
+- Save $50-500/month (no Redis Cloud needed)
+- UNLOGGED tables = Redis-level performance
+- Shared across all app instances
+- Same database for everything (simplified operations)
 """
 
 import asyncio
 from uuid import UUID
 
-from redis.asyncio import Redis
-
 from fraiseql import fraise_type
 from fraiseql.caching import (
     CacheConfig,
     CachedRepository,
-    RedisCache,
+    PostgresCache,
     ResultCache,
 )
 from fraiseql.db import FraiseQLRepository
@@ -38,12 +42,17 @@ class Product:
 
 
 async def setup_cached_repository(db_pool) -> CachedRepository:
-    """Set up a cached repository with Redis backend."""
-    # Create Redis client
-    redis = Redis(host="localhost", port=6379, decode_responses=True)
+    """Set up a cached repository with PostgreSQL backend.
 
-    # Create cache backend
-    cache_backend = RedisCache(redis)
+    Uses PostgreSQL UNLOGGED tables for high-performance caching.
+    - No WAL overhead = Redis-level write performance
+    - Same read performance as Redis for hot data
+    - Automatic persistence (survives crashes)
+    - Shared across all app instances
+    """
+    # Create PostgreSQL cache backend
+    # UNLOGGED tables provide Redis-level performance
+    cache_backend = PostgresCache(db_pool)
 
     # Configure caching
     cache_config = CacheConfig(

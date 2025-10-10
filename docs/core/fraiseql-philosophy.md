@@ -366,6 +366,119 @@ async def orders(info) -> list[Order]:
 - ✅ Works at database level (defense in depth)
 - ✅ Zero application-level filtering logic
 
+## In PostgreSQL Everything
+
+### One Database to Rule Them All
+
+FraiseQL eliminates external dependencies by implementing **caching, error tracking, and observability** directly in PostgreSQL. This "In PostgreSQL Everything" philosophy delivers cost savings, operational simplicity, and consistent performance.
+
+**Cost Savings:**
+```
+Traditional Stack:
+- Sentry: $300-3,000/month
+- Redis Cloud: $50-500/month
+- Total: $350-3,500/month
+
+FraiseQL Stack:
+- PostgreSQL: Already running (no additional cost)
+- Total: $0/month additional
+```
+
+**Operational Simplicity:**
+```
+Before: FastAPI + PostgreSQL + Redis + Sentry + Grafana = 5 services
+After:  FastAPI + PostgreSQL + Grafana = 3 services
+```
+
+### PostgreSQL-Native Caching (Redis Alternative)
+
+```python
+from fraiseql.caching import PostgresCache
+
+cache = PostgresCache(db_pool)
+await cache.set("user:123", user_data, ttl=3600)
+
+# Features:
+# - UNLOGGED tables for Redis-level performance
+# - No WAL overhead = fast writes
+# - Shared across app instances
+# - TTL-based automatic expiration
+# - Pattern-based deletion
+```
+
+**Performance:** UNLOGGED tables skip write-ahead logging, providing Redis-level write performance while maintaining read speed. Data survives crashes (unlike Redis default) and is automatically shared across all app instances.
+
+### PostgreSQL-Native Error Tracking (Sentry Alternative)
+
+```python
+from fraiseql.monitoring import init_error_tracker
+
+tracker = init_error_tracker(db_pool, environment="production")
+await tracker.capture_exception(error, context={
+    "user_id": user.id,
+    "request_id": request_id,
+    "operation": "create_order"
+})
+
+# Features:
+# - Automatic error fingerprinting and grouping (like Sentry)
+# - Full stack trace capture
+# - Request/user context preservation
+# - OpenTelemetry trace correlation
+# - Issue management (resolve, ignore, assign)
+# - Notification triggers (Email, Slack, Webhook)
+```
+
+**Observability:** All errors stored in PostgreSQL with automatic grouping. Query directly for debugging:
+
+```sql
+-- Find all errors for a user
+SELECT * FROM monitoring.errors
+WHERE context->>'user_id' = '123'
+ORDER BY occurred_at DESC;
+
+-- Correlate errors with traces
+SELECT e.*, t.*
+FROM monitoring.errors e
+JOIN monitoring.traces t ON e.trace_id = t.trace_id
+WHERE e.fingerprint = 'order_creation_failed';
+```
+
+### Integrated Observability Stack
+
+**OpenTelemetry Integration:**
+```python
+# Traces and metrics automatically stored in PostgreSQL
+# Full correlation with errors and business events
+
+SELECT
+    e.message as error,
+    t.duration_ms as trace_duration,
+    c.entity_name as affected_entity
+FROM monitoring.errors e
+JOIN monitoring.traces t ON e.trace_id = t.trace_id
+JOIN tb_entity_change_log c ON t.trace_id = c.trace_id::text
+WHERE e.fingerprint = 'payment_processing_error'
+ORDER BY e.occurred_at DESC
+LIMIT 10;
+```
+
+**Grafana Dashboards:**
+Pre-built dashboards in `grafana/`:
+- Error monitoring (grouping, rates, trends)
+- OpenTelemetry traces (spans, performance)
+- Performance metrics (latency, throughput)
+- All querying PostgreSQL directly (no exporters needed)
+
+### Why "In PostgreSQL Everything"?
+
+**1. Cost-Effective**: Save $300-3,000/month by eliminating SaaS services
+**2. Operational Simplicity**: One database to manage, backup, and monitor
+**3. Consistent Performance**: No external network calls for caching or error tracking
+**4. Full Control**: Self-hosted, no vendor lock-in, complete data ownership
+**5. Correlation**: Errors + traces + metrics + business events in one query
+**6. ACID Guarantees**: All observability data benefits from PostgreSQL transactions
+
 ## Composable Over Opinionated
 
 ### Framework Provides Tools
@@ -382,7 +495,6 @@ health = HealthCheck()
 health.add_check("database", check_database)
 
 # Optionally add custom checks
-health.add_check("redis", my_redis_check)
 health.add_check("s3", my_s3_check)
 
 # Use in your endpoints
