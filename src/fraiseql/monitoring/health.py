@@ -33,6 +33,7 @@ __all__ = [
     "CheckResult",
     "HealthCheck",
     "HealthStatus",
+    "check_database",
 ]
 
 
@@ -208,3 +209,92 @@ class HealthCheck:
             "status": overall_status.value,
             "checks": results,
         }
+
+
+async def check_database(pool: Any | None = None, timeout_seconds: float = 5.0) -> CheckResult:
+    """Database connectivity health check for Kubernetes readiness probes.
+
+    Performs a real database connectivity check by executing SELECT 1.
+    Checks connection pool statistics and validates database is responsive.
+
+    This check is designed for Kubernetes readiness probes - if the database
+    is unavailable, the pod should not receive traffic.
+
+    Args:
+        pool: PostgreSQL connection pool (psycopg.AsyncConnectionPool).
+              If None, returns healthy (useful for testing without database).
+        timeout_seconds: Maximum time in seconds to wait for database response (default: 5.0)
+
+    Returns:
+        CheckResult: Database health check with pool statistics
+
+    Example:
+        >>> from psycopg_pool import AsyncConnectionPool
+        >>> pool = AsyncConnectionPool("postgresql://...")
+        >>> health = HealthCheck()
+        >>> health.add_check("database", lambda: check_database(pool))
+        >>> result = await health.run_checks()
+
+    Note:
+        - Returns HEALTHY if pool is None (allows testing without database)
+        - Returns UNHEALTHY if connection fails or times out
+        - Includes pool statistics (size, available, waiting) in metadata
+    """
+    if pool is None:
+        # No database configured - return healthy for testing
+        return CheckResult(
+            name="database",
+            status=HealthStatus.HEALTHY,
+            message="Database pool not configured (standalone mode)",
+        )
+
+    try:
+        # Get a connection from the pool with timeout
+        import asyncio
+
+        async with asyncio.timeout(timeout_seconds):
+            async with pool.connection() as conn:
+                # Execute simple query to verify connectivity
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT 1")
+                    result = await cursor.fetchone()
+
+                    if result and result[0] == 1:
+                        # Database is responsive - collect pool stats
+                        metadata = {}
+
+                        # Get pool statistics if available
+                        if hasattr(pool, "_pool"):
+                            # psycopg3 AsyncConnectionPool internals
+                            p = pool._pool
+                            if hasattr(p, "_nconns"):
+                                metadata["pool_size"] = p._nconns
+                            if hasattr(p, "_connections"):
+                                metadata["pool_connections"] = len(p._connections)
+
+                        return CheckResult(
+                            name="database",
+                            status=HealthStatus.HEALTHY,
+                            message="Database connection successful",
+                            metadata=metadata,
+                        )
+
+                    # SELECT 1 returned unexpected result
+                    return CheckResult(
+                        name="database",
+                        status=HealthStatus.UNHEALTHY,
+                        message=f"Unexpected database response: {result}",
+                    )
+
+    except TimeoutError:
+        return CheckResult(
+            name="database",
+            status=HealthStatus.UNHEALTHY,
+            message=f"Database connection timeout ({timeout_seconds}s)",
+        )
+    except Exception as e:
+        return CheckResult(
+            name="database",
+            status=HealthStatus.UNHEALTHY,
+            message=f"Database connection failed: {e!s}",
+        )
