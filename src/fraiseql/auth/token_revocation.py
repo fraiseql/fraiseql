@@ -1,7 +1,7 @@
 """Token revocation mechanism for FraiseQL.
 
 This module provides functionality to revoke JWT tokens before they expire,
-supporting both in-memory and Redis-backed storage for revocation lists.
+using in-memory storage for revocation lists.
 """
 
 import asyncio
@@ -122,81 +122,6 @@ class InMemoryRevocationStore:
             return len(self._revoked_tokens)
 
 
-class RedisRevocationStore:
-    """Redis-backed token revocation store for production."""
-
-    def __init__(self, redis_client, ttl: int = 86400) -> None:
-        """Initialize Redis revocation store.
-
-        Args:
-            redis_client: Redis async client
-            ttl: Time-to-live for revoked tokens in seconds
-        """
-        try:
-            import redis.asyncio  # noqa: F401
-        except ImportError as e:
-            raise ImportError(
-                "Redis is required for RedisRevocationStore. "
-                "Install it with: pip install fraiseql[redis]",
-            ) from e
-        self.redis = redis_client
-        self.ttl = ttl
-        self.key_prefix = "revoked"
-
-    def _token_key(self, token_id: str) -> str:
-        """Get Redis key for a token."""
-        return f"{self.key_prefix}:token:{token_id}"
-
-    def _user_key(self, user_id: str) -> str:
-        """Get Redis key for user's tokens."""
-        return f"{self.key_prefix}:user:{user_id}"
-
-    async def revoke_token(self, token_id: str, user_id: str) -> None:
-        """Revoke a specific token."""
-        # Store token with TTL
-        await self.redis.setex(self._token_key(token_id), self.ttl, "1")
-
-        # Add to user's token set
-        await self.redis.sadd(self._user_key(user_id), token_id)
-
-        logger.info("Revoked token %s for user %s", token_id, user_id)
-
-    async def is_revoked(self, token_id: str) -> bool:
-        """Check if a token is revoked."""
-        result = await self.redis.exists(self._token_key(token_id))
-        return result > 0
-
-    async def revoke_all_user_tokens(self, user_id: str) -> None:
-        """Revoke all tokens for a user."""
-        user_key = self._user_key(user_id)
-
-        # Get all tokens for this user
-        token_ids = await self.redis.smembers(user_key)
-
-        if token_ids:
-            # Revoke each token
-            for token_id in token_ids:
-                await self.redis.setex(self._token_key(token_id), self.ttl, "1")
-
-            logger.info("Revoked %s tokens for user %s", len(token_ids), user_id)
-
-        # Delete the user set
-        await self.redis.delete(user_key)
-
-    async def cleanup_expired(self) -> int:
-        """Clean up expired revocations (Redis handles this automatically)."""
-        # Redis handles TTL automatically
-        return 0
-
-    async def get_revoked_count(self) -> int:
-        """Get approximate count of revoked tokens."""
-        # This is approximate as it counts all keys with the prefix
-        count = 0
-        async for _ in self.redis.scan_iter(match=f"{self.key_prefix}:token:*"):
-            count += 1
-        return count
-
-
 @dataclass
 class RevocationConfig:
     """Configuration for token revocation."""
@@ -205,7 +130,6 @@ class RevocationConfig:
     check_revocation: bool = True
     ttl: int = 86400  # 24 hours
     cleanup_interval: int = 3600  # 1 hour
-    store_type: str = "memory"  # "memory" or "redis"
 
 
 class TokenRevocationService:

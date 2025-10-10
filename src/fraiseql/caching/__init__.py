@@ -1,33 +1,12 @@
 """FraiseQL result caching functionality.
 
 This module provides a flexible caching layer for query results with
-support for multiple backends (Redis, in-memory) and automatic cache
-key generation based on query parameters.
+PostgreSQL-backed caching using UNLOGGED tables for maximum performance.
 """
 
 from .cache_key import CacheKeyBuilder
+from .postgres_cache import PostgresCache, PostgresCacheError
 from .repository_integration import CachedRepository
-
-# Lazy import Redis-dependent classes
-try:
-    from .redis_cache import RedisCache, RedisConnectionError
-
-    _HAS_REDIS = True
-except ImportError:
-    _HAS_REDIS = False
-
-    class RedisCache:
-        """Placeholder class when Redis is not available."""
-
-        def __init__(self, *args, **kwargs):
-            raise ImportError(
-                "Redis is required for RedisCache. Install it with: pip install fraiseql[redis]",
-            )
-
-    class RedisConnectionError(Exception):
-        """Placeholder exception when Redis is not available."""
-
-
 from .result_cache import (
     CacheBackend,
     CacheConfig,
@@ -42,8 +21,8 @@ __all__ = [
     "CacheKeyBuilder",
     "CacheStats",
     "CachedRepository",
-    "RedisCache",
-    "RedisConnectionError",
+    "PostgresCache",
+    "PostgresCacheError",
     "ResultCache",
     "cached_query",
 ]

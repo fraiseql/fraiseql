@@ -510,7 +510,6 @@ all = [
     { name = "opentelemetry-sdk" },
     { name = "protobuf" },
     { name = "pyjwt", extra = ["crypto"] },
-    { name = "redis" },
     { name = "wrapt" },
 ]
 auth0 = [
@@ -543,9 +542,6 @@ docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
     { name = "pymdown-extensions" },
-]
-redis = [
-    { name = "redis" },
 ]
 tracing = [
     { name = "opentelemetry-api" },
@@ -618,8 +614,6 @@ requires-dist = [
     { name = "python-dateutil", specifier = ">=2.8.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "redis", marker = "extra == 'all'", specifier = ">=5.0.0" },
-    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.13.0" },
     { name = "starlette", specifier = ">=0.47.2" },
     { name = "structlog", specifier = ">=23.0.0" },
@@ -630,7 +624,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.16.0" },
     { name = "wrapt", marker = "extra == 'tracing'", specifier = ">=1.16.0" },
 ]
-provides-extras = ["dev", "auth0", "docs", "tracing", "redis", "all"]
+provides-extras = ["dev", "auth0", "docs", "tracing", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1686,15 +1680,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5a/a9/104ec9234c8448c4379768221ea6df01260cd6c2ce13182d4eac531c8342/readme_renderer-44.0.tar.gz", hash = "sha256:8712034eabbfa6805cacf1402b4eeb2a73028f72d1166d6f5cb7f9c047c5d1e1", size = 32056, upload-time = "2024-07-08T15:00:57.805Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/67/921ec3024056483db83953ae8e48079ad62b92db7880013ca77632921dd0/readme_renderer-44.0-py3-none-any.whl", hash = "sha256:2fbca89b81a08526aadf1357a8c2ae889ec05fb03f5da67f9769c9a592166151", size = 13310, upload-time = "2024-07-08T15:00:56.577Z" },
-]
-
-[[package]]
-name = "redis"
-version = "6.4.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0d/d6/e8b92798a5bd67d659d51a18170e91c16ac3b59738d91894651ee255ed49/redis-6.4.0.tar.gz", hash = "sha256:b01bc7282b8444e28ec36b261df5375183bb47a07eb9c603f284e89cbc5ef010", size = 4647399, upload-time = "2025-08-07T08:10:11.441Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/02/89e2ed7e85db6c93dfa9e8f691c5087df4e3551ab39081a4d7c6d1f90e05/redis-6.4.0-py3-none-any.whl", hash = "sha256:f0544fa9604264e9464cdf4814e7d4830f74b165d52f2a330a760a88dd248b7f", size = 279847, upload-time = "2025-08-07T08:10:09.84Z" },
 ]
 
 [[package]]

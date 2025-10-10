@@ -54,7 +54,7 @@ def get_apq_hash(request: GraphQLRequest) -> str | None:
     Returns:
         SHA256 hash string if APQ request, None otherwise
     """
-    if not is_apq_request(request):
+    if not is_apq_request(request) or not request.extensions:
         return None
 
     persisted_query = request.extensions["persistedQuery"]

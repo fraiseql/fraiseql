@@ -38,11 +38,6 @@ def create_apq_backend(config: FraiseQLConfig) -> APQStorageBackend:
 
         return PostgreSQLAPQBackend(backend_config)
 
-    if backend_type == "redis":
-        from .redis import RedisAPQBackend
-
-        return RedisAPQBackend(backend_config)
-
     if backend_type == "custom":
         return _create_custom_backend(backend_config)
 

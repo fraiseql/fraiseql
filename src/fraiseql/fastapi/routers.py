@@ -202,7 +202,7 @@ def create_graphql_router(
         is_apq_request = request.extensions and "persistedQuery" in request.extensions
 
         # Handle APQ (Automatic Persisted Queries) if detected
-        if is_apq_request:
+        if is_apq_request and request.extensions:
             from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
             from fraiseql.middleware.apq_caching import (
                 get_apq_backend,
