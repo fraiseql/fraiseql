@@ -61,7 +61,7 @@ class UnifiedExecutor:
         variables: Optional[Dict[str, Any]] = None,
         operation_name: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | RawJSONResult:
         """Execute query using optimal mode.
 
         Args:
@@ -100,8 +100,8 @@ class UnifiedExecutor:
             execution_time = time.time() - start_time
             self._track_execution(mode, execution_time)
 
-            # Add execution metadata if requested
-            if context.get("include_execution_metadata"):
+            # Add execution metadata if requested (only for dict results, not RawJSONResult)
+            if context.get("include_execution_metadata") and isinstance(result, dict):
                 if "extensions" not in result:
                     result["extensions"] = {}
 
@@ -134,7 +134,7 @@ class UnifiedExecutor:
 
     async def _execute_turbo(
         self, query: str, variables: Dict[str, Any], context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | RawJSONResult:
         """Execute via TurboRouter.
 
         Args:
@@ -159,7 +159,7 @@ class UnifiedExecutor:
 
     async def _execute_passthrough(
         self, query: str, variables: Dict[str, Any], context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | RawJSONResult:
         """Execute via raw JSON passthrough.
 
         Args:
@@ -191,7 +191,7 @@ class UnifiedExecutor:
         variables: Dict[str, Any],
         operation_name: Optional[str],
         context: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | RawJSONResult:
         """Execute via standard GraphQL.
 
         Args:

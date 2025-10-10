@@ -41,7 +41,7 @@ def build_notin_sql(path_sql: SQL, value: list) -> Composed:
     return Composed(parts)
 
 
-def _apply_type_cast_for_list(path_sql: SQL, value_list: list) -> Composed:
+def _apply_type_cast_for_list(path_sql: SQL, value_list: list) -> Composed | SQL:
     """Apply appropriate type casting based on the list values."""
     if not value_list:
         return path_sql

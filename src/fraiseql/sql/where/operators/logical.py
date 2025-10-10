@@ -7,7 +7,7 @@ in GraphQL where clauses, enabling complex nested filtering conditions.
 from psycopg.sql import SQL, Composed
 
 
-def build_and_sql(conditions: list[Composed]) -> Composed:
+def build_and_sql(conditions: list[Composed]) -> Composed | SQL:
     """Combine conditions with AND operator.
 
     Args:
@@ -34,7 +34,7 @@ def build_and_sql(conditions: list[Composed]) -> Composed:
     return Composed(parts)
 
 
-def build_or_sql(conditions: list[Composed]) -> Composed:
+def build_or_sql(conditions: list[Composed]) -> Composed | SQL:
     """Combine conditions with OR operator.
 
     Args:
