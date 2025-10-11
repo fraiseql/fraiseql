@@ -1,32 +1,9 @@
--- FraiseQL PostgreSQL-Native Observability Schema (Partitioned Version)
--- This schema uses native PostgreSQL declarative partitioning for scalability
---
--- DESIGN DECISIONS:
--- - Monthly partitioning for tb_error_occurrence (high write volume)
--- - tb_error_log remains unpartitioned (low volume, needs unique constraints)
--- - Automatic partition creation via function + cron/pg_cron
--- - 6-month retention with automatic archival
+-- FraiseQL PostgreSQL-Native Observability Schema
+-- This schema extends tb_entity_change_log pattern to errors, traces, and metrics
 
 -- ============================================================================
--- SCHEMA VERSION TRACKING
+-- ERROR TRACKING (Sentry replacement)
 -- ============================================================================
-
-CREATE TABLE IF NOT EXISTS fraiseql_schema_version (
-    module TEXT PRIMARY KEY,
-    version INT NOT NULL,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    description TEXT
-);
-
-INSERT INTO fraiseql_schema_version (module, version, description)
-VALUES ('monitoring', 1, 'Initial partitioned schema')
-ON CONFLICT (module) DO NOTHING;
-
--- ============================================================================
--- ERROR TRACKING - SUMMARY TABLE (Unpartitioned)
--- ============================================================================
--- This table stores error fingerprints and aggregated data.
--- It remains unpartitioned for fast lookups and unique constraints.
 
 CREATE TABLE IF NOT EXISTS tb_error_log (
     error_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -84,19 +61,13 @@ CREATE INDEX IF NOT EXISTS idx_error_user ON tb_error_log((user_context->>'user_
 CREATE INDEX IF NOT EXISTS idx_error_tags ON tb_error_log USING gin(tags);
 CREATE INDEX IF NOT EXISTS idx_error_request_context ON tb_error_log USING gin(request_context);
 
-COMMENT ON TABLE tb_error_log IS 'PostgreSQL-native error tracking - Aggregated error summaries (unpartitioned)';
-COMMENT ON COLUMN tb_error_log.error_fingerprint IS 'Hash of error type + file + line for grouping';
-COMMENT ON COLUMN tb_error_log.occurrence_count IS 'Total number of times this error has occurred';
-
 -- ============================================================================
--- ERROR OCCURRENCES - PARTITIONED TABLE
+-- ERROR OCCURRENCES (Individual error instances)
 -- ============================================================================
--- Individual error instances partitioned by month for scalability.
--- High-volume writes benefit from partition pruning and parallel queries.
 
 CREATE TABLE IF NOT EXISTS tb_error_occurrence (
-    occurrence_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    error_id UUID NOT NULL,  -- No FK constraint across partitions
+    occurrence_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    error_id UUID NOT NULL REFERENCES tb_error_log(error_id) ON DELETE CASCADE,
 
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -110,133 +81,14 @@ CREATE TABLE IF NOT EXISTS tb_error_occurrence (
 
     -- OpenTelemetry
     trace_id TEXT,
-    span_id TEXT,
+    span_id TEXT
+);
 
-    PRIMARY KEY (occurrence_id, occurred_at)  -- Must include partition key
-) PARTITION BY RANGE (occurred_at);
-
--- Create indexes on parent table (inherited by all partitions)
-CREATE INDEX IF NOT EXISTS idx_occurrence_error_time ON tb_error_occurrence(error_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_occurrence_error ON tb_error_occurrence(error_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_occurrence_trace ON tb_error_occurrence(trace_id) WHERE trace_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_occurrence_time ON tb_error_occurrence(occurred_at DESC);
-
-COMMENT ON TABLE tb_error_occurrence IS 'Individual error occurrences (partitioned by month)';
 
 -- ============================================================================
--- PARTITION MANAGEMENT
--- ============================================================================
-
--- Function to create a partition for a specific month
-CREATE OR REPLACE FUNCTION create_error_occurrence_partition(
-    partition_date DATE
-) RETURNS TEXT AS $$
-DECLARE
-    partition_name TEXT;
-    start_date DATE;
-    end_date DATE;
-BEGIN
-    -- Calculate partition bounds (first day of month to first day of next month)
-    start_date := DATE_TRUNC('month', partition_date)::DATE;
-    end_date := (DATE_TRUNC('month', partition_date) + INTERVAL '1 month')::DATE;
-
-    -- Generate partition name: tb_error_occurrence_2024_01
-    partition_name := 'tb_error_occurrence_' || TO_CHAR(partition_date, 'YYYY_MM');
-
-    -- Create partition if it doesn't exist
-    EXECUTE format(
-        'CREATE TABLE IF NOT EXISTS %I PARTITION OF tb_error_occurrence
-         FOR VALUES FROM (%L) TO (%L)',
-        partition_name,
-        start_date,
-        end_date
-    );
-
-    RETURN partition_name;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION create_error_occurrence_partition IS 'Create monthly partition for error occurrences';
-
--- Function to automatically create partitions (call from cron or trigger)
-CREATE OR REPLACE FUNCTION ensure_error_occurrence_partitions(
-    months_ahead INT DEFAULT 2
-) RETURNS TABLE (partition_name TEXT, created BOOLEAN) AS $$
-DECLARE
-    current_month DATE;
-    target_month DATE;
-    i INT;
-    part_name TEXT;
-    part_exists BOOLEAN;
-BEGIN
-    current_month := DATE_TRUNC('month', CURRENT_DATE)::DATE;
-
-    -- Create partitions for current month + N months ahead
-    FOR i IN 0..months_ahead LOOP
-        target_month := current_month + (i || ' months')::INTERVAL;
-        part_name := 'tb_error_occurrence_' || TO_CHAR(target_month, 'YYYY_MM');
-
-        -- Check if partition exists
-        SELECT EXISTS (
-            SELECT 1 FROM pg_tables
-            WHERE schemaname = 'public' AND tablename = part_name
-        ) INTO part_exists;
-
-        IF NOT part_exists THEN
-            PERFORM create_error_occurrence_partition(target_month);
-            partition_name := part_name;
-            created := TRUE;
-            RETURN NEXT;
-        END IF;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION ensure_error_occurrence_partitions IS 'Ensure partitions exist for current and future months';
-
--- Function to drop old partitions (data retention policy)
-CREATE OR REPLACE FUNCTION drop_old_error_occurrence_partitions(
-    retention_months INT DEFAULT 6
-) RETURNS TABLE (partition_name TEXT, dropped BOOLEAN) AS $$
-DECLARE
-    cutoff_date DATE;
-    part_record RECORD;
-BEGIN
-    cutoff_date := (DATE_TRUNC('month', CURRENT_DATE) - (retention_months || ' months')::INTERVAL)::DATE;
-
-    -- Find and drop old partitions
-    FOR part_record IN
-        SELECT tablename
-        FROM pg_tables
-        WHERE schemaname = 'public'
-        AND tablename LIKE 'tb_error_occurrence_%'
-        AND tablename ~ '^\w+_\d{4}_\d{2}$'  -- Match pattern: prefix_YYYY_MM
-    LOOP
-        -- Extract date from partition name
-        DECLARE
-            part_date DATE;
-            year_month TEXT;
-        BEGIN
-            year_month := SUBSTRING(part_record.tablename FROM '\d{4}_\d{2}$');
-            part_date := TO_DATE(year_month, 'YYYY_MM');
-
-            IF part_date < cutoff_date THEN
-                EXECUTE format('DROP TABLE IF EXISTS %I', part_record.tablename);
-                partition_name := part_record.tablename;
-                dropped := TRUE;
-                RETURN NEXT;
-            END IF;
-        END;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION drop_old_error_occurrence_partitions IS 'Drop partitions older than retention period (default: 6 months)';
-
--- Create initial partitions (current month + 2 months ahead)
-SELECT ensure_error_occurrence_partitions(2);
-
--- ============================================================================
--- OPENTELEMETRY TRACES (Partitioned by day for high-volume tracing)
+-- OPENTELEMETRY TRACES (in PostgreSQL)
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS otel_traces (
@@ -268,8 +120,8 @@ CREATE TABLE IF NOT EXISTS otel_traces (
     -- Links to other spans
     links JSONB DEFAULT '[]'::jsonb,
 
-    PRIMARY KEY (trace_id, span_id, start_time)
-) PARTITION BY RANGE (start_time);
+    PRIMARY KEY (trace_id, span_id)
+);
 
 -- Indexes for trace queries
 CREATE INDEX IF NOT EXISTS idx_otel_trace_time ON otel_traces(start_time DESC);
@@ -278,16 +130,16 @@ CREATE INDEX IF NOT EXISTS idx_otel_trace_service ON otel_traces(service_name, s
 CREATE INDEX IF NOT EXISTS idx_otel_trace_parent ON otel_traces(trace_id, parent_span_id);
 CREATE INDEX IF NOT EXISTS idx_otel_trace_duration ON otel_traces(duration_ms DESC) WHERE duration_ms IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_otel_trace_errors ON otel_traces(status_code) WHERE status_code = 'error';
+
+-- GIN index for attribute searching
 CREATE INDEX IF NOT EXISTS idx_otel_attributes ON otel_traces USING gin(attributes);
 
-COMMENT ON TABLE otel_traces IS 'OpenTelemetry distributed traces (partitioned by day)';
-
 -- ============================================================================
--- OPENTELEMETRY METRICS (Partitioned by day)
+-- OPENTELEMETRY METRICS
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS otel_metrics (
-    metric_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    metric_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Metric identification
     metric_name TEXT NOT NULL,
@@ -304,39 +156,35 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     resource_attributes JSONB DEFAULT '{}'::jsonb,
 
     -- Histogram/Summary specific
-    bucket_bounds JSONB,
-    quantiles JSONB,
-
-    PRIMARY KEY (metric_id, timestamp)
-) PARTITION BY RANGE (timestamp);
+    bucket_bounds JSONB, -- for histogram
+    quantiles JSONB -- for summary
+);
 
 CREATE INDEX IF NOT EXISTS idx_otel_metrics_name_time ON otel_metrics(metric_name, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_otel_metrics_time ON otel_metrics(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_otel_metrics_labels ON otel_metrics USING gin(labels);
 
-COMMENT ON TABLE otel_metrics IS 'OpenTelemetry metrics (partitioned by day)';
-
 -- ============================================================================
--- ERROR NOTIFICATIONS (Unpartitioned - low volume configuration data)
+-- ERROR NOTIFICATIONS (extensible notification system)
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS tb_error_notification_config (
     config_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- When to notify
-    error_fingerprint TEXT,
-    error_type TEXT,
-    severity TEXT[],
-    environment TEXT[],
+    error_fingerprint TEXT, -- NULL = all errors
+    error_type TEXT, -- NULL = all types
+    severity TEXT[], -- array of severities to notify on
+    environment TEXT[], -- array of environments
     min_occurrence_count INT DEFAULT 1,
 
     -- Notification settings
     enabled BOOLEAN DEFAULT true,
-    channel_type TEXT NOT NULL,
-    channel_config JSONB NOT NULL,
+    channel_type TEXT NOT NULL, -- email, slack, webhook, sms
+    channel_config JSONB NOT NULL, -- channel-specific configuration
 
     -- Rate limiting
-    rate_limit_minutes INT DEFAULT 60,
+    rate_limit_minutes INT DEFAULT 60, -- don't send more than once per hour for same error
 
     -- Template
     message_template TEXT,
@@ -349,11 +197,12 @@ CREATE TABLE IF NOT EXISTS tb_error_notification_config (
 
 CREATE INDEX IF NOT EXISTS idx_notification_config_enabled ON tb_error_notification_config(enabled) WHERE enabled = true;
 
--- Notification delivery log (partitioned by month)
+-- Table to track sent notifications
 CREATE TABLE IF NOT EXISTS tb_error_notification_log (
-    notification_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    config_id UUID NOT NULL,
-    error_id UUID NOT NULL,
+    notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    config_id UUID REFERENCES tb_error_notification_config(config_id) ON DELETE CASCADE,
+    error_id UUID REFERENCES tb_error_log(error_id) ON DELETE CASCADE,
 
     sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     channel_type TEXT NOT NULL,
@@ -363,14 +212,12 @@ CREATE TABLE IF NOT EXISTS tb_error_notification_log (
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
     error_message TEXT,
 
-    PRIMARY KEY (notification_id, sent_at)
-) PARTITION BY RANGE (sent_at);
+    -- Rate limiting tracking
+    CONSTRAINT unique_error_config_ratelimit UNIQUE (error_id, config_id, sent_at)
+);
 
-CREATE INDEX IF NOT EXISTS idx_notification_log_error_time ON tb_error_notification_log(error_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_log_error ON tb_error_notification_log(error_id, sent_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notification_log_status ON tb_error_notification_log(status) WHERE status = 'failed';
-
-COMMENT ON TABLE tb_error_notification_config IS 'Configuration for error notifications';
-COMMENT ON TABLE tb_error_notification_log IS 'Notification delivery log (partitioned by month)';
 
 -- ============================================================================
 -- VIEWS FOR COMMON QUERIES
@@ -388,6 +235,7 @@ SELECT
     el.last_seen,
     el.environment,
     el.trace_id,
+    -- Recent occurrence count
     COUNT(eo.occurrence_id) FILTER (WHERE eo.occurred_at > NOW() - INTERVAL '24 hours') as recent_occurrences
 FROM tb_error_log el
 LEFT JOIN tb_error_occurrence eo ON el.error_id = eo.error_id
@@ -444,6 +292,7 @@ ORDER BY p95_duration_ms DESC;
 -- FUNCTIONS FOR ERROR MANAGEMENT
 -- ============================================================================
 
+-- Function to resolve an error
 CREATE OR REPLACE FUNCTION resolve_error(
     p_error_id UUID,
     p_resolved_by TEXT,
@@ -459,6 +308,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function to get error statistics
 CREATE OR REPLACE FUNCTION get_error_stats(
     p_hours INT DEFAULT 24
 ) RETURNS TABLE (
@@ -480,32 +330,16 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
--- MAINTENANCE HELPER
+-- COMMENTS
 -- ============================================================================
 
--- Function to get partition statistics
-CREATE OR REPLACE FUNCTION get_partition_stats()
-RETURNS TABLE (
-    table_name TEXT,
-    partition_name TEXT,
-    row_count BIGINT,
-    total_size TEXT,
-    index_size TEXT
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT
-        parent.relname::TEXT as table_name,
-        child.relname::TEXT as partition_name,
-        pg_stat_get_tuples_returned(child.oid)::BIGINT as row_count,
-        pg_size_pretty(pg_total_relation_size(child.oid)) as total_size,
-        pg_size_pretty(pg_indexes_size(child.oid)) as index_size
-    FROM pg_inherits
-    JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
-    JOIN pg_class child ON pg_inherits.inhrelid = child.oid
-    WHERE parent.relname IN ('tb_error_occurrence', 'otel_traces', 'otel_metrics', 'tb_error_notification_log')
-    ORDER BY parent.relname, child.relname;
-END;
-$$ LANGUAGE plpgsql;
+COMMENT ON TABLE tb_error_log IS 'PostgreSQL-native error tracking - Sentry replacement';
+COMMENT ON TABLE tb_error_occurrence IS 'Individual error occurrences with full context';
+COMMENT ON TABLE otel_traces IS 'OpenTelemetry distributed traces stored in PostgreSQL';
+COMMENT ON TABLE otel_metrics IS 'OpenTelemetry metrics stored in PostgreSQL';
+COMMENT ON TABLE tb_error_notification_config IS 'Configuration for error notifications (email, Slack, etc.)';
+COMMENT ON TABLE tb_error_notification_log IS 'Log of sent error notifications';
 
-COMMENT ON FUNCTION get_partition_stats IS 'Get statistics for all partitioned tables';
+COMMENT ON COLUMN tb_error_log.error_fingerprint IS 'Hash of error type + file + line for grouping';
+COMMENT ON COLUMN tb_error_log.occurrence_count IS 'Total number of times this error has occurred';
+COMMENT ON COLUMN tb_error_log.trace_id IS 'OpenTelemetry trace ID for correlation';

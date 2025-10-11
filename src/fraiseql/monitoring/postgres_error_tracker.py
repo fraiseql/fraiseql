@@ -11,6 +11,7 @@ eliminating the need for external services like Sentry. Features include:
 - Custom notification triggers
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -517,13 +518,25 @@ class PostgreSQLErrorTracker:
             error_id: Error UUID
             is_new: Whether this is a new error (first occurrence)
         """
-        # The actual notification sending will be handled by the notification system
-        # This just logs that a notification should be triggered
-        logger.debug(
-            "Error notification triggered: error_id=%s, is_new=%s",
-            error_id,
-            is_new,
-        )
+        # Import NotificationManager lazily to avoid circular imports
+        try:
+            from fraiseql.monitoring.notifications import NotificationManager
+
+            manager = NotificationManager(self.db)
+            # Send notifications asynchronously without blocking error capture
+            # Store task reference to prevent premature garbage collection
+            task = asyncio.create_task(manager.send_notifications(error_id))
+            # We don't await it - fire-and-forget pattern
+            _ = task
+
+            logger.debug(
+                "Error notification triggered: error_id=%s, is_new=%s",
+                error_id,
+                is_new,
+            )
+        except Exception:
+            # Don't let notification failures break error tracking
+            logger.exception("Failed to trigger notifications for error %s", error_id)
 
 
 # Global tracker instance
