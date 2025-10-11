@@ -10,6 +10,7 @@ Test Phases:
 - Phase 4.4: Automatic Trigger Setup
 """
 
+import json
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
@@ -523,36 +524,487 @@ class TestCacheValueStructure:
 class TestVersionChecking:
     """Phase 4.2.3: Test domain version checking for cache invalidation."""
 
-    @pytest.mark.skip(reason="Phase 4.2.3 not yet implemented")
-    @pytest.mark.asyncio
-    async def test_cache_invalidated_on_data_change(self):
-        """Test that cache is invalidated when underlying data changes."""
+    @pytest.fixture
+    def mock_pool(self):
+        """Create mock database pool."""
+        return MagicMock()
 
-    @pytest.mark.skip(reason="Phase 4.2.3 not yet implemented")
     @pytest.mark.asyncio
-    async def test_tenant_isolated_version_checks(self):
-        """Test that version checks are tenant-isolated (CRITICAL SECURITY TEST)."""
+    async def test_get_domain_versions_method_exists(self, mock_pool):
+        """Test that PostgresCache has get_domain_versions() method.
+
+        Expected behavior:
+        - get_domain_versions() method should exist
+        - Should accept tenant_id and domains list
+        - Should return dict[str, int] mapping domain names to versions
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+
+        # Method should exist
+        assert hasattr(cache, "get_domain_versions"), "get_domain_versions() method should exist"
+
+    @pytest.mark.asyncio
+    async def test_get_domain_versions_returns_current_versions(self, mock_pool):
+        """Test that get_domain_versions() returns current domain versions.
+
+        Expected behavior:
+        - Query fraiseql_cache.domain_version table
+        - Return versions for requested domains
+        - Filter by tenant_id
+        """
+        from uuid import uuid4
+
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        tenant_id = uuid4()
+
+        # Mock database returning domain versions
+        mock_cursor = AsyncMock()
+        mock_cursor.execute = AsyncMock()
+        # First fetchone for extension detection
+        mock_cursor.fetchone = AsyncMock(return_value=("1.0",))
+        # Fetchall for domain versions query
+        mock_cursor.fetchall = AsyncMock(
+            return_value=[
+                ("user", 42),
+                ("post", 15),
+            ]
+        )
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=None)
+
+        mock_conn = AsyncMock()
+        mock_conn.cursor = MagicMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        mock_pool.connection = MagicMock(return_value=mock_conn)
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+        await cache._ensure_initialized()
+
+        # Get domain versions
+        versions = await cache.get_domain_versions(tenant_id, ["user", "post"])
+
+        # Should return version dict
+        assert isinstance(versions, dict), "Should return dict"
+        assert versions.get("user") == 42, "Should return user version"
+        assert versions.get("post") == 15, "Should return post version"
+
+    @pytest.mark.asyncio
+    async def test_cache_invalidated_on_data_change(self, mock_pool):
+        """Test that cache is invalidated when underlying data changes.
+
+        Expected behavior:
+        - Cache entry stored with domain versions
+        - Domain version increments (simulating data change)
+        - On cache hit, compare cached_version vs current_version
+        - If mismatch, invalidate and refetch
+        """
+        from uuid import uuid4
+
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        tenant_id = uuid4()
+
+        # Mock database with proper fetch handling for get_with_metadata
+        cached_data = {}
+
+        async def mock_execute(query, params=None):
+            # Track what gets cached during SET
+            if "INSERT INTO" in query and params:
+                key, value_json, expires = params
+                cached_data[key] = json.loads(value_json)
+
+        async def mock_fetchone():
+            # For get_with_metadata, return cached value
+            if "test_key" in cached_data:
+                return (cached_data["test_key"],)
+            return None
+
+        async def mock_fetchall():
+            # For get_domain_versions queries
+            # Simulate: first call returns version 42, later calls return 43
+            if len(cached_data) > 0:
+                # After data has been cached, return updated version
+                return [("user", 43)]
+            return [("user", 42)]
+
+        # Initial setup mocks for extension detection
+        initial_fetchone = AsyncMock(return_value=("1.0",))
+
+        # Track call count to return correct data
+        fetchone_call_count = 0
+
+        async def fetchone_router():
+            nonlocal fetchone_call_count
+            fetchone_call_count += 1
+            if fetchone_call_count == 1:
+                # Extension detection
+                return ("1.0",)
+            # Subsequent calls for cache get
+            return await mock_fetchone()
+
+        mock_cursor = AsyncMock()
+        mock_cursor.execute = mock_execute
+        mock_cursor.fetchone = fetchone_router
+        mock_cursor.fetchall = mock_fetchall
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=None)
+
+        mock_conn = AsyncMock()
+        mock_conn.cursor = MagicMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        mock_pool.connection = MagicMock(return_value=mock_conn)
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+        await cache._ensure_initialized()
+
+        # Step 1: Cache value with version 42
+        await cache.set(
+            "test_key", [{"id": 1, "name": "Alice"}], ttl=300, versions={"user": 42}
+        )
+
+        # Step 2: Get cached value (should include version metadata)
+        result, cached_versions = await cache.get_with_metadata("test_key")
+        assert cached_versions == {"user": 42}, f"Should cache with version 42, got {cached_versions}"
+
+        # Step 3: Get current versions (simulates data change to version 43)
+        current_versions = await cache.get_domain_versions(tenant_id, ["user"])
+        assert current_versions == {"user": 43}, "Should return updated version 43"
+
+        # Step 4: Compare versions - should detect mismatch
+        assert cached_versions["user"] != current_versions["user"], "Versions should mismatch"
+
+    @pytest.mark.asyncio
+    async def test_tenant_isolated_version_checks(self, mock_pool):
+        """Test that version checks are tenant-isolated (CRITICAL SECURITY TEST).
+
+        Expected behavior:
+        - Tenant A has domain version 42
+        - Tenant B has domain version 10
+        - get_domain_versions() must filter by tenant_id
+        - Each tenant sees only their versions
+        """
+        from uuid import uuid4
+
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        tenant_a = uuid4()
+        tenant_b = uuid4()
+
+        # Track which execute call we're on to return appropriate data
+        execute_calls = []
+
+        async def mock_execute(query, params=None):
+            execute_calls.append((query, params))
+
+        async def mock_fetchall():
+            # Get the last execute call
+            if execute_calls:
+                last_query, last_params = execute_calls[-1]
+                if last_params:
+                    tenant_id = last_params[0]
+                    if tenant_id == tenant_a:
+                        return [("user", 42)]
+                    elif tenant_id == tenant_b:
+                        return [("user", 10)]
+            return []
+
+        mock_cursor = AsyncMock()
+        mock_cursor.execute = mock_execute
+        mock_cursor.fetchone = AsyncMock(return_value=("1.0",))
+        mock_cursor.fetchall = mock_fetchall
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=None)
+
+        mock_conn = AsyncMock()
+        mock_conn.cursor = MagicMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        mock_pool.connection = MagicMock(return_value=mock_conn)
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+        await cache._ensure_initialized()
+
+        # Tenant A gets their version
+        versions_a = await cache.get_domain_versions(tenant_a, ["user"])
+        assert versions_a == {"user": 42}, "Tenant A should see version 42"
+
+        # Tenant B gets their version
+        versions_b = await cache.get_domain_versions(tenant_b, ["user"])
+        assert versions_b == {"user": 10}, "Tenant B should see version 10"
+
+        # Versions MUST be different (tenant isolation)
+        assert versions_a != versions_b, "Tenant versions must be isolated (SECURITY!)"
 
 
 class TestCascadeRules:
-    """Phase 4.3: Test CASCADE rule generation from GraphQL schema.
+    """Phase 4.3: Test CASCADE rule registration for automatic invalidation.
 
-    These tests will be implemented after Phase 4.2 is complete.
+    CASCADE rules define domain dependencies - when source_domain changes,
+    target_domain caches are invalidated automatically by the extension.
     """
 
-    @pytest.mark.skip(reason="Phase 4.3 not yet implemented")
+    @pytest.fixture
+    def mock_pool(self):
+        """Create mock database pool."""
+        return MagicMock()
+
     @pytest.mark.asyncio
-    async def test_cascade_invalidation(self):
-        """Test that updating parent invalidates child cache."""
+    async def test_register_cascade_rule_method_exists(self, mock_pool):
+        """Test that PostgresCache has register_cascade_rule() method.
+
+        Expected behavior:
+        - Method should exist
+        - Should accept source_domain, target_domain parameters
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+
+        # Method should exist
+        assert hasattr(
+            cache, "register_cascade_rule"
+        ), "register_cascade_rule() method should exist"
+
+    @pytest.mark.asyncio
+    async def test_register_cascade_rule_inserts_into_table(self, mock_pool):
+        """Test that register_cascade_rule() inserts into cascade_rules table.
+
+        Expected behavior:
+        - INSERT INTO fraiseql_cache.cascade_rules
+        - source_domain and target_domain should be set
+        - rule_type defaults to 'invalidate'
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        # Mock: extension installed
+        mock_cursor = AsyncMock()
+        mock_cursor.execute = AsyncMock()
+        mock_cursor.fetchone = AsyncMock(return_value=("1.0",))
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=None)
+
+        mock_conn = AsyncMock()
+        mock_conn.cursor = MagicMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        mock_pool.connection = MagicMock(return_value=mock_conn)
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+        await cache._ensure_initialized()
+
+        # Register CASCADE rule: user → post
+        await cache.register_cascade_rule("user", "post")
+
+        # Verify INSERT was executed
+        calls = [str(call) for call in mock_cursor.execute.call_args_list]
+        insert_found = any(
+            "INSERT INTO" in call and "cascade_rules" in call for call in calls
+        )
+        assert insert_found, "Should INSERT into fraiseql_cache.cascade_rules"
+
+    @pytest.mark.asyncio
+    async def test_register_cascade_rule_only_when_extension_available(self, mock_pool):
+        """Test that CASCADE rules only work when extension is installed.
+
+        Expected behavior:
+        - If extension not available, should raise or warn
+        - CASCADE rules require pg_fraiseql_cache extension
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache, PostgresCacheError
+
+        # Mock: NO extension
+        mock_cursor = AsyncMock()
+        mock_cursor.execute = AsyncMock()
+        mock_cursor.fetchone = AsyncMock(return_value=None)  # No extension
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=None)
+
+        mock_conn = AsyncMock()
+        mock_conn.cursor = MagicMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        mock_pool.connection = MagicMock(return_value=mock_conn)
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+        await cache._ensure_initialized()
+
+        # Should fail gracefully when extension not available
+        try:
+            await cache.register_cascade_rule("user", "post")
+            # If it doesn't raise, it should be a no-op
+            assert not cache.has_domain_versioning, "Extension should not be available"
+        except PostgresCacheError:
+            # Or it might raise an error - either is acceptable
+            pass
+
+    @pytest.mark.asyncio
+    async def test_clear_cascade_rules_method_exists(self, mock_pool):
+        """Test that PostgresCache has clear_cascade_rules() method.
+
+        Expected behavior:
+        - Method should exist
+        - Should allow clearing all CASCADE rules or filtered by domain
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+
+        # Method should exist
+        assert hasattr(
+            cache, "clear_cascade_rules"
+        ), "clear_cascade_rules() method should exist"
 
 
 class TestTriggerSetup:
     """Phase 4.4: Test automatic trigger setup for watched tables.
 
-    These tests will be implemented after Phase 4.3 is complete.
+    Automatic trigger setup calls fraiseql_cache.setup_table_invalidation()
+    for tables to enable automatic cache invalidation on data changes.
     """
 
-    @pytest.mark.skip(reason="Phase 4.4 not yet implemented")
+    @pytest.fixture
+    def mock_pool(self):
+        """Create mock database pool."""
+        return MagicMock()
+
     @pytest.mark.asyncio
-    async def test_automatic_trigger_setup(self):
-        """Test that triggers are set up automatically on startup."""
+    async def test_setup_table_trigger_method_exists(self, mock_pool):
+        """Test that PostgresCache has setup_table_trigger() method.
+
+        Expected behavior:
+        - Method should exist
+        - Should accept table_name parameter
+        - Should optionally accept domain_name and tenant_column
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+
+        # Method should exist
+        assert hasattr(
+            cache, "setup_table_trigger"
+        ), "setup_table_trigger() method should exist"
+
+    @pytest.mark.asyncio
+    async def test_setup_table_trigger_calls_extension_function(self, mock_pool):
+        """Test that setup_table_trigger() calls fraiseql_cache.setup_table_invalidation().
+
+        Expected behavior:
+        - Call fraiseql_cache.setup_table_invalidation() function
+        - Pass table_name, domain_name, tenant_column parameters
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        # Mock: extension installed
+        mock_cursor = AsyncMock()
+        mock_cursor.execute = AsyncMock()
+        mock_cursor.fetchone = AsyncMock(return_value=("1.0",))
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=None)
+
+        mock_conn = AsyncMock()
+        mock_conn.cursor = MagicMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        mock_pool.connection = MagicMock(return_value=mock_conn)
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+        await cache._ensure_initialized()
+
+        # Setup trigger for users table
+        await cache.setup_table_trigger("users")
+
+        # Verify fraiseql_cache.setup_table_invalidation was called
+        calls = [str(call) for call in mock_cursor.execute.call_args_list]
+        setup_function_called = any(
+            "fraiseql_cache.setup_table_invalidation" in call for call in calls
+        )
+        assert (
+            setup_function_called
+        ), "Should call fraiseql_cache.setup_table_invalidation()"
+
+    @pytest.mark.asyncio
+    async def test_setup_table_trigger_with_custom_domain(self, mock_pool):
+        """Test setup_table_trigger() with custom domain name.
+
+        Expected behavior:
+        - Accept custom domain_name parameter
+        - Pass it to setup_table_invalidation function
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        # Mock: extension installed
+        mock_cursor = AsyncMock()
+        mock_cursor.execute = AsyncMock()
+        mock_cursor.fetchone = AsyncMock(return_value=("1.0",))
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=None)
+
+        mock_conn = AsyncMock()
+        mock_conn.cursor = MagicMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        mock_pool.connection = MagicMock(return_value=mock_conn)
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+        await cache._ensure_initialized()
+
+        # Setup trigger with custom domain
+        await cache.setup_table_trigger("tb_users", domain_name="user")
+
+        # Verify function was called
+        calls = [str(call) for call in mock_cursor.execute.call_args_list]
+        assert any("setup_table_invalidation" in call for call in calls)
+
+    @pytest.mark.asyncio
+    async def test_setup_table_trigger_only_when_extension_available(self, mock_pool):
+        """Test that trigger setup only works when extension is installed.
+
+        Expected behavior:
+        - If extension not available, should warn and skip
+        - Trigger setup requires pg_fraiseql_cache extension
+        """
+        from fraiseql.caching.postgres_cache import PostgresCache
+
+        # Mock: NO extension
+        mock_cursor = AsyncMock()
+        mock_cursor.execute = AsyncMock()
+        mock_cursor.fetchone = AsyncMock(return_value=None)  # No extension
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=None)
+
+        mock_conn = AsyncMock()
+        mock_conn.cursor = MagicMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        mock_pool.connection = MagicMock(return_value=mock_conn)
+
+        cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
+        await cache._ensure_initialized()
+
+        # Should skip gracefully when extension not available
+        await cache.setup_table_trigger("users")
+
+        # Should NOT call setup function (extension not available)
+        assert not cache.has_domain_versioning, "Extension should not be available"

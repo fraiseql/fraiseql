@@ -206,6 +206,59 @@ class PostgresCache:
             logger.error("Failed to get cache key '%s': %s", key, e)
             raise PostgresCacheError(f"Failed to get cache key: {e}") from e
 
+    async def get_domain_versions(self, tenant_id: Any, domains: list[str]) -> dict[str, int]:
+        """Get current domain versions from pg_fraiseql_cache extension.
+
+        Args:
+            tenant_id: Tenant ID for version lookup
+            domains: List of domain names to get versions for
+
+        Returns:
+            Dictionary mapping domain names to version numbers.
+            If extension is not available, returns empty dict.
+
+        Raises:
+            PostgresCacheError: If database operation fails
+        """
+        # If extension not available, return empty dict
+        if not self.has_domain_versioning:
+            return {}
+
+        # Early return for empty domains list
+        if not domains:
+            return {}
+
+        try:
+            await self._ensure_initialized()
+
+            async with self.pool.connection() as conn, conn.cursor() as cur:
+                # Query fraiseql_cache.domain_version table
+                await cur.execute(
+                    """
+                    SELECT domain, version
+                    FROM fraiseql_cache.domain_version
+                    WHERE tenant_id = %s AND domain = ANY(%s)
+                    """,
+                    (tenant_id, domains),
+                )
+
+                rows = await cur.fetchall()
+
+                # Build version dict
+                versions = {row[0]: row[1] for row in rows}
+
+                logger.debug(
+                    "Retrieved %d domain versions for tenant %s",
+                    len(versions),
+                    tenant_id,
+                )
+
+                return versions
+
+        except psycopg.Error as e:
+            logger.error("Failed to get domain versions: %s", e)
+            raise PostgresCacheError(f"Failed to get domain versions: {e}") from e
+
     async def set(
         self, key: str, value: Any, ttl: int, versions: dict[str, int] | None = None
     ) -> None:
@@ -478,3 +531,171 @@ class PostgresCache:
         except psycopg.Error as e:
             logger.error("Failed to get cache stats: %s", e)
             raise PostgresCacheError(f"Failed to get cache stats: {e}") from e
+
+    async def register_cascade_rule(
+        self, source_domain: str, target_domain: str, rule_type: str = "invalidate"
+    ) -> None:
+        """Register CASCADE rule for automatic cache invalidation.
+
+        When source_domain data changes, target_domain caches are invalidated.
+
+        Args:
+            source_domain: Domain name that triggers invalidation
+            target_domain: Domain name to invalidate
+            rule_type: Either 'invalidate' or 'notify' (default: 'invalidate')
+
+        Raises:
+            PostgresCacheError: If extension not available or database operation fails
+
+        Example:
+            # When user data changes, invalidate post caches
+            await cache.register_cascade_rule("user", "post")
+        """
+        # CASCADE rules require pg_fraiseql_cache extension
+        if not self.has_domain_versioning:
+            logger.warning(
+                "CASCADE rules require pg_fraiseql_cache extension. "
+                "Skipping registration of %s -> %s",
+                source_domain,
+                target_domain,
+            )
+            return
+
+        try:
+            await self._ensure_initialized()
+
+            async with self.pool.connection() as conn, conn.cursor() as cur:
+                # Insert CASCADE rule (using ON CONFLICT for idempotency)
+                await cur.execute(
+                    """
+                    INSERT INTO fraiseql_cache.cascade_rules
+                        (source_domain, target_domain, rule_type)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (source_domain, target_domain)
+                    DO UPDATE SET rule_type = EXCLUDED.rule_type
+                    """,
+                    (source_domain, target_domain, rule_type),
+                )
+                await conn.commit()
+
+                logger.info(
+                    "Registered CASCADE rule: %s -> %s (%s)",
+                    source_domain,
+                    target_domain,
+                    rule_type,
+                )
+
+        except psycopg.Error as e:
+            logger.error(
+                "Failed to register CASCADE rule %s -> %s: %s",
+                source_domain,
+                target_domain,
+                e,
+            )
+            raise PostgresCacheError(f"Failed to register CASCADE rule: {e}") from e
+
+    async def clear_cascade_rules(self, source_domain: str | None = None) -> int:
+        """Clear CASCADE rules.
+
+        Args:
+            source_domain: If provided, only clear rules for this source domain.
+                         If None, clear all CASCADE rules.
+
+        Returns:
+            Number of rules deleted
+
+        Raises:
+            PostgresCacheError: If extension not available or database operation fails
+        """
+        # CASCADE rules require pg_fraiseql_cache extension
+        if not self.has_domain_versioning:
+            logger.warning("CASCADE rules require pg_fraiseql_cache extension. Nothing to clear.")
+            return 0
+
+        try:
+            await self._ensure_initialized()
+
+            async with self.pool.connection() as conn, conn.cursor() as cur:
+                if source_domain:
+                    # Clear rules for specific source domain
+                    await cur.execute(
+                        "DELETE FROM fraiseql_cache.cascade_rules WHERE source_domain = %s",
+                        (source_domain,),
+                    )
+                else:
+                    # Clear all rules
+                    await cur.execute("DELETE FROM fraiseql_cache.cascade_rules")
+
+                await conn.commit()
+                deleted = cur.rowcount
+
+                if deleted > 0:
+                    logger.info("Cleared %d CASCADE rules", deleted)
+
+                return deleted
+
+        except psycopg.Error as e:
+            logger.error("Failed to clear CASCADE rules: %s", e)
+            raise PostgresCacheError(f"Failed to clear CASCADE rules: {e}") from e
+
+    async def setup_table_trigger(
+        self,
+        table_name: str,
+        domain_name: str | None = None,
+        tenant_column: str = "tenant_id",
+    ) -> None:
+        """Setup automatic cache invalidation trigger for a table.
+
+        Calls fraiseql_cache.setup_table_invalidation() to create triggers
+        that automatically increment domain versions when table data changes.
+
+        Args:
+            table_name: Name of the table to watch (e.g., "users", "public.users")
+            domain_name: Custom domain name (defaults to derived from table name)
+            tenant_column: Name of tenant ID column (default: "tenant_id")
+
+        Raises:
+            PostgresCacheError: If extension not available or database operation fails
+
+        Example:
+            # Setup trigger for users table
+            await cache.setup_table_trigger("users")
+
+            # Setup with custom domain name
+            await cache.setup_table_trigger("tb_users", domain_name="user")
+        """
+        # Trigger setup requires pg_fraiseql_cache extension
+        if not self.has_domain_versioning:
+            logger.warning(
+                "Trigger setup requires pg_fraiseql_cache extension. Skipping setup for table %s",
+                table_name,
+            )
+            return
+
+        try:
+            await self._ensure_initialized()
+
+            async with self.pool.connection() as conn, conn.cursor() as cur:
+                # Call extension's setup function
+                if domain_name:
+                    await cur.execute(
+                        "SELECT fraiseql_cache.setup_table_invalidation(%s, %s, %s)",
+                        (table_name, domain_name, tenant_column),
+                    )
+                else:
+                    await cur.execute(
+                        "SELECT fraiseql_cache.setup_table_invalidation(%s, NULL, %s)",
+                        (table_name, tenant_column),
+                    )
+
+                await conn.commit()
+
+                logger.info(
+                    "Setup cache invalidation trigger for table '%s' (domain: %s)",
+                    table_name,
+                    domain_name or "auto-derived",
+                )
+
+        except psycopg.Error as e:
+            logger.error("Failed to setup trigger for table '%s': %s", table_name, e)
+            raise PostgresCacheError(f"Failed to setup trigger for table {table_name}: {e}") from e
