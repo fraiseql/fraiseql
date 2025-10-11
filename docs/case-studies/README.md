@@ -15,22 +15,9 @@ This directory contains case studies from teams running FraiseQL in production. 
 
 ## Available Case Studies
 
-### 1. [Multi-Tenant SaaS Platform](./saas-production-example.md) (Example)
+**No production case studies available yet.**
 
-**Industry**: Project Management SaaS
-**Scale**: 12.5M requests/day, 234 tenants
-**Key Metrics**:
-- P95 latency: 65ms
-- Cache hit rate: 73%
-- Cost savings: $1,285/month (46.5% reduction)
-
-**Highlights**:
-- PostgreSQL-native caching replacing Redis (73% hit rate, 3.2ms latency)
-- Error tracking replacing Sentry ($890/month savings)
-- Row-Level Security for bulletproof multi-tenancy
-- Development velocity: 62% faster API development
-
-**Key Learning**: "*Migrating to FraiseQL cut our infrastructure costs in half and reduced our codebase by 50%. The PostgreSQL-native approach means one service to monitor instead of four.*"
+We're actively seeking teams running FraiseQL in production to share their experiences. See [Submit Your Case Study](#submit-your-case-study) below.
 
 ---
 
