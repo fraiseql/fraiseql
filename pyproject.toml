@@ -45,6 +45,11 @@ dependencies = [
   "structlog>=23.0.0",
   "passlib[argon2]>=1.7.4",
   "aiosqlite>=0.21.0",
+  "typer>=0.12.0",
+  "rich>=13.7.0",
+  "pyyaml>=6.0.1",
+  "sqlparse>=0.5.0",
+  "confiture",
 ]
 
 [project.urls]
@@ -374,6 +379,9 @@ include = [
     "src/fraiseql/**/*.pyi",
     "src/fraiseql/py.typed"
 ]
+
+[tool.uv.sources]
+confiture = { path = "../confiture", editable = true }
 
 [dependency-groups]
 dev = [
