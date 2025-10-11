@@ -20,8 +20,10 @@ Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry.
 - [Configuration](./core/configuration.md) - Application setup and tuning
 - [FraiseQL Philosophy](./core/fraiseql-philosophy.md) - Design principles and architecture decisions
 
-**Performance** (1 consolidated doc)
-- [Performance Optimization](./performance/index.md) - Complete optimization stack
+**Performance** (3 docs)
+- [Performance Optimization](./performance/index.md) - Complete optimization stack (Rust, APQ, TurboRouter, JSON Passthrough)
+- [Result Caching](./performance/caching.md) - PostgreSQL-based result caching with automatic tenant isolation
+- [Caching Migration](./performance/caching-migration.md) - Add caching to existing applications
 
 **Advanced Patterns** (6 docs)
 - [Authentication](./advanced/authentication.md) - Auth patterns and security
@@ -76,6 +78,7 @@ FraiseQL implements CQRS pattern with PostgreSQL as the single source of truth. 
 |---------|-------------|---------------|
 | Type-Safe Schema | Python decorators generate GraphQL types | [Types and Schema](./core/types-and-schema.md) |
 | Repository Pattern | Async database operations with structured queries | [Database API](./core/database-api.md) |
+| Result Caching | PostgreSQL-based caching with tenant isolation | [Caching](./performance/caching.md) |
 | Rust Transformation | 10-80x faster JSON processing (optional) | [Performance](./performance/index.md) |
 | APQ Caching | Hash-based query persistence in PostgreSQL | [Performance](./performance/index.md) |
 | JSON Passthrough | Zero-copy responses from database | [Performance](./performance/index.md) |
@@ -144,6 +147,7 @@ FraiseQL achieves sub-millisecond performance through four optimization layers:
 | 1 | APQ Caching | 5-10x | `apq_storage_backend="postgresql"` |
 | 2 | TurboRouter | 3-5x | `enable_turbo_router=True` |
 | 3 | JSON Passthrough | 2-3x | Automatic with JSONB views |
+| **Bonus** | **Result Caching** | **50-500x** | [PostgreSQL Cache](./performance/caching.md) |
 
 **Combined**: 0.5-2ms response times for cached queries. See [Performance](./performance/index.md) for complete details.
 

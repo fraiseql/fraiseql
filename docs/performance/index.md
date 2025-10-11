@@ -1,6 +1,6 @@
 # Performance Optimization
 
-FraiseQL provides a four-layer optimization stack achieving sub-millisecond response times for cached queries.
+FraiseQL provides a comprehensive optimization stack achieving sub-millisecond response times for cached queries.
 
 ## Overview
 
@@ -10,8 +10,11 @@ FraiseQL provides a four-layer optimization stack achieving sub-millisecond resp
 | 1 | APQ Caching | `apq_enabled=True` | 5-10x | Low |
 | 2 | TurboRouter | Query registration | 3-5x | Medium |
 | 3 | JSON Passthrough | View design | 2-3x | Medium |
+| **Bonus** | **Result Caching** | [PostgreSQL Cache](caching.md) | **50-500x** | **Low** |
 
 **Combined Performance**: 0.5-2ms response times with all layers enabled.
+
+> **New**: Check out the [Result Caching Guide](caching.md) for PostgreSQL-based result caching with automatic tenant isolation and optional domain-based invalidation.
 
 ## Layer 0: Rust Transformation
 
