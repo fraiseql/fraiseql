@@ -46,12 +46,16 @@ class PostgresCache:
         self.table_name = table_name
         self._initialized = False
 
+        # pg_fraiseql_cache extension detection
+        self.has_domain_versioning: bool = False
+        self.extension_version: str | None = None
+
         if auto_initialize:
             # Note: Initialization should be done async, but we defer to first operation
             pass
 
     async def _ensure_initialized(self) -> None:
-        """Ensure cache table exists."""
+        """Ensure cache table exists and detect pg_fraiseql_cache extension."""
         if self._initialized:
             return
 
@@ -72,19 +76,47 @@ class PostgresCache:
                 ON {self.table_name} (expires_at)
             """)
 
+            # Detect pg_fraiseql_cache extension
+            try:
+                await cur.execute("""
+                    SELECT extversion
+                    FROM pg_extension
+                    WHERE extname = 'pg_fraiseql_cache'
+                """)
+                result = await cur.fetchone()
+
+                if result:
+                    self.has_domain_versioning = True
+                    self.extension_version = result[0]
+                    logger.info("✓ Detected pg_fraiseql_cache v%s", self.extension_version)
+                else:
+                    self.has_domain_versioning = False
+                    self.extension_version = None
+                    logger.info("pg_fraiseql_cache not installed, using TTL-only caching")
+            except psycopg.Error as e:
+                # If extension detection fails (e.g., permissions issue), fall back gracefully
+                self.has_domain_versioning = False
+                self.extension_version = None
+                logger.warning(
+                    "Failed to detect pg_fraiseql_cache extension: %s. "
+                    "Falling back to TTL-only caching.",
+                    e,
+                )
+
             await conn.commit()
 
         self._initialized = True
         logger.info("PostgreSQL cache table '%s' initialized", self.table_name)
 
     async def get(self, key: str) -> Any | None:
-        """Get value from cache.
+        """Get value from cache, unwrapping metadata if present.
 
         Args:
             key: Cache key
 
         Returns:
-            Cached value or None if not found or expired
+            Cached value or None if not found or expired.
+            If value has metadata structure, returns only the result.
 
         Raises:
             PostgresCacheError: If database operation fails
@@ -108,32 +140,115 @@ class PostgresCache:
                 if result is None:
                     return None
 
-                return result[0]  # JSONB is automatically deserialized
+                cache_value = result[0]  # JSONB is automatically deserialized
+
+                # Unwrap metadata if present
+                if (
+                    isinstance(cache_value, dict)
+                    and "result" in cache_value
+                    and "versions" in cache_value
+                ):
+                    return cache_value["result"]
+
+                # Return value as-is (backward compatibility)
+                return cache_value
 
         except psycopg.Error as e:
             logger.error("Failed to get cache key '%s': %s", key, e)
             raise PostgresCacheError(f"Failed to get cache key: {e}") from e
 
-    async def set(self, key: str, value: Any, ttl: int) -> None:
-        """Set value in cache with TTL.
+    async def get_with_metadata(self, key: str) -> tuple[Any | None, dict[str, int] | None]:
+        """Get value from cache with version metadata.
+
+        Args:
+            key: Cache key
+
+        Returns:
+            Tuple of (result, versions) where:
+            - result: The cached value (unwrapped)
+            - versions: Domain version dict, or None if not available
+
+        Raises:
+            PostgresCacheError: If database operation fails
+        """
+        try:
+            await self._ensure_initialized()
+
+            async with self.pool.connection() as conn, conn.cursor() as cur:
+                await cur.execute(
+                    f"""
+                    SELECT cache_value
+                    FROM {self.table_name}
+                    WHERE cache_key = %s
+                      AND expires_at > NOW()
+                    """,
+                    (key,),
+                )
+
+                result = await cur.fetchone()
+                if result is None:
+                    return None, None
+
+                cache_value = result[0]
+
+                # Check if value has metadata structure
+                if (
+                    isinstance(cache_value, dict)
+                    and "result" in cache_value
+                    and "versions" in cache_value
+                ):
+                    return cache_value["result"], cache_value["versions"]
+
+                # Old format without metadata
+                return cache_value, None
+
+        except psycopg.Error as e:
+            logger.error("Failed to get cache key '%s': %s", key, e)
+            raise PostgresCacheError(f"Failed to get cache key: {e}") from e
+
+    async def set(
+        self, key: str, value: Any, ttl: int, versions: dict[str, int] | None = None
+    ) -> None:
+        """Set value in cache with TTL and optional version metadata.
 
         Args:
             key: Cache key
             value: Value to cache (must be JSON-serializable)
             ttl: Time-to-live in seconds
+            versions: Optional domain version metadata (for pg_fraiseql_cache integration)
 
         Raises:
             ValueError: If value cannot be serialized
             PostgresCacheError: If database operation fails
+
+        Note:
+            When pg_fraiseql_cache extension is enabled AND versions are provided,
+            the value is wrapped with metadata structure:
+            {
+                "result": value,
+                "versions": {domain: version, ...},
+                "cached_at": timestamp
+            }
         """
         try:
+            await self._ensure_initialized()
+
+            # Wrap value with metadata if extension is enabled and versions provided
+            if self.has_domain_versioning and versions:
+                cache_value = {
+                    "result": value,
+                    "versions": versions,
+                    "cached_at": datetime.now(UTC).isoformat(),
+                }
+            else:
+                # Store value directly (backward compatibility)
+                cache_value = value
+
             # Validate that value is JSON-serializable
             try:
-                json.dumps(value)
+                json.dumps(cache_value)
             except (TypeError, ValueError) as e:
                 raise ValueError(f"Failed to serialize value: {e}") from e
-
-            await self._ensure_initialized()
 
             expires_at = datetime.now(UTC) + timedelta(seconds=ttl)
 
@@ -148,7 +263,7 @@ class PostgresCache:
                         cache_value = EXCLUDED.cache_value,
                         expires_at = EXCLUDED.expires_at
                     """,
-                    (key, json.dumps(value), expires_at),
+                    (key, json.dumps(cache_value), expires_at),
                 )
                 await conn.commit()
 
