@@ -185,6 +185,16 @@ def create_fraiseql_app(
     set_auth_provider(auth_provider)
     set_fraiseql_config(config)
 
+    # Configure SQL logging if enabled
+    if config.database_echo:
+        import logging
+
+        # Configure psycopg loggers to DEBUG level for SQL query visibility
+        logging.getLogger("psycopg").setLevel(logging.DEBUG)
+        logging.getLogger("psycopg.pool").setLevel(logging.DEBUG)
+        # Also configure asyncio loggers that psycopg uses
+        logging.getLogger("asyncio").setLevel(logging.DEBUG)
+
     # Create lifespan context manager for the app
     if lifespan is None:
         # Use default lifespan that manages database pool
