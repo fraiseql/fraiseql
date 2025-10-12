@@ -17,7 +17,7 @@ V = TypeVar("V")
 logger = logging.getLogger(__name__)
 
 
-class DataLoader(ABC, Generic[K, V]):
+class DataLoader(Generic[K, V], ABC):
     """Base class for batch loading and caching data.
 
     Prevents N+1 queries by batching and caching loads.

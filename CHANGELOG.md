@@ -9,19 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.11.1] - 2025-10-12
 
-### ✨ New Features
+### ✨ **New Features**
 
-**SQL Logging Support**: Added comprehensive SQL logging capabilities via the new `database_echo` configuration parameter.
+**SQL Logging Support**: Added integrated SQL query logging functionality via the `database_echo` configuration parameter.
 
-- **Configuration**: Enable SQL logging with `FraiseQLConfig(database_echo=True)`
-- **FastAPI Integration**: Automatic SQL logging setup when using `create_fraiseql_app()`
-- **Development Tool**: Perfect for debugging queries and performance optimization
-- **Production Safe**: Disabled by default, only enable in development environments
+- Enable SQL logging by setting `database_echo=True` in your `FraiseQLConfig`
+- Automatically configures psycopg loggers to DEBUG level for full SQL query visibility
+- Useful for development and debugging database queries
+- Environment variable support: `FRAISEQL_DATABASE_ECHO=true`
 
-### 📚 Documentation Updates
+### 📚 **Documentation**
 
-- Updated `docs/reference/config.md` with `database_echo` parameter documentation
-- Fixed version references in `SQL_LOGGING.md`
+- Added comprehensive SQL logging guide (`SQL_LOGGING.md`)
+- Updated configuration documentation with `database_echo` parameter details
 
 ## [0.11.0] - 2025-10-12
 
