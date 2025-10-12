@@ -49,7 +49,7 @@ dependencies = [
   "rich>=13.7.0",
   "pyyaml>=6.0.1",
   "sqlparse>=0.5.0",
-  "confiture",
+  "fraiseql-confiture>=0.1.0",
 ]
 
 [project.urls]
@@ -379,8 +379,9 @@ include = [
     "src/fraiseql/py.typed"
 ]
 
+# Development: Use local fraiseql-confiture for development
 [tool.uv.sources]
-confiture = { path = "../confiture", editable = true }
+fraiseql-confiture = { path = "../confiture", editable = true }
 
 [dependency-groups]
 dev = [
