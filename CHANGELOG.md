@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.3] - 2025-10-13
+
+### 🔧 CI/CD & Build Infrastructure
+
+This is a maintenance release focused on CI/CD improvements and build infrastructure.
+
+#### **CI/CD Enhancements**
+
+**Rust Extension Build Support in CI**
+- Added Rust toolchain setup to GitHub Actions workflow
+- Integrated maturin build step for `fraiseql_rs` extension
+- Ensures all 100+ Rust integration tests run in CI environment
+- Prevents build failures from missing Rust extension
+
+**Changes:**
+- `.github/workflows/quality-gate.yml`: Added Rust toolchain and maturin build steps
+- Rust extension now built automatically during CI test runs
+- All 3,481 tests now pass in CI (previously ~100 tests failing)
+
+#### **Code Quality**
+
+**Linting Fixes**
+- Fixed PYI059 in `src/fraiseql/optimization/dataloader.py`
+- Reordered base classes: `DataLoader(Generic[K, V], ABC)` → `DataLoader(ABC, Generic[K, V])`
+- Ensures `Generic[]` is always the last base class as required by PYI059
+
+#### **Version Management**
+
+**Package Version Updates**
+- Updated `pyproject.toml`: 0.11.0 → 0.11.3
+- Updated `src/fraiseql/__init__.py`: 0.11.0 → 0.11.3
+- Synchronized `uv.lock` with new version
+
+#### **Build Requirements**
+
+**Rust Toolchain**
+- Rust stable toolchain now required for building from source
+- Maturin used for building Python extension
+- Pre-built wheels available on PyPI (no Rust needed for pip install)
+
+#### **Backwards Compatibility**
+
+This release maintains full API compatibility with v0.11.0:
+- All GraphQL query syntax unchanged
+- All mutation patterns unchanged
+- All decorators and type definitions unchanged
+- No breaking changes to configuration
+
+#### **Upgrade Path**
+
+From v0.11.0 to v0.11.3:
+```bash
+# Using pip
+pip install --upgrade fraiseql
+
+# Using uv
+uv pip install --upgrade fraiseql
+```
+
+No code changes required - this is a drop-in replacement.
+
+#### **Testing**
+
+- ✅ All 3,481 tests passing locally
+- ✅ CI now builds Rust extension and runs all tests
+- ✅ Linting passes (ruff check)
+- ✅ Type checking clean (pyright)
+
 ## [0.11.0] - 2025-10-12
 
 ### 🚀 Maximum Performance by Default - Zero Configuration Required
