@@ -33,22 +33,21 @@ class TestCamelForgeCompleteExample:
         ]
 
         # Configure CamelForge settings as described in feature request
+        # Note: CamelForge is always enabled in v0.11.0+
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            camelforge_enabled=True,
             camelforge_function="turbo.fn_camelforge",
             camelforge_field_threshold=32000,  # PostgreSQL parameter limit
-            camelforge_entity_mapping=True,
             jsonb_field_limit_threshold=20,  # Field threshold
         )
 
-        # Generate SQL with CamelForge integration
+        # Generate SQL with CamelForge integration (always enabled in v0.11.0+)
         query = build_sql_query(
             table="v_dns_server",
             field_paths=field_paths,
             json_output=True,
             field_limit_threshold=config.jsonb_field_limit_threshold,
-            camelforge_enabled=config.camelforge_enabled,
+            camelforge_enabled=True,  # Always enabled in v0.11.0+
             camelforge_function=config.camelforge_function,
             entity_type="dns_server",
         )
@@ -83,21 +82,20 @@ class TestCamelForgeCompleteExample:
         # Simulate GraphQL query with many fields (above threshold)
         field_paths = [FieldPath(alias=f"field{i}", path=[f"field{i}"]) for i in range(25)]
 
-        # Same configuration as above
+        # Configure with field threshold (CamelForge always enabled in v0.11.0+)
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            camelforge_enabled=True,  # Enabled but should be ignored due to field count
             camelforge_function="turbo.fn_camelforge",
             jsonb_field_limit_threshold=20,  # 25 fields > 20 threshold
         )
 
-        # Generate SQL - should fall back to full data column
+        # Generate SQL - should fall back to full data column due to field count
         query = build_sql_query(
             table="v_dns_server",
             field_paths=field_paths,
             json_output=True,
             field_limit_threshold=config.jsonb_field_limit_threshold,
-            camelforge_enabled=config.camelforge_enabled,
+            camelforge_enabled=True,  # Always enabled in v0.11.0+
             camelforge_function=config.camelforge_function,
             entity_type="dns_server",
         )
@@ -167,60 +165,48 @@ class TestCamelForgeCompleteExample:
     def test_backward_compatibility(self):
         """Test backward compatibility guarantees from the feature request.
 
-        Guarantees:
-        - Default OFF: camelforge_enabled=False by default
-        - Zero Breaking Changes: Existing queries continue working normally
-        - Opt-in Enhancement: Only affects queries when explicitly enabled
+        v0.11.0 Changes:
+        - CamelForge is now always enabled (removed camelforge_enabled flag)
+        - Existing queries continue working with automatic CamelForge optimization
+        - Zero Breaking Changes: Queries produce correct results, just faster
         """
         field_paths = [
             FieldPath(alias="id", path=["id"]),
             FieldPath(alias="name", path=["name"]),
         ]
 
-        # Default configuration (CamelForge disabled by default)
+        # Default configuration (CamelForge always enabled in v0.11.0+)
         default_config = FraiseQLConfig(database_url="postgresql://test@localhost/test")
-        assert default_config.camelforge_enabled is False  # Default OFF
+        # Verify config has CamelForge settings
+        assert default_config.camelforge_function == "turbo.fn_camelforge"
+        assert default_config.camelforge_field_threshold == 20
 
-        # Test that disabled CamelForge works exactly like before
-        disabled_query = build_sql_query(
-            table="v_entity",
-            field_paths=field_paths,
-            json_output=True,
-            field_limit_threshold=20,
-            camelforge_enabled=False,  # Explicitly disabled
-        )
-
-        # Test the same query without CamelForge parameters (legacy behavior)
-        legacy_query = build_sql_query(
-            table="v_entity",
-            field_paths=field_paths,
-            json_output=True,
-            field_limit_threshold=20,
-            # No CamelForge parameters - should work exactly the same
-        )
-
-        disabled_sql = disabled_query.as_string(None)
-        legacy_sql = legacy_query.as_string(None)
-
-        # Both should produce identical SQL (no CamelForge)
-        assert "turbo.fn_camelforge(" not in disabled_sql
-        assert "turbo.fn_camelforge(" not in legacy_sql
-        assert "jsonb_build_object(" in disabled_sql
-        assert "jsonb_build_object(" in legacy_sql
-
-        # Enabled CamelForge should produce different SQL
+        # Test that CamelForge is used when enabled and entity type is provided
         enabled_query = build_sql_query(
             table="v_entity",
             field_paths=field_paths,
             json_output=True,
             field_limit_threshold=20,
-            camelforge_enabled=True,
+            camelforge_enabled=True,  # Explicitly enabled
             camelforge_function="turbo.fn_camelforge",
             entity_type="entity",
         )
 
         enabled_sql = enabled_query.as_string(None)
-        assert "turbo.fn_camelforge(" in enabled_sql  # Different from legacy
+        assert "turbo.fn_camelforge(" in enabled_sql
+
+        # Test that CamelForge can be disabled for specific queries if needed
+        disabled_query = build_sql_query(
+            table="v_entity",
+            field_paths=field_paths,
+            json_output=True,
+            field_limit_threshold=20,
+            camelforge_enabled=False,  # Explicitly disabled for this specific query
+        )
+
+        disabled_sql = disabled_query.as_string(None)
+        assert "turbo.fn_camelforge(" not in disabled_sql
+        assert "jsonb_build_object(" in disabled_sql
 
 
     def test_success_criteria_validation(self):
