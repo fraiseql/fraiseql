@@ -79,22 +79,8 @@ async def get_db() -> FraiseQLRepository:
         if hasattr(config, "jsonb_field_limit_threshold"):
             context["jsonb_field_limit_threshold"] = config.jsonb_field_limit_threshold
 
-        # CamelForge configuration (with environment variable overrides)
-        # CamelForge is always enabled for maximum performance
-        from fraiseql.fastapi.camelforge_config import CamelForgeConfig
-
-        camelforge_config = CamelForgeConfig.create(
-            enabled=True,  # Always enabled
-            function=config.camelforge_function
-            if hasattr(config, "camelforge_function")
-            else "turbo.fn_camelforge",
-            field_threshold=config.camelforge_field_threshold
-            if hasattr(config, "camelforge_field_threshold")
-            else 20,
-        )
-        context["camelforge_enabled"] = camelforge_config.enabled
-        context["camelforge_function"] = camelforge_config.function
-        context["camelforge_field_threshold"] = camelforge_config.field_threshold
+        # v0.11.0: Rust-only transformation (PostgreSQL CamelForge removed)
+        # All camelCase transformation is handled by Rust in raw_json_executor.py
 
     return FraiseQLRepository(pool=pool, context=context)
 

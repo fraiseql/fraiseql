@@ -153,7 +153,6 @@ markers = [
     "domain: Domain model tests (DDD patterns)",
     "regression: Regression tests for specific bugs and version features",
     "skip_ci: Skip in CI environment",
-    "camelforge: Tests for CamelForge functionality",
     "turbo: Tests for TurboRouter functionality"
 ]
 

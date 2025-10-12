@@ -348,35 +348,41 @@ config = FraiseQLConfig(
 )
 ```
 
-## CamelForge Settings
+## Rust Transformation (v0.11.0+)
 
-### camelforge_enabled
+**v0.11.0 Architectural Change**: FraiseQL now uses pure Rust transformation for camelCase field conversion. The PostgreSQL CamelForge function dependency has been removed.
 
-- **Type**: `bool`
-- **Default**: `False`
-- **Description**: Enable CamelForge database-native camelCase transformation
+**What Changed**:
+- ❌ **Removed**: `camelforge_enabled` parameter
+- ❌ **Removed**: `camelforge_function` parameter
+- ❌ **Removed**: `camelforge_field_threshold` parameter
+- ✅ **New**: Automatic Rust transformation for all queries
 
-### camelforge_function
+**Benefits**:
+- No PostgreSQL function installation required
+- Simpler configuration and deployment
+- Same 10-80x performance gains
+- Automatic for all queries
 
-- **Type**: `str`
-- **Default**: `"turbo.fn_camelforge"`
-- **Description**: Name of the CamelForge PostgreSQL function
+**Migration**: Simply remove the `camelforge_*` parameters from your `FraiseQLConfig`. No other changes needed.
 
-### camelforge_field_threshold
-
-- **Type**: `int`
-- **Default**: `20`
-- **Description**: Field count threshold for CamelForge
-
-**Examples**:
 ```python
+# v0.10.x (OLD)
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
-    camelforge_enabled=True,
-    camelforge_function="turbo.fn_camelforge",
-    camelforge_field_threshold=25
+    camelforge_enabled=True,            # ❌ Remove
+    camelforge_function="turbo.fn_camelforge",  # ❌ Remove
+    camelforge_field_threshold=25       # ❌ Remove
+)
+
+# v0.11.0+ (NEW)
+config = FraiseQLConfig(
+    database_url="postgresql://localhost/mydb",
+    # ✅ Rust handles camelCase transformation automatically
 )
 ```
+
+See the [v0.11.0 Migration Guide](../migration-guides/v0.11.0.md) for complete migration instructions.
 
 ## Authentication Settings
 

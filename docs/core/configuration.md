@@ -178,24 +178,27 @@ config = FraiseQLConfig(
 )
 ```
 
-### CamelForge
+### Rust Transformation (v0.11.0+)
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| camelforge_enabled | bool | False | Enable database-native camelCase transformation |
-| camelforge_function | str | "turbo.fn_camelforge" | PostgreSQL function name for CamelForge |
-| camelforge_field_threshold | int | 20 | Field count threshold for CamelForge |
+**v0.11.0 Architectural Change**: FraiseQL now uses pure Rust transformation for camelCase field conversion. The PostgreSQL CamelForge function is no longer required or used.
 
-**Examples**:
+**Benefits**:
+- ✅ **No database function required** - Simpler deployment
+- ✅ **Zero configuration** - Works automatically
+- ✅ **10-80x faster** - Same performance gains as before
+- ✅ **Automatic** - All queries get camelCase transformation
+
+The transformation happens automatically in `raw_json_executor.py` after retrieving data from PostgreSQL. No configuration needed.
+
 ```python
-# Enable CamelForge for large objects
+# v0.11.0+ - No CamelForge config needed!
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
-    camelforge_enabled=True,
-    camelforge_function="turbo.fn_camelforge",
-    camelforge_field_threshold=25
+    jsonb_field_limit_threshold=20,  # Only this parameter needed for JSONB optimization
 )
 ```
+
+**Migration from v0.10.x**: If you were using `camelforge_function` or `camelforge_field_threshold` parameters, simply remove them from your `FraiseQLConfig`. See the [v0.11.0 Migration Guide](../migration-guides/v0.11.0.md) for details.
 
 ## Authentication Settings
 

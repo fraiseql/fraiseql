@@ -25,6 +25,7 @@ This is a **major performance-focused release** that removes all performance con
 - `unified_executor_enabled` / `turbo_enable_adaptive_caching` - Now **always enabled**
 - `passthrough_auto_detect_views` / `passthrough_cache_view_metadata` - Now **always enabled**
 - `enable_mode_hints` - Now **always enabled**
+- **`camelforge_function` / `camelforge_field_threshold`** - PostgreSQL CamelForge function **removed**, Rust handles all transformation
 
 **Migration Guide**: Simply remove these config flags from your `FraiseQLConfig`. The features they controlled are now always active, delivering maximum performance automatically.
 
@@ -67,10 +68,10 @@ config = FraiseQLConfig(
    - Adaptive caching based on complexity
    - Zero overhead for cache hits
 
-5. **CamelForge Integration** - Always enabled
-   - Database-native camelCase transformation
-   - PostgreSQL function-based conversion
-   - Consistent field naming
+5. **Rust-Only Transformation** - PostgreSQL CamelForge removed
+   - All camelCase transformation now handled by Rust
+   - No PostgreSQL function dependency required
+   - Simpler deployment and configuration
 
 #### **What This Means For You**
 
