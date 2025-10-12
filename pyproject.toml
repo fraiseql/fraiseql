@@ -380,8 +380,9 @@ include = [
 ]
 
 # Development: Use local fraiseql-confiture for development
-[tool.uv.sources]
-fraiseql-confiture = { path = "../confiture", editable = true }
+# Production/CI: Comment out for releases to use PyPI version
+# [tool.uv.sources]
+# fraiseql-confiture = { path = "../confiture", editable = true }
 
 [dependency-groups]
 dev = [
