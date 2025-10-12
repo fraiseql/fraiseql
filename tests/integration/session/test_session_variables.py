@@ -101,8 +101,16 @@ class TestSessionVariablesAcrossExecutionModes:
         # Check that session variables were set
         executed_sql = mock_pool_psycopg.executed_statements
 
-        # Convert to strings for checking
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
+        # Convert to strings for checking (handle Composed SQL objects)
+        executed_sql_str = []
+        for stmt in executed_sql:
+            if hasattr(stmt, 'as_string'):
+                try:
+                    executed_sql_str.append(stmt.as_string(None))
+                except:
+                    executed_sql_str.append(str(stmt))
+            else:
+                executed_sql_str.append(str(stmt))
 
         # Should contain SET LOCAL statements for tenant_id and contact_id
         assert any("SET LOCAL app.tenant_id" in sql for sql in executed_sql_str), \
@@ -139,7 +147,17 @@ class TestSessionVariablesAcrossExecutionModes:
 
         # Check that session variables were set
         executed_sql = mock_pool_psycopg.executed_statements
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
+
+        # Convert to strings for checking (handle Composed SQL objects)
+        executed_sql_str = []
+        for stmt in executed_sql:
+            if hasattr(stmt, 'as_string'):
+                try:
+                    executed_sql_str.append(stmt.as_string(None))
+                except:
+                    executed_sql_str.append(str(stmt))
+            else:
+                executed_sql_str.append(str(stmt))
 
         # Should contain SET LOCAL statements
         assert any("SET LOCAL app.tenant_id" in sql for sql in executed_sql_str), \
@@ -233,7 +251,17 @@ class TestSessionVariablesAcrossExecutionModes:
 
         # Get executed SQL
         executed_sql = mock_pool_psycopg.executed_statements
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
+
+        # Convert to strings for checking (handle Composed SQL objects)
+        executed_sql_str = []
+        for stmt in executed_sql:
+            if hasattr(stmt, 'as_string'):
+                try:
+                    executed_sql_str.append(stmt.as_string(None))
+                except:
+                    executed_sql_str.append(str(stmt))
+            else:
+                executed_sql_str.append(str(stmt))
 
         # All modes should set session variables
         assert any("SET LOCAL app.tenant_id" in sql for sql in executed_sql_str), \
@@ -261,7 +289,17 @@ class TestSessionVariablesAcrossExecutionModes:
         await repo.find_one("test_view", id=1)
 
         executed_sql = mock_pool_psycopg.executed_statements
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
+
+        # Convert to strings for checking (handle Composed SQL objects)
+        executed_sql_str = []
+        for stmt in executed_sql:
+            if hasattr(stmt, 'as_string'):
+                try:
+                    executed_sql_str.append(stmt.as_string(None))
+                except:
+                    executed_sql_str.append(str(stmt))
+            else:
+                executed_sql_str.append(str(stmt))
 
         # Should set tenant_id but not contact_id
         assert any("SET LOCAL app.tenant_id" in sql for sql in executed_sql_str)
@@ -279,7 +317,17 @@ class TestSessionVariablesAcrossExecutionModes:
         await repo.find_one("test_view", id=1)
 
         executed_sql = mock_pool_psycopg.executed_statements
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
+
+        # Convert to strings for checking (handle Composed SQL objects)
+        executed_sql_str = []
+        for stmt in executed_sql:
+            if hasattr(stmt, 'as_string'):
+                try:
+                    executed_sql_str.append(stmt.as_string(None))
+                except:
+                    executed_sql_str.append(str(stmt))
+            else:
+                executed_sql_str.append(str(stmt))
 
         # Should set contact_id but not tenant_id
         assert not any("SET LOCAL app.tenant_id" in sql for sql in executed_sql_str)
@@ -296,7 +344,17 @@ class TestSessionVariablesAcrossExecutionModes:
         await repo.find_one("test_view", id=1)
 
         executed_sql = mock_pool_psycopg.executed_statements
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
+
+        # Convert to strings for checking (handle Composed SQL objects)
+        executed_sql_str = []
+        for stmt in executed_sql:
+            if hasattr(stmt, 'as_string'):
+                try:
+                    executed_sql_str.append(stmt.as_string(None))
+                except:
+                    executed_sql_str.append(str(stmt))
+            else:
+                executed_sql_str.append(str(stmt))
 
         # Should not set any session variables
         assert not any("SET LOCAL app.tenant_id" in sql for sql in executed_sql_str)
@@ -315,7 +373,17 @@ class TestSessionVariablesAcrossExecutionModes:
         await repo.find_one("test_view", id=1)
 
         executed_sql = mock_pool_psycopg.executed_statements
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
+
+        # Convert to strings for checking (handle Composed SQL objects)
+        executed_sql_str = []
+        for stmt in executed_sql:
+            if hasattr(stmt, 'as_string'):
+                try:
+                    executed_sql_str.append(stmt.as_string(None))
+                except:
+                    executed_sql_str.append(str(stmt))
+            else:
+                executed_sql_str.append(str(stmt))
 
         # Verify SET LOCAL is used (not SET or SET SESSION)
         tenant_sql = next((s for s in executed_sql_str if "app.tenant_id" in s), None)
@@ -344,7 +412,17 @@ class TestSessionVariablesAcrossExecutionModes:
         await repo.find_one("test_view", id=1)
 
         executed_sql = mock_pool_psycopg.executed_statements
-        executed_sql_str = [str(stmt) for stmt in executed_sql]
+
+        # Convert to strings for checking (handle Composed SQL objects)
+        executed_sql_str = []
+        for stmt in executed_sql:
+            if hasattr(stmt, 'as_string'):
+                try:
+                    executed_sql_str.append(stmt.as_string(None))
+                except:
+                    executed_sql_str.append(str(stmt))
+            else:
+                executed_sql_str.append(str(stmt))
 
         # Current implementation should set tenant_id
         assert any("SET LOCAL app.tenant_id" in sql for sql in executed_sql_str)
