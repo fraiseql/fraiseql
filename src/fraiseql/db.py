@@ -458,7 +458,8 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             jsonb_column = None
             if not field_paths:
                 # First, get sample rows to determine JSONB column
-                sample_query = self._build_find_query(view_name, limit=1, **kwargs)
+                sample_kwargs = {**kwargs, "limit": 1}
+                sample_query = self._build_find_query(view_name, **sample_kwargs)
 
                 async with (
                     self._pool.connection() as conn,
@@ -1004,11 +1005,25 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
 
         Args:
             view_name: Name of the database view
-            rows: Sample rows to inspect for JSONB columns
+            rows: Sample rows to inspect for JSONB columns (can be dicts or tuples)
 
         Returns:
             Name of the JSONB column to extract, or None if no suitable column found
         """
+        if not rows:
+            logger.debug(f"No rows provided for view '{view_name}', returning None")
+            return None
+
+        # Handle both dict and tuple rows
+        first_row = rows[0]
+
+        # If rows are tuples, we can't inspect columns dynamically - return None
+        if not isinstance(first_row, dict):
+            logger.debug(
+                f"Cannot determine JSONB column for view '{view_name}': rows are tuples, not dicts"
+            )
+            return None
+
         # Strategy 1: Check if a type is registered for this view and has explicit JSONB column
         if view_name in _type_registry:
             type_class = _type_registry[view_name]
@@ -1016,7 +1031,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                 definition = type_class.__fraiseql_definition__
                 if definition.jsonb_column:
                     # Verify the column exists in the data
-                    if rows and definition.jsonb_column in rows[0]:
+                    if definition.jsonb_column in first_row:
                         logger.debug(
                             f"Using explicit JSONB column '{definition.jsonb_column}' "
                             f"for view '{view_name}'"
@@ -1025,35 +1040,31 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     logger.warning(
                         f"Explicit JSONB column '{definition.jsonb_column}' not found "
                         f"in data for view '{view_name}'. Available columns: "
-                        f"{list(rows[0].keys()) if rows else 'None'}"
+                        f"{list(first_row.keys())}"
                     )
 
         # Strategy 2: Default column names to try
         default_columns = ["data", "json_data", "jsonb_data"]
 
-        if rows:
-            for col_name in default_columns:
-                if col_name in rows[0]:
-                    # Verify it contains dict-like data (not just a primitive)
-                    value = rows[0][col_name]
-                    if isinstance(value, dict) and value:
-                        logger.debug(
-                            f"Using default JSONB column '{col_name}' for view '{view_name}'"
-                        )
-                        return col_name
+        for col_name in default_columns:
+            if col_name in first_row:
+                # Verify it contains dict-like data (not just a primitive)
+                value = first_row[col_name]
+                if isinstance(value, dict) and value:
+                    logger.debug(f"Using default JSONB column '{col_name}' for view '{view_name}'")
+                    return col_name
 
         # Strategy 3: Auto-detect JSONB columns by content (always enabled)
-        if rows:
-            for key, value in rows[0].items():
-                # Look for columns with dict content that might be JSONB
-                if (
-                    isinstance(value, dict)
-                    and value
-                    and key not in ["metadata", "context", "config"]  # Skip common metadata columns
-                    and not key.endswith("_id")
-                ):  # Skip foreign key columns
-                    logger.debug(f"Auto-detected JSONB column '{key}' for view '{view_name}'")
-                    return key
+        for key, value in first_row.items():
+            # Look for columns with dict content that might be JSONB
+            if (
+                isinstance(value, dict)
+                and value
+                and key not in ["metadata", "context", "config"]  # Skip common metadata columns
+                and not key.endswith("_id")
+            ):  # Skip foreign key columns
+                logger.debug(f"Auto-detected JSONB column '{key}' for view '{view_name}'")
+                return key
 
         logger.debug(f"No JSONB column found for view '{view_name}', returning raw rows")
         return None
