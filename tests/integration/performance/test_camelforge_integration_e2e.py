@@ -2,6 +2,9 @@
 
 Tests the complete CamelForge flow from configuration to SQL generation
 through the repository layer.
+
+Updated for v0.11.0: CamelForge is now always enabled at the framework level.
+Tests verify that CamelForge settings are properly passed through the context.
 """
 
 import pytest
@@ -26,28 +29,27 @@ class TestCamelForgeIntegrationE2E:
 
     @pytest.fixture
     def camelforge_config(self):
-        """CamelForge enabled configuration."""
+        """CamelForge configuration (always enabled in v0.11.0+)."""
         return FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            camelforge_enabled=True,
             camelforge_function="turbo.fn_camelforge",
             camelforge_field_threshold=20,
         )
 
     @pytest.fixture
-    def disabled_config(self):
-        """CamelForge disabled configuration."""
+    def custom_config(self):
+        """Custom CamelForge configuration."""
         return FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            camelforge_enabled=False,
-            camelforge_field_threshold=20,
+            camelforge_function="custom.my_camelforge",
+            camelforge_field_threshold=30,
         )
 
-    def test_repository_context_with_camelforge_enabled(self, mock_pool, camelforge_config):
-        """Test that repository context includes CamelForge settings when enabled."""
+    def test_repository_context_with_camelforge_config(self, mock_pool, camelforge_config):
+        """Test that repository context includes CamelForge settings."""
         context = {
             "config": camelforge_config,
-            "camelforge_enabled": camelforge_config.camelforge_enabled,
+            "camelforge_enabled": True,  # Always enabled in v0.11.0+
             "camelforge_function": camelforge_config.camelforge_function,
             "camelforge_field_threshold": camelforge_config.camelforge_field_threshold,
         }
@@ -58,17 +60,20 @@ class TestCamelForgeIntegrationE2E:
         assert repo.context["camelforge_function"] == "turbo.fn_camelforge"
         assert repo.context["camelforge_field_threshold"] == 20
 
-    def test_repository_context_with_camelforge_disabled(self, mock_pool, disabled_config):
-        """Test that repository context handles CamelForge being disabled."""
+    def test_repository_context_with_custom_camelforge(self, mock_pool, custom_config):
+        """Test that repository context handles custom CamelForge configuration."""
         context = {
-            "config": disabled_config,
-            "camelforge_enabled": disabled_config.camelforge_enabled,
-            "jsonb_field_limit_threshold": disabled_config.jsonb_field_limit_threshold,
+            "config": custom_config,
+            "camelforge_enabled": True,
+            "camelforge_function": custom_config.camelforge_function,
+            "camelforge_field_threshold": custom_config.camelforge_field_threshold,
         }
 
         repo = FraiseQLRepository(pool=mock_pool, context=context)
 
-        assert repo.context["camelforge_enabled"] is False
+        assert repo.context["camelforge_enabled"] is True
+        assert repo.context["camelforge_function"] == "custom.my_camelforge"
+        assert repo.context["camelforge_field_threshold"] == 30
 
     def test_derive_entity_type_from_typename(self, mock_pool, camelforge_config):
         """Test entity type derivation from GraphQL typename."""
@@ -99,27 +104,25 @@ class TestCamelForgeIntegrationE2E:
         assert repo._derive_entity_type("mv_user_summary", None) == "user_summary"
         assert repo._derive_entity_type("dns_server", None) == "dns_server"  # No prefix
 
-    def test_derive_entity_type_disabled(self, mock_pool):
-        """Test that entity type derivation returns None when CamelForge is disabled."""
-        context = {
-            "camelforge_enabled": False,
-        }
+    def test_derive_entity_type_no_context(self, mock_pool):
+        """Test that entity type derivation works even without explicit context."""
+        context = {}
 
         repo = FraiseQLRepository(pool=mock_pool, context=context)
 
-        assert repo._derive_entity_type("v_dns_server", "DnsServer") is None
-        assert repo._derive_entity_type("v_contract", None) is None
+        # Should still work - CamelForge always enabled in v0.11.0+
+        assert repo._derive_entity_type("v_dns_server", "DnsServer") == "dns_server"
+        assert repo._derive_entity_type("v_contract", None) == "contract"
 
-    def test_derive_entity_type_when_camelforge_disabled(self, mock_pool):
-        """Test that entity type derivation returns None when CamelForge is disabled."""
-        context = {
-            "camelforge_enabled": False,
-        }
+    def test_derive_entity_type_with_empty_params(self, mock_pool):
+        """Test entity type derivation edge cases."""
+        context = {}
 
         repo = FraiseQLRepository(pool=mock_pool, context=context)
 
-        assert repo._derive_entity_type("v_dns_server", "DnsServer") is None
-        assert repo._derive_entity_type("v_contract", None) is None
+        # Test None inputs
+        assert repo._derive_entity_type(None, None) is None
+        assert repo._derive_entity_type("", None) is None
 
     def test_sql_generation_with_camelforge_below_threshold(self, mock_pool):
         """Test that SQL generation uses CamelForge when below field threshold."""
@@ -175,20 +178,20 @@ class TestCamelForgeIntegrationE2E:
         assert "SELECT data AS result" in sql_str
 
     def test_configuration_integration(self):
-        """Test that FraiseQLConfig properly handles CamelForge settings."""
-        # Test default values
+        """Test that FraiseQLConfig properly handles CamelForge settings.
+
+        v0.11.0: CamelForge is now always enabled, camelforge_enabled flag removed.
+        """
+        # Test default values (CamelForge always enabled)
         config = FraiseQLConfig(database_url="postgresql://test@localhost/test")
-        assert config.camelforge_enabled is False
         assert config.camelforge_function == "turbo.fn_camelforge"
         assert config.camelforge_field_threshold == 20
 
         # Test custom values
         custom_config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            camelforge_enabled=True,
             camelforge_function="custom.my_camelforge",
             camelforge_field_threshold=30,
         )
-        assert custom_config.camelforge_enabled is True
         assert custom_config.camelforge_function == "custom.my_camelforge"
         assert custom_config.camelforge_field_threshold == 30

@@ -1,6 +1,10 @@
 import pytest
 
-"""Test the simplified CamelForge configuration approach."""
+"""Test the simplified CamelForge configuration approach.
+
+Updated for v0.11.0: CamelForge is now always enabled at the framework level.
+The camelforge_enabled flag has been removed from FraiseQLConfig.
+"""
 
 import os
 
@@ -13,11 +17,13 @@ class TestSimplifiedCamelForgeConfig:
     """Test the simplified configuration approach."""
 
     def test_config_defaults(self):
-        """Test default configuration values."""
+        """Test default configuration values.
+
+        v0.11.0: CamelForge is always enabled, camelforge_enabled flag removed.
+        """
         config = FraiseQLConfig(database_url="postgresql://test@localhost/test")
 
-        # CamelForge should be disabled by default
-        assert config.camelforge_enabled is False
+        # CamelForge is always enabled in v0.11.0+
         assert config.camelforge_function == "turbo.fn_camelforge"
         assert config.camelforge_field_threshold == 20
 
@@ -25,32 +31,38 @@ class TestSimplifiedCamelForgeConfig:
         """Test setting explicit configuration values."""
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            camelforge_enabled=True,
             camelforge_function="custom.fn_camelforge",
             camelforge_field_threshold=30,
         )
 
-        assert config.camelforge_enabled is True
         assert config.camelforge_function == "custom.fn_camelforge"
         assert config.camelforge_field_threshold == 30
 
     def test_camelforge_config_create(self):
-        """Test CamelForgeConfig.create() method."""
-        # Test defaults
+        """Test CamelForgeConfig.create() method.
+
+        v0.11.0: CamelForgeConfig still has enabled parameter for per-query control.
+        Note: Framework passes enabled=True by default, but the class itself defaults to False.
+        """
+        # Test defaults (class default is False, but framework passes True)
         cf_config = CamelForgeConfig.create()
-        assert cf_config.enabled is False
+        assert cf_config.enabled is False  # Class default
         assert cf_config.function == "turbo.fn_camelforge"
         assert cf_config.field_threshold == 20
 
-        # Test explicit values
+        # Test explicit values (how framework uses it)
         cf_config = CamelForgeConfig.create(
-            enabled=True,
+            enabled=True,  # Framework always passes True
             function="custom.fn_camelforge",
             field_threshold=30,
         )
         assert cf_config.enabled is True
         assert cf_config.function == "custom.fn_camelforge"
         assert cf_config.field_threshold == 30
+
+        # Test that it can still be disabled for specific queries if needed
+        cf_config = CamelForgeConfig.create(enabled=False)
+        assert cf_config.enabled is False
 
     def test_environment_variable_overrides(self):
         """Test that environment variables override config values."""
@@ -85,11 +97,11 @@ class TestSimplifiedCamelForgeConfig:
 
         try:
             cf_config = CamelForgeConfig.create(
-                enabled=True,  # Should be used as fallback
+                enabled=False,  # Should be used as fallback for invalid env var
                 field_threshold=25,  # Should be used as fallback
             )
 
-            # Invalid boolean should default to False
+            # Invalid boolean should fall back to provided default (False)
             assert cf_config.enabled is False
             # Invalid integer should use the provided default
             assert cf_config.field_threshold == 25
@@ -100,54 +112,59 @@ class TestSimplifiedCamelForgeConfig:
             del os.environ["FRAISEQL_CAMELFORGE_FIELD_THRESHOLD"]
 
     def test_simple_usage_examples(self):
-        """Test the simplified usage examples from the documentation."""
-        # Example 1: Simple enable via config
+        """Test the simplified usage examples from the documentation.
+
+        v0.11.0: CamelForge is always enabled, examples updated accordingly.
+        """
+        # Example 1: Simple config (CamelForge always enabled)
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            camelforge_enabled=True,
         )
-        assert config.camelforge_enabled is True
+        # CamelForge settings are always available
+        assert config.camelforge_function == "turbo.fn_camelforge"
 
-        # Example 2: Environment variable override
-        os.environ["FRAISEQL_CAMELFORGE_ENABLED"] = "true"
+        # Example 2: Custom CamelForge function
+        config = FraiseQLConfig(
+            database_url="postgresql://test@localhost/test",
+            camelforge_function="custom.fn_camelforge",
+        )
+        assert config.camelforge_function == "custom.fn_camelforge"
+
+        # Example 3: Environment variable override
+        os.environ["FRAISEQL_CAMELFORGE_FUNCTION"] = "env.fn_camelforge"
         try:
-            config = FraiseQLConfig(
-                database_url="postgresql://test@localhost/test",
-                camelforge_enabled=False,  # Should be overridden
-            )
-
             # This would happen in dependencies.py
             cf_config = CamelForgeConfig.create(
-                enabled=config.camelforge_enabled,
+                enabled=True,  # Always enabled in v0.11.0+
                 function=config.camelforge_function,
                 field_threshold=config.camelforge_field_threshold,
             )
 
-            assert cf_config.enabled is True  # Environment variable wins
+            assert cf_config.enabled is True
+            assert cf_config.function == "env.fn_camelforge"  # Environment variable wins
 
         finally:
-            del os.environ["FRAISEQL_CAMELFORGE_ENABLED"]
+            del os.environ["FRAISEQL_CAMELFORGE_FUNCTION"]
 
     def test_no_conflicting_configuration_sources(self):
-        """Test that there are no conflicting configuration sources."""
-        # Before: multiple sources could conflict
-        # camelforge_enabled (config) vs FRAISEQL_CAMELFORGE_BETA (env) vs feature_flags.camelforge_beta_enabled
+        """Test that there are no conflicting configuration sources.
 
-        # After: simple hierarchy
+        v0.11.0: Simplified even further - CamelForge always enabled.
+        """
+        # v0.11.0: Simple hierarchy
         # 1. Environment variables (FRAISEQL_CAMELFORGE_*)
         # 2. Config parameters
         # 3. Defaults
 
-        # This is much clearer and easier to understand
+        # CamelForge always enabled - only function and threshold are configurable
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            camelforge_enabled=True,
             camelforge_function="config.fn_camelforge",
         )
 
         # No environment variables set - should use config values
         cf_config = CamelForgeConfig.create(
-            enabled=config.camelforge_enabled,
+            enabled=True,  # Always enabled in v0.11.0+
             function=config.camelforge_function,
         )
 
@@ -159,11 +176,11 @@ class TestSimplifiedCamelForgeConfig:
 
         try:
             cf_config = CamelForgeConfig.create(
-                enabled=config.camelforge_enabled,
+                enabled=True,
                 function=config.camelforge_function,  # Should be overridden
             )
 
-            assert cf_config.enabled is True  # From config
+            assert cf_config.enabled is True
             assert cf_config.function == "env.fn_camelforge"  # From env var
 
         finally:
