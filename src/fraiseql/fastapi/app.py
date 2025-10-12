@@ -52,11 +52,30 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
         conn.adapters.register_loader("time", TextLoader)
         conn.adapters.register_loader("timetz", TextLoader)
 
+    async def check_connection(conn):
+        """Validate connection is alive before reuse.
+
+        This prevents using connections that were terminated externally
+        (e.g., by pg_terminate_backend() during database reseeding).
+
+        Critical for multi-worker uvicorn setups where database connections
+        can be terminated while workers are still running.
+
+        See: https://github.com/fraiseql/fraiseql/issues/85
+        """
+        try:
+            await conn.execute("SELECT 1")
+        except Exception:
+            # Connection is dead, raise to signal pool to create new connection
+            logger.debug("Connection check failed, pool will create new connection")
+            raise
+
     # Create pool with the configure callback
     # Use open=False to avoid deprecation warning in psycopg 3.2+
     pool = psycopg_pool.AsyncConnectionPool(
         database_url,
         configure=configure_types,
+        check=check_connection,  # Validate connections before reuse
         open=False,  # Don't open in constructor to avoid deprecation warning
         **pool_kwargs,
     )

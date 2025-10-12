@@ -46,12 +46,22 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v6
 
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
     - name: Install dependencies
       run: |
         # Ensure pip cache directory exists before installation
         python -m pip config list || echo "No pip config available"
         python -c "import site; print(f'Site packages: {site.getsitepackages()}')" || echo "Cannot get site packages"
         echo "Installing with uv (bypassing pip caching issues)..."
+        # Install maturin for Rust extension building
+        uv pip install --system maturin
+        # Build Rust extension
+        cd fraiseql_rs && maturin develop --release && cd ..
+        # Install Python dependencies
         uv pip install --system -e ".[dev,all]" --no-cache
 
     - name: Verify Environment

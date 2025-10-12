@@ -7,6 +7,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.4] - 2025-10-13
+
+### 🐛 Bug Fixes
+
+**Connection Health Check for Multi-Worker Setups**
+- Added connection health check to prevent using terminated connections in multi-worker uvicorn deployments
+- Fixes issue where database connections terminated externally (e.g., via `pg_terminate_backend()` during database reseeding) would cause query failures
+- Added `check_connection` callback to `AsyncConnectionPool` that validates connections before reuse
+- Implements PostgreSQL best practice for production connection pooling
+- Minimal performance overhead (check only runs when getting connection from pool, not on every query)
+- Resolves issue #85
+
+**Technical Details:**
+- Modified `src/fraiseql/fastapi/app.py`: Added async `check_connection` callback with `SELECT 1` health check
+- Connection pool now automatically detects and replaces terminated connections
+- Critical for production environments with multiple uvicorn workers
+
+**Impact:**
+- ✅ Prevents "terminating connection due to administrator command" errors
+- ✅ Improves reliability in multi-worker production deployments
+- ✅ Graceful recovery when connections are terminated externally
+
+**Upgrade:**
+```bash
+# Using pip
+pip install --upgrade fraiseql
+
+# Using uv
+uv pip install --upgrade fraiseql
+```
+
+No code changes required - this is a drop-in replacement.
+
+## [0.11.3] - 2025-10-13
+
+### 🔧 CI/CD & Build Infrastructure
+
+This is a maintenance release focused on CI/CD improvements and build infrastructure.
+
+#### **CI/CD Enhancements**
+
+**Rust Extension Build Support in CI**
+- Added Rust toolchain setup to GitHub Actions workflow
+- Integrated maturin build step for `fraiseql_rs` extension
+- Ensures all 100+ Rust integration tests run in CI environment
+- Prevents build failures from missing Rust extension
+
+**Changes:**
+- `.github/workflows/quality-gate.yml`: Added Rust toolchain and maturin build steps
+- Rust extension now built automatically during CI test runs
+- All 3,481 tests now pass in CI (previously ~100 tests failing)
+
+#### **Code Quality**
+
+**Linting Fixes**
+- Fixed PYI059 in `src/fraiseql/optimization/dataloader.py`
+- Reordered base classes: `DataLoader(Generic[K, V], ABC)` → `DataLoader(ABC, Generic[K, V])`
+- Ensures `Generic[]` is always the last base class as required by PYI059
+
+#### **Version Management**
+
+**Package Version Updates**
+- Updated `pyproject.toml`: 0.11.0 → 0.11.3
+- Updated `src/fraiseql/__init__.py`: 0.11.0 → 0.11.3
+- Synchronized `uv.lock` with new version
+
+#### **Build Requirements**
+
+**Rust Toolchain**
+- Rust stable toolchain now required for building from source
+- Maturin used for building Python extension
+- Pre-built wheels available on PyPI (no Rust needed for pip install)
+
+#### **Backwards Compatibility**
+
+This release maintains full API compatibility with v0.11.0:
+- All GraphQL query syntax unchanged
+- All mutation patterns unchanged
+- All decorators and type definitions unchanged
+- No breaking changes to configuration
+
+#### **Upgrade Path**
+
+From v0.11.0 to v0.11.3:
+```bash
+# Using pip
+pip install --upgrade fraiseql
+
+# Using uv
+uv pip install --upgrade fraiseql
+```
+
+No code changes required - this is a drop-in replacement.
+
+#### **Testing**
+
+- ✅ All 3,481 tests passing locally
+- ✅ CI now builds Rust extension and runs all tests
+- ✅ Linting passes (ruff check)
+- ✅ Type checking clean (pyright)
+
 ## [0.11.1] - 2025-10-12
 
 ### ✨ **New Features**
