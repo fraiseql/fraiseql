@@ -124,7 +124,6 @@ class FraiseQLConfig(BaseSettings):
         enable_response_logging: Log all outgoing responses.
         request_id_header: Header name for request correlation ID.
         jsonb_field_limit_threshold: Field count threshold for full data column (default: 20).
-        camelforge_function: Name of the CamelForge function to use (default: turbo.fn_camelforge).
         apq_storage_backend: Storage backend for APQ (memory/postgresql/redis/custom).
         apq_response_cache_ttl: Cache TTL for APQ responses in seconds.
         apq_backend_config: Backend-specific configuration options.
@@ -201,9 +200,9 @@ class FraiseQLConfig(BaseSettings):
         20  # Switch to full data column when field count exceeds this
     )
 
-    # CamelForge Integration settings - database-native camelCase transformation
-    camelforge_function: str = "turbo.fn_camelforge"
-    camelforge_field_threshold: int = 20
+    # v0.11.0: Rust-only transformation (PostgreSQL CamelForge removed)
+    # All camelCase transformation is handled by Rust in raw_json_executor.py
+    # This simplifies architecture and maximizes performance
 
     # Token revocation settings
     revocation_enabled: bool = True

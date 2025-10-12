@@ -990,27 +990,6 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                         return item_type
         return None
 
-    def _derive_entity_type(self, view_name: str, typename: str | None = None) -> str | None:
-        """Derive entity type for CamelForge from view name or GraphQL typename.
-
-        Entity type derivation is always enabled for optimal performance.
-        """
-        # First try to use GraphQL typename
-        if typename:
-            # Convert PascalCase to snake_case (e.g., DnsServer -> dns_server)
-            from fraiseql.utils.casing import to_snake_case
-
-            return to_snake_case(typename)
-
-        # Fallback to view name (remove v_, tv_, mv_ prefixes)
-        if view_name:
-            for prefix in ["v_", "tv_", "mv_"]:
-                if view_name.startswith(prefix):
-                    return view_name[len(prefix) :]
-            return view_name
-
-        return None
-
     def _determine_jsonb_column(self, view_name: str, rows: list[dict[str, Any]]) -> str | None:
         """Determine which JSONB column to extract data from.
 
@@ -1360,6 +1339,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                             ]
 
             # Use SQL generator with field paths
+            # v0.11.0: Rust handles all camelCase transformation, no PostgreSQL function needed
             statement = build_sql_query(
                 table=view_name,
                 field_paths=field_paths,
@@ -1369,11 +1349,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                 raw_json_output=True,
                 auto_camel_case=True,
                 order_by=order_by_tuples,
-                field_limit_threshold=self.context.get("camelforge_field_threshold")
-                or self.context.get("jsonb_field_limit_threshold"),
-                camelforge_enabled=self.context.get("camelforge_enabled", False),
-                camelforge_function=self.context.get("camelforge_function", "turbo.fn_camelforge"),
-                entity_type=self._derive_entity_type(view_name, typename),
+                field_limit_threshold=self.context.get("jsonb_field_limit_threshold"),
             )
 
             # Handle limit and offset
