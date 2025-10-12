@@ -293,7 +293,8 @@ def create_fraiseql_app(
 
     # Create TurboRegistry if enabled (regardless of environment)
     turbo_registry = None
-    if config.enable_turbo_router:
+    # TurboRouter is always enabled for maximum performance
+    if True:
         turbo_registry = TurboRegistry(max_size=config.turbo_router_cache_size)
         # Store TurboRegistry in app state for access in lifespan
         app.state.turbo_registry = turbo_registry

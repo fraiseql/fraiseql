@@ -337,7 +337,7 @@ kubectl rollout status deployment/fraiseql-prod -n production
 ```bash
 # Update image version
 helm upgrade fraiseql-prod ./helm/fraiseql \
-  --set image.tag=0.11.1 \
+  --set image.tag=0.11.0 \
   --reuse-values
 ```
 

@@ -69,6 +69,9 @@ async def get_db() -> FraiseQLRepository:
     # Create repository with mode and timeout from config
     context = {}
     if config:
+        # v1 Alpha: Pass full config object to repository for pure passthrough mode
+        context["config"] = config
+
         if hasattr(config, "environment"):
             context["mode"] = "development" if config.environment == "development" else "production"
         if hasattr(config, "query_timeout"):
@@ -77,17 +80,21 @@ async def get_db() -> FraiseQLRepository:
             context["jsonb_field_limit_threshold"] = config.jsonb_field_limit_threshold
 
         # CamelForge configuration (with environment variable overrides)
-        if hasattr(config, "camelforge_enabled"):
-            from fraiseql.fastapi.camelforge_config import CamelForgeConfig
+        # CamelForge is always enabled for maximum performance
+        from fraiseql.fastapi.camelforge_config import CamelForgeConfig
 
-            camelforge_config = CamelForgeConfig.create(
-                enabled=config.camelforge_enabled,
-                function=config.camelforge_function,
-                field_threshold=config.camelforge_field_threshold,
-            )
-            context["camelforge_enabled"] = camelforge_config.enabled
-            context["camelforge_function"] = camelforge_config.function
-            context["camelforge_field_threshold"] = camelforge_config.field_threshold
+        camelforge_config = CamelForgeConfig.create(
+            enabled=True,  # Always enabled
+            function=config.camelforge_function
+            if hasattr(config, "camelforge_function")
+            else "turbo.fn_camelforge",
+            field_threshold=config.camelforge_field_threshold
+            if hasattr(config, "camelforge_field_threshold")
+            else 20,
+        )
+        context["camelforge_enabled"] = camelforge_config.enabled
+        context["camelforge_function"] = camelforge_config.function
+        context["camelforge_field_threshold"] = camelforge_config.field_threshold
 
     return FraiseQLRepository(pool=pool, context=context)
 
@@ -191,14 +198,8 @@ async def build_graphql_context(
     if config and hasattr(config, "query_timeout"):
         context["query_timeout"] = config.query_timeout
 
-    # Add JSON passthrough configuration
-    if (
-        config
-        and hasattr(config, "json_passthrough_enabled")
-        and config.json_passthrough_enabled
-        and mode == "production"
-        and getattr(config, "json_passthrough_in_production", True)
-    ):
+    # JSON passthrough is always enabled in production for maximum performance
+    if mode == "production":
         context["json_passthrough"] = True
         context["execution_mode"] = "passthrough"
 

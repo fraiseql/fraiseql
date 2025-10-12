@@ -123,15 +123,9 @@ class FraiseQLConfig(BaseSettings):
         enable_request_logging: Log all incoming requests.
         enable_response_logging: Log all outgoing responses.
         request_id_header: Header name for request correlation ID.
-        jsonb_extraction_enabled: Enable automatic JSONB column extraction in production mode.
-        jsonb_default_columns: Default JSONB column names to search for.
-        jsonb_auto_detect: Automatically detect JSONB columns by analyzing content.
         jsonb_field_limit_threshold: Field count threshold for full data column (default: 20).
-        camelforge_enabled: Enable CamelForge database-native camelCase transformation.
         camelforge_function: Name of the CamelForge function to use (default: turbo.fn_camelforge).
-        camelforge_entity_mapping: Auto-derive entity type from GraphQL type names.
         apq_storage_backend: Storage backend for APQ (memory/postgresql/redis/custom).
-        apq_cache_responses: Enable JSON response caching for APQ queries.
         apq_response_cache_ttl: Cache TTL for APQ responses in seconds.
         apq_backend_config: Backend-specific configuration options.
 
@@ -172,11 +166,6 @@ class FraiseQLConfig(BaseSettings):
     query_timeout: int = 30  # seconds
     auto_camel_case: bool = True  # Auto-convert snake_case to camelCase in GraphQL
 
-    # JSON Passthrough settings
-    json_passthrough_enabled: bool = True  # Enable JSON passthrough optimization
-    json_passthrough_in_production: bool = True  # Auto-enable in production mode
-    json_passthrough_cache_nested: bool = True  # Cache wrapped nested objects
-
     # Auth settings
     auth_enabled: bool = True
     auth_provider: Literal["auth0", "custom", "none"] = "none"
@@ -206,22 +195,13 @@ class FraiseQLConfig(BaseSettings):
         return validate_postgres_url(v)
 
     # Performance settings
-    enable_query_caching: bool = True
     cache_ttl: int = 300  # seconds
-    enable_turbo_router: bool = True  # Enable TurboRouter for registered queries
     turbo_router_cache_size: int = 1000  # Max number of queries to cache
-
-    # JSONB Extraction settings
-    jsonb_extraction_enabled: bool = True  # Enable JSONB column extraction in production mode
-    # Default JSONB column names to try
-    jsonb_default_columns: list[str] = ["data", "json_data", "jsonb_data"]
-    jsonb_auto_detect: bool = True  # Auto-detect JSONB columns by content analysis
     jsonb_field_limit_threshold: int = (
         20  # Switch to full data column when field count exceeds this
     )
 
-    # CamelForge Integration settings
-    camelforge_enabled: bool = False
+    # CamelForge Integration settings - database-native camelCase transformation
     camelforge_function: str = "turbo.fn_camelforge"
     camelforge_field_threshold: int = 20
 
@@ -269,22 +249,17 @@ class FraiseQLConfig(BaseSettings):
     passthrough_max_depth: int = 3
 
     # Mode hints
-    enable_mode_hints: bool = True
     mode_hint_pattern: str = r"#\s*@mode:\s*(\w+)"
 
     # Unified executor settings
-    unified_executor_enabled: bool = True
     include_execution_metadata: bool = False  # Include mode and timing in response
     execution_timeout_ms: int = 30000  # 30 seconds
 
     # TurboRouter enhanced settings
     turbo_max_complexity: int = 100  # Max complexity score for turbo caching
     turbo_max_total_weight: float = 2000.0  # Max total weight of cached queries
-    turbo_enable_adaptive_caching: bool = True  # Enable complexity-based admission
 
     # Enhanced passthrough settings
-    passthrough_auto_detect_views: bool = True
-    passthrough_cache_view_metadata: bool = True
     passthrough_view_metadata_ttl: int = 3600  # 1 hour
 
     # Default schema settings
