@@ -465,6 +465,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     self._pool.connection() as conn,
                     conn.cursor(row_factory=dict_row) as cursor,
                 ):
+                    # Set session variables from context
+                    await self._set_session_variables(cursor)
+
                     # Handle Composed statements with empty params to avoid placeholder scanning
                     if (
                         isinstance(sample_query.statement, (Composed, SQL))
@@ -563,6 +566,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     self._pool.connection() as conn,
                     conn.cursor(row_factory=dict_row) as cursor,
                 ):
+                    # Set session variables from context
+                    await self._set_session_variables(cursor)
+
                     if (
                         isinstance(sample_query.statement, (Composed, SQL))
                         and not sample_query.params
