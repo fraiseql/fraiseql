@@ -49,7 +49,8 @@ jobs:
     - name: Build fraiseql_rs extension
       run: |
         cd fraiseql_rs
-        maturin develop
+        maturin build --release
+        pip install target/wheels/*.whl
         cd ..
 
     - name: Install dependencies
@@ -106,7 +107,8 @@ jobs:
     - name: Build fraiseql_rs extension
       run: |
         cd fraiseql_rs
-        maturin develop
+        maturin build --release
+        pip install target/wheels/*.whl
         cd ..
     - name: Install dependencies
       run: uv pip install --system -e ".[dev]"
@@ -135,7 +137,8 @@ jobs:
     - name: Build fraiseql_rs extension
       run: |
         cd fraiseql_rs
-        maturin develop
+        maturin build --release
+        pip install target/wheels/*.whl
         cd ..
     - name: Install dependencies
       run: uv pip install --system -e ".[dev]"
