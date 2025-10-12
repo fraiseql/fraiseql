@@ -33,7 +33,7 @@ class TestFieldNameMapping:
         result = self.repo._convert_dict_where_to_sql(where_clause)
 
         assert result is not None
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Should generate SQL with snake_case database field names
         assert "ip_address" in sql_str
@@ -50,13 +50,13 @@ class TestFieldNameMapping:
         where_clause = {
             "ipAddress": {"eq": "192.168.1.1"},
             "macAddress": {"eq": "aa:bb:cc:dd:ee:ff"},
-            "deviceName": {"contains": "router"}
+            "deviceName": {"contains": "router"},
         }
 
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # All fields should be converted to snake_case
         assert "ip_address" in sql_str
@@ -75,22 +75,22 @@ class TestFieldNameMapping:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
         assert "ip_address" in sql_str
         assert "192.168.1.1" in sql_str
 
     def test_mixed_case_fields_both_work(self):
         """Mixed camelCase and snake_case fields should both work in same query."""
         where_clause = {
-            "ipAddress": {"eq": "192.168.1.1"},      # camelCase
-            "status": {"eq": "active"},              # snake_case
-            "deviceName": {"contains": "router"}     # camelCase
+            "ipAddress": {"eq": "192.168.1.1"},  # camelCase
+            "status": {"eq": "active"},  # snake_case
+            "deviceName": {"contains": "router"},  # camelCase
         }
 
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Converted camelCase fields
         assert "ip_address" in sql_str
@@ -109,7 +109,7 @@ class TestFieldNameMapping:
         🔴 RED CYCLE: This will fail because method doesn't exist yet.
         """
         # Test the conversion method directly
-        assert hasattr(self.repo, '_convert_field_name_to_database')
+        assert hasattr(self.repo, "_convert_field_name_to_database")
 
         # Test various conversions
         assert self.repo._convert_field_name_to_database("ipAddress") == "ip_address"
@@ -130,14 +130,14 @@ class TestFieldNameMapping:
         """None values in WHERE clauses should be ignored."""
         where_clause = {
             "ipAddress": {"eq": "192.168.1.1"},  # Valid
-            "status": None,                       # Should be ignored
-            "deviceName": {"contains": None}      # Should be ignored
+            "status": None,  # Should be ignored
+            "deviceName": {"contains": None},  # Should be ignored
         }
 
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Should contain the valid field (converted)
         assert "ip_address" in sql_str
@@ -156,9 +156,9 @@ class TestFieldNameMapping:
             ("updatedAt", "updated_at"),
             ("userId", "user_id"),
             ("organizationId", "organization_id"),
-            ("APIKey", "api_key"),        # Multiple capitals
-            ("HTTPPort", "http_port"),    # Multiple capitals
-            ("XMLData", "xml_data"),      # Multiple capitals
+            ("APIKey", "api_key"),  # Multiple capitals
+            ("HTTPPort", "http_port"),  # Multiple capitals
+            ("XMLData", "xml_data"),  # Multiple capitals
         ]
 
         for camel_case, expected_snake_case in test_cases:
@@ -166,13 +166,17 @@ class TestFieldNameMapping:
             result = self.repo._convert_dict_where_to_sql(where_clause)
 
             assert result is not None
-            sql_str = result.as_string({})
+            sql_str = result.as_string(None)
 
             # Should contain the expected snake_case field name
-            assert expected_snake_case in sql_str, f"Failed to convert {camel_case} to {expected_snake_case}"
+            assert expected_snake_case in sql_str, (
+                f"Failed to convert {camel_case} to {expected_snake_case}"
+            )
 
             # Should not contain the original camelCase name
-            assert camel_case not in sql_str, f"Original camelCase {camel_case} should not appear in SQL"
+            assert camel_case not in sql_str, (
+                f"Original camelCase {camel_case} should not appear in SQL"
+            )
 
     def test_edge_case_field_names(self):
         """Test edge cases like empty strings and unusual field names."""
