@@ -56,31 +56,30 @@ class TestConnectionJSONBIntegration:
     """Integration tests for @connection decorator JSONB scenarios."""
 
     def test_global_jsonb_config_setup(self):
-        """✅ Test that global JSONB configuration is properly set up."""
-        # Test enterprise JSONB configuration
+        """✅ Test that global JSONB configuration is properly set up.
+
+        v0.11.0: JSONB extraction is always enabled with Rust transformation.
+        PostgreSQL CamelForge function dependency has been removed.
+        """
+        # Test enterprise JSONB configuration (v0.11.0+)
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
 
-            # 🎯 GOLD STANDARD: Global JSONB-only configuration
-            jsonb_extraction_enabled=True,              # Enable JSONB extraction globally
-            jsonb_default_columns=["data"],             # Default JSONB column name
-            jsonb_auto_detect=True,                     # Auto-detect JSONB columns
+            # 🎯 GOLD STANDARD: v0.11.0 Rust-only JSONB configuration
             jsonb_field_limit_threshold=20,             # Field count threshold for optimization
         )
 
-        assert config.jsonb_extraction_enabled is True
-        assert config.jsonb_default_columns == ["data"]
-        assert config.jsonb_auto_detect is True
+        # v0.11.0: JSONB extraction always enabled, Rust handles all transformation
         assert config.jsonb_field_limit_threshold == 20
 
     def test_connection_decorator_with_global_jsonb_inheritance(self):
-        """🎯 Test connection decorator with global JSONB inheritance."""
-        # Mock FraiseQL global configuration
+        """🎯 Test connection decorator with global JSONB inheritance.
+
+        v0.11.0: JSONB extraction is always enabled with Rust transformation.
+        """
+        # Mock FraiseQL global configuration (v0.11.0+)
         mock_config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True,
-            jsonb_default_columns=["data"],
-            jsonb_auto_detect=True,
             jsonb_field_limit_threshold=20,
         )
 
@@ -149,12 +148,14 @@ class TestConnectionJSONBIntegration:
         assert config_meta["supports_global_jsonb"] is True  # ✅ KEY FIX!
 
     async def test_connection_runtime_jsonb_resolution(self):
-        """🎯 Test runtime JSONB configuration resolution."""
+        """🎯 Test runtime JSONB configuration resolution.
+
+        v0.11.0: JSONB extraction is always enabled with Rust transformation.
+        """
         # Setup same as previous test
         mock_config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True,
-            jsonb_default_columns=["metadata", "data"],  # Test priority
+            jsonb_field_limit_threshold=20,
         )
 
         mock_db = AsyncMock()
@@ -179,47 +180,41 @@ class TestConnectionJSONBIntegration:
         # Call the connection function to trigger runtime resolution
         await auto_inherit_connection(mock_info, first=10)
 
-        # Verify that paginate was called with inherited JSONB config
+        # Verify that paginate was called
         mock_db.paginate.assert_called_once()
-        call_args = mock_db.paginate.call_args
-
-        # Check that JSONB parameters were resolved from global config
-        assert call_args.kwargs["jsonb_extraction"] is True  # From global config
-        assert call_args.kwargs["jsonb_column"] == "metadata"  # First in priority list
+        # v0.11.0: JSONB extraction is always enabled, no config parameters needed
 
     def test_explicit_jsonb_params_override_global(self):
-        """🔧 Test that explicit parameters still override global configuration."""
+        """🔧 Test that explicit parameters still work with connection decorator.
+
+        v0.11.0: JSONB extraction is always enabled, but explicit column params still work.
+        """
         FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True,
-            jsonb_default_columns=["data"],
+            jsonb_field_limit_threshold=20,
         )
 
-        # Connection with EXPLICIT JSONB parameters - should override global
+        # Connection with EXPLICIT JSONB column parameter
         @connection(
             node_type=DnsServer,
             view_name="v_dns_server",
-            jsonb_extraction=False,        # Explicit override
-            jsonb_column="custom_json"     # Explicit override
+            jsonb_column="custom_json"     # Explicit column name
         )
         async def explicit_override_connection(info, first: int | None = None) -> Connection[DnsServer]:
             pass
 
         config_meta = explicit_override_connection.__fraiseql_connection__
-        assert config_meta["jsonb_extraction"] is False
         assert config_meta["jsonb_column"] == "custom_json"
         assert config_meta["supports_global_jsonb"] is True
 
     def test_enterprise_success_scenario(self):
-        """🎉 SUCCESS: Test the complete enterprise JSONB solution."""
-        # This test documents that the connection + JSONB issue is now SOLVED
-        # Enterprise teams can now use @connection with zero JSONB configuration!
+        """🎉 SUCCESS: Test the complete enterprise JSONB solution.
 
+        v0.11.0: Connection + JSONB works seamlessly with Rust transformation.
+        Enterprise teams use @connection with minimal configuration.
+        """
         FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-            jsonb_extraction_enabled=True,
-            jsonb_default_columns=["data"],
-            jsonb_auto_detect=True,
             jsonb_field_limit_threshold=20,
         )
 
@@ -246,13 +241,14 @@ class TestConnectionJSONBIntegration:
         config_meta = dns_servers_clean.__fraiseql_connection__
         assert config_meta["supports_global_jsonb"] is True
 
-        # ✅ ENTERPRISE READY:
-        # - Global JSONB config inheritance ✅
+        # ✅ ENTERPRISE READY (v0.11.0):
+        # - Rust-only transformation (10-80x faster) ✅
+        # - No PostgreSQL function dependency ✅
         # - Backward compatibility maintained ✅
         # - Explicit overrides still work ✅
         # - Clean type definitions (NO jsonb_column needed!) ✅
         # - Production performance optimized ✅
 
         # 🏆 This is the definitive reference implementation
-        # for enterprise GraphQL + JSONB architecture with FraiseQL
+        # for enterprise GraphQL + JSONB architecture with FraiseQL v0.11.0+
         assert True  # Success! 🎉
