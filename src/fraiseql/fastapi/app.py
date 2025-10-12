@@ -18,6 +18,7 @@ from fraiseql.fastapi.dependencies import (
     set_db_pool,
     set_fraiseql_config,
 )
+from fraiseql.fastapi.logging_config import configure_sql_logging
 from fraiseql.fastapi.routers import create_graphql_router
 from fraiseql.fastapi.turbo import TurboRegistry
 from fraiseql.gql.schema_builder import build_fraiseql_schema
@@ -184,6 +185,9 @@ def create_fraiseql_app(
 
     set_auth_provider(auth_provider)
     set_fraiseql_config(config)
+
+    # Configure SQL logging based on database_echo setting
+    configure_sql_logging(enabled=config.database_echo)
 
     # Create lifespan context manager for the app
     if lifespan is None:

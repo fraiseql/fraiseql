@@ -88,6 +88,9 @@ FRAISEQL_DATABASE_URL=postgresql://localhost/mydb
 - **Type**: `bool`
 - **Default**: `False`
 - **Description**: Enable SQL query logging (development only)
+- **Environment Variable**: `FRAISEQL_DATABASE_ECHO`
+
+When enabled, FraiseQL automatically configures Python's logging module to display all SQL queries from psycopg at DEBUG level. This is useful for debugging and development but should be disabled in production due to performance impact and potential exposure of sensitive data.
 
 **Examples**:
 ```python
