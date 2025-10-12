@@ -33,7 +33,7 @@ class TestFieldNameMapping:
         result = self.repo._convert_dict_where_to_sql(where_clause)
 
         assert result is not None
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Should generate SQL with snake_case database field names
         assert "ip_address" in sql_str
@@ -56,7 +56,7 @@ class TestFieldNameMapping:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # All fields should be converted to snake_case
         assert "ip_address" in sql_str
@@ -75,7 +75,7 @@ class TestFieldNameMapping:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
         assert "ip_address" in sql_str
         assert "192.168.1.1" in sql_str
 
@@ -90,7 +90,7 @@ class TestFieldNameMapping:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Converted camelCase fields
         assert "ip_address" in sql_str
@@ -137,7 +137,7 @@ class TestFieldNameMapping:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Should contain the valid field (converted)
         assert "ip_address" in sql_str
@@ -166,7 +166,7 @@ class TestFieldNameMapping:
             result = self.repo._convert_dict_where_to_sql(where_clause)
 
             assert result is not None
-            sql_str = result.as_string({})
+            sql_str = result.as_string(None)
 
             # Should contain the expected snake_case field name
             assert expected_snake_case in sql_str, f"Failed to convert {camel_case} to {expected_snake_case}"

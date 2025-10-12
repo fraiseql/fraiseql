@@ -35,7 +35,7 @@ class TestFieldNameMappingIntegration:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Should contain snake_case field names in the SQL
         assert "ip_address" in sql_str
@@ -59,7 +59,7 @@ class TestFieldNameMappingIntegration:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Should work unchanged - snake_case names should remain
         assert "ip_address" in sql_str
@@ -79,7 +79,7 @@ class TestFieldNameMappingIntegration:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # All fields should appear as snake_case in SQL
         assert "ip_address" in sql_str
@@ -109,7 +109,7 @@ class TestFieldNameMappingIntegration:
         result = self.repo._convert_dict_where_to_sql(where_clause)
         assert result is not None
 
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # All fields should be converted to snake_case
         assert "ip_address" in sql_str
@@ -139,7 +139,7 @@ class TestFieldNameMappingIntegration:
         result = self.repo._convert_dict_where_to_sql(where_clause)
 
         assert result is not None
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Should contain snake_case field name
         assert "ip_address" in sql_str
@@ -153,7 +153,7 @@ class TestFieldNameMappingIntegration:
         result = self.repo._convert_dict_where_to_sql(where_clause)
 
         assert result is not None
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
 
         # Should contain snake_case field name
         assert "mac_address" in sql_str
@@ -173,7 +173,7 @@ class TestFieldNameMappingIntegration:
             assert result is not None
 
         # Verify field name conversion works correctly
-        sql_str = result.as_string({})
+        sql_str = result.as_string(None)
         assert "field0_name" in sql_str  # Converted from field0Name
         assert "field0Name" not in sql_str  # Original shouldn't appear
         assert "field4_name" in sql_str  # Last field also converted
