@@ -137,6 +137,9 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
+# Ruff cache
+.ruff_cache/
+
 # Cython debug symbols
 cython_debug/
 
@@ -161,7 +164,6 @@ Thumbs.db
 *debug*.py
 # Only ignore test_*.py files in the root directory, not in tests/
 /test_*.py
-!tests/
 
 # Benchmark results
 benchmarks/performance-benchmarks/results-aggregator/*.json

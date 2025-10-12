@@ -1155,6 +1155,73 @@ dict_result = address.to_dict()
 - `src/fraiseql/security/validators.py` - Fixed unused variable warnings
 - `src/fraiseql/optimization/dataloader.py` - Fixed Generic inheritance order
 
+## [0.8.0] - 2025-10-12
+
+### 🔧 **Bug Fixes**
+- **Psycopg Compatibility**: Fixed compatibility with psycopg 3.2.10 by using `as_string(None)` instead of `as_string({})` in test files
+
+## [0.7.11] - 2025-09-08
+
+### 🚀 **New Feature**
+
+#### **Complete Nested Array WHERE Filtering with Logical Operators**
+- **Comprehensive Logical Operators**: Full AND/OR/NOT expression support with unlimited nesting depth for nested array filtering
+- **Clean Registration API**: New `@auto_nested_array_filters` decorator for effortless setup without verbose field definitions
+- **26+ Field Operators**: Complete operator set including equals, contains, gte, isnull, startsWith, endsWith, in, notIn, and more
+- **Client-Side Filtering**: Efficient evaluation with optimized performance and early termination
+- **Dynamic WhereInput Generation**: Automatic GraphQL schema generation from FraiseQL types with complete type safety
+
+#### **Advanced Query Capabilities**
+- **Complex GraphQL Queries**: Support for sophisticated nested filtering expressions
+- **Unlimited Nesting Depth**: AND/OR/NOT operators can be nested to any depth for complex business logic
+- **All Standard Field Types**: String, numeric, boolean, UUID, date/datetime operations fully supported
+- **Performance Optimized**: Efficient client-side filtering with smart evaluation strategies
+
+#### **Developer Experience**
+- **Convention over Configuration**: Simple `@auto_nested_array_filters` decorator automatically enables filtering
+- **Backward Compatibility**: Zero breaking changes - purely additive feature that works with existing code
+- **Complete Documentation**: Comprehensive docs and examples in `docs/nested-array-filtering.md`
+- **Working Examples**: Full demonstration in `examples/nested_array_filtering.py`
+
+### 🔧 **Implementation Details**
+- **Enhanced Field Resolver**: `create_nested_array_field_resolver_with_where()` with complete logical operator evaluation
+- **GraphQL Integration**: Automatic GraphQL field argument creation with WhereInput types
+- **Registry System**: Clean registration-based approach in `src/fraiseql/nested_array_filters.py`
+- **Type Safety**: Full type inference and validation for WhereInput generation
+
+### 📝 **Example Usage**
+```python
+from fraiseql.nested_array_filters import auto_nested_array_filters
+
+@auto_nested_array_filters  # One line setup
+@fraise_type(sql_source="tv_network_configuration", jsonb_column="data")
+class NetworkConfiguration:
+    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+```
+
+```graphql
+printServers(where: {
+  AND: [
+    { operatingSystem: { in: ["Linux", "Windows"] } }
+    { OR: [
+        { nTotalAllocations: { gte: 100 } }
+        { hostname: { contains: "critical" } }
+      ]
+    }
+    { NOT: { ipAddress: { isnull: true } } }
+  ]
+})
+```
+
+### 📋 **Files Added/Modified**
+- `src/fraiseql/nested_array_filters.py` - New registration API and decorators
+- `src/fraiseql/core/nested_field_resolver.py` - Enhanced resolver with logical operators
+- `src/fraiseql/core/graphql_type.py` - Enhanced resolver integration
+- `src/fraiseql/fields.py` - Extended field metadata for where filtering
+- `docs/nested-array-filtering.md` - Complete documentation and examples
+- `examples/nested_array_filtering.py` - Comprehensive demonstration
+- Multiple comprehensive test files for complete coverage
+
 ## [0.7.10-beta.1] - 2025-09-08
 
 ### 🐛 **Fixed**

@@ -27,8 +27,8 @@ class TestFieldNameMappingIntegration:
         """
         # Test camelCase field names in WHERE clause
         where_clause = {
-            "ipAddress": {"eq": "192.168.1.1"},      # camelCase
-            "deviceName": {"contains": "router"}     # camelCase
+            "ipAddress": {"eq": "192.168.1.1"},  # camelCase
+            "deviceName": {"contains": "router"},  # camelCase
         }
 
         # Generate SQL using repository method
@@ -52,8 +52,8 @@ class TestFieldNameMappingIntegration:
     def test_backward_compatibility_integration(self):
         """Test that existing snake_case field names continue to work."""
         where_clause = {
-            "ip_address": {"eq": "10.0.0.1"},        # snake_case (existing usage)
-            "status": {"eq": "active"}               # snake_case (existing usage)
+            "ip_address": {"eq": "10.0.0.1"},  # snake_case (existing usage)
+            "status": {"eq": "active"},  # snake_case (existing usage)
         }
 
         result = self.repo._convert_dict_where_to_sql(where_clause)
@@ -70,10 +70,10 @@ class TestFieldNameMappingIntegration:
     def test_mixed_case_sql_generation(self):
         """Test mixed camelCase and snake_case fields in same query."""
         where_clause = {
-            "ipAddress": {"eq": "192.168.1.1"},      # camelCase (should be converted)
-            "status": {"eq": "active"},              # snake_case (should remain)
-            "deviceName": {"contains": "switch"},    # camelCase (should be converted)
-            "created_at": {"gte": "2025-01-01"}      # snake_case (should remain)
+            "ipAddress": {"eq": "192.168.1.1"},  # camelCase (should be converted)
+            "status": {"eq": "active"},  # snake_case (should remain)
+            "deviceName": {"contains": "switch"},  # camelCase (should be converted)
+            "created_at": {"gte": "2025-01-01"},  # snake_case (should remain)
         }
 
         result = self.repo._convert_dict_where_to_sql(where_clause)
@@ -94,15 +94,9 @@ class TestFieldNameMappingIntegration:
     def test_complex_where_clause_field_conversion(self):
         """Test complex WHERE clauses with multiple operators per field."""
         where_clause = {
-            "ipAddress": {
-                "eq": "192.168.1.1",
-                "neq": "127.0.0.1"
-            },
-            "devicePort": {
-                "gte": 1024,
-                "lt": 65536
-            },
-            "macAddress": {"eq": "aa:bb:cc:dd:ee:ff"}
+            "ipAddress": {"eq": "192.168.1.1", "neq": "127.0.0.1"},
+            "devicePort": {"gte": 1024, "lt": 65536},
+            "macAddress": {"eq": "aa:bb:cc:dd:ee:ff"},
         }
 
         # Convert using the repository method
