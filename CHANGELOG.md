@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-10-12
+
+### 🔧 **Bug Fixes**
+- **Psycopg Compatibility**: Fixed compatibility with psycopg 3.2.10 by using `as_string(None)` instead of `as_string({})` in test files
+
 ## [0.7.11] - 2025-09-08
 
 ### 🚀 **New Feature**
