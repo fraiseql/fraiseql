@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.4] - 2025-10-13
+
+### 🐛 Bug Fixes
+
+**Connection Health Check for Multi-Worker Setups**
+- Added connection health check to prevent using terminated connections in multi-worker uvicorn deployments
+- Fixes issue where database connections terminated externally (e.g., via `pg_terminate_backend()` during database reseeding) would cause query failures
+- Added `check_connection` callback to `AsyncConnectionPool` that validates connections before reuse
+- Implements PostgreSQL best practice for production connection pooling
+- Minimal performance overhead (check only runs when getting connection from pool, not on every query)
+- Resolves issue #85
+
+**Technical Details:**
+- Modified `src/fraiseql/fastapi/app.py`: Added async `check_connection` callback with `SELECT 1` health check
+- Connection pool now automatically detects and replaces terminated connections
+- Critical for production environments with multiple uvicorn workers
+
+**Impact:**
+- ✅ Prevents "terminating connection due to administrator command" errors
+- ✅ Improves reliability in multi-worker production deployments
+- ✅ Graceful recovery when connections are terminated externally
+
+**Upgrade:**
+```bash
+# Using pip
+pip install --upgrade fraiseql
+
+# Using uv
+uv pip install --upgrade fraiseql
+```
+
+No code changes required - this is a drop-in replacement.
+
 ## [0.11.3] - 2025-10-13
 
 ### 🔧 CI/CD & Build Infrastructure
