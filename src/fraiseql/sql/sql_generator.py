@@ -472,14 +472,14 @@ def build_sql_query(
     auto_camel_case: bool = False,
     raw_json_output: bool = False,
     field_limit_threshold: int | None = None,
-    camelforge_enabled: bool = False,
-    camelforge_function: str = "turbo.fn_camelforge",
-    entity_type: str | None = None,
 ) -> Composed:
     """Build a SELECT SQL query using jsonb path extraction and optional WHERE/ORDER BY/GROUP BY.
 
     If `json_output` is True, wraps the result in jsonb_build_object(...)
     and aliases it as `result`. Adds '__typename' if `typename` is provided.
+
+    v0.11.0: All camelCase transformation is handled by Rust after retrieval.
+    PostgreSQL CamelForge function dependency has been removed for architectural simplicity.
 
     Args:
         table: Table name to query
@@ -492,14 +492,7 @@ def build_sql_query(
         auto_camel_case: Whether to preserve camelCase field paths (True) or convert to snake_case
         raw_json_output: Whether to cast output to text for raw JSON passthrough
         field_limit_threshold: If set and field count exceeds this, return full data column
-        camelforge_enabled: Whether to wrap jsonb_build_object with CamelForge function
-        camelforge_function: Name of the CamelForge function to use (default: turbo.fn_camelforge)
-        entity_type: Entity type for CamelForge transformation (required if camelforge_enabled=True)
     """
-    # Validate CamelForge parameters
-    if camelforge_enabled and entity_type is None:
-        raise ValueError("entity_type is required when camelforge_enabled=True")
-
     # Check if we should use full data column to avoid parameter limit
     if field_limit_threshold is not None and len(field_paths) > field_limit_threshold:
         # Simply select the full data column
@@ -551,19 +544,10 @@ def build_sql_query(
 
     if json_output:
         # Build the jsonb_build_object expression
+        # v0.11.0: Rust handles all camelCase transformation after retrieval
         jsonb_expr = SQL("jsonb_build_object({})").format(SQL(", ").join(object_pairs))
 
-        # Wrap with CamelForge if enabled
-        if camelforge_enabled:
-            camelforge_expr = SQL("{}({}, {})").format(
-                SQL(camelforge_function), jsonb_expr, sql.Literal(entity_type)
-            )
-            if raw_json_output:
-                select_clause = SQL("{}::text AS result").format(camelforge_expr)
-            else:
-                select_clause = SQL("{} AS result").format(camelforge_expr)
-        # Normal jsonb_build_object without CamelForge
-        elif raw_json_output:
+        if raw_json_output:
             select_clause = SQL("{}::text AS result").format(jsonb_expr)
         else:
             select_clause = SQL("{} AS result").format(jsonb_expr)

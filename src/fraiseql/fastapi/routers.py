@@ -202,7 +202,7 @@ def create_graphql_router(
         is_apq_request = request.extensions and "persistedQuery" in request.extensions
 
         # Handle APQ (Automatic Persisted Queries) if detected
-        if is_apq_request:
+        if is_apq_request and request.extensions:
             from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
             from fraiseql.middleware.apq_caching import (
                 get_apq_backend,
@@ -285,22 +285,15 @@ def create_graphql_router(
                 mode = http_request.headers["x-mode"].lower()
                 context["mode"] = mode
 
-                # Enable passthrough for production/staging modes if configured
-                if mode in ("production", "staging"):  # noqa: SIM102
-                    # Respect json_passthrough configuration settings
-                    if config.json_passthrough_enabled and getattr(
-                        config, "json_passthrough_in_production", True
-                    ):
-                        json_passthrough = True
+                # Enable passthrough for production/staging/testing modes (always enabled)
+                if mode in ("production", "staging", "testing"):
+                    json_passthrough = True
             else:
                 # Use environment as default mode
                 context["mode"] = mode
-                if is_production_env:  # noqa: SIM102
-                    # Respect json_passthrough configuration settings
-                    if config.json_passthrough_enabled and getattr(
-                        config, "json_passthrough_in_production", True
-                    ):
-                        json_passthrough = True
+                # Passthrough is always enabled in production/staging/testing
+                if is_production_env or mode in ("staging", "testing"):
+                    json_passthrough = True
 
             # Check for explicit passthrough header
             if "x-json-passthrough" in http_request.headers:

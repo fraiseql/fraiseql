@@ -6,11 +6,40 @@
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**The fastest Python GraphQL framework.** Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native caching, and sub-millisecond responses out of the box.
+**The fastest Python GraphQL framework. In PostgreSQL Everything.**
 
-> **4-100x faster** than traditional GraphQL frameworks • **Database-first architecture** • **Enterprise APQ storage** • **Zero external dependencies**
+Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native caching, error tracking, and observability—all in one database.
+
+> **4-100x faster** than traditional GraphQL frameworks • **In PostgreSQL Everything** • **$300-3,000/month savings** • **Zero external dependencies**
 
 ## 🚀 Why FraiseQL?
+
+### **🏛️ In PostgreSQL Everything**
+**One database to rule them all.** FraiseQL eliminates external dependencies by implementing caching, error tracking, and observability directly in PostgreSQL.
+
+**Cost Savings:**
+```
+Traditional Stack:
+- Sentry: $300-3,000/month
+- Redis Cloud: $50-500/month
+- Total: $350-3,500/month
+
+FraiseQL Stack:
+- PostgreSQL: Already running (no additional cost)
+- Total: $0/month additional
+```
+
+**Operational Simplicity:**
+```
+Before: FastAPI + PostgreSQL + Redis + Sentry + Grafana = 5 services
+After:  FastAPI + PostgreSQL + Grafana = 3 services
+```
+
+**PostgreSQL-Native Stack:**
+- **Caching**: UNLOGGED tables (Redis-level performance, no WAL overhead)
+- **Error Tracking**: Automatic fingerprinting, grouping, notifications (like Sentry)
+- **Observability**: OpenTelemetry traces + metrics in PostgreSQL
+- **Monitoring**: Grafana dashboards querying PostgreSQL directly
 
 ### **⚡ Blazing Fast Performance**
 - **Automatic Persisted Queries (APQ)**: SHA-256 hash lookup with pluggable storage backends
@@ -147,12 +176,10 @@ class CreateUserInput:
     name: str
     email: EmailAddress
 
-@fraiseql.success
 class CreateUserSuccess:
     user: User
     message: str = "User created successfully"
 
-@fraiseql.failure
 class CreateUserError:
     message: str
     error_code: str
@@ -267,16 +294,71 @@ FraiseQL's **cache-first** philosophy delivers exceptional performance through i
 ## 🚦 When to Choose FraiseQL
 
 ### **✅ Perfect For:**
+- **Cost-conscious teams**: Save $300-3,000/month vs Redis + Sentry
 - **High-performance APIs**: Sub-10ms response time requirements
 - **Multi-tenant SaaS**: Per-tenant isolation and caching
-- **PostgreSQL-first**: Teams already using PostgreSQL extensively
+- **PostgreSQL-first teams**: Already using PostgreSQL extensively
+- **Operational simplicity**: One database for everything
 - **Enterprise applications**: ACID guarantees, no eventual consistency
-- **Cost-sensitive projects**: 70% infrastructure cost reduction
+- **Self-hosted infrastructure**: Full control, no SaaS vendor lock-in
 
 ### **❌ Consider Alternatives:**
 - **Simple CRUD**: Basic applications without performance requirements
 - **Non-PostgreSQL databases**: FraiseQL is PostgreSQL-specific
 - **Microservices**: Better suited for monolithic or database-per-service architectures
+
+## 📊 PostgreSQL-Native Observability
+
+FraiseQL includes a complete observability stack built directly into PostgreSQL—eliminating the need for external services like Sentry, Redis, or third-party APM tools.
+
+### **Error Tracking** (Alternative to Sentry)
+```python
+from fraiseql.monitoring import init_error_tracker
+
+tracker = init_error_tracker(db_pool, environment="production")
+await tracker.capture_exception(error, context={...})
+
+# Features:
+# - Automatic error fingerprinting and grouping
+# - Full stack trace capture
+# - Request/user context preservation
+# - OpenTelemetry trace correlation
+# - Issue management (resolve, ignore, assign)
+# - Custom notification triggers (Email, Slack, Webhook)
+```
+
+### **Caching** (Alternative to Redis)
+```python
+from fraiseql.caching import PostgresCache
+
+cache = PostgresCache(db_pool)
+await cache.set("key", value, ttl=3600)
+
+# Features:
+# - UNLOGGED tables for Redis-level performance
+# - No WAL overhead = fast writes
+# - Shared across instances
+# - TTL-based expiration
+# - Pattern-based deletion
+```
+
+### **OpenTelemetry Integration**
+```python
+# All traces and metrics stored in PostgreSQL
+# Query for debugging:
+SELECT * FROM monitoring.traces
+WHERE error_id = 'error-123'  -- Full correlation
+  AND trace_id = 'trace-xyz';
+```
+
+### **Grafana Dashboards**
+Pre-built dashboards included in `grafana/`:
+- Error monitoring dashboard
+- OpenTelemetry traces dashboard
+- Performance metrics dashboard
+- All querying PostgreSQL directly
+
+**Migration Guides**: See [docs/monitoring.md](./docs/production/monitoring.md) for migrating from Redis and Sentry.
 
 ## 🛠️ CLI Commands
 
@@ -316,13 +398,31 @@ FraiseQL draws inspiration from:
 - **Eric Evans' "Domain-Driven Design"** - Database-centric domain modeling
 - **PostgreSQL community** - For building the world's most advanced open source database
 
-## 👤 Author
+## 👨‍💻 About
 
-**Lionel Hamayon** - Creator and maintainer of FraiseQL
+FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evoludigit)), a self-taught developer and founder of [Évolution digitale](https://evolution-digitale.fr).
 
-- 🏢 [Évolution digitale](https://evolution-digitale.fr)
+**Started: April 2025**
+
+I built FraiseQL out of frustration with a stupid inefficiency: PostgreSQL returns JSON → Python deserializes to objects → GraphQL serializes back to JSON. Why are we doing this roundtrip?
+
+After years moving through Django, Flask, FastAPI, and Strawberry GraphQL with SQLAlchemy, I realized the entire approach was wrong. Just let PostgreSQL return the JSON directly. Skip the ORM. Skip the object mapping.
+
+But I also wanted something designed for the LLM era. SQL and Python are two of the most massively trained languages—LLMs understand them natively. Why not make a framework where AI can easily get context and generate correct code?
+
+FraiseQL is the result: database-first CQRS where PostgreSQL does what it does best, Python stays minimal, and the whole architecture is LLM-readable by design.
+
+Full disclosure: I built this while compulsively preparing for scale I didn't have. But that obsession led somewhere real—sub-millisecond responses, zero N+1 queries, and a framework that both humans and AI can understand.
+
+**Connect:**
+- 💼 GitHub: [@evoludigit](https://github.com/evoludigit)
 - 📧 lionel.hamayon@evolution-digitale.fr
-- 💼 [GitHub](https://github.com/fraiseql/fraiseql)
+- 🏢 [Évolution digitale](https://evolution-digitale.fr)
+
+**Support FraiseQL:**
+- ⭐ Star [fraiseql/fraiseql](https://github.com/fraiseql/fraiseql)
+- 💬 Join discussions and share feedback
+- 🤝 Contribute to the project
 
 ## 📄 License
 

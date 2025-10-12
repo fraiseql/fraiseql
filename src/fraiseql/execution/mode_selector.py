@@ -129,15 +129,14 @@ class ModeSelector:
     def _can_use_turbo(self, query: str) -> bool:
         """Check if query can use TurboRouter.
 
+        TurboRouter is always enabled for maximum performance.
+
         Args:
             query: GraphQL query string
 
         Returns:
             True if TurboRouter can handle the query
         """
-        if not self.config.enable_turbo_router:
-            return False
-
         if not self.turbo_registry:
             return False
 
@@ -148,6 +147,8 @@ class ModeSelector:
     def _can_use_passthrough(self, query: str, variables: Dict[str, Any]) -> bool:
         """Check if query can use raw JSON passthrough.
 
+        JSON passthrough is always enabled for maximum performance.
+
         Args:
             query: GraphQL query string
             variables: Query variables
@@ -155,9 +156,6 @@ class ModeSelector:
         Returns:
             True if passthrough can handle the query
         """
-        if not self.config.json_passthrough_enabled:
-            return False
-
         if not self.query_analyzer:
             return False
 
@@ -182,9 +180,9 @@ class ModeSelector:
             Dictionary of metrics
         """
         metrics = {
-            "turbo_enabled": self.config.enable_turbo_router,
-            "passthrough_enabled": self.config.json_passthrough_enabled,
-            "mode_hints_enabled": getattr(self.config, "enable_mode_hints", True),
+            "turbo_enabled": True,  # Always enabled for max performance
+            "passthrough_enabled": True,  # Always enabled for max performance
+            "mode_hints_enabled": True,  # Always enabled
             "priority": getattr(
                 self.config, "execution_mode_priority", ["turbo", "passthrough", "normal"]
             ),

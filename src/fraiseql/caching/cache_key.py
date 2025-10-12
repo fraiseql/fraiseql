@@ -25,6 +25,7 @@ class CacheKeyBuilder:
     def build_key(
         self,
         query_name: str,
+        tenant_id: Any | None = None,
         filters: dict[str, Any] | None = None,
         order_by: list[tuple[str, str]] | None = None,
         limit: int | None = None,
@@ -35,6 +36,7 @@ class CacheKeyBuilder:
 
         Args:
             query_name: Name of the query/view
+            tenant_id: Tenant ID for multi-tenant isolation (CRITICAL for security!)
             filters: Filter conditions
             order_by: Order by clauses
             limit: Result limit
@@ -42,9 +44,19 @@ class CacheKeyBuilder:
             **kwargs: Additional parameters
 
         Returns:
-            A consistent cache key string
+            A consistent cache key string with tenant isolation
+
+        Security Note:
+            Including tenant_id in the cache key prevents cross-tenant cache poisoning.
+            Without this, Tenant A could access Tenant B's cached data!
         """
-        parts = [self.prefix, query_name]
+        parts = [self.prefix]
+
+        # Add tenant_id as second component for tenant isolation
+        if tenant_id is not None:
+            parts.append(str(tenant_id))
+
+        parts.append(query_name)
 
         # Add filters to key
         if filters:

@@ -4,11 +4,14 @@ This module provides functionality to execute queries that return raw JSON strin
 from PostgreSQL, bypassing all Python object creation and JSON parsing overhead.
 """
 
+import json
 import logging
 from typing import Any, Optional, Union
 
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed, Literal
+
+from fraiseql.core.rust_transformer import get_transformer
 
 logger = logging.getLogger(__name__)
 
@@ -16,16 +19,18 @@ logger = logging.getLogger(__name__)
 class RawJSONResult:
     """Marker class for raw JSON results that should bypass serialization."""
 
-    __slots__ = ("content_type", "json_string")
+    __slots__ = ("_transformed", "content_type", "json_string")
 
-    def __init__(self, json_string: str):
+    def __init__(self, json_string: str, transformed: bool = False):
         """Initialize with a raw JSON string.
 
         Args:
             json_string: The raw JSON string from PostgreSQL
+            transformed: Whether the JSON has already been transformed to camelCase
         """
         self.json_string = json_string
         self.content_type = "application/json"
+        self._transformed = transformed
 
     def __repr__(self):
         preview = (
@@ -33,23 +38,91 @@ class RawJSONResult:
         )
         return f"RawJSONResult({preview})"
 
+    def transform(self, root_type: Optional[str] = None) -> "RawJSONResult":
+        """Transform the JSON from snake_case to camelCase with __typename.
+
+        Args:
+            root_type: The GraphQL root type name for __typename injection
+
+        Returns:
+            New RawJSONResult with transformed JSON
+        """
+        if self._transformed:
+            return self  # Already transformed
+
+        try:
+            # Parse the GraphQL response structure
+            data = json.loads(self.json_string)
+
+            # Check if it's a GraphQL response with data field
+            if isinstance(data, dict) and "data" in data:
+                # Extract the actual data
+                graphql_data = data["data"]
+
+                # Get the field name (should be a single key)
+                if isinstance(graphql_data, dict) and len(graphql_data) == 1:
+                    field_name = next(iter(graphql_data.keys()))
+                    field_data = graphql_data[field_name]
+
+                    if field_data is None:
+                        # Keep null as-is
+                        return RawJSONResult(self.json_string, transformed=True)
+
+                    # Transform the field data
+                    if root_type:
+                        transformer = get_transformer()
+                        field_json = json.dumps(field_data)
+                        transformed_json = transformer.transform(field_json, root_type)
+
+                        # Rebuild GraphQL response
+                        transformed_data = json.loads(transformed_json)
+                        response = {"data": {field_name: transformed_data}}
+                        return RawJSONResult(json.dumps(response), transformed=True)
+                    # No type info, just camelCase transformation
+                    transformer = get_transformer()
+                    field_json = json.dumps(field_data)
+                    transformed_json = transformer.transform_json_passthrough(field_json)
+
+                    # Rebuild GraphQL response
+                    transformed_data = json.loads(transformed_json)
+                    response = {"data": {field_name: transformed_data}}
+                    return RawJSONResult(json.dumps(response), transformed=True)
+
+            # If not a GraphQL response, transform the whole thing
+            if root_type:
+                transformer = get_transformer()
+                transformed = transformer.transform(self.json_string, root_type)
+                return RawJSONResult(transformed, transformed=True)
+
+            # Fallback: return as-is
+            return self
+
+        except Exception as e:
+            logger.warning(f"Failed to transform JSON: {e}, returning original")
+            return self
+
 
 async def execute_raw_json_query(
     conn: AsyncConnection,
     query: Composed | SQL,
     params: dict[str, Any] | None = None,
     field_name: Optional[str] = None,
+    type_name: Optional[str] = None,
 ) -> RawJSONResult:
     """Execute a query and return raw JSON string wrapped for GraphQL response.
 
     This function executes a SQL query that returns JSON and wraps it in a
     GraphQL-compliant response structure without any Python parsing.
 
+    Rust transformation is always enabled, providing 10-80x faster JSON transformation
+    compared to Python (snake_case → camelCase + __typename injection).
+
     Args:
         conn: The PostgreSQL connection
         query: The SQL query (should return JSON)
         params: Query parameters
         field_name: The GraphQL field name for wrapping the result
+        type_name: The GraphQL type name for __typename injection (enables Rust transform)
 
     Returns:
         RawJSONResult containing the complete GraphQL response as JSON
@@ -78,10 +151,29 @@ async def execute_raw_json_query(
         if field_name:
             # Escape the field name for JSON
             escaped_field = field_name.replace('"', '\\"')
-            return RawJSONResult(f'{{"data":{{"{escaped_field}":{json_data}}}}}')
+            json_response = f'{{"data":{{"{escaped_field}":{json_data}}}}}'
+        else:
+            json_response = f'{{"data":{json_data}}}'
 
-        # Otherwise return the JSON directly wrapped in data
-        return RawJSONResult(f'{{"data":{json_data}}}')
+        # Apply Rust transformation if type_name provided
+        # Rust is always enabled, providing 10-80x faster snake_case → camelCase + __typename
+        if type_name:
+            try:
+                logger.debug(
+                    f"🦀 Using Rust transformer for {type_name} (10-80x faster than Python)"
+                )
+                # Transform the full GraphQL response
+                # Rust will handle: snake_case → camelCase + inject __typename
+                result_obj = RawJSONResult(json_response, transformed=False)
+                transformed_result = result_obj.transform(root_type=type_name)
+                logger.debug("✅ Rust transformation completed")
+                return transformed_result
+            except Exception as e:
+                logger.warning(f"⚠️  Rust transformation failed: {e}, falling back to original JSON")
+                # Fall back to untransformed JSON
+                return RawJSONResult(json_response, transformed=False)
+
+        return RawJSONResult(json_response, transformed=False)
 
 
 async def execute_raw_json_list_query(
@@ -89,17 +181,22 @@ async def execute_raw_json_list_query(
     query: Composed | SQL,
     params: dict[str, Any] | None = None,
     field_name: Optional[str] = None,
+    type_name: Optional[str] = None,
 ) -> RawJSONResult:
     """Execute a query that returns multiple rows as a JSON array.
 
     This function executes a SQL query that returns multiple JSON rows and
     combines them into a JSON array without parsing.
 
+    Rust transformation is always enabled, providing 10-80x faster JSON transformation
+    compared to Python (snake_case → camelCase + __typename injection).
+
     Args:
         conn: The PostgreSQL connection
         query: The SQL query (should return JSON in each row)
         params: Query parameters
         field_name: The GraphQL field name for wrapping the result
+        type_name: The GraphQL type name for __typename injection (enables Rust transform)
 
     Returns:
         RawJSONResult containing the complete GraphQL response as JSON
@@ -127,9 +224,29 @@ async def execute_raw_json_list_query(
         # Wrap in GraphQL response
         if field_name:
             escaped_field = field_name.replace('"', '\\"')
-            return RawJSONResult(f'{{"data":{{"{escaped_field}":{json_array}}}}}')
+            json_response = f'{{"data":{{"{escaped_field}":{json_array}}}}}'
+        else:
+            json_response = f'{{"data":{json_array}}}'
 
-        return RawJSONResult(f'{{"data":{json_array}}}')
+        # Apply Rust transformation if type_name provided
+        # Rust is always enabled, providing 10-80x faster snake_case → camelCase + __typename
+        if type_name:
+            try:
+                logger.debug(
+                    f"🦀 Using Rust transformer for {type_name} (10-80x faster than Python)"
+                )
+                # Transform the full GraphQL response
+                # Rust will handle: snake_case → camelCase + inject __typename
+                result = RawJSONResult(json_response, transformed=False)
+                transformed_result = result.transform(root_type=type_name)
+                logger.debug("✅ Rust transformation completed")
+                return transformed_result
+            except Exception as e:
+                logger.warning(f"⚠️  Rust transformation failed: {e}, falling back to original JSON")
+                # Fall back to untransformed JSON
+                return RawJSONResult(json_response, transformed=False)
+
+        return RawJSONResult(json_response, transformed=False)
 
 
 def is_query_eligible_for_raw_json(

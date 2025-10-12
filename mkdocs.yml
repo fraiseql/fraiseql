@@ -1,6 +1,6 @@
 site_name: FraiseQL Documentation
 site_url: https://fraiseql.dev/docs
-site_description: Lightweight GraphQL-to-PostgreSQL query builder using JSONB
+site_description: Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry
 site_author: Lionel Hamayon
 
 repo_name: fraiseql/fraiseql
@@ -20,6 +20,7 @@ theme:
     - content.tabs.link
     - content.code.annotation
     - content.code.copy
+    - toc.follow
   language: en
   palette:
     - scheme: default
@@ -37,10 +38,13 @@ theme:
 
 plugins:
   - search
+  - tags
 
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - admonition
@@ -48,95 +52,62 @@ markdown_extensions:
       generic: true
   - footnotes
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.mark
   - attr_list
-  - pymdownx.emoji
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.tabbed:
       alternate_style: true
   - toc:
       permalink: true
-  - md_in_html
+      toc_depth: 3
+  - tables
 
 nav:
-  - Home: index.md
-  - Getting Started:
-    - getting-started/index.md
-    - Installation: getting-started/installation.md
-    - Quick Start: getting-started/quickstart.md
-    - GraphQL Playground: getting-started/graphql-playground.md
-    - First API: getting-started/first-api.md
-  - Core Concepts:
-    - core-concepts/index.md
-    - Architecture: core-concepts/architecture.md
-    - Type System: core-concepts/type-system.md
-    - Database Views: core-concepts/database-views.md
-    - Query Translation: core-concepts/query-translation.md
-  - API Reference:
-    - api-reference/index.md
-    - Application: api-reference/application.md
-    - Decorators: api-reference/decorators.md
-  - Advanced Topics:
-    - advanced/index.md
-    - Configuration: advanced/configuration.md
-    - Authentication: advanced/authentication.md
-    - Performance: advanced/performance.md
-    - TurboRouter: advanced/turbo-router.md
-    - Pagination: advanced/pagination.md
-    - Security: advanced/security.md
-    - CQRS Implementation: advanced/cqrs.md
-    - Event Sourcing: advanced/event-sourcing.md
-    - Multi-tenancy: advanced/multi-tenancy.md
-    - Bounded Contexts: advanced/bounded-contexts.md
-    - Production Readiness: advanced/production-readiness.md
-    - Domain-Driven Database: advanced/domain-driven-database.md
-    - Database API Patterns: advanced/database-api-patterns.md
-    - Eliminating N+1: advanced/eliminating-n-plus-one.md
-    - LLM-Native Architecture: advanced/llm-native-architecture.md
-    - Execution Modes: advanced/execution-modes.md
-    - Lazy Caching: advanced/lazy-caching.md
+  - Home: README.md
+  - Quickstart: quickstart.md
+
   - Tutorials:
-    - tutorials/index.md
-    - Blog API: tutorials/blog-api.md
-  - Mutations:
-    - mutations/index.md
-    - Migration Guide: mutations/migration-guide.md
-    - PostgreSQL Functions: mutations/postgresql-function-based.md
-  - Deployment:
-    - deployment/index.md
-    - Docker: deployment/docker.md
-    - Kubernetes: deployment/kubernetes.md
-    - AWS: deployment/aws.md
-    - GCP: deployment/gcp.md
-    - Heroku: deployment/heroku.md
-    - Production Checklist: deployment/production-checklist.md
-    - Monitoring: deployment/monitoring.md
-    - Scaling: deployment/scaling.md
-  - Testing:
-    - testing/index.md
-    - Unit Testing: testing/unit-testing.md
-    - Integration Testing: testing/integration-testing.md
-    - GraphQL Testing: testing/graphql-testing.md
-    - Performance Testing: testing/performance-testing.md
-    - Best Practices: testing/best-practices.md
-  - Error Handling:
-    - errors/index.md
-    - Error Types: errors/error-types.md
-    - Error Codes: errors/error-codes.md
-    - Handling Patterns: errors/handling-patterns.md
-    - Debugging: errors/debugging.md
-    - Troubleshooting: errors/troubleshooting.md
-  - Learning Paths:
-    - learning-paths/index.md
-    - Beginner: learning-paths/beginner.md
-    - Backend Developer: learning-paths/backend-developer.md
-    - Frontend Developer: learning-paths/frontend-developer.md
-    - Migrating: learning-paths/migrating.md
-  - Migration:
-    - migration/index.md
-  - Comparisons:
-    - comparisons/index.md
-    - Alternatives: comparisons/alternatives.md
+    - Beginner Learning Path: tutorials/beginner-path.md
+    - Blog API Tutorial: tutorials/blog-api.md
+    - Production Deployment: tutorials/production-deployment.md
+
+  - Core Concepts:
+    - FraiseQL Philosophy: core-concepts/fraiseql-philosophy.md
+    - Types & Schema: core/types-and-schema.md
+    - Queries & Mutations: core/queries-and-mutations.md
+    - Database API: core/database-api.md
+    - Configuration: core/configuration.md
+
+  - Performance:
+    - Optimization Stack: performance/index.md
+
+  - Advanced:
+    - Authentication: advanced/authentication.md
+    - Multi-Tenancy: advanced/multi-tenancy.md
+    - Bounded Contexts: advanced/bounded-contexts.md
+    - Event Sourcing: advanced/event-sourcing.md
+    - Database Patterns: advanced/database-patterns.md
+    - LLM Integration: advanced/llm-integration.md
+
+  - Production:
+    - Deployment: production/deployment.md
+    - Monitoring:
+      - Overview: production/monitoring.md
+      - Health Checks: monitoring/health-checks.md
+    - Security: production/security.md
+
+  - API Reference:
+    - Decorators: api-reference/decorators.md
+    - Configuration: api-reference/config.md
+    - Database: api-reference/database.md
 
 extra:
   social:
@@ -144,6 +115,8 @@ extra:
       link: https://github.com/fraiseql/fraiseql
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/fraiseql/
+  version:
+    provider: mike
 
 copyright: |
-  &copy; 2025 <a href="https://github.com/fraiseql"  target="_blank" rel="noopener">FraiseQL Project</a>
+  &copy; 2025 <a href="https://github.com/fraiseql" target="_blank" rel="noopener">FraiseQL Project</a>

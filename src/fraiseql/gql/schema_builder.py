@@ -77,6 +77,17 @@ def build_fraiseql_schema(
     for fn in subscription_resolvers:
         registry.register_subscription(fn)
 
+    # Register all types with the Rust transformer for high-performance JSON transformation
+    from fraiseql.core.rust_transformer import get_transformer
+
+    rust_transformer = get_transformer()
+    for typ in registry.types:
+        try:
+            rust_transformer.register_type(typ)
+            logger.debug(f"Registered type '{typ.__name__}' with Rust transformer")
+        except Exception as e:
+            logger.warning(f"Failed to register type '{typ.__name__}' with Rust transformer: {e}")
+
     # Use the SchemaComposer to build the schema
     composer = SchemaComposer(registry)
     return composer.compose()

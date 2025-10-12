@@ -45,7 +45,7 @@ class PassthroughAnalysis:
 class QueryAnalyzer:
     """Comprehensive query analyzer for execution mode selection."""
 
-    def __init__(self, schema: GraphQLSchema):
+    def __init__(self, schema: GraphQLSchema) -> None:
         """Initialize analyzer with GraphQL schema.
 
         Args:
@@ -131,7 +131,7 @@ class QueryAnalyzer:
                 reason=f"Analysis error: {e!s}",
             )
 
-    def _init_resolver_analysis(self):
+    def _init_resolver_analysis(self) -> None:
         """Initialize resolver analysis by examining schema."""
         # Analyze which fields have custom resolvers
         query_type = self.schema.type_map.get("Query")

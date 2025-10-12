@@ -1,7 +1,6 @@
 """Raw JSON wrapper for GraphQL resolvers to bypass serialization."""
 
 import asyncio
-import json
 from typing import Callable, Dict, Optional
 
 from fraiseql.types.coercion import wrap_resolver_with_input_coercion
@@ -102,18 +101,20 @@ def create_raw_json_resolver(
                 logger.info("Returning RawJSONResult directly")
                 return result
 
-            # In production/staging mode, convert to RawJSONResult immediately
-            # This bypasses GraphQL type validation entirely
-            if enable_passthrough and (isinstance(result, (dict, list)) or result is None):
-                logger.info(
-                    f"Converting result to RawJSONResult for field {field_name} in passthrough mode"
-                )
+            # IMPORTANT: Do NOT convert dict/list results to RawJSONResult here!
+            # RawJSONResult should only be used when the SQL query already returns
+            # the properly structured JSON with field selection applied.
+            #
+            # If we convert here, it bypasses GraphQL's field resolution, which means:
+            # - Nested objects/arrays aren't properly resolved
+            # - Field selection from the query is ignored
+            # - Custom resolvers don't run
+            #
+            # Instead, let GraphQL handle the result normally. The JSONPassthrough
+            # wrapper (returned by the repository) already provides the performance
+            # benefits without breaking field resolution.
 
-                # Don't wrap in GraphQL response - just return the raw data
-                # The router will handle creating the proper response structure
-                return RawJSONResult(json.dumps(result))
-
-            # Always return the result - let GraphQL handle it
+            # Always return the result - let GraphQL handle field resolution
             return result
 
         return async_raw_json_resolver
@@ -148,37 +149,11 @@ def create_raw_json_resolver(
             # and be returned directly as HTTP JSON response
             return result
 
-        # Check if we're in production or staging mode with proper configuration check
-        context = getattr(info, "context", {})
-        mode = context.get("mode")
-        enable_passthrough = (
-            context.get("json_passthrough", False)
-            or context.get("execution_mode") == "passthrough"
-            or (
-                mode in ("production", "staging")
-                and context.get("json_passthrough_in_production", False)
-            )
-        )
+        # IMPORTANT: Do NOT convert dict/list results to RawJSONResult here!
+        # See explanation in async version above. The same principle applies
+        # to synchronous resolvers - let GraphQL handle field resolution.
 
-        # In production/staging mode, convert dict to RawJSONResult for true passthrough
-        if enable_passthrough and isinstance(result, dict):
-            import json
-
-            # Remove __typename if present as it's internal GraphQL metadata
-            clean_result = {k: v for k, v in result.items() if k != "__typename"}
-            # Wrap in GraphQL response format
-            graphql_response = {"data": {field_name: clean_result}}
-            json_string = json.dumps(graphql_response)
-            return RawJSONResult(json_string)
-
-        # Handle None results in passthrough mode
-        if enable_passthrough and result is None:
-            import json
-
-            graphql_response = {"data": {field_name: None}}
-            return RawJSONResult(json.dumps(graphql_response))
-
-        # Fallback to regular result for other types
+        # Always return the result - let GraphQL handle field resolution
         return result
 
     return sync_raw_json_resolver

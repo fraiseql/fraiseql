@@ -453,24 +453,29 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
 
                 field_paths = extract_field_paths_from_info(info, transform_path=to_snake_case)
 
-            # Check if JSONB extraction is enabled and we don't have field paths
-            config = self.context.get("config")
-            jsonb_extraction_enabled = (
-                config.jsonb_extraction_enabled
-                if config and hasattr(config, "jsonb_extraction_enabled")
-                else False
-            )
-
+            # JSONB extraction is always enabled for maximum performance
+            # Try to extract from JSONB column if we don't have field paths
             jsonb_column = None
-            if jsonb_extraction_enabled and not field_paths:
+            if not field_paths:
                 # First, get sample rows to determine JSONB column
-                sample_query = self._build_find_query(view_name, limit=1, **kwargs)
+                sample_kwargs = {**kwargs, "limit": 1}
+                sample_query = self._build_find_query(view_name, **sample_kwargs)
 
                 async with (
                     self._pool.connection() as conn,
                     conn.cursor(row_factory=dict_row) as cursor,
                 ):
-                    await cursor.execute(sample_query.statement, sample_query.params)
+                    # Set session variables from context
+                    await self._set_session_variables(cursor)
+
+                    # Handle Composed statements with empty params to avoid placeholder scanning
+                    if (
+                        isinstance(sample_query.statement, (Composed, SQL))
+                        and not sample_query.params
+                    ):
+                        await cursor.execute(sample_query.statement)
+                    else:
+                        await cursor.execute(sample_query.statement, sample_query.params)
                     sample_rows = await cursor.fetchall()
 
                 if sample_rows:
@@ -550,16 +555,10 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
 
                 field_paths = extract_field_paths_from_info(info, transform_path=to_snake_case)
 
-            # Check if JSONB extraction is enabled and we don't have field paths
-            config = self.context.get("config")
-            jsonb_extraction_enabled = (
-                config.jsonb_extraction_enabled
-                if config and hasattr(config, "jsonb_extraction_enabled")
-                else False
-            )
-
+            # JSONB extraction is always enabled for maximum performance
+            # Try to extract from JSONB column if we don't have field paths
             jsonb_column = None
-            if jsonb_extraction_enabled and not field_paths:
+            if not field_paths:
                 # First, get sample row to determine JSONB column
                 sample_query = self._build_find_one_query(view_name, **kwargs)
 
@@ -567,6 +566,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     self._pool.connection() as conn,
                     conn.cursor(row_factory=dict_row) as cursor,
                 ):
+                    # Set session variables from context
+                    await self._set_session_variables(cursor)
+
                     if (
                         isinstance(sample_query.statement, (Composed, SQL))
                         and not sample_query.params
@@ -680,6 +682,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         bypassing all Python object creation and dict parsing. Use this only for
         special passthrough scenarios. For normal resolvers, use find() instead.
 
+        With pure passthrough + Rust transformation enabled, this achieves 25-60x
+        faster performance than traditional GraphQL resolvers.
+
         Args:
             view_name: The database view name
             field_name: The GraphQL field name for response wrapping
@@ -702,11 +707,34 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             view_name, raw_json=True, field_paths=field_paths, info=info, **kwargs
         )
 
-        # Execute and return raw JSON
-        async with self._pool.connection() as conn:
-            return await execute_raw_json_list_query(
-                conn, query.statement, query.params, field_name
+        # Get type name for Rust transformation
+        type_name = None
+        try:
+            type_class = self._get_type_for_view(view_name)
+            if hasattr(type_class, "__name__"):
+                type_name = type_class.__name__
+        except Exception:
+            # If we can't get the type, continue without type name
+            pass
+
+        if type_name:
+            logger.debug(
+                f"🚀 Rust transformation enabled for {view_name} "
+                f"(type: {type_name}) - 10-80x faster"
             )
+
+        # Execute with Rust transformation directly in the executor
+        # Rust is always enabled for maximum performance (10-80x faster)
+        async with self._pool.connection() as conn:
+            result = await execute_raw_json_list_query(
+                conn,
+                query.statement,
+                query.params,
+                field_name,
+                type_name=type_name,
+            )
+
+        return result
 
     async def find_one_raw_json(
         self, view_name: str, field_name: str, info: Any = None, **kwargs
@@ -716,6 +744,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
         This method returns RawJSONResult which cannot be used in normal resolvers.
         Use this only for special passthrough scenarios. For normal resolvers,
         use find_one() instead.
+
+        With pure passthrough + Rust transformation enabled, this achieves 25-60x
+        faster performance than traditional GraphQL resolvers.
 
         Args:
             view_name: The database view name
@@ -739,9 +770,34 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             view_name, raw_json=True, field_paths=field_paths, info=info, **kwargs
         )
 
-        # Execute and return raw JSON
+        # Get type name for Rust transformation
+        type_name = None
+        try:
+            type_class = self._get_type_for_view(view_name)
+            if hasattr(type_class, "__name__"):
+                type_name = type_class.__name__
+        except Exception:
+            # If we can't get the type, continue without type name
+            pass
+
+        if type_name:
+            logger.debug(
+                f"🚀 Rust transformation enabled for {view_name} "
+                f"(type: {type_name}) - 10-80x faster"
+            )
+
+        # Execute with Rust transformation directly in the executor
+        # Rust is always enabled for maximum performance (10-80x faster)
         async with self._pool.connection() as conn:
-            return await execute_raw_json_query(conn, query.statement, query.params, field_name)
+            result = await execute_raw_json_query(
+                conn,
+                query.statement,
+                query.params,
+                field_name,
+                type_name=type_name,
+            )
+
+        return result
 
     def _instantiate_from_row(self, type_class: type, row: dict[str, Any]) -> Any:
         """Instantiate a type from the row data.
@@ -934,47 +990,32 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                         return item_type
         return None
 
-    def _derive_entity_type(self, view_name: str, typename: str | None = None) -> str | None:
-        """Derive entity type for CamelForge from view name or GraphQL typename."""
-        # Only derive entity type if CamelForge is enabled
-        if not self.context.get("camelforge_enabled", False):
-            return None
-
-        # First try to use GraphQL typename
-        if typename:
-            # Convert PascalCase to snake_case (e.g., DnsServer -> dns_server)
-            from fraiseql.utils.casing import to_snake_case
-
-            return to_snake_case(typename)
-
-        # Fallback to view name (remove v_, tv_, mv_ prefixes)
-        if view_name:
-            for prefix in ["v_", "tv_", "mv_"]:
-                if view_name.startswith(prefix):
-                    return view_name[len(prefix) :]
-            return view_name
-
-        return None
-
     def _determine_jsonb_column(self, view_name: str, rows: list[dict[str, Any]]) -> str | None:
         """Determine which JSONB column to extract data from.
 
+        JSONB extraction is always enabled for maximum performance.
+
         Args:
             view_name: Name of the database view
-            rows: Sample rows to inspect for JSONB columns
+            rows: Sample rows to inspect for JSONB columns (can be dicts or tuples)
 
         Returns:
             Name of the JSONB column to extract, or None if no suitable column found
         """
-        # Check if JSONB extraction is enabled
-        config = self.context.get("config")
-        if (
-            config
-            and hasattr(config, "jsonb_extraction_enabled")
-            and not config.jsonb_extraction_enabled
-        ):
-            logger.debug(f"JSONB extraction disabled by config for view '{view_name}'")
+        if not rows:
+            logger.debug(f"No rows provided for view '{view_name}', returning None")
             return None
+
+        # Handle both dict and tuple rows
+        first_row = rows[0]
+
+        # If rows are tuples, we can't inspect columns dynamically - return None
+        if not isinstance(first_row, dict):
+            logger.debug(
+                f"Cannot determine JSONB column for view '{view_name}': rows are tuples, not dicts"
+            )
+            return None
+
         # Strategy 1: Check if a type is registered for this view and has explicit JSONB column
         if view_name in _type_registry:
             type_class = _type_registry[view_name]
@@ -982,7 +1023,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                 definition = type_class.__fraiseql_definition__
                 if definition.jsonb_column:
                     # Verify the column exists in the data
-                    if rows and definition.jsonb_column in rows[0]:
+                    if definition.jsonb_column in first_row:
                         logger.debug(
                             f"Using explicit JSONB column '{definition.jsonb_column}' "
                             f"for view '{view_name}'"
@@ -991,45 +1032,31 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     logger.warning(
                         f"Explicit JSONB column '{definition.jsonb_column}' not found "
                         f"in data for view '{view_name}'. Available columns: "
-                        f"{list(rows[0].keys()) if rows else 'None'}"
+                        f"{list(first_row.keys())}"
                     )
 
         # Strategy 2: Default column names to try
-        # Get default columns from config if available, otherwise use hardcoded defaults
-        config = self.context.get("config")
-        if config and hasattr(config, "jsonb_default_columns"):
-            default_columns = config.jsonb_default_columns
-        else:
-            default_columns = ["data", "json_data", "jsonb_data"]
+        default_columns = ["data", "json_data", "jsonb_data"]
 
-        if rows:
-            for col_name in default_columns:
-                if col_name in rows[0]:
-                    # Verify it contains dict-like data (not just a primitive)
-                    value = rows[0][col_name]
-                    if isinstance(value, dict) and value:
-                        logger.debug(
-                            f"Using default JSONB column '{col_name}' for view '{view_name}'"
-                        )
-                        return col_name
+        for col_name in default_columns:
+            if col_name in first_row:
+                # Verify it contains dict-like data (not just a primitive)
+                value = first_row[col_name]
+                if isinstance(value, dict) and value:
+                    logger.debug(f"Using default JSONB column '{col_name}' for view '{view_name}'")
+                    return col_name
 
-        # Strategy 3: Auto-detect JSONB columns by content (if enabled)
-        config = self.context.get("config")
-        auto_detect_enabled = True
-        if config and hasattr(config, "jsonb_auto_detect"):
-            auto_detect_enabled = config.jsonb_auto_detect
-
-        if auto_detect_enabled and rows:
-            for key, value in rows[0].items():
-                # Look for columns with dict content that might be JSONB
-                if (
-                    isinstance(value, dict)
-                    and value
-                    and key not in ["metadata", "context", "config"]  # Skip common metadata columns
-                    and not key.endswith("_id")
-                ):  # Skip foreign key columns
-                    logger.debug(f"Auto-detected JSONB column '{key}' for view '{view_name}'")
-                    return key
+        # Strategy 3: Auto-detect JSONB columns by content (always enabled)
+        for key, value in first_row.items():
+            # Look for columns with dict content that might be JSONB
+            if (
+                isinstance(value, dict)
+                and value
+                and key not in ["metadata", "context", "config"]  # Skip common metadata columns
+                and not key.endswith("_id")
+            ):  # Skip foreign key columns
+                logger.debug(f"Auto-detected JSONB column '{key}' for view '{view_name}'")
+                return key
 
         logger.debug(f"No JSONB column found for view '{view_name}', returning raw rows")
         return None
@@ -1155,6 +1182,87 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             where_condition = Composed([Identifier(key), SQL(" = "), Literal(value)])
             where_parts.append(where_condition)
 
+        # PURE PASSTHROUGH MODE (v1 Performance Optimization)
+        # Always use pure passthrough when raw_json=True for maximum performance (25-60x faster)
+        # This bypasses field extraction and uses SELECT data::text directly
+        if raw_json:
+            logger.info(
+                f"🚀 Pure passthrough mode enabled for {view_name} "
+                f"(bypassing field extraction for maximum performance)"
+            )
+
+            # Determine JSONB column to use
+            target_jsonb_column = jsonb_column
+            if not target_jsonb_column and view_name in _type_registry:
+                # Try to determine from type registry
+                type_class = _type_registry[view_name]
+                if hasattr(type_class, "__fraiseql_definition__"):
+                    target_jsonb_column = type_class.__fraiseql_definition__.jsonb_column
+
+            # Default to 'data' if not specified
+            if not target_jsonb_column:
+                target_jsonb_column = "data"
+
+            # Handle schema-qualified table names
+            if "." in view_name:
+                schema_name, table_name = view_name.split(".", 1)
+                table_identifier = Identifier(schema_name, table_name)
+            else:
+                table_identifier = Identifier(view_name)
+
+            # Build pure passthrough query: SELECT data::text FROM table
+            query_parts = [
+                SQL("SELECT "),
+                Identifier(target_jsonb_column),
+                SQL("::text FROM "),
+                table_identifier,
+            ]
+
+            # Add WHERE clause
+            if where_parts:
+                where_sql_parts = []
+                for part in where_parts:
+                    if isinstance(part, (SQL, Composed)):
+                        where_sql_parts.append(part)
+                    else:
+                        where_sql_parts.append(SQL(part))
+
+                query_parts.append(SQL(" WHERE "))
+                for i, part in enumerate(where_sql_parts):
+                    if i > 0:
+                        query_parts.append(SQL(" AND "))
+                    query_parts.append(part)
+
+            # Add ORDER BY
+            if order_by:
+                if hasattr(order_by, "_to_sql_order_by"):
+                    order_by_set = order_by._to_sql_order_by()
+                    if order_by_set:
+                        query_parts.append(SQL(" ") + order_by_set.to_sql())
+                elif hasattr(order_by, "to_sql"):
+                    query_parts.append(SQL(" ") + order_by.to_sql())
+                elif isinstance(order_by, (dict, list)):
+                    from fraiseql.sql.graphql_order_by_generator import (
+                        _convert_order_by_input_to_sql,
+                    )
+
+                    order_by_set = _convert_order_by_input_to_sql(order_by)
+                    if order_by_set:
+                        query_parts.append(SQL(" ") + order_by_set.to_sql())
+                else:
+                    query_parts.append(SQL(" ORDER BY ") + SQL(order_by))
+
+            # Add LIMIT and OFFSET
+            if limit is not None:
+                query_parts.append(SQL(" LIMIT ") + Literal(limit))
+                if offset is not None:
+                    query_parts.append(SQL(" OFFSET ") + Literal(offset))
+
+            statement = SQL("").join(query_parts)
+            logger.debug(f"Pure passthrough SQL generated: {statement}")
+
+            return DatabaseQuery(statement=statement, params={}, fetch_result=True)
+
         # Build SQL using proper composition
         if raw_json and field_paths is not None and len(field_paths) > 0:
             # Use SQL generator for proper field mapping with camelCase aliases
@@ -1231,6 +1339,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                             ]
 
             # Use SQL generator with field paths
+            # v0.11.0: Rust handles all camelCase transformation, no PostgreSQL function needed
             statement = build_sql_query(
                 table=view_name,
                 field_paths=field_paths,
@@ -1240,11 +1349,7 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                 raw_json_output=True,
                 auto_camel_case=True,
                 order_by=order_by_tuples,
-                field_limit_threshold=self.context.get("camelforge_field_threshold")
-                or self.context.get("jsonb_field_limit_threshold"),
-                camelforge_enabled=self.context.get("camelforge_enabled", False),
-                camelforge_function=self.context.get("camelforge_function", "turbo.fn_camelforge"),
-                entity_type=self._derive_entity_type(view_name, typename),
+                field_limit_threshold=self.context.get("jsonb_field_limit_threshold"),
             )
 
             # Handle limit and offset

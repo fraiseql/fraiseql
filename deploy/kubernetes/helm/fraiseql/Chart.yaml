@@ -1,0 +1,30 @@
+apiVersion: v2
+name: fraiseql
+description: High-performance GraphQL framework for PostgreSQL with CQRS, APQ, and sub-millisecond responses
+type: application
+version: 0.11.0
+appVersion: "0.11.0"
+
+keywords:
+  - graphql
+  - postgresql
+  - api
+  - cqrs
+  - high-performance
+
+home: https://github.com/fraiseql/fraiseql
+sources:
+  - https://github.com/fraiseql/fraiseql
+
+maintainers:
+  - name: Lionel Hamayon
+    email: lionel.hamayon@evolution-digitale.fr
+    url: https://evolution-digitale.fr
+
+icon: https://fraiseql.com/logo.png
+
+dependencies: []
+
+annotations:
+  category: GraphQL
+  licenses: MIT

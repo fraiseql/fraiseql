@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraiseql-config
+  labels:
+    app: fraiseql
+data:
+  # Application Configuration
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+
+  # Server Configuration
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  WORKERS: "4"
+
+  # GraphQL Configuration
+  GRAPHQL_PATH: "/graphql"
+  GRAPHQL_DEPTH_LIMIT: "10"
+  GRAPHQL_COMPLEXITY_LIMIT: "1000"
+
+  # APQ (Automatic Persisted Queries) Configuration
+  APQ_ENABLED: "true"
+  APQ_STORAGE_BACKEND: "postgresql"  # or "memory", "redis"
+  APQ_STORAGE_SCHEMA: "apq_cache"
+  APQ_TTL_SECONDS: "86400"  # 24 hours
+
+  # Performance Configuration
+  JSON_PASSTHROUGH_ENABLED: "true"
+  TURBO_ROUTER_ENABLED: "true"
+  DATALOADER_BATCH_SIZE: "100"
+
+  # Database Configuration (non-sensitive)
+  DB_HOST: "postgresql.default.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "fraiseql"
+  DB_POOL_MIN_SIZE: "5"
+  DB_POOL_MAX_SIZE: "20"
+  DB_POOL_TIMEOUT: "30"
+  DB_STATEMENT_TIMEOUT: "30000"  # 30 seconds
+
+  # Caching Configuration
+  CACHE_ENABLED: "true"
+  CACHE_TTL: "300"  # 5 minutes
+
+  # Security Configuration
+  CORS_ENABLED: "true"
+  CORS_ORIGINS: "https://yourdomain.com,https://app.yourdomain.com"
+  CSRF_ENABLED: "true"
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW: "60"  # seconds
+
+  # Monitoring Configuration
+  METRICS_ENABLED: "true"
+  METRICS_PATH: "/metrics"
+  TRACING_ENABLED: "true"
+  TRACING_SAMPLE_RATE: "0.1"  # 10% sampling in production
+
+  # Health Check Configuration
+  HEALTH_CHECK_PATH: "/health"
+  READINESS_CHECK_PATH: "/ready"

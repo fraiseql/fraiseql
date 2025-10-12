@@ -280,7 +280,7 @@ app = create_fraiseql_app(config=config, ...)
 ### Docker Deployment
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 

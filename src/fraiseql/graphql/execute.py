@@ -199,7 +199,7 @@ async def execute_with_passthrough_check(
         # First check if the entire data is RawJSONResult
         if isinstance(result.data, RawJSONResult):
             logger.debug("Entire result.data is RawJSONResult")
-            return result
+            return result  # type: ignore[return-value]
 
         # Otherwise check nested fields
         raw_json = extract_raw_json_result(result.data)

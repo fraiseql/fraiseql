@@ -1,0 +1,190 @@
+{
+  "dashboard": {
+    "title": "FraiseQL Error Monitoring",
+    "tags": ["fraiseql", "errors", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Error Rate Over Time",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT\n  date_trunc('minute', occurred_at) as time,\n  COUNT(*) as error_count\nFROM monitoring.errors\nWHERE\n  occurred_at >= $__timeFrom()\n  AND occurred_at <= $__timeTo()\n  AND environment = '$environment'\n  AND resolved_at IS NULL\nGROUP BY time\nORDER BY time;",
+            "format": "time_series"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "lineInterpolation": "smooth",
+              "showPoints": "never",
+              "fillOpacity": 10
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"}
+        }
+      },
+      {
+        "id": 2,
+        "title": "Error Distribution by Type",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT\n  exception_type as metric,\n  COUNT(*) as value\nFROM monitoring.errors\nWHERE\n  occurred_at >= $__timeFrom()\n  AND occurred_at <= $__timeTo()\n  AND environment = '$environment'\n  AND resolved_at IS NULL\nGROUP BY exception_type\nORDER BY value DESC\nLIMIT 10;",
+            "format": "table"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right"},
+          "pieType": "pie",
+          "displayLabels": ["name", "percent"]
+        }
+      },
+      {
+        "id": 3,
+        "title": "Top 10 Error Fingerprints",
+        "type": "table",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT\n    fingerprint,\n    exception_type,\n    message,\n    COUNT(*) as occurrences,\n    MAX(occurred_at) as last_seen,\n    MIN(occurred_at) as first_seen,\n    COUNT(DISTINCT context->>'user_id') as affected_users\nFROM monitoring.errors\nWHERE occurred_at > NOW() - INTERVAL '24 hours'\n  AND resolved_at IS NULL\n  AND environment = '$environment'\nGROUP BY fingerprint, exception_type, message\nORDER BY occurrences DESC\nLIMIT 10;",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "occurrences"},
+              "properties": [
+                {"id": "custom.width", "value": 120}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "affected_users"},
+              "properties": [
+                {"id": "custom.width", "value": 140}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 4,
+        "title": "Error Resolution Status",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 18},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT\n  COUNT(*) FILTER (WHERE resolved_at IS NULL) as unresolved,\n  COUNT(*) FILTER (WHERE resolved_at IS NOT NULL) as resolved,\n  COUNT(*) as total\nFROM monitoring.errors\nWHERE occurred_at > NOW() - INTERVAL '7 days'\n  AND environment = '$environment';",
+            "format": "table"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "background",
+          "orientation": "horizontal",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Errors by Environment",
+        "type": "bargauge",
+        "gridPos": {"h": 6, "w": 8, "x": 8, "y": 18},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT\n  environment,\n  COUNT(*) as error_count\nFROM monitoring.errors\nWHERE occurred_at > NOW() - INTERVAL '24 hours'\n  AND resolved_at IS NULL\nGROUP BY environment\nORDER BY error_count DESC;",
+            "format": "table"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        }
+      },
+      {
+        "id": 6,
+        "title": "Recent Errors (Last Hour)",
+        "type": "table",
+        "gridPos": {"h": 6, "w": 8, "x": 16, "y": 18},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT\n  occurred_at,\n  exception_type,\n  LEFT(message, 80) as message,\n  context->>'user_id' as user_id\nFROM monitoring.errors\nWHERE occurred_at > NOW() - INTERVAL '1 hour'\n  AND environment = '$environment'\n  AND resolved_at IS NULL\nORDER BY occurred_at DESC\nLIMIT 20;",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "occurred_at"},
+              "properties": [
+                {"id": "custom.width", "value": 180}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 7,
+        "title": "Users Affected by Errors",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT\n  date_trunc('hour', occurred_at) as time,\n  COUNT(DISTINCT context->>'user_id') as affected_users\nFROM monitoring.errors\nWHERE\n  occurred_at >= $__timeFrom()\n  AND occurred_at <= $__timeTo()\n  AND environment = '$environment'\n  AND context->>'user_id' IS NOT NULL\nGROUP BY time\nORDER BY time;",
+            "format": "time_series"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "lineInterpolation": "smooth",
+              "showPoints": "auto",
+              "fillOpacity": 20
+            },
+            "unit": "short"
+          }
+        }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "environment",
+          "type": "custom",
+          "options": [
+            {"text": "production", "value": "production"},
+            {"text": "staging", "value": "staging"},
+            {"text": "development", "value": "development"}
+          ],
+          "current": {"text": "production", "value": "production"},
+          "multi": false
+        }
+      ]
+    },
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  },
+  "overwrite": true,
+  "message": "FraiseQL Error Monitoring Dashboard"
+}

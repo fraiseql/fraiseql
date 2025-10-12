@@ -42,7 +42,7 @@ def build_lte_sql(path_sql: SQL, value: any) -> Composed:
     return Composed([casted_path, SQL(" <= "), Literal(value)])
 
 
-def _apply_type_cast_if_needed(path_sql: SQL, value: any) -> Composed:
+def _apply_type_cast_if_needed(path_sql: SQL, value: any) -> Composed | SQL:
     """Apply appropriate type casting if the value needs it."""
     from datetime import date, datetime
     from decimal import Decimal

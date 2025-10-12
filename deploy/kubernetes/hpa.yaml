@@ -1,0 +1,121 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fraiseql
+  labels:
+    app: fraiseql
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fraiseql
+
+  # Replica configuration
+  minReplicas: 3
+  maxReplicas: 20
+
+  # Scaling behavior
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+      selectPolicy: Max
+
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 minutes
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      selectPolicy: Min
+
+  # Metrics for scaling decisions
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70  # Scale up when CPU > 70%
+
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80  # Scale up when Memory > 80%
+
+  # Custom metrics (requires metrics server + custom metrics API)
+  # GraphQL request rate
+  - type: Pods
+    pods:
+      metric:
+        name: graphql_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"  # Scale when avg requests/sec > 100 per pod
+
+  # GraphQL query latency
+  - type: Pods
+    pods:
+      metric:
+        name: graphql_query_duration_p99_milliseconds
+      target:
+        type: AverageValue
+        averageValue: "100"  # Scale when P99 latency > 100ms
+
+---
+# PodDisruptionBudget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fraiseql
+  labels:
+    app: fraiseql
+spec:
+  minAvailable: 2  # Always keep at least 2 pods running
+  selector:
+    matchLabels:
+      app: fraiseql
+
+---
+# VerticalPodAutoscaler (optional, requires VPA admission controller)
+# Automatically adjusts CPU/memory requests/limits
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: fraiseql
+  labels:
+    app: fraiseql
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fraiseql
+
+  updatePolicy:
+    updateMode: "Auto"  # Or "Recreate", "Initial", "Off"
+
+  resourcePolicy:
+    containerPolicies:
+    - containerName: fraiseql
+      minAllowed:
+        cpu: 100m
+        memory: 256Mi
+      maxAllowed:
+        cpu: 2000m
+        memory: 2Gi
+      controlledResources:
+      - cpu
+      - memory

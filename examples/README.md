@@ -240,7 +240,7 @@ python app.py
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.11+
+- Python 3.13+
 - PostgreSQL 14+
 - Docker & Docker Compose (optional)
 
@@ -381,9 +381,9 @@ SELECT * FROM pg_stat_activity;
 
 ### Application Monitoring
 - Prometheus metrics
-- Grafana dashboards
-- Error tracking with Sentry
-- Performance monitoring
+- Grafana dashboards querying PostgreSQL
+- PostgreSQL-native error tracking (Sentry alternative)
+- Performance monitoring with OpenTelemetry
 
 ## 🌟 Advanced Features
 

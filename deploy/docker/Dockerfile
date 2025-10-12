@@ -2,7 +2,7 @@
 # Optimized for production with security best practices
 
 # Stage 1: Builder
-FROM python:3.11-slim AS builder
+FROM python:3.13-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir build && \
     python -m build --wheel
 
 # Stage 2: Runtime
-FROM python:3.11-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 # Labels for metadata
 LABEL org.opencontainers.image.authors="FraiseQL Team"

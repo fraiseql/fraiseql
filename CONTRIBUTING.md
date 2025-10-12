@@ -1,6 +1,35 @@
 # Contributing to FraiseQL
 
-Thank you for your interest in contributing to FraiseQL! This document provides guidelines for contributing to the project.
+## FraiseQL Craft Code
+
+FraiseQL is designed, written, and maintained by a single developer.
+In the age of AI, this is a feature — not a bug.
+It allows FraiseQL to stay coherent, elegant, and deeply considered at every level.
+
+### Principles
+
+- **Clarity.** Code should be readable, predictable, and shaped by intent.
+- **Correctness.** Type safety, explicitness, and well-defined behavior are non-negotiable.
+- **Care.** Quality emerges from attention, not from scale.
+- **Respect.** All collaborators and users deserve consideration, curiosity, and honesty.
+- **Frugality.** Simplicity and restraint are virtues — unnecessary complexity is not.
+
+### Collaboration
+
+FraiseQL welcomes discussion, feedback, and contributions that uphold these principles.
+Contributions that compromise clarity, correctness, or coherence will be declined — kindly but firmly.
+
+### The Spirit of FraiseQL
+
+FraiseQL is a work of craft.
+It values depth over breadth, signal over noise, and thoughtful architecture over endless abstraction.
+The goal is not to build a community of many, but a foundation of quality that endures.
+
+---
+
+*Inspired by the Contributor Covenant, reimagined for the era of individual craft.*
+
+---
 
 ## 🚀 Quick Start
 
@@ -26,11 +55,20 @@ Thank you for your interest in contributing to FraiseQL! This document provides 
 
 ## 📋 Development Guidelines
 
-### Code Quality
-- **Type Hints**: All code must include type hints
-- **Documentation**: Document public APIs with docstrings
-- **Testing**: Maintain >95% test coverage for new code
-- **Style**: Code is automatically formatted with `black` and `ruff`
+### Code Quality (AI-Maintainability Standards)
+
+FraiseQL maintains **exceptional code quality** to ensure AI maintainability:
+
+- **Type Safety** (CRITICAL): All code must pass `pyright` with **0 errors**
+  ```bash
+  uv run pyright  # Must show: 0 errors, 0 warnings
+  ```
+- **Type Hints**: Full type annotations for all functions (no `Any` without justification)
+- **Documentation**: Document public APIs with Google-style docstrings
+- **Testing**: Maintain comprehensive test coverage (currently 3,448 tests)
+- **Style**: Code is automatically formatted with `ruff`
+
+**Why this matters**: FraiseQL is designed to be AI-maintainable. Perfect type safety means AI assistants (Claude Code, Copilot, Cursor) can understand and maintain the codebase reliably.
 
 ### Testing Strategy
 - **Unit Tests**: Add unit tests in `tests/unit/` for logic components
@@ -67,9 +105,6 @@ Thank you for your interest in contributing to FraiseQL! This document provides 
 - **Questions**: Open a GitHub Discussion or issue
 - **Chat**: Join our community discussions in GitHub Discussions
 - **Email**: Contact maintainer at lionel.hamayon@evolution-digitale.fr
-
-### Code of Conduct
-We are committed to providing a welcoming and inclusive community. By participating in this project, you agree to abide by our Code of Conduct (treating everyone with respect and kindness).
 
 ## 🏆 Recognition
 

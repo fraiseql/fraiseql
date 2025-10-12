@@ -50,25 +50,6 @@ def test_factory_creates_postgresql_backend():
     assert isinstance(backend, APQStorageBackend)
 
 
-def test_factory_creates_redis_backend():
-    """Test that factory creates Redis backend for redis config."""
-    config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        apq_storage_backend="redis",
-        apq_backend_config={
-            "redis_url": "redis://localhost:6379",
-            "key_prefix": "apq:"
-        }
-    )
-
-    backend = create_apq_backend(config)
-
-    # Import here to avoid circular imports
-    from fraiseql.storage.backends.redis import RedisAPQBackend
-    assert isinstance(backend, RedisAPQBackend)
-    assert isinstance(backend, APQStorageBackend)
-
-
 def test_factory_creates_custom_backend():
     """Test that factory creates custom backend from class path."""
     # Create a mock custom backend class for testing

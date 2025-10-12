@@ -24,7 +24,7 @@ try:
     )
 
     try:
-        from opentelemetry.exporter.zipkin.json import (
+        from opentelemetry.exporter.zipkin.json import (  # type: ignore[import-not-found]
             ZipkinExporter,  # type: ignore[import-untyped]
         )
     except ImportError:

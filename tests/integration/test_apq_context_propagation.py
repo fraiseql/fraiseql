@@ -120,12 +120,6 @@ class TestAPQContextPropagation:
         assert "user" in backend.captured_get_context
         assert backend.captured_get_context["user"]["metadata"]["tenant_id"] == "tenant-456"
 
-    @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Integration test requires full app setup")
-    async def test_full_apq_flow_with_context(self):
-        """Integration test: Full APQ flow with context propagation."""
-        pass
-
 
 class TestContextExtraction:
     """Test context extraction in different scenarios."""

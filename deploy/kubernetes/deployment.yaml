@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraiseql
+  labels:
+    app: fraiseql
+    tier: backend
+    framework: graphql
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: fraiseql
+  template:
+    metadata:
+      labels:
+        app: fraiseql
+        tier: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: fraiseql
+        image: fraiseql/fraiseql:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: metrics
+          containerPort: 8000
+          protocol: TCP
+
+        # Environment variables from ConfigMap and Secrets
+        envFrom:
+        - configMapRef:
+            name: fraiseql-config
+        - secretRef:
+            name: fraiseql-secrets
+
+        # Resource limits for production
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+
+        # Liveness probe - uses simple health endpoint
+        # Application implements: GET /health -> {"status": "healthy"}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+            httpHeaders:
+            - name: X-Probe-Type
+              value: liveness
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        # Readiness probe - uses application-defined endpoint with health checks
+        # Application implements using FraiseQL's HealthCheck utility:
+        #   from fraiseql.monitoring import HealthCheck
+        #   from fraiseql.monitoring.health_checks import check_database
+        #   @app.get("/ready")
+        #   async def ready(): return await health.run_checks()
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+            httpHeaders:
+            - name: X-Probe-Type
+              value: readiness
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 2
+
+        # Startup probe - for slow-starting applications
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 30  # 30 * 5 = 150 seconds max startup time
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # Set to true if your app supports it
+          capabilities:
+            drop:
+            - ALL
+
+      # Pod-level security
+      securityContext:
+        fsGroup: 1000
+
+      # Graceful shutdown
+      terminationGracePeriodSeconds: 30
+
+      # DNS configuration for fast startup
+      dnsPolicy: ClusterFirst
+
+      # Restart policy
+      restartPolicy: Always
+
+---
+# Service Account (optional, for RBAC)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fraiseql
+  labels:
+    app: fraiseql

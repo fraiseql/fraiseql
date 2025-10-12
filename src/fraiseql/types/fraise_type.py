@@ -30,7 +30,7 @@ def fraise_type(
 def fraise_type(_cls: T) -> T: ...
 
 
-def fraise_type(
+def fraise_type(  # type: ignore[misc]
     _cls: T | None = None,
     *,
     sql_source: str | None = None,

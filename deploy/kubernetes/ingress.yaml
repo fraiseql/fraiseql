@@ -1,0 +1,120 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fraiseql
+  labels:
+    app: fraiseql
+  annotations:
+    # NGINX Ingress Controller
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # Rate limiting (adjust based on your needs)
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+
+    # Request size limits
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+    # Timeouts for GraphQL queries
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+
+    # WebSocket support for subscriptions
+    nginx.ingress.kubernetes.io/websocket-services: "fraiseql"
+
+    # CORS (if not handled by application)
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://yourdomain.com"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+
+    # SSL/TLS Configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # If using cert-manager
+
+    # AWS ALB Ingress Controller (uncomment if using AWS)
+    # kubernetes.io/ingress.class: alb
+    # alb.ingress.kubernetes.io/scheme: internet-facing
+    # alb.ingress.kubernetes.io/target-type: ip
+    # alb.ingress.kubernetes.io/healthcheck-path: /health
+    # alb.ingress.kubernetes.io/success-codes: "200"
+
+    # GCP Ingress Controller (uncomment if using GCP)
+    # kubernetes.io/ingress.class: gce
+    # kubernetes.io/ingress.global-static-ip-name: "fraiseql-ip"
+
+spec:
+  ingressClassName: nginx  # Or: alb, gce, traefik, etc.
+
+  tls:
+  - hosts:
+    - api.yourdomain.com
+    - graphql.yourdomain.com
+    secretName: fraiseql-tls  # Certificate secret name
+
+  rules:
+  # Main GraphQL API endpoint
+  - host: api.yourdomain.com
+    http:
+      paths:
+      - path: /graphql
+        pathType: Prefix
+        backend:
+          service:
+            name: fraiseql
+            port:
+              name: http
+
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: fraiseql
+            port:
+              name: http
+
+      - path: /ready
+        pathType: Exact
+        backend:
+          service:
+            name: fraiseql
+            port:
+              name: http
+
+  # Alternative GraphQL endpoint
+  - host: graphql.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: fraiseql
+            port:
+              name: http
+
+---
+# Separate Ingress for Metrics (internal only)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fraiseql-metrics
+  labels:
+    app: fraiseql
+    component: monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"  # Internal IPs only
+spec:
+  ingressClassName: nginx-internal  # Use internal ingress class
+  rules:
+  - host: fraiseql-metrics.internal.yourdomain.com
+    http:
+      paths:
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: fraiseql
+            port:
+              name: metrics

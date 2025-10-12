@@ -1,0 +1,42 @@
+[package]
+name = "fraiseql_rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["FraiseQL Contributors"]
+description = "Ultra-fast GraphQL JSON transformation in Rust for FraiseQL"
+readme = "README.md"
+repository = "https://github.com/fraiseql/fraiseql"
+license = "MIT"
+keywords = ["graphql", "json", "performance", "pyo3", "rust"]
+categories = ["web-programming", "api-bindings"]
+
+[lib]
+name = "fraiseql_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.25.0", features = ["extension-module"] }
+
+# JSON parsing and serialization (zero-copy where possible)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Fast string operations
+# Note: Will add for Phase 2 (camelCase optimization)
+# smallvec = "1.13"
+
+[dev-dependencies]
+# Testing
+pyo3 = { version = "0.25.0", features = ["auto-initialize"] }
+
+# Benchmarking (for comparing vs Python) - will be added in Phase 2
+# criterion = { version = "0.5", features = ["html_reports"] }
+
+# Benchmark targets will be added as we implement features:
+# [[bench]]
+# name = "camel_case"
+# harness = false
+#
+# [[bench]]
+# name = "json_transform"
+# harness = false

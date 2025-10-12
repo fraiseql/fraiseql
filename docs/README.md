@@ -1,219 +1,219 @@
 # FraiseQL Documentation
 
-Welcome to the FraiseQL documentation hub! This directory contains comprehensive documentation organized by user journey and expertise level.
+Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry. Delivers sub-millisecond response times through database-first architecture and CQRS pattern implementation.
 
-## 🎯 Documentation Philosophy
+## Quick Navigation
 
-Our documentation follows **Progressive Disclosure** principles:
+**Getting Started**
+- [5-Minute Quickstart](./quickstart.md) - Build a working API in minutes
+- [Beginner Learning Path](./tutorials/beginner-path.md) - Complete learning journey (2-3 hours)
 
-- **Multiple Entry Points**: Start from where you are in your journey
-- **Layered Learning**: From quick start to advanced patterns
-- **Workflow-Oriented**: Organized by what you want to accomplish
-- **Always Current**: Documentation evolves with the codebase
+**Tutorials** (3 hands-on guides)
+- [Beginner Learning Path](./tutorials/beginner-path.md) - Zero to production in 2-3 hours
+- [Blog API Tutorial](./tutorials/blog-api.md) - Complete blog with posts, comments, users (45 min)
+- [Production Deployment](./tutorials/production-deployment.md) - Docker, monitoring, security (90 min)
 
-## 🗺️ Navigation by User Journey
+**Core Concepts** (5 docs)
+- [Types and Schema](./core/types-and-schema.md) - GraphQL type definitions and schema generation
+- [Queries and Mutations](./core/queries-and-mutations.md) - Resolver patterns and execution
+- [Database API](./core/database-api.md) - Repository patterns and query building
+- [Configuration](./core/configuration.md) - Application setup and tuning
+- [FraiseQL Philosophy](./core/fraiseql-philosophy.md) - Design principles and architecture decisions
 
-### 🚀 New to FraiseQL?
-**Start here for quickest path to productivity**
+**Performance** (3 docs)
+- [Performance Optimization](./performance/index.md) - Complete optimization stack (Rust, APQ, TurboRouter, JSON Passthrough)
+- [Result Caching](./performance/caching.md) - PostgreSQL-based result caching with automatic tenant isolation
+- [Caching Migration](./performance/caching-migration.md) - Add caching to existing applications
 
-```
-📍 START HERE
-├── getting-started/          # 0-60 in 5 minutes
-│   ├── installation.md      # Quick install & first query
-│   ├── first-api.md         # Build your first API
-│   └── key-concepts.md      # Essential concepts overview
-├── tutorials/               # Step-by-step guided learning
-│   ├── blog-api-tutorial.md # Complete API from scratch
-│   └── advanced-patterns.md # Beyond the basics
-└── examples/                # Working code you can run
-    └── → See ../examples/   # Live examples directory
-```
+**Advanced Patterns** (6 docs)
+- [Authentication](./advanced/authentication.md) - Auth patterns and security
+- [Multi-Tenancy](./advanced/multi-tenancy.md) - Tenant isolation strategies
+- [Bounded Contexts](./advanced/bounded-contexts.md) - Domain separation
+- [Event Sourcing](./advanced/event-sourcing.md) - Event-driven architecture
+- [Database Patterns](./advanced/database-patterns.md) - View design and N+1 prevention
+- [LLM Integration](./advanced/llm-integration.md) - AI-native architecture
 
-**Time Investment**: 30 minutes to working API
+**Production** (5 docs)
+- [Deployment](./production/deployment.md) - Docker, Kubernetes, cloud platforms
+- [Monitoring](./production/monitoring.md) - PostgreSQL-native error tracking and caching
+- [Observability](./production/observability.md) - Complete observability stack in PostgreSQL
+- [Security](./production/security.md) - Production hardening
+- [Health Checks](./production/health-checks.md) - Application health monitoring
 
-### 🛠️ Building Production APIs?
-**Architecture, patterns, and best practices**
+**Reference** (4 docs)
+- [CLI Reference](./reference/cli.md) - Complete command-line interface guide
+- [Decorators](./reference/decorators.md) - @type, @query, @mutation
+- [Configuration](./reference/config.md) - FraiseQLConfig options
+- [Database API](./reference/database.md) - Repository methods
 
-```
-📍 PRODUCTION READY
-├── architecture/            # System design & patterns
-│   ├── cqrs-patterns.md    # Command Query Responsibility Segregation
-│   ├── database-design.md   # PostgreSQL optimization
-│   └── decisions/          # Architectural Decision Records (ADRs)
-├── core-concepts/          # Deep-dive into FraiseQL concepts
-│   ├── type-system.md      # Type system & validation
-│   ├── mutations.md        # Mutation patterns & error handling
-│   └── performance.md      # Performance optimization
-└── deployment/             # Production deployment
-    ├── docker.md           # Container deployment
-    ├── monitoring.md       # Observability & metrics
-    └── scaling.md          # Horizontal scaling patterns
-```
+## About FraiseQL
 
-**Use Cases**: Enterprise APIs, microservices, high-performance systems
+FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evoludigit)), a self-taught developer frustrated with a fundamental inefficiency in GraphQL frameworks.
 
-### 🔍 Looking for Specific Information?
-**Reference materials and troubleshooting**
+**Started: April 2025**
 
-```
-📍 REFERENCE & TROUBLESHOOTING
-├── api-reference/          # Complete API documentation
-│   ├── decorators.md       # @fraiseql.query, @fraiseql.mutation
-│   ├── types.md            # Built-in and custom types
-│   └── utilities.md        # Helper functions & utilities
-├── errors/                 # Error handling & troubleshooting
-│   ├── common-errors.md    # Frequent issues & solutions
-│   └── debugging.md        # Debugging techniques
-└── migration/              # Version migration guides
-    ├── v0.5-migration.md   # Upgrading to v0.5
-    └── breaking-changes.md # All breaking changes log
-```
+The trigger: watching PostgreSQL return JSON, Python deserialize it to objects, then GraphQL serialize it back to JSON. This roundtrip is ridiculous.
 
-**Use Cases**: API reference, debugging issues, version upgrades
+After years with Django, Flask, FastAPI, and Strawberry GraphQL with SQLAlchemy, the answer became obvious: just let PostgreSQL return the JSON directly. Skip the ORM. Skip the object mapping. Let the database do what databases do best.
 
-### 🚀 Advanced Use Cases?
-**Extending FraiseQL for complex scenarios**
+But there was a second goal: make it LLM-first. SQL and Python are massively trained in every AI model. A framework built with these as primitives means LLMs can understand the context easily and generate correct code. In the age of AI-assisted development, this matters.
 
-```
-📍 ADVANCED & EXTENDING
-├── advanced/               # Advanced patterns & techniques
-│   ├── performance-optimization-layers.md # Three-layer performance architecture
-│   ├── apq-storage-backends.md # APQ storage backend abstraction
-│   ├── custom-scalars.md   # Building custom scalar types
-│   ├── middleware.md       # Custom middleware patterns
-│   └── extensions.md       # Framework extensions
-├── comparisons/            # vs other GraphQL frameworks
-│   ├── vs-graphene.md      # Migration from Graphene
-│   └── vs-strawberry.md    # Comparison with Strawberry
-└── environmental-impact/   # Sustainability considerations
-    └── performance-impact.md
-```
+FraiseQL is the result: database-first CQRS, minimal Python, maximum PostgreSQL, and architecture that's readable by both humans and AI.
 
-**Use Cases**: Framework extension, migration planning, sustainability
+**Connect:** [@evoludigit](https://github.com/evoludigit) • [Évolution digitale](https://evolution-digitale.fr)
 
-### 🧪 Contributing & Development?
-**Internal development and contribution guides**
+## Architecture Overview
 
-```
-📍 DEVELOPMENT & CONTRIBUTING
-├── development/            # Internal development documentation
-│   ├── setup.md           # Development environment setup
-│   ├── testing.md         # Testing strategies & patterns
-│   ├── fixes/             # Bug fix documentation
-│   ├── planning/          # Development planning docs
-│   └── agent-prompts/     # AI assistant prompts
-├── testing/               # Testing documentation
-│   ├── strategy.md        # Overall testing approach
-│   └── patterns.md        # Common testing patterns
-└── releases/              # Release documentation
-    ├── release-process.md  # How releases are made
-    └── changelog.md       # Human-readable changes
+FraiseQL implements CQRS pattern with PostgreSQL as the single source of truth. Queries execute through JSONB views returning pre-composed data, while mutations run as PostgreSQL functions containing business logic. This architecture eliminates N+1 queries by design and achieves 0.5-2ms response times with APQ caching.
+
+**Core Components**:
+- **Views** (v_*, tv_*): Read-side projections returning JSONB data
+- **Functions** (fn_*): Write-side operations with transactional guarantees
+- **Repository**: Async database operations with type safety
+- **Rust Transformer**: 10-80x faster JSON processing
+
+## Key Features
+
+| Feature | Description | Documentation |
+|---------|-------------|---------------|
+| Type-Safe Schema | Python decorators generate GraphQL types | [Types and Schema](./core/types-and-schema.md) |
+| Repository Pattern | Async database operations with structured queries | [Database API](./core/database-api.md) |
+| Result Caching | PostgreSQL-based caching with tenant isolation | [Caching](./performance/caching.md) |
+| Rust Transformation | 10-80x faster JSON processing (optional) | [Performance](./performance/index.md) |
+| APQ Caching | Hash-based query persistence in PostgreSQL | [Performance](./performance/index.md) |
+| JSON Passthrough | Zero-copy responses from database | [Performance](./performance/index.md) |
+| Multi-Tenancy | Row-level security patterns | [Multi-Tenancy](./advanced/multi-tenancy.md) |
+| N+1 Prevention | Eliminated by design via view composition | [Database Patterns](./advanced/database-patterns.md) |
+
+## System Requirements
+
+**Required**:
+- Python 3.11+
+- PostgreSQL 14+
+
+**Optional**:
+- Rust compiler (for performance layer: 10-80x JSON speedup)
+
+## Installation
+
+```bash
+# Standard installation
+pip install fraiseql fastapi uvicorn
+
+# With Rust performance extensions (recommended)
+pip install fraiseql[rust]
 ```
 
-**Use Cases**: Contributing code, understanding internals, release management
+## Hello World Example
 
-## 🎯 Quick Access by Task
+```python
+from fraiseql import FraiseQL, ID
+from datetime import datetime
 
-### "I want to..."
+app = FraiseQL(database_url="postgresql://localhost/mydb")
 
-#### **Get Started Fast**
-→ `getting-started/installation.md` → `tutorials/blog-api-tutorial.md` → `examples/`
+@app.type
+class Task:
+    id: ID
+    title: str
+    completed: bool
+    created_at: datetime
 
-#### **Build a Production API**
-→ `core-concepts/` → `architecture/` → `deployment/`
+@app.query
+async def tasks(info) -> list[Task]:
+    repo = info.context["repo"]
+    return await repo.find("v_task")
+```
 
-#### **Debug an Issue**
-→ `errors/common-errors.md` → `api-reference/` → `development/testing.md`
+Database view:
+```sql
+CREATE VIEW v_task AS
+SELECT jsonb_build_object(
+    'id', id,
+    'title', title,
+    'completed', completed,
+    'created_at', created_at
+) AS data
+FROM tb_task;
+```
 
-#### **Migrate Versions**
-→ `migration/` → `releases/changelog.md` → `errors/`
+## Performance Stack
 
-#### **Extend the Framework**
-→ `advanced/` → `development/` → `architecture/decisions/`
+FraiseQL achieves sub-millisecond performance through four optimization layers:
 
-#### **Contribute to Project**
-→ `development/setup.md` → `testing/` → `../CONTRIBUTING.md`
+| Layer | Technology | Speedup | Configuration |
+|-------|------------|---------|---------------|
+| 0 | Rust Transformation | 10-80x | `pip install fraiseql[rust]` |
+| 1 | APQ Caching | 5-10x | `apq_storage_backend="postgresql"` |
+| 2 | TurboRouter | 3-5x | `enable_turbo_router=True` |
+| 3 | JSON Passthrough | 2-3x | Automatic with JSONB views |
+| **Bonus** | **Result Caching** | **50-500x** | [PostgreSQL Cache](./performance/caching.md) |
 
-## 📊 Documentation Maturity Levels
+**Combined**: 0.5-2ms response times for cached queries. See [Performance](./performance/index.md) for complete details.
 
-### 🟢 Complete & Current
-**Actively maintained, comprehensive coverage**
+## Architecture Principles
 
-- `getting-started/` - New user onboarding
-- `core-concepts/` - Framework fundamentals
-- `api-reference/` - Complete API documentation
-- `examples/` - Working code examples
-- `releases/` - Release notes and migration guides
+**Database-First**: PostgreSQL views define data structure and relationships. Single queries return pre-composed JSONB matching GraphQL structure.
 
-### 🟡 Good & Stable
-**Solid coverage, periodic updates**
+**CQRS Pattern**: Strict separation of reads (views) and writes (functions). Read models optimized for queries, write operations enforce business rules.
 
-- `tutorials/` - Step-by-step guides
-- `architecture/` - Design documentation
-- `deployment/` - Production guidance
-- `testing/` - Testing approaches
+**Type Safety**: Python type hints generate GraphQL schema. Repository operations are type-checked at compile time.
 
-### 🟠 Growing & Evolving
-**Active development, expanding coverage**
+**Zero N+1**: Database-side composition via JSONB aggregation eliminates resolver chains and multiple queries.
 
-- `advanced/` - Advanced patterns
-- `development/` - Internal documentation
-- `comparisons/` - Framework comparisons
-- `errors/` - Troubleshooting guides
+## Development Workflow
 
-## 🔧 Documentation Maintenance
+1. **Design Schema**: Create PostgreSQL tables and relationships
+2. **Build Views**: Compose JSONB views with `jsonb_build_object()`
+3. **Define Types**: Python classes with type hints
+4. **Add Queries**: Resolvers calling `repo.find()` methods
+5. **Implement Mutations**: PostgreSQL functions called via `repo.call_function()`
 
-### For Contributors
-**Adding new documentation:**
+## Documentation Structure
 
-1. **Identify audience**: New user? Advanced developer? Contributor?
-2. **Choose location**: Use the journey-based organization above
-3. **Follow templates**: Use existing documents as templates
-4. **Cross-reference**: Link to related documentation
-5. **Test examples**: Ensure all code examples work
+This documentation follows an information-dense format optimized for both human developers and AI code assistants. Each page provides:
+- Structured reference material (tables, signatures, examples)
+- Production-ready code samples
+- Performance characteristics where measured
+- Cross-references to related topics
 
-### For Maintainers
-**Regular maintenance tasks:**
+## Learning Paths
 
-- **Update examples**: Keep code examples current with latest version
-- **Review accuracy**: Validate documentation matches current behavior
-- **Fix broken links**: Regular link checking and repair
-- **User feedback**: Incorporate user suggestions and questions
-- **Metrics review**: Analyze most/least used documentation
+### New to FraiseQL? Start Here
 
-### Documentation Standards
+1. **[5-Minute Quickstart](./quickstart.md)** - Get a working API immediately
+2. **[Beginner Learning Path](./tutorials/beginner-path.md)** - Structured 2-3 hour journey
+3. **[Blog API Tutorial](./tutorials/blog-api.md)** - Build complete application
+4. **[Database Patterns](./advanced/database-patterns.md)** - Production patterns
 
-- **Code examples**: All code must be tested and working
-- **Screenshots**: Keep UI screenshots current
-- **Links**: Use relative links within documentation
-- **Structure**: Follow established heading hierarchy
-- **Language**: Clear, concise, jargon-free where possible
+### Building Production APIs?
 
-## 🌟 Getting Help with Documentation
+1. **[Performance Optimization](./performance/index.md)** - 4-layer optimization stack
+2. **[Database Patterns](./advanced/database-patterns.md)** - tv_ pattern, entity change log, lazy caching
+3. **[Production Deployment](./tutorials/production-deployment.md)** - Docker, monitoring, security
+4. **[Multi-Tenancy](./advanced/multi-tenancy.md)** - Tenant isolation
 
-### Finding Information
+### Quick Reference?
 
-1. **Start with README files**: Each directory has organization overview
-2. **Use search**: Full-text search across all documentation
-3. **Follow cross-references**: Documentation is heavily interlinked
-4. **Check examples**: Working code often answers questions
+- **[CLI Reference](./reference/cli.md)** - All commands, options, and workflows
+- **[Database API](./core/database-api.md)** - Repository methods and QueryOptions
+- **[Performance](./performance/index.md)** - Rust, APQ, TurboRouter, JSON Passthrough
+- **[Database Patterns](./advanced/database-patterns.md)** - Real production patterns (2,023 lines)
 
-### Improving Documentation
+## Contributing
 
-- **Report issues**: Use GitHub issues for documentation problems
-- **Suggest improvements**: PRs welcome for clarifications and additions
-- **Ask questions**: Questions often reveal documentation gaps
+Contributions to improve documentation accuracy and completeness are welcome. Please ensure:
+- Code examples are tested and copy-paste ready
+- Performance claims are backed by data or marked as TBD
+- Professional tone without marketing language
+- Tables used for structured information
 
----
+## Support
 
-## 🎯 Quick Start Paths
+- GitHub Issues: Bug reports and feature requests
+- Examples: `/examples` directory in repository
+- API Reference: Complete method documentation
 
-**Never used FraiseQL?** → `getting-started/installation.md`
-**Migrating from another framework?** → `comparisons/` + `migration/`
-**Building enterprise API?** → `architecture/` + `deployment/`
-**Contributing to FraiseQL?** → `development/setup.md` + `../CONTRIBUTING.md`
-**Debugging an issue?** → `errors/common-errors.md`
+## License
 
----
-
-*This documentation architecture evolves with FraiseQL and user needs. When in doubt, start with `getting-started/` and follow the breadcrumbs!*
+See repository for license information.

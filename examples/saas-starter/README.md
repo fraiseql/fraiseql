@@ -726,7 +726,7 @@ REDIS_URL=redis://localhost:6379
 ### Docker Deployment
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 COPY requirements.txt .

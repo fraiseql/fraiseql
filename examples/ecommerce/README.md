@@ -28,7 +28,7 @@ A complete production-ready e-commerce API built with FraiseQL, demonstrating be
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.13+
 - PostgreSQL 14+
 - Redis (optional, for caching)
 
