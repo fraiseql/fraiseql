@@ -42,14 +42,14 @@ class TestNestedArrayRegistry:
 
     def test_manual_registration(self):
         """Test manual registration of nested array filters."""
-        
+
         @fraise_type
         class NetworkConfig:
             servers: List[TestPrintServer] = fraise_field(default_factory=list)
-        
+
         # Register manually
         register_nested_array_filter(NetworkConfig, "servers", TestPrintServer)
-        
+
         # Verify registration
         assert is_nested_array_filterable(NetworkConfig, "servers")
         assert get_nested_array_filter(NetworkConfig, "servers") == TestPrintServer
@@ -58,7 +58,7 @@ class TestNestedArrayRegistry:
 
     def test_auto_nested_array_filters_decorator(self):
         """Test the @auto_nested_array_filters decorator."""
-        
+
         @auto_nested_array_filters
         @fraise_type
         class AutoNetworkConfig:
@@ -68,26 +68,26 @@ class TestNestedArrayRegistry:
             hostname: str = "default"
             # This won't be registered as it's not a FraiseQL type
             tags: List[str] = fraise_field(default_factory=list)
-        
+
         # Both List[FraiseQLType] fields should be registered
         assert is_nested_array_filterable(AutoNetworkConfig, "servers")
         assert is_nested_array_filterable(AutoNetworkConfig, "devices")
         assert get_nested_array_filter(AutoNetworkConfig, "servers") == TestPrintServer
         assert get_nested_array_filter(AutoNetworkConfig, "devices") == TestNetworkDevice
-        
+
         # Non-list and non-FraiseQL fields should not be registered
         assert not is_nested_array_filterable(AutoNetworkConfig, "hostname")
         assert not is_nested_array_filterable(AutoNetworkConfig, "tags")
 
     def test_nested_array_filterable_decorator(self):
         """Test the @nested_array_filterable decorator with specific fields."""
-        
+
         @nested_array_filterable("servers")  # Only register servers, not devices
         @fraise_type
         class SelectiveNetworkConfig:
             servers: List[TestPrintServer] = fraise_field(default_factory=list)
             devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
-        
+
         # Only servers should be registered
         assert is_nested_array_filterable(SelectiveNetworkConfig, "servers")
         assert not is_nested_array_filterable(SelectiveNetworkConfig, "devices")
@@ -96,14 +96,14 @@ class TestNestedArrayRegistry:
 
     def test_nested_array_filterable_multiple_fields(self):
         """Test @nested_array_filterable with multiple field names."""
-        
+
         @nested_array_filterable("servers", "devices")
         @fraise_type
         class MultiSelectiveConfig:
             servers: List[TestPrintServer] = fraise_field(default_factory=list)
             devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
             other_stuff: List[TestPrintServer] = fraise_field(default_factory=list)
-        
+
         # Both specified fields should be registered
         assert is_nested_array_filterable(MultiSelectiveConfig, "servers")
         assert is_nested_array_filterable(MultiSelectiveConfig, "devices")
@@ -111,37 +111,37 @@ class TestNestedArrayRegistry:
 
     def test_enable_nested_array_filtering_function(self):
         """Test the enable_nested_array_filtering function."""
-        
+
         @fraise_type
         class ManualEnableConfig:
             servers: List[TestPrintServer] = fraise_field(default_factory=list)
             devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
-        
+
         # Enable filtering after class definition
         enable_nested_array_filtering(ManualEnableConfig)
-        
+
         assert is_nested_array_filterable(ManualEnableConfig, "servers")
         assert is_nested_array_filterable(ManualEnableConfig, "devices")
 
     def test_list_registered_filters(self):
         """Test listing all registered filters."""
-        
+
         @auto_nested_array_filters
         @fraise_type
         class ConfigA:
             servers: List[TestPrintServer] = fraise_field(default_factory=list)
-        
+
         @nested_array_filterable("devices")
-        @fraise_type  
+        @fraise_type
         class ConfigB:
             devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
-        
+
         filters = list_registered_filters()
-        
+
         # Should have entries for both classes
         config_a_key = f"{ConfigA.__module__}.{ConfigA.__name__}"
         config_b_key = f"{ConfigB.__module__}.{ConfigB.__name__}"
-        
+
         assert config_a_key in filters
         assert config_b_key in filters
         assert filters[config_a_key]["servers"] == "TestPrintServer"
@@ -149,33 +149,33 @@ class TestNestedArrayRegistry:
 
     def test_registry_isolation_by_type(self):
         """Test that different types don't interfere with each other."""
-        
+
         @fraise_type
         class ConfigA:
             items: List[TestPrintServer] = fraise_field(default_factory=list)
-            
+
         @fraise_type
         class ConfigB:
             items: List[TestNetworkDevice] = fraise_field(default_factory=list)
-        
+
         register_nested_array_filter(ConfigA, "items", TestPrintServer)
         register_nested_array_filter(ConfigB, "items", TestNetworkDevice)
-        
+
         # Same field name but different parent types should have different registrations
         assert get_nested_array_filter(ConfigA, "items") == TestPrintServer
         assert get_nested_array_filter(ConfigB, "items") == TestNetworkDevice
 
     def test_clear_registry(self):
         """Test that clear_registry removes all registrations."""
-        
+
         @auto_nested_array_filters
         @fraise_type
         class TestConfig:
             servers: List[TestPrintServer] = fraise_field(default_factory=list)
-        
+
         # Verify registration exists
         assert is_nested_array_filterable(TestConfig, "servers")
-        
+
         # Clear and verify removal
         clear_registry()
         assert not is_nested_array_filterable(TestConfig, "servers")
@@ -183,12 +183,12 @@ class TestNestedArrayRegistry:
 
     def test_decorator_error_handling(self):
         """Test that decorators handle errors gracefully."""
-        
+
         # This should not crash even if type hints fail
         @auto_nested_array_filters
         class BadTypeHints:
             # This might cause get_type_hints to fail
             pass
-        
+
         # Should not be registered due to error, but should not crash
         assert not is_nested_array_filterable(BadTypeHints, "anything")

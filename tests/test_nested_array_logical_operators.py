@@ -50,7 +50,7 @@ class TestNestedArrayLogicalOperators:
         """Set up test data and clear registry."""
         clear_registry()
         register_nested_array_filter(DataCenter, "servers", Server)
-        
+
         # Create comprehensive test data
         self.test_datacenter = DataCenter(
             id=uuid.uuid4(),
@@ -145,7 +145,7 @@ class TestNestedArrayLogicalOperators:
         where_filter.is_virtual = {"equals": False}
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
+
         # Should find: prod-web-01 (production + active + not virtual)
         assert len(result) == 1
         assert result[0].hostname == "prod-web-01"
@@ -161,10 +161,10 @@ class TestNestedArrayLogicalOperators:
         # Explicit AND conditions
         condition1 = ServerWhereInput()
         condition1.environment = {"equals": "production"}
-        
+
         condition2 = ServerWhereInput()
         condition2.cpu_cores = {"gte": 8}
-        
+
         condition3 = ServerWhereInput()
         condition3.status = {"in": ["active", "maintenance"]}
 
@@ -172,7 +172,7 @@ class TestNestedArrayLogicalOperators:
         where_filter.AND = [condition1, condition2, condition3]
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
+
         # Should find: prod-web-01, prod-web-02, prod-db-01
         # (all production with >= 8 cores and status in [active, maintenance])
         assert len(result) == 3
@@ -187,7 +187,7 @@ class TestNestedArrayLogicalOperators:
         # OR conditions - high-spec OR development servers
         condition1 = ServerWhereInput()
         condition1.memory_gb = {"gte": 32}  # High memory
-        
+
         condition2 = ServerWhereInput()
         condition2.environment = {"equals": "development"}  # OR development
 
@@ -195,7 +195,7 @@ class TestNestedArrayLogicalOperators:
         where_filter.OR = [condition1, condition2]
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
+
         # Should find: prod-web-01, prod-web-02, prod-db-01 (>=32GB) + dev-test-01, dev-build-01 (development)
         assert len(result) == 5
         hostnames = {server.hostname for server in result}
@@ -217,7 +217,7 @@ class TestNestedArrayLogicalOperators:
         where_filter.NOT = not_condition
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
+
         # Should find all non-production servers: staging + development
         assert len(result) == 4
         hostnames = {server.hostname for server in result}
@@ -237,13 +237,13 @@ class TestNestedArrayLogicalOperators:
             ServerWhereInput(environment={"equals": "production"}),
             ServerWhereInput(environment={"equals": "staging"})
         ]
-        
+
         status_condition = ServerWhereInput()
         status_condition.OR = [
             ServerWhereInput(status={"equals": "active"}),
             ServerWhereInput(status={"equals": "maintenance"})
         ]
-        
+
         ip_condition = ServerWhereInput()
         ip_condition.ip_address = {"isnull": False}
 
@@ -251,7 +251,7 @@ class TestNestedArrayLogicalOperators:
         where_filter.AND = [env_condition, status_condition, ip_condition]
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
+
         # Should find: prod-web-01, prod-web-02, prod-db-01, staging-web-01
         # (production/staging + active/maintenance + has IP)
         assert len(result) == 4
@@ -278,7 +278,7 @@ class TestNestedArrayLogicalOperators:
         where_filter.NOT = not_condition
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
+
         # Should exclude: dev-test-01, dev-build-01 (development) + any error status
         # Should find: all production + staging servers
         assert len(result) == 5
@@ -293,9 +293,9 @@ class TestNestedArrayLogicalOperators:
         ServerWhereInput = create_graphql_where_input(Server)
         resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
 
-        # Complex query: 
+        # Complex query:
         # (production AND (>=8 cores OR >=32GB memory)) OR (staging AND active AND virtual)
-        
+
         # Production with high specs
         prod_high_spec = ServerWhereInput()
         prod_high_spec.AND = [
@@ -305,7 +305,7 @@ class TestNestedArrayLogicalOperators:
                 ServerWhereInput(memory_gb={"gte": 32})
             ])
         ]
-        
+
         # Staging active virtual
         staging_active_virtual = ServerWhereInput()
         staging_active_virtual.AND = [
@@ -318,8 +318,8 @@ class TestNestedArrayLogicalOperators:
         where_filter.OR = [prod_high_spec, staging_active_virtual]
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
-        # Should find: 
+
+        # Should find:
         # - Production high-spec: prod-web-01, prod-web-02, prod-db-01
         # - Staging active virtual: staging-web-01
         assert len(result) == 4
@@ -336,13 +336,13 @@ class TestNestedArrayLogicalOperators:
 
         # Complex field + logical operator combination:
         # (hostname contains "web" AND memory >= 16) OR (hostname contains "db" AND cpu >= 8)
-        
+
         web_condition = ServerWhereInput()
         web_condition.AND = [
             ServerWhereInput(hostname={"contains": "web"}),
             ServerWhereInput(memory_gb={"gte": 16})
         ]
-        
+
         db_condition = ServerWhereInput()
         db_condition.AND = [
             ServerWhereInput(hostname={"contains": "db"}),
@@ -353,7 +353,7 @@ class TestNestedArrayLogicalOperators:
         where_filter.OR = [web_condition, db_condition]
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
+
         # Should find:
         # - Web servers with >=16GB: prod-web-01, prod-web-02, staging-web-01
         # - DB servers with >=8 cores: prod-db-01
@@ -391,7 +391,7 @@ class TestNestedArrayLogicalOperators:
         # (has IP address) OR (environment = development)
         has_ip_condition = ServerWhereInput()
         has_ip_condition.ip_address = {"isnull": False}
-        
+
         dev_condition = ServerWhereInput()
         dev_condition.environment = {"equals": "development"}
 
@@ -399,7 +399,7 @@ class TestNestedArrayLogicalOperators:
         where_filter.OR = [has_ip_condition, dev_condition]
 
         result = await resolver(self.test_datacenter, None, where=where_filter)
-        
+
         # Should find: all servers with IPs OR all development servers
         # staging-db-01 has no IP and is not development, so excluded
         assert len(result) == 6  # All servers except staging-db-01
@@ -438,13 +438,13 @@ class TestNestedArrayLogicalOperators:
         start_time = time.time()
         result = await resolver(self.test_datacenter, None, where=complex_condition)
         end_time = time.time()
-        
+
         # Should complete quickly (< 0.1 seconds for 7 items)
         assert (end_time - start_time) < 0.1
-        
+
         # Verify correct filtering logic was applied
         assert len(result) >= 1  # Should find some matches
-        
+
         # All results should match at least one of the OR conditions
         for server in result:
             matches_first_condition = (
