@@ -465,7 +465,14 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
                     self._pool.connection() as conn,
                     conn.cursor(row_factory=dict_row) as cursor,
                 ):
-                    await cursor.execute(sample_query.statement, sample_query.params)
+                    # Handle Composed statements with empty params to avoid placeholder scanning
+                    if (
+                        isinstance(sample_query.statement, (Composed, SQL))
+                        and not sample_query.params
+                    ):
+                        await cursor.execute(sample_query.statement)
+                    else:
+                        await cursor.execute(sample_query.statement, sample_query.params)
                     sample_rows = await cursor.fetchall()
 
                 if sample_rows:
