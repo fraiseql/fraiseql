@@ -2,8 +2,8 @@ apiVersion: v2
 name: fraiseql
 description: High-performance GraphQL framework for PostgreSQL with CQRS, APQ, and sub-millisecond responses
 type: application
-version: 0.11.0
-appVersion: "0.11.0"
+version: 0.11.1
+appVersion: "0.11.1"
 
 keywords:
   - graphql
