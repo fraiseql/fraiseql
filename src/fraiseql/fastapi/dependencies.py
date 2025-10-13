@@ -188,5 +188,8 @@ async def build_graphql_context(
     if mode == "production":
         context["json_passthrough"] = True
         context["execution_mode"] = "passthrough"
+        # Update repository context to enable passthrough in database queries
+        db.context["json_passthrough"] = True
+        db.context["execution_mode"] = "passthrough"
 
     return context

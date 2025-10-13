@@ -515,9 +515,23 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             # Execute and parse JSON results
             import json
 
+            # Get type name for Rust transformation (snake_case → camelCase + __typename)
+            type_name = None
+            try:
+                type_class = self._get_type_for_view(view_name)
+                if hasattr(type_class, "__name__"):
+                    type_name = type_class.__name__
+            except Exception:
+                # If we can't get the type, continue without type name (no transformation)
+                pass
+
             async with self._pool.connection() as conn:
                 result = await execute_raw_json_list_query(
-                    conn, query.statement, query.params, None
+                    conn,
+                    query.statement,
+                    query.params,
+                    None,  # field_name=None since we extract data.get("data")
+                    type_name=type_name,  # Enable Rust transformation
                 )
                 # Parse the raw JSON to get list of dicts
                 data = json.loads(result.json_string)
@@ -635,8 +649,24 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             # Execute and parse JSON result
             import json
 
+            # Get type name for Rust transformation (snake_case → camelCase + __typename)
+            type_name = None
+            try:
+                type_class = self._get_type_for_view(view_name)
+                if hasattr(type_class, "__name__"):
+                    type_name = type_class.__name__
+            except Exception:
+                # If we can't get the type, continue without type name (no transformation)
+                pass
+
             async with self._pool.connection() as conn:
-                result = await execute_raw_json_query(conn, query.statement, query.params, None)
+                result = await execute_raw_json_query(
+                    conn,
+                    query.statement,
+                    query.params,
+                    None,  # field_name=None since we extract data.get("data")
+                    type_name=type_name,  # Enable Rust transformation
+                )
                 # Parse the raw JSON to get dict
                 data = json.loads(result.json_string)
                 # Extract the data object (it's wrapped in {"data": {...}})
@@ -1183,9 +1213,9 @@ class FraiseQLRepository(IntelligentPassthroughMixin, PassthroughMixin):
             where_parts.append(where_condition)
 
         # PURE PASSTHROUGH MODE (v1 Performance Optimization)
-        # Always use pure passthrough when raw_json=True for maximum performance (25-60x faster)
-        # This bypasses field extraction and uses SELECT data::text directly
-        if raw_json:
+        # Use pure passthrough when raw_json=True AND no field selection (maximum performance)
+        # When field_paths are provided, still do field extraction for GraphQL compliance
+        if raw_json and not field_paths:
             logger.info(
                 f"🚀 Pure passthrough mode enabled for {view_name} "
                 f"(bypassing field extraction for maximum performance)"

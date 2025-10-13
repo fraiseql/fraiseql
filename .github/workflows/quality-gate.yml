@@ -52,6 +52,9 @@ jobs:
         python -m pip config list || echo "No pip config available"
         python -c "import site; print(f'Site packages: {site.getsitepackages()}')" || echo "Cannot get site packages"
         echo "Installing with uv (bypassing pip caching issues)..."
+        # Install Rust extension first (uv handles Rust compilation automatically)
+        uv pip install --system -e fraiseql_rs --no-cache
+        # Install main package with dev dependencies
         uv pip install --system -e ".[dev,all]" --no-cache
 
     - name: Verify Environment
