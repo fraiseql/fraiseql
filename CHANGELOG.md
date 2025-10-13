@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.5] - 2025-10-13
+
+### 🐛 Critical Bug Fixes
+
+**Missing Rust CamelCase Transformation in Production Mode**
+- **CRITICAL FIX**: Fixed missing Rust transformation in `FraiseQLRepository.find()` and `find_one()` methods
+- Production mode (default) was returning `snake_case` field names instead of expected `camelCase` for GraphQL
+- This would cause ALL GraphQL queries to receive incorrectly formatted responses
+- Added `type_name` parameter to `execute_raw_json_*()` calls to enable Rust transformation
+
+**Before (broken):**
+```json
+{"ip_address": "192.168.1.1", "created_at": "2025-01-01"}
+```
+
+**After (fixed):**
+```json
+{"ipAddress": "192.168.1.1", "createdAt": "2025-01-01"}
+```
+
+**Technical Details:**
+- Modified `src/fraiseql/db.py`:
+  - Lines 515-539: Added type_name extraction in `find()` production mode path
+  - Lines 649-673: Added type_name extraction in `find_one()` production mode path
+  - Now passes `type_name` to `execute_raw_json_list_query()` and `execute_raw_json_query()`
+- Modified `src/fraiseql/fastapi/dependencies.py`:
+  - Ensured `db.context` receives `json_passthrough` and `execution_mode` flags
+
+**Impact:**
+- ✅ GraphQL responses now correctly return camelCase field names
+- ✅ Rust transformer properly converts snake_case → camelCase + adds __typename
+- ✅ Maintains 10-80x performance benefit over Python transformation
+- 🚨 **BREAKING if relying on snake_case**: If you were working around the bug by expecting snake_case, you'll need to update to camelCase
+
+**Upgrade:**
+```bash
+# Using pip
+pip install --upgrade fraiseql
+
+# Using uv
+uv pip install --upgrade fraiseql
+```
+
+**Affected Versions:** 0.11.4 (and possibly earlier versions using production mode)
+
 ## [0.11.4] - 2025-10-13
 
 ### 🐛 Bug Fixes
