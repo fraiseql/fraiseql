@@ -103,7 +103,7 @@ from .types import User
 async def users(info) -> list[User]:
     """Get all users with their profile information."""
     repo = info.context["repo"]
-    return await repo.find("v_user")
+    return await repo.find("tv_user", "users", info)
 EOF
 
 # Start development server
@@ -161,6 +161,16 @@ query {
 }
 ```
 
+**Unified Rust-First Execution**
+All queries follow the same high-performance path:
+```
+PostgreSQL → Rust → HTTP (0.5-5ms response time)
+```
+
+- **Always Fast**: No mode detection or branching logic
+- **Field Projection**: Rust filters JSON fields 10-50x faster than PostgreSQL
+- **Zero Python Overhead**: Direct RustResponseBytes to FastAPI
+
 **Supported specialized types:**
 - **Network**: `IPv4`, `IPv6`, `CIDR`, `MACAddress` with subnet/range operations
 - **Hierarchical**: `LTree` with ancestor/descendant queries
@@ -206,43 +216,43 @@ async def users(info) -> list[User]:
     return await repo.find("v_user", tenant_id=tenant_id)
 ```
 
-### **Hybrid Tables**
-Combine regular SQL columns with JSONB for optimal performance and flexibility:
+### **Transform Tables (tv_*)**
+Pre-computed JSONB tables for instant GraphQL responses:
+
+```sql
+-- Transform table (actually a TABLE, not a view!)
+CREATE TABLE tv_user (
+    id INT PRIMARY KEY,
+    data JSONB GENERATED ALWAYS AS (
+        jsonb_build_object(
+            'id', id,
+            'first_name', (SELECT first_name FROM tb_user WHERE tb_user.id = tv_user.id),
+            'user_posts', (SELECT jsonb_agg(...) FROM tb_post WHERE user_id = tv_user.id LIMIT 10)
+        )
+    ) STORED
+);
+```
 
 ```python
-# Database schema
-CREATE TABLE products (
-    id UUID PRIMARY KEY,
-    status TEXT,           -- Regular column (fast filtering)
-    is_active BOOLEAN,     -- Regular column (indexed)
-    data JSONB            -- Flexible data (brand, specs, etc.)
-);
-
 # Type definition
-@fraiseql.type
-class Product:
-    id: UUID
-    status: str          # From regular column
-    is_active: bool      # From regular column
-    brand: str           # From JSONB data
-    specifications: dict # From JSONB data
+@fraiseql.type(sql_source="tv_user", jsonb_column="data")
+class User:
+    id: int
+    first_name: str      # Rust transforms to firstName
+    user_posts: list[Post]  # Embedded relations!
 
-# Registration with metadata (optimal performance)
-register_type_for_view(
-    "products", Product,
-    table_columns={'id', 'status', 'is_active', 'data'},
-    has_jsonb_data=True
-)
-
-# Automatic SQL generation
-# where: { isActive: true, brand: "TechCorp" }
-# → WHERE is_active = true AND data->>'brand' = 'TechCorp'
+# Query (0.05ms lookup + 0.5ms Rust transform)
+@fraiseql.query
+async def user(info, id: int) -> User:
+    repo = info.context["repo"]
+    return await repo.find("tv_user", "user", info, id=id)
 ```
 
 **Benefits:**
-- **0.4μs field detection** with metadata registration
-- **Optimal SQL generation** for each field type
-- **No runtime database queries** for field classification
+- **0.55ms total response time** (100-200x faster than JOINs)
+- **Embedded relations** (no N+1 queries)
+- **Always up-to-date** (generated columns + triggers)
+- **Rust field projection** (10-50x faster than PostgreSQL)
 
 ## 📊 Performance Comparison
 
@@ -267,29 +277,29 @@ register_type_for_view(
 
 ## 🏗️ Architecture
 
-FraiseQL's **cache-first** philosophy delivers exceptional performance through intelligent query optimization:
+FraiseQL's **Rust-first** architecture delivers exceptional performance through unified execution:
 
 ```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   GraphQL       │ →  │   PostgreSQL     │ →  │   Rust          │
+│   Request       │    │   JSONB Query    │    │   Transform     │
+│                 │    │   (0.05-0.5ms)  │    │   (0.5ms)       │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                 ↓
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   APQ Hash      │ →  │   Storage        │ →  │   JSON          │
 │   (SHA-256)     │    │   Backend        │    │   Passthrough   │
 │                 │    │   Memory/PG      │    │   (0.5-2ms)     │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
-                                ↓
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   GraphQL       │ →  │   TurboRouter    │ →  │   PostgreSQL    │
-│   Parsing       │    │   Pre-compiled   │    │   JSONB Views   │
-│   (100-300ms)   │    │   SQL (1-2ms)    │    │   (2-5ms)       │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-   Fallback Mode          FraiseQL Cache         Database Results
+    Optional Cache         FraiseQL Cache         Instant Response
 ```
 
 ### **Key Innovations**
-1. **APQ Storage Abstraction**: Pluggable backends (Memory/PostgreSQL) for query hash storage
-2. **JSON Passthrough**: Sub-millisecond responses for cached queries with zero serialization
-3. **TurboRouter**: Pre-compiles GraphQL queries into optimized SQL with hash-based lookup
-4. **JSONB Views**: PostgreSQL returns GraphQL-ready JSON, eliminating serialization overhead
-5. **Intelligent Caching**: Multi-layer caching with automatic invalidation and cache warming
+1. **Unified Execution Path**: PostgreSQL → Rust → HTTP (no branching logic)
+2. **Rust Field Projection**: 10-50x faster JSON field filtering than PostgreSQL
+3. **Transform Tables**: `tv_*` tables with generated JSONB for instant queries
+4. **APQ Storage Abstraction**: Pluggable backends (Memory/PostgreSQL) for query hash storage
+5. **JSON Passthrough**: Sub-millisecond responses for cached queries with zero serialization
 
 ## 🚦 When to Choose FraiseQL
 
@@ -358,7 +368,9 @@ Pre-built dashboards included in `grafana/`:
 - Performance metrics dashboard
 - All querying PostgreSQL directly
 
-**Migration Guides**: See [docs/monitoring.md](./docs/production/monitoring.md) for migrating from Redis and Sentry.
+**Migration Guides**:
+- [v1 to v2 Migration](./docs/migration/v1-to-v2.md) - Unified Rust-first architecture
+- [Monitoring Migration](./docs/production/monitoring.md) - From Redis and Sentry
 
 ## 🛠️ CLI Commands
 

@@ -6,6 +6,7 @@ mod camel_case;
 mod json_transform;
 mod typename_injection;
 mod schema_registry;
+mod graphql_response;  // ← ADD THIS LINE
 
 /// Version of the fraiseql_rs module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -166,6 +167,12 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(transform_json, m)?)?;
     m.add_function(wrap_pyfunction!(transform_json_with_typename, m)?)?;
     m.add_function(wrap_pyfunction!(transform_with_schema, m)?)?;
+
+    // NEW: Add graphql_response exports
+    m.add_function(wrap_pyfunction!(graphql_response::build_list_response, m)?)?;
+    m.add_function(wrap_pyfunction!(graphql_response::build_single_response, m)?)?;
+    m.add_function(wrap_pyfunction!(graphql_response::build_empty_array_response, m)?)?;
+    m.add_function(wrap_pyfunction!(graphql_response::build_null_response, m)?)?;
 
     // Add classes
     m.add_class::<schema_registry::SchemaRegistry>()?;

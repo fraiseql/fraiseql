@@ -17,7 +17,7 @@ from fraiseql import CQRSRepository
 # Database connection settings
 DB_CONFIG = {
     "host": "localhost",
-    "port": 5433,  # Using 5433 to avoid conflict
+    "port": 5434,  # Using 5434 to avoid conflict
     "dbname": "fraiseql_demo",
     "user": "fraiseql",
     "password": "fraiseql",
@@ -96,7 +96,7 @@ class DeleteUserError:
 
 
 # Define mutations using the @mutation decorator
-@fraiseql.mutation
+@fraiseql.mutation(schema="graphql")
 class CreateUser:
     """Create a new user account."""
 
@@ -105,7 +105,7 @@ class CreateUser:
     error: CreateUserError
 
 
-@fraiseql.mutation(function="update_user_account")  # Custom function name
+@fraiseql.mutation(function="update_user_account", schema="graphql")  # Custom function name
 class UpdateUser:
     """Update an existing user account."""
 
@@ -114,7 +114,7 @@ class UpdateUser:
     error: UpdateUserError
 
 
-@fraiseql.mutation
+@fraiseql.mutation(schema="graphql")
 class DeleteUser:
     """Delete a user account."""
 

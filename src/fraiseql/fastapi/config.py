@@ -77,65 +77,53 @@ PostgresUrl = Annotated[str, Field(description="PostgreSQL connection URL (suppo
 
 
 class FraiseQLConfig(BaseSettings):
-    """Configuration for FraiseQL application.
+    """Configuration for FraiseQL application (Rust-first architecture).
 
-    This class defines all configuration options for a FraiseQL-powered FastAPI
-    application. Configuration values can be set through environment variables,
-    .env files, or directly in code.
+    FraiseQL v1+ uses Rust-first architecture with a single execution path.
+    All transformation is handled by fraiseql-rs (required dependency).
+    Configuration is simplified - no execution mode selection needed.
 
-    Environment variables should be prefixed with the app name and use uppercase
+    Configuration values can be set through environment variables, .env files,
+    or directly in code. Environment variables should be prefixed with FRAISEQL_
     (e.g., FRAISEQL_DATABASE_URL).
 
-    Attributes:
-        database_url: PostgreSQL connection URL with JSONB support required.
-            Supports Unix domain sockets (e.g., postgresql://user@/var/run/postgresql:5432/db).
-        database_pool_size: Maximum number of database connections in the pool.
-        database_max_overflow: Maximum overflow connections allowed beyond pool_size.
-        database_pool_timeout: Seconds to wait before timing out when acquiring connection.
-        database_echo: Enable SQL query logging (use only in development).
-        app_name: Application name displayed in API documentation.
-        app_version: Application version string.
-        environment: Current environment (development/production/testing).
-        introspection_policy: Policy for GraphQL schema introspection access control.
-        enable_playground: Enable GraphQL playground IDE.
-        playground_tool: Which GraphQL IDE to use (graphiql or apollo-sandbox).
-        max_query_depth: Maximum allowed query depth to prevent abuse.
-        query_timeout: Maximum query execution time in seconds.
-        auto_camel_case: Automatically convert snake_case fields to camelCase.
-        enable_auth: Enable authentication and authorization.
-        auth_provider: Authentication provider to use.
-        auth0_domain: Auth0 tenant domain (required if using Auth0).
-        auth0_api_identifier: Auth0 API identifier (required if using Auth0).
-        auth0_cache_ttl: Cache TTL for Auth0 JWKS in seconds.
-        cors_allow_origins: List of allowed CORS origins.
-        cors_allow_credentials: Allow credentials in CORS requests.
-        cors_allow_methods: Allowed HTTP methods for CORS.
-        cors_allow_headers: Allowed headers for CORS requests.
-        enable_metrics: Enable Prometheus metrics endpoint.
-        metrics_path: URL path for metrics endpoint.
-        enable_health_check: Enable health check endpoints.
-        health_check_path: URL path for health check.
-        enable_rate_limiting: Enable rate limiting.
-        rate_limit_requests: Maximum requests per period.
-        rate_limit_period: Rate limit period in seconds.
-        log_level: Application log level.
-        log_format: Log format (json or text).
-        enable_request_logging: Log all incoming requests.
-        enable_response_logging: Log all outgoing responses.
-        request_id_header: Header name for request correlation ID.
-        jsonb_field_limit_threshold: Field count threshold for full data column (default: 20).
-        apq_storage_backend: Storage backend for APQ (memory/postgresql/redis/custom).
-        apq_response_cache_ttl: Cache TTL for APQ responses in seconds.
-        apq_backend_config: Backend-specific configuration options.
+    Core Settings:
+        database_url: PostgreSQL connection URL with JSONB support required
+        database_pool_size: Connection pool size (default: 20)
+        database_pool_timeout: Connection timeout in seconds (default: 30)
+        environment: development/production/testing (default: development)
+
+    GraphQL Settings:
+        introspection_policy: Schema introspection policy (PUBLIC/DISABLED/AUTHENTICATED)
+        enable_playground: Enable GraphQL IDE (auto-disabled in production)
+        max_query_depth: Maximum query nesting depth
+        auto_camel_case: Auto-convert snake_case to camelCase (default: True)
+
+    Auth Settings:
+        auth_enabled: Enable authentication (default: True)
+        auth_provider: Provider (auth0/custom/none)
+        auth0_domain: Auth0 tenant domain (if using Auth0)
+        auth0_api_identifier: Auth0 API identifier (if using Auth0)
+
+    Performance Settings:
+        cache_ttl: Query cache TTL in seconds (default: 300)
+        execution_timeout_ms: Query timeout in milliseconds (default: 30000)
+        jsonb_field_limit_threshold: Fields threshold for JSONB optimization (default: 20)
+
+    Security Settings:
+        complexity_enabled: Enable query complexity analysis (default: True)
+        rate_limit_enabled: Enable rate limiting (default: True)
+        cors_enabled: Enable CORS (default: False - use reverse proxy)
 
     Example:
         ```python
         from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
+        # Production configuration
         config = FraiseQLConfig(
             database_url="postgresql://user:pass@localhost/mydb",
             environment="production",
-            enable_auth=True,
+            auth_enabled=True,
             auth_provider="auth0",
             auth0_domain="myapp.auth0.com",
             auth0_api_identifier="https://api.myapp.com"
@@ -143,6 +131,9 @@ class FraiseQLConfig(BaseSettings):
 
         app = create_fraiseql_app(types=[User, Post], config=config)
         ```
+
+    Note:
+        Rust transformer (fraiseql-rs) is required. Install with: pip install fraiseql-rs
     """
 
     # Database settings
@@ -200,9 +191,9 @@ class FraiseQLConfig(BaseSettings):
         20  # Switch to full data column when field count exceeds this
     )
 
-    # v0.11.0: Rust-only transformation (PostgreSQL CamelForge removed)
-    # All camelCase transformation is handled by Rust in raw_json_executor.py
-    # This simplifies architecture and maximizes performance
+    # v1.0.0: Rust-first architecture - Single execution path
+    # All transformation handled by fraiseql-rs (required dependency)
+    # Execution mode options removed - always uses Rust passthrough
 
     # Token revocation settings
     revocation_enabled: bool = True
@@ -241,25 +232,9 @@ class FraiseQLConfig(BaseSettings):
     # Sensible defaults instead of wildcard
     cors_headers: list[str] = ["Content-Type", "Authorization"]
 
-    # Execution mode settings
-    execution_mode_priority: list[str] = ["turbo", "passthrough", "normal"]
-    turbo_router_auto_register: bool = False
-    passthrough_complexity_limit: int = 50
-    passthrough_max_depth: int = 3
-
-    # Mode hints
-    mode_hint_pattern: str = r"#\s*@mode:\s*(\w+)"
-
-    # Unified executor settings
-    include_execution_metadata: bool = False  # Include mode and timing in response
+    # Execution settings (Rust-first: single execution path)
     execution_timeout_ms: int = 30000  # 30 seconds
-
-    # TurboRouter enhanced settings
-    turbo_max_complexity: int = 100  # Max complexity score for turbo caching
-    turbo_max_total_weight: float = 2000.0  # Max total weight of cached queries
-
-    # Enhanced passthrough settings
-    passthrough_view_metadata_ttl: int = 3600  # 1 hour
+    include_execution_metadata: bool = False  # Include timing in response
 
     # Default schema settings
     default_mutation_schema: str = "public"  # Default schema for mutations when not specified

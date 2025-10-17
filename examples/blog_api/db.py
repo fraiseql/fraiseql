@@ -30,8 +30,12 @@ class BlogRepository(BaseCQRSRepository):
         return await self.select_one_from_json_view("v_users", where={"email": email})
 
     async def get_post_by_id(self, post_id: UUID) -> Optional[dict[str, Any]]:
-        """Get post by ID."""
-        return await self.get_by_id("v_posts", post_id)
+        """Get post by ID with comments."""
+        post_data = await self.get_by_id("v_posts", post_id)
+        if post_data:
+            comments_data = await self.get_comments_by_post(post_id)
+            post_data["comments"] = comments_data
+        return post_data
 
     async def get_posts(
         self,
@@ -43,6 +47,7 @@ class BlogRepository(BaseCQRSRepository):
         """Get posts with optional filtering and pagination.
 
         Accepts snake_case filter keys and converts to camelCase.
+        Includes comments for each post.
         """
         # Convert snake_case filter keys to camelCase
         camel_filters = None
@@ -65,13 +70,22 @@ class BlogRepository(BaseCQRSRepository):
             else:
                 camel_order_by = to_camel_case(order_by)
 
-        return await self.select_from_json_view(
+        # Get posts with comments
+        posts_data = await self.select_from_json_view(
             "v_posts",
             where=camel_filters,
             order_by=camel_order_by,
             limit=limit,
             offset=offset,
         )
+
+        # For each post, fetch its comments
+        for post_data in posts_data:
+            post_id = post_data["id"]
+            comments_data = await self.get_comments_by_post(UUID(post_id))
+            post_data["comments"] = comments_data
+
+        return posts_data
 
     async def get_comments_by_post(self, post_id: UUID) -> list[dict[str, Any]]:
         """Get comments for a post."""

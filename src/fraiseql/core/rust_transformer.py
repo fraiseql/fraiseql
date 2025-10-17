@@ -9,11 +9,11 @@ from typing import Any, Dict, Optional, Type, get_args, get_origin
 
 try:
     import fraiseql_rs
-
-    FRAISEQL_RS_AVAILABLE = True
-except ImportError:
-    FRAISEQL_RS_AVAILABLE = False
-    fraiseql_rs = None
+except ImportError as e:
+    raise ImportError(
+        "fraiseql-rs is required but not installed. "
+        "Install it with: pip install fraiseql-rs"
+    ) from e
 
 logger = logging.getLogger(__name__)
 
@@ -24,24 +24,15 @@ class RustTransformer:
     This class builds a fraiseql-rs schema from FraiseQL GraphQL types
     and provides methods to transform JSON payloads from snake_case to
     camelCase with __typename injection.
+
+    Rust transformer is REQUIRED for FraiseQL v1+ (no Python fallback).
     """
 
     def __init__(self):
         """Initialize the Rust transformer."""
-        self._registry: Optional[Any] = None
+        self._registry: fraiseql_rs.SchemaRegistry = fraiseql_rs.SchemaRegistry()
         self._schema: Dict[str, Dict] = {}
-        self._enabled = FRAISEQL_RS_AVAILABLE
-
-        if self._enabled:
-            self._registry = fraiseql_rs.SchemaRegistry()
-            logger.info("fraiseql-rs transformer initialized")
-        else:
-            logger.warning("fraiseql-rs not available - falling back to Python transformations")
-
-    @property
-    def enabled(self) -> bool:
-        """Check if Rust transformer is available and enabled."""
-        return self._enabled and self._registry is not None
+        logger.info("fraiseql-rs transformer initialized (required for FraiseQL v1+)")
 
     def register_type(self, type_class: Type, type_name: Optional[str] = None) -> None:
         """Register a GraphQL type with the Rust transformer.
@@ -50,9 +41,6 @@ class RustTransformer:
             type_class: The FraiseQL/Strawberry GraphQL type class
             type_name: Optional type name (defaults to class name)
         """
-        if not self.enabled:
-            return
-
         type_name = type_name or type_class.__name__
 
         # Build field schema from type annotations
@@ -141,34 +129,7 @@ class RustTransformer:
         Returns:
             Transformed JSON string with camelCase keys and __typename
         """
-        if not self.enabled:
-            # Fallback to Python transformation
-            import json
-
-            from fraiseql.utils.casing import transform_keys_to_camel_case
-
-            data = json.loads(json_str)
-            transformed = transform_keys_to_camel_case(data)
-            # Add __typename
-            if isinstance(transformed, dict):
-                transformed["__typename"] = root_type
-            return json.dumps(transformed)
-
-        # Use Rust transformer
-        try:
-            return self._registry.transform(json_str, root_type)
-        except Exception as e:
-            logger.error(f"Rust transformation failed: {e}, falling back to Python")
-            # Fallback to Python
-            import json
-
-            from fraiseql.utils.casing import transform_keys_to_camel_case
-
-            data = json.loads(json_str)
-            transformed = transform_keys_to_camel_case(data)
-            if isinstance(transformed, dict):
-                transformed["__typename"] = root_type
-            return json.dumps(transformed)
+        return self._registry.transform(json_str, root_type)
 
     def transform_json_passthrough(self, json_str: str, root_type: Optional[str] = None) -> str:
         """Transform JSON without typename if not needed.
@@ -180,30 +141,10 @@ class RustTransformer:
         Returns:
             Transformed JSON string with camelCase keys
         """
-        if not self.enabled:
-            import json
-
-            from fraiseql.utils.casing import transform_keys_to_camel_case
-
-            data = json.loads(json_str)
-            transformed = transform_keys_to_camel_case(data)
-            return json.dumps(transformed)
-
-        # Use Rust transformer
-        try:
-            if root_type and root_type in self._schema:
-                return self._registry.transform(json_str, root_type)
-            # Use plain transform_json for camelCase only
-            return fraiseql_rs.transform_json(json_str)
-        except Exception as e:
-            logger.error(f"Rust transformation failed: {e}, falling back to Python")
-            import json
-
-            from fraiseql.utils.casing import transform_keys_to_camel_case
-
-            data = json.loads(json_str)
-            transformed = transform_keys_to_camel_case(data)
-            return json.dumps(transformed)
+        if root_type and root_type in self._schema:
+            return self._registry.transform(json_str, root_type)
+        # Use plain transform_json for camelCase only
+        return fraiseql_rs.transform_json(json_str)
 
 
 # Global singleton instance

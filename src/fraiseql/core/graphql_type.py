@@ -457,52 +457,8 @@ def convert_type_to_graphql_output(
                         # Create resolver for enum serialization and nested object conversion
                         def make_field_resolver(field_name: str, field_type: Any):
                             def resolve_field(obj: Any, info: Any) -> Any:
-                                # Check if obj is a JSONPassthrough wrapper
-                                from fraiseql.core.json_passthrough import is_json_passthrough
-
-                                if is_json_passthrough(obj):
-                                    # For JSONPassthrough, getattr already handles everything
-                                    # including nested object wrapping and caching
-                                    value = getattr(obj, field_name, None)
-
-                                    # Handle nested arrays from JSONPassthrough
-                                    if isinstance(value, list) and value:
-                                        # Check if the field type is a list of FraiseQL types
-                                        list_item_type = _extract_list_item_type(field_type)
-
-                                        if list_item_type and hasattr(
-                                            list_item_type, "__fraiseql_definition__"
-                                        ):
-                                            result = []
-                                            for item in value:
-                                                # Convert JSONPassthrough items to typed objects
-                                                if is_json_passthrough(item):
-                                                    # Extract dict data from JSONPassthrough
-                                                    if hasattr(item, "_data"):
-                                                        raw_data = item._data
-                                                        # Convert dict to typed object
-                                                        if hasattr(list_item_type, "from_dict"):
-                                                            result.append(
-                                                                list_item_type.from_dict(raw_data)
-                                                            )
-                                                        else:
-                                                            result.append(raw_data)
-                                                    else:
-                                                        result.append(item)
-                                                elif isinstance(item, dict):
-                                                    # Handle raw dicts
-                                                    if hasattr(list_item_type, "from_dict"):
-                                                        result.append(
-                                                            list_item_type.from_dict(item)
-                                                        )
-                                                    else:
-                                                        result.append(item)
-                                                else:
-                                                    result.append(item)
-                                            return result
-
-                                    return value
-
+                                # Rust-first: Objects are plain dicts (Rust-transformed)
+                                # No JSONPassthrough wrapper needed
                                 value = getattr(obj, field_name, None)
 
                                 # Handle None values

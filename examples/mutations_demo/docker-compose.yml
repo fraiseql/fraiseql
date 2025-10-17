@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fraiseql_demo
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: fraiseql
+    ports:
+      - "5434:5432"  # Map host 5434 to container 5432
+    volumes:
+      - mutations_demo_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql -d fraiseql_demo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mutations_demo_data:
