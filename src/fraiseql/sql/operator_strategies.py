@@ -771,7 +771,46 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
 
 
 class LTreeOperatorStrategy(BaseOperatorStrategy):
-    """Strategy for LTree hierarchical path operators with PostgreSQL ltree type casting."""
+    """Strategy for PostgreSQL ltree hierarchical path operators.
+
+    Provides comprehensive filtering operations for hierarchical path data stored
+    as PostgreSQL ltree values. Supports exact matching, hierarchical relationships,
+    pattern matching, path analysis, and array operations.
+
+    Basic Operations:
+        eq: Exact path equality
+        neq: Path inequality
+        in_: Path in list of paths
+        notin: Path not in list of paths
+
+    Hierarchical Relationships:
+        ancestor_of: Path is ancestor of target path (@> operator)
+        descendant_of: Path is descendant of target path (<@ operator)
+
+    Pattern Matching:
+        matches_lquery: Path matches lquery pattern with wildcards (~ operator)
+        matches_ltxtquery: Path matches text search pattern (? operator)
+        matches_any_lquery: Path matches any of multiple lquery patterns
+
+    Path Analysis:
+        nlevel: Get number of path levels
+        nlevel_eq/gt/gte/lt/lte: Filter by path depth
+        subpath: Extract subpath segment (offset, length)
+        index: Find position of sublabel in path
+        index_eq/gte: Filter by sublabel position
+
+    Path Manipulation:
+        concat: Concatenate two paths (|| operator)
+        lca: Find lowest common ancestor of multiple paths
+
+    Array Operations:
+        in_array: Path contained in array of paths (<@ operator)
+        array_contains: Array contains target path (@> operator)
+
+    Note: Pattern operators (contains, startswith, endswith) are explicitly
+    rejected for ltree fields as they don't make sense for hierarchical paths.
+    Use the specialized hierarchical operators instead.
+    """
 
     def __init__(self) -> None:
         # Include hierarchical operators and basic operations, restrict problematic patterns
@@ -785,6 +824,24 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
                 "descendant_of",  # Hierarchical relationships
                 "matches_lquery",
                 "matches_ltxtquery",  # Pattern matching
+                # Path analysis operators
+                "nlevel",
+                "nlevel_eq",
+                "nlevel_gt",
+                "nlevel_gte",
+                "nlevel_lt",
+                "nlevel_lte",
+                "subpath",
+                "index",
+                "index_eq",
+                "index_gte",
+                # Path manipulation operators
+                "concat",
+                "lca",
+                # Array matching operators
+                "matches_any_lquery",
+                "in_array",
+                "array_contains",
                 "contains",
                 "startswith",
                 "endswith",  # Generic patterns (to restrict)
@@ -819,7 +876,25 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         val: Any,
         field_type: type | None = None,
     ) -> Composed:
-        """Build SQL for LTree operators with proper ltree casting."""
+        """Build SQL for LTree operators with proper PostgreSQL ltree type casting.
+
+        Generates optimized SQL for hierarchical path operations using PostgreSQL's
+        native ltree operators and functions. All operations properly cast values
+        to ltree type for correct comparison and indexing.
+
+        Args:
+            path_sql: SQL expression for the path field (e.g., data->>'path')
+            op: Operator name (one of the 23 supported ltree operators)
+            val: Value for the operation (type depends on operator)
+            field_type: Field type (should be LTree for validation)
+
+        Returns:
+            Composed SQL expression ready for execution
+
+        Raises:
+            ValueError: If operator is not supported for ltree fields
+            TypeError: If operator value has incorrect type
+        """
         # Safety check: if we know the field type and it's NOT an LTree, something is wrong
         if field_type and not self._is_ltree_type(field_type):
             raise ValueError(
@@ -879,6 +954,157 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             # path ? ltxtquery means path matches ltxtquery text query
             casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
             return Composed([casted_path, SQL(" ? "), Literal(val), SQL("::ltxtquery")])
+
+        # Path analysis operators
+        elif op == "nlevel":
+            # nlevel(ltree) - returns number of labels in path
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([SQL("nlevel("), casted_path, SQL(")")])
+
+        elif op.startswith("nlevel_"):
+            # Extract comparison operator (eq, gt, gte, lt, lte)
+            comparison = op.replace("nlevel_", "")
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            nlevel_expr = Composed([SQL("nlevel("), casted_path, SQL(")")])
+
+            comparison_ops = {"eq": "=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+            sql_op = comparison_ops[comparison]
+
+            return Composed([nlevel_expr, SQL(f" {sql_op} "), Literal(val)])
+
+        elif op == "subpath":
+            # val is tuple (offset, length)
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(f"subpath operator requires a tuple (offset, length), got {val}")
+            offset, length = val
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed(
+                [
+                    SQL("subpath("),
+                    casted_path,
+                    SQL(", "),
+                    Literal(offset),
+                    SQL(", "),
+                    Literal(length),
+                    SQL(")"),
+                ]
+            )
+
+        elif op == "index":
+            # index(path, sublabel) returns int position
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([SQL("index("), casted_path, SQL(", "), Literal(val), SQL("::ltree)")])
+
+        elif op == "index_eq":
+            # Filter by exact position
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"index_eq operator requires a tuple (sublabel, position), got {val}"
+                )
+            sublabel, position = val
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            index_expr = Composed(
+                [SQL("index("), casted_path, SQL(", "), Literal(sublabel), SQL("::ltree)")]
+            )
+            return Composed([index_expr, SQL(" = "), Literal(position)])
+
+        elif op == "index_gte":
+            # Filter by minimum position
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"index_gte operator requires a tuple (sublabel, min_position), got {val}"
+                )
+            sublabel, min_position = val
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            index_expr = Composed(
+                [SQL("index("), casted_path, SQL(", "), Literal(sublabel), SQL("::ltree)")]
+            )
+            return Composed([index_expr, SQL(" >= "), Literal(min_position)])
+
+        elif op == "concat":
+            # path1 || path2 - concatenate two ltree paths
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([casted_path, SQL(" || "), Literal(val), SQL("::ltree")])
+
+        elif op == "lca":
+            # lca(ARRAY[path1, path2, ...]) - lowest common ancestor
+            if not isinstance(val, list):
+                raise TypeError(f"lca operator requires a list of paths, got {type(val)}")
+
+            if not val:  # Empty list
+                raise ValueError("lca operator requires at least one path")
+
+            # Build lca(ARRAY['path1'::ltree, 'path2'::ltree, ...])
+            parts = [SQL("lca(ARRAY[")]
+            for i, path in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(path), SQL("::ltree")])
+            parts.append(SQL("])"))
+
+            return Composed(parts)
+
+        elif op == "matches_any_lquery":
+            # path ? ARRAY[lquery1, lquery2, ...]
+            if not isinstance(val, list):
+                raise TypeError(f"matches_any_lquery requires a list, got {type(val)}")
+
+            if not val:  # Empty list
+                raise ValueError("matches_any_lquery requires at least one pattern")
+
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            # Build ARRAY[lquery1, lquery2, ...]
+            parts = [casted_path, SQL(" ? ARRAY[")]
+            for i, pattern in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(pattern))  # PostgreSQL will cast to lquery
+            parts.append(SQL("]"))
+
+            return Composed(parts)
+
+        elif op == "in_array":
+            # path <@ ARRAY[path1, path2, ...]
+            if not isinstance(val, list):
+                raise TypeError(f"in_array requires a list, got {type(val)}")
+
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            parts = []
+            parts.append(casted_path)
+            parts.append(SQL(" <@ ARRAY["))
+            for i, path in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(path))
+                parts.append(SQL("::ltree"))
+            parts.append(SQL("]"))
+
+            return Composed(parts)
+
+        elif op == "array_contains":
+            # ARRAY[path1, path2, ...] @> target_path
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"array_contains requires a tuple (paths_array, target_path), got {val}"
+                )
+
+            paths_array, target_path = val
+            if not isinstance(paths_array, list):
+                raise TypeError(
+                    f"array_contains first element must be a list, got {type(paths_array)}"
+                )
+
+            # Build ARRAY['path1'::ltree, 'path2'::ltree, ...] @> 'target'::ltree
+            parts = [SQL("ARRAY[")]
+            for i, path in enumerate(paths_array):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(path), SQL("::ltree")])
+            parts.extend([SQL("] @> "), Literal(target_path), SQL("::ltree")])
+
+            return Composed(parts)
 
         # For pattern operators (contains, startswith, endswith), explicitly reject them
         elif op in ("contains", "startswith", "endswith"):
@@ -976,7 +1202,69 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
                         parts.append(SQL(", "))
                     parts.extend([Literal(mac), SQL("::macaddr")])
                 parts.append(SQL(")"))
-                return Composed(parts)
+            return Composed(parts)
+
+        elif op == "matches_any_lquery":
+            # path ? ARRAY[lquery1, lquery2, ...]
+            if not isinstance(val, list):
+                raise TypeError(f"matches_any_lquery requires a list, got {type(val)}")
+
+            if not val:  # Empty list
+                raise ValueError("matches_any_lquery requires at least one pattern")
+
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            # Build ARRAY[lquery1, lquery2, ...]
+            parts = [casted_path, SQL(" ? ARRAY[")]
+            for i, pattern in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(pattern))  # PostgreSQL will cast to lquery
+            parts.append(SQL("]"))
+
+            return Composed(parts)
+
+        elif op == "in_array":
+            # path <@ ARRAY[path1, path2, ...]
+            if not isinstance(val, list):
+                raise TypeError(f"in_array requires a list, got {type(val)}")
+
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            parts = []
+            parts.append(casted_path)
+            parts.append(SQL(" <@ ARRAY["))
+            for i, path in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(path))
+                parts.append(SQL("::ltree"))
+            parts.append(SQL("]"))
+
+            return Composed(parts)
+
+        elif op == "array_contains":
+            # ARRAY[path1, path2, ...] @> target_path
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"array_contains requires a tuple (paths_array, target_path), got {val}"
+                )
+
+            paths_array, target_path = val
+            if not isinstance(paths_array, list):
+                raise TypeError(
+                    f"array_contains first element must be a list, got {type(paths_array)}"
+                )
+
+            # Build ARRAY['path1'::ltree, 'path2'::ltree, ...] @> 'target'::ltree
+            parts = [SQL("ARRAY[")]
+            for i, path in enumerate(paths_array):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(path), SQL("::ltree")])
+            parts.extend([SQL("] @> "), Literal(target_path), SQL("::ltree")])
+
+            return Composed(parts)
 
         # For pattern operators (contains, startswith, endswith), explicitly reject them
         elif op in ("contains", "startswith", "endswith"):

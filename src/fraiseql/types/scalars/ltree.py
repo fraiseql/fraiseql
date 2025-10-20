@@ -35,7 +35,26 @@ def parse_ltree_literal(ast: ValueNode, variables: dict[str, Any] | None = None)
 
 LTreeScalar = GraphQLScalarType(
     name="LTreePath",
-    description="Scalar for PostgreSQL `ltree` hierarchical path strings.",
+    description="""Hierarchical path strings using PostgreSQL's ltree data type.
+
+    LTree paths represent hierarchical relationships using dot-separated labels.
+    Each label can contain alphanumeric characters, underscores, and hyphens.
+
+    Examples:
+    - "top" (single level)
+    - "top.science" (two levels)
+    - "top.science.physics.quantum" (four levels)
+
+    Supports advanced hierarchical operations like ancestor/descendant relationships,
+    pattern matching with wildcards, and path analysis functions.
+
+    Path Format Rules:
+    - Labels separated by dots (.)
+    - Labels: A-Z, a-z, 0-9, _, -
+    - Maximum label length: 256 characters
+    - Maximum path length: 65,535 bytes
+    - Case-sensitive by default
+    """,
     serialize=serialize_ltree,
     parse_value=parse_ltree_value,
     parse_literal=parse_ltree_literal,
@@ -43,7 +62,21 @@ LTreeScalar = GraphQLScalarType(
 
 
 class LTreeField(str, ScalarMarker):
-    """FraiseQL UUID marker used for Python-side typing and introspection."""
+    """FraiseQL field type for PostgreSQL ltree hierarchical paths.
+
+    Use this type to declare fields that store hierarchical path data.
+    Enables powerful filtering operations for tree-like data structures.
+
+    Common use cases:
+    - Category hierarchies (product categories, taxonomies)
+    - Organizational charts (reporting structures)
+    - File system paths (directory trees)
+    - Geographic hierarchies (country > state > city)
+    - Classification systems (library classifications)
+
+    Supports 23+ filtering operators including hierarchical relationships,
+    pattern matching, and path analysis operations.
+    """
 
     __slots__ = ()
 

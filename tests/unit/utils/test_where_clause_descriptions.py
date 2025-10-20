@@ -27,10 +27,22 @@ class TestFilterDescriptionGeneration:
 
         # Check that filter operations have descriptions
         assert fields["eq"].description == "Exact match - field equals the specified value"
-        assert fields["contains"].description == "Substring search - field contains the specified text (case-sensitive)"
-        assert fields["startswith"].description == "Prefix match - field starts with the specified text"
-        assert fields["in_"].description == "In list - field value is one of the values in the provided list"
-        assert fields["isnull"].description == "Null check - true to find null values, false to find non-null values"
+        assert (
+            fields["contains"].description
+            == "Substring search - field contains the specified text (case-sensitive)"
+        )
+        assert (
+            fields["startswith"].description
+            == "Prefix match - field starts with the specified text"
+        )
+        assert (
+            fields["in_"].description
+            == "In list - field value is one of the values in the provided list"
+        )
+        assert (
+            fields["isnull"].description
+            == "Null check - true to find null values, false to find non-null values"
+        )
 
     def test_int_filter_has_automatic_descriptions(self):
         """Test that IntFilter gets automatic field descriptions."""
@@ -40,10 +52,21 @@ class TestFilterDescriptionGeneration:
 
         # Check comparison operations
         assert fields["eq"].description == "Exact match - field equals the specified value"
-        assert fields["gt"].description == "Greater than - field value is greater than the specified value"
-        assert fields["gte"].description == "Greater than or equal - field value is greater than or equal to the specified value"
-        assert fields["lt"].description == "Less than - field value is less than the specified value"
-        assert fields["lte"].description == "Less than or equal - field value is less than or equal to the specified value"
+        assert (
+            fields["gt"].description
+            == "Greater than - field value is greater than the specified value"
+        )
+        assert (
+            fields["gte"].description
+            == "Greater than or equal - field value is greater than or equal to the specified value"
+        )
+        assert (
+            fields["lt"].description == "Less than - field value is less than the specified value"
+        )
+        assert (
+            fields["lte"].description
+            == "Less than or equal - field value is less than or equal to the specified value"
+        )
 
     def test_network_filter_has_network_specific_descriptions(self):
         """Test that NetworkAddressFilter gets network-specific descriptions."""
@@ -52,10 +75,19 @@ class TestFilterDescriptionGeneration:
         fields = NetworkAddressFilter.__gql_fields__
 
         # Check network-specific operations
-        assert fields["inSubnet"].description == "Subnet membership - IP address is within the specified CIDR subnet"
-        assert fields["isPrivate"].description == "Private network - IP address is in RFC 1918 private ranges"
+        assert (
+            fields["inSubnet"].description
+            == "Subnet membership - IP address is within the specified CIDR subnet"
+        )
+        assert (
+            fields["isPrivate"].description
+            == "Private network - IP address is in RFC 1918 private ranges"
+        )
         assert fields["isIPv4"].description == "IPv4 address - IP address is IPv4 format"
-        assert fields["isLoopback"].description == "Loopback address - IP is loopback (127.0.0.1 or ::1)"
+        assert (
+            fields["isLoopback"].description
+            == "Loopback address - IP is loopback (127.0.0.1 or ::1)"
+        )
 
     def test_docstring_generation(self):
         """Test automatic docstring generation for filter classes."""
@@ -80,6 +112,37 @@ class TestFilterDescriptionGeneration:
         for part in expected_parts:
             assert part in docstring
 
+    def test_ltree_filter_has_hierarchical_descriptions(self):
+        """Test that LTreeFilter gets comprehensive hierarchical operator descriptions."""
+        # Create mock fields for common LTREE operators
+        mock_fields = {
+            "eq": fraiseql.fraise_field(),
+            "ancestor_of": fraiseql.fraise_field(),
+            "descendant_of": fraiseql.fraise_field(),
+            "matches_lquery": fraiseql.fraise_field(),
+            "nlevel_eq": fraiseql.fraise_field(),
+            "subpath": fraiseql.fraise_field(),
+            "lca": fraiseql.fraise_field(),
+        }
+
+        docstring = generate_filter_docstring("LTreeFilter", mock_fields)
+
+        expected_parts = [
+            "Hierarchical path filtering operations for PostgreSQL ltree data type.",
+            "Supports hierarchical relationships, pattern matching, and path analysis operations.",
+            "Fields:",
+            "    eq: Exact match - field equals the specified value",
+            "    ancestor_of: Hierarchical ancestor - path is an ancestor of the specified path",
+            "    descendant_of: Hierarchical descendant - path is a descendant of the specified path",
+            "    matches_lquery: Pattern match - path matches the lquery pattern",
+            "    nlevel_eq: Exact depth - path has exactly N levels",
+            "    subpath: Extract subpath - extract a portion of the path",
+            "    lca: Lowest common ancestor - find the most specific common ancestor",
+        ]
+
+        for part in expected_parts:
+            assert part in docstring
+
     def test_only_applies_to_filter_classes(self):
         """Test that descriptions are only applied to filter classes."""
 
@@ -92,6 +155,7 @@ class TestFilterDescriptionGeneration:
                 eq: This should not get filter descriptions
                 contains: Regular field, not a filter operation
             """
+
             eq: str
             contains: str
 
@@ -112,6 +176,7 @@ class TestFilterDescriptionGeneration:
         @dataclass
         class CustomFilter:
             """Custom filter type."""
+
             contains: str  # Will get automatic description
             eq: str = fraiseql.fraise_field(description="Custom equality description")
 
@@ -122,7 +187,10 @@ class TestFilterDescriptionGeneration:
         # Explicit description should be preserved
         assert fields["eq"].description == "Custom equality description"
         # Automatic description should be applied
-        assert fields["contains"].description == "Substring search - field contains the specified text (case-sensitive)"
+        assert (
+            fields["contains"].description
+            == "Substring search - field contains the specified text (case-sensitive)"
+        )
 
     def test_graphql_name_mapping(self):
         """Test that GraphQL field name mapping works correctly."""
@@ -133,7 +201,10 @@ class TestFilterDescriptionGeneration:
         in_field = fields["in_"]
 
         # Should have description for the in_ operation
-        assert in_field.description == "In list - field value is one of the values in the provided list"
+        assert (
+            in_field.description
+            == "In list - field value is one of the values in the provided list"
+        )
         # Should map to "in" in GraphQL
         assert in_field.graphql_name == "in"
 
@@ -144,6 +215,7 @@ class TestFilterDescriptionGeneration:
         @dataclass
         class CustomFilter:
             """Custom filter with unknown operator."""
+
             unknown_op: str
 
         apply_filter_descriptions(CustomFilter)
@@ -173,6 +245,7 @@ class TestFilterEnhancement:
         @dataclass
         class TestFilter:
             """Test filter type."""
+
             eq: str
             contains: str
             gt: int
@@ -181,8 +254,14 @@ class TestFilterEnhancement:
         fields = TestFilter.__gql_fields__
 
         assert fields["eq"].description == "Exact match - field equals the specified value"
-        assert fields["contains"].description == "Substring search - field contains the specified text (case-sensitive)"
-        assert fields["gt"].description == "Greater than - field value is greater than the specified value"
+        assert (
+            fields["contains"].description
+            == "Substring search - field contains the specified text (case-sensitive)"
+        )
+        assert (
+            fields["gt"].description
+            == "Greater than - field value is greater than the specified value"
+        )
 
 
 class TestOperatorDescriptions:
@@ -191,9 +270,18 @@ class TestOperatorDescriptions:
     def test_all_common_operators_have_descriptions(self):
         """Test that all common filter operators have descriptions."""
         common_operators = [
-            "eq", "neq", "gt", "gte", "lt", "lte",
-            "contains", "startswith", "endswith",
-            "in_", "nin", "isnull"
+            "eq",
+            "neq",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "contains",
+            "startswith",
+            "endswith",
+            "in_",
+            "nin",
+            "isnull",
         ]
 
         for operator in common_operators:
@@ -203,13 +291,22 @@ class TestOperatorDescriptions:
     def test_network_operators_have_descriptions(self):
         """Test that network-specific operators have descriptions."""
         network_operators = [
-            "inSubnet", "inRange", "isPrivate", "isPublic",
-            "isIPv4", "isIPv6", "isLoopback", "isMulticast"
+            "inSubnet",
+            "inRange",
+            "isPrivate",
+            "isPublic",
+            "isIPv4",
+            "isIPv6",
+            "isLoopback",
+            "isMulticast",
         ]
 
         for operator in network_operators:
             assert operator in OPERATOR_DESCRIPTIONS
-            assert "IP" in OPERATOR_DESCRIPTIONS[operator] or "network" in OPERATOR_DESCRIPTIONS[operator].lower()
+            assert (
+                "IP" in OPERATOR_DESCRIPTIONS[operator]
+                or "network" in OPERATOR_DESCRIPTIONS[operator].lower()
+            )
 
     def test_description_quality(self):
         """Test that descriptions are helpful and informative."""
@@ -237,6 +334,7 @@ class TestApolloStudioIntegration:
         @dataclass
         class UserFilter:
             """User filtering operations."""
+
             name: str
             age: int
 
@@ -267,6 +365,7 @@ class TestApolloStudioIntegration:
         @dataclass
         class User:
             """User model."""
+
             id: UUID
             name: str
             age: int
