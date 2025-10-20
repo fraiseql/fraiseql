@@ -129,15 +129,15 @@ class TestFilterDescriptionGeneration:
 
         expected_parts = [
             "Hierarchical path filtering operations for PostgreSQL ltree data type.",
-            "Supports hierarchical relationships, pattern matching, and path analysis operations.",
+            "Supports hierarchical relationships, pattern matching, and path analysis.",
             "Fields:",
             "    eq: Exact match - field equals the specified value",
             "    ancestor_of: Hierarchical ancestor - path is an ancestor of the specified path",
             "    descendant_of: Hierarchical descendant - path is a descendant of the specified path",
-            "    matches_lquery: Pattern match - path matches the lquery pattern",
-            "    nlevel_eq: Exact depth - path has exactly N levels",
-            "    subpath: Extract subpath - extract a portion of the path",
-            "    lca: Lowest common ancestor - find the most specific common ancestor",
+            "    matches_lquery: Pattern match - path matches the lquery pattern (wildcards supported)",
+            "    nlevel_eq: Exact depth - path has exactly N levels (e.g., nlevel_eq: 3 for 3-level paths)",
+            "    subpath: Extract subpath - extract a portion of the path (offset, length)",
+            "    lca: Lowest common ancestor - find the most specific common ancestor of multiple paths",
         ]
 
         for part in expected_parts:

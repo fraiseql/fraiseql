@@ -1,9 +1,22 @@
-# FraiseQL v1 - Clean Rebuild for Hiring
+# FraiseQL v1 - Architecture Prototype
 
-**Purpose**: Showcase-quality Python GraphQL framework for Staff+ engineering interviews
-**Strategy**: Rebuild from scratch demonstrating architectural mastery
-**Timeline**: 8 weeks to interview-ready
+## ⚠️ DEVELOPMENT PROTOTYPE - NOT FOR PRODUCTION
+
+**This is an experimental prototype** exploring clean architecture patterns for the upcoming v1.0 industrial framework. **Not intended for production use.**
+
+**For Production**: Use the stable [v0.11.5](../README.md) in the root directory.
+**For v1 Development**: See [`fraiseql/`](../fraiseql/) directory for the main v1.0 implementation.
+
+---
+
+**Purpose**: Architecture exploration and pattern validation
+**Strategy**: Rapid prototyping of core concepts
+**Timeline**: 8 weeks to concept validation
 **Status**: 🚧 Planning complete, ready for Week 1
+
+**📍 You are here: v1 Architecture Prototype (Experimental)**
+
+**Relationship to Main Project**: Experimental prototype exploring patterns for the main v1.0 rebuild. See [fraiseql/](../fraiseql/) for the production v1.0 development.
 
 ---
 
@@ -12,11 +25,11 @@
 See **[`/V1_VISION.md`](../V1_VISION.md)** for the complete master plan.
 
 **Quick Summary**:
-- **Goal**: Land Staff+ role at top company
-- **Demonstrates**: CQRS, database optimization, Rust integration, stored procedures
+- **Goal**: Validate architecture patterns for industrial v1.0 framework
+- **Explores**: CQRS, database optimization, Rust integration, stored procedures
 - **Core Patterns**: Trinity identifiers + Mutations as functions (DEFAULT)
-- **Target**: ~3,000 LOC (vs 50,000 in v0)
-- **Performance**: Sub-1ms queries, 40x speedup vs traditional GraphQL
+- **Target**: ~3,000 LOC prototype (vs 50,000 in v0)
+- **Performance**: Sub-1ms queries, 7-10x transformation speedup (Rust vs Python)
 
 ---
 
@@ -114,7 +127,7 @@ Port Rust transformer + Performance benchmarks
 ## 🎓 Interview Talking Points
 
 **60-Second Pitch**:
-> "I built FraiseQL to solve GraphQL performance in Python. Traditional frameworks suffer from N+1 queries and Python overhead. I implemented CQRS at the database level using PostgreSQL JSONB with a Trinity identifier pattern - SERIAL for fast joins, UUID for secure APIs, slugs for SEO. I wrote a Rust extension for JSON transformation giving 40x speedup. The result: sub-1ms query latency. All business logic lives in PostgreSQL functions, making it reusable and transactionally safe."
+> "I built FraiseQL to solve GraphQL performance in Python. Traditional frameworks suffer from N+1 queries and Python overhead. I implemented CQRS at the database level using PostgreSQL JSONB with a Trinity identifier pattern - SERIAL for fast joins, UUID for secure APIs, slugs for SEO. I wrote a Rust extension for JSON transformation giving 7-10x speedup. The result: sub-1ms query latency. All business logic lives in PostgreSQL functions, making it reusable and transactionally safe."
 
 **Shows Understanding Of**:
 - Database performance (INT vs UUID joins)
@@ -127,23 +140,22 @@ Port Rust transformer + Performance benchmarks
 
 ## 🎯 Success Criteria
 
-**Technical**:
+**Technical Validation**:
 - [ ] < 1ms query latency
-- [ ] 40x speedup (benchmarked)
+- [ ] 7-10x transformation speedup (benchmarked)
 - [ ] 100% test coverage on core
-- [ ] ~3,000 LOC total
 
-**Portfolio**:
-- [ ] GitHub README with benchmarks
-- [ ] 3 working examples
-- [ ] Blog post on architecture
-- [ ] Tech talk slides
+**Architecture Proof**:
+- [ ] Trinity identifiers pattern validated
+- [ ] Mutations-as-functions pattern working
+- [ ] Rust integration performance proven
+- [ ] CQRS separation implemented
 
-**Interview Ready**:
-- [ ] Can explain in 15 min
-- [ ] Have diagrams ready
-- [ ] Know trade-offs
-- [ ] Can demo live
+**Prototype Complete**:
+- [ ] Core patterns implemented
+- [ ] Performance benchmarks documented
+- [ ] Architecture decisions validated
+- [ ] Foundation for main v1.0 established
 
 ---
 
@@ -174,8 +186,8 @@ See V1_VISION.md for detailed Week 1 template and instructions.
 
 ---
 
-**Built with focus on hiring outcomes.** 🎯
-**Target: Staff+ engineering at top companies.**
-**Timeline: 8 weeks to showcase.**
+**Built to validate architecture for industrial framework.** 🏗️
+**Target: Production-ready v1.0 framework.**
+**Timeline: 8 weeks to pattern validation.**
 
-Let's build this! 💪
+Let's prototype this! 🚀

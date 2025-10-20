@@ -22,7 +22,7 @@ FraiseQL's explicit sync pattern is a fundamental design decision that prioritiz
 
 ### The Problem with Triggers
 
-Traditional CQRS implementations use database triggers to automatically sync data:
+Traditional **[CQRS](concepts-glossary.md#cqrs-command-query-responsibility-segregation)** implementations use database triggers to automatically sync data:
 
 ```sql
 -- ❌ Hidden trigger (automatic, but invisible)

@@ -2,9 +2,13 @@
 
 This module provides zero-copy path from database to HTTP by delegating
 ALL string operations to Rust after query execution.
+
+Updated for fraiseql_rs v0.2.0: Uses unified build_graphql_response() API
+instead of deprecated build_*_response() functions.
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
@@ -47,6 +51,9 @@ async def execute_via_rust_pipeline(
     This is the FASTEST path: PostgreSQL → Rust → HTTP bytes.
     Zero Python string operations, zero JSON parsing, zero copies.
 
+    Uses fraiseql_rs v0.2.0 unified build_graphql_response() API for
+    camelCase conversion, __typename injection, and field projection.
+
     Args:
         conn: PostgreSQL connection
         query: SQL query returning JSON strings
@@ -67,61 +74,53 @@ async def execute_via_rust_pipeline(
 
             if not rows:
                 # Empty array response
-                response_bytes = fraiseql_rs.build_empty_array_response(field_name)
+                response_bytes = fraiseql_rs.build_graphql_response(
+                    json_strings=[],
+                    field_name=field_name,
+                    type_name=None,  # No typename for empty
+                    field_paths=None,
+                )
                 return RustResponseBytes(response_bytes)
 
             # Extract JSON strings (PostgreSQL returns as text)
             json_strings = [row[0] for row in rows if row[0] is not None]
 
-            # 🚀 RUST DOES EVERYTHING:
+            # 🚀 UNIFIED API (v0.2.0):
             # - Field projection: Filter only requested fields
             # - Concatenate: ['{"id":"1"}', '{"id":"2"}'] → '[{"id":"1"},{"id":"2"}]'
             # - Wrap: '[...]' → '{"data":{"users":[...]}}'
             # - Transform: snake_case → camelCase + __typename
             # - Encode: String → UTF-8 bytes
-            if field_paths:
-                response_bytes = fraiseql_rs.build_list_response_with_projection(
-                    json_strings,
-                    field_name,
-                    type_name,
-                    field_paths,
-                )
-            else:
-                response_bytes = fraiseql_rs.build_list_response(
-                    json_strings,
-                    field_name,
-                    type_name,  # None = no transformation
-                )
+            response_bytes = fraiseql_rs.build_graphql_response(
+                json_strings=json_strings,
+                field_name=field_name,
+                type_name=type_name,
+                field_paths=field_paths,  # None = no projection
+            )
 
             return RustResponseBytes(response_bytes)
-        else:
-            # Single object
-            row = await cursor.fetchone()
+        # Single object
+        row = await cursor.fetchone()
 
-            if not row or row[0] is None:
-                # Null response
-                response_bytes = fraiseql_rs.build_null_response(field_name)
-                return RustResponseBytes(response_bytes)
-
-            json_string = row[0]
-
-            # 🚀 RUST DOES EVERYTHING:
-            # - Field projection: Filter only requested fields
-            # - Wrap: '{"id":"1"}' → '{"data":{"user":{"id":"1"}}}'
-            # - Transform: snake_case → camelCase + __typename
-            # - Encode: String → UTF-8 bytes
-            if field_paths:
-                response_bytes = fraiseql_rs.build_single_response_with_projection(
-                    json_string,
-                    field_name,
-                    type_name,
-                    field_paths,
-                )
-            else:
-                response_bytes = fraiseql_rs.build_single_response(
-                    json_string,
-                    field_name,
-                    type_name,
-                )
-
+        if not row or row[0] is None:
+            # Null response - use empty structure or null
+            response_bytes = fraiseql_rs.build_graphql_response(
+                json_strings=[], field_name=field_name, type_name=None, field_paths=None
+            )
             return RustResponseBytes(response_bytes)
+
+        json_string = row[0]
+
+        # 🚀 UNIFIED API (v0.2.0):
+        # - Field projection: Filter only requested fields
+        # - Wrap: '{"id":"1"}' → '{"data":{"user":{"id":"1"}}}'
+        # - Transform: snake_case → camelCase + __typename
+        # - Encode: String → UTF-8 bytes
+        response_bytes = fraiseql_rs.build_graphql_response(
+            json_strings=[json_string],  # Single item as list
+            field_name=field_name,
+            type_name=type_name,
+            field_paths=field_paths,  # None = no projection
+        )
+
+        return RustResponseBytes(response_bytes)

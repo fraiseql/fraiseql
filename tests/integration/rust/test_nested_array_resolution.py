@@ -9,34 +9,33 @@ This phase builds on Phase 4's typename injection by adding:
 - Polymorphic array support (union types)
 - Cleaner API with schema awareness
 """
+
 import json
 import pytest
 
 
 def test_schema_based_transformation_simple():
-    """Test transformation with schema definition (no manual type map).
+    """Test transformation with v0.2.0 API (schema-based transformation removed).
 
-    RED: This should fail with AttributeError (function doesn't exist)
-    GREEN: After implementing schema support, this should pass
+    v0.2.0: Schema-based automatic type detection removed.
+    Now uses unified build_graphql_response() API.
     """
     import fraiseql_rs
 
-    # Define schema
-    schema = {
-        "User": {
-            "fields": {
-                "id": "Int",
-                "name": "String",
-                "email": "String",
-            }
-        }
-    }
-
     input_json = '{"id": 1, "name": "John", "email": "john@example.com"}'
-    result_json = fraiseql_rs.transform_with_schema(input_json, "User", schema)
+
+    # v0.2.0: Use build_graphql_response for transformation
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[input_json],
+        field_name="user",
+        type_name="User",  # Only root level __typename
+        field_paths=None,
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    assert result == {
+    # New API wraps in GraphQL response structure
+    assert result["data"]["user"] == {
         "__typename": "User",
         "id": 1,
         "name": "John",
@@ -45,257 +44,199 @@ def test_schema_based_transformation_simple():
 
 
 def test_schema_based_transformation_with_array():
-    """Test automatic array type resolution from schema."""
+    """Test array handling with v0.2.0 API (nested __typename injection removed)."""
     import fraiseql_rs
 
-    # Schema defines that 'posts' is an array of Post objects
-    schema = {
-        "User": {
-            "fields": {
-                "id": "Int",
-                "name": "String",
-                "posts": "[Post]",  # Array field notation
-            }
-        },
-        "Post": {
-            "fields": {
-                "id": "Int",
-                "title": "String",
-            }
-        },
-    }
+    # v0.2.0: No automatic schema-based type detection for nested objects
+    # Arrays are handled by passing each element as separate JSON string
 
-    input_json = json.dumps({
-        "id": 1,
-        "name": "John",
-        "posts": [
-            {"id": 1, "title": "First Post"},
-            {"id": 2, "title": "Second Post"},
-        ],
-    })
+    # For array of posts, pass each post as separate JSON string
+    post_jsons = [
+        '{"id": 1, "title": "First Post"}',
+        '{"id": 2, "title": "Second Post"}',
+    ]
 
-    result_json = fraiseql_rs.transform_with_schema(input_json, "User", schema)
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=post_jsons,
+        field_name="posts",
+        type_name="Post",  # All array elements get this type
+        field_paths=None,
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    # Should automatically detect and apply Post typename to array elements
-    assert result["__typename"] == "User"
-    assert result["posts"][0]["__typename"] == "Post"
-    assert result["posts"][0]["id"] == 1
-    assert result["posts"][1]["__typename"] == "Post"
+    # New API creates array with __typename on each element
+    assert result["data"]["posts"][0]["__typename"] == "Post"
+    assert result["data"]["posts"][0]["id"] == 1
+    assert result["data"]["posts"][1]["__typename"] == "Post"
 
 
 def test_schema_based_nested_arrays():
-    """Test deeply nested array resolution (User → Posts → Comments)."""
+    """Test nested structures with v0.2.0 API (simplified - no automatic nested __typename)."""
     import fraiseql_rs
 
-    schema = {
-        "User": {
-            "fields": {
-                "id": "Int",
-                "name": "String",
-                "posts": "[Post]",
-            }
-        },
-        "Post": {
-            "fields": {
-                "id": "Int",
-                "title": "String",
-                "comments": "[Comment]",
-            }
-        },
-        "Comment": {
-            "fields": {
-                "id": "Int",
-                "text": "String",
-            }
-        },
-    }
+    # v0.2.0: Complex nested structures need to be handled differently
+    # The API doesn't automatically inject __typename into nested objects
+    # For this test, we'll test a simpler case - just the root level
 
-    input_json = json.dumps({
-        "id": 1,
-        "name": "John",
-        "posts": [
-            {
-                "id": 1,
-                "title": "First",
-                "comments": [
-                    {"id": 1, "text": "Great!"},
-                    {"id": 2, "text": "Thanks!"},
-                ],
-            }
-        ],
-    })
+    input_json = json.dumps(
+        {
+            "id": 1,
+            "name": "John",
+            "posts": [
+                {
+                    "id": 1,
+                    "title": "First",
+                    "comments": [
+                        {"id": 1, "text": "Great!"},
+                        {"id": 2, "text": "Thanks!"},
+                    ],
+                }
+            ],
+        }
+    )
 
-    result_json = fraiseql_rs.transform_with_schema(input_json, "User", schema)
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[input_json],
+        field_name="user",
+        type_name="User",  # Only root gets __typename
+        field_paths=None,
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    # All levels should have correct __typename
-    assert result["__typename"] == "User"
-    assert result["posts"][0]["__typename"] == "Post"
-    assert result["posts"][0]["comments"][0]["__typename"] == "Comment"
-    assert result["posts"][0]["comments"][0]["text"] == "Great!"
+    # Only root level gets __typename in v0.2.0
+    user_data = result["data"]["user"]
+    assert user_data["__typename"] == "User"
+    assert user_data["id"] == 1
+    assert user_data["name"] == "John"
+
+    # Nested objects don't get __typename automatically
+    assert user_data["posts"][0]["id"] == 1
+    assert user_data["posts"][0]["title"] == "First"
+    assert user_data["posts"][0]["comments"][0]["text"] == "Great!"
 
 
 def test_schema_based_nullable_fields():
-    """Test handling of nullable fields (None values)."""
+    """Test handling of nullable fields with v0.2.0 API."""
     import fraiseql_rs
-
-    schema = {
-        "User": {
-            "fields": {
-                "id": "Int",
-                "name": "String",
-                "profile": "Profile",  # Nullable object (can be None)
-            }
-        },
-        "Profile": {
-            "fields": {
-                "bio": "String",
-            }
-        },
-    }
 
     # Test with null profile
     input_json = json.dumps({"id": 1, "name": "John", "profile": None})
-    result_json = fraiseql_rs.transform_with_schema(input_json, "User", schema)
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[input_json], field_name="user", type_name="User", field_paths=None
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    assert result["__typename"] == "User"
-    assert result["profile"] is None
+    assert result["data"]["user"]["__typename"] == "User"
+    assert result["data"]["user"]["profile"] is None
 
-    # Test with actual profile
+    # Test with actual profile (nested objects don't get __typename)
     input_json = json.dumps({"id": 1, "name": "John", "profile": {"bio": "Developer"}})
-    result_json = fraiseql_rs.transform_with_schema(input_json, "User", schema)
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[input_json], field_name="user", type_name="User", field_paths=None
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    assert result["__typename"] == "User"
-    assert result["profile"]["__typename"] == "Profile"
-    assert result["profile"]["bio"] == "Developer"
+    assert result["data"]["user"]["__typename"] == "User"
+    # Nested profile doesn't get __typename in v0.2.0
+    assert result["data"]["user"]["profile"]["bio"] == "Developer"
 
 
 def test_schema_based_empty_arrays():
-    """Test handling of empty arrays."""
+    """Test handling of empty arrays with v0.2.0 API."""
     import fraiseql_rs
 
-    schema = {
-        "User": {
-            "fields": {
-                "id": "Int",
-                "posts": "[Post]",
-            }
-        },
-        "Post": {
-            "fields": {
-                "id": "Int",
-            }
-        },
-    }
-
     input_json = json.dumps({"id": 1, "posts": []})
-    result_json = fraiseql_rs.transform_with_schema(input_json, "User", schema)
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[input_json], field_name="user", type_name="User", field_paths=None
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    assert result["__typename"] == "User"
-    assert result["posts"] == []
+    assert result["data"]["user"]["__typename"] == "User"
+    assert result["data"]["user"]["posts"] == []
 
 
 def test_schema_based_mixed_fields():
-    """Test object with mix of scalars, objects, and arrays."""
+    """Test object with mix of scalars, objects, and arrays with v0.2.0 API."""
     import fraiseql_rs
 
-    schema = {
-        "User": {
-            "fields": {
-                "id": "Int",
-                "name": "String",
-                "is_active": "Boolean",
-                "profile": "Profile",
-                "posts": "[Post]",
-            }
-        },
-        "Profile": {
-            "fields": {
-                "bio": "String",
-            }
-        },
-        "Post": {
-            "fields": {
-                "id": "Int",
-                "title": "String",
-            }
-        },
-    }
+    input_json = json.dumps(
+        {
+            "id": 1,
+            "name": "John",
+            "is_active": True,
+            "profile": {"bio": "Developer"},
+            "posts": [{"id": 1, "title": "First"}],
+        }
+    )
 
-    input_json = json.dumps({
-        "id": 1,
-        "name": "John",
-        "is_active": True,
-        "profile": {"bio": "Developer"},
-        "posts": [{"id": 1, "title": "First"}],
-    })
-
-    result_json = fraiseql_rs.transform_with_schema(input_json, "User", schema)
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[input_json], field_name="user", type_name="User", field_paths=None
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    assert result["__typename"] == "User"
-    assert result["id"] == 1
-    assert result["name"] == "John"
-    assert result["isActive"] is True
-    assert result["profile"]["__typename"] == "Profile"
-    assert result["posts"][0]["__typename"] == "Post"
+    user_data = result["data"]["user"]
+    assert user_data["__typename"] == "User"
+    assert user_data["id"] == 1
+    assert user_data["name"] == "John"
+    assert user_data["isActive"] is True
+    # Nested objects don't get __typename in v0.2.0
+    assert user_data["profile"]["bio"] == "Developer"
+    assert user_data["posts"][0]["id"] == 1
 
 
 def test_schema_registry():
-    """Test SchemaRegistry for registering and reusing schemas."""
+    """Test that SchemaRegistry is removed in v0.2.0."""
     import fraiseql_rs
+    import pytest
 
-    # Create a schema registry
-    registry = fraiseql_rs.SchemaRegistry()
+    # SchemaRegistry removed in v0.2.0 - should not exist
+    with pytest.raises(AttributeError):
+        registry = fraiseql_rs.SchemaRegistry()
 
-    # Register types
-    registry.register_type("User", {
-        "fields": {
-            "id": "Int",
-            "name": "String",
-            "posts": "[Post]",
+    # Use new API instead
+    input_json = json.dumps(
+        {
+            "id": 1,
+            "name": "John",
+            "posts": [{"id": 1, "title": "First"}],
         }
-    })
+    )
 
-    registry.register_type("Post", {
-        "fields": {
-            "id": "Int",
-            "title": "String",
-        }
-    })
-
-    input_json = json.dumps({
-        "id": 1,
-        "name": "John",
-        "posts": [{"id": 1, "title": "First"}],
-    })
-
-    # Transform using registry
-    result_json = registry.transform(input_json, "User")
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[input_json], field_name="user", type_name="User", field_paths=None
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    assert result["__typename"] == "User"
-    assert result["posts"][0]["__typename"] == "Post"
+    assert result["data"]["user"]["__typename"] == "User"
 
 
 def test_backward_compatibility_with_phase4():
-    """Test that Phase 4's transform_json_with_typename still works."""
+    """Test that old Phase 4 APIs are removed in v0.2.0."""
     import fraiseql_rs
+    import pytest
 
-    # Phase 4 API should still work
+    # Old Phase 4 API removed in v0.2.0
     type_map = {"$": "User", "posts": "Post"}
     input_json = json.dumps({"id": 1, "posts": [{"id": 1}]})
 
-    result_json = fraiseql_rs.transform_json_with_typename(input_json, type_map)
+    with pytest.raises(AttributeError):
+        result_json = fraiseql_rs.transform_json_with_typename(input_json, type_map)
+
+    # Use new API instead
+    result_bytes = fraiseql_rs.build_graphql_response(
+        json_strings=[input_json], field_name="user", type_name="User", field_paths=None
+    )
+    result_json = result_bytes.decode("utf-8")
     result = json.loads(result_json)
 
-    assert result["__typename"] == "User"
-    assert result["posts"][0]["__typename"] == "Post"
-    # This test should pass with Phase 4 implementation
+    assert result["data"]["user"]["__typename"] == "User"
 
 
 if __name__ == "__main__":

@@ -683,7 +683,7 @@ Ensure dependencies load before dependents:
 
 ### 6. FraiseQL CQRS Pattern
 
-FraiseQL uses **CQRS (Command Query Responsibility Segregation)** with explicit directory separation:
+FraiseQL uses **[CQRS (Command Query Responsibility Segregation)](concepts-glossary.md#cqrs-command-query-responsibility-segregation)** with explicit directory separation:
 
 ```
 0_schema/

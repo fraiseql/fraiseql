@@ -1204,7 +1204,7 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
                 parts.append(SQL(")"))
             return Composed(parts)
 
-        elif op == "matches_any_lquery":
+        if op == "matches_any_lquery":
             # path ? ARRAY[lquery1, lquery2, ...]
             if not isinstance(val, list):
                 raise TypeError(f"matches_any_lquery requires a list, got {type(val)}")
@@ -1224,7 +1224,7 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
 
             return Composed(parts)
 
-        elif op == "in_array":
+        if op == "in_array":
             # path <@ ARRAY[path1, path2, ...]
             if not isinstance(val, list):
                 raise TypeError(f"in_array requires a list, got {type(val)}")
@@ -1243,7 +1243,7 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
 
             return Composed(parts)
 
-        elif op == "array_contains":
+        if op == "array_contains":
             # ARRAY[path1, path2, ...] @> target_path
             if not isinstance(val, tuple) or len(val) != 2:
                 raise TypeError(
@@ -1267,7 +1267,7 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
             return Composed(parts)
 
         # For pattern operators (contains, startswith, endswith), explicitly reject them
-        elif op in ("contains", "startswith", "endswith"):
+        if op in ("contains", "startswith", "endswith"):
             raise ValueError(
                 f"Pattern operator '{op}' is not supported for MAC address fields. "
                 f"Use only: eq, neq, in, notin, isnull for MAC address filtering."

@@ -13,15 +13,13 @@ from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.auth.base import AuthProvider
-from fraiseql.core.raw_json_executor import RawJSONResult
 from fraiseql.execution.mode_selector import ModeSelector
 from fraiseql.execution.unified_executor import UnifiedExecutor
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.fastapi.custom_response import RawJSONResponse
 from fraiseql.fastapi.dependencies import build_graphql_context
 from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse, clean_unset_values
 from fraiseql.fastapi.turbo import TurboRegistry, TurboRouter
-from fraiseql.graphql import execute_with_passthrough_check
+from fraiseql.graphql.execute import execute_graphql
 from fraiseql.optimization.n_plus_one_detector import (
     N1QueryDetectedError,
     configure_detector,
@@ -323,13 +321,6 @@ def create_graphql_router(
                     context=context,
                 )
 
-                # Check if result is RawJSONResult
-                if isinstance(result, RawJSONResult):
-                    return RawJSONResponse(
-                        content=result.json_string,
-                        media_type=result.content_type,
-                    )
-
                 return result
 
             # Fallback to standard execution
@@ -340,7 +331,7 @@ def create_graphql_router(
             if not is_production_env:
                 async with n1_detection_context(request_id) as detector:
                     context["n1_detector"] = detector
-                    result = await execute_with_passthrough_check(
+                    result = await execute_graphql(
                         schema,
                         request.query,
                         context_value=context,
@@ -349,7 +340,7 @@ def create_graphql_router(
                         enable_introspection=config.enable_introspection,
                     )
             else:
-                result = await execute_with_passthrough_check(
+                result = await execute_graphql(
                     schema,
                     request.query,
                     context_value=context,
@@ -357,21 +348,6 @@ def create_graphql_router(
                     operation_name=request.operationName,
                     enable_introspection=config.enable_introspection,
                 )
-
-            # Check if result contains RawJSONResult
-            if isinstance(result.data, RawJSONResult):
-                return RawJSONResponse(
-                    content=result.data.json_string,
-                    media_type=result.data.content_type,
-                )
-
-            if result.data and isinstance(result.data, dict):
-                for value in result.data.values():
-                    if isinstance(value, RawJSONResult):
-                        return RawJSONResponse(
-                            content=value.json_string,
-                            media_type=value.content_type,
-                        )
 
             # Build response
             response: dict[str, Any] = {}

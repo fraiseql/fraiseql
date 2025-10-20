@@ -1,19 +1,56 @@
 # 5-Minute Quickstart
 
-Build a working GraphQL API from scratch. Copy-paste examples, minimal explanation.
+🟢 **Beginner** - Build a working GraphQL API from scratch. One command setup, then test queries.
+
+**📍 Navigation**: [← Getting Started](../GETTING_STARTED.md) • [Beginner Path →](tutorials/beginner-path.md) • [Examples →](../examples/)
 
 ## Prerequisites
 
+- Python 3.13+
+- PostgreSQL 13+
+- FraiseQL installed
+
+**[📖 Installation Guide](../INSTALLATION.md)** - Complete installation instructions for different use cases
+
+## Step 1: Create Project (30 seconds)
+
+**Option A: Use CLI (Recommended)**
 ```bash
-python --version  # 3.11+
-psql --version    # PostgreSQL client
-pip install fraiseql fastapi uvicorn
+fraiseql init todo-api
+cd todo-api
 ```
 
-## Step 1: Database Setup (1 minute)
+**Option B: Manual Setup**
+```bash
+# Copy the working example
+cp examples/todo_quickstart.py .
+# Run it directly
+python todo_quickstart.py
+```
+
+This creates a complete project structure:
+```
+todo-api/
+├── src/
+│   ├── main.py          # Your GraphQL app
+│   ├── types/           # Type definitions
+│   ├── queries/         # Custom query logic
+│   └── mutations/       # Mutation handlers
+├── migrations/          # Database migrations
+├── tests/               # Test files
+├── .env                 # Configuration
+├── pyproject.toml       # Dependencies
+└── README.md           # Project documentation
+```
+
+## Step 2: Database Setup (1 minute)
 
 ```bash
-createdb todo_app && psql -d todo_app << 'EOF'
+# Create database
+createdb todo_app
+
+# Set up tables and views
+psql -d todo_app << 'EOF'
 CREATE TABLE tb_task (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
@@ -43,65 +80,103 @@ SELECT data FROM v_task LIMIT 1;
 EOF
 ```
 
-## Step 2: Create API (2 minutes)
+Update your `.env` file:
+```bash
+# Edit .env to point to your database
+echo "FRAISEQL_DATABASE_URL=postgresql://localhost/todo_app" >> .env
+```
 
-Save as `app.py`:
+### What You Just Created
+
+You just set up **CQRS architecture**:
+- **`tb_task`** (Command table): Where data is written
+- **`v_task`** (Query view): Pre-packaged JSONB for fast reads
+
+This demonstrates **database-first design** - the database structure comes first, then the API is built on top.
+
+**Learn more**: [Core Concepts](../core/concepts-glossary.md)
+
+## Step 3: Create API (2 minutes)
+
+Replace `src/main.py` with our Task API:
 
 ```python
-from dataclasses import dataclass
-from datetime import datetime
-import fraiseql
-from fraiseql import ID, FraiseQL
-import os
+"""Todo API application."""
 
-app = FraiseQL(
-    database_url=os.getenv("DATABASE_URL", "postgresql://localhost/todo_app")
-)
+import os
+from datetime import datetime
+from typing import List
+
+import fraiseql
+from fraiseql import fraise_field
+from fraiseql.types.scalars import UUID
+
 
 @fraiseql.type
 class Task:
-    id: ID
-    title: str
-    description: str | None
-    completed: bool
-    created_at: datetime
+    """A task in the todo system."""
+    id: UUID = fraise_field(description="Task ID")
+    title: str = fraise_field(description="Task title")
+    description: str | None = fraise_field(description="Task description")
+    completed: bool = fraise_field(description="Whether task is completed")
+    created_at: datetime = fraise_field(description="When task was created")
 
-@app.query
-async def tasks(info, completed: bool | None = None) -> list[Task]:
-    repo = info.context["repo"]
-    where = {}
-    if completed is not None:
-        where["completed"] = completed
-    results = await repo.find("v_task", where=where)
-    return [Task(**result) for result in results]
 
-@app.query
-async def task(info, id: ID) -> Task | None:
-    repo = info.context["repo"]
-    result = await repo.find_one("v_task", where={"id": id})
-    return Task(**result) if result else None
+@fraiseql.type
+class QueryRoot:
+    """Root query type."""
+    tasks: List[Task] = fraise_field(description="List all tasks")
+    task: Task | None = fraise_field(description="Get single task by ID")
+
+    async def resolve_tasks(self, info, completed: bool | None = None):
+        repo = info.context["repo"]
+        where = {}
+        if completed is not None:
+            where["completed"] = completed
+        results = await repo.find("v_task", where=where)
+        return [Task(**result) for result in results]
+
+    async def resolve_task(self, info, id: UUID):
+        repo = info.context["repo"]
+        result = await repo.find_one("v_task", where={"id": id})
+        return Task(**result) if result else None
+
+
+# Create the FastAPI app
+app = fraiseql.create_fraiseql_app(
+    queries=[QueryRoot],
+    database_url=os.getenv("FRAISEQL_DATABASE_URL"),
+)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
 ```
 
-## Step 3: Test Queries (30 seconds)
+## Step 4: Test Queries (30 seconds)
+
+Create a test script to verify your API:
 
 ```python
-# Add to app.py
+# Save as test_queries.py
 import asyncio
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 async def test_queries():
     from fraiseql.repository import FraiseQLRepository
 
     async with FraiseQLRepository(
-        database_url=os.getenv("DATABASE_URL", "postgresql://localhost/todo_app")
+        database_url=os.getenv("FRAISEQL_DATABASE_URL")
     ) as repo:
-        class Info:
-            context = {"repo": repo}
-
-        info = Info()
-        all_tasks = await tasks(info)
-        print(f"Found {len(all_tasks)} tasks")
-        for task in all_tasks:
-            print(f"  - {task.title} (completed: {task.completed})")
+        # Test direct database queries
+        results = await repo.find("v_task")
+        print(f"Found {len(results)} tasks")
+        for result in results:
+            print(f"  - {result['title']} (completed: {result['completed']})")
 
 if __name__ == "__main__":
     asyncio.run(test_queries())
@@ -109,7 +184,7 @@ if __name__ == "__main__":
 
 Run:
 ```bash
-python app.py
+python test_queries.py
 # Output:
 # Found 3 tasks
 #   - Learn FraiseQL (completed: False)
@@ -117,38 +192,26 @@ python app.py
 #   - Deploy to production (completed: False)
 ```
 
-## Step 4: Launch GraphQL Server (30 seconds)
+## Step 5: Launch GraphQL Server (30 seconds)
 
-Create `server.py`:
+Install dependencies and start the server:
 
-```python
-from fastapi import FastAPI
-from fraiseql.fastapi import GraphQLRouter
-from app import app as fraiseql_app
+```bash
+# Install dependencies
+pip install -e .
 
-api = FastAPI(title="Todo API")
-
-api.include_router(
-    GraphQLRouter(
-        fraiseql_app,
-        path="/graphql",
-        enable_playground=True
-    )
-)
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(api, host="0.0.0.0", port=8000)
+# Start the development server
+python -m src.main
 ```
 
-Run:
+Or use the FraiseQL CLI:
 ```bash
-python server.py
+fraiseql dev
 ```
 
 Open http://localhost:8000/graphql
 
-## Step 5: Test in Playground (1 minute)
+## Step 6: Test in Playground (1 minute)
 
 ### Query All Tasks
 ```graphql
@@ -189,9 +252,10 @@ query GetTask($id: ID!) {
 
 ## Optional: Add Mutations (2 minutes)
 
-PostgreSQL functions:
+First, add PostgreSQL functions:
 
 ```sql
+psql -d todo_app << 'EOF'
 CREATE OR REPLACE FUNCTION fn_create_task(
     p_title TEXT,
     p_description TEXT DEFAULT NULL
@@ -215,35 +279,50 @@ BEGIN
     RETURN FOUND;
 END;
 $$ LANGUAGE plpgsql;
+EOF
 ```
 
-Add to `app.py`:
+Add mutations to `src/main.py`:
 
 ```python
 @fraiseql.input
 class CreateTaskInput:
-    title: str
-    description: str | None = None
+    """Input for creating a new task."""
+    title: str = fraise_field(description="Task title")
+    description: str | None = fraise_field(description="Task description")
 
-@app.mutation
-async def create_task(info, input: CreateTaskInput) -> Task:
-    repo = info.context["repo"]
-    task_id = await repo.call_function(
-        "fn_create_task",
-        p_title=input.title,
-        p_description=input.description
-    )
-    result = await repo.find_one("v_task", where={"id": task_id})
-    return Task(**result)
 
-@app.mutation
-async def complete_task(info, id: ID) -> Task | None:
-    repo = info.context["repo"]
-    success = await repo.call_function("fn_complete_task", p_id=id)
-    if success:
-        result = await repo.find_one("v_task", where={"id": id})
-        return Task(**result) if result else None
-    return None
+@fraiseql.type
+class MutationRoot:
+    """Root mutation type."""
+    create_task: Task = fraise_field(description="Create a new task")
+    complete_task: Task | None = fraise_field(description="Mark task as completed")
+
+    async def resolve_create_task(self, info, input: CreateTaskInput):
+        repo = info.context["repo"]
+        task_id = await repo.call_function(
+            "fn_create_task",
+            p_title=input.title,
+            p_description=input.description
+        )
+        result = await repo.find_one("v_task", where={"id": task_id})
+        return Task(**result)
+
+    async def resolve_complete_task(self, info, id: UUID):
+        repo = info.context["repo"]
+        success = await repo.call_function("fn_complete_task", p_id=id)
+        if success:
+            result = await repo.find_one("v_task", where={"id": id})
+            return Task(**result) if result else None
+        return None
+
+
+# Create the FastAPI app
+app = fraiseql.create_fraiseql_app(
+    queries=[QueryRoot],
+    mutations=[MutationRoot],
+    database_url=os.getenv("FRAISEQL_DATABASE_URL"),
+)
 ```
 
 Test mutations:
@@ -272,9 +351,27 @@ mutation MarkComplete($id: ID!) {
 ## Success
 
 In 5 minutes you have:
-- PostgreSQL database with table and view
+- Complete project structure with proper organization
+- PostgreSQL database with CQRS tables and views
 - GraphQL API with queries and mutations
 - Interactive playground for testing
+- Ready for development and deployment
+
+## Project Structure Explained
+
+Your `todo-api/` project follows FraiseQL best practices:
+
+```
+src/
+├── main.py          # GraphQL schema and resolvers
+├── types/           # Reusable type definitions
+├── queries/         # Complex query logic
+└── mutations/       # Business logic for mutations
+
+migrations/          # Database schema changes
+tests/               # Test files
+.env                 # Configuration (database URL, secrets)
+```
 
 ## View Pattern Explanation
 
@@ -298,13 +395,15 @@ FROM tb_task;
 
 **Database connection errors**:
 ```bash
-export DATABASE_URL="postgresql://username:password@localhost/todo_app"
+# Check your .env file
+cat .env
+# Update if needed
+echo "FRAISEQL_DATABASE_URL=postgresql://localhost/todo_app" > .env
 ```
 
 **Module not found**:
 ```bash
-pip install fraiseql
-# Or: python3 -m pip install fraiseql
+pip install -e .
 ```
 
 **PostgreSQL not found**:
@@ -312,36 +411,58 @@ pip install fraiseql
 - Ubuntu: `sudo apt install postgresql`
 - Windows: Download from postgresql.org
 
-## Next Steps
+## Next Steps After Quickstart
 
-### Continue Learning
+### Evolve Your Project
 
-**Structured Path** (Recommended):
-- [Beginner Learning Path](./tutorials/beginner-path.md) - Complete 2-3 hour journey from zero to production
+**From Quickstart → Production**:
+1. **Add proper migrations** - Move database setup to `migrations/`
+2. **Split types** - Move Task to `src/types/task.py`
+3. **Add tests** - Create `tests/test_task.py`
+4. **Add authentication** - See [Native Auth Example](../../examples/native-auth-app/)
+5. **Add caching** - See [APQ Multi-tenant Example](../../examples/apq_multi_tenant/)
 
-**Hands-On Tutorial**:
-- [Blog API Tutorial](./tutorials/blog-api.md) - Build complete blog with posts, comments, users (45 min)
+### Learning Paths
 
-**Core Concepts**:
-- [Database API](./core/database-api.md) - Repository patterns and QueryOptions
-- [Database Patterns](./advanced/database-patterns.md) - View design, N+1 prevention, tv_ pattern
+**Beginner** (Recommended):
+- [Beginner Learning Path](./tutorials/beginner-path.md) - Complete 2-3 hour journey
 
-**Performance**:
-- [Performance Optimization](./performance/index.md) - Rust transformation, APQ caching, TurboRouter
+**Specific Topics**:
+- [Blog API Tutorial](./tutorials/blog-api.md) - Complete CRUD application
+- [Database Patterns](../../docs/advanced/database-patterns.md) - CQRS, views, N+1 prevention
+- [Performance Guide](../../docs/performance/index.md) - Optimization techniques
+
+### Project Templates
+
+For larger applications, consider these templates:
+- **Blog**: User posts, comments, authentication
+- **E-commerce**: Products, orders, payments
+- **Enterprise**: Multi-tenant, advanced patterns
+
+```bash
+# Try different templates
+fraiseql init blog-api --template blog
+fraiseql init shop --template ecommerce
+```
 
 ## Key Concepts
+
+**Project Structure**:
+- `src/` - Application code (not root-level files)
+- `migrations/` - Database schema evolution
+- `.env` - Configuration (never commit)
 
 **View Naming**:
 - `v_` - Regular views (computed on query)
 - `tv_` - Table views (materialized for performance)
 - `fn_` - PostgreSQL functions for mutations
 
-**Type Hints**:
-- Required: Define your GraphQL schema
-- `| None` - Optional fields
-- `list[Type]` - Arrays
+**Type System**:
+- `@fraiseql.type` - GraphQL object types
+- `@fraiseql.input` - Input types for mutations
+- `frause_field()` - Field definitions with descriptions
 
 **Repository Pattern**:
-- `repo.find()` - Query views
-- `repo.find_one()` - Single record
+- `repo.find()` - Query views with filtering
+- `repo.find_one()` - Single record by ID
 - `repo.call_function()` - Execute PostgreSQL functions

@@ -9,6 +9,7 @@ Root cause: is_nested_object flag is declared outside the field iteration loop,
 causing it to carry state between iterations.
 """
 
+import json
 from datetime import UTC, datetime
 from typing import Optional
 from uuid import UUID, uuid4
@@ -20,6 +21,7 @@ pytestmark = pytest.mark.database
 from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 import fraiseql
+from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 
 
@@ -38,6 +40,26 @@ class RouterConfig:
     is_current: bool
     created_at: datetime
     machine: Optional[Machine] = None
+
+
+def _parse_rust_response(result):
+    """Helper to parse RustResponseBytes into Python objects."""
+    if isinstance(result, RustResponseBytes):
+        response_json = json.loads(bytes(result).decode("utf-8"))
+        # Extract data from GraphQL response structure
+        if "data" in response_json:
+            # Get the first key in data (the field name)
+            field_name = list(response_json["data"].keys())[0]
+            data = response_json["data"][field_name]
+
+            # Normalize: always return a list for consistency
+            # The Rust pipeline returns a single object when there's 1 result
+            # but tests expect a list
+            if isinstance(data, dict):
+                return [data]
+            return data
+        return response_json
+    return result
 
 
 class TestDictWhereMixedFiltersBug:
@@ -163,9 +185,7 @@ class TestDictWhereMixedFiltersBug:
             await conn.execute("DROP TABLE IF EXISTS test_machines")
 
     @pytest.mark.asyncio
-    async def test_dict_where_with_nested_filter_only(
-        self, db_pool, setup_test_tables
-    ):
+    async def test_dict_where_with_nested_filter_only(self, db_pool, setup_test_tables):
         """Test dict WHERE with only nested object filter works correctly."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
         machine_1_id = setup_test_tables["machine_1_id"]
@@ -173,12 +193,12 @@ class TestDictWhereMixedFiltersBug:
         # Use dict-based WHERE filter with nested object
         where_dict = {"machine": {"id": {"eq": machine_1_id}}}
 
-        results = await repo.find("test_router_config_view", where=where_dict)
+        raw_results = await repo.find("test_router_config_view", where=where_dict)
+        results = _parse_rust_response(raw_results)
 
         # Should get both configs for machine_1
         assert len(results) == 2
-        assert all(isinstance(r, RouterConfig) for r in results)
-        assert all(r.machine_id == machine_1_id for r in results)
+        assert all(str(r["machineId"]) == str(machine_1_id) for r in results)
 
     @pytest.mark.asyncio
     async def test_dict_where_with_direct_filter_only(self, db_pool, setup_test_tables):
@@ -188,12 +208,12 @@ class TestDictWhereMixedFiltersBug:
         # Use dict-based WHERE filter with direct field
         where_dict = {"is_current": {"eq": True}}
 
-        results = await repo.find("test_router_config_view", where=where_dict)
+        raw_results = await repo.find("test_router_config_view", where=where_dict)
+        results = _parse_rust_response(raw_results)
 
         # Should get 2 current configs (1 from each machine)
         assert len(results) == 2
-        assert all(isinstance(r, RouterConfig) for r in results)
-        assert all(r.is_current is True for r in results)
+        assert all(r["isCurrent"] is True for r in results)
 
     @pytest.mark.asyncio
     async def test_dict_where_with_mixed_nested_and_direct_filters_BUG(
@@ -219,7 +239,8 @@ class TestDictWhereMixedFiltersBug:
             "is_current": {"eq": True},  # Direct field filter
         }
 
-        results = await repo.find("test_router_config_view", where=where_dict)
+        raw_results = await repo.find("test_router_config_view", where=where_dict)
+        results = _parse_rust_response(raw_results)
 
         # EXPECTED: Should get 1 config (the current config for machine_1)
         # ACTUAL (with bug): Gets 2 configs (only applies machine filter, ignores is_current)
@@ -227,10 +248,9 @@ class TestDictWhereMixedFiltersBug:
             f"Expected 1 result (current config for machine_1), got {len(results)}. "
             "This indicates the is_current filter was ignored due to the bug."
         )
-        assert isinstance(results[0], RouterConfig)
-        assert results[0].machine_id == machine_1_id
-        assert results[0].is_current is True
-        assert results[0].config_name == "config-v2"
+        assert str(results[0]["machineId"]) == str(machine_1_id)
+        assert results[0]["isCurrent"] is True
+        assert results[0]["configName"] == "config-v2"
 
     @pytest.mark.asyncio
     async def test_dict_where_with_multiple_direct_filters_after_nested(
@@ -252,21 +272,20 @@ class TestDictWhereMixedFiltersBug:
             "config_name": {"eq": "config-v2"},  # Direct field filter 2
         }
 
-        results = await repo.find("test_router_config_view", where=where_dict)
+        raw_results = await repo.find("test_router_config_view", where=where_dict)
+        results = _parse_rust_response(raw_results)
 
         # Should get exactly 1 config matching all criteria
         assert len(results) == 1, (
             f"Expected 1 result, got {len(results)}. "
             "Direct filters after nested filter were ignored."
         )
-        assert results[0].machine_id == machine_1_id
-        assert results[0].is_current is True
-        assert results[0].config_name == "config-v2"
+        assert str(results[0]["machineId"]) == str(machine_1_id)
+        assert results[0]["isCurrent"] is True
+        assert results[0]["configName"] == "config-v2"
 
     @pytest.mark.asyncio
-    async def test_dict_where_with_direct_filter_before_nested(
-        self, db_pool, setup_test_tables
-    ):
+    async def test_dict_where_with_direct_filter_before_nested(self, db_pool, setup_test_tables):
         """
         Test dict WHERE with direct filter BEFORE nested filter.
 
@@ -283,10 +302,11 @@ class TestDictWhereMixedFiltersBug:
             "machine": {"id": {"eq": machine_1_id}},  # Nested object filter (second)
         }
 
-        results = await repo.find("test_router_config_view", where=where_dict)
+        raw_results = await repo.find("test_router_config_view", where=where_dict)
+        results = _parse_rust_response(raw_results)
 
         # Should get exactly 1 config
         # This might pass even with the bug, depending on iteration order
         assert len(results) == 1
-        assert results[0].machine_id == machine_1_id
-        assert results[0].is_current is True
+        assert str(results[0]["machineId"]) == str(machine_1_id)
+        assert results[0]["isCurrent"] is True

@@ -55,8 +55,8 @@ async def create_branch(info, input: CreateBranchInput) -> Branch:
     )
 
 
-def test_quickstart_mutation_pattern_works() -> None:
-    """Test that the mutation pattern from quickstart.py works."""
+def test_todo_quickstart_mutation_pattern_works() -> None:
+    """Test that the mutation pattern from todo_quickstart.py works."""
     # This should not raise "TypeError: Mutation create_branch must define 'success' type"
     assert hasattr(create_branch, "__fraiseql_mutation__")
     assert create_branch.__fraiseql_mutation__ is True

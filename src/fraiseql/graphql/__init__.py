@@ -1,15 +1,7 @@
-"""FraiseQL GraphQL execution with passthrough support."""
+"""FraiseQL GraphQL execution with unified Rust-first architecture."""
 
-from .execute import (
-    PassthroughResolver,
-    execute_with_passthrough_check,
-    wrap_resolver_for_passthrough,
-)
-from .passthrough_context import PassthroughExecutionContext
+from .execute import execute_graphql
 
 __all__ = [
-    "PassthroughExecutionContext",
-    "PassthroughResolver",
-    "execute_with_passthrough_check",
-    "wrap_resolver_for_passthrough",
+    "execute_graphql",
 ]

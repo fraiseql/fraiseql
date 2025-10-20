@@ -4,7 +4,7 @@
 
 ### Mutation Responses
 
-**Basic Pattern (quickstart.py):**
+**Basic Pattern (todo_quickstart.py):**
 ```python
 async def create_user(info, input: CreateUserInput) -> User:
     # Simple success/error handling
@@ -63,7 +63,7 @@ CREATE FUNCTION core.create_user(...) RETURNS app.mutation_result;
 
 | Example | Complexity | Patterns Used | Best For |
 |---------|------------|---------------|----------|
-| `quickstart.py` | Basic | Simple mutations | Learning FraiseQL |
+| `todo_quickstart.py` | Basic | Simple mutations | Learning FraiseQL |
 | `blog_api/` | Intermediate | Mutation results, basic audit | Content management |
 | `ecommerce_api/` | Advanced | Cross-entity validation | E-commerce apps |
 | `enterprise_patterns/` | Full | All patterns | Production systems |
@@ -225,7 +225,7 @@ Use this tree to choose the right pattern:
 
 ```
 Is this a learning/prototype project?
-├─ Yes → Use Basic patterns (quickstart.py)
+├─ Yes → Use Basic patterns (todo_quickstart.py)
 └─ No → Do you need audit trails?
     ├─ No → Use Intermediate patterns (blog_api basic)
     └─ Yes → Do you need NOOP handling?

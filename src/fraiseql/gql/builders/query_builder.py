@@ -152,39 +152,7 @@ class QueryTypeBuilder:
         Returns:
             A GraphQL-compatible resolver function.
         """
-        # Try to use raw JSON wrapper for production optimization
-        try:
-            from fraiseql.config.schema_config import SchemaConfig
-            from fraiseql.gql.raw_json_wrapper import create_raw_json_resolver
-            from fraiseql.utils.naming import snake_to_camel as to_camel_case
-
-            # Get the actual field name (camelCase if configured)
-            config = SchemaConfig.get_instance()
-            graphql_field_name = (
-                to_camel_case(field_name) if config.camel_case_fields and field_name else field_name
-            )
-
-            # Use raw JSON wrapper for production optimization
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.info(
-                f"Creating raw JSON resolver for field '{field_name}' "
-                f"with graphql name '{graphql_field_name}'"
-            )
-            wrapped = create_raw_json_resolver(
-                fn, graphql_field_name or field_name or fn.__name__, arg_name_mapping
-            )
-            logger.info(f"Created wrapped resolver: {wrapped}")
-            return wrapped
-        except (ImportError, AttributeError) as e:
-            # Fallback to standard resolver if raw JSON wrapper is not available
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                f"Raw JSON wrapper not available ({e}), falling back to standard resolver"
-            )
+        # Use standard resolver (Rust pipeline handles optimization internally)
 
         # Standard resolver fallback
         # First wrap with input coercion

@@ -1,30 +1,19 @@
 """Database utilities and repository layer for FraiseQL using psycopg and connection pooling."""
 
-import contextlib
 import logging
-import os
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from datetime import datetime
-from decimal import Decimal
 from typing import Any, Optional, TypeVar, Union, get_args, get_origin
-from uuid import UUID
 
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Composed
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.audit import get_security_logger
-from fraiseql.core.raw_json_executor import (
-    RawJSONResult,
-    execute_raw_json_list_query,
-    execute_raw_json_query,
-)
 from fraiseql.core.rust_pipeline import (
-    execute_via_rust_pipeline,
     RustResponseBytes,
+    execute_via_rust_pipeline,
 )
-
 from fraiseql.utils.casing import to_snake_case
 
 logger = logging.getLogger(__name__)
@@ -127,7 +116,8 @@ class FraiseQLRepository:
     async def _set_session_variables(self, cursor_or_conn) -> None:
         """Set PostgreSQL session variables from context.
 
-        Sets app.tenant_id and app.contact_id session variables if present in context.
+        Sets app.tenant_id, app.contact_id, app.user_id, and app.is_super_admin
+        session variables if present in context.
         Uses SET LOCAL to scope variables to the current transaction.
 
         Args:
@@ -174,6 +164,61 @@ class FraiseQLRepository:
                 await cursor_or_conn.execute(
                     "SET LOCAL app.contact_id = $1", str(self.context["user"])
                 )
+
+        # RBAC-specific session variables for Row-Level Security
+        if "user_id" in self.context:
+            if is_cursor:
+                await cursor_or_conn.execute(
+                    SQL("SET LOCAL app.user_id = {}").format(Literal(str(self.context["user_id"])))
+                )
+            else:
+                # asyncpg connection
+                await cursor_or_conn.execute(
+                    "SET LOCAL app.user_id = $1", str(self.context["user_id"])
+                )
+
+        # Set super_admin flag based on user roles
+        if "roles" in self.context:
+            is_super_admin = (
+                any(r.get("name") == "super_admin" for r in self.context["roles"])
+                if isinstance(self.context["roles"], list)
+                else False
+            )
+            if is_cursor:
+                await cursor_or_conn.execute(
+                    SQL("SET LOCAL app.is_super_admin = {}").format(Literal(is_super_admin))
+                )
+            else:
+                # asyncpg connection
+                await cursor_or_conn.execute("SET LOCAL app.is_super_admin = $1", is_super_admin)
+        elif "user_id" in self.context:
+            # If roles not provided in context, check database for super_admin role
+            # This is a fallback that may be slower but ensures correctness
+            try:
+                user_id = self.context["user_id"]
+                if is_cursor:
+                    # For psycopg, we need to use the existing connection
+                    # This is a simplified check - in production you'd want more robust role checking
+                    await cursor_or_conn.execute(
+                        SQL(
+                            "SET LOCAL app.is_super_admin = EXISTS (SELECT 1 FROM user_roles ur INNER JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = {} AND r.name = 'super_admin')"
+                        ).format(Literal(str(user_id)))
+                    )
+                else:
+                    # asyncpg connection
+                    result = await cursor_or_conn.fetchval(
+                        "SELECT EXISTS (SELECT 1 FROM user_roles ur INNER JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1 AND r.name = 'super_admin')",
+                        str(user_id),
+                    )
+                    await cursor_or_conn.execute("SET LOCAL app.is_super_admin = $1", result)
+            except Exception:
+                # If role checking fails, default to False for security
+                if is_cursor:
+                    await cursor_or_conn.execute(
+                        SQL("SET LOCAL app.is_super_admin = {}").format(Literal(False))
+                    )
+                else:
+                    await cursor_or_conn.execute("SET LOCAL app.is_super_admin = $1", False)
 
     async def run(self, query: DatabaseQuery) -> list[dict[str, object]]:
         """Execute a SQL query using a connection from the pool.
@@ -446,7 +491,7 @@ class FraiseQLRepository:
             self._introspection_in_progress.discard(view_name)
 
     async def find(
-        self, view_name: str, field_name: str, info: Any = None, **kwargs
+        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs
     ) -> RustResponseBytes:
         """Find records using unified Rust-first pipeline.
 
@@ -477,7 +522,6 @@ class FraiseQLRepository:
         # 3. Build SQL query
         query = self._build_find_query(
             view_name,
-            raw_json=True,
             field_paths=field_paths,
             info=info,
             jsonb_column=jsonb_column,
@@ -493,14 +537,14 @@ class FraiseQLRepository:
                 conn,
                 query.statement,
                 query.params,
-                field_name,
+                field_name or view_name,  # Use view_name as default field_name
                 type_name,
                 is_list=True,
                 field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
             )
 
     async def find_one(
-        self, view_name: str, field_name: str, info: Any = None, **kwargs
+        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs
     ) -> RustResponseBytes:
         """Find single record using unified Rust-first pipeline.
 
@@ -529,7 +573,6 @@ class FraiseQLRepository:
         # 3. Build query (automatically adds LIMIT 1)
         query = self._build_find_one_query(
             view_name,
-            raw_json=True,
             field_paths=field_paths,
             info=info,
             jsonb_column=jsonb_column,
@@ -545,7 +588,7 @@ class FraiseQLRepository:
                 conn,
                 query.statement,
                 query.params,
-                field_name,
+                field_name or view_name,  # Use view_name as default field_name
                 type_name,
                 is_list=False,
                 field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
@@ -584,7 +627,6 @@ class FraiseQLRepository:
     def _build_find_query(
         self,
         view_name: str,
-        raw_json: bool = False,
         field_paths: list[Any] | None = None,
         info: Any = None,
         jsonb_column: str | None = None,
@@ -592,12 +634,11 @@ class FraiseQLRepository:
     ) -> DatabaseQuery:
         """Build a SELECT query for finding multiple records.
 
-        Now much simpler: always SELECT jsonb_column::text
+        Unified Rust-first: always SELECT jsonb_column::text
         Rust handles field projection, not PostgreSQL!
 
         Args:
             view_name: Name of the view to query
-            raw_json: Whether to return raw JSON text (always True now)
             field_paths: Optional field paths for projection (passed to Rust)
             info: Optional GraphQL resolve info
             jsonb_column: JSONB column name to use
@@ -613,17 +654,19 @@ class FraiseQLRepository:
         offset = kwargs.pop("offset", None)
         order_by = kwargs.pop("order_by", None)
 
-        # Process where object - simplified version
+        # Process where object
         if where_obj:
             if hasattr(where_obj, "to_sql"):
                 where_composed = where_obj.to_sql()
                 if where_composed:
                     where_parts.append(where_composed)
             elif isinstance(where_obj, dict):
-                # Simple dict processing
-                for key, value in where_obj.items():
-                    where_condition = Composed([Identifier(key), SQL(" = "), Literal(value)])
-                    where_parts.append(where_condition)
+                # Use sophisticated dict processing for complex filters
+                # For now, pass None for table_columns to avoid async issues
+                # The method will fall back to heuristics
+                dict_where_sql = self._convert_dict_where_to_sql(where_obj, view_name, None)
+                if dict_where_sql:
+                    where_parts.append(dict_where_sql)
 
         # Process remaining kwargs as simple equality filters
         for key, value in kwargs.items():
@@ -683,7 +726,6 @@ class FraiseQLRepository:
     def _build_find_one_query(
         self,
         view_name: str,
-        raw_json: bool = False,
         field_paths: list[Any] | None = None,
         info: Any = None,
         jsonb_column: str | None = None,
@@ -694,7 +736,6 @@ class FraiseQLRepository:
         kwargs["limit"] = 1
         return self._build_find_query(
             view_name,
-            raw_json=raw_json,
             field_paths=field_paths,
             info=info,
             jsonb_column=jsonb_column,
@@ -754,25 +795,77 @@ class FraiseQLRepository:
             if isinstance(field_filter, dict):
                 # Check if this might be a nested object filter (e.g., {machine: {id: {eq: value}}})
                 # Nested object filters have 'id' as a key with a dict value containing operators
+                # IMPORTANT: is_nested_object must be reset for each field to prevent state carry-over
+                # between iterations that would cause direct filters to be skipped after nested filters
                 is_nested_object = False
                 if "id" in field_filter and isinstance(field_filter["id"], dict):
                     # This looks like a nested object filter
                     # Check if we have a corresponding SQL column for this relationship
                     potential_fk_column = f"{db_field_name}_id"
+
+                    # Validate that this is likely a nested object, not a field literally named "id"
+                    # True nested objects have:
+                    # 1. A single "id" key (or very few keys like "id" + metadata)
+                    # 2. The "id" value is a dict with operator keys
+                    # 3. The field name suggests a relationship (not a scalar field)
+                    looks_like_nested = (
+                        len(field_filter) == 1  # Only contains "id" key
+                        or (
+                            len(field_filter) <= 2
+                            and all(k in ("id", "__typename") for k in field_filter.keys())
+                        )
+                    )
+
                     if table_columns and potential_fk_column in table_columns:
-                        # We have a SQL column for this relationship, use it directly
+                        # BEST CASE: We have actual column metadata
+                        # We know for sure this FK column exists, so treat as nested object
                         is_nested_object = True
+                        logger.debug(
+                            f"Dict WHERE: Detected nested object filter for {field_name} "
+                            f"(FK column {potential_fk_column} exists)"
+                        )
+                    elif table_columns is None and looks_like_nested:
+                        # FALLBACK CASE: No column metadata available (development/testing)
+                        # Use heuristics to determine if this is a nested object
+                        # RISK: If a field is literally named "id" with operator filters like
+                        # {"id": {"eq": value}}, it will be treated as nested object.
+                        # However, this is an unlikely naming pattern in practice.
+                        is_nested_object = True
+                        logger.debug(
+                            f"Dict WHERE: Assuming nested object filter for {field_name} "
+                            f"(table_columns=None, using heuristics). "
+                            f"If this is incorrect, register table metadata with register_type_for_view()."
+                        )
+                    elif not looks_like_nested:
+                        # Safety check: Even if table_columns is None, if the structure doesn't
+                        # look like a nested object (e.g., has multiple keys beyond "id"),
+                        # treat it as regular field operators
+                        is_nested_object = False
+                        logger.debug(
+                            f"Dict WHERE: Treating {field_name} as regular field filter "
+                            f"(structure doesn't match nested object pattern)"
+                        )
+
+                    if is_nested_object:
                         # Extract the filter value from the nested structure
                         id_filter = field_filter["id"]
-                        for operator, value in id_filter.items():
-                            if value is None:
-                                continue
-                            # Build condition using the FK column directly
-                            condition_sql = self._build_dict_where_condition(
-                                potential_fk_column, operator, value, view_name, table_columns
+
+                        # Validate that id_filter contains operator keys
+                        if not isinstance(id_filter, dict) or not id_filter:
+                            logger.warning(
+                                f"Dict WHERE: Nested object filter for {field_name} has invalid "
+                                f"id_filter structure: {id_filter}. Skipping."
                             )
-                            if condition_sql:
-                                conditions.append(condition_sql)
+                        else:
+                            for operator, value in id_filter.items():
+                                if value is None:
+                                    continue
+                                # Build condition using the FK column directly
+                                condition_sql = self._build_dict_where_condition(
+                                    potential_fk_column, operator, value, view_name, table_columns
+                                )
+                                if condition_sql:
+                                    conditions.append(condition_sql)
 
                 if not is_nested_object:
                     # Handle regular operator-based filtering: {'contains': 'router', 'gt': 10}

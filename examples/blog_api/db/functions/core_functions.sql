@@ -441,45 +441,47 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Central logging function for all mutations
+-- Unified audit logging function
+-- Logs to audit_events table with automatic crypto chain integrity
 CREATE OR REPLACE FUNCTION core.log_and_return_mutation(
-    pk_organization UUID,
-    user_id UUID,
-    entity_type TEXT,
-    entity_id UUID,
-    operation_type TEXT,
-    operation_subtype TEXT,
-    changed_fields TEXT[],
-    message TEXT,
-    old_data JSONB,
-    new_data JSONB,
-    metadata JSONB
+    p_tenant_id UUID,
+    p_user_id UUID,
+    p_entity_type TEXT,
+    p_entity_id UUID,
+    p_operation_type TEXT,        -- INSERT, UPDATE, DELETE, NOOP
+    p_operation_subtype TEXT,     -- new, updated, noop:duplicate, etc.
+    p_changed_fields TEXT[],
+    p_message TEXT,
+    p_old_data JSONB,             -- CDC: before state
+    p_new_data JSONB,             -- CDC: after state
+    p_metadata JSONB              -- Business actions, rules, etc.
 ) RETURNS app.mutation_result AS $$
 DECLARE
     v_result app.mutation_result;
 BEGIN
-    -- Log the operation
-    INSERT INTO tenant.tb_audit_log (
-        pk_organization, user_id, entity_type, entity_id,
+    -- Insert into unified audit_events table
+    -- Crypto fields auto-populated by populate_crypto_trigger
+    INSERT INTO audit_events (
+        tenant_id, user_id, entity_type, entity_id,
         operation_type, operation_subtype, changed_fields,
-        old_data, new_data, metadata, created_at
+        old_data, new_data, metadata
     ) VALUES (
-        pk_organization, user_id, entity_type, entity_id,
-        operation_type, operation_subtype, changed_fields,
-        old_data, new_data, metadata, NOW()
+        p_tenant_id, p_user_id, p_entity_type, p_entity_id,
+        p_operation_type, p_operation_subtype, p_changed_fields,
+        p_old_data, p_new_data, p_metadata
     );
 
-    -- Build standardized result
-    v_result.success := (operation_type IN ('INSERT', 'UPDATE', 'DELETE'));
-    v_result.operation_type := operation_type;
-    v_result.entity_type := entity_type;
-    v_result.entity_id := entity_id;
-    v_result.message := message;
-    v_result.error_code := CASE WHEN operation_type = 'NOOP' THEN operation_subtype ELSE NULL END;
-    v_result.changed_fields := changed_fields;
-    v_result.old_data := old_data;
-    v_result.new_data := new_data;
-    v_result.metadata := metadata;
+    -- Return standardized mutation result
+    v_result.success := (p_operation_type IN ('INSERT', 'UPDATE', 'DELETE'));
+    v_result.operation_type := p_operation_type;
+    v_result.entity_type := p_entity_type;
+    v_result.entity_id := p_entity_id;
+    v_result.message := p_message;
+    v_result.error_code := CASE WHEN p_operation_type = 'NOOP' THEN p_operation_subtype ELSE NULL END;
+    v_result.changed_fields := p_changed_fields;
+    v_result.old_data := p_old_data;
+    v_result.new_data := p_new_data;
+    v_result.metadata := p_metadata;
 
     RETURN v_result;
 END;

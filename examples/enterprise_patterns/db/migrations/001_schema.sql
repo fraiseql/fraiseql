@@ -10,22 +10,54 @@ CREATE SCHEMA IF NOT EXISTS tenant;
 CREATE SCHEMA IF NOT EXISTS app;
 CREATE SCHEMA IF NOT EXISTS core;
 
--- Base audit table for all operations
-CREATE TABLE tenant.tb_audit_log (
-    pk_audit_log UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pk_organization UUID NOT NULL,
+-- Unified audit table with cryptographic chain integrity
+-- Combines CDC (old_data, new_data) + tamper-proof chain (hash, signature)
+CREATE TABLE audit_events (
+    -- Primary identification
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Multi-tenancy
+    tenant_id UUID NOT NULL,
     user_id UUID,
+
+    -- Entity tracking (CDC)
     entity_type TEXT NOT NULL,
     entity_id UUID,
+
+    -- Operation classification
     operation_type TEXT NOT NULL, -- INSERT, UPDATE, DELETE, NOOP
-    operation_subtype TEXT, -- create, update_status, noop_duplicate, etc.
+    operation_subtype TEXT,       -- new, updated, noop:duplicate, etc.
+
+    -- Change tracking (Debezium-style CDC)
     changed_fields TEXT[],
     old_data JSONB,
     new_data JSONB,
-    metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    correlation_id UUID DEFAULT gen_random_uuid()
+
+    -- Business metadata
+    metadata JSONB,               -- business_actions, validation results, etc.
+
+    -- Context
+    ip_address INET,
+    correlation_id UUID DEFAULT gen_random_uuid(),
+
+    -- Timestamps
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- Cryptographic chain integrity
+    previous_hash VARCHAR(64),    -- Links to previous event in tenant chain
+    event_hash VARCHAR(64) NOT NULL,
+    signature VARCHAR(128) NOT NULL
 );
+
+-- Enable RLS for tamper-proof audit
+ALTER TABLE audit_events ENABLE ROW LEVEL SECURITY;
+
+-- Append-only policy: Allow INSERT, prevent UPDATE/DELETE
+CREATE POLICY audit_events_insert_only ON audit_events
+    FOR ALL
+    USING (false)          -- No SELECT/UPDATE/DELETE allowed via this policy
+    WITH CHECK (true);     -- INSERT allowed
 
 -- Organizations table (multi-tenant root)
 CREATE TABLE tenant.tb_organization (
@@ -154,11 +186,15 @@ CREATE TABLE tenant.tb_notification (
 
 -- Indexes for performance and enterprise features
 
--- Audit log indexes
-CREATE INDEX idx_audit_log_organization ON tenant.tb_audit_log (pk_organization, created_at DESC);
-CREATE INDEX idx_audit_log_entity ON tenant.tb_audit_log (entity_type, entity_id);
-CREATE INDEX idx_audit_log_operation ON tenant.tb_audit_log (operation_type, operation_subtype);
-CREATE INDEX idx_audit_log_correlation ON tenant.tb_audit_log (correlation_id);
+-- Unified audit table indexes
+CREATE INDEX idx_audit_events_tenant_time ON audit_events(tenant_id, timestamp DESC);
+CREATE INDEX idx_audit_events_entity ON audit_events(entity_type, entity_id);
+CREATE INDEX idx_audit_events_hash ON audit_events(event_hash);
+CREATE INDEX idx_audit_events_correlation ON audit_events(correlation_id);
+CREATE INDEX idx_audit_events_operation ON audit_events(operation_type, operation_subtype);
+
+-- GIN index for metadata queries
+CREATE INDEX idx_audit_events_metadata ON audit_events USING GIN (metadata);
 
 -- Organization indexes
 CREATE UNIQUE INDEX idx_organization_identifier ON tenant.tb_organization (identifier) WHERE deleted_at IS NULL;
@@ -241,7 +277,7 @@ ALTER TABLE tenant.tb_user ADD CONSTRAINT chk_user_audit_complete
     CHECK (created_by IS NOT NULL AND updated_by IS NOT NULL);
 
 -- Comments for documentation
-COMMENT ON TABLE tenant.tb_audit_log IS 'Complete audit trail for all entity operations';
+COMMENT ON TABLE audit_events IS 'Unified audit table with CDC + cryptographic chain integrity';
 COMMENT ON TABLE tenant.tb_organization IS 'Multi-tenant organizations with enterprise features';
 COMMENT ON TABLE tenant.tb_user IS 'Users with comprehensive audit trail and role management';
 COMMENT ON TABLE tenant.tb_project IS 'Projects with complex business logic and timeline management';

@@ -147,38 +147,6 @@ if user is None:
     raise GraphQLError("User not found")
 ```
 
-### find_raw_json()
-
-**Purpose**: Find records and return as raw JSON for direct passthrough (internal use)
-
-**Signature**:
-```python
-async def find_raw_json(
-    view_name: str,
-    field_name: str,
-    info: Any = None,
-    **kwargs
-) -> RawJSONResult
-```
-
-**Note**: This is an internal optimization method. Use `find()` in normal resolvers.
-
-### find_one_raw_json()
-
-**Purpose**: Find single record as raw JSON for direct passthrough (internal use)
-
-**Signature**:
-```python
-async def find_one_raw_json(
-    view_name: str,
-    field_name: str,
-    info: Any = None,
-    **kwargs
-) -> RawJSONResult
-```
-
-**Note**: This is an internal optimization method. Use `find_one()` in normal resolvers.
-
 ## Pagination Methods
 
 ### paginate()

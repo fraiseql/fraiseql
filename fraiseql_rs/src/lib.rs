@@ -3,10 +3,10 @@ use pyo3::types::PyDict;
 
 // Sub-modules
 mod camel_case;
+pub mod core;
+mod json;
 mod json_transform;
-mod typename_injection;
-mod schema_registry;
-mod graphql_response;  // ← ADD THIS LINE
+pub mod pipeline;
 
 /// Version of the fraiseql_rs module
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -68,79 +68,50 @@ fn transform_json(json_str: &str) -> PyResult<String> {
     json_transform::transform_json_string(json_str)
 }
 
-/// Transform JSON with __typename injection for GraphQL
-///
-/// Combines camelCase transformation with __typename field injection
-/// for proper GraphQL type identification and Apollo Client caching.
-///
-/// Examples:
-///     >>> transform_json_with_typename('{"user_id": 1}', "User")
-///     '{"__typename":"User","userId":1}'
-///
-///     >>> type_map = {"$": "User", "posts": "Post"}
-///     >>> transform_json_with_typename('{"user_id": 1, "posts": [...]}', type_map)
-///     '{"__typename":"User","userId":1,"posts":[{"__typename":"Post",...}]}'
-///
-/// Args:
-///     json_str: JSON string with snake_case keys
-///     type_info: Type information for __typename injection
-///         - str: typename for root object (e.g., "User")
-///         - dict: type map for nested objects (e.g., {"$": "User", "posts": "Post"})
-///         - None: no typename injection (behaves like transform_json)
-///
-/// Returns:
-///     Transformed JSON string with camelCase keys and __typename fields
-///
-/// Raises:
-///     ValueError: If json_str is not valid JSON or type_info is invalid
+/// Simple test function to verify PyO3 is working
 #[pyfunction]
-fn transform_json_with_typename(json_str: &str, type_info: &Bound<'_, PyAny>) -> PyResult<String> {
-    typename_injection::transform_json_with_typename(json_str, type_info)
+fn test_function() -> PyResult<&'static str> {
+    Ok("Hello from Rust!")
 }
 
-/// Transform JSON with schema-based automatic type resolution
+/// Build complete GraphQL response from PostgreSQL JSON rows
 ///
-/// Uses a GraphQL-like schema definition to automatically detect and apply
-/// __typename to objects and arrays. This is more ergonomic than manual
-/// type maps for complex schemas.
+/// This is the unified API for building GraphQL responses from database JSON.
+/// It handles camelCase conversion, __typename injection, and field projection.
 ///
 /// Examples:
-///     >>> schema = {
-///     ...     "User": {
-///     ...         "fields": {
-///     ...             "id": "Int",
-///     ...             "name": "String",
-///     ...             "posts": "[Post]"
-///     ...         }
-///     ...     },
-///     ...     "Post": {
-///     ...         "fields": {
-///     ...             "id": "Int",
-///     ...             "title": "String"
-///     ...         }
-///     ...     }
-///     ... }
-///     >>> transform_with_schema('{"id": 1, "posts": [...]}', "User", schema)
-///     '{"__typename":"User","id":1,"posts":[{"__typename":"Post",...}]}'
+///     >>> result = build_graphql_response(
+///     ...     json_strings=['{"user_id": 1}', '{"user_id": 2}'],
+///     ...     field_name="users",
+///     ...     type_name="User",
+///     ...     field_paths=None
+///     ... )
+///     >>> result.decode('utf-8')
+///     '{"data":{"users":[{"__typename":"User","userId":1},{"__typename":"User","userId":2}]}}'
 ///
 /// Args:
-///     json_str: JSON string with snake_case keys
-///     root_type: Root type name from schema (e.g., "User")
-///     schema: Schema definition dict mapping type names to field definitions
+///     json_strings: List of JSON strings from database (snake_case keys)
+///     field_name: GraphQL field name (e.g., "users", "user")
+///     type_name: Optional type name for __typename injection
+///     field_paths: Optional field projection paths
 ///
 /// Returns:
-///     Transformed JSON string with camelCase keys and __typename fields
-///
-/// Raises:
-///     ValueError: If json_str is not valid JSON or schema is invalid
+///     UTF-8 encoded GraphQL response bytes ready for HTTP
 #[pyfunction]
-fn transform_with_schema(
-    json_str: &str,
-    root_type: &str,
-    schema: &Bound<'_, PyDict>,
-) -> PyResult<String> {
-    schema_registry::transform_with_schema(json_str, root_type, schema)
+pub fn build_graphql_response(
+    json_strings: Vec<String>,
+    field_name: &str,
+    type_name: Option<&str>,
+    field_paths: Option<Vec<Vec<String>>>,
+) -> PyResult<Vec<u8>> {
+    pipeline::builder::build_graphql_response(
+        json_strings,
+        field_name,
+        type_name,
+        field_paths,
+    )
 }
+
 
 /// A Python module implemented in Rust for ultra-fast GraphQL transformations.
 ///
@@ -161,21 +132,26 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__doc__", "Ultra-fast GraphQL JSON transformation in Rust")?;
     m.add("__author__", "FraiseQL Contributors")?;
 
+    // Set __all__ to control what's exported
+    m.add("__all__", vec![
+        "__version__",
+        "__doc__",
+        "__author__",
+        "to_camel_case",
+        "transform_keys",
+        "transform_json",
+        "test_function",
+        "build_graphql_response",
+    ])?;
+
     // Add functions
     m.add_function(wrap_pyfunction!(to_camel_case, m)?)?;
     m.add_function(wrap_pyfunction!(transform_keys, m)?)?;
     m.add_function(wrap_pyfunction!(transform_json, m)?)?;
-    m.add_function(wrap_pyfunction!(transform_json_with_typename, m)?)?;
-    m.add_function(wrap_pyfunction!(transform_with_schema, m)?)?;
+    m.add_function(wrap_pyfunction!(test_function, m)?)?;
 
-    // NEW: Add graphql_response exports
-    m.add_function(wrap_pyfunction!(graphql_response::build_list_response, m)?)?;
-    m.add_function(wrap_pyfunction!(graphql_response::build_single_response, m)?)?;
-    m.add_function(wrap_pyfunction!(graphql_response::build_empty_array_response, m)?)?;
-    m.add_function(wrap_pyfunction!(graphql_response::build_null_response, m)?)?;
-
-    // Add classes
-    m.add_class::<schema_registry::SchemaRegistry>()?;
+    // Add zero-copy pipeline exports
+    m.add_function(wrap_pyfunction!(build_graphql_response, m)?)?;
 
     Ok(())
 }

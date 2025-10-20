@@ -5,6 +5,8 @@ Complete pathway from zero to building production GraphQL APIs with FraiseQL.
 **Time**: 2-3 hours
 **Prerequisites**: Python 3.11+, PostgreSQL 14+, basic SQL knowledge
 
+**📍 Navigation**: [← Quickstart](../quickstart.md) • [Core Concepts →](types-and-schema.md) • [Examples →](../../examples/)
+
 ## Learning Journey
 
 ### Phase 1: Quick Start (15 minutes)

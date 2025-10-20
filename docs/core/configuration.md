@@ -2,6 +2,8 @@
 
 FraiseQLConfig class for comprehensive application configuration.
 
+**📖 Before configuring**: Make sure FraiseQL is [installed](../INSTALLATION.md) and your environment is set up.
+
 ## Overview
 
 ```python

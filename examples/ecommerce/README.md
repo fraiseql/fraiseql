@@ -1,6 +1,24 @@
 # E-commerce GraphQL API Example
 
+🟡 INTERMEDIATE | ⏱️ 30 min | 🎯 E-commerce | 🏷️ Business Logic
+
 A complete production-ready e-commerce API built with FraiseQL, demonstrating best practices for building GraphQL APIs that are backed by PostgreSQL.
+
+**What you'll learn:**
+- Complex business logic with cross-entity validation
+- Shopping cart and order management
+- User authentication and profiles
+- Product catalog with search and filtering
+- Real-world application patterns
+
+**Prerequisites:**
+- `../blog_api/` - Basic CRUD and enterprise patterns
+- Understanding of business domains
+
+**Next steps:**
+- `../enterprise_patterns/` - Add compliance and audit trails
+- `../analytics_dashboard/` - Add business intelligence
+- `../real_time_chat/` - Add real-time inventory updates
 
 ## Features
 

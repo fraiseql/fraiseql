@@ -2,7 +2,22 @@
 
 Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry. Delivers sub-millisecond response times through database-first architecture and CQRS pattern implementation.
 
+**📍 You are here: Complete Documentation Reference**
+
+**New to FraiseQL?** Start with **[Getting Started](../GETTING_STARTED.md)** for personalized guidance based on your goals.
+
 ## Quick Navigation
+
+### **🎯 Choose Your Path**
+
+**New to GraphQL/Python/PostgreSQL?**
+🟢 **[Beginner Path](./tutorials/beginner-path.md)** → Complete learning journey (2-3 hours)
+
+**Building production APIs?**
+🟡 **[Production Guide](./production/index.md)** → Enterprise deployment & performance
+
+**Contributing to FraiseQL?**
+🔴 **[Contributor Guide](../CONTRIBUTING.md)** → Development setup & architecture
 
 **Getting Started**
 - [5-Minute Quickstart](./quickstart.md) - Build a working API in minutes
@@ -40,6 +55,9 @@ Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry.
 - [Security](./production/security.md) - Production hardening
 - [Health Checks](./production/health-checks.md) - Application health monitoring
 
+**Enterprise** (1 doc)
+- [Audit Logging](./enterprise/audit-logging.md) - Cryptographic chain integrity and compliance
+
 **Reference** (4 docs)
 - [CLI Reference](./reference/cli.md) - Complete command-line interface guide
 - [Decorators](./reference/decorators.md) - @type, @query, @mutation
@@ -48,61 +66,15 @@ Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry.
 
 ## About FraiseQL
 
-FraiseQL is created by **Lionel Hamayon** ([@evoludigit](https://github.com/evoludigit)), a self-taught developer frustrated with a fundamental inefficiency in GraphQL frameworks.
-
-**Started: April 2025**
-
-The trigger: watching PostgreSQL return JSON, Python deserialize it to objects, then GraphQL serialize it back to JSON. This roundtrip is ridiculous.
-
-After years with Django, Flask, FastAPI, and Strawberry GraphQL with SQLAlchemy, the answer became obvious: just let PostgreSQL return the JSON directly. Skip the ORM. Skip the object mapping. Let the database do what databases do best.
-
-But there was a second goal: make it LLM-first. SQL and Python are massively trained in every AI model. A framework built with these as primitives means LLMs can understand the context easily and generate correct code. In the age of AI-assisted development, this matters.
-
-FraiseQL is the result: database-first CQRS, minimal Python, maximum PostgreSQL, and architecture that's readable by both humans and AI.
-
-**Connect:** [@evoludigit](https://github.com/evoludigit) • [Évolution digitale](https://evolution-digitale.fr)
+See the [main README](../README.md#about) for the FraiseQL story, philosophy, and creator information.
 
 ## Architecture Overview
 
-FraiseQL implements CQRS pattern with PostgreSQL as the single source of truth. Queries execute through JSONB views returning pre-composed data, while mutations run as PostgreSQL functions containing business logic. This architecture eliminates N+1 queries by design and achieves 0.5-2ms response times with APQ caching.
+See the [main README](../README.md#architecture) for detailed architecture information, core components, and key features.
 
-**Core Components**:
-- **Views** (v_*, tv_*): Read-side projections returning JSONB data
-- **Functions** (fn_*): Write-side operations with transactional guarantees
-- **Repository**: Async database operations with type safety
-- **Rust Transformer**: 10-80x faster JSON processing
+## System Requirements & Installation
 
-## Key Features
-
-| Feature | Description | Documentation |
-|---------|-------------|---------------|
-| Type-Safe Schema | Python decorators generate GraphQL types | [Types and Schema](./core/types-and-schema.md) |
-| Repository Pattern | Async database operations with structured queries | [Database API](./core/database-api.md) |
-| Result Caching | PostgreSQL-based caching with tenant isolation | [Caching](./performance/caching.md) |
-| Rust Transformation | 10-80x faster JSON processing (optional) | [Performance](./performance/index.md) |
-| APQ Caching | Hash-based query persistence in PostgreSQL | [Performance](./performance/index.md) |
-| JSON Passthrough | Zero-copy responses from database | [Performance](./performance/index.md) |
-| Multi-Tenancy | Row-level security patterns | [Multi-Tenancy](./advanced/multi-tenancy.md) |
-| N+1 Prevention | Eliminated by design via view composition | [Database Patterns](./advanced/database-patterns.md) |
-
-## System Requirements
-
-**Required**:
-- Python 3.11+
-- PostgreSQL 14+
-
-**Optional**:
-- Rust compiler (for performance layer: 10-80x JSON speedup)
-
-## Installation
-
-```bash
-# Standard installation
-pip install fraiseql fastapi uvicorn
-
-# With Rust performance extensions (recommended)
-pip install fraiseql[rust]
-```
+See the [main README](../README.md#system-requirements) for system requirements and installation instructions.
 
 ## Hello World Example
 
@@ -143,7 +115,7 @@ FraiseQL achieves sub-millisecond performance through four optimization layers:
 
 | Layer | Technology | Speedup | Configuration |
 |-------|------------|---------|---------------|
-| 0 | Rust Transformation | 10-80x | `pip install fraiseql[rust]` |
+| 0 | Rust Transformation | 7-10x | `pip install fraiseql[rust]` |
 | 1 | APQ Caching | 5-10x | `apq_storage_backend="postgresql"` |
 | 2 | TurboRouter | 3-5x | `enable_turbo_router=True` |
 | 3 | JSON Passthrough | 2-3x | Automatic with JSONB views |

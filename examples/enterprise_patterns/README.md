@@ -1,6 +1,26 @@
 # Enterprise Patterns Example
 
+🟠 ADVANCED | ⏱️ 45 min | 🎯 Enterprise Compliance | 🏷️ All Patterns
+
 This example demonstrates all FraiseQL enterprise patterns in a single, comprehensive application.
+
+**What you'll learn:**
+- Complete enterprise pattern implementation
+- SOX/HIPAA compliant audit trails
+- Multi-layer validation (GraphQL → App → Core → DB)
+- NOOP handling for edge cases
+- App/Core function architecture split
+- Identifier management (triple ID pattern)
+
+**Prerequisites:**
+- Basic GraphQL knowledge
+- Understanding of CQRS patterns
+- `../blog_api/` - Basic enterprise patterns
+
+**Next steps:**
+- `../real_time_chat/` - Add real-time features
+- `../analytics_dashboard/` - High-performance analytics
+- `../saas-starter/` - Multi-tenant SaaS foundation
 
 ## Patterns Demonstrated
 
@@ -20,11 +40,11 @@ This example demonstrates all FraiseQL enterprise patterns in a single, comprehe
 - Type-safe core functions with JSONB app wrappers
 - See: `db/migrations/002_app_functions.sql` and `003_core_functions.sql`
 
-### ✅ Audit Field Patterns
-- Complete audit trails with created/updated/deleted tracking
-- Version management for optimistic locking
-- Change reason and source tracking
-- See: `models.py` (AuditTrail type) and audit field usage throughout
+### ✅ Unified Audit Logging
+- **Single `audit_events` table** combining CDC + cryptographic chain
+- PostgreSQL-native crypto with SHA-256 hashing and HMAC signatures
+- Tamper-proof audit trails for SOX/HIPAA compliance
+- See: `core.log_and_return_mutation()` and unified audit table schema
 
 ### ✅ Identifier Management
 - Triple ID pattern: internal ID, UUID primary key, business identifier

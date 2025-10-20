@@ -4,9 +4,13 @@
 
 A high-performance Python extension module for transforming JSON data from snake_case database formats to camelCase GraphQL responses with automatic `__typename` injection.
 
+**📍 You are here: Rust Core Implementation (Required)**
+
+**Relationship to Main Project**: Core Rust implementation providing the base JSON transformation engine. Required for FraiseQL's performance. See [root README](../README.md) for main framework.
+
 ## Features
 
-- **🚀 10-80x faster** than pure Python implementations
+- **🚀 7-10x faster** than pure Python implementations
 - **Zero-copy JSON parsing** with serde_json
 - **Automatic type detection** from GraphQL-like schemas
 - **GIL-free execution** for true parallelism
@@ -207,9 +211,10 @@ schema = {
 
 | Operation | Time | Speedup vs Python |
 |-----------|------|-------------------|
-| Simple object (10 fields) | 0.1-0.2ms | 25-100x |
-| Complex object (50 fields) | 0.5-1ms | 20-60x |
-| Nested (User + posts + comments) | 1-3ms | 20-80x |
+| Simple object (10 fields) | 0.006ms | ~9x faster |
+| Medium object (42 fields) | 0.016ms | ~8x faster |
+| Nested (User + posts) | 0.094ms | ~10x faster |
+| Large (100 fields) | 0.453ms | ~5x faster |
 
 ### Performance Characteristics
 

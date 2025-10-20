@@ -2,6 +2,8 @@
 
 Type system for GraphQL schema definition using Python decorators and dataclasses.
 
+**📍 Navigation**: [← Beginner Path](../tutorials/beginner-path.md) • [Queries & Mutations →](queries-and-mutations.md) • [Database API →](database-api.md)
+
 ## @fraise_type / @type
 
 **Purpose**: Define GraphQL object types from Python classes

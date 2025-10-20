@@ -5,12 +5,75 @@
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](./VERSION_STATUS.md)
+
+**📍 You are here: Main FraiseQL Framework (v0.11.5) - Production Stable**
+
+> **Version Status**: See [VERSION_STATUS.md](./VERSION_STATUS.md) for complete version roadmap and recommendations
 
 **The fastest Python GraphQL framework. In PostgreSQL Everything.**
 
 Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native caching, error tracking, and observability—all in one database.
 
-> **4-100x faster** than traditional GraphQL frameworks • **In PostgreSQL Everything** • **$300-3,000/month savings** • **Zero external dependencies**
+> **2-4x faster** than traditional GraphQL frameworks • **In PostgreSQL Everything** • **$300-3,000/month savings** • **Zero external dependencies**
+
+## 📋 Project Versions & Navigation
+
+### Version Overview
+| Version | Location | Status | Purpose | For Users? |
+|---------|----------|--------|---------|------------|
+| **v0.11.5** | Root level | Production Stable | Current framework | ✅ Recommended |
+| **v1.0** | [`fraiseql/`](fraiseql/) | Week 1/15 | Industrial framework | ❌ Experimental |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Stable | Core performance engine | ✅ Required |
+| **v1 Prototype** | [`fraiseql-v1/`](fraiseql-v1/) | Week 1/8 | Architecture exploration | ❌ Development |
+
+**New to FraiseQL?** → **[Getting Started](GETTING_STARTED.md)** • [Project Structure](PROJECT_STRUCTURE.md) • [Documentation](docs/)
+
+---
+
+## 👥 Is This For Me?
+
+**FraiseQL is designed for production teams** building GraphQL APIs with PostgreSQL. Here's how to know if it's right for you:
+
+### **✅ You Should Use FraiseQL If:**
+- Building GraphQL APIs with PostgreSQL
+- Need sub-millisecond query performance
+- Want database-native caching and monitoring
+- Prefer zero external dependencies
+- Team size: 2-50 developers
+
+### **❌ Consider Alternatives If:**
+- Not using PostgreSQL as your primary database
+- Need multi-database support
+- Prefer traditional ORM approaches
+- Building simple CRUD APIs (consider REST)
+
+### **🎯 Quick Start by Experience:**
+
+**Beginners** (new to GraphQL/Python/PostgreSQL):
+```bash
+fraiseql init my-api
+cd my-api && fraiseql run
+```
+→ Working API in 5 minutes
+
+**Production Teams** (experienced developers):
+```bash
+pip install fraiseql[enterprise]
+cd examples/ecommerce/
+```
+→ Enterprise features & performance
+
+**Contributors** (framework developers):
+```bash
+git clone https://github.com/fraiseql/fraiseql
+cd fraiseql && make setup-dev
+```
+→ Start contributing
+
+**Learn more:** [Audiences Guide](AUDIENCES.md) • [Quickstart](docs/quickstart.md)
+
+---
 
 ## 🚀 Why FraiseQL?
 
@@ -44,9 +107,11 @@ After:  FastAPI + PostgreSQL + Grafana = 3 services
 ### **⚡ Blazing Fast Performance**
 - **Automatic Persisted Queries (APQ)**: SHA-256 hash lookup with pluggable storage backends
 - **Memory & PostgreSQL storage**: In-memory for simplicity, PostgreSQL for enterprise scale
-- **JSON passthrough optimization**: Sub-millisecond cached responses (0.5-2ms)
-- **Pre-compiled queries**: TurboRouter with intelligent caching (4-10x faster)
-- **Real production benchmarks**: 85-95% cache hit rate
+- **JSON passthrough optimization**: Sub-millisecond cached responses (0.5-2ms for simple queries)
+- **Pre-compiled queries**: TurboRouter with intelligent caching (2-4x faster than standard GraphQL)
+- **Real production benchmarks**: 85-95% cache hit rate for stable query patterns
+
+**[📊 Performance Guide](PERFORMANCE_GUIDE.md)** - Methodology, realistic expectations, and benchmark details
 
 ### **🏗️ Database-First Architecture**
 - **CQRS by design**: Commands via PostgreSQL functions, queries via views
@@ -64,53 +129,48 @@ After:  FastAPI + PostgreSQL + Grafana = 3 services
 
 ## 🏁 Quick Start
 
+**Prerequisites**: Python 3.13+, PostgreSQL 13+
+
 ```bash
-# Install and create project
+# Install FraiseQL
 pip install fraiseql
-fraiseql init my-api && cd my-api
 
-# Define your types
-cat > src/types.py << 'EOF'
-import fraiseql
-from fraiseql import ID, EmailAddress
-
-@fraiseql.type
-class User:
-    """A user account with authentication and profile information."""
-    id: ID
-    email: EmailAddress
-    name: str
-    created_at: str
-EOF
-
-# Create database view (returns JSONB)
-cat > db/001_user_view.sql << 'EOF'
-CREATE VIEW v_user AS
-SELECT jsonb_build_object(
-    'id', pk_user,
-    'email', email,
-    'name', name,
-    'created_at', created_at::text
-) AS data FROM tb_users;
-EOF
-
-# Define queries
-cat > src/queries.py << 'EOF'
-import fraiseql
-from .types import User
-
-@fraiseql.query
-async def users(info) -> list[User]:
-    """Get all users with their profile information."""
-    repo = info.context["repo"]
-    return await repo.find("tv_user", "users", info)
-EOF
+# Create your first project
+fraiseql init my-api
+cd my-api
 
 # Start development server
 fraiseql dev
 ```
 
 Your GraphQL API is live at `http://localhost:8000/graphql` 🎉
+
+**[📖 Detailed Installation Guide](INSTALLATION.md)** - Multiple installation options, troubleshooting, and platform-specific instructions
+
+## 🧠 Core Concepts
+
+FraiseQL uses innovative patterns that might be new if you're coming from traditional frameworks:
+
+### **CQRS (Command Query Responsibility Segregation)**
+Separate reading data from writing data - like having separate lines for ordering food vs. picking it up.
+- **Commands** (writes): `tb_*` tables for data changes
+- **Queries** (reads): `v_*`/`tv_*` views for data access
+
+### **JSONB Views**
+Pre-packaged data as JSONB objects for GraphQL - like meal kits ready to serve.
+- **`v_*` views**: Real-time JSONB computation
+- **`tv_*` tables**: Pre-computed JSONB for speed
+
+### **Trinity Identifiers**
+Three types of identifiers per entity for different purposes:
+- **`pk_*`**: Internal fast joins (never exposed)
+- **`id`**: Public API identifier (UUID)
+- **`identifier`**: Human-readable slug (SEO-friendly)
+
+### **Database-First Architecture**
+Design your API starting from PostgreSQL, not the other way around. Business logic lives in database functions.
+
+**[Learn more about these concepts →](docs/core/concepts-glossary.md)**
 
 ## 🔄 Automatic Persisted Queries (APQ)
 
@@ -137,12 +197,19 @@ config = FraiseQLConfig(
 4. **Fallback to normal execution** if query not found
 
 ### **Enterprise Benefits**
-- **99.9% cache hit rates** in production applications
+- **85-95% cache hit rates** in production applications (99.9% for highly stable query patterns)
 - **70% bandwidth reduction** with large queries
 - **Multi-instance coordination** with PostgreSQL backend
 - **Automatic cache warming** for frequently used queries
 
 ## 🎯 Core Features
+
+### **Enterprise Security & Compliance**
+- **Unified Audit Logging with Cryptographic Chain**: Tamper-proof audit trails with SHA-256 hashing and HMAC signatures
+- **PostgreSQL-native crypto**: No Python overhead for event creation and verification
+- **Multi-tenant isolation**: Per-tenant cryptographic chains for SOX/HIPAA compliance
+- **Field-level authorization**: Decorator-based access control with role inheritance
+- **Row-level security**: PostgreSQL RLS integration for data isolation
 
 ### **Advanced Type System**
 Specialized operators for network types, hierarchical data, and ranges:
@@ -168,7 +235,7 @@ PostgreSQL → Rust → HTTP (0.5-5ms response time)
 ```
 
 - **Always Fast**: No mode detection or branching logic
-- **Field Projection**: Rust filters JSON fields 10-50x faster than PostgreSQL
+- **Field Projection**: Rust processes JSON 7-10x faster than Python
 - **Zero Python Overhead**: Direct RustResponseBytes to FastAPI
 
 **Supported specialized types:**
@@ -249,26 +316,28 @@ async def user(info, id: int) -> User:
 ```
 
 **Benefits:**
-- **0.55ms total response time** (100-200x faster than JOINs)
+- **0.05-0.5ms database lookup time** (10-100x faster than complex JOINs for nested data)
 - **Embedded relations** (no N+1 queries)
 - **Always up-to-date** (generated columns + triggers)
-- **Rust field projection** (10-50x faster than PostgreSQL)
+- **Rust field projection** (7-10x faster than Python JSON processing)
 
 ## 📊 Performance Comparison
 
-### Framework Comparison
+### Framework Comparison (Real Measurements)
 | Framework | Simple Query | Complex Query | Cache Hit | APQ Support |
 |-----------|-------------|---------------|-----------|-------------|
-| **FraiseQL** | **0.5-5ms** | **0.5-5ms** | **95%** | **Native** |
+| **FraiseQL** | **1-5ms** | **5-25ms** | **85-95%** | **Native** |
 | PostGraphile | 50-100ms | 200-400ms | N/A | Plugin |
 | Strawberry | 100-200ms | 300-600ms | External | Manual |
 | Hasura | 25-75ms | 150-300ms | External | Limited |
 
+*Test conditions: PostgreSQL 15, 10k records, standard cloud instance. See [Performance Guide](PERFORMANCE_GUIDE.md) for methodology.*
+
 ### FraiseQL Optimization Layers
 | Optimization Stack | Response Time | Use Case |
 |-------------------|---------------|----------|
-| **All 3 Layers** (APQ + TurboRouter + Passthrough) | **0.5-2ms** | High-performance production |
-| **APQ + TurboRouter** | 2-5ms | Enterprise applications |
+| **All Layers** (APQ + TurboRouter + Passthrough + Rust) | **0.5-2ms** | High-performance production |
+| **APQ + TurboRouter** | 1-5ms | Enterprise applications |
 | **APQ + Passthrough** | 1-10ms | Modern web applications |
 | **TurboRouter Only** | 5-25ms | API-focused applications |
 | **Standard Mode** | 25-100ms | Development & complex queries |
@@ -296,7 +365,7 @@ FraiseQL's **Rust-first** architecture delivers exceptional performance through 
 
 ### **Key Innovations**
 1. **Unified Execution Path**: PostgreSQL → Rust → HTTP (no branching logic)
-2. **Rust Field Projection**: 10-50x faster JSON field filtering than PostgreSQL
+2. **Rust Field Projection**: 7-10x faster JSON transformation than Python
 3. **Transform Tables**: `tv_*` tables with generated JSONB for instant queries
 4. **APQ Storage Abstraction**: Pluggable backends (Memory/PostgreSQL) for query hash storage
 5. **JSON Passthrough**: Sub-millisecond responses for cached queries with zero serialization

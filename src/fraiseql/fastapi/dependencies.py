@@ -66,21 +66,15 @@ async def get_db() -> FraiseQLRepository:
     pool = get_db_pool()
     config = get_fraiseql_config()
 
-    # Create repository with mode and timeout from config
+    # Create repository with timeout from config
     context = {}
     if config:
-        # v1 Alpha: Pass full config object to repository for pure passthrough mode
         context["config"] = config
 
-        if hasattr(config, "environment"):
-            context["mode"] = "development" if config.environment == "development" else "production"
         if hasattr(config, "query_timeout"):
             context["query_timeout"] = config.query_timeout
         if hasattr(config, "jsonb_field_limit_threshold"):
             context["jsonb_field_limit_threshold"] = config.jsonb_field_limit_threshold
-
-        # v0.11.0: Rust-only transformation (PostgreSQL CamelForge removed)
-        # All camelCase transformation is handled by Rust in raw_json_executor.py
 
     return FraiseQLRepository(pool=pool, context=context)
 
@@ -169,27 +163,17 @@ async def build_graphql_context(
     LoaderRegistry.set_current(loader_registry)
 
     config = get_fraiseql_config()
-    mode = "development" if config and config.environment == "development" else "production"
 
     context = {
         "db": db,
         "user": user,
         "authenticated": user is not None,
         "loader_registry": loader_registry,
-        "mode": mode,
         "config": config,  # Add config for introspection policy access
     }
 
     # Add query timeout to context if configured
     if config and hasattr(config, "query_timeout"):
         context["query_timeout"] = config.query_timeout
-
-    # JSON passthrough is always enabled in production for maximum performance
-    if mode == "production":
-        context["json_passthrough"] = True
-        context["execution_mode"] = "passthrough"
-        # Update repository context to enable passthrough in database queries
-        db.context["json_passthrough"] = True
-        db.context["execution_mode"] = "passthrough"
 
     return context

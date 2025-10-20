@@ -505,7 +505,7 @@ async def get_audit_summary(
 
 ## CQRS Pattern
 
-Separate read and write models using event sourcing:
+**[CQRS (Command Query Responsibility Segregation)](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)** separates read and write models using event sourcing:
 
 ```python
 # Write Model (Command Side)

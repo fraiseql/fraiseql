@@ -34,6 +34,12 @@ Example:
     >>> result = await health.run_checks()
 """
 
+from .apq_metrics import (
+    APQMetrics,
+    APQMetricsSnapshot,
+    get_global_metrics,
+    reset_global_metrics,
+)
 from .health import (
     CheckFunction,
     CheckResult,
@@ -65,6 +71,9 @@ from .postgres_error_tracker import (
 )
 
 __all__ = [
+    # APQ Metrics (Phase 3)
+    "APQMetrics",
+    "APQMetricsSnapshot",
     # Health checks
     "CheckFunction",
     "CheckResult",
@@ -84,8 +93,10 @@ __all__ = [
     "check_database",
     "check_pool_stats",
     "get_error_tracker",
+    "get_global_metrics",
     "get_metrics",
     "init_error_tracker",
+    "reset_global_metrics",
     "setup_metrics",
     "with_metrics",
 ]

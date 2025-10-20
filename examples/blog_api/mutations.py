@@ -6,7 +6,7 @@ This example showcases enterprise-grade patterns:
 - App/Core Function Split for clean architecture
 - Comprehensive validation and error handling
 
-For simpler patterns, see ../quickstart.py
+For simpler patterns, see ../todo_quickstart.py
 For complete enterprise example, see ../enterprise_patterns/
 """
 

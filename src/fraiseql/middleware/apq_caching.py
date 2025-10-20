@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import GraphQLRequest
+from fraiseql.monitoring import get_global_metrics
 from fraiseql.storage.backends.base import APQStorageBackend
 from fraiseql.storage.backends.factory import create_apq_backend
 
@@ -78,11 +79,14 @@ def handle_apq_request_with_cache(
 
     # Try to get cached response
     try:
+        metrics = get_global_metrics()
         cached_response = backend.get_cached_response(sha256_hash, context=context)
         if cached_response:
             logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
+            metrics.record_response_cache_hit(sha256_hash)
             return cached_response
         logger.debug(f"APQ cache miss: {sha256_hash[:8]}...")
+        metrics.record_response_cache_miss(sha256_hash)
         return None
     except Exception as e:
         logger.warning(f"Failed to retrieve cached response: {e}")
@@ -123,6 +127,8 @@ def store_response_in_cache(
 
     try:
         backend.store_cached_response(hash_value, response, context=context)
+        metrics = get_global_metrics()
+        metrics.record_response_cache_store(hash_value)
         logger.debug(f"Stored response in cache: {hash_value[:8]}...")
     except Exception as e:
         logger.warning(f"Failed to store response in cache: {e}")

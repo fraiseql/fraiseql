@@ -1,13 +1,29 @@
-"""Example of using FraiseQL with PostgreSQL-native caching.
+"""FraiseQL PostgreSQL-Native Caching Example
 
-This example demonstrates how to add PostgreSQL-native caching to your FraiseQL
-application for improved performance—eliminating the need for Redis.
+🟡 INTERMEDIATE | ⏱️ 15 min | 🎯 Performance | 🏷️ Caching
+
+Example of using FraiseQL with PostgreSQL-native caching for improved performance—eliminating the need for Redis.
 
 Benefits:
 - Save $50-500/month (no Redis Cloud needed)
 - UNLOGGED tables = Redis-level performance
 - Shared across all app instances
 - Same database for everything (simplified operations)
+
+LEARNING OUTCOMES:
+- PostgreSQL UNLOGGED tables for high performance
+- Cache invalidation strategies
+- Memory-efficient caching patterns
+- Database-backed caching without Redis
+
+PREREQUISITES:
+- ../blog_api/ - Basic FraiseQL patterns
+- Understanding of caching concepts
+
+NEXT STEPS:
+- ../apq_multi_tenant/ - Query-level caching
+- ../turborouter/ - Pre-compiled query routing
+- ../analytics_dashboard/ - High-performance analytics
 """
 
 import asyncio

@@ -1,6 +1,23 @@
 # Multi-Tenant APQ (Automatic Persisted Queries)
 
+🟡 INTERMEDIATE | ⏱️ 20 min | 🎯 Performance | 🏷️ Multi-Tenant
+
 Production-ready example demonstrating FraiseQL's built-in tenant-aware APQ caching for multi-tenant SaaS applications.
+
+**What you'll learn:**
+- Automatic Persisted Queries (APQ) for bandwidth reduction
+- Multi-tenant cache isolation
+- Performance optimization techniques
+- Cache hit rate monitoring
+
+**Prerequisites:**
+- `../blog_api/` - Basic FraiseQL patterns
+- Understanding of multi-tenant architecture
+
+**Next steps:**
+- `../caching_example.py` - Alternative caching approaches
+- `../turborouter/` - Pre-compiled query routing
+- `../saas-starter/` - Complete SaaS foundation
 
 ## What is APQ?
 

@@ -6,41 +6,39 @@
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION log_audit(
+    p_tenant_id UUID,
     p_operation VARCHAR(20),
     p_entity_type VARCHAR(50),
-    p_entity_id INT,
-    p_changed_by VARCHAR(255),
+    p_entity_id UUID,
+    p_user_id UUID,
     p_old_values JSONB DEFAULT NULL,
     p_new_values JSONB DEFAULT NULL,
+    p_changed_fields TEXT[] DEFAULT NULL,
+    p_metadata JSONB DEFAULT NULL,
     p_ip_address INET DEFAULT NULL
 )
 RETURNS VOID AS $$
+DECLARE
+    v_operation_subtype TEXT;
 BEGIN
-    INSERT INTO tb_audit_log (
-        operation,
-        entity_type,
-        entity_id,
-        changed_by,
-        old_values,
-        new_values,
-        changes,
-        ip_address
+    -- Determine operation subtype
+    v_operation_subtype := CASE
+        WHEN p_operation = 'INSERT' THEN 'new'
+        WHEN p_operation = 'UPDATE' THEN 'updated'
+        WHEN p_operation = 'DELETE' THEN 'deleted'
+        ELSE 'unknown'
+    END;
+
+    -- Insert into unified audit_events table
+    -- Crypto fields auto-populated by populate_crypto_trigger
+    INSERT INTO audit_events (
+        tenant_id, user_id, entity_type, entity_id,
+        operation_type, operation_subtype, changed_fields,
+        old_data, new_data, metadata, ip_address
     ) VALUES (
-        p_operation,
-        p_entity_type,
-        p_entity_id,
-        p_changed_by,
-        p_old_values,
-        p_new_values,
-        -- Compute changes as differences between old and new
-        CASE
-            WHEN p_new_values IS NOT NULL AND p_old_values IS NOT NULL THEN
-                p_new_values - p_old_values::text::text[]
-            WHEN p_new_values IS NOT NULL THEN
-                p_new_values
-            ELSE NULL
-        END,
-        p_ip_address
+        p_tenant_id, p_user_id, p_entity_type, p_entity_id,
+        p_operation, v_operation_subtype, p_changed_fields,
+        p_old_values, p_new_values, p_metadata, p_ip_address
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -177,17 +175,20 @@ BEGIN
 
     -- Log to audit trail
     PERFORM log_audit(
+        NULL, -- tenant_id (would need to be passed in)
         'INSERT',
         'order',
-        v_order_id,
-        p_changed_by,
+        v_order_id::TEXT::UUID, -- Convert to UUID
+        NULL, -- user_id (would need to be passed in)
         NULL,
         jsonb_build_object(
             'order_number', v_order_number,
             'customer_id', p_customer_id,
             'status', 'pending',
             'total', v_total
-        )
+        ),
+        ARRAY['order_number', 'customer_id', 'status', 'subtotal', 'tax', 'shipping', 'total'],
+        jsonb_build_object('business_action', 'order_created')
     );
 
     -- Return created order

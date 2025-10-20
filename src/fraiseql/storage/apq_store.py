@@ -7,6 +7,8 @@ import hashlib
 import logging
 from typing import Dict, Optional
 
+from fraiseql.monitoring import get_global_metrics
+
 from .backends.memory import MemoryAPQBackend
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,10 @@ def store_persisted_query(hash_value: str, query: str) -> None:
 
     _backend.store_persisted_query(hash_value, query)
 
+    # Track metrics
+    metrics = get_global_metrics()
+    metrics.record_query_cache_store(hash_value)
+
 
 def get_persisted_query(hash_value: str) -> Optional[str]:
     """Retrieve a persisted query by its hash.
@@ -52,7 +58,16 @@ def get_persisted_query(hash_value: str) -> Optional[str]:
     Returns:
         GraphQL query string if found, None otherwise
     """
-    return _backend.get_persisted_query(hash_value)
+    query = _backend.get_persisted_query(hash_value)
+
+    # Track metrics
+    metrics = get_global_metrics()
+    if query is not None:
+        metrics.record_query_cache_hit(hash_value)
+    else:
+        metrics.record_query_cache_miss(hash_value)
+
+    return query
 
 
 def clear_storage() -> None:

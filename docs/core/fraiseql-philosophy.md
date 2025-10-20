@@ -14,6 +14,32 @@ FraiseQL is built on forward-thinking design principles that prioritize **develo
 4. **Session Variable Injection** - Security without complexity
 5. **Composable Patterns** - Framework provides tools, you control composition
 
+## Beginner Introduction
+
+### If You're New to FraiseQL
+
+FraiseQL might seem different if you're used to traditional web frameworks. Here's what makes it special:
+
+**Think "Database-First"**: Instead of starting with your API and figuring out the database later, FraiseQL starts with PostgreSQL and builds your API on top. Your database becomes the foundation of your application.
+
+**Key Concepts to Know**:
+- **[CQRS](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)**: Separate reading data from writing data
+- **[JSONB Views](../core/concepts-glossary.md#jsonb-views-v_-and-tv_-)**: Pre-packaged data ready for GraphQL
+- **[Trinity Identifiers](../core/concepts-glossary.md#trinity-identifiers)**: Three types of IDs per entity
+- **[Database-First](../core/concepts-glossary.md#database-first-architecture)**: Business logic lives in PostgreSQL
+
+**Why This Matters**: Traditional frameworks often fight against the database. FraiseQL works *with* PostgreSQL, using its strengths (JSONB, functions, views) to build faster, more maintainable APIs.
+
+### Quick Philosophy Check
+
+Before diving deep, ask yourself:
+- Do you want your database to do more heavy lifting?
+- Are you tired of ORM complexity?
+- Do you want automatic multi-tenancy and security?
+- Would you like 10-100x performance improvements?
+
+If yes, FraiseQL's philosophy might be perfect for you.
+
 ## Automatic Database Injection
 
 ### The Problem with Traditional Frameworks

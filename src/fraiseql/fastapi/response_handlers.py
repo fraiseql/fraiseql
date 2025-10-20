@@ -8,7 +8,6 @@ from typing import Any
 
 from starlette.responses import Response
 
-from fraiseql.core.raw_json_executor import RawJSONResult
 from fraiseql.core.rust_pipeline import RustResponseBytes
 
 
@@ -17,7 +16,6 @@ def handle_graphql_response(result: Any) -> Response:
 
     Supports:
     - RustResponseBytes: Pre-serialized bytes from Rust (FASTEST)
-    - RawJSONResult: Legacy string-based response
     - dict: Standard GraphQL response (uses Pydantic)
 
     Args:
@@ -34,13 +32,6 @@ def handle_graphql_response(result: Any) -> Response:
             headers={
                 "Content-Length": str(len(result.bytes)),
             },
-        )
-
-    # Legacy: String-based response (still bypasses Pydantic)
-    if isinstance(result, RawJSONResult):
-        return Response(
-            content=result.json_string.encode("utf-8"),
-            media_type="application/json",
         )
 
     # Traditional: Pydantic serialization (slowest path)

@@ -2,6 +2,8 @@
 
 Repository pattern for async database operations with type safety, structured queries, and JSONB views.
 
+**📍 Navigation**: [← Queries & Mutations](queries-and-mutations.md) • [Performance →](../performance/index.md) • [Database Patterns →](../advanced/database-patterns.md)
+
 ## Overview
 
 FraiseQL provides a repository layer for database operations that:

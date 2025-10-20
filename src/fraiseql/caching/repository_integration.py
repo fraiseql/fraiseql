@@ -37,7 +37,6 @@ class CachedRepository(FraiseQLRepository):
         # Copy attributes from base repository
         self._pool = base_repository._pool
         self.context = base_repository.context
-        self.mode = base_repository.mode
 
     async def find(
         self,

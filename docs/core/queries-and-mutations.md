@@ -2,6 +2,8 @@
 
 Decorators and patterns for defining GraphQL queries, mutations, and subscriptions.
 
+**📍 Navigation**: [← Types & Schema](types-and-schema.md) • [Database API →](database-api.md) • [Performance →](../performance/index.md)
+
 ## @query Decorator
 
 **Purpose**: Mark async functions as GraphQL queries
