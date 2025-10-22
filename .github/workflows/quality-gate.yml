@@ -46,15 +46,27 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v6
 
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install maturin
+      run: pip install maturin
+
+    - name: Build Rust extension
+      run: |
+        cd fraiseql_rs
+        maturin develop --release
+        cd ..
+
     - name: Install dependencies
       run: |
         # Ensure pip cache directory exists before installation
         python -m pip config list || echo "No pip config available"
         python -c "import site; print(f'Site packages: {site.getsitepackages()}')" || echo "Cannot get site packages"
         echo "Installing with uv (bypassing pip caching issues)..."
-        # Install Rust extension first (uv handles Rust compilation automatically)
-        uv pip install --system -e fraiseql_rs --no-cache
-        # Install main package with dev dependencies
+        # Install main package with dev dependencies (Rust extension already built)
         uv pip install --system -e ".[dev,all]" --no-cache
 
     - name: Verify Environment
@@ -63,8 +75,11 @@ jobs:
         python --version
         uv --version
         pytest --version
+        rustc --version
         pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
         python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
+        echo "=== Rust Extension Verification ==="
+        python -c "import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
     - name: Run core tests
       env:
