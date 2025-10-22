@@ -17,4 +17,4 @@ Detailed documentation for core features is being written.
 For now, see:
 - [Quick Start](../quickstart.md)
 - [Examples](../../examples/)
-- [API Reference](https://docs.fraiseql.com)
+- [API Reference](../reference/)

@@ -49,7 +49,6 @@ cd my-production-api && fraiseql dev
 
 **Developer Resources**:
 - [Contributing Guide](CONTRIBUTING.md) - Development setup
-- [Project Structure](PROJECT_STRUCTURE.md) - Code organization
 - [Architecture Decisions](docs/architecture/decisions/) - Design rationale
 
 **Quick Setup**:
@@ -68,8 +67,7 @@ make test  # Run full test suite
 **Experience**: Existing GraphQL knowledge
 
 **Migration Guides**:
-- [From PostGraphile/Hasura](docs/migration-guides/postgraphile-to-fraiseql.md) - Database-first migration
-- [From Apollo Server](docs/migration-guides/apollo-to-fraiseql.md) - Server-side migration
+- [Version Migration Guides](docs/migration-guides/) - Upgrade guides and migrations
 - [Performance Comparison](README.md#performance-comparison) - Why FraiseQL is faster
 
 ---
@@ -98,7 +96,7 @@ make test  # Run full test suite
 - [Database Patterns](docs/advanced/database-patterns.md) - View design
 
 ### Examples & Tutorials
-- [Examples Directory](../examples/) - 20+ working applications
+- [Examples Directory](examples/) - 20+ working applications
 - [Blog API Tutorial](docs/tutorials/blog-api.md) - Complete application
 - [Production Tutorial](docs/tutorials/production-deployment.md) - End-to-end deployment
 
@@ -113,8 +111,8 @@ make test  # Run full test suite
 
 **Still not sure where to start?**
 1. Try the [5-Minute Quickstart](docs/quickstart.md) - it's designed to work for everyone
-2. Check the [Project Structure](PROJECT_STRUCTURE.md) guide
-3. Browse [Examples](../examples/) for patterns similar to your use case
+2. Browse [Examples](examples/) for patterns similar to your use case
+3. Check the [Full Documentation](docs/README.md) for comprehensive guides
 
 **Have questions?**
 - 📖 [Full Documentation](docs/README.md) - Complete reference

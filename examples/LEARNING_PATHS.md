@@ -334,10 +334,10 @@ If you need specific patterns, here are the best examples:
 
 ## 📖 Additional Resources
 
-- **[Main Documentation](../../docs/)** - Complete reference
-- **[Core Concepts](../../docs/core/)** - Fundamental patterns
-- **[Performance Guide](../../docs/performance/)** - Optimization techniques
-- **[Production Deployment](../../docs/production/)** - Production setup
+- **[Main Documentation](../docs/)** - Complete reference
+- **[Core Concepts](../docs/core/)** - Fundamental patterns
+- **[Performance Guide](../docs/performance/)** - Optimization techniques
+- **[Production Deployment](../docs/production/)** - Production setup
 
 ---
 

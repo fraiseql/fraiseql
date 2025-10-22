@@ -629,5 +629,5 @@ mutation {
 ## See Also
 
 - [Queries and Mutations](./queries-and-mutations.md) - Using types in resolvers
-- [Decorators Reference](../api-reference/decorators.md) - Complete decorator API
+- [Decorators Reference](../reference/decorators.md) - Complete decorator API
 - [Configuration](./configuration.md) - Type system configuration options

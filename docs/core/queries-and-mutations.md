@@ -785,5 +785,5 @@ async def on_task_updates(
 ## See Also
 
 - [Types and Schema](./types-and-schema.md) - Define types for use in queries and mutations
-- [Decorators Reference](../api-reference/decorators.md) - Complete decorator API
-- [Database API](../api-reference/database.md) - Database operations for queries and mutations
+- [Decorators Reference](../reference/decorators.md) - Complete decorator API
+- [Database API](../reference/database.md) - Database operations for queries and mutations

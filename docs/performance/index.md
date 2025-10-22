@@ -506,7 +506,7 @@ config = FraiseQLConfig(
 - **End-to-end queries**: 2-4x faster including database time (with APQ/field projection)
 - **Framework comparison**: 2-4x faster than Strawberry/Hasura/PostGraphile
 
-**Benchmark Methodology**: See [comprehensive methodology](../benchmarks/METHODOLOGY.md) for hardware, software, and testing procedures.
+**Benchmark Methodology**: See [comprehensive methodology](../benchmarks/README.md) for hardware, software, and testing procedures.
 
 **Reproducibility**: All benchmarks include scripts for independent verification.
 

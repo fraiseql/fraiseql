@@ -199,4 +199,4 @@ config = FraiseQLConfig(
 
 - [Core Documentation](README.md)
 - [Examples](../../examples/)
-- [API Reference](../api-reference/)
+- [API Reference](../reference/)

@@ -24,7 +24,7 @@ FraiseQL is built on three core projects:
 |---------|------|---------|--------|
 | **confiture** | Python Package | Database migration management | [fraiseql/confiture](https://github.com/fraiseql/confiture) |
 | **jsonb_ivm** | PostgreSQL Extension | Incremental View Maintenance | [fraiseql/jsonb_ivm](https://github.com/fraiseql/jsonb_ivm) |
-| **pg_fraiseql_cache** | PostgreSQL Extension | CASCADE cache invalidation | [fraiseql/pg_fraiseql_cache](https://github.com/fraiseql/pg_fraiseql_cache) |
+| **pg_fraiseql_cache** | PostgreSQL Extension | CASCADE cache invalidation | *In development* |
 
 ---
 

@@ -378,8 +378,4 @@ After migration, verify:
 ## Additional Resources
 
 - [PostgreSQL LTREE Documentation](https://www.postgresql.org/docs/current/ltree.html)
-- [FraiseQL LTREE Operators Reference](../reference/ltree-operators.md)
-- [LTREE Performance Benchmarks](../performance/ltree-benchmarks.md)</content>
-</xai:function_call:
-<xai:function_call name="todowrite">
-<parameter name="todos">[{"content":"Create migration guide for converting from other hierarchical patterns to LTREE","status":"completed","priority":"low","id":"migration_guide"}]
+- [FraiseQL Documentation](../README.md) - Comprehensive guides and references

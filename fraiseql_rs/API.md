@@ -672,7 +672,7 @@ for batch in batches(records, size=100):
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and breaking changes.
+See [CHANGELOG.md](../CHANGELOG.md) for version history and breaking changes.
 
 ## Contributing
 

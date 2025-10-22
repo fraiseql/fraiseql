@@ -807,10 +807,9 @@ Combine FraiseQL caching layers:
 
 ## Further Reading
 
-- [APQ Metrics API Reference](/admin/apq/dashboard)
-- [FraiseQL Performance Guide](/docs/performance/)
-- [Materialized Views Documentation](/docs/core/explicit-sync.md)
-- [GraphQL APQ Specification](https://github.com/apollographql/apollo-link-persisted-queries)
+- [FraiseQL Performance Guide](./index.md)
+- [Caching Guide](./caching.md)
+- [GraphQL APQ Specification](https://www.apollographql.com/docs/react/api/link/persisted-queries/)
 
 ---
 

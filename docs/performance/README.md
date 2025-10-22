@@ -12,7 +12,7 @@ Performance optimization guides for FraiseQL.
 
 ## Main Guide
 
-See the [Performance Guide](../../PERFORMANCE_GUIDE.md) for detailed information.
+See the [Performance Guide](../PERFORMANCE_GUIDE.md) for detailed information.
 
 ## Related
 

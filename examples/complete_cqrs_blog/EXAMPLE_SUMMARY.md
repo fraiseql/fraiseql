@@ -281,7 +281,7 @@ Add to features section:
 - ✅ **Auto-CASCADE**: Intelligent cache invalidation from GraphQL schema
 - ✅ **Production-Ready**: Monitoring, metrics, and Docker deployment
 
-See [Complete Example](examples/complete_cqrs_blog/) for a working demo.
+See the files in this directory for a working demo.
 ```
 
 ### Quickstart Update
@@ -304,7 +304,7 @@ In 30 seconds, you'll have:
 - Performance metrics available
 - Docker-ready deployment
 
-Learn more: [Complete CQRS Example](../examples/complete_cqrs_blog/)
+Learn more: [Complete CQRS Example](./)
 ```
 
 ---

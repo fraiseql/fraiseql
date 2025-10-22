@@ -8,7 +8,7 @@
 [![Type Coverage](https://img.shields.io/badge/type%20coverage-66%25-yellow.svg)](https://github.com/your-org/fraiseql)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue.svg)](https://www.postgresql.org/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-native-326CE5.svg)](https://kubernetes.io/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
 
 ## Why Enterprises Choose FraiseQL
 

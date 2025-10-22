@@ -595,7 +595,7 @@ async def test_user_cascade():
 - [Complete CQRS Example](../../examples/complete_cqrs_blog/README.md) - See CASCADE in action
 - [Caching Guide](./caching.md) - General caching documentation
 - [Explicit Sync Guide](../core/explicit-sync.md) - How sync works with CASCADE
-- [Performance Tuning](./optimization.md) - Optimize CASCADE performance
+- [Performance Tuning](./index.md) - Optimize CASCADE performance
 
 ---
 

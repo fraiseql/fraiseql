@@ -130,9 +130,9 @@ schema/
 
 ## See Also
 
-- **[DDL Organization Guide](../../../../docs/core/ddl-organization.md)** - Full size classification (XS/S/M/L/XL)
+- **[DDL Organization Guide](../../../docs/core/ddl-organization.md)** - Full size classification (XS/S/M/L/XL)
 - **[confiture Documentation](https://github.com/fraiseql/confiture)** - Schema build tool
-- **[FraiseQL Migrations](../../../../docs/core/migrations.md)** - Migration workflow
+- **[FraiseQL Migrations](../../../docs/core/migrations.md)** - Migration workflow
 
 ---
 

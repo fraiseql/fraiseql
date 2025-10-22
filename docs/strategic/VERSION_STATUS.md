@@ -12,9 +12,9 @@ FraiseQL uses a unified architecture with exclusive Rust pipeline execution for 
 | Component | Location | Status | Purpose |
 |-----------|----------|--------|---------|
 | **FraiseQL Framework** | Root level | ✅ Production | Complete GraphQL framework with Rust pipeline |
-| **Rust Pipeline** | [`fraiseql_rs/`](./fraiseql_rs/) | ✅ Core | Exclusive query execution engine (7-10x faster) |
-| **Examples** | [`examples/`](./examples/) | ✅ Reference | Production-ready application patterns |
-| **Documentation** | [`docs/`](./docs/) | ✅ Current | Comprehensive guides and tutorials |
+| **Rust Pipeline** | [`fraiseql_rs/`](../../fraiseql_rs/) | ✅ Core | Exclusive query execution engine (7-10x faster) |
+| **Examples** | [`examples/`](../../examples/) | ✅ Reference | Production-ready application patterns |
+| **Documentation** | [`docs/`](../../docs/) | ✅ Current | Comprehensive guides and tutorials |
 
 ---
 
@@ -43,7 +43,7 @@ ls -la  # 20+ working examples with Rust pipeline
 ### **For Contributors**
 - Build on the unified Rust pipeline architecture
 - Add features, fix bugs, improve documentation
-- See [CONTRIBUTING.md](./CONTRIBUTING.md)
+- See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 
 ---
 
@@ -140,14 +140,14 @@ FraiseQL maintains backward compatibility within the unified Rust pipeline archi
 ## 📞 Getting Help
 
 ### **Documentation & Examples**
-- [Installation Guide](./INSTALLATION.md)
-- [Quickstart](./docs/quickstart.md)
-- [Examples](./examples/) - 20+ production patterns
-- [API Reference](./docs/reference/)
+- [Installation Guide](../../INSTALLATION.md)
+- [Quickstart](../quickstart.md)
+- [Examples](../../examples/) - 20+ production patterns
+- [API Reference](../reference/)
 
 ### **Architecture Questions**
-- Check [Project Structure](./PROJECT_STRUCTURE.md) for directory purposes
-- Review [Architecture Overview](./docs/architecture/) for technical details
+- Review [Architecture Overview](../architecture/) for technical details
+- Check [Documentation](../README.md) for comprehensive guides
 - Open issue for clarification
 
 ### **Performance & Features**

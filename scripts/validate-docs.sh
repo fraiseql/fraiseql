@@ -75,9 +75,14 @@ validate_links() {
                     continue
                 fi
 
+                # Strip anchor from link (e.g., file.md#section -> file.md)
+                local link_path="$link"
+                if [[ $link_path =~ ^([^#]+)# ]]; then
+                    link_path="${BASH_REMATCH[1]}"
+                fi
+
                 # Resolve relative path
                 local target_path="$file"
-                local link_path="$link"
 
                 # Get the directory of the file
                 local file_dir="$(dirname "$file")"
@@ -85,8 +90,15 @@ validate_links() {
                 # Handle absolute paths (starting with /)
                 if [[ $link_path =~ ^/ ]]; then
                     target_path="$PROJECT_ROOT$link_path"
+
+                    # Remove trailing slash for directory checks
+                    local check_path="$target_path"
+                    if [[ $check_path =~ /$ ]]; then
+                        check_path="${check_path%/}"
+                    fi
+
                     # Check if target exists
-                    if [[ ! -f $target_path ]] && [[ ! -d $target_path ]]; then
+                    if [[ ! -f $check_path ]] && [[ ! -d $check_path ]]; then
                         log_error "Broken link in $file: $link (resolved to: $target_path)"
                         ((file_errors++))
                         ((errors++))
@@ -108,8 +120,14 @@ validate_links() {
 
                 target_path="$file_dir/$link_path"
 
-                # Check if target exists
-                if [[ ! -f $target_path ]] && [[ ! -d $target_path ]]; then
+                # Remove trailing slash for directory checks
+                local check_path="$target_path"
+                if [[ $check_path =~ /$ ]]; then
+                    check_path="${check_path%/}"
+                fi
+
+                # Check if target exists (file or directory)
+                if [[ ! -f $check_path ]] && [[ ! -d $check_path ]]; then
                     log_error "Broken link in $file: $link (resolved to: $target_path)"
                     ((file_errors++))
                     ((errors++))

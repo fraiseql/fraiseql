@@ -87,9 +87,9 @@ See **[INDEX.md](INDEX.md)** for complete details and setup instructions.
 ## 📈 Performance & Architecture
 
 **Performance benchmarks and architecture overview available in:**
-- **[Performance Guide](../../docs/performance/)** - Detailed benchmarks and optimization
-- **[Architecture Docs](../../docs/architecture/)** - CQRS patterns and type system
-- **[Core Concepts](../../docs/core/)** - Database-first design principles
+- **[Performance Guide](../docs/performance/)** - Detailed benchmarks and optimization
+- **[Architecture Docs](../docs/architecture/)** - CQRS patterns and type system
+- **[Core Concepts](../docs/core/)** - Database-first design principles
 
 ## 🚀 Getting Started
 
@@ -121,9 +121,9 @@ uvicorn app:app --reload
 ## 🛠️ Development & Testing
 
 **Tools and best practices:**
-- **[Development Tools](../../docs/development/)** - GraphQL playground, database tools, testing
-- **[Best Practices](../../docs/core/)** - Database design, API design, security, performance
-- **[Debugging Guide](../../docs/production/)** - Monitoring, query analysis, troubleshooting
+- **[Development Tools](../docs/development/)** - GraphQL playground, database tools, testing
+- **[Best Practices](../docs/core/)** - Database design, API design, security, performance
+- **[Debugging Guide](../docs/production/)** - Monitoring, query analysis, troubleshooting
 
 ## 🤝 Contributing Examples
 
@@ -134,11 +134,11 @@ uvicorn app:app --reload
 
 ## 📖 Documentation Links
 
-- **[Main Documentation](../../docs/)** - Complete FraiseQL reference
-- **[Quick Start](../../docs/quickstart.md)** - Getting started guide
-- **[Core Concepts](../../docs/core/)** - Fundamental patterns
-- **[Performance Guide](../../docs/performance/)** - Optimization techniques
-- **[Production Deployment](../../docs/production/)** - Production setup
+- **[Main Documentation](../docs/)** - Complete FraiseQL reference
+- **[Quick Start](../docs/quickstart.md)** - Getting started guide
+- **[Core Concepts](../docs/core/)** - Fundamental patterns
+- **[Performance Guide](../docs/performance/)** - Optimization techniques
+- **[Production Deployment](../docs/production/)** - Production setup
 
 ## 🆘 Support
 
