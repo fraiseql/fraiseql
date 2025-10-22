@@ -203,6 +203,4 @@ jobs:
           echo "- Update examples as API evolves" >> docs_validation_report.md
           echo "- Regular user onboarding audits" >> docs_validation_report.md
 
-          cat docs_validation_report.md</content>
-</xai:function_call name="bash">
-<parameter name="command">cd /home/lionel/code/fraiseql && ./scripts/validate-docs.sh all
+          cat docs_validation_report.md

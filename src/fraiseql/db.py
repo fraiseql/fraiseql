@@ -197,16 +197,20 @@ class FraiseQLRepository:
                 user_id = self.context["user_id"]
                 if is_cursor:
                     # For psycopg, we need to use the existing connection
-                    # This is a simplified check - in production you'd want more robust role checking
+                    # Simplified check - production needs more robust role checking
                     await cursor_or_conn.execute(
                         SQL(
-                            "SET LOCAL app.is_super_admin = EXISTS (SELECT 1 FROM user_roles ur INNER JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = {} AND r.name = 'super_admin')"
+                            "SET LOCAL app.is_super_admin = EXISTS (SELECT 1 FROM "
+                            "user_roles ur INNER JOIN roles r ON ur.role_id = r.id "
+                            "WHERE ur.user_id = {} AND r.name = 'super_admin')"
                         ).format(Literal(str(user_id)))
                     )
                 else:
                     # asyncpg connection
                     result = await cursor_or_conn.fetchval(
-                        "SELECT EXISTS (SELECT 1 FROM user_roles ur INNER JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = $1 AND r.name = 'super_admin')",
+                        "SELECT EXISTS (SELECT 1 FROM user_roles ur INNER JOIN "
+                        "roles r ON ur.role_id = r.id WHERE ur.user_id = $1 AND "
+                        "r.name = 'super_admin')",
                         str(user_id),
                     )
                     await cursor_or_conn.execute("SET LOCAL app.is_super_admin = $1", result)
@@ -815,10 +819,10 @@ class FraiseQLRepository:
             db_field_name = self._convert_field_name_to_database(field_name)
 
             if isinstance(field_filter, dict):
-                # Check if this might be a nested object filter (e.g., {machine: {id: {eq: value}}})
-                # Nested object filters have 'id' as a key with a dict value containing operators
-                # IMPORTANT: is_nested_object must be reset for each field to prevent state carry-over
-                # between iterations that would cause direct filters to be skipped after nested filters
+                # Check if this might be a nested object filter
+                # (e.g., {machine: {id: {eq: value}}})
+                # IMPORTANT: is_nested_object must be reset for each field
+                # to prevent state carry-over between iterations
                 is_nested_object = False
                 if "id" in field_filter and isinstance(field_filter["id"], dict):
                     # This looks like a nested object filter
@@ -856,7 +860,8 @@ class FraiseQLRepository:
                         logger.debug(
                             f"Dict WHERE: Assuming nested object filter for {field_name} "
                             f"(table_columns=None, using heuristics). "
-                            f"If this is incorrect, register table metadata with register_type_for_view()."
+                            f"If incorrect, register table metadata with "
+                            f"register_type_for_view()."
                         )
                     elif not looks_like_nested:
                         # Safety check: Even if table_columns is None, if the structure doesn't
