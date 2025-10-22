@@ -46,17 +46,19 @@ class CommentStatus(str, Enum):
 
 
 # Core domain types
-@fraiseql.type(sql_source="users", jsonb_column=None)
+@fraiseql.type(sql_source="tb_user", jsonb_column=None)
 class User:
     """User with profile and authentication."""
 
+    pk_user: int
     id: UUID
-    username: str
+    identifier: str
     email: str
+    password_hash: str
     role: UserRole
+    profile_data: Optional[Dict[str, Any]]
     created_at: datetime
     updated_at: datetime
-    profile_data: Optional[Dict[str, Any]]
 
     # @fraiseql.field
     # async def posts(self, info: GraphQLResolveInfo) -> List["Post"]:
@@ -75,26 +77,33 @@ class User:
         return None
 
 
-@fraiseql.type(sql_source="posts", jsonb_column=None)
+@fraiseql.type(sql_source="tb_post", jsonb_column=None)
 class Post:
     """Blog post with content and metadata."""
 
+    pk_post: int
     id: UUID
+    identifier: str
     title: str
-    slug: str
     content: str
     excerpt: Optional[str]
-    author_id: UUID
+    fk_author: int
     status: PostStatus
     published_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 
     @fraiseql.field
-    async def author(self, info: GraphQLResolveInfo) -> User:
+    async def author(self, info: GraphQLResolveInfo) -> Optional[User]:
         """Post author."""
         db = info.context["db"]
-        return await db.find_one("users", id=self.author_id)
+        from fraiseql.db import DatabaseQuery
+
+        query = DatabaseQuery("SELECT * FROM tb_user WHERE pk_user = %s", [self.fk_author])
+        result = await db.run(query)
+        if result:
+            return User(**result[0])
+        return None
 
     # @fraiseql.field
     # async def tags(self, info: GraphQLResolveInfo) -> List["Tag"]:
@@ -122,6 +131,7 @@ class Post:
         """Number of approved comments."""
         db = info.context["db"]
         from fraiseql.db import DatabaseQuery
+
         query = DatabaseQuery(
             "SELECT COUNT(*) as count FROM comments WHERE post_id = %s AND status = %s",
             [self.id, CommentStatus.APPROVED],
@@ -130,30 +140,56 @@ class Post:
         return result[0]["count"] if result else 0
 
 
-@fraiseql.type(sql_source="comments", jsonb_column=None)
+@fraiseql.type(sql_source="tb_comment", jsonb_column=None)
 class Comment:
     """Comment with threading support."""
 
+    pk_comment: int
     id: UUID
-    post_id: UUID
-    author_id: UUID
-    parent_id: Optional[UUID]
+    identifier: Optional[str]
+    fk_post: int
+    fk_author: int
+    fk_parent: Optional[int]
     content: str
     status: CommentStatus
     created_at: datetime
     updated_at: datetime
 
     @fraiseql.field
-    async def author(self, info: GraphQLResolveInfo) -> User:
+    async def author(self, info: GraphQLResolveInfo) -> Optional[User]:
         """Comment author."""
         db = info.context["db"]
-        return await db.find_one("users", id=self.author_id)
+        from fraiseql.db import DatabaseQuery
+
+        query = DatabaseQuery("SELECT * FROM tb_user WHERE pk_user = %s", [self.fk_author])
+        result = await db.run(query)
+        if result:
+            return User(**result[0])
+        return None
+
+    @fraiseql.field
+    async def post(self, info: GraphQLResolveInfo) -> Optional[Post]:
+        """Comment's post."""
+        db = info.context["db"]
+        from fraiseql.db import DatabaseQuery
+
+        query = DatabaseQuery("SELECT * FROM tb_post WHERE pk_post = %s", [self.fk_post])
+        result = await db.run(query)
+        if result:
+            return Post(**result[0])
+        return None
 
     @fraiseql.field
     async def post(self, info: GraphQLResolveInfo) -> Post:
         """Comment's post."""
         db = info.context["db"]
-        return await db.find_one("posts", id=self.post_id)
+        from fraiseql.db import DatabaseQuery
+
+        query = DatabaseQuery("SELECT * FROM tb_post WHERE pk_post = %s", [self.fk_post])
+        result = await db.run(query)
+        if result:
+            return Post(**result[0])
+        return None
 
     # @fraiseql.field
     # async def parent(self, info: GraphQLResolveInfo) -> Optional["Comment"]:
@@ -170,15 +206,17 @@ class Comment:
     #     return await db.find("comments", parent_id=self.id, status=CommentStatus.APPROVED)
 
 
-@fraiseql.type(sql_source="tags", jsonb_column=None)
+@fraiseql.type(sql_source="tb_tag", jsonb_column=None)
 class Tag:
     """Content tag/category."""
 
+    pk_tag: int
     id: UUID
+    identifier: str
     name: str
-    slug: str
     color: Optional[str]
     description: Optional[str]
+    created_at: datetime
 
     # @fraiseql.field
     # async def posts(self, info: GraphQLResolveInfo) -> List["Post"]:
@@ -200,6 +238,7 @@ class Tag:
         """Number of published posts with this tag."""
         db = info.context["db"]
         from fraiseql.db import DatabaseQuery
+
         query = DatabaseQuery(
             """
             SELECT COUNT(*) as count FROM posts p
@@ -443,6 +482,7 @@ class UpdatePost:
             if self.input.tag_ids is not None:
                 # Remove existing tags
                 from fraiseql.db import DatabaseQuery
+
                 delete_query = DatabaseQuery("DELETE FROM post_tags WHERE post_id = %s", [self.id])
                 await db.run(delete_query)
                 # Add new tags
@@ -518,7 +558,7 @@ async def posts(
             where_conditions.append("status = %s")
             params.append(where.status)
         if where.author_id:
-            where_conditions.append("author_id = %s")
+            where_conditions.append("fk_author = %s")
             params.append(where.author_id)
         if where.title_contains:
             where_conditions.append("title ILIKE %s")
@@ -535,7 +575,7 @@ async def posts(
     # Build query
     where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
     query = f"""
-        SELECT * FROM posts
+        SELECT * FROM tb_post
         WHERE {where_clause}
         ORDER BY {order_clause}
         LIMIT %s OFFSET %s
@@ -543,6 +583,7 @@ async def posts(
     params.extend([limit, offset])
 
     from fraiseql.db import DatabaseQuery
+
     db_query = DatabaseQuery(query, params)
     result = await db.run(db_query)
     return [Post(**row) for row in result]
@@ -569,8 +610,13 @@ async def post(
 async def tags(info: GraphQLResolveInfo, limit: int = 50) -> List[Tag]:
     """Get all tags."""
     db = info.context["db"]
-    result = await db.find("tags", limit=limit, order_by="name ASC")
-    return result  # Repository already returns instantiated Tag objects
+
+    from fraiseql.db import DatabaseQuery
+    from psycopg.sql import SQL
+
+    query = DatabaseQuery(SQL("SELECT * FROM tb_tag ORDER BY name ASC LIMIT %s"), [limit])
+    result = await db.run(query)
+    return [Tag(**row) for row in result]
 
 
 @fraiseql.query

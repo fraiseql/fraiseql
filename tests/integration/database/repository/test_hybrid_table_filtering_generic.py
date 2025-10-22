@@ -9,6 +9,7 @@ for hybrid table architectures.
 """
 
 import pytest
+import json
 from decimal import Decimal
 from uuid import uuid4
 from datetime import date, timedelta
@@ -370,6 +371,13 @@ class TestHybridTableFiltering:
 
         # Extract data from RustResponseBytes
         results = extract_graphql_data(result, "products")
+
+        # DEBUG: Print what we actually got
+        print("=== RAW RESULT ===")
+        print(json.dumps(results, indent=2))
+        print("=== AVAILABLE KEYS ===")
+        if results:
+            print(list(results[0].keys()))
 
         # Should return only active products from TechCorp
         assert len(results) == 2

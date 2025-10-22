@@ -151,6 +151,32 @@ class BaseOperatorStrategy(ABC):
         except ImportError:
             return False
 
+    def _is_ltree_type(self, field_type: type) -> bool:
+        """Check if field_type is an LTree type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types import LTree
+            from fraiseql.types.scalars.ltree import LTreeField
+
+            return field_type in (LTree, LTreeField) or (
+                isinstance(field_type, type) and issubclass(field_type, LTreeField)
+            )
+        except ImportError:
+            return False
+
+    def _is_mac_address_type(self, field_type: type) -> bool:
+        """Check if field_type is a MAC address type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types import MacAddress
+            from fraiseql.types.scalars.mac_address import MacAddressField
+
+            return field_type in (MacAddress, MacAddressField) or (
+                isinstance(field_type, type) and issubclass(field_type, MacAddressField)
+            )
+        except ImportError:
+            return False
+
     def _looks_like_ip_address_value(self, val: Any, op: str) -> bool:
         """Check if a value looks like an IP address (fallback when field_type is missing).
 
@@ -430,6 +456,28 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
         ):
             return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::inet")])
 
+        # CRITICAL FIX: If we detected LTree path and cast the field to ::ltree,
+        # we must also cast the literal value to ::ltree for PostgreSQL compatibility
+        if (
+            not field_type  # Only when field_type is missing (production CQRS pattern)
+            and op in ("eq", "neq")
+            and self._looks_like_ltree_value(val, op)
+            and casted_path != path_sql  # Path was modified
+            and "::ltree" in str(casted_path)  # Specifically cast to ltree
+        ):
+            return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::ltree")])
+
+        # CRITICAL FIX: If we detected MAC address and cast the field to ::macaddr,
+        # we must also cast the literal value to ::macaddr for PostgreSQL compatibility
+        if (
+            not field_type  # Only when field_type is missing (production CQRS pattern)
+            and op in ("eq", "neq")
+            and self._looks_like_mac_address_value(val, op)
+            and casted_path != path_sql  # Path was modified
+            and "::macaddr" in str(casted_path)  # Specifically cast to macaddr
+        ):
+            return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::macaddr")])
+
         # CRITICAL FIX: If we kept the path as text (for booleans only),
         # convert boolean values to JSONB text representation for text-to-text comparison
         if (
@@ -566,8 +614,33 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
         )
 
+        # CRITICAL FIX: Detect if we're dealing with LTree paths without field_type
+        is_ltree_list_without_field_type = (
+            not field_type  # Production CQRS pattern
+            and val  # List is not empty
+            and self._looks_like_ltree_value(val, op)  # Detects LTree lists
+            and casted_path != path_sql  # Path was modified
+            and "::ltree" in str(casted_path)  # Specifically cast to ltree
+        )
+
+        # CRITICAL FIX: Detect if we're dealing with MAC addresses without field_type
+        is_mac_list_without_field_type = (
+            not field_type  # Production CQRS pattern
+            and val  # List is not empty
+            and self._looks_like_mac_address_value(val, op)  # Detects MAC address lists
+            and casted_path != path_sql  # Path was modified
+            and "::macaddr" in str(casted_path)  # Specifically cast to macaddr
+        )
+
         # Handle value conversion based on type (aligned with _apply_type_cast logic)
-        if not (field_type and self._is_ip_address_type(field_type)):
+        if not (
+            field_type
+            and (
+                self._is_ip_address_type(field_type)
+                or self._is_ltree_type(field_type)
+                or self._is_mac_address_type(field_type)
+            )
+        ):
             # Check if this is a boolean list (check bool first since bool is subclass of int)
             if val and all(isinstance(v, bool) for v in val):
                 # For boolean lists, use text comparison with converted values
@@ -581,7 +654,7 @@ class ListOperatorStrategy(BaseOperatorStrategy):
                 # For other types (strings, etc.), use values as-is
                 literals = [Literal(v) for v in val]
         else:
-            # For IP addresses, use string literals
+            # For IP addresses, LTree, and MAC addresses, use string literals
             literals = [Literal(str(v)) for v in val]
 
         # Build the IN/NOT IN clause
@@ -595,6 +668,12 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             # CRITICAL FIX: Cast each literal to ::inet if we detected IP addresses
             if is_ip_list_without_field_type:
                 parts.append(SQL("::inet"))
+            # CRITICAL FIX: Cast each literal to ::ltree if we detected LTree paths
+            elif is_ltree_list_without_field_type:
+                parts.append(SQL("::ltree"))
+            # CRITICAL FIX: Cast each literal to ::macaddr if we detected MAC addresses
+            elif is_mac_list_without_field_type:
+                parts.append(SQL("::macaddr"))
 
         parts.append(SQL(")"))
         return Composed(parts)

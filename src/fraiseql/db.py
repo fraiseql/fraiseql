@@ -570,10 +570,14 @@ class FraiseQLRepository:
             field_paths = extract_field_paths_from_info(info, transform_path=to_snake_case)
 
         # 2. Get JSONB column from cached metadata
-        jsonb_column = "data"
+        jsonb_column = None  # default to None (use row_to_json)
         if view_name in _table_metadata:
-            if "jsonb_column" in _table_metadata[view_name]:
-                jsonb_column = _table_metadata[view_name]["jsonb_column"]
+            metadata = _table_metadata[view_name]
+            # For hybrid tables with JSONB data, always use the data column
+            if metadata.get("has_jsonb_data", False):
+                jsonb_column = metadata.get("jsonb_column") or "data"
+            elif "jsonb_column" in metadata:
+                jsonb_column = metadata["jsonb_column"]
 
         # 3. Build query (automatically adds LIMIT 1)
         query = self._build_find_one_query(

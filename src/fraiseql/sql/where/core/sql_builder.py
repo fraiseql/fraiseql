@@ -131,14 +131,17 @@ def build_where_clause_recursive(where_dict: dict, path: list[str] = None) -> li
     conditions = []
 
     for field, value in where_dict.items():
+        # Convert field name from camelCase to snake_case for JSONB path
+        db_field_name = _camel_to_snake(field)
+
         if isinstance(value, dict) and not is_operator_dict(value):
             # Nested object - recurse deeper
-            nested_path = path + [field]
+            nested_path = path + [db_field_name]
             nested_conditions = build_where_clause_recursive(value, nested_path)
             conditions.extend(nested_conditions)
         else:
             # Leaf node with operators
-            full_path = path + [field]
+            full_path = path + [db_field_name]
             jsonb_path = build_jsonb_path(full_path)
 
             # Handle operators on this field
@@ -209,14 +212,9 @@ def build_where_clause_graphql(graphql_where: dict[str, Any]) -> Composed | None
     if not graphql_where:
         return None
 
-    # Convert GraphQL field names (camelCase) to database field names (snake_case) for top-level fields
-    converted_where = {}
-    for field_name, field_filter in graphql_where.items():
-        db_field_name = _camel_to_snake(field_name)
-        converted_where[db_field_name] = field_filter
-
     # Use recursive builder for nested object support
-    conditions = build_where_clause_recursive(converted_where)
+    # The recursive function will handle camelCase to snake_case conversion for all field names
+    conditions = build_where_clause_recursive(graphql_where)
 
     if not conditions:
         return None

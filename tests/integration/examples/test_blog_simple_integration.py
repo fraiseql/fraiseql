@@ -16,7 +16,7 @@ pytestmark = [
     pytest.mark.blog_simple,
     pytest.mark.integration,
     pytest.mark.database,
-    pytest.mark.examples
+    pytest.mark.examples,
 ]
 
 
@@ -25,11 +25,12 @@ async def test_smart_dependencies_available(smart_dependencies):
     """Test that smart dependency management successfully provides all required dependencies."""
     # Verify that smart dependencies fixture provided dependency information
     assert smart_dependencies is not None
-    assert 'dependency_results' in smart_dependencies
-    assert 'environment' in smart_dependencies
+    assert "dependency_results" in smart_dependencies
+    assert "environment" in smart_dependencies
 
     # Test basic imports individually to identify the failing one
     import sys
+
     logger.info(f"Using Python: {sys.executable}")
     logger.info(f"Python path: {sys.path[:3]}")
 
@@ -39,6 +40,7 @@ async def test_smart_dependencies_available(smart_dependencies):
     # Check if fastapi is available
     try:
         import fastapi
+
         logger.info("FastAPI import successful")
     except ImportError as e:
         logger.error(f"FastAPI import failed: {e}")
@@ -49,6 +51,7 @@ async def test_smart_dependencies_available(smart_dependencies):
     # Test GraphQL separately first
     try:
         from graphql import GraphQLSchema
+
         logger.info("GraphQL import successful")
     except ImportError as e:
         logger.error(f"GraphQL import failed: {e}")
@@ -57,6 +60,7 @@ async def test_smart_dependencies_available(smart_dependencies):
     # Now test fraiseql
     try:
         import fraiseql
+
         logger.info("FraiseQL import successful")
     except ImportError as e:
         logger.error(f"FraiseQL import failed: {e}")
@@ -135,10 +139,7 @@ async def test_blog_simple_basic_queries(blog_simple_graphql_client):
         }
     """
 
-    result = await blog_simple_graphql_client.execute(
-        posts_query,
-        variables={"limit": 5}
-    )
+    result = await blog_simple_graphql_client.execute(posts_query, variables={"limit": 5})
 
     # Should execute without errors
     assert "errors" not in result or not result["errors"]
@@ -151,15 +152,12 @@ async def test_blog_simple_basic_queries(blog_simple_graphql_client):
             tags(limit: $limit) {
                 id
                 name
-                slug
+                identifier
             }
         }
     """
 
-    result = await blog_simple_graphql_client.execute(
-        tags_query,
-        variables={"limit": 5}
-    )
+    result = await blog_simple_graphql_client.execute(tags_query, variables={"limit": 5})
 
     assert "errors" not in result or not result["errors"]
     assert "data" in result
@@ -179,23 +177,27 @@ async def test_blog_simple_database_connectivity(blog_simple_repository):
 @pytest.mark.asyncio
 async def test_blog_simple_seed_data(blog_simple_repository):
     """Test that seed data is properly loaded."""
-    # Check that users table exists and has data
-    result = await blog_simple_repository.connection.execute("SELECT COUNT(*) as count FROM users")
+    # Check that tb_user table exists and has data
+    result = await blog_simple_repository.connection.execute(
+        "SELECT COUNT(*) as count FROM tb_user"
+    )
     rows = await result.fetchall()
     user_count = rows[0][0]  # First column of first row
-    assert user_count > 0, "Users table should have seed data"
+    assert user_count > 0, "tb_user table should have seed data"
 
-    # Check that tags table exists and has data
-    result = await blog_simple_repository.connection.execute("SELECT COUNT(*) as count FROM tags")
+    # Check that tb_tag table exists and has data
+    result = await blog_simple_repository.connection.execute("SELECT COUNT(*) as count FROM tb_tag")
     rows = await result.fetchall()
     tag_count = rows[0][0]  # First column of first row
-    assert tag_count > 0, "Tags table should have seed data"
+    assert tag_count > 0, "tb_tag table should have seed data"
 
-    # Check that posts table exists and has data
-    result = await blog_simple_repository.connection.execute("SELECT COUNT(*) as count FROM posts")
+    # Check that tb_post table exists and has data
+    result = await blog_simple_repository.connection.execute(
+        "SELECT COUNT(*) as count FROM tb_post"
+    )
     rows = await result.fetchall()
     post_count = rows[0][0]  # First column of first row
-    assert post_count > 0, "Posts table should have seed data"
+    assert post_count > 0, "tb_post table should have seed data"
 
 
 @pytest.mark.asyncio
@@ -248,7 +250,7 @@ async def test_blog_simple_performance_baseline(blog_simple_graphql_client):
                 id
                 title
                 author {
-                    username
+                    identifier
                 }
             }
         }

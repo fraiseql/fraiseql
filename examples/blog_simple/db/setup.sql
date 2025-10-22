@@ -292,6 +292,16 @@ CREATE POLICY comments_visibility ON tb_comment
     USING (status = 'approved');
 
 -- ==============================================================================
+-- VIEWS: Backward compatibility for GraphQL models
+-- ==============================================================================
+
+-- Create views that alias Trinity tables to old names for GraphQL compatibility
+CREATE VIEW users AS SELECT id, identifier as username, email, password_hash, role, profile_data, created_at, updated_at FROM tb_user;
+CREATE VIEW posts AS SELECT id, identifier as slug, title, content, excerpt, fk_author as author_id, status, published_at, created_at, updated_at FROM tb_post;
+CREATE VIEW comments AS SELECT id, identifier, fk_post as post_id, fk_author as author_id, fk_parent as parent_id, content, status, created_at, updated_at FROM tb_comment;
+CREATE VIEW tags AS SELECT id, identifier as slug, name, color, description, created_at FROM tb_tag;
+
+-- ==============================================================================
 -- PERMISSIONS: Grant basic permissions
 -- ==============================================================================
 
