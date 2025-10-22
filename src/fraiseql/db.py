@@ -64,9 +64,8 @@ def register_type_for_view(
         metadata = {
             "columns": table_columns or set(),
             "has_jsonb_data": has_jsonb_data or False,
+            "jsonb_column": jsonb_column,  # Always store the jsonb_column value
         }
-        if jsonb_column is not None:
-            metadata["jsonb_column"] = jsonb_column
         _table_metadata[view_name] = metadata
         logger.debug(
             f"Registered metadata for {view_name}: {len(table_columns or set())} columns, "
@@ -515,9 +514,14 @@ class FraiseQLRepository:
             field_paths = extract_field_paths_from_info(info, transform_path=to_snake_case)
 
         # 2. Get JSONB column from cached metadata (NO sample query!)
-        jsonb_column = "data"  # default
+        jsonb_column = None  # default to None (use row_to_json)
         if view_name in _table_metadata:
-            jsonb_column = _table_metadata[view_name].get("jsonb_column", "data")
+            metadata = _table_metadata[view_name]
+            # For hybrid tables with JSONB data, always use the data column
+            if metadata.get("has_jsonb_data", False):
+                jsonb_column = metadata.get("jsonb_column") or "data"
+            elif "jsonb_column" in metadata:
+                jsonb_column = metadata["jsonb_column"]
 
         # 3. Build SQL query
         query = self._build_find_query(
@@ -568,7 +572,8 @@ class FraiseQLRepository:
         # 2. Get JSONB column from cached metadata
         jsonb_column = "data"
         if view_name in _table_metadata:
-            jsonb_column = _table_metadata[view_name].get("jsonb_column", "data")
+            if "jsonb_column" in _table_metadata[view_name]:
+                jsonb_column = _table_metadata[view_name]["jsonb_column"]
 
         # 3. Build query (automatically adds LIMIT 1)
         query = self._build_find_one_query(
@@ -680,10 +685,6 @@ class FraiseQLRepository:
             where_condition = Composed([Identifier(key), SQL(" = "), Literal(value)])
             where_parts.append(where_condition)
 
-        # SIMPLIFIED: No complex field path SQL generation!
-        # Just select the JSONB column as text
-        target_jsonb_column = jsonb_column or "data"
-
         # Handle schema-qualified table names
         if "." in view_name:
             schema_name, table_name = view_name.split(".", 1)
@@ -691,13 +692,23 @@ class FraiseQLRepository:
         else:
             table_identifier = Identifier(view_name)
 
-        # Build simple query: SELECT data::text FROM table
-        query_parts = [
-            SQL("SELECT "),
-            Identifier(target_jsonb_column),
-            SQL("::text FROM "),
-            table_identifier,
-        ]
+        if jsonb_column is None:
+            # For tables with jsonb_column=None, select all columns as JSON
+            # This allows the Rust pipeline to extract individual fields
+            query_parts = [
+                SQL("SELECT row_to_json(t)::text FROM "),
+                table_identifier,
+                SQL(" AS t"),
+            ]
+        else:
+            # For JSONB tables, select the JSONB column as text
+            target_jsonb_column = jsonb_column or "data"
+            query_parts = [
+                SQL("SELECT "),
+                Identifier(target_jsonb_column),
+                SQL("::text FROM "),
+                table_identifier,
+            ]
 
         # Add WHERE clause
         if where_parts:
