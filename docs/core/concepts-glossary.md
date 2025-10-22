@@ -1,295 +1,202 @@
-# Core Concepts Glossary
+# Concepts & Glossary
 
-Beginner-friendly explanations of FraiseQL's key concepts. Each concept includes a simple definition, real-world analogy, and why it matters.
+Key concepts and terminology in FraiseQL.
 
-## CQRS (Command Query Responsibility Segregation)
+## Core Concepts
 
-### What is CQRS?
-**CQRS separates reading data from writing data** - like having separate lines for ordering food vs. picking it up.
+### CQRS (Command Query Responsibility Segregation)
 
-### Simple Analogy
-Imagine a restaurant:
-- **Commands** (writes): You tell the kitchen "I want a burger" (create order)
-- **Queries** (reads): You ask "Is my burger ready?" (check status)
+Separating read and write operations for optimal performance:
 
-### CQRS Flow Diagram
+- **Commands (Writes)**: Mutations that modify data
+- **Queries (Reads)**: Queries that fetch data from optimized views
+
+**Benefits**:
+- Optimized read paths with PostgreSQL views
+- ACID transactions for writes
+- Independent scaling of reads and writes
+
+### Repository Pattern
+
+Abstraction layer for database operations:
+
+```python
+from fraiseql.db import FraiseQLRepository
+
+repo = FraiseQLRepository(pool)
+users = await repo.find("users_view", is_active=True)
 ```
-User Action → Command (Write) → tb_* Table → Sync → tv_* Table → Query (Read) → User
-     ↓              ↓              ↓              ↓              ↓              ↓
-  "Create Post"  INSERT INTO    tb_post      fn_sync_tv_post   tv_post      SELECT data
-                 tb_post                                      FROM tv_post
+
+### Hybrid Tables
+
+Tables with separate write and read paths:
+- Writes go to normalized tables
+- Reads come from denormalized views
+
+See [Hybrid Tables Example](../../examples/hybrid_tables.py)
+
+### DataLoader Pattern
+
+Automatic batching to prevent N+1 queries:
+
+```python
+from fraiseql import dataloader
+
+@fraiseql.field
+@dataloader
+async def posts(user: User, info: Info) -> List[Post]:
+    return await info.context.repo.find("posts_view", user_id=user.id)
 ```
 
-In FraiseQL:
-- **Commands**: Write to `tb_*` tables (like placing an order)
-- **Queries**: Read from `v_*` or `tv_*` views (like checking order status)
+## GraphQL Concepts
 
-### Why It Matters
-- **Performance**: Reading and writing have different needs
-- **Scalability**: Can optimize reads and writes separately
-- **Simplicity**: Clear separation of concerns
+### Type
 
-### Example
+Define your data models:
+
+```python
+@fraiseql.type
+class User:
+    id: UUID
+    name: str
+    email: str
+```
+
+### Query
+
+Read operations:
+
+```python
+@fraiseql.query
+def get_users(info: Info) -> List[User]:
+    return info.context.repo.find("users_view")
+```
+
+### Mutation
+
+Write operations:
+
+```python
+@fraiseql.mutation
+async def create_user(info: Info, name: str, email: str) -> User:
+    return await info.context.repo.insert("users", {"name": name, "email": email})
+```
+
+### Connection
+
+Paginated results:
+
+```python
+@fraiseql.connection
+def users(info: Info, first: int = 100) -> Connection[User]:
+    return info.context.repo.find("users_view", limit=first)
+```
+
+### Field
+
+Computed or related fields:
+
+```python
+@fraiseql.field
+async def posts(user: User, info: Info) -> List[Post]:
+    return info.context.repo.find("posts_view", user_id=user.id)
+```
+
+## Database Concepts
+
+### View
+
+Read-optimized database views:
+
 ```sql
--- Command (write): Create user
-INSERT INTO tb_user (id, data) VALUES ($1, $2);
-
--- Query (read): Get user info
-SELECT data FROM v_user WHERE id = $1;
+CREATE OR REPLACE VIEW users_view AS
+SELECT id, name, email, created_at
+FROM users
+WHERE deleted_at IS NULL;
 ```
 
-## JSONB Views (v_* and tv_*)
+### Materialized View
 
-### What are JSONB Views?
-**Views that package your data as JSONB objects** for GraphQL - like pre-packaged meal kits vs. cooking from scratch.
+Pre-computed aggregations:
 
-### Simple Analogy
-- **Raw ingredients** (`tb_*` tables): Individual columns (id, name, email, etc.)
-- **Meal kit** (`v_*` views): Everything packaged as JSONB ready to serve
-
-### View Types
-- **`v_*` views**: Real-time, compute JSONB on-the-fly
-- **`tv_*` tables**: Pre-computed JSONB for faster reads
-
-### Why It Matters
-- **Performance**: Skip Python object creation
-- **Flexibility**: Easy to add/change fields without schema changes
-- **GraphQL-ready**: Direct JSONB → GraphQL mapping
-
-### Example
 ```sql
--- Raw table
-CREATE TABLE tb_user (
-    id UUID PRIMARY KEY,
-    name TEXT,
-    email TEXT
-);
-
--- JSONB view
-CREATE VIEW v_user AS
+CREATE MATERIALIZED VIEW user_stats AS
 SELECT
-    id,
-    jsonb_build_object(
-        'id', id,
-        'name', name,
-        'email', email
-    ) AS data
-FROM tb_user;
+    user_id,
+    COUNT(*) as post_count,
+    MAX(created_at) as last_post_at
+FROM posts
+GROUP BY user_id;
 ```
 
-## Trinity Identifiers
+### Index
 
-### What is the Trinity Pattern?
-**Three types of identifiers per entity** - like having a house number, street address, and nickname.
+Performance optimization:
 
-### The Three Identifiers
-1. **`pk_*` (Primary Key)**: Internal database ID (fast joins)
-2. **`id` (UUID)**: Public API identifier (secure)
-3. **`identifier` (Slug)**: Human-readable name (SEO-friendly)
-
-### Simple Analogy
-- **House number** (`pk_*`): `123` - fast for computers
-- **Full address** (`id`): `550e8400-e29b-41d4-a716-446655440000` - unique everywhere
-- **Nickname** (`identifier`): `johns-house` - easy for humans
-
-### Why It Matters
-- **Performance**: Fast joins with integers, secure APIs with UUIDs
-- **SEO**: Human-readable URLs with slugs
-- **Security**: Never expose internal IDs to users
-
-### Naming Convention Table
-
-| Identifier Type | Column Name | Data Type | Purpose | Exposed in API? |
-|----------------|-------------|-----------|---------|-----------------|
-| **Primary Key** | `pk_post` | `INTEGER` | Fast database joins | ❌ Never |
-| **Public ID** | `id` | `UUID` | Secure API identifier | ✅ Always |
-| **Human Slug** | `identifier` | `TEXT` | SEO-friendly URLs | ✅ Sometimes |
-
-### Example
 ```sql
-CREATE TABLE tb_post (
-    pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Fast joins
-    id UUID DEFAULT gen_random_uuid(),                         -- API security
-    identifier TEXT UNIQUE,                                    -- SEO-friendly
-    title TEXT NOT NULL
-);
+CREATE INDEX idx_users_email ON users(email);
 ```
 
-## Database-First Architecture
+## Performance Concepts
 
-### What is Database-First?
-**Design your API starting from the database** - like building a house from the foundation up, not decorating first.
+### Query Complexity
 
-### Simple Analogy
-- **Traditional**: Start with API design, then figure out database
-- **Database-first**: Start with data model, then build API on top
+Limiting query depth and breadth:
 
-### Visual Comparison: ORM vs Database-First
+```python
+from fraiseql import ComplexityConfig
 
-**Traditional ORM Approach:**
-```
-API Layer (Python) → ORM Objects → SQL Generation → Database
-    ↓                      ↓              ↓              ↓
-Flask/Django         SQLAlchemy      Generated SQL    Tables
+config = ComplexityConfig(
+    max_complexity=1000,
+    max_depth=10
+)
 ```
 
-**FraiseQL Database-First:**
-```
-Database Functions → JSONB Views → Direct JSONB → GraphQL API
-    ↓                      ↓              ↓              ↓
-PostgreSQL Logic      v_*/tv_*       No Python       Strawberry
-Stored Procedures     Views          Objects         Types
-```
+### APQ (Automatic Persisted Queries)
 
-### Why It Matters
-- **Performance**: Database does what it does best
-- **Consistency**: Single source of truth
-- **Maintainability**: Business logic lives in reusable functions
+Caching GraphQL queries by hash to reduce bandwidth.
 
-### Example
-```sql
--- Business logic in database
-CREATE FUNCTION create_user(user_data JSONB)
-RETURNS UUID AS $$
-    -- Validation, defaults, relationships all here
-    INSERT INTO tb_user (data)
-    VALUES (user_data || '{"created_at": now()}')
-    RETURNING id;
-$$ LANGUAGE sql;
+### Rust JSON Pipeline
 
--- Simple API call
-@app.mutation
-async def create_user(info, input: CreateUserInput) -> User:
-    db = info.context["db"]
-    user_id = await db.execute_function("create_user", {"user_data": input})
-    return await db.find_one("v_user", where={"id": user_id})
+High-performance JSON processing using Rust for 10-100x speed improvement.
+
+## Security Concepts
+
+### Field-Level Authorization
+
+Control access at the field level:
+
+```python
+@fraiseql.field
+@requires_permission("read:sensitive")
+def sensitive_field(user: User, info: Info) -> str:
+    return user.sensitive_data
 ```
 
-## Transform Tables (tv_*)
+### Rate Limiting
 
-### What are Transform Tables?
-**Pre-computed JSONB tables for instant queries** - like having frozen meals ready in your freezer.
+Prevent abuse:
 
-### Simple Analogy
-- **Cook from scratch** (`v_*` views): Prepare meal when ordered
-- **Frozen meal** (`tv_*` tables): Pre-cooked, just heat and serve
+```python
+from fraiseql.auth import RateLimitConfig
 
-### How They Work
-1. **Sync functions** keep `tv_*` tables updated from `tb_*` tables
-2. **Queries read** from `tv_*` tables (fast!)
-3. **Rust transformer** converts JSONB to GraphQL instantly
-
-### Why It Matters
-- **Speed**: 40x faster than computing JSONB on-the-fly
-- **Consistency**: Pre-computed ensures identical results
-- **Scalability**: Great for high-traffic reads
-
-### Example
-```sql
--- Transform table (pre-computed)
-CREATE TABLE tv_user (
-    id UUID PRIMARY KEY,
-    data JSONB NOT NULL  -- Pre-built JSONB
-);
-
--- Sync function (keeps tv_* updated)
-CREATE FUNCTION fn_sync_tv_user(user_id UUID)
-RETURNS void AS $$
-    INSERT INTO tv_user (id, data)
-    SELECT id, jsonb_build_object(...) FROM tb_user WHERE id = user_id
-    ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data;
-$$ LANGUAGE sql;
+rate_limit = RateLimitConfig(
+    requests_per_minute=100
+)
 ```
 
-## Putting It All Together
+### Introspection Control
 
-### Complete Flow Example
-```sql
--- 1. Command (CQRS write)
-INSERT INTO tb_post (id, title, content)
-VALUES (gen_random_uuid(), 'Hello World', 'Content...');
+Disable schema introspection in production:
 
--- 2. Sync (update transform table)
-SELECT fn_sync_tv_post(post_id);
-
--- 3. Query (CQRS read from transform table)
-SELECT data FROM tv_post WHERE id = $1;
--- Returns pre-computed JSONB instantly!
+```python
+config = FraiseQLConfig(
+    introspection_enabled=False
+)
 ```
 
-### Why This Architecture Works
-- **CQRS**: Separates concerns for better performance
-- **Trinity**: Fast joins, secure APIs, human-friendly URLs
-- **JSONB**: Flexible data without schema migrations
-- **Database-first**: Business logic where it belongs
-- **Transform tables**: Pre-compute for speed
+## Related
 
-## Quick Reference Table
-
-| Concept | Purpose | Example Pattern |
-|---------|---------|-----------------|
-| **CQRS** | Separate reads/writes | `tb_*` (write) ↔ `v_*`/`tv_*` (read) |
-| **JSONB Views** | GraphQL-ready data | `v_user`, `tv_post` |
-| **Trinity IDs** | Multi-purpose identifiers | `pk_*`, `id`, `identifier` |
-| **Database-First** | Logic in PostgreSQL | Functions over application code |
-| **Transform Tables** | Pre-computed speed | `tv_*` with sync functions |
-
-## Progressive Learning Path
-
-### Level 1: Basic Understanding (Start Here)
-**Focus**: What each concept does
-- CQRS = Separate reads from writes
-- JSONB Views = Pre-packaged data for GraphQL
-- Trinity = Three types of IDs per entity
-- Database-First = Logic lives in PostgreSQL
-
-### Level 2: Simple Implementation
-**Focus**: Basic usage patterns
-```sql
--- Simple CQRS
-CREATE TABLE tb_user (id UUID, name TEXT);
-CREATE VIEW v_user AS SELECT id, jsonb_build_object('id', id, 'name', name) AS data FROM tb_user;
-```
-
-### Level 3: Advanced Patterns
-**Focus**: Performance optimization
-```sql
--- Trinity + CQRS + JSONB
-CREATE TABLE tb_post (
-    pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    id UUID DEFAULT gen_random_uuid(),
-    identifier TEXT UNIQUE,
-    data JSONB
-);
-CREATE TABLE tv_post (id UUID PRIMARY KEY, data JSONB);
-```
-
-### Level 4: Production Architecture
-**Focus**: Enterprise patterns
-- Multi-tenant isolation
-- Explicit sync functions
-- Rust transformation
-- Performance monitoring
-
-## Real-World Analogies
-
-### CQRS Like a Bank
-- **Teller Window** (Commands): Deposit/withdraw money (changes state)
-- **ATM Screen** (Queries): Check balance (reads state)
-
-### JSONB Like a Swiss Army Knife
-- **Traditional DB**: One tool per job (separate columns)
-- **JSONB**: Multi-tool that adapts (flexible data structure)
-
-### Trinity Like Address Systems
-- **GPS Coordinates** (`pk_*`): Precise but not human-friendly
-- **Full Address** (`id`): Globally unique but complex
-- **Nickname** (`identifier`): Easy to remember and share
-
-## Next Steps
-
-- **[Database API](../api-reference/database.md)**: How to use these concepts in code
-- **[DDL Organization](ddl-organization.md)**: How to structure your database
-- **[Quickstart](../../quickstart.md)**: See concepts in action
-- **[Examples](../../examples/)**: Real implementations</content>
-</xai:function_call">Write file to docs/core/concepts-glossary.md
+- [Core Documentation](README.md)
+- [Examples](../../examples/)
+- [API Reference](../api-reference/)

@@ -65,6 +65,16 @@ validate_links() {
                     continue
                 fi
 
+                # Skip GitHub-relative links (issues, discussions)
+                if [[ $link =~ (issues|discussions)$ ]]; then
+                    continue
+                fi
+
+                # Skip regex patterns or invalid paths
+                if [[ $link =~ \\d\{[0-9,]+\} ]]; then
+                    continue
+                fi
+
                 # Resolve relative path
                 local target_path="$file"
                 local link_path="$link"
