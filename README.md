@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](./VERSION_STATUS.md)
 
-**📍 You are here: Main FraiseQL Framework (v0.11.5) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.0.0) - Production Stable**
 
 > **Version Status**: See [VERSION_STATUS.md](./VERSION_STATUS.md) for complete version roadmap and recommendations
 
@@ -22,10 +22,9 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 ### Version Overview
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v0.11.5** | Root level | Production Stable | Current framework | ✅ Recommended |
-| **v1.0** | [`fraiseql/`](fraiseql/) | Week 1/15 | Industrial framework | ❌ Experimental |
-| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Stable | Core performance engine | ✅ Required |
-| **v1 Prototype** | [`fraiseql-v1/`](fraiseql-v1/) | Week 1/8 | Architecture exploration | ❌ Development |
+| **v1.0.0** | Root level | Production Stable | Stable release | ✅ Recommended |
+| **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
+| **v0.11.5** | Superseded | Legacy | Use v1.0.0 | ⚠️ Migrate |
 
 **New to FraiseQL?** → **[Getting Started](GETTING_STARTED.md)** • [Project Structure](PROJECT_STRUCTURE.md) • [Documentation](docs/)
 

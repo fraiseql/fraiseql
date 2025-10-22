@@ -8,10 +8,7 @@ from typing import Any
 
 from psycopg.sql import SQL, Composed, Literal
 
-from fraiseql.sql.where.operators import get_operator_function
 from fraiseql.sql.operator_strategies import get_operator_registry
-
-from .field_detection import detect_field_type
 
 
 def is_operator_dict(d: dict) -> bool:
@@ -75,7 +72,7 @@ def is_operator_dict(d: dict) -> bool:
         "not_left",
         "not_right",
     }
-    return any(k in operators for k in d.keys())
+    return any(k in operators for k in d)
 
 
 def build_jsonb_path(fields: list[str]) -> Composed:
@@ -115,7 +112,7 @@ def build_jsonb_path(fields: list[str]) -> Composed:
     return Composed(parts)
 
 
-def build_where_clause_recursive(where_dict: dict, path: list[str] = None) -> list[Composed]:
+def build_where_clause_recursive(where_dict: dict, path: list[str] | None = None) -> list[Composed]:
     """Recursively build WHERE clause with nested object support.
 
     Args:
@@ -136,12 +133,12 @@ def build_where_clause_recursive(where_dict: dict, path: list[str] = None) -> li
 
         if isinstance(value, dict) and not is_operator_dict(value):
             # Nested object - recurse deeper
-            nested_path = path + [db_field_name]
+            nested_path = [*path, db_field_name]
             nested_conditions = build_where_clause_recursive(value, nested_path)
             conditions.extend(nested_conditions)
         else:
             # Leaf node with operators
-            full_path = path + [db_field_name]
+            full_path = [*path, db_field_name]
             jsonb_path = build_jsonb_path(full_path)
 
             # Handle operators on this field

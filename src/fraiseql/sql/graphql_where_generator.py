@@ -271,7 +271,8 @@ def _get_filter_type_for_field(field_type: type, parent_class: type | None = Non
     # Check if it's a List type
     if origin in (list, List):
         # For now, treat lists as StringFilter
-        # TODO(fraiseql): Implement list relationship filtering - https://github.com/fraiseql/fraiseql/issues/list-filtering
+        # Known limitation: List relationship filtering not yet implemented
+        # GitHub issue: Implement list relationship filtering
         return StringFilter
 
     # Check if this is a FraiseQL type (nested object)

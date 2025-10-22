@@ -135,7 +135,7 @@ async def execute_graphql(
 
     # Ensure we have an ExecutionResult
     if not isinstance(result, ExecutionResult):
-        raise ValueError(f"Expected ExecutionResult, got {type(result)}")
+        raise TypeError(f"Expected ExecutionResult, got {type(result)}")
 
     # Clean @fraise_type objects before returning to prevent JSON serialization issues
     cleaned_result = _serialize_fraise_types_in_result(result)

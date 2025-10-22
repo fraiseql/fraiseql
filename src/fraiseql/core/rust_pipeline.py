@@ -35,7 +35,7 @@ class RustResponseBytes:
     until fraiseql-rs is updated.
     """
 
-    __slots__ = ("bytes", "content_type", "_fixed")
+    __slots__ = ("_fixed", "bytes", "content_type")
 
     def __init__(self, data):
         self.bytes = data
@@ -55,13 +55,13 @@ class RustResponseBytes:
                 # Check if it's the known "missing closing brace" bug
                 if "Expecting ',' delimiter" in str(e) and e.pos >= len(json_str) - 2:
                     # Count braces to confirm
-                    open_braces = json_str.count('{')
-                    close_braces = json_str.count('}')
+                    open_braces = json_str.count("{")
+                    close_braces = json_str.count("}")
 
                     if open_braces > close_braces:
                         # Missing closing brace(s) - add them
                         missing_braces = open_braces - close_braces
-                        fixed_json = json_str + ('}' * missing_braces)
+                        fixed_json = json_str + ("}" * missing_braces)
 
                         # Verify the fix works
                         try:

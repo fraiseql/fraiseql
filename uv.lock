@@ -485,7 +485,7 @@ wheels = [
 
 [[package]]
 name = "fraiseql"
-version = "0.11.5"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -574,6 +574,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
     { name = "testcontainers" },
     { name = "twine" },
 ]
@@ -655,6 +656,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=8.4.0" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "testcontainers", specifier = ">=4.10.0" },
     { name = "twine", specifier = ">=6.1.0" },
 ]

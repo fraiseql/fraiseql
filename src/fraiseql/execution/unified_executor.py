@@ -131,28 +131,6 @@ class UnifiedExecutor:
                 ]
             }
 
-            return result
-
-        except Exception as e:
-            # Log error
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.exception("Query execution failed in unified Rust mode")
-
-            # Return error response
-            return {
-                "errors": [
-                    {
-                        "message": str(e),
-                        "extensions": {
-                            "code": "EXECUTION_ERROR",
-                            "mode": "unified_rust",
-                        },
-                    }
-                ]
-            }
-
     def _format_error(self, error) -> Dict[str, Any]:
         """Format GraphQL error for response.
 

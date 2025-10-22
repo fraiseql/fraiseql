@@ -834,7 +834,7 @@ class FraiseQLRepository:
                         len(field_filter) == 1  # Only contains "id" key
                         or (
                             len(field_filter) <= 2
-                            and all(k in ("id", "__typename") for k in field_filter.keys())
+                            and all(k in ("id", "__typename") for k in field_filter)
                         )
                     )
 

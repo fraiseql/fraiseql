@@ -1526,33 +1526,32 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
                 )
 
             # Import coordinate distance builders
+            # Get distance method from environment or use default
+            import os
+
             from fraiseql.sql.where.operators.coordinate import (
                 build_coordinate_distance_within_sql,
                 build_coordinate_distance_within_sql_earthdistance,
                 build_coordinate_distance_within_sql_haversine,
             )
 
-            # Get distance method from environment or use default
-            import os
-
             method = os.environ.get("FRAISEQL_COORDINATE_DISTANCE_METHOD", "haversine").lower()
 
             # Build SQL based on configured method
             if method == "postgis":
                 return build_coordinate_distance_within_sql(path_sql, center_coord, distance_meters)
-            elif method == "earthdistance":
+            if method == "earthdistance":
                 return build_coordinate_distance_within_sql_earthdistance(
                     path_sql, center_coord, distance_meters
                 )
-            elif method == "haversine":
+            if method == "haversine":
                 return build_coordinate_distance_within_sql_haversine(
                     path_sql, center_coord, distance_meters
                 )
-            else:
-                raise ValueError(
-                    f"Invalid coordinate_distance_method: '{method}'. "
-                    f"Valid options: 'postgis', 'haversine', 'earthdistance'"
-                )
+            raise ValueError(
+                f"Invalid coordinate_distance_method: '{method}'. "
+                f"Valid options: 'postgis', 'haversine', 'earthdistance'"
+            )
 
         raise ValueError(f"Unsupported coordinate operator: {op}")
 

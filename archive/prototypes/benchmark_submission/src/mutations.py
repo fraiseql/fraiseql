@@ -39,9 +39,7 @@ async def create_user(info: Info, input: CreateUserInput) -> CreateUserResult:
 
         return CreateUserResult(success=True, user=user_obj, message="User created successfully")
     except Exception as e:
-        return CreateUserResult(
-            success=False, user=None, message=f"Failed to create user: {e!s}"
-        )
+        return CreateUserResult(success=False, user=None, message=f"Failed to create user: {e!s}")
 
 
 @fraiseql.mutation
@@ -67,9 +65,7 @@ async def update_user(info: Info, id: UUID, input: UpdateUserInput) -> UpdateUse
 
         return UpdateUserResult(success=True, user=user_obj, message="User updated successfully")
     except Exception as e:
-        return UpdateUserResult(
-            success=False, user=None, message=f"Failed to update user: {e!s}"
-        )
+        return UpdateUserResult(success=False, user=None, message=f"Failed to update user: {e!s}")
 
 
 @fraiseql.mutation
@@ -114,6 +110,4 @@ async def create_post(info: Info, input: CreatePostInput) -> CreatePostResult:
 
         return CreatePostResult(success=True, post=post_obj, message="Post created successfully")
     except Exception as e:
-        return CreatePostResult(
-            success=False, post=None, message=f"Failed to create post: {e!s}"
-        )
+        return CreatePostResult(success=False, post=None, message=f"Failed to create post: {e!s}")
