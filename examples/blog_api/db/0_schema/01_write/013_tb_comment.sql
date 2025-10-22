@@ -24,4 +24,3 @@ CREATE INDEX idx_tb_comment_id ON tb_comment(id);
 CREATE INDEX idx_tb_comment_fk_post ON tb_comment(fk_post);
 CREATE INDEX idx_tb_comment_fk_user ON tb_comment(fk_user);
 CREATE INDEX idx_tb_comment_fk_parent ON tb_comment(fk_parent_comment);
-

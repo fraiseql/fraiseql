@@ -77,9 +77,11 @@ async def detailed_benchmark(pool, query, transform_func, name, iterations=100):
 
 def transform_python(json_str: str) -> str:
     """Pure Python transformation."""
+
     def to_camel(s):
         parts = s.split("_")
         return parts[0] + "".join(p.title() for p in parts[1:])
+
     def transform_dict(d):
         result = {}
         for k, v in d.items():
@@ -91,6 +93,7 @@ def transform_python(json_str: str) -> str:
             else:
                 result[ck] = v
         return result
+
     data = json.loads(json_str)
     return json.dumps(transform_dict(data))
 
@@ -112,20 +115,17 @@ async def setup_test_data(pool):
                 data = {
                     "user_id": i,
                     "user_name": f"User {i}",
-                    "user_posts": [
-                        {"post_id": j, "post_title": f"Post {j}"}
-                        for j in range(10)
-                    ]
+                    "user_posts": [{"post_id": j, "post_title": f"Post {j}"} for j in range(10)],
                 }
                 await cursor.execute(
-                    "INSERT INTO outlier_test (data) VALUES (%s)",
-                    (json.dumps(data),)
+                    "INSERT INTO outlier_test (data) VALUES (%s)", (json.dumps(data),)
                 )
 
 
 async def main():
     """Run outlier analysis."""
     import os
+
     db_url = os.getenv("DATABASE_URL", "postgresql://localhost/fraiseql_test")
 
     pool = psycopg_pool.AsyncConnectionPool(db_url, min_size=1, max_size=5, open=False)
@@ -143,6 +143,7 @@ async def main():
         # Import Rust
         try:
             import fraiseql_rs
+
             rust_available = True
         except ImportError:
             rust_available = False
@@ -164,8 +165,12 @@ async def main():
         print("=" * 80)
         print(f"\nMedian speedup: {result_python['median'] / result_rust['median']:.2f}x")
         print(f"Mean speedup:   {result_python['mean'] / result_rust['mean']:.2f}x")
-        print(f"\nPython variance: {result_python['stdev']:.3f}ms (outliers: {result_python['outliers']})")
-        print(f"Rust variance:   {result_rust['stdev']:.3f}ms (outliers: {result_rust['outliers']})")
+        print(
+            f"\nPython variance: {result_python['stdev']:.3f}ms (outliers: {result_python['outliers']})"
+        )
+        print(
+            f"Rust variance:   {result_rust['stdev']:.3f}ms (outliers: {result_rust['outliers']})"
+        )
 
         # Conclusion
         print("\n" + "=" * 80)
@@ -181,8 +186,12 @@ async def main():
             print("   Performance is consistent")
 
         if result_rust["median"] < result_python["median"]:
-            print(f"\n✅ Rust median ({result_rust['median']:.2f}ms) < Python median ({result_python['median']:.2f}ms)")
-            print(f"   Typical case: Rust is {result_python['median'] / result_rust['median']:.2f}x faster")
+            print(
+                f"\n✅ Rust median ({result_rust['median']:.2f}ms) < Python median ({result_python['median']:.2f}ms)"
+            )
+            print(
+                f"   Typical case: Rust is {result_python['median'] / result_rust['median']:.2f}x faster"
+            )
 
         # Cleanup
         async with pool.connection() as conn:

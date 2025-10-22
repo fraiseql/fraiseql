@@ -26,4 +26,3 @@ CREATE INDEX idx_tb_user_id ON tb_user(id);
 CREATE INDEX idx_tb_user_identifier ON tb_user(identifier);
 CREATE INDEX idx_tb_user_email ON tb_user(email);
 CREATE INDEX idx_tb_user_active ON tb_user(is_active);
-

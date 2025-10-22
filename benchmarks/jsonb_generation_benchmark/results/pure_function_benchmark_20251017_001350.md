@@ -429,4 +429,3 @@ tps = 516.793677 (without initial connection time)
 ---
 
 **Benchmark completed:** ven. 17 oct. 2025 00:18:24 CEST
-

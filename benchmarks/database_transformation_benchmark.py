@@ -17,10 +17,7 @@ import psycopg_pool
 
 
 async def benchmark_query_with_transformation(
-    pool: psycopg_pool.AsyncConnectionPool,
-    query: str,
-    transform_func,
-    iterations: int = 50
+    pool: psycopg_pool.AsyncConnectionPool, query: str, transform_func, iterations: int = 50
 ):
     """Benchmark query execution + transformation."""
     times = []
@@ -100,20 +97,20 @@ async def setup_test_table(pool: psycopg_pool.AsyncConnectionPool):
                             "post_content": f"Content for post {j}",
                         }
                         for j in range(10)
-                    ]
+                    ],
                 }
                 for i in range(10, 20)
             ]
 
             for data in test_cases:
                 await cursor.execute(
-                    "INSERT INTO benchmark_test_users (data) VALUES (%s)",
-                    (json.dumps(data),)
+                    "INSERT INTO benchmark_test_users (data) VALUES (%s)", (json.dumps(data),)
                 )
 
 
 def transform_python(json_str: str) -> str:
     """Pure Python transformation."""
+
     def to_camel(s):
         parts = s.split("_")
         return parts[0] + "".join(p.title() for p in parts[1:])
@@ -140,14 +137,10 @@ async def run_database_benchmark():
     # Check database availability
     try:
         import os
+
         db_url = os.getenv("DATABASE_URL", "postgresql://localhost/fraiseql_test")
 
-        pool = psycopg_pool.AsyncConnectionPool(
-            db_url,
-            min_size=1,
-            max_size=5,
-            open=False
-        )
+        pool = psycopg_pool.AsyncConnectionPool(db_url, min_size=1, max_size=5, open=False)
         await pool.open()
     except Exception as e:
         print(f"⚠️  Database not available: {e}")
@@ -168,6 +161,7 @@ async def run_database_benchmark():
         # Import Rust transformer
         try:
             import fraiseql_rs
+
             rust_available = True
         except ImportError:
             print("⚠️  fraiseql_rs not available")
@@ -176,7 +170,10 @@ async def run_database_benchmark():
         # Test queries
         queries = [
             ("Simple query (10 rows)", "SELECT data::text FROM benchmark_test_users LIMIT 10"),
-            ("Nested query (10 rows)", "SELECT data::text FROM benchmark_test_users OFFSET 10 LIMIT 10"),
+            (
+                "Nested query (10 rows)",
+                "SELECT data::text FROM benchmark_test_users OFFSET 10 LIMIT 10",
+            ),
             ("All rows (20 rows)", "SELECT data::text FROM benchmark_test_users"),
         ]
 
@@ -213,7 +210,9 @@ async def run_database_benchmark():
 
                 print("\n⚡ Impact:")
                 print(f"   Speedup: {speedup:.2f}x")
-                print(f"   Time saved: {time_saved:.2f} ms ({time_saved/result_python['mean_ms']*100:.1f}%)")
+                print(
+                    f"   Time saved: {time_saved:.2f} ms ({time_saved / result_python['mean_ms'] * 100:.1f}%)"
+                )
 
             print("-" * 80)
 

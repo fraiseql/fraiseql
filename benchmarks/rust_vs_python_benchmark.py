@@ -88,9 +88,7 @@ def create_test_data(complexity: str) -> dict:
 
     if complexity == "medium":
         # Medium: 50 fields with some nesting
-        return {
-            f"field_{i}": f"value_{i}" for i in range(40)
-        } | {
+        return {f"field_{i}": f"value_{i}" for i in range(40)} | {
             "user_profile": {
                 "first_name": "John",
                 "last_name": "Doe",
@@ -99,7 +97,7 @@ def create_test_data(complexity: str) -> dict:
             "user_settings": {
                 "theme_color": "dark",
                 "language_code": "en",
-            }
+            },
         }
 
     if complexity == "nested":
@@ -120,19 +118,16 @@ def create_test_data(complexity: str) -> dict:
                             "author_name": f"User {j}",
                         }
                         for j in range(5)
-                    ]
+                    ],
                 }
                 for i in range(15)
-            ]
+            ],
         }
 
     if complexity == "large":
         # Large: 100 fields, deeply nested
         return {
-            f"field_{i}": {
-                f"nested_field_{j}": f"value_{i}_{j}"
-                for j in range(10)
-            }
+            f"field_{i}": {f"nested_field_{j}": f"value_{i}_{j}" for j in range(10)}
             for i in range(100)
         }
 
@@ -144,6 +139,7 @@ def run_benchmarks():
     # Import Rust transformer
     try:
         import fraiseql_rs
+
         rust_available = True
     except ImportError:
         print("⚠️  fraiseql_rs not available - skipping Rust benchmarks")
@@ -170,20 +166,14 @@ def run_benchmarks():
 
         # Benchmark Python
         result_python = benchmark_transformation(
-            "Python (pure)",
-            transform_json_python,
-            json_str,
-            iterations=100
+            "Python (pure)", transform_json_python, json_str, iterations=100
         )
         results.append(result_python)
 
         # Benchmark Rust
         if rust_available:
             result_rust = benchmark_transformation(
-                "Rust (fraiseql_rs)",
-                fraiseql_rs.transform_json,
-                json_str,
-                iterations=100
+                "Rust (fraiseql_rs)", fraiseql_rs.transform_json, json_str, iterations=100
             )
             results.append(result_rust)
 

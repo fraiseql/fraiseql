@@ -30,4 +30,3 @@ CREATE INDEX idx_tb_post_slug ON tb_post(slug);
 CREATE INDEX idx_tb_post_published ON tb_post(is_published);
 CREATE INDEX idx_tb_post_created ON tb_post(created_at);
 CREATE INDEX idx_tb_post_tags ON tb_post USING gin(tags);
-
