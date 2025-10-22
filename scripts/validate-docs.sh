@@ -82,6 +82,18 @@ validate_links() {
                 # Get the directory of the file
                 local file_dir="$(dirname "$file")"
 
+                # Handle absolute paths (starting with /)
+                if [[ $link_path =~ ^/ ]]; then
+                    target_path="$PROJECT_ROOT$link_path"
+                    # Check if target exists
+                    if [[ ! -f $target_path ]] && [[ ! -d $target_path ]]; then
+                        log_error "Broken link in $file: $link (resolved to: $target_path)"
+                        ((file_errors++))
+                        ((errors++))
+                    fi
+                    continue
+                fi
+
                 # Handle relative links
                 if [[ $link_path =~ ^\.\./ ]]; then
                     # Go up one directory for each ../
