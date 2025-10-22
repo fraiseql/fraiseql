@@ -54,19 +54,13 @@ jobs:
     - name: Install maturin
       run: pip install maturin
 
-    - name: Build Rust extension
-      run: |
-        cd fraiseql_rs
-        maturin develop --release
-        cd ..
-
     - name: Install dependencies
       run: |
         # Ensure pip cache directory exists before installation
         python -m pip config list || echo "No pip config available"
         python -c "import site; print(f'Site packages: {site.getsitepackages()}')" || echo "Cannot get site packages"
-        echo "Installing with uv (bypassing pip caching issues)..."
-        # Install main package with dev dependencies (Rust extension already built)
+        echo "Installing with uv (including Rust extension build)..."
+        # Install main package with dev dependencies (this will build the Rust extension)
         uv pip install --system -e ".[dev,all]" --no-cache
 
     - name: Verify Environment

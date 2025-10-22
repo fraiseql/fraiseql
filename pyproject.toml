@@ -304,6 +304,22 @@ ignore = [
   "D102",    # Missing method docstrings in tests
   "D103",    # Missing function docstrings in tests
 ]
+"benchmarks/**/*.py" = [
+  "T201",    # Print statements OK in benchmarks
+  "E501",    # Long lines OK in benchmarks
+  "SIM117",  # Nested with statements OK in benchmarks
+  "B007",    # Loop control variables OK in benchmarks
+  "F841",    # Unused variables OK in benchmarks
+]
+"archive/**/*.py" = [
+  "ALL",     # Ignore all linting rules in archived code
+]
+"frameworks/**/*.py" = [
+  "ALL",     # Prototype frameworks - not production code
+]
+"fraiseql_rs/**/*.py" = [
+  "ALL",     # Rust bridge code - has special requirements
+]
 "tests/types/test_json_type_support.py" = [
   "E501",    # Long JSON string in test
 ]
@@ -347,6 +363,22 @@ ignore = [
 ]
 "scripts/**/*.py" = [
   "ALL",     # Utility scripts - not production code
+]
+"src/fraiseql/enterprise/**/*.py" = [
+  "TD002",   # Missing author in TODO
+  "TD003",   # Missing issue link in TODO
+  "E501",    # Long lines acceptable in enterprise modules
+  "TC001",   # Type-checking imports
+  "TC002",   # Type-checking imports
+  "TC003",   # Type-checking imports
+  "F841",    # Unused variables (often placeholders)
+  "D106",    # Missing docstring in nested class (Config classes)
+  "T201",    # Print statements (for debugging)
+  "B007",    # Loop control variables
+  "DTZ003",  # datetime.utcnow() usage
+]
+"rename_examples.py" = [
+  "ALL",     # One-off utility script
 ]
 
 [tool.ruff.lint.pydocstyle]
