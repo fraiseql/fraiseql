@@ -19,7 +19,6 @@ on:
 jobs:
   validate-docs:
     runs-on: ubuntu-latest
-    continue-on-error: true  # Allow this to fail without blocking the PR
 
     steps:
     - name: Checkout code
