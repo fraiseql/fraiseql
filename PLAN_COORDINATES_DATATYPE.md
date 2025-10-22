@@ -208,13 +208,14 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
             # Implementation depends on available PostgreSQL extensions
 ```
 
-**3. REFACTOR**: Choose distance calculation strategy
-- Decide between:
+**3. REFACTOR**: Implement configurable distance calculation strategy
+- **Configurable Options**:
+  - **PostGIS `ST_DWithin`** (most accurate, requires PostGIS extension)
+  - **Manual Haversine formula** (good accuracy, no extension needed)
   - **PostgreSQL `earthdistance` module** (simpler, less accurate)
-  - **PostGIS `ST_DWithin`** (more accurate, requires extension)
-  - **Manual Haversine formula** (no extension needed)
-- Add proper distance operator support
-- Consider adding `distance_lte`, `distance_gte` operators
+- Add app configuration to select distance calculation method
+- Add proper distance operator support (`distance_within`, `distance_lte`, `distance_gte`)
+- Validate chosen method availability at startup
 
 **4. QA**: Verify coordinate operators
 - [ ] Basic equality works with POINT casting
@@ -353,6 +354,7 @@ uv run pytest tests/integration/examples/test_coordinate_examples.py -v
 - [x] Type registered in FraiseQL type system
 - [x] PostgreSQL POINT type integration
 - [x] Operator strategy for coordinate filtering (optional)
+- [x] Configurable distance calculation (ST_DWithin vs Haversine)
 - [x] Integration tests pass
 - [x] Documentation complete
 - [x] Examples working
@@ -370,22 +372,49 @@ uv run pytest tests/integration/examples/test_coordinate_examples.py -v
 - Date line: `(*, 180)` and `(*, -180)` are same meridian
 - Precision: Support decimal degrees with arbitrary precision
 
-### Distance Calculations (Optional Phase 3)
-- **Simple**: Euclidean distance (inaccurate for Earth)
-- **Better**: Haversine formula (good approximation)
-- **Best**: PostGIS `ST_Distance` with geography type (most accurate)
+### Distance Calculations (Configurable - Phase 3)
+Distance calculation strategy will be **configurable in the app** with these options:
 
-### Migration Path
-If adding to existing system with string-based coordinates:
-```sql
--- Convert existing varchar coordinates to POINT
-ALTER TABLE locations ADD COLUMN coordinates_point POINT;
-UPDATE locations SET coordinates_point = POINT(lng::float, lat::float);
-ALTER TABLE locations DROP COLUMN lat, DROP COLUMN lng;
-ALTER TABLE locations RENAME COLUMN coordinates_point TO coordinates;
+- **PostGIS `ST_DWithin`** (recommended, most accurate)
+  - Requires PostGIS extension
+  - Handles geography/spheroid calculations correctly
+  - Best performance for complex spatial queries
+
+- **Manual Haversine formula** (fallback, good accuracy)
+  - No PostgreSQL extensions required
+  - Pure Python implementation using spherical trigonometry
+  - Good approximation for most use cases
+
+- **PostgreSQL `earthdistance` module** (legacy option)
+  - Requires earthdistance extension
+  - Simpler but less accurate than Haversine
+  - Limited to point-to-point distance calculations
+
+**Configuration**: App setting to choose calculation method with validation that required extensions are available.
+
+### Configuration Implementation
+The distance calculation method will be configurable via app settings:
+
+```python
+# In app configuration
+class AppConfig:
+    coordinate_distance_method: Literal["postgis", "haversine", "earthdistance"] = "haversine"
+
+# Validation at startup
+def validate_distance_method(method: str) -> None:
+    if method == "postgis":
+        # Check PostGIS extension is available
+        if not has_postgis_extension():
+            raise ConfigurationError("PostGIS extension required for 'postgis' distance method")
+    elif method == "earthdistance":
+        # Check earthdistance extension is available
+        if not has_earthdistance_extension():
+            raise ConfigurationError("earthdistance extension required for 'earthdistance' distance method")
 ```
 
 ---
+
+
 
 **Estimated Effort**: 8-12 hours
 - Phase 1: 2-3 hours (core scalar)
@@ -402,3 +431,5 @@ ALTER TABLE locations RENAME COLUMN coordinates_point TO coordinates;
 - PostgreSQL (lng,lat) vs common (lat,lng) order confusion
 - Coordinate precision and floating-point comparison
 - Distance calculation accuracy without PostGIS
+- Configuration validation (ensuring chosen method's extensions are available)
+- Performance differences between calculation methods

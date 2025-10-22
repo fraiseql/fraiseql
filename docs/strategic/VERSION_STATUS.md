@@ -5,47 +5,45 @@
 
 ---
 
-## 📊 Version Overview
+## 📊 Architecture Overview
 
-| Version | Location | Status | Stability | Purpose | For Users? |
-|---------|----------|--------|-----------|---------|------------|
-| **v0.11.5** | Root level | ✅ Production | Stable | Current framework | ✅ **Recommended** |
-| **v1.0** | [`fraiseql/`](./fraiseql/) | 🚧 Week 1/15 | Experimental | Industrial framework | ❌ Not ready |
-| **Rust Pipeline** | [`fraiseql_rs/`](./fraiseql_rs/) | ✅ Stable | Required | Core performance engine | ✅ Required |
-| **v1 Prototype** | [`fraiseql-v1/`](./fraiseql-v1/) | 🚧 Week 1/8 | Experimental | Architecture exploration | ❌ Development |
+FraiseQL uses a unified architecture with exclusive Rust pipeline execution for all queries.
+
+| Component | Location | Status | Purpose |
+|-----------|----------|--------|---------|
+| **FraiseQL Framework** | Root level | ✅ Production | Complete GraphQL framework with Rust pipeline |
+| **Rust Pipeline** | [`fraiseql_rs/`](./fraiseql_rs/) | ✅ Core | Exclusive query execution engine (7-10x faster) |
+| **Examples** | [`examples/`](./examples/) | ✅ Reference | Production-ready application patterns |
+| **Documentation** | [`docs/`](./docs/) | ✅ Current | Comprehensive guides and tutorials |
 
 ---
 
-## 🎯 Which Version Should I Use?
+## 🎯 Getting Started
 
-### **For Production Applications** → Use **v0.11.5** (Root Level)
+### **For Production Applications**
 ```bash
-# Recommended for all production use
+# Install FraiseQL with exclusive Rust pipeline
 pip install fraiseql
 ```
 
-**Why v0.11.5?**
-- ✅ **Production stable** with 50,000+ LOC
-- ✅ **Battle-tested** in real applications
-- ✅ **Complete feature set** (APQ, caching, monitoring)
-- ✅ **Active maintenance** and bug fixes
-- ✅ **Migration path** to future versions
+**Why FraiseQL?**
+- ✅ **Production stable** with exclusive Rust pipeline execution
+- ✅ **7-10x faster** than traditional Python GraphQL frameworks
+- ✅ **Complete feature set** (APQ, caching, monitoring, security)
+- ✅ **Active maintenance** and performance optimizations
+- ✅ **Unified architecture** - no version choices to manage
 
-### **For Learning/Experimentation** → Try Examples
+### **For Learning** → Explore Examples
 ```bash
-# Explore patterns without commitment
+# See production patterns and architectures
 cd examples/
-ls -la  # See 20+ working examples
+ls -la  # 20+ working examples with Rust pipeline
 ```
 
-### **For Contributors** → Start with v0.11.5
-- Fix bugs, add features, improve docs
+### **For Contributors**
+- Build on the unified Rust pipeline architecture
+- Add features, fix bugs, improve documentation
 - See [CONTRIBUTING.md](./CONTRIBUTING.md)
-
-### **For Next-Gen Architecture** → v1.0 Development (fraiseql/)
-- Industrial framework with Rust pipeline
-- Clean architecture for enterprise scale
-- Currently in active development
 
 ---
 
@@ -77,121 +75,109 @@ ls -la  # See 20+ working examples
 
 ---
 
-## 🗺️ Version Roadmap
+## 🗺️ Development Roadmap
 
-### **v0.11.5** (Current Stable)
-**Status**: Production stable, actively maintained
-**Timeline**: Ongoing until v1.0 release
-**Support**: Full support + new features
+### **Current Architecture** (Unified Rust Pipeline)
+**Status**: Production stable with exclusive Rust execution
+**Timeline**: Ongoing maintenance and enhancement
+**Architecture**: PostgreSQL → Rust Pipeline → HTTP Response
 
-**Planned Features**:
-- Performance optimizations
+**Core Components**:
+- **Rust Pipeline**: Exclusive query execution (7-10x performance)
+- **Python Framework**: Type-safe GraphQL API layer
+- **PostgreSQL Integration**: Native JSONB views and functions
+- **Enterprise Features**: Security, monitoring, caching
+
+**Ongoing Development**:
+- Performance optimizations in Rust pipeline
 - Additional caching strategies
-- Enhanced monitoring
-- New example applications
+- Enhanced monitoring and observability
+- New production example applications
+- Advanced security patterns
 
-### **v1.0** (fraiseql/)
-**Status**: Week 1 of 15 (Experimental)
-**Timeline**: February 2026 (v1.0 release)
-**Purpose**: Industrial framework with Rust-first architecture
-
-**15-Week Development Phases**:
-- Weeks 1-2: Documentation & architecture foundation
-- Weeks 3-4: Core type system & decorators
-- Weeks 5-6: CQRS repositories & command/query separation
-- Weeks 7-8: GraphQL API layer
-- Weeks 9-10: Rust pipeline integration & performance
-- Weeks 11-12: Enterprise features (RLS, monitoring, migrations)
-- Weeks 13-15: Production hardening & release preparation
-
-**Migration**: Comprehensive migration guides from v0.11.5 will be provided
-
-### **Rust Core** (fraiseql_rs/)
-**Status**: Stable, required dependency
-**Timeline**: Ongoing maintenance
-**Purpose**: Performance-critical JSON transformation
-
-### **Portfolio v1** (fraiseql-v1/)
-**Status**: Week 1 of 8 (Showcase)
-**Timeline**: December 2025 completion
-**Purpose**: Interview demonstration project
+### **Architecture Evolution**
+FraiseQL's exclusive Rust pipeline provides a stable, high-performance foundation. Future enhancements build upon this unified architecture rather than introducing new versions to manage.
 
 ---
 
-## 🔄 Migration Policy
+## 🔄 Development Policy
 
-### **Breaking Changes**
-- **Major versions** (v1.0, v2.0): Breaking changes allowed
-- **Minor versions** (v0.12, v0.13): No breaking changes
-- **Patch versions** (v0.11.6): No breaking changes
+### **Architecture Stability**
+FraiseQL maintains backward compatibility within the unified Rust pipeline architecture. Breaking changes are rare and announced well in advance.
 
-### **Deprecation Timeline**
-1. **Announcement**: Feature marked deprecated in release notes
-2. **Grace Period**: 2 minor versions for removal
-3. **Removal**: Breaking change in next major version
+### **Feature Evolution**
+- New features enhance the existing Rust pipeline
+- Performance improvements are seamless upgrades
+- Enterprise features extend current capabilities
 
-### **Support Timeline**
-- **Current stable**: Full support + new features
-- **Previous stable**: Security fixes only (6 months)
-- **Legacy versions**: No support
+### **Support Commitment**
+- **Current release**: Full support + new features
+- **Security updates**: Critical fixes for previous releases
+- **Documentation**: Comprehensive guides for all features
 
 ---
 
-## 🚨 Version Warnings
+## 🚨 Architecture Notes
 
-### **Don't Use Experimental Versions in Production**
-- **v1 Rebuild**: Actively developed, breaking changes daily
-- **Portfolio v1**: Demonstration code, not production-ready
+### **Exclusive Rust Pipeline**
+- FraiseQL uses a single, unified architecture
+- All queries execute through the Rust pipeline for optimal performance
+- No alternative execution modes to choose between
 
-### **Rust Core is Required**
-- All versions depend on `fraiseql_rs` for performance
-- Install automatically via `pip install fraiseql`
+### **Required Components**
+- **Rust Pipeline** (`fraiseql_rs`): Core execution engine
+- **Python Framework**: API layer and type system
+- **PostgreSQL**: Data persistence with JSONB views
 
-### **Version Confusion**
-- Multiple directories exist for different purposes
-- Always check this document for current recommendations
-- Use root-level `README.md` for stable version info
+### **Directory Structure**
+- Root level: Production framework with Rust pipeline
+- `examples/`: Reference implementations
+- `docs/`: Comprehensive documentation
+- `fraiseql_rs/`: Rust performance engine
 
 ---
 
 ## 📞 Getting Help
 
-### **For Current Stable (v0.11.5)**
+### **Documentation & Examples**
 - [Installation Guide](./INSTALLATION.md)
 - [Quickstart](./docs/quickstart.md)
-- [Examples](./examples/)
+- [Examples](./examples/) - 20+ production patterns
+- [API Reference](./docs/reference/)
 
-### **For Version Questions**
-- Check this `VERSION_STATUS.md` first
-- See [Project Structure](./PROJECT_STRUCTURE.md) for directory purposes
-- Open issue if status unclear
+### **Architecture Questions**
+- Check [Project Structure](./PROJECT_STRUCTURE.md) for directory purposes
+- Review [Architecture Overview](./docs/architecture/) for technical details
+- Open issue for clarification
 
-### **For Migration Planning**
-- No migration needed currently (v0.11.5 is stable)
-- Watch this file for v1.0 migration guides
+### **Performance & Features**
+- Rust pipeline provides 7-10x performance improvement
+- All features work within unified architecture
+- No version management required
 
 ---
 
-## 🔍 Version History
+## 🔍 Architecture Evolution
 
-### **v0.11.5** (October 2025)
-- ✅ Production stable release
-- ✅ Complete feature set
-- ✅ Performance optimizations
-- ✅ Enterprise monitoring
+### **Unified Rust Pipeline** (2025)
+- ✅ Exclusive Rust execution for all queries
+- ✅ 7-10x performance improvement over Python-only frameworks
+- ✅ Production stable with comprehensive monitoring
+- ✅ Enterprise security and compliance features
 
-### **v0.11.0-v0.11.4** (2025)
-- 🚀 Performance improvements
-- 🐛 Bug fixes
-- 📚 Documentation updates
-
-### **v0.10.x** (2024-2025)
+### **Rust Integration** (2024-2025)
+- ⚡ Rust pipeline development and optimization
 - 🏗️ Architecture stabilization
-- ⚡ Rust integration
-- 📊 Monitoring features
+- 📊 Advanced monitoring and observability
+- 🐛 Performance bug fixes and improvements
+
+### **Framework Foundation** (2023-2024)
+- 🏗️ Core GraphQL framework development
+- 📚 Comprehensive documentation
+- 🔧 Developer tooling and examples
 
 ---
 
-*This document is updated with each release. Last updated: October 17, 2025*</content>
+*This document reflects FraiseQL's unified Rust pipeline architecture. Last updated: October 17, 2025*</content>
 </xai:function_call name="read">
 <parameter name="filePath">README.md

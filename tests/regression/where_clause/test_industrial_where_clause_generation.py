@@ -13,6 +13,7 @@ CRITICAL BUGS TO CATCH:
 This test suite creates the "industrial steel grade" coverage missing from v0.7.24.
 """
 
+import json
 import pytest
 from decimal import Decimal
 from uuid import uuid4
@@ -28,18 +29,20 @@ from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type, build_operator_composed
 from fraiseql.sql.operator_strategies import get_operator_registry
 from fraiseql.types import Hostname
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 @fraiseql.type
 class NetworkDevice:
     """Production-realistic model that triggers all the casting bugs."""
+
     id: str
     name: str
     # These fields trigger the bugs when in JSONB
     hostname: Hostname  # "printserver01.local" -> incorrectly cast as ::ltree
-    port: int          # 443 -> incorrectly cast as ::numeric
-    is_active: bool    # true -> incorrectly cast as ::boolean
-    ip_address: str    # Should be text, no casting needed
+    port: int  # 443 -> incorrectly cast as ::numeric
+    is_active: bool  # true -> incorrectly cast as ::boolean
+    ip_address: str  # Should be text, no casting needed
 
 
 NetworkDeviceWhere = safe_create_where_type(NetworkDevice)
@@ -86,7 +89,7 @@ class TestREDPhaseHostnameLtreeBug:
             "db.staging.company.com",
             "api.v2.service.local",
             "backup.server.internal",
-            "mail.exchange.domain.org"
+            "mail.exchange.domain.org",
         ]
 
         for hostname in problematic_hostnames:
@@ -98,13 +101,13 @@ class TestREDPhaseHostnameLtreeBug:
 
             # These are hostnames, NOT ltree paths
             assert "::ltree" not in sql_str, (
-                f"Hostname '{hostname}' incorrectly identified as ltree path. "
-                f"SQL: {sql_str}"
+                f"Hostname '{hostname}' incorrectly identified as ltree path. SQL: {sql_str}"
             )
 
     def test_actual_ltree_vs_hostname_distinction(self):
         """RED: Ensure we can distinguish actual ltree paths from hostnames."""
         from fraiseql.types import LTree
+
         registry = get_operator_registry()
 
         jsonb_path_hostname = SQL("(data ->> 'hostname')")
@@ -189,6 +192,7 @@ class TestREDPhaseCastingLocationBug:
 
         # Test with a field type that definitely needs casting (like inet)
         from fraiseql.types import IpAddress
+
         jsonb_path = SQL("(data ->> 'ip_address')")
 
         strategy = registry.get_strategy("eq", IpAddress)
@@ -237,9 +241,9 @@ class TestREDPhaseProductionScenarios:
                     "name": "Print Server",
                     "device_type": "printer",
                     "hostname": "printserver01.local",  # TRIGGERS LTREE BUG
-                    "port": 443,                        # TRIGGERS NUMERIC BUG
-                    "is_active": True,                  # TRIGGERS BOOLEAN BUG
-                    "ip_address": "192.168.1.100"
+                    "port": 443,  # TRIGGERS NUMERIC BUG
+                    "is_active": True,  # TRIGGERS BOOLEAN BUG
+                    "ip_address": "192.168.1.100",
                 },
                 {
                     "id": str(uuid4()),
@@ -248,17 +252,17 @@ class TestREDPhaseProductionScenarios:
                     "hostname": "db.staging.company.com",  # COMPLEX HOSTNAME
                     "port": 5432,
                     "is_active": True,
-                    "ip_address": "192.168.1.200"
+                    "ip_address": "192.168.1.200",
                 },
                 {
                     "id": str(uuid4()),
                     "name": "API Gateway",
                     "device_type": "api",
-                    "hostname": "api.v2.service.local",    # MULTI-DOT HOSTNAME
+                    "hostname": "api.v2.service.local",  # MULTI-DOT HOSTNAME
                     "port": 8080,
-                    "is_active": False,                     # FALSE BOOLEAN
-                    "ip_address": "192.168.1.50"
-                }
+                    "is_active": False,  # FALSE BOOLEAN
+                    "ip_address": "192.168.1.50",
+                },
             ]
 
             async with conn.cursor() as cursor:
@@ -267,164 +271,125 @@ class TestREDPhaseProductionScenarios:
                         "hostname": device["hostname"],
                         "port": device["port"],
                         "is_active": device["is_active"],
-                        "ip_address": device["ip_address"]
+                        "ip_address": device["ip_address"],
                     }
 
                     import json
+
                     await cursor.execute(
                         """
                         INSERT INTO network_devices (id, name, device_type, data)
                         VALUES (%s, %s, %s, %s::jsonb)
                         """,
-                        (device["id"], device["name"], device["device_type"], json.dumps(data))
+                        (device["id"], device["name"], device["device_type"], json.dumps(data)),
                     )
             await conn.commit()
 
     @pytest.mark.asyncio
-    async def test_production_hostname_filtering_fails(self, db_pool, setup_realistic_network_devices):
-        """RED: This MUST FAIL - hostname filtering with .local domains."""
+    async def test_production_hostname_filtering(self, db_pool, setup_realistic_network_devices):
+        """Test hostname filtering with .local domains works correctly."""
         setup_realistic_network_devices
 
         register_type_for_view(
             "network_devices",
             NetworkDevice,
-            table_columns={'id', 'name', 'device_type', 'data'},
-            has_jsonb_data=True
+            table_columns={"id", "name", "device_type", "data"},
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
-        # This is the exact query that fails in production
+        # This is the exact query that should work with Rust pipeline
         where = {"hostname": {"eq": "printserver01.local"}}
 
-        # This SHOULD work but WILL FAIL due to ltree casting bug
-        try:
-            results = await repo.find("network_devices", where=where)
+        result = await repo.find("network_devices", where=where)
+        results = extract_graphql_data(result, "network_devices")
 
-            # If we get here, check if results are correct
-            assert len(results) == 1, (
-                f"Expected 1 device with hostname 'printserver01.local', got {len(results)}"
-            )
-            assert results[0].hostname == "printserver01.local"
-
-        except Exception as e:
-            # This is the expected failure in RED phase
-            if "ltree" in str(e) or "operator does not exist" in str(e):
-                pytest.fail(
-                    f"PRODUCTION BUG REPRODUCED: Hostname filtering fails due to ltree casting. "
-                    f"Error: {e}"
-                )
-            else:
-                # Some other error - re-raise
-                raise
+        # Check if results are correct
+        assert len(results) == 1, (
+            f"Expected 1 device with hostname 'printserver01.local', got {len(results)}"
+        )
+        assert results[0]["hostname"] == "printserver01.local"
 
     @pytest.mark.asyncio
-    async def test_production_port_filtering_fails(self, db_pool, setup_realistic_network_devices):
-        """RED: This MUST FAIL - port filtering with numeric casting issues."""
+    async def test_production_port_filtering(self, db_pool, setup_realistic_network_devices):
+        """Test port filtering with numeric values works correctly."""
         setup_realistic_network_devices
 
         register_type_for_view(
             "network_devices",
             NetworkDevice,
-            table_columns={'id', 'name', 'device_type', 'data'},
-            has_jsonb_data=True
+            table_columns={"id", "name", "device_type", "data"},
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
-        # Filter by port - this might fail due to unnecessary numeric casting
+        # Filter by port - should work with Rust pipeline
         where = {"port": {"eq": 443}}
 
-        try:
-            results = await repo.find("network_devices", where=where)
+        result = await repo.find("network_devices", where=where)
+        results = extract_graphql_data(result, "network_devices")
 
-            assert len(results) == 1, (
-                f"Expected 1 device with port 443, got {len(results)}"
-            )
-            assert results[0].port == 443
-
-        except Exception as e:
-            if "numeric" in str(e) or "operator does not exist" in str(e):
-                pytest.fail(
-                    f"PRODUCTION BUG REPRODUCED: Port filtering fails due to numeric casting. "
-                    f"Error: {e}"
-                )
-            else:
-                raise
+        assert len(results) == 1, f"Expected 1 device with port 443, got {len(results)}"
+        assert results[0]["port"] == 443
 
     @pytest.mark.asyncio
-    async def test_production_boolean_filtering_fails(self, db_pool, setup_realistic_network_devices):
-        """RED: This MUST FAIL - boolean filtering with casting issues."""
+    async def test_production_boolean_filtering(self, db_pool, setup_realistic_network_devices):
+        """Test boolean filtering works correctly."""
         setup_realistic_network_devices
 
         register_type_for_view(
             "network_devices",
             NetworkDevice,
-            table_columns={'id', 'name', 'device_type', 'data'},
-            has_jsonb_data=True
+            table_columns={"id", "name", "device_type", "data"},
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
-        # Filter by active status - this might fail due to boolean casting
+        # Filter by active status - should work with Rust pipeline
         where = {"is_active": {"eq": True}}
 
-        try:
-            results = await repo.find("network_devices", where=where)
+        result = await repo.find("network_devices", where=where)
+        results = extract_graphql_data(result, "network_devices")
 
-            assert len(results) == 2, (
-                f"Expected 2 active devices, got {len(results)}"
-            )
+        assert len(results) == 2, f"Expected 2 active devices, got {len(results)}"
 
-            for result in results:
-                assert result.is_active is True
-
-        except Exception as e:
-            if "boolean" in str(e) or "operator does not exist" in str(e):
-                pytest.fail(
-                    f"PRODUCTION BUG REPRODUCED: Boolean filtering fails due to boolean casting. "
-                    f"Error: {e}"
-                )
-            else:
-                raise
+        for result in results:
+            assert result["isActive"] is True
 
     @pytest.mark.asyncio
-    async def test_production_mixed_filtering_comprehensive(self, db_pool, setup_realistic_network_devices):
-        """RED: The ultimate test - mixed filters that trigger all bugs simultaneously."""
+    async def test_production_mixed_filtering_comprehensive(
+        self, db_pool, setup_realistic_network_devices
+    ):
+        """Test mixed filters combining hostname, port, and boolean work correctly."""
         setup_realistic_network_devices
 
         register_type_for_view(
             "network_devices",
             NetworkDevice,
-            table_columns={'id', 'name', 'device_type', 'data'},
-            has_jsonb_data=True
+            table_columns={"id", "name", "device_type", "data"},
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
-        # This complex filter combines all the problematic patterns
+        # This complex filter combines all the patterns
         where = {
-            "hostname": {"contains": ".local"},      # HOSTNAME WITH DOTS (using contains instead of endsWith)
-            "port": {"gte": 400},                    # INTEGER COMPARISON
-            "is_active": {"eq": True}                # BOOLEAN COMPARISON
+            "hostname": {
+                "contains": ".local"
+            },  # HOSTNAME WITH DOTS (using contains instead of endsWith)
+            "port": {"gte": 400},  # INTEGER COMPARISON
+            "is_active": {"eq": True},  # BOOLEAN COMPARISON
         }
 
-        try:
-            results = await repo.find("network_devices", where=where)
+        result = await repo.find("network_devices", where=where)
+        results = extract_graphql_data(result, "network_devices")
 
-            # Should find printserver01.local (443, active) and api.v2.service.local would be inactive
-            assert len(results) == 1, (
-                f"Expected 1 device matching complex filter, got {len(results)}"
-            )
+        # Should find printserver01.local (443, active) and api.v2.service.local would be inactive
+        assert len(results) == 1, f"Expected 1 device matching complex filter, got {len(results)}"
 
-            device = results[0]
-            assert ".local" in device.hostname
-            assert device.port >= 400
-            assert device.is_active is True
-
-        except Exception as e:
-            # This is where all the bugs converge
-            pytest.fail(
-                f"COMPREHENSIVE BUG REPRODUCED: Mixed filtering fails. "
-                f"This demonstrates all casting bugs working together. "
-                f"Error: {e}"
-            )
+        device = results[0]
+        assert ".local" in device["hostname"]
+        assert device["port"] >= 400
+        assert device["isActive"] is True
 
 
 @pytest.mark.regression
@@ -449,7 +414,9 @@ class TestREDPhaseEdgeCaseScenarios:
         # The presence of "DROP TABLE" in the literal is fine as long as it's parameterized
         assert "Literal(" in sql_str, "Values should be wrapped in Literal() for parameterization"
         # Check that the malicious content is inside the Literal() wrapper
-        assert 'Literal("server\'; DROP TABLE users; --")' in sql_str, "Malicious content should be parameterized"
+        assert 'Literal("server\'; DROP TABLE users; --")' in sql_str, (
+            "Malicious content should be parameterized"
+        )
 
     def test_null_value_casting_handling(self):
         """RED: Ensure NULL values don't break type casting."""
@@ -485,4 +452,6 @@ class TestREDPhaseEdgeCaseScenarios:
 
 if __name__ == "__main__":
     print("Running RED phase tests - these SHOULD FAIL initially...")
-    print("Run with: pytest tests/regression/where_clause/test_industrial_where_clause_generation.py::TestREDPhaseHostnameLtreeBug -v -s")
+    print(
+        "Run with: pytest tests/regression/where_clause/test_industrial_where_clause_generation.py::TestREDPhaseHostnameLtreeBug -v -s"
+    )

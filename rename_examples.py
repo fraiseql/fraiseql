@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-"""
-Rename example directories to use underscores instead of hyphens,
+"""Rename example directories to use underscores instead of hyphens,
 following Python naming conventions and the DDL organization documentation.
 """
 
-import os
 import shutil
 from pathlib import Path
 
 
 def rename_directories_with_hyphens(examples_dir: str = "examples"):
-    """
-    Rename directories containing hyphens to use underscores.
+    """Rename directories containing hyphens to use underscores.
 
     Args:
         examples_dir: Path to the examples directory

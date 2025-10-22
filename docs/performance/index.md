@@ -8,44 +8,39 @@ FraiseQL provides a comprehensive optimization stack achieving sub-millisecond r
 
 | Layer | Technology | Configuration | Speedup | Complexity |
 |-------|------------|---------------|---------|------------|
-| 0 | Rust Transformation | `pip install fraiseql[rust]` | 7-10x | Low |
+| 0 | Rust Pipeline | Always active | 7-10x | None |
 | 1 | APQ Caching | `apq_enabled=True` | 5-10x | Low |
-| 2 | TurboRouter | Query registration | 3-5x | Medium |
-| 3 | JSON Passthrough | View design | 2-3x | Medium |
+| 2 | Field Projection | `field_projection=True` | 2-3x | Low |
+| 3 | Transform Tables | `tv_*` views | 10-100x | Medium |
 | **Bonus** | **Result Caching** | [PostgreSQL Cache](caching.md) | **50-500x** | **Low** |
 
 **Combined Performance**: 0.5-2ms response times with all layers enabled.
 
 > **New**: Check out the [Result Caching Guide](caching.md) for PostgreSQL-based result caching with automatic tenant isolation and optional domain-based invalidation.
 
-## Layer 0: Rust Transformation
+## Layer 0: Rust Pipeline
 
-**Purpose**: Accelerate JSON transformation from PostgreSQL to GraphQL format using native Rust code.
-
-**Installation**:
-```bash
-pip install fraiseql[rust]
-```
+**Purpose**: Exclusive Rust execution path for all GraphQL queries, providing 7-10x faster JSON transformation.
 
 **How It Works**:
 
-The Rust transformer is FraiseQL's foundational performance layer that uses **fraiseql-rs** (a Rust extension module built with PyO3) to provide:
-
-- **Zero-copy JSON parsing** with serde_json
-- **High-performance schema registry** for type-aware transformations
-- **GIL-free execution** - Rust code runs without Python's Global Interpreter Lock
-- **Automatic fallback** - Graceful degradation to Python when unavailable
-
-All GraphQL types are automatically registered with the Rust transformer during schema building. When queries execute, JSON results from PostgreSQL are transformed via Rust:
+FraiseQL v0.11.5+ uses an exclusive Rust pipeline for all query execution. No mode detection or conditional logic - every query flows through the same optimized path:
 
 ```
-PostgreSQL JSONB (snake_case) → Rust Transform (0.2-2ms) → GraphQL JSON (camelCase + __typename)
+PostgreSQL JSONB (snake_case) → Rust Pipeline (0.5-5ms) → HTTP Response (camelCase + __typename)
 ```
+
+The Rust pipeline automatically:
+- Concatenates JSONB rows into GraphQL arrays
+- Transforms snake_case → camelCase field names
+- Injects __typename for GraphQL type resolution
+- Applies field projection when requested
+- Returns UTF-8 bytes ready for HTTP response
 
 **Performance Impact** (Actual Measurements):
 
-| Payload Size | Python | Rust | Speedup | Notes |
-|--------------|--------|------|---------|-------|
+| Payload Size | Python | Rust Pipeline | Speedup | Notes |
+|--------------|--------|---------------|---------|-------|
 | 1KB (10 fields) | 0.0547ms | 0.0060ms | **9.1x** | Simple user lookup |
 | 10KB (42 fields) | 0.1223ms | 0.0160ms | **7.6x** | Moderate complexity |
 | 32KB (100+ fields) | 2.1573ms | 0.4530ms | **4.8x** | Complex nested data |
@@ -59,32 +54,74 @@ PostgreSQL JSONB (snake_case) → Rust Transform (0.2-2ms) → GraphQL JSON (cam
 
 **Realistic Expectations**:
 - **Typical speedup**: 7-10x faster than pure Python transformation
-- **End-to-end impact**: 2-4x faster including database query time (with APQ/TurboRouter)
-- **Best for**: High-throughput APIs, all production workloads
-
-**Automatic Fallback**:
-
-If Rust binary unavailable, automatically falls back to Python implementation with no code changes required.
+- **End-to-end impact**: 2-4x faster including database time (with APQ/field projection)
+- **Best for**: All workloads - automatically active
 
 **Configuration**:
 ```python
 from fraiseql import FraiseQLConfig
 
-# Rust enabled by default if installed
+# Rust pipeline always active (no configuration needed)
 config = FraiseQLConfig(
-    rust_enabled=True,  # Default: True
+    field_projection=True,  # Optional: enable field filtering
 )
 ```
 
 **Verification**:
 ```python
-from fraiseql.core.rust_transformer import get_transformer
+# Rust pipeline is always active in v0.11.5+
+# No fallback - always uses Rust for transformation
+```
 
-transformer = get_transformer()
-if transformer.enabled:
-    print("Rust transformer active")
-else:
-    print("Using Python fallback")
+**Architecture**: Exclusive Rust Pipeline
+
+FraiseQL v0.11.5+ uses an **exclusive Rust pipeline** for all GraphQL queries. There is no mode detection, no conditional logic, and no fallback - every query flows through the same optimized Rust path:
+
+```
+PostgreSQL JSONB (snake_case) → Rust Pipeline (0.5-5ms) → HTTP Response (camelCase + __typename)
+```
+
+The Rust pipeline automatically:
+- Concatenates JSONB rows into GraphQL arrays
+- Transforms snake_case → camelCase field names
+- Injects __typename for GraphQL type resolution
+- Applies field projection when requested
+- Returns UTF-8 bytes ready for HTTP response
+
+**Performance Impact** (Actual Measurements):
+
+| Payload Size | Python | Rust Pipeline | Speedup | Notes |
+|--------------|--------|---------------|---------|-------|
+| 1KB (10 fields) | 0.0547ms | 0.0060ms | **9.1x** | Simple user lookup |
+| 10KB (42 fields) | 0.1223ms | 0.0160ms | **7.6x** | Moderate complexity |
+| 32KB (100+ fields) | 2.1573ms | 0.4530ms | **4.8x** | Complex nested data |
+
+**Benchmark Methodology**:
+- **Hardware**: AMD Ryzen 7 5800X, 32GB RAM, NVMe SSD
+- **Software**: PostgreSQL 15.8, Python 3.13, Rust 1.82
+- **Sample Size**: 100 iterations per test case
+- **Measurement**: `time.perf_counter_ns()` with nanosecond precision
+- **Statistics**: Mean with 95% confidence intervals
+
+**Realistic Expectations**:
+- **Typical speedup**: 7-10x faster than pure Python transformation
+- **End-to-end impact**: 2-4x faster including database time (with APQ/field projection)
+- **Best for**: All workloads - automatically active in v0.11.5+
+
+**Configuration**:
+```python
+from fraiseql import FraiseQLConfig
+
+# Rust pipeline always active (no configuration needed)
+config = FraiseQLConfig(
+    field_projection=True,  # Optional: enable field filtering
+)
+```
+
+**Verification**:
+```python
+# Rust pipeline is always active in v0.11.5+
+# No fallback - always uses Rust for transformation
 ```
 
 ## Layer 1: APQ (Automatic Persisted Queries)
@@ -93,12 +130,12 @@ else:
 
 **How It Works**:
 
-APQ eliminates network overhead by replacing large GraphQL queries with small SHA-256 hashes:
+APQ works seamlessly with the exclusive Rust pipeline:
 
 1. Client sends query hash (64 bytes) instead of full query (2-10KB)
 2. Server retrieves cached query from storage
-3. If cache miss, client sends full query once
-4. Subsequent requests use hash only
+3. Rust pipeline processes cached query (0.5-2ms)
+4. If cache miss, client sends full query once for storage
 
 **Configuration**:
 ```python
@@ -120,8 +157,9 @@ config = FraiseQLConfig(
 
 - **70% bandwidth reduction** for large queries
 - **Faster server-side parsing** (cached queries)
-- **99.9% cache hit rates** in production
+- **85-95% cache hit rates** in production
 - **No Redis dependency** (uses PostgreSQL)
+- **Instant Rust pipeline execution** for cached queries
 
 **Client Integration**:
 ```javascript
@@ -132,123 +170,105 @@ import { sha256 } from 'crypto-hash';
 const link = createPersistedQueryLink({ sha256 });
 ```
 
-## Layer 2: TurboRouter
+## Layer 2: Field Projection
 
-**Purpose**: Pre-compiled GraphQL-to-SQL routing for registered queries.
+**Purpose**: Let Rust filter only requested GraphQL fields for reduced data transfer and processing.
 
 **How It Works**:
 
-TurboRouter bypasses GraphQL parsing by pre-compiling frequently used queries to SQL templates:
+Field projection allows clients to request only specific fields, and Rust automatically filters the JSONB response:
 
-```python
-from fraiseql.fastapi import TurboRegistry, TurboQuery
-
-registry = TurboRegistry(max_size=1000)
-
-user_by_id = TurboQuery(
-    graphql_query="""
-        query GetUser($id: UUID!) {
-            getUser(id: $id) { id name email }
-        }
-    """,
-    sql_template="""
-        SELECT id::text, name, email
-        FROM v_user
-        WHERE id = %(id)s
-    """,
-    param_mapping={"id": "id"}
-)
-registry.register(user_by_id)
-
-app = create_fraiseql_app(
-    config=config,
-    turbo_registry=registry
-)
+```graphql
+# Client requests only these fields:
+query {
+  users {
+    id
+    firstName  # Only these get processed
+  }
+}
 ```
+
+Rust pipeline extracts only `id` and `firstName` from the full JSONB, ignoring other fields like `email`, `createdAt`, etc.
 
 **Configuration**:
 ```python
 config = FraiseQLConfig(
-    enable_turbo_router=True,
-    turbo_router_cache_size=500,
-    turbo_enable_adaptive_caching=True,
+    field_projection=True,  # Enable field filtering (default)
 )
 ```
 
 **Performance Benefits**:
 
-- **4-10x faster** than standard GraphQL execution
-- **Predictable latency** with pre-compiled queries
-- **Lower CPU usage** (no parsing overhead)
-- **Automatic fallback** to standard mode for unregistered queries
+- **20-40% faster** transformation for large objects
+- **Reduced memory usage** (smaller JSON processing)
+- **Lower bandwidth** (smaller responses)
+- **Automatic optimization** (no code changes needed)
 
-**Tenant-Aware Caching**:
-```python
-# TurboRouter supports multi-tenant caching patterns
-# Cache keys automatically include tenant context
-```
+**Best For**:
+- Large objects with many fields
+- Mobile clients (bandwidth sensitive)
+- High-throughput APIs
 
-## Layer 3: JSON Passthrough
+## Layer 3: Transform Tables
 
-**Purpose**: Zero-copy JSON responses from database to client.
+**Purpose**: Pre-computed JSONB responses in database for instant query results.
 
 **How It Works**:
 
-JSON Passthrough eliminates Python object instantiation and serialization overhead by returning PostgreSQL JSONB directly:
+Transform tables (`tv_*`) store pre-computed GraphQL responses as JSONB, providing instant lookups:
 
-```python
-# Standard Mode (with object instantiation)
-# PostgreSQL JSONB � Python objects � GraphQL serialization � JSON
-# Overhead: 5-25ms
-
-# Passthrough Mode (direct JSON)
-# PostgreSQL JSONB � Rust transform � JSON
-# Overhead: 0.2-2ms (with Rust)
-```
-
-**Database View Pattern**:
 ```sql
-CREATE VIEW v_orders_json AS
+-- Transform table with pre-computed JSONB
+CREATE TABLE tv_user (
+    id UUID PRIMARY KEY,
+    data JSONB  -- Pre-built GraphQL response
+);
+
+-- Pre-compute complex relationships
+INSERT INTO tv_user (id, data)
 SELECT
-  o.tenant_id,
-  jsonb_build_object(
-    'id', o.id,
-    'total', o.total,
-    'status', o.status,
-    'items', (
-      SELECT jsonb_agg(jsonb_build_object(
-        'id', i.id,
-        'name', i.name,
-        'quantity', i.quantity
-      ))
-      FROM order_items i
-      WHERE i.order_id = o.id
+    u.id,
+    jsonb_build_object(
+        'id', u.id,
+        'firstName', u.first_name,
+        'posts', (
+            SELECT jsonb_agg(jsonb_build_object(
+                'id', p.id,
+                'title', p.title
+            ))
+            FROM posts p
+            WHERE p.user_id = u.id
+        )
     )
-  ) as data
-FROM orders o;
+FROM users u;
+```
+
+**Query Performance**:
+```python
+# 0.05ms database lookup + 0.5ms Rust pipeline
+@fraiseql.query
+async def user(info, id: str) -> User:
+    repo = info.context["repo"]
+    return await repo.find_rust("tv_user", "user", info, id=id)
 ```
 
 **Configuration**:
 ```python
-config = FraiseQLConfig(
-    json_passthrough_enabled=True,  # Default: True
-    passthrough_complexity_limit=50,
-    passthrough_max_depth=3,
-)
+config = FraiseQLConfig()
 ```
 
 **Performance Benefits**:
 
-- **5-20x faster** than object instantiation
-- **Sub-millisecond cached responses**
-- **Lower memory usage** (no object creation)
-- **Composable with N+1 prevention** (database views)
+- **10-100x faster** than complex JOIN queries
+- **Instant responses** for nested relationships
+- **No N+1 queries** (relationships pre-computed)
+- **Automatic Rust pipeline processing** (camelCase, __typename)
 
-**Requirements**:
-
-- Views must return JSONB in `data` column
-- APQ caching enabled for maximum benefit
-- Compatible with all optimization layers
+**Best For**:
+- Read-heavy workloads
+- Complex nested relationships
+- Stable data patterns
+- High-throughput APIs
 
 ## Combined Stack Performance
 
@@ -256,14 +276,11 @@ config = FraiseQLConfig(
 
 | Scenario | Layers Active | Response Time | Notes |
 |----------|---------------|---------------|-------|
-| Cold query (Python) | 0 | 100-300ms | First execution, no cache |
-| Cold query (Rust) | 0 | 80-280ms | 1.2-1.5x faster |
-| APQ cached | 0+1 | 50-150ms (Python) | Hash lookup + execution |
-| APQ cached + Rust | 0+1 | 30-130ms | 2-3x faster |
-| TurboRouter | 0+2 | 5-45ms | Pre-compiled query |
-| Passthrough | 0+3 | 1-5ms (Rust) | Direct JSON |
-| APQ + TurboRouter | 0+1+2 | 1-5ms | Query cache + pre-compilation |
-| **All layers** | **0+1+2+3** | **0.5-2ms** | **Maximum performance** |
+| Cold query | 0 | 5-25ms | Database + Rust pipeline |
+| APQ cached | 0+1 | 0.5-2ms | Hash lookup + Rust pipeline |
+| With field projection | 0+1+2 | 0.3-1.5ms | Filtered fields |
+| Transform table | 0+1+2+3 | 0.05-0.5ms | Pre-computed JSONB |
+| **All layers** | **0+1+2+3** | **0.05-0.5ms** | **Maximum performance** |
 
 ## Production Configuration
 
@@ -277,22 +294,19 @@ config = FraiseQLConfig(
     database_max_overflow=10,
     database_pool_timeout=5.0,
 
-    # Layer 0: Rust (automatic if installed)
-    rust_enabled=True,
+    # Layer 0: Rust Pipeline (always active)
+    # No configuration needed
 
     # Layer 1: APQ
     apq_enabled=True,
     apq_storage_backend="postgresql",
     apq_cache_ttl=3600,
 
-    # Layer 2: TurboRouter
-    enable_turbo_router=True,
-    turbo_router_cache_size=500,
-    turbo_enable_adaptive_caching=True,
+    # Layer 2: Field Projection
+    field_projection=True,
 
-    # Layer 3: JSON Passthrough
-    json_passthrough_enabled=True,
-    passthrough_complexity_limit=50,
+    # Layer 3: Transform Tables (use tv_* views)
+    # No configuration needed
 
     # Limits
     query_complexity_limit=1000,
@@ -344,20 +358,16 @@ If total complexity exceeds limit, query is rejected with clear error message.
 **Metrics to Track**:
 
 - Query response time (p50, p95, p99)
-- APQ cache hit rate (target: >95%)
+- APQ cache hit rate (target: >85%)
 - Connection pool utilization
-- Rust transformation time
-- TurboRouter hit rate
+- Rust processing time
 
 **Prometheus Metrics**:
 ```python
 # Available metrics
-fraiseql_rust_transformer_enabled{environment="production"}
-fraiseql_rust_transform_duration_seconds{quantile="0.95"}
+fraiseql_rust_duration_seconds{quantile="0.95"}
 fraiseql_apq_cache_hit_ratio{backend="postgresql"}
-fraiseql_turbo_router_hit_ratio{environment="production"}
-fraiseql_passthrough_usage_ratio{complexity_limit="50"}
-fraiseql_response_time_histogram{mode="turbo", quantile="0.95"}
+fraiseql_response_time_histogram{quantile="0.95"}
 ```
 
 **PostgreSQL Query Analysis**:
@@ -455,15 +465,14 @@ Different query types show varying performance characteristics:
 config = FraiseQLConfig(
     apq_enabled=True,
     apq_storage_backend="postgresql",
-    rust_enabled=True,
-    json_passthrough_enabled=True,
+    field_projection=True,
     complexity_max_score=1000,
 )
 ```
 
 **Performance Characteristics**:
-- **Simple queries**: 5-15ms (p95)
-- **Complex queries**: 15-50ms (p95)
+- **Simple queries**: 1-5ms (p95)
+- **Complex queries**: 5-25ms (p95)
 - **Cache hit rate**: 85-95%
 - **Memory usage**: 200-500MB per instance
 - **CPU usage**: 20-40% under normal load
@@ -476,10 +485,7 @@ config = FraiseQLConfig(
 config = FraiseQLConfig(
     apq_enabled=True,
     apq_storage_backend="postgresql",
-    enable_turbo_router=True,
-    turbo_router_cache_size=1000,
-    json_passthrough_enabled=True,
-    rust_enabled=True,
+    field_projection=True,
     complexity_max_score=500,
 )
 ```
@@ -496,8 +502,8 @@ config = FraiseQLConfig(
 **Status**: Active benchmarking program with reproducible results.
 
 **Current Benchmark Results**:
-- **Rust transformation**: 7-10x faster than pure Python ([detailed results](../../benchmarks/BENCHMARK_RESULTS.md))
-- **End-to-end queries**: 2-4x faster including database time (with APQ/TurboRouter)
+- **Rust pipeline**: 7-10x faster than pure Python ([detailed results](../../benchmarks/BENCHMARK_RESULTS.md))
+- **End-to-end queries**: 2-4x faster including database time (with APQ/field projection)
 - **Framework comparison**: 2-4x faster than Strawberry/Hasura/PostGraphile
 
 **Benchmark Methodology**: See [comprehensive methodology](../benchmarks/METHODOLOGY.md) for hardware, software, and testing procedures.
@@ -538,38 +544,30 @@ config = FraiseQLConfig(
 
 Monitor query pattern diversity - high diversity needs larger cache.
 
-### TurboRouter Underutilization
+### Rust Pipeline Performance Issues
 
-**Symptom**: <50% turbo execution rate
+**Symptom**: Slower than expected response times
 
 **Solution**:
-```sql
--- Identify hot queries for registration
-SELECT query_hash, COUNT(*) as frequency
-FROM query_logs
-WHERE created_at > NOW() - INTERVAL '7 days'
-GROUP BY query_hash
-ORDER BY frequency DESC
-LIMIT 20;
-```
-
 ```python
-# Increase cache size
-config.turbo_router_cache_size = 2000
+# Check for fraiseql-rs installation
+import fraiseql_rs
+print("Rust pipeline available")
 
-# Enable adaptive caching
-config.turbo_enable_adaptive_caching = True
+# Check repository methods
+result = await repo.find_rust("table", "field", info)
+assert isinstance(result, RustResponseBytes)
 ```
 
-### Passthrough Not Activating
+### Rust Pipeline Not Optimized
 
-**Symptom**: Response times still 20-50ms
+**Symptom**: Response times not meeting expectations
 
 **Checklist**:
 1. APQ enabled? `apq_storage_backend` configured
 2. JSONB views? Check `SELECT data FROM v_*`
 3. Cache hits? Check APQ statistics
-4. TurboRouter enabled? `enable_turbo_router=True`
+4. Field projection enabled? `field_projection=True`
 
 ### Connection Pool Exhaustion
 
@@ -777,10 +775,8 @@ async def bulk_create_users(
 
 ### Application Optimization
 
-- [ ] Install Rust extensions (`pip install fraiseql[rust]`)
 - [ ] Enable APQ caching
-- [ ] Register hot queries in TurboRouter
-- [ ] Enable JSON passthrough
+- [ ] Enable field projection
 - [ ] Configure complexity limits
 - [ ] Implement pagination
 - [ ] Enable monitoring

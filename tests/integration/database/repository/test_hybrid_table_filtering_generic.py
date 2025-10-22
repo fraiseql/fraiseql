@@ -20,11 +20,13 @@ from tests.fixtures.database.database_conftest import *  # noqa: F403
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql.where_generator import safe_create_where_type
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 @fraiseql.type
 class Product:
     """Generic product type for testing hybrid tables."""
+
     id: str
     name: str
     status: str
@@ -89,7 +91,7 @@ class TestHybridTableFiltering:
                     "created_date": today,
                     "brand": "TechCorp",
                     "color": "blue",
-                    "specifications": {"weight": "1.2kg", "material": "aluminum"}
+                    "specifications": {"weight": "1.2kg", "material": "aluminum"},
                 },
                 {
                     "id": str(uuid4()),
@@ -102,7 +104,7 @@ class TestHybridTableFiltering:
                     "created_date": today,
                     "brand": "TechCorp",
                     "color": "red",
-                    "specifications": {"weight": "0.8kg", "material": "plastic"}
+                    "specifications": {"weight": "0.8kg", "material": "plastic"},
                 },
                 # Draft product
                 {
@@ -116,7 +118,7 @@ class TestHybridTableFiltering:
                     "created_date": yesterday,
                     "brand": "StartupCorp",
                     "color": "green",
-                    "specifications": {"weight": "0.5kg", "material": "carbon fiber"}
+                    "specifications": {"weight": "0.5kg", "material": "carbon fiber"},
                 },
                 # Inactive product
                 {
@@ -130,7 +132,7 @@ class TestHybridTableFiltering:
                     "created_date": yesterday,
                     "brand": "OldCorp",
                     "color": "gray",
-                    "specifications": {"weight": "2.0kg", "material": "steel"}
+                    "specifications": {"weight": "2.0kg", "material": "steel"},
                 },
             ]
 
@@ -145,13 +147,16 @@ class TestHybridTableFiltering:
                         "is_featured": product["is_featured"],
                         "is_available": product["is_available"],
                         "category_id": product["category_id"],
-                        "created_date": product["created_date"].isoformat() if product["created_date"] else None,
+                        "created_date": product["created_date"].isoformat()
+                        if product["created_date"]
+                        else None,
                         "brand": product["brand"],
                         "color": product["color"],
-                        "specifications": product["specifications"]
+                        "specifications": product["specifications"],
                     }
 
                     import json
+
                     await cursor.execute(
                         """
                         INSERT INTO products
@@ -160,11 +165,16 @@ class TestHybridTableFiltering:
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
                         """,
                         (
-                            product["id"], product["name"], product["status"],
-                            product["is_active"], product["is_featured"], product["is_available"],
-                            product["category_id"], product["created_date"],
-                            json.dumps(data)
-                        )
+                            product["id"],
+                            product["name"],
+                            product["status"],
+                            product["is_active"],
+                            product["is_featured"],
+                            product["is_available"],
+                            product["category_id"],
+                            product["created_date"],
+                            json.dumps(data),
+                        ),
                     )
             await conn.commit()
 
@@ -199,9 +209,19 @@ class TestHybridTableFiltering:
         register_type_for_view(
             "products",
             Product,
-            table_columns={'id', 'tenant_id', 'name', 'status', 'is_active', 'is_featured',
-                          'is_available', 'category_id', 'created_date', 'data'},
-            has_jsonb_data=True
+            table_columns={
+                "id",
+                "tenant_id",
+                "name",
+                "status",
+                "is_active",
+                "is_featured",
+                "is_available",
+                "category_id",
+                "created_date",
+                "data",
+            },
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -209,7 +229,10 @@ class TestHybridTableFiltering:
         where = {"is_active": {"eq": True}}
 
         # This SHOULD work but was broken in the original bug
-        results = await repo.find("products", where=where)
+        result = await repo.find("products", where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "products")
 
         # EXPECTED: Should return active products
         assert len(results) == counts["active"], (
@@ -220,7 +243,7 @@ class TestHybridTableFiltering:
 
         # Verify the returned data
         for product in results:
-            assert product.is_active is True
+            assert product["isActive"] is True
 
     @pytest.mark.asyncio
     async def test_dynamic_filter_construction_by_status(self, db_pool, setup_hybrid_table):
@@ -234,9 +257,19 @@ class TestHybridTableFiltering:
         register_type_for_view(
             "products",
             Product,
-            table_columns={'id', 'tenant_id', 'name', 'status', 'is_active', 'is_featured',
-                          'is_available', 'category_id', 'created_date', 'data'},
-            has_jsonb_data=True
+            table_columns={
+                "id",
+                "tenant_id",
+                "name",
+                "status",
+                "is_active",
+                "is_featured",
+                "is_available",
+                "category_id",
+                "created_date",
+                "data",
+            },
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
@@ -251,7 +284,10 @@ class TestHybridTableFiltering:
             where["status"] = {"eq": filter_status}
 
         # This pattern is used in production and MUST work
-        results = await repo.find("products", where=where)
+        result = await repo.find("products", where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "products")
 
         assert len(results) == counts["published"], (
             f"Dynamic filter construction failed. Expected {counts['published']} "
@@ -266,25 +302,35 @@ class TestHybridTableFiltering:
         register_type_for_view(
             "products",
             Product,
-            table_columns={'id', 'tenant_id', 'name', 'status', 'is_active', 'is_featured',
-                          'is_available', 'category_id', 'created_date', 'data'},
-            has_jsonb_data=True
+            table_columns={
+                "id",
+                "tenant_id",
+                "name",
+                "status",
+                "is_active",
+                "is_featured",
+                "is_available",
+                "category_id",
+                "created_date",
+                "data",
+            },
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Filter by multiple regular columns
-        where = {
-            "is_active": {"eq": True},
-            "is_featured": {"eq": True}
-        }
+        where = {"is_active": {"eq": True}, "is_featured": {"eq": True}}
 
         # Should return active products that are also featured
-        results = await repo.find("products", where=where)
+        result = await repo.find("products", where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "products")
 
         assert len(results) == 1  # Only Premium Widget is active AND featured
-        assert results[0].name == "Premium Widget"
-        assert results[0].is_active is True
-        assert results[0].is_featured is True
+        assert results[0]["name"] == "Premium Widget"
+        assert results[0]["isActive"] is True
+        assert results[0]["isFeatured"] is True
 
     @pytest.mark.asyncio
     async def test_mixed_regular_and_jsonb_filtering(self, db_pool, setup_hybrid_table):
@@ -298,25 +344,38 @@ class TestHybridTableFiltering:
         register_type_for_view(
             "products",
             Product,
-            table_columns={'id', 'tenant_id', 'name', 'status', 'is_active', 'is_featured',
-                          'is_available', 'category_id', 'created_date', 'data'},
-            has_jsonb_data=True
+            table_columns={
+                "id",
+                "tenant_id",
+                "name",
+                "status",
+                "is_active",
+                "is_featured",
+                "is_available",
+                "category_id",
+                "created_date",
+                "data",
+            },
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Mix of regular column and JSONB field filters
         where = {
             "is_active": {"eq": True},  # Should use: WHERE is_active = true
-            "brand": {"eq": "TechCorp"}  # Should use: WHERE data->>'brand' = 'TechCorp'
+            "brand": {"eq": "TechCorp"},  # Should use: WHERE data->>'brand' = 'TechCorp'
         }
 
-        results = await repo.find("products", where=where)
+        result = await repo.find("products", where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "products")
 
         # Should return only active products from TechCorp
         assert len(results) == 2
         for product in results:
-            assert product.is_active is True
-            assert product.brand == "TechCorp"
+            assert product["isActive"] is True
+            assert product["brand"] == "TechCorp"
 
     @pytest.mark.asyncio
     async def test_whereinput_type_on_hybrid_table(self, db_pool, setup_hybrid_table):
@@ -326,24 +385,34 @@ class TestHybridTableFiltering:
         register_type_for_view(
             "products",
             Product,
-            table_columns={'id', 'tenant_id', 'name', 'status', 'is_active', 'is_featured',
-                          'is_available', 'category_id', 'created_date', 'data'},
-            has_jsonb_data=True
+            table_columns={
+                "id",
+                "tenant_id",
+                "name",
+                "status",
+                "is_active",
+                "is_featured",
+                "is_available",
+                "category_id",
+                "created_date",
+                "data",
+            },
+            has_jsonb_data=True,
         )
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Use WhereInput type - this should intelligently handle hybrid tables
-        where = ProductWhere(
-            status={"eq": "draft"}
-        )
+        where = ProductWhere(status={"eq": "draft"})
 
-        results = await repo.find("products", where=where)
+        result = await repo.find("products", where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "products")
 
         assert len(results) == 1, (
-            f"WhereInput failed on hybrid table. Expected 1 "
-            f"draft product, got {len(results)}"
+            f"WhereInput failed on hybrid table. Expected 1 draft product, got {len(results)}"
         )
-        assert results[0].status == "draft"
+        assert results[0]["status"] == "draft"
 
     @pytest.mark.asyncio
     async def test_direct_sql_verification(self, db_pool, setup_hybrid_table):
@@ -357,9 +426,7 @@ class TestHybridTableFiltering:
         async with db_pool.connection() as conn:
             async with conn.cursor() as cursor:
                 # Test direct column filtering
-                await cursor.execute(
-                    "SELECT id, name FROM products WHERE is_active = true"
-                )
+                await cursor.execute("SELECT id, name FROM products WHERE is_active = true")
                 sql_results = await cursor.fetchall()
 
                 assert len(sql_results) == counts["active"], (
@@ -377,6 +444,4 @@ class TestHybridTableFiltering:
                 )
                 mixed_results = await cursor.fetchall()
 
-                assert len(mixed_results) == 2, (
-                    "Direct SQL with mixed column/JSONB filtering works"
-                )
+                assert len(mixed_results) == 2, "Direct SQL with mixed column/JSONB filtering works"

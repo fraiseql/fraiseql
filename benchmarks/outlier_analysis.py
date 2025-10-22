@@ -63,23 +63,23 @@ async def detailed_benchmark(pool, query, transform_func, name, iterations=100):
         print(f"  Outlier values: {[f'{x:.3f}' for x in sorted(outliers)]}")
 
     return {
-        'name': name,
-        'mean': mean,
-        'median': median,
-        'stdev': stdev,
-        'min': min(times),
-        'max': max(times),
-        'p95': p95,
-        'p99': p99,
-        'outliers': len(outliers),
+        "name": name,
+        "mean": mean,
+        "median": median,
+        "stdev": stdev,
+        "min": min(times),
+        "max": max(times),
+        "p95": p95,
+        "p99": p99,
+        "outliers": len(outliers),
     }
 
 
 def transform_python(json_str: str) -> str:
     """Pure Python transformation."""
     def to_camel(s):
-        parts = s.split('_')
-        return parts[0] + ''.join(p.title() for p in parts[1:])
+        parts = s.split("_")
+        return parts[0] + "".join(p.title() for p in parts[1:])
     def transform_dict(d):
         result = {}
         for k, v in d.items():
@@ -110,10 +110,10 @@ async def setup_test_data(pool):
             # Insert 20 test rows
             for i in range(20):
                 data = {
-                    'user_id': i,
-                    'user_name': f'User {i}',
-                    'user_posts': [
-                        {'post_id': j, 'post_title': f'Post {j}'}
+                    "user_id": i,
+                    "user_name": f"User {i}",
+                    "user_posts": [
+                        {"post_id": j, "post_title": f"Post {j}"}
                         for j in range(10)
                     ]
                 }
@@ -126,7 +126,7 @@ async def setup_test_data(pool):
 async def main():
     """Run outlier analysis."""
     import os
-    db_url = os.getenv('DATABASE_URL', 'postgresql://localhost/fraiseql_test')
+    db_url = os.getenv("DATABASE_URL", "postgresql://localhost/fraiseql_test")
 
     pool = psycopg_pool.AsyncConnectionPool(db_url, min_size=1, max_size=5, open=False)
     await pool.open()
@@ -172,7 +172,7 @@ async def main():
         print("INTERPRETATION")
         print("=" * 80)
 
-        if result_rust['outliers'] > result_python['outliers']:
+        if result_rust["outliers"] > result_python["outliers"]:
             print("\n⚠️  Rust has MORE outliers than Python")
             print("   This suggests PyO3 FFI boundary or Rust allocator spikes")
             print("   Use MEDIAN for more reliable comparison")
@@ -180,7 +180,7 @@ async def main():
             print("\n✅ Rust has similar or fewer outliers than Python")
             print("   Performance is consistent")
 
-        if result_rust['median'] < result_python['median']:
+        if result_rust["median"] < result_python["median"]:
             print(f"\n✅ Rust median ({result_rust['median']:.2f}ms) < Python median ({result_python['median']:.2f}ms)")
             print(f"   Typical case: Rust is {result_python['median'] / result_rust['median']:.2f}x faster")
 
@@ -193,5 +193,5 @@ async def main():
         await pool.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

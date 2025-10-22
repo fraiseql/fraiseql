@@ -16,8 +16,8 @@ from typing import Any
 
 def to_camel_case_python(snake_str: str) -> str:
     """Pure Python snake_case to camelCase conversion."""
-    components = snake_str.split('_')
-    return components[0] + ''.join(x.title() for x in components[1:])
+    components = snake_str.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
 
 
 def transform_dict_python(data: dict[str, Any], recursive: bool = True) -> dict[str, Any]:
@@ -59,65 +59,65 @@ def benchmark_transformation(name: str, func, input_data: str, iterations: int =
         times.append(elapsed * 1000)  # Convert to milliseconds
 
     return {
-        'name': name,
-        'min_ms': min(times),
-        'max_ms': max(times),
-        'mean_ms': statistics.mean(times),
-        'median_ms': statistics.median(times),
-        'stdev_ms': statistics.stdev(times) if len(times) > 1 else 0,
-        'iterations': iterations,
+        "name": name,
+        "min_ms": min(times),
+        "max_ms": max(times),
+        "mean_ms": statistics.mean(times),
+        "median_ms": statistics.median(times),
+        "stdev_ms": statistics.stdev(times) if len(times) > 1 else 0,
+        "iterations": iterations,
     }
 
 
 def create_test_data(complexity: str) -> dict:
     """Create test data of varying complexity."""
-    if complexity == 'simple':
+    if complexity == "simple":
         # Simple object: 10 fields
         return {
-            'user_id': 1,
-            'user_name': 'John Doe',
-            'email_address': 'john@example.com',
-            'created_at': '2025-10-13T10:00:00Z',
-            'updated_at': '2025-10-13T12:00:00Z',
-            'is_active': True,
-            'is_verified': True,
-            'age': 30,
-            'status': 'active',
-            'role': 'user',
+            "user_id": 1,
+            "user_name": "John Doe",
+            "email_address": "john@example.com",
+            "created_at": "2025-10-13T10:00:00Z",
+            "updated_at": "2025-10-13T12:00:00Z",
+            "is_active": True,
+            "is_verified": True,
+            "age": 30,
+            "status": "active",
+            "role": "user",
         }
 
-    elif complexity == 'medium':
+    if complexity == "medium":
         # Medium: 50 fields with some nesting
         return {
-            f'field_{i}': f'value_{i}' for i in range(40)
+            f"field_{i}": f"value_{i}" for i in range(40)
         } | {
-            'user_profile': {
-                'first_name': 'John',
-                'last_name': 'Doe',
-                'phone_number': '555-1234',
+            "user_profile": {
+                "first_name": "John",
+                "last_name": "Doe",
+                "phone_number": "555-1234",
             },
-            'user_settings': {
-                'theme_color': 'dark',
-                'language_code': 'en',
+            "user_settings": {
+                "theme_color": "dark",
+                "language_code": "en",
             }
         }
 
-    elif complexity == 'nested':
+    if complexity == "nested":
         # Nested: User with posts and comments
         return {
-            'user_id': 1,
-            'user_name': 'John Doe',
-            'user_posts': [
+            "user_id": 1,
+            "user_name": "John Doe",
+            "user_posts": [
                 {
-                    'post_id': i,
-                    'post_title': f'Post {i}',
-                    'post_content': f'Content for post {i}',
-                    'created_at': '2025-10-13T10:00:00Z',
-                    'post_comments': [
+                    "post_id": i,
+                    "post_title": f"Post {i}",
+                    "post_content": f"Content for post {i}",
+                    "created_at": "2025-10-13T10:00:00Z",
+                    "post_comments": [
                         {
-                            'comment_id': j,
-                            'comment_text': f'Comment {j}',
-                            'author_name': f'User {j}',
+                            "comment_id": j,
+                            "comment_text": f"Comment {j}",
+                            "author_name": f"User {j}",
                         }
                         for j in range(5)
                     ]
@@ -126,11 +126,11 @@ def create_test_data(complexity: str) -> dict:
             ]
         }
 
-    elif complexity == 'large':
+    if complexity == "large":
         # Large: 100 fields, deeply nested
         return {
-            f'field_{i}': {
-                f'nested_field_{j}': f'value_{i}_{j}'
+            f"field_{i}": {
+                f"nested_field_{j}": f"value_{i}_{j}"
                 for j in range(10)
             }
             for i in range(100)
@@ -149,7 +149,7 @@ def run_benchmarks():
         print("⚠️  fraiseql_rs not available - skipping Rust benchmarks")
         rust_available = False
 
-    complexities = ['simple', 'medium', 'nested', 'large']
+    complexities = ["simple", "medium", "nested", "large"]
 
     print("=" * 80)
     print("BENCHMARK: Rust vs Python Transformation Performance")
@@ -170,7 +170,7 @@ def run_benchmarks():
 
         # Benchmark Python
         result_python = benchmark_transformation(
-            'Python (pure)',
+            "Python (pure)",
             transform_json_python,
             json_str,
             iterations=100
@@ -180,7 +180,7 @@ def run_benchmarks():
         # Benchmark Rust
         if rust_available:
             result_rust = benchmark_transformation(
-                'Rust (fraiseql_rs)',
+                "Rust (fraiseql_rs)",
                 fraiseql_rs.transform_json,
                 json_str,
                 iterations=100
@@ -198,13 +198,13 @@ def run_benchmarks():
 
         # Calculate speedup
         if rust_available and len(results) == 2:
-            speedup = results[0]['mean_ms'] / results[1]['mean_ms']
+            speedup = results[0]["mean_ms"] / results[1]["mean_ms"]
             print(f"\n⚡ Speedup: {speedup:.2f}x faster (Rust vs Python)")
 
             # Validate claimed performance
-            if complexity == 'simple':
+            if complexity == "simple":
                 claimed = "10-50x"
-            elif complexity == 'nested':
+            elif complexity == "nested":
                 claimed = "20-80x"
             else:
                 claimed = "N/A"
@@ -219,5 +219,5 @@ def run_benchmarks():
     print("=" * 80)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_benchmarks()

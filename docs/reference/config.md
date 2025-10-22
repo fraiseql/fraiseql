@@ -348,41 +348,38 @@ config = FraiseQLConfig(
 )
 ```
 
-## Rust Transformation (v0.11.0+)
+## Rust Pipeline (v0.11.5+)
 
-**v0.11.0 Architectural Change**: FraiseQL now uses pure Rust transformation for camelCase field conversion. The PostgreSQL CamelForge function dependency has been removed.
+**v0.11.5 Architectural Change**: FraiseQL now uses an exclusive Rust pipeline for all query execution. No mode detection or conditional logic.
 
-**What Changed**:
-- ❌ **Removed**: `camelforge_enabled` parameter
-- ❌ **Removed**: `camelforge_function` parameter
-- ❌ **Removed**: `camelforge_field_threshold` parameter
-- ✅ **New**: Automatic Rust transformation for all queries
+**Configuration Options**:
+- `field_projection: bool = True` - Enable Rust-based field filtering
+- `schema_registry: bool = True` - Enable schema-based transformation
 
 **Benefits**:
-- No PostgreSQL function installation required
-- Simpler configuration and deployment
-- Same 10-80x performance gains
-- Automatic for all queries
+- ✅ **Single execution path** - PostgreSQL → Rust → HTTP
+- ✅ **7-10x faster JSON transformation** - Zero Python overhead
+- ✅ **Always active** - No configuration needed
+- ✅ **Automatic camelCase** - snake_case → camelCase conversion
+- ✅ **Built-in __typename** - Automatic GraphQL type injection
 
-**Migration**: Simply remove the `camelforge_*` parameters from your `FraiseQLConfig`. No other changes needed.
+**Migration from v0.11.4 and earlier**: Remove all execution mode configuration. See the [Multi-Mode to Rust Pipeline Migration Guide](../migration-guides/multi-mode-to-rust-pipeline.md) for details.
 
 ```python
-# v0.10.x (OLD)
+# v0.11.4 and earlier (OLD - remove these)
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
-    camelforge_enabled=True,            # ❌ Remove
-    camelforge_function="turbo.fn_camelforge",  # ❌ Remove
-    camelforge_field_threshold=25       # ❌ Remove
+    execution_mode_priority=["turbo", "passthrough", "normal"],  # ❌ Remove
+    enable_python_fallback=True,                                 # ❌ Remove
+    passthrough_detection_enabled=True,                         # ❌ Remove
 )
 
-# v0.11.0+ (NEW)
+# v0.11.5+ (NEW)
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
-    # ✅ Rust handles camelCase transformation automatically
+    # ✅ Rust pipeline always active, minimal config needed
 )
 ```
-
-See the [v0.11.0 Migration Guide](../migration-guides/v0.11.0.md) for complete migration instructions.
 
 ## Authentication Settings
 
@@ -685,51 +682,26 @@ config = FraiseQLConfig(
 - **Default**: `"memory"`
 - **Description**: Storage type ("memory" or "redis")
 
-## Execution Mode Settings
+## Rust Pipeline Settings
 
-### execution_mode_priority
-
-- **Type**: `list[str]`
-- **Default**: `["turbo", "passthrough", "normal"]`
-- **Description**: Execution mode priority order
-
-### unified_executor_enabled
+### field_projection
 
 - **Type**: `bool`
 - **Default**: `True`
-- **Description**: Enable unified executor
+- **Description**: Enable Rust-based field filtering
 
-### include_execution_metadata
-
-- **Type**: `bool`
-- **Default**: `False`
-- **Description**: Include mode and timing in response
-
-### execution_timeout_ms
-
-- **Type**: `int`
-- **Default**: `30000`
-- **Description**: Execution timeout in milliseconds
-
-### enable_mode_hints
+### schema_registry
 
 - **Type**: `bool`
 - **Default**: `True`
-- **Description**: Enable mode hints in queries
-
-### mode_hint_pattern
-
-- **Type**: `str`
-- **Default**: `r"#\s*@mode:\s*(\w+)"`
-- **Description**: Regex pattern for mode hints
+- **Description**: Enable schema-based transformation
 
 **Examples**:
 ```python
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
-    execution_mode_priority=["passthrough", "turbo", "normal"],
-    include_execution_metadata=True,
-    execution_timeout_ms=15000
+    field_projection=True,  # Enable field filtering
+    schema_registry=True    # Enable schema-based transformation
 )
 ```
 

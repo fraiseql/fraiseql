@@ -5,7 +5,7 @@ This document explains the purpose of every directory in the FraiseQL repository
 ## Visual Project Structure
 
 ```
-fraiseql/                           # Root: Main FraiseQL Framework (v0.11.5)
+fraiseql/                           # Root: Unified FraiseQL Framework
 ├── src/                           # 📦 Main library source code
 ├── examples/                      # 📚 20+ working examples
 ├── docs/                          # 📖 Complete documentation
@@ -14,31 +14,27 @@ fraiseql/                           # Root: Main FraiseQL Framework (v0.11.5)
 ├── deploy/                        # 🚀 Production deployment
 ├── grafana/                       # 📊 Monitoring dashboards
 ├── migrations/                    # 🗄️ Database setup
-├── fraiseql/                      # 🔄 v1 rebuild (experimental)
-├── fraiseql_rs/                   # ⚡ Rust performance extension
-├── fraiseql-v1/                   # 🎯 Portfolio showcase
+├── fraiseql_rs/                   # ⚡ Core Rust pipeline engine
 ├── archive/                       # 📁 Historical reference
 ├── benchmark_submission/          # 📈 Performance testing
 └── templates/                     # 🏗️ Project scaffolding
 ```
 
-## Version Relationships Map
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    FraiseQL Ecosystem                       │
+│               FraiseQL Unified Architecture                │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │              Main Framework (v0.11.5)              │    │
+│  │         Framework (Python + Rust Pipeline)         │    │
 │  │  ┌─────────────────────────────────────────────────┐ │    │
-│  │  │  Core: src/, examples/, docs/, tests/          │ │    │
-│  │  │  Rust: fraiseql_rs/ (base implementation)      │ │    │
+│  │  │  Python: src/, examples/, docs/, tests/        │ │    │
+│  │  │  Rust: fraiseql_rs/ (exclusive execution)      │ │    │
 │  │  │  Production: deploy/, grafana/, migrations/    │ │    │
 │  │  └─────────────────────────────────────────────────┘ │    │
 │  └─────────────────────────────────────────────────────┘    │
-│         │                                                        │
-│         └─ Future: fraiseql/ (clean v1 rebuild)                 │
-│         └─ Portfolio: fraiseql-v1/ (interview showcase)         │
+│  All queries: PostgreSQL → Rust Pipeline → HTTP Response   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -46,7 +42,7 @@ fraiseql/                           # Root: Main FraiseQL Framework (v0.11.5)
 
 | Directory | Purpose | For Users? | For Contributors? |
 |-----------|---------|------------|-------------------|
-| `src/` | Main FraiseQL library source code (v0.11.5) | ✅ Install via pip | ✅ Core development |
+| `src/` | Main FraiseQL library source code | ✅ Install via pip | ✅ Core development |
 | `examples/` | 20+ working examples organized by complexity | ✅ Learning & reference | ✅ Testing patterns |
 | `docs/` | Comprehensive documentation and guides | ✅ Learning & reference | ✅ Documentation |
 | `tests/` | Complete test suite with 100% coverage | ❌ | ✅ Quality assurance |
@@ -54,36 +50,31 @@ fraiseql/                           # Root: Main FraiseQL Framework (v0.11.5)
 | `deploy/` | Docker, Kubernetes, and production configs | ✅ Production deployment | ✅ Infrastructure |
 | `grafana/` | Pre-built dashboards for monitoring | ✅ Production monitoring | ✅ Observability |
 | `migrations/` | Database schema evolution scripts | ✅ Database setup | ✅ Schema changes |
-| `fraiseql/` | v1 production rebuild (15-week timeline) | ❌ Experimental | ✅ Future development |
-| `fraiseql_rs/` | Core Rust implementation | ✅ Required base engine | ✅ Performance work |
-| `fraiseql-v1/` | Hiring portfolio showcase (8-week timeline) | ❌ Portfolio | ✅ Interview prep |
+| `fraiseql_rs/` | Core Rust pipeline engine (exclusive execution) | ✅ Required performance engine | ✅ Performance optimization |
 | `archive/` | Historical planning and analysis | ❌ | ❌ Legacy reference |
 | `benchmark_submission/` | Performance benchmarking tools | ❌ | ✅ Performance testing |
 | `templates/` | Project scaffolding templates | ✅ New projects | ✅ Tooling |
 
-## Version Relationships
+## Architecture Components
 
-FraiseQL has multiple implementations with different purposes:
+FraiseQL uses a unified architecture with exclusive Rust pipeline execution:
 
-### **Main Version (Recommended for Users)**
+### **Framework Core**
 - **Location**: Root level (`src/`, `examples/`, `docs/`)
-- **Status**: v0.11.5 - Production stable
-- **Purpose**: Current production-ready framework
-- **Use when**: Building applications today
+- **Status**: Production stable with Rust pipeline
+- **Purpose**: Complete GraphQL framework for building APIs
+- **Execution**: All queries use exclusive Rust pipeline (7-10x faster)
 
-### **Core Components**
-- **`fraiseql_rs/`**: Core Rust implementation (base JSON transformation engine)
-- **Purpose**: Required performance foundation for all FraiseQL operations
-- **Use when**: Always included (automatically installed)
+### **Rust Pipeline Engine**
+- **`fraiseql_rs/`**: Exclusive query execution engine
+- **Purpose**: Core performance component for all operations
+- **Architecture**: PostgreSQL → Rust Transformation → HTTP Response
+- **Installation**: Automatically included with `pip install fraiseql`
 
-### **Future Versions (Not for Production)**
-- **`fraiseql/`**: v1 production rebuild (Week 1/15)
-- **Purpose**: Clean architecture rebuild for enterprise adoption
-- **Use when**: Contributing to v1 development
-
-- **`fraiseql-v1/`**: Hiring portfolio (8 weeks to showcase)
-- **Purpose**: Interview-quality demonstration project
-- **Use when**: Preparing for Staff+ engineering interviews
+### **Supporting Components**
+- **Examples**: 20+ production-ready application patterns
+- **Documentation**: Comprehensive guides and tutorials
+- **Deployment**: Docker, Kubernetes, and monitoring configs
 
 ## Quick Start Guide
 
@@ -157,20 +148,10 @@ FraiseQL has multiple implementations with different purposes:
 
 ### Specialized Directories
 
-**`fraiseql_rs/`** - Core Rust implementation
-- Base JSON transformation engine
-- Required for FraiseQL's performance
+**`fraiseql_rs/`** - Core Rust pipeline engine
+- Exclusive query execution engine (7-10x performance)
+- Transforms PostgreSQL JSONB → HTTP responses
 - Automatically included in standard installation
-
-**`fraiseql/`** - v1 rebuild
-- Clean architecture rewrite
-- Production features built-in
-- 15-week development timeline
-
-**`fraiseql-v1/`** - Portfolio project
-- Interview showcase implementation
-- Trinity identifiers and function-based mutations
-- 8-week timeline to demo-ready
 
 **`archive/`** - Historical reference
 - Old planning documents
@@ -187,7 +168,7 @@ FraiseQL has multiple implementations with different purposes:
 - **Building your first API?** → `docs/quickstart.md` + `examples/todo_xs/`
 - **Learning patterns?** → `examples/` directory with README index
 - **Production deployment?** → `deploy/` + `docs/production/`
-- **Performance optimization?** → `docs/performance/` + `fraiseql_rs/`
+- **Performance optimization?** → `docs/performance/` + `fraiseql_rs/` (Rust pipeline)
 - **Contributing code?** → `src/` + `tests/` + `scripts/`
 - **Understanding architecture?** → `docs/core/fraiseql-philosophy.md`
 

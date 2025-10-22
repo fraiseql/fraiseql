@@ -240,6 +240,18 @@ class FraiseQLConfig(BaseSettings):
     default_mutation_schema: str = "public"  # Default schema for mutations when not specified
     default_query_schema: str = "public"  # Default schema for queries when not specified
 
+    # Coordinate distance calculation method
+    coordinate_distance_method: Literal["postgis", "haversine", "earthdistance"] = "haversine"
+    """Distance calculation method for coordinate filtering.
+
+    - "postgis": Use PostGIS ST_DWithin (most accurate, requires PostGIS extension)
+    - "haversine": Use Haversine formula in pure SQL (good accuracy, no dependencies)
+    - "earthdistance": Use PostgreSQL earthdistance extension (moderate accuracy)
+
+    Default is "haversine" which works without any extensions.
+    For production use with global coordinates, install PostGIS and set to "postgis".
+    """
+
     # Entity routing settings
     entity_routing: Any = None
     """Configuration for entity-aware query routing (optional)."""

@@ -33,8 +33,9 @@ from uuid import UUID
 
 @query
 async def get_user(info, id: UUID) -> User:
-    db = info.context["db"]
-    return await db.find_one("v_user", where={"id": id})
+    repo = info.context["repo"]
+    # Returns RustResponseBytes - automatically processed by exclusive Rust pipeline
+    return await repo.find_one_rust("v_user", "user", info, id=id)
 ```
 
 Query with multiple parameters:
@@ -45,11 +46,12 @@ async def search_users(
     name_filter: str | None = None,
     limit: int = 10
 ) -> list[User]:
-    db = info.context["db"]
+    repo = info.context["repo"]
     filters = {}
     if name_filter:
         filters["name__icontains"] = name_filter
-    return await db.find("v_user", where=filters, limit=limit)
+    # Exclusive Rust pipeline handles camelCase conversion and __typename injection
+    return await repo.find_rust("v_user", "users", info, **filters, limit=limit)
 ```
 
 Query with authentication:
@@ -62,8 +64,9 @@ async def get_my_profile(info) -> User:
     if not user_context:
         raise GraphQLError("Authentication required")
 
-    db = info.context["db"]
-    return await db.find_one("v_user", where={"id": user_context.user_id})
+    repo = info.context["repo"]
+    # Exclusive Rust pipeline works with authentication automatically
+    return await repo.find_one_rust("v_user", "user", info, id=user_context.user_id)
 ```
 
 Query with error handling:
@@ -75,8 +78,9 @@ logger = logging.getLogger(__name__)
 @query
 async def get_post(info, id: UUID) -> Post | None:
     try:
-        db = info.context["db"]
-        return await db.find_one("v_post", where={"id": id})
+        repo = info.context["repo"]
+        # Exclusive Rust pipeline handles JSON processing automatically
+        return await repo.find_one_rust("v_post", "post", info, id=id)
     except Exception as e:
         logger.error(f"Failed to fetch post {id}: {e}")
         return None
@@ -86,9 +90,10 @@ Query using custom repository methods:
 ```python
 @query
 async def get_user_stats(info, user_id: UUID) -> UserStats:
-    db = info.context["db"]
+    repo = info.context["repo"]
     # Custom SQL query for complex aggregations
-    result = await db.execute_raw(
+    # Exclusive Rust pipeline handles result processing automatically
+    result = await repo.execute_raw(
         "SELECT count(*) as post_count FROM posts WHERE user_id = $1",
         user_id
     )
@@ -100,8 +105,9 @@ async def get_user_stats(info, user_id: UUID) -> UserStats:
 - The first parameter is always 'info' (GraphQL resolver info)
 - Return type annotation is used for GraphQL schema generation
 - Use async/await for database operations
-- Access database via `info.context["db"]`
+- Access repository via `info.context["repo"]` (provides exclusive Rust pipeline integration)
 - Access user context via `info.context["user"]` (if authentication enabled)
+- Exclusive Rust pipeline automatically handles camelCase conversion and __typename injection
 
 ## @field Decorator
 
@@ -149,8 +155,8 @@ class User:
 
     @field(description="Posts authored by this user")
     async def posts(self, info) -> list[Post]:
-        db = info.context["db"]
-        return await db.find("v_post", where={"user_id": self.id})
+        repo = info.context["repo"]
+        return await repo.find_rust("v_post", "posts", info, user_id=self.id)
 ```
 
 Field with custom resolver function:
@@ -188,11 +194,11 @@ class User:
         published_only: bool = False,
         limit: int = 10
     ) -> list[Post]:
-        db = info.context["db"]
+        repo = info.context["repo"]
         filters = {"user_id": self.id}
         if published_only:
             filters["status"] = "published"
-        return await db.find("v_post", where=filters, limit=limit)
+        return await repo.find_rust("v_post", "posts", info, **filters, limit=limit)
 ```
 
 Field with authentication/authorization:
@@ -207,8 +213,8 @@ class User:
         if not user_context or user_context.user_id != self.id:
             return None  # Don't expose private data
 
-        db = info.context["db"]
-        return await db.find_one("v_user_settings", where={"user_id": self.id})
+        repo = info.context["repo"]
+        return await repo.find_one_rust("v_user_settings", "settings", info, user_id=self.id)
 ```
 
 Field with caching:
@@ -229,8 +235,8 @@ class Post:
                 return int(cached_count)
 
         # Fallback to database
-        db = info.context["db"]
-        result = await db.execute_raw(
+        repo = info.context["repo"]
+        result = await repo.execute_raw(
             "SELECT count(*) FROM likes WHERE post_id = $1",
             self.id
         )

@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Protocol
+from uuid import UUID
 
 from psycopg.sql import SQL, Composed, Literal
 
@@ -122,6 +123,10 @@ class BaseOperatorStrategy(ABC):
             return Composed([SQL("("), path_sql, SQL(")::timestamp")])
         if isinstance(val, date):
             return Composed([SQL("("), path_sql, SQL(")::date")])
+
+        # Handle UUID values - cast JSONB text to UUID for comparison
+        if isinstance(val, UUID):
+            return Composed([SQL("("), path_sql, SQL(")::uuid")])
 
         return path_sql
 
@@ -485,7 +490,7 @@ class PatternMatchingStrategy(BaseOperatorStrategy):
     """Strategy for pattern matching operators."""
 
     def __init__(self) -> None:
-        super().__init__(["matches", "startswith", "contains", "endswith"])
+        super().__init__(["matches", "startswith", "contains", "endswith", "ilike"])
 
     def build_sql(
         self,
@@ -502,22 +507,32 @@ class PatternMatchingStrategy(BaseOperatorStrategy):
             return Composed([casted_path, SQL(" ~ "), Literal(val)])
         if op == "startswith":
             if isinstance(val, str):
-                # Use LIKE for better performance
-                return Composed([casted_path, SQL(" LIKE "), Literal(val + "%")])
-            return Composed([casted_path, SQL(" ~ "), Literal(str(val) + ".*")])
-        if op == "contains":
-            if isinstance(val, str):
-                # Use LIKE for substring matching
-                # Note: % is already properly handled by psycopg's Literal
-                like_val = f"%{val}%"
+                # Use LIKE for prefix matching
+                # Use %% to escape % for psycopg3
+                like_val = f"{val}%%"
                 return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
-            return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}.*")])
+            return Composed([casted_path, SQL(" ~ "), Literal(f"^{val}.*")])
         if op == "endswith":
             if isinstance(val, str):
                 # Use LIKE for suffix matching
-                like_val = f"%{val}"
+                # Use %% to escape % for psycopg3
+                like_val = f"%%{val}"
                 return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
             return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}$")])
+        if op == "contains":
+            if isinstance(val, str):
+                # Use LIKE for substring matching
+                # Use %% to escape % for psycopg3
+                like_val = f"%%{val}%%"
+                return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
+            return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}.*")])
+        if op == "ilike":
+            if isinstance(val, str):
+                # Use ILIKE for case-insensitive substring matching with automatic wildcards
+                # Use %% to escape % for psycopg3
+                like_val = f"%%{val}%%"
+                return Composed([casted_path, SQL(" ILIKE "), Literal(like_val)])
+            return Composed([casted_path, SQL(" ~* "), Literal(val)])
         raise ValueError(f"Unsupported pattern operator: {op}")
 
 
@@ -1289,6 +1304,193 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
             return False
 
 
+class CoordinateOperatorStrategy(BaseOperatorStrategy):
+    """Strategy for geographic coordinate operators with PostgreSQL POINT type casting.
+
+    Provides comprehensive coordinate filtering operations including exact equality,
+    distance calculations, and PostgreSQL POINT type integration.
+
+    Basic Operations:
+        eq: Exact coordinate equality
+        neq: Coordinate inequality
+        in: Coordinate in list of coordinates
+        notin: Coordinate not in list of coordinates
+
+    Distance Operations:
+        distance_within: Find coordinates within distance (meters) of center point
+    """
+
+    def __init__(self) -> None:
+        super().__init__(["eq", "neq", "in", "notin", "distance_within"])
+
+    def can_handle(self, op: str, field_type: type | None = None) -> bool:
+        """Check if this strategy can handle the given operator.
+
+        Coordinate operators should only be used with Coordinate field types.
+        For Coordinate types, we handle ALL operators to properly restrict unsupported ones.
+        """
+        if op not in self.operators:
+            return False
+
+        # Define coordinate-specific operators that we can safely handle without field type info
+        coordinate_specific_ops = {"distance_within"}
+
+        # If no field type provided, only handle coordinate-specific operators
+        # Generic operators (eq, neq, in, notin) should go to appropriate generic strategies
+        if field_type is None:
+            return op in coordinate_specific_ops
+
+        # For Coordinate types, handle ALL the operators we're configured for
+        # This ensures we can properly restrict the problematic ones
+        return self._is_coordinate_type(field_type)
+
+    def build_sql(
+        self,
+        path_sql: SQL,
+        op: str,
+        val: Any,
+        field_type: type | None = None,
+    ) -> Composed:
+        """Build SQL for coordinate operators with proper PostgreSQL POINT type casting."""
+        # Safety check: if we know the field type and it's NOT a Coordinate, something is wrong
+        if field_type and not self._is_coordinate_type(field_type):
+            raise ValueError(
+                f"Coordinate operator '{op}' can only be used with Coordinate fields, "
+                f"got {field_type}"
+            )
+
+        # For basic operations, cast both sides to point for proper PostgreSQL handling
+        if op in ("eq", "neq", "in", "notin"):
+            casted_path = Composed([SQL("("), path_sql, SQL(")::point")])
+
+            if op == "eq":
+                if not isinstance(val, tuple) or len(val) != 2:
+                    raise TypeError(
+                        f"eq operator requires a coordinate tuple (lat, lng), got {val}"
+                    )
+                lat, lng = val
+                return Composed(
+                    [casted_path, SQL(" = POINT("), Literal(lng), SQL(","), Literal(lat), SQL(")")]
+                )
+
+            if op == "neq":
+                if not isinstance(val, tuple) or len(val) != 2:
+                    raise TypeError(
+                        f"neq operator requires a coordinate tuple (lat, lng), got {val}"
+                    )
+                lat, lng = val
+                return Composed(
+                    [
+                        casted_path,
+                        SQL(" != POINT("),
+                        Literal(lng),
+                        SQL(","),
+                        Literal(lat),
+                        SQL(")"),
+                    ]
+                )
+
+            if op == "in":
+                if not isinstance(val, list):
+                    msg = f"'in' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" IN (")]
+                for i, coord in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    if not isinstance(coord, tuple) or len(coord) != 2:
+                        raise TypeError(
+                            f"in operator requires coordinate tuples (lat, lng), got {coord}"
+                        )
+                    lat, lng = coord
+                    parts.extend([SQL("POINT("), Literal(lng), SQL(","), Literal(lat), SQL(")")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+
+            if op == "notin":
+                if not isinstance(val, list):
+                    msg = f"'notin' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" NOT IN (")]
+                for i, coord in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    if not isinstance(coord, tuple) or len(coord) != 2:
+                        raise TypeError(
+                            f"notin operator requires coordinate tuples (lat, lng), got {coord}"
+                        )
+                    lat, lng = coord
+                    parts.extend([SQL("POINT("), Literal(lng), SQL(","), Literal(lat), SQL(")")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+
+        # For distance operations
+        elif op == "distance_within":
+            # val should be a tuple: (center_coord, distance_meters)
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"distance_within operator requires a tuple "
+                    f"(center_coord, distance_meters), got {val}"
+                )
+
+            center_coord, distance_meters = val
+            if not isinstance(center_coord, tuple) or len(center_coord) != 2:
+                raise TypeError(
+                    f"distance_within center must be a coordinate tuple "
+                    f"(lat, lng), got {center_coord}"
+                )
+            if not isinstance(distance_meters, (int, float)) or distance_meters < 0:
+                raise TypeError(
+                    f"distance_within distance must be a positive number, got {distance_meters}"
+                )
+
+            # Import coordinate distance builders
+            from fraiseql.sql.where.operators.coordinate import (
+                build_coordinate_distance_within_sql,
+                build_coordinate_distance_within_sql_earthdistance,
+                build_coordinate_distance_within_sql_haversine,
+            )
+
+            # Get distance method from environment or use default
+            import os
+
+            method = os.environ.get("FRAISEQL_COORDINATE_DISTANCE_METHOD", "haversine").lower()
+
+            # Build SQL based on configured method
+            if method == "postgis":
+                return build_coordinate_distance_within_sql(path_sql, center_coord, distance_meters)
+            elif method == "earthdistance":
+                return build_coordinate_distance_within_sql_earthdistance(
+                    path_sql, center_coord, distance_meters
+                )
+            elif method == "haversine":
+                return build_coordinate_distance_within_sql_haversine(
+                    path_sql, center_coord, distance_meters
+                )
+            else:
+                raise ValueError(
+                    f"Invalid coordinate_distance_method: '{method}'. "
+                    f"Valid options: 'postgis', 'haversine', 'earthdistance'"
+                )
+
+        raise ValueError(f"Unsupported coordinate operator: {op}")
+
+    def _is_coordinate_type(self, field_type: type) -> bool:
+        """Check if field_type is a Coordinate type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types import Coordinate
+            from fraiseql.types.scalars.coordinates import CoordinateField
+
+            return field_type in (Coordinate, CoordinateField) or (
+                isinstance(field_type, type) and issubclass(field_type, CoordinateField)
+            )
+        except ImportError:
+            return False
+
+
 class NetworkOperatorStrategy(BaseOperatorStrategy):
     """Strategy for network-specific operators with comprehensive IP address classification.
 
@@ -1694,6 +1896,7 @@ class OperatorRegistry:
             NullOperatorStrategy(),
             DateRangeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             LTreeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
+            CoordinateOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             MacAddressOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             NetworkOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             ComparisonOperatorStrategy(),

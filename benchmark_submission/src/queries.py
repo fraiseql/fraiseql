@@ -11,10 +11,8 @@ from uuid import UUID
 import fraiseql
 from fraiseql import Info
 
-from .dataloaders import CommentDataLoader, PostDataLoader, UserDataLoader
 from .db import BenchmarkRepository
 from .models import Comment, OrderBy, Post, User, UserFilter
-
 
 # ==============================================================================
 # SIMPLE QUERIES

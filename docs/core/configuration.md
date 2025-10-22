@@ -180,27 +180,28 @@ config = FraiseQLConfig(
 )
 ```
 
-### Rust Transformation (v0.11.0+)
+### Rust Pipeline (v0.11.5+)
 
-**v0.11.0 Architectural Change**: FraiseQL now uses pure Rust transformation for camelCase field conversion. The PostgreSQL CamelForge function is no longer required or used.
+**v0.11.5 Architectural Change**: FraiseQL now uses an exclusive Rust pipeline for all query execution. No mode detection or conditional logic.
 
 **Benefits**:
-- ✅ **No database function required** - Simpler deployment
-- ✅ **Zero configuration** - Works automatically
-- ✅ **10-80x faster** - Same performance gains as before
-- ✅ **Automatic** - All queries get camelCase transformation
+- ✅ **Single execution path** - PostgreSQL → Rust → HTTP
+- ✅ **7-10x faster JSON transformation** - Zero Python overhead
+- ✅ **Always active** - No configuration needed
+- ✅ **Automatic camelCase** - snake_case → camelCase conversion
+- ✅ **Built-in __typename** - Automatic GraphQL type injection
 
-The transformation happens automatically in `raw_json_executor.py` after retrieving data from PostgreSQL. No configuration needed.
+All queries execute through the Rust pipeline automatically. The old multi-mode execution system (NORMAL, PASSTHROUGH, TURBO) has been removed.
 
 ```python
-# v0.11.0+ - No CamelForge config needed!
+# v0.11.5+ - Exclusive Rust pipeline
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
-    jsonb_field_limit_threshold=20,  # Only this parameter needed for JSONB optimization
+    # Rust pipeline always active, minimal config needed
 )
 ```
 
-**Migration from v0.10.x**: If you were using `camelforge_function` or `camelforge_field_threshold` parameters, simply remove them from your `FraiseQLConfig`. See the [v0.11.0 Migration Guide](../migration-guides/v0.11.0.md) for details.
+**Migration from v0.11.4 and earlier**: Remove all execution mode configuration. See the [Multi-Mode to Rust Pipeline Migration Guide](../migration-guides/multi-mode-to-rust-pipeline.md) for details.
 
 ## Authentication Settings
 
@@ -361,26 +362,20 @@ config = FraiseQLConfig(
 | revocation_cleanup_interval | int | 3600 | Cleanup interval (1 hour) |
 | revocation_store_type | str | "memory" | Storage type (memory/redis) |
 
-## Execution Mode Settings
+## Rust Pipeline Configuration
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| execution_mode_priority | list[str] | ["turbo", "passthrough", "normal"] | Execution mode priority order |
-| unified_executor_enabled | bool | True | Enable unified executor |
-| include_execution_metadata | bool | False | Include mode and timing in response |
-| execution_timeout_ms | int | 30000 | Execution timeout in milliseconds |
-| enable_mode_hints | bool | True | Enable mode hints in queries |
-| mode_hint_pattern | str | r"#\s*@mode:\s*(\w+)" | Regex pattern for mode hints |
+FraiseQL uses an exclusive Rust pipeline for all query execution.
 
-**Examples**:
+### Configuration Options:
+- `field_projection: bool = True` - Enable Rust-based field filtering
+- `schema_registry: bool = True` - Enable schema-based transformation
+
+### Example:
 ```python
-# Custom execution priority
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
-    execution_mode_priority=["passthrough", "turbo", "normal"],
-    unified_executor_enabled=True,
-    include_execution_metadata=True,  # Add timing info to responses
-    execution_timeout_ms=15000  # 15 second timeout
+    # Rust pipeline is always active
+    field_projection=True,  # Optional: disable for debugging
 )
 ```
 

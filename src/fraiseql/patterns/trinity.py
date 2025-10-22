@@ -23,8 +23,7 @@ Usage:
         # It's stored as pk_{entity} and hidden from GraphQL
 """
 
-from typing import TypeVar, ClassVar
-from uuid import UUID
+from typing import ClassVar, TypeVar
 
 
 class TrinityMixin:
@@ -140,14 +139,12 @@ def get_identifier_from_slug(slug: str) -> str:
     slug = slug.strip()
 
     # Remove leading @ if present
-    if slug.startswith("@"):
-        slug = slug[1:]
+    slug = slug.removeprefix("@")
 
     # Extract last segment if it's a path
     if "/" in slug:
         slug = slug.split("/")[-1]
-        if slug.startswith("@"):
-            slug = slug[1:]
+        slug = slug.removeprefix("@")
 
     # Lowercase and strip any remaining whitespace
     return slug.lower().strip()

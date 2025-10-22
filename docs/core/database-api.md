@@ -11,11 +11,60 @@ FraiseQL provides a repository layer for database operations that:
 - Supports dynamic filtering with operators
 - Handles pagination and ordering
 - Provides tenant isolation
-- Returns type-safe results
+- Returns RustResponseBytes for automatic GraphQL processing
 
-## PsycopgRepository
+## FraiseQLRepository
 
-Core repository class for async database operations.
+Core repository class for async database operations with exclusive Rust pipeline integration.
+
+### Key Methods
+
+#### find_rust(view_name, field_name, info, **kwargs)
+Execute query using exclusive Rust pipeline and return RustResponseBytes.
+
+**Fastest method** - PostgreSQL → Rust → HTTP with zero Python string operations.
+
+```python
+# Exclusive Rust pipeline methods:
+users = await repo.find_rust("v_user", "users", info)
+user = await repo.find_one_rust("v_user", "user", info, id=123)
+filtered = await repo.find_rust("v_user", "users", info, age__gt=18)
+```
+
+**Parameters:**
+- `view_name: str` - Database view name (e.g., "v_user")
+- `field_name: str` - GraphQL field name for response wrapping
+- `info: Any` - GraphQL resolver info for field paths
+- `**kwargs` - Filter parameters and options
+
+**Returns:** `RustResponseBytes` - Pre-serialized GraphQL response ready for HTTP
+
+#### find_one_rust(view_name, field_name, info, **kwargs)
+Execute single-result query using exclusive Rust pipeline.
+
+**Parameters:**
+- `view_name: str` - Database view name
+- `field_name: str` - GraphQL field name for response wrapping
+- `info: Any` - GraphQL resolver info for field paths
+- `**kwargs` - Filter parameters
+
+**Returns:** `RustResponseBytes` - Single result as GraphQL response
+
+#### find(source, where=None, **kwargs)
+Execute query and return Python objects.
+
+```python
+# Direct database access (bypasses Rust pipeline)
+users = await repo.find("v_user")
+user = await repo.find_one("v_user", id=123)
+```
+
+**Parameters:**
+- `source: str` - View name (e.g., "v_user")
+- `where: dict` - WHERE clause filters (optional)
+- `**kwargs` - Additional filters
+
+**Returns:** Python objects (slower path)
 
 ### Initialization
 
@@ -322,6 +371,172 @@ options = QueryOptions(
 #      AND in_stock = TRUE
 #      AND vendor IN ('vendor-a', 'vendor-b')
 ```
+
+## Nested Object Filtering
+
+FraiseQL v0.11.6+ supports filtering on nested objects stored in JSONB columns.
+
+### Basic Nested Filter
+
+Filter on nested JSONB objects using dot notation:
+
+```python
+# Dictionary-based filtering
+where = {
+    "machine": {
+        "name": {"eq": "Server-01"}
+    }
+}
+results = await repo.find("allocations", where=where)
+# SQL: WHERE data->'machine'->>'name' = 'Server-01'
+```
+
+### Multiple Nesting Levels
+
+```python
+where = {
+    "location": {
+        "address": {
+            "city": {"eq": "Seattle"}
+        }
+    }
+}
+# SQL: WHERE data->'location'->'address'->>'city' = 'Seattle'
+```
+
+### Combined Filters
+
+Mix flat and nested filters:
+
+```python
+where = {
+    "status": {"eq": "active"},
+    "machine": {
+        "type": {"eq": "Server"},
+        "power": {"gte": 100}
+    }
+}
+# SQL: WHERE data->>'status' = 'active'
+#      AND data->'machine'->>'type' = 'Server'
+#      AND data->'machine'->>'power' >= 100
+```
+
+### GraphQL WhereInput Objects
+
+Use generated WhereInput types for type-safe filtering:
+
+```python
+from fraiseql.sql import create_graphql_where_input
+
+MachineWhereInput = create_graphql_where_input(Machine)
+AllocationWhereInput = create_graphql_where_input(Allocation)
+
+where = AllocationWhereInput(
+    machine=MachineWhereInput(
+        name=StringFilter(eq="Server-01")
+    )
+)
+results = await repo.find("allocations", where=where)
+```
+
+### Supported Operators
+
+All standard operators work with nested objects:
+- `eq`, `neq` - equality/inequality
+- `gt`, `gte`, `lt`, `lte` - comparisons
+- `in`, `notin` - list membership
+- `contains`, `startswith`, `endswith` - string patterns
+- `is_null` - null checks
+
+## Coordinate Filtering
+
+FraiseQL v0.11.6+ supports geographic coordinate filtering with PostgreSQL POINT type casting.
+
+### Basic Coordinate Equality
+
+Filter by exact coordinate match:
+
+```python
+# Dictionary-based filtering
+where = {
+    "coordinates": {"eq": (45.5, -122.6)}  # (latitude, longitude)
+}
+results = await repo.find("locations", where=where)
+# SQL: WHERE (data->>'coordinates')::point = POINT(-122.6, 45.5)
+```
+
+### Coordinate List Operations
+
+Check if coordinates are in a list:
+
+```python
+where = {
+    "coordinates": {"in": [
+        (45.5, -122.6),  # Seattle
+        (47.6097, -122.3425),  # Pike Place
+        (40.7128, -74.0060)  # NYC
+    ]}
+}
+# SQL: WHERE (data->>'coordinates')::point IN (POINT(-122.6, 45.5), ...)
+```
+
+### Distance-Based Filtering
+
+Find locations within distance:
+
+```python
+where = {
+    "coordinates": {
+        "distance_within": ((45.5, -122.6), 5000)  # Center point, radius in meters
+    }
+}
+```
+
+FraiseQL supports three distance calculation methods:
+
+1. **Haversine Formula** (default, no dependencies)
+   - Pure SQL implementation using great-circle distance
+   - Accuracy: ±0.5% for distances < 1000km
+   - Works with standard PostgreSQL
+
+2. **PostGIS ST_DWithin** (most accurate)
+   - Geodesic distance on spheroid model
+   - Accuracy: ±0.1% at any distance
+   - Requires: `CREATE EXTENSION postgis;`
+
+3. **earthdistance** (moderate accuracy)
+   - PostgreSQL earthdistance extension
+   - Accuracy: ±1-2%
+   - Requires: `CREATE EXTENSION earthdistance;`
+
+#### Configuration
+
+Set the distance method in your config:
+
+```python
+from fraiseql.fastapi import FraiseQLConfig
+
+config = FraiseQLConfig(
+    database_url="postgresql://...",
+    coordinate_distance_method="haversine"  # default
+    # or "postgis" for production
+    # or "earthdistance" for legacy systems
+)
+```
+
+Or via environment variable:
+
+```bash
+export FRAISEQL_COORDINATE_DISTANCE_METHOD=postgis
+```
+
+### Coordinate Operators
+
+- `eq`, `neq` - exact coordinate equality
+- `in`, `notin` - coordinate list membership
+- `distance_within` - distance-based filtering
+
+**Note**: Coordinates are stored as `(latitude, longitude)` tuples but converted to PostgreSQL `POINT(longitude, latitude)` for spatial operations.
 
 ## Pagination
 
@@ -717,6 +932,7 @@ for order in data:
 
 ## See Also
 
+- [Queries & Mutations](queries-and-mutations.md) - Using repository methods in GraphQL resolvers
 - [Database Patterns](../advanced/database-patterns.md) - View design and N+1 prevention
 - [Performance](../performance/index.md) - Query optimization
 - [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation patterns

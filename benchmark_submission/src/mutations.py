@@ -32,7 +32,7 @@ async def create_user(info: Info, input: CreateUserInput) -> CreateUserResult:
         user = await db.get_user_with_posts(user_data["id"])
 
         # Convert to User object with posts
-        from .models import User, Post
+        from .models import Post, User
 
         user_obj = User(**user_data)
         user_obj.posts = [Post(**post_data) for post_data in user.get("posts", [])]
@@ -40,7 +40,7 @@ async def create_user(info: Info, input: CreateUserInput) -> CreateUserResult:
         return CreateUserResult(success=True, user=user_obj, message="User created successfully")
     except Exception as e:
         return CreateUserResult(
-            success=False, user=None, message=f"Failed to create user: {str(e)}"
+            success=False, user=None, message=f"Failed to create user: {e!s}"
         )
 
 
@@ -60,7 +60,7 @@ async def update_user(info: Info, id: UUID, input: UpdateUserInput) -> UpdateUse
         user = await db.get_user_with_posts(id)
 
         # Convert to User object with posts
-        from .models import User, Post
+        from .models import Post, User
 
         user_obj = User(**updated_data)
         user_obj.posts = [Post(**post_data) for post_data in user.get("posts", [])]
@@ -68,7 +68,7 @@ async def update_user(info: Info, id: UUID, input: UpdateUserInput) -> UpdateUse
         return UpdateUserResult(success=True, user=user_obj, message="User updated successfully")
     except Exception as e:
         return UpdateUserResult(
-            success=False, user=None, message=f"Failed to update user: {str(e)}"
+            success=False, user=None, message=f"Failed to update user: {e!s}"
         )
 
 
@@ -88,7 +88,7 @@ async def delete_user(info: Info, id: UUID) -> DeleteUserResult:
 
         return DeleteUserResult(success=True, message="User deleted successfully")
     except Exception as e:
-        return DeleteUserResult(success=False, message=f"Failed to delete user: {str(e)}")
+        return DeleteUserResult(success=False, message=f"Failed to delete user: {e!s}")
 
 
 @fraiseql.mutation
@@ -106,7 +106,7 @@ async def create_post(info: Info, input: CreatePostInput) -> CreatePostResult:
         post = await db.get_post_with_author_and_comments(post_data["id"])
 
         # Convert to Post object with nested data
-        from .models import Post, User, Comment
+        from .models import Comment, Post, User
 
         post_obj = Post(**post_data)
         post_obj.author = User(**post.get("author", {}))
@@ -115,5 +115,5 @@ async def create_post(info: Info, input: CreatePostInput) -> CreatePostResult:
         return CreatePostResult(success=True, post=post_obj, message="Post created successfully")
     except Exception as e:
         return CreatePostResult(
-            success=False, post=None, message=f"Failed to create post: {str(e)}"
+            success=False, post=None, message=f"Failed to create post: {e!s}"
         )

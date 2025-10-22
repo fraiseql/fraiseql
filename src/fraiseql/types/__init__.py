@@ -34,6 +34,7 @@ from .fraise_input import fraise_input
 from .fraise_type import fraise_type
 from .generic import Connection, Edge, PageInfo, PaginatedResponse, create_connection
 from .scalars.cidr import CIDRField as CIDR  # noqa: N814
+from .scalars.coordinates import CoordinateField as Coordinate
 from .scalars.date import DateField as Date
 from .scalars.daterange import DateRangeField as DateRange
 from .scalars.datetime import DateTimeField as DateTime
@@ -56,6 +57,7 @@ __all__ = [
     "JSON",
     "UUID",
     "Connection",
+    "Coordinate",
     "Date",
     "DateRange",
     "DateRangeValidatable",

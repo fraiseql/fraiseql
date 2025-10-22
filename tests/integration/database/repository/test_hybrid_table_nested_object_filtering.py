@@ -18,11 +18,13 @@ from tests.fixtures.database.database_conftest import *  # noqa: F403
 import fraiseql
 from fraiseql.db import FraiseQLRepository, register_type_for_view
 from fraiseql.sql import create_graphql_where_input, UUIDFilter
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 @fraiseql.type
 class Machine:
     """Machine type with just the essentials."""
+
     id: uuid.UUID
     name: str
 
@@ -30,6 +32,7 @@ class Machine:
 @fraiseql.type
 class Location:
     """Location type for testing."""
+
     id: uuid.UUID
     name: str
 
@@ -37,6 +40,7 @@ class Location:
 @fraiseql.type(sql_source="tv_allocation")
 class Allocation:
     """Allocation type representing a hybrid table with both SQL columns and JSONB."""
+
     id: uuid.UUID
     machine: Machine | None  # Nested object from JSONB
     location: Location | None  # Another nested object from JSONB
@@ -70,8 +74,12 @@ class TestHybridTableNestedObjectFiltering:
             await conn.execute("DELETE FROM tv_allocation")
 
             # Test data setup
-            machine1_id = uuid.UUID('01513100-0000-0000-0000-000000000066')  # Machine with 0 allocations
-            machine2_id = uuid.UUID('02513100-0000-0000-0000-000000000077')  # Machine with allocations
+            machine1_id = uuid.UUID(
+                "01513100-0000-0000-0000-000000000066"
+            )  # Machine with 0 allocations
+            machine2_id = uuid.UUID(
+                "02513100-0000-0000-0000-000000000077"
+            )  # Machine with allocations
             location1_id = uuid.uuid4()
 
             # Insert allocations - matching the issue where machine1 has 0 allocations
@@ -86,8 +94,8 @@ class TestHybridTableNestedObjectFiltering:
                         "id": str(uuid.uuid4()),
                         "machine": {"id": str(machine2_id), "name": "Machine 2"},
                         "location": {"id": str(location1_id), "name": "Location 1"},
-                        "status": "active"
-                    }
+                        "status": "active",
+                    },
                 },
                 {
                     "id": uuid.uuid4(),
@@ -98,8 +106,8 @@ class TestHybridTableNestedObjectFiltering:
                         "id": str(uuid.uuid4()),
                         "machine": {"id": str(machine2_id), "name": "Machine 2"},
                         "location": {"id": str(location1_id), "name": "Location 1"},
-                        "status": "active"
-                    }
+                        "status": "active",
+                    },
                 },
                 # 1 allocation with no machine (NULL)
                 {
@@ -111,12 +119,13 @@ class TestHybridTableNestedObjectFiltering:
                         "id": str(uuid.uuid4()),
                         "machine": None,
                         "location": {"id": str(location1_id), "name": "Location 1"},
-                        "status": "pending"
-                    }
-                }
+                        "status": "pending",
+                    },
+                },
             ]
 
             import json
+
             async with conn.cursor() as cursor:
                 for alloc in allocations:
                     await cursor.execute(
@@ -129,8 +138,8 @@ class TestHybridTableNestedObjectFiltering:
                             alloc["machine_id"],
                             alloc["location_id"],
                             alloc["status"],
-                            json.dumps(alloc["data"])
-                        )
+                            json.dumps(alloc["data"]),
+                        ),
                     )
             await conn.commit()
 
@@ -138,15 +147,13 @@ class TestHybridTableNestedObjectFiltering:
             async with conn.cursor() as cursor:
                 # Machine 1 should have 0 allocations
                 await cursor.execute(
-                    "SELECT COUNT(*) FROM tv_allocation WHERE machine_id = %s",
-                    (machine1_id,)
+                    "SELECT COUNT(*) FROM tv_allocation WHERE machine_id = %s", (machine1_id,)
                 )
                 machine1_count = (await cursor.fetchone())[0]
 
                 # Machine 2 should have 2 allocations
                 await cursor.execute(
-                    "SELECT COUNT(*) FROM tv_allocation WHERE machine_id = %s",
-                    (machine2_id,)
+                    "SELECT COUNT(*) FROM tv_allocation WHERE machine_id = %s", (machine2_id,)
                 )
                 machine2_count = (await cursor.fetchone())[0]
 
@@ -163,7 +170,9 @@ class TestHybridTableNestedObjectFiltering:
                 }
 
     @pytest.mark.asyncio
-    async def test_nested_object_filter_on_hybrid_table(self, db_pool, setup_hybrid_allocation_table):
+    async def test_nested_object_filter_on_hybrid_table(
+        self, db_pool, setup_hybrid_allocation_table
+    ):
         """Test the exact scenario from the issue: nested machine.id filtering.
 
         This should use the SQL column machine_id for efficient filtering,
@@ -186,13 +195,14 @@ class TestHybridTableNestedObjectFiltering:
 
         # Filter for machine1 which has 0 allocations
         where = AllocationWhereInput(
-            machine=MachineWhereInput(
-                id=UUIDFilter(eq=test_data["machine1_id"])
-            )
+            machine=MachineWhereInput(id=UUIDFilter(eq=test_data["machine1_id"]))
         )
 
         # This should return 0 records but currently fails
-        results = await repo.find("tv_allocation", where=where)
+        result = await repo.find("tv_allocation", where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "tv_allocation")
 
         # EXPECTED: 0 allocations for machine1
         # ACTUAL (BUG): Returns incorrect number due to "Unsupported operator: id" error
@@ -220,12 +230,13 @@ class TestHybridTableNestedObjectFiltering:
 
         # Filter for machine2 which has 2 allocations
         where = AllocationWhereInput(
-            machine=MachineWhereInput(
-                id=UUIDFilter(eq=test_data["machine2_id"])
-            )
+            machine=MachineWhereInput(id=UUIDFilter(eq=test_data["machine2_id"]))
         )
 
-        results = await repo.find("tv_allocation", where=where)
+        result = await repo.find("tv_allocation", where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "tv_allocation")
 
         assert len(results) == test_data["machine2_allocations"], (
             f"Expected {test_data['machine2_allocations']} allocations for machine2, "
@@ -242,13 +253,11 @@ class TestHybridTableNestedObjectFiltering:
                 # Test that SQL column filtering works
                 await cursor.execute(
                     "SELECT id FROM tv_allocation WHERE machine_id = %s",
-                    (test_data["machine1_id"],)
+                    (test_data["machine1_id"],),
                 )
                 sql_results = await cursor.fetchall()
 
-                assert len(sql_results) == 0, (
-                    "Direct SQL confirms machine1 has 0 allocations"
-                )
+                assert len(sql_results) == 0, "Direct SQL confirms machine1 has 0 allocations"
 
                 # Test JSONB path filtering (what FraiseQL might incorrectly try)
                 await cursor.execute(
@@ -256,13 +265,11 @@ class TestHybridTableNestedObjectFiltering:
                     SELECT id FROM tv_allocation
                     WHERE data->'machine'->>'id' = %s
                     """,
-                    (str(test_data["machine1_id"]),)
+                    (str(test_data["machine1_id"]),),
                 )
                 jsonb_results = await cursor.fetchall()
 
-                assert len(jsonb_results) == 0, (
-                    "JSONB path filtering also confirms 0 allocations"
-                )
+                assert len(jsonb_results) == 0, "JSONB path filtering also confirms 0 allocations"
 
     @pytest.mark.asyncio
     async def test_multiple_nested_object_filters(self, db_pool, setup_hybrid_allocation_table):
@@ -283,13 +290,14 @@ class TestHybridTableNestedObjectFiltering:
 
         # Complex filter with both machine and location nested filters
         where = AllocationWhereInput(
-            machine=MachineWhereInput(
-                id=UUIDFilter(eq=test_data["machine2_id"])
-            ),
+            machine=MachineWhereInput(id=UUIDFilter(eq=test_data["machine2_id"])),
             # Could also add location filter here
         )
 
-        results = await repo.find("tv_allocation", where=where)
+        result = await repo.find("tv_allocation", where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "tv_allocation")
 
         # Should work for complex nested filtering too
         assert len(results) == test_data["machine2_allocations"]
@@ -308,14 +316,11 @@ class TestHybridTableNestedObjectFiltering:
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
 
         # Dictionary-based filter that might come from GraphQL
-        where = {
-            "machine": {
-                "id": {"eq": test_data["machine1_id"]}
-            }
-        }
+        where = {"machine": {"id": {"eq": test_data["machine1_id"]}}}
 
         # This pattern should also work correctly
-        results = await repo.find("tv_allocation", where=where)
+        result = await repo.find("tv_allocation", where=where)
+        results = extract_graphql_data(result, "tv_allocation")
 
         assert len(results) == test_data["machine1_allocations"], (
             f"Dict-based nested filter failed. Expected {test_data['machine1_allocations']}, "

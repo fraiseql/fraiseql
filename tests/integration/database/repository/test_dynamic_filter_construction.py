@@ -18,6 +18,7 @@ pytestmark = pytest.mark.database
 from tests.fixtures.database.database_conftest import *  # noqa: F403
 
 from fraiseql.db import FraiseQLRepository, register_type_for_view
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 
 @pytest.mark.asyncio
@@ -33,6 +34,7 @@ class TestDynamicFilterConstruction:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS test_allocation (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    data JSONB NOT NULL,
                     name TEXT NOT NULL,
                     is_current BOOLEAN NOT NULL DEFAULT false,
                     tenant_id UUID NOT NULL,
@@ -51,20 +53,28 @@ class TestDynamicFilterConstruction:
             # Insert 10 current allocations and 15 past allocations
             for i in range(25):
                 is_current = i < 10  # First 10 are current
-                test_data.append((
-                    f"Allocation {i+1}",
-                    is_current,
-                    tenant_id,
-                    Decimal(100 + i * 10)
-                ))
+                test_data.append(
+                    (f"Allocation {i + 1}", is_current, tenant_id, Decimal(100 + i * 10))
+                )
 
             async with conn.cursor() as cursor:
                 await cursor.executemany(
                     """
-                    INSERT INTO test_allocation (name, is_current, tenant_id, quantity)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO test_allocation (name, is_current, tenant_id, quantity, data)
+                    VALUES (
+                        %s, %s, %s, %s,
+                        jsonb_build_object(
+                            'name', %s::text,
+                            'is_current', %s::boolean,
+                            'tenant_id', %s::text,
+                            'quantity', %s::numeric
+                        )
+                    )
                     """,
-                    test_data
+                    [
+                        (name, is_curr, tid, qty, name, is_curr, tid, float(qty))
+                        for name, is_curr, tid, qty in test_data
+                    ],
                 )
             await conn.commit()
 
@@ -82,19 +92,17 @@ class TestDynamicFilterConstruction:
             where["is_current"] = {"eq": True}
 
         # This should return only current allocations (10 items)
-        results = await repo.find(
-            "test_allocation",
-            tenant_id=tenant_id,
-            where=where,
-            limit=100
-        )
+        result = await repo.find("test_allocation", tenant_id=tenant_id, where=where, limit=100)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "test_allocation")
 
         # Verify the filter was applied
         assert len(results) == 10, f"Expected 10 current allocations, got {len(results)}"
 
         # Check if results are dicts (development mode)
         for r in results:
-            assert r["is_current"] is True, f"Result has is_current={r['is_current']}, expected True"
+            assert r["isCurrent"] is True, f"Result has isCurrent={r['isCurrent']}, expected True"
 
     async def test_merged_dict_filters(self, db_pool):
         """Test merging multiple dynamic filters into a where clause."""
@@ -105,6 +113,7 @@ class TestDynamicFilterConstruction:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS test_product (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    data JSONB NOT NULL,
                     name TEXT NOT NULL,
                     category TEXT NOT NULL,
                     price NUMERIC(10, 2) NOT NULL,
@@ -132,16 +141,37 @@ class TestDynamicFilterConstruction:
                 for name, category, price, is_active in products:
                     await cursor.execute(
                         """
-                        INSERT INTO test_product (name, category, price, is_active, tenant_id)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO test_product (name, category, price, is_active, tenant_id, data)
+                        VALUES (
+                            %s, %s, %s, %s, %s,
+                            jsonb_build_object(
+                                'name', %s::text,
+                                'category', %s::text,
+                                'price', %s::numeric,
+                                'is_active', %s::boolean,
+                                'tenant_id', %s::text
+                            )
+                        )
                         """,
-                        (name, category, price, is_active, tenant_id)
+                        (
+                            name,
+                            category,
+                            price,
+                            is_active,
+                            tenant_id,
+                            name,
+                            category,
+                            float(price),
+                            is_active,
+                            tenant_id,
+                        ),
                     )
             await conn.commit()
 
         # Register type for development mode
         class TestProduct:
             pass
+
         register_type_for_view("test_product", TestProduct)
 
         repo = FraiseQLRepository(db_pool, context={"mode": "production"})
@@ -167,18 +197,17 @@ class TestDynamicFilterConstruction:
             where["is_active"] = {"eq": True}
 
         # Execute query with dynamic filters
-        results = await repo.find(
-            "test_product",
-            tenant_id=tenant_id,
-            where=where
-        )
+        result = await repo.find("test_product", tenant_id=tenant_id, where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "test_product")
 
         # Should return only Widget B (electronics, price >= 100, active)
         assert len(results) == 1, f"Expected 1 product, got {len(results)}"
         assert results[0]["name"] == "Widget B"
         assert results[0]["category"] == "electronics"
         assert float(results[0]["price"]) == 149.99
-        assert results[0]["is_active"] is True
+        assert results[0]["isActive"] is True
 
     async def test_empty_dict_where_to_populated(self, db_pool):
         """Test that starting with empty dict and populating it works."""
@@ -188,6 +217,7 @@ class TestDynamicFilterConstruction:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS test_items (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    data JSONB NOT NULL,
                     name TEXT NOT NULL,
                     status TEXT NOT NULL,
                     tenant_id UUID NOT NULL
@@ -210,16 +240,24 @@ class TestDynamicFilterConstruction:
                 for name, status in items:
                     await cursor.execute(
                         """
-                        INSERT INTO test_items (name, status, tenant_id)
-                        VALUES (%s, %s, %s)
+                        INSERT INTO test_items (name, status, tenant_id, data)
+                        VALUES (
+                            %s, %s, %s,
+                            jsonb_build_object(
+                                'name', %s::text,
+                                'status', %s::text,
+                                'tenant_id', %s::text
+                            )
+                        )
                         """,
-                        (name, status, tenant_id)
+                        (name, status, tenant_id, name, status, tenant_id),
                     )
             await conn.commit()
 
         # Register type for development mode
         class TestItem:
             pass
+
         register_type_for_view("test_items", TestItem)
 
         repo = FraiseQLRepository(db_pool, context={"mode": "production"})
@@ -232,11 +270,10 @@ class TestDynamicFilterConstruction:
         if filter_status:
             where["status"] = {"eq": filter_status}
 
-        results = await repo.find(
-            "test_items",
-            tenant_id=tenant_id,
-            where=where
-        )
+        result = await repo.find("test_items", tenant_id=tenant_id, where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "test_items")
 
         # Should return only active items
         assert len(results) == 2, f"Expected 2 active items, got {len(results)}"
@@ -250,6 +287,7 @@ class TestDynamicFilterConstruction:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS test_events (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    data JSONB NOT NULL,
                     title TEXT NOT NULL,
                     description TEXT,
                     attendees INTEGER NOT NULL,
@@ -273,16 +311,25 @@ class TestDynamicFilterConstruction:
                 for title, desc, attendees in events:
                     await cursor.execute(
                         """
-                        INSERT INTO test_events (title, description, attendees, tenant_id)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO test_events (title, description, attendees, tenant_id, data)
+                        VALUES (
+                            %s, %s, %s, %s,
+                            jsonb_build_object(
+                                'title', %s::text,
+                                'description', %s::text,
+                                'attendees', %s::integer,
+                                'tenant_id', %s::text
+                            )
+                        )
                         """,
-                        (title, desc, attendees, tenant_id)
+                        (title, desc, attendees, tenant_id, title, desc, attendees, tenant_id),
                     )
             await conn.commit()
 
         # Register type for development mode
         class TestEvent:
             pass
+
         register_type_for_view("test_events", TestEvent)
 
         repo = FraiseQLRepository(db_pool, context={"mode": "production"})
@@ -293,21 +340,17 @@ class TestDynamicFilterConstruction:
         # Add text search filter
         search_term = "meeting"
         if search_term:
-            where["title"] = {"ilike": f"%{search_term}%"}
+            where["title"] = {"ilike": search_term}
 
         # Add range filter with multiple operators
         min_attendees = 10
         max_attendees = 100
-        where["attendees"] = {
-            "gte": min_attendees,
-            "lte": max_attendees
-        }
+        where["attendees"] = {"gte": min_attendees, "lte": max_attendees}
 
-        results = await repo.find(
-            "test_events",
-            tenant_id=tenant_id,
-            where=where
-        )
+        result = await repo.find("test_events", tenant_id=tenant_id, where=where)
+
+        # Extract data from RustResponseBytes
+        results = extract_graphql_data(result, "test_events")
 
         # Should return Department Meeting (title contains "meeting", 20 attendees in range)
         assert len(results) == 1, f"Expected 1 event, got {len(results)}"

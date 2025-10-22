@@ -45,7 +45,8 @@ class RouterConfig:
 def _parse_rust_response(result):
     """Helper to parse RustResponseBytes into Python objects."""
     if isinstance(result, RustResponseBytes):
-        response_json = json.loads(bytes(result).decode("utf-8"))
+        raw_json_str = bytes(result).decode("utf-8")
+        response_json = json.loads(raw_json_str)
         # Extract data from GraphQL response structure
         if "data" in response_json:
             # Get the first key in data (the field name)
@@ -185,9 +186,6 @@ class TestDictWhereMixedFiltersBug:
             await conn.execute("DROP TABLE IF EXISTS test_machines")
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(
-        reason="Rust pipeline has bug with nested object JSON generation - missing closing brace for data object"
-    )
     async def test_dict_where_with_nested_filter_only(self, db_pool, setup_test_tables):
         """Test dict WHERE with only nested object filter works correctly."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
@@ -204,7 +202,6 @@ class TestDictWhereMixedFiltersBug:
         assert all(str(r["machineId"]) == str(machine_1_id) for r in results)
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Rust pipeline has JSON generation bug - malformed JSON output")
     async def test_dict_where_with_direct_filter_only(self, db_pool, setup_test_tables):
         """Test dict WHERE with only direct field filter works correctly."""
         repo = FraiseQLRepository(db_pool, context={"mode": "development"})
@@ -220,7 +217,6 @@ class TestDictWhereMixedFiltersBug:
         assert all(r["isCurrent"] is True for r in results)
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Rust pipeline has JSON generation bug - malformed JSON output")
     async def test_dict_where_with_mixed_nested_and_direct_filters_BUG(
         self, db_pool, setup_test_tables
     ):
@@ -258,7 +254,6 @@ class TestDictWhereMixedFiltersBug:
         assert results[0]["configName"] == "config-v2"
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Rust pipeline has JSON generation bug - malformed JSON output")
     async def test_dict_where_with_multiple_direct_filters_after_nested(
         self, db_pool, setup_test_tables
     ):
@@ -291,7 +286,6 @@ class TestDictWhereMixedFiltersBug:
         assert results[0]["configName"] == "config-v2"
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Rust pipeline has JSON generation bug - malformed JSON output")
     async def test_dict_where_with_direct_filter_before_nested(self, db_pool, setup_test_tables):
         """
         Test dict WHERE with direct filter BEFORE nested filter.

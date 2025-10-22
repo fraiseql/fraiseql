@@ -336,11 +336,8 @@ async def user(info, id: int) -> User:
 ### FraiseQL Optimization Layers
 | Optimization Stack | Response Time | Use Case |
 |-------------------|---------------|----------|
-| **All Layers** (APQ + TurboRouter + Passthrough + Rust) | **0.5-2ms** | High-performance production |
-| **APQ + TurboRouter** | 1-5ms | Enterprise applications |
-| **APQ + Passthrough** | 1-10ms | Modern web applications |
-| **TurboRouter Only** | 5-25ms | API-focused applications |
-| **Standard Mode** | 25-100ms | Development & complex queries |
+| **Rust Pipeline + APQ** | **0.5-2ms** | Production applications |
+| **Rust Pipeline only** | **1-5ms** | Development & testing |
 
 *Real production benchmarks with PostgreSQL 15, 10k+ records*
 
@@ -356,19 +353,19 @@ FraiseQL's **Rust-first** architecture delivers exceptional performance through 
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                  ↓
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   APQ Hash      │ →  │   Storage        │ →  │   JSON          │
-│   (SHA-256)     │    │   Backend        │    │   Passthrough   │
+│   APQ Hash      │ →  │   Storage        │ →  │   HTTP          │
+│   (SHA-256)     │    │   Backend        │    │   Response      │
 │                 │    │   Memory/PG      │    │   (0.5-2ms)     │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
     Optional Cache         FraiseQL Cache         Instant Response
 ```
 
 ### **Key Innovations**
-1. **Unified Execution Path**: PostgreSQL → Rust → HTTP (no branching logic)
+1. **Exclusive Rust Pipeline**: PostgreSQL → Rust → HTTP (no Python overhead)
 2. **Rust Field Projection**: 7-10x faster JSON transformation than Python
 3. **Transform Tables**: `tv_*` tables with generated JSONB for instant queries
 4. **APQ Storage Abstraction**: Pluggable backends (Memory/PostgreSQL) for query hash storage
-5. **JSON Passthrough**: Sub-millisecond responses for cached queries with zero serialization
+5. **Zero-Copy Path**: Sub-millisecond responses with zero Python serialization
 
 ## 🚦 When to Choose FraiseQL
 

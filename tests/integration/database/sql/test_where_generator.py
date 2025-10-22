@@ -342,12 +342,17 @@ class TestSafeCreateWhereType:
         # Test numeric field - should have proper casting structure
         # Valid patterns: (data ->> 'age')::numeric > 21 OR ((data ->> 'age'))::numeric > 21
         import re
+
         numeric_pattern = r"\(\(data ->> 'age'\)\)::numeric > 21|\(data ->> 'age'\)::numeric > 21"
-        assert re.search(numeric_pattern, sql_str), f"Expected numeric casting pattern not found in: {sql_str}"
+        assert re.search(numeric_pattern, sql_str), (
+            f"Expected numeric casting pattern not found in: {sql_str}"
+        )
 
         # Test boolean field - should use text comparison, not boolean casting
         assert "(data ->> 'is_active') = 'true'" in sql_str
-        assert "::boolean" not in sql_str, f"Boolean fields should not use ::boolean casting, found in: {sql_str}"
+        assert "::boolean" not in sql_str, (
+            f"Boolean fields should not use ::boolean casting, found in: {sql_str}"
+        )
 
     def test_where_type_with_complex_filters(self):
         """Test WHERE type with complex filters."""
@@ -370,7 +375,7 @@ class TestSafeCreateWhereType:
 
         assert "::uuid" in sql_str
         # Check for startswith pattern instead of LIKE
-        assert "^test" in sql_str or "LIKE 'test%'" in sql_str or "startswith" in sql_str
+        assert "^test" in sql_str or "LIKE 'test%%'" in sql_str or "startswith" in sql_str
         assert " IN (" in sql_str
         assert "::date" in sql_str
 
@@ -412,7 +417,7 @@ class TestSafeCreateWhereType:
         assert " AND " in sql_str, f"Missing AND operator in: {sql_str}"
 
         # Validate balanced parentheses
-        assert sql_str.count('(') == sql_str.count(')'), f"Unbalanced parentheses in: {sql_str}"
+        assert sql_str.count("(") == sql_str.count(")"), f"Unbalanced parentheses in: {sql_str}"
 
     def test_where_type_empty_filter(self):
         """Test WHERE type with no filters returns None."""

@@ -26,6 +26,7 @@ from graphql import (
 )
 
 from .cidr import CIDRField, CIDRScalar
+from .coordinates import CoordinateField, CoordinateScalar
 from .date import DateScalar
 from .datetime import DateTimeScalar
 from .email_address import EmailAddressField, EmailAddressScalar
@@ -55,6 +56,7 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         ipaddress.IPv4Address: IpAddressScalar,
         ipaddress.IPv4Network: SubnetMaskScalar,
         IpAddressField: IpAddressScalar,
+        CoordinateField: CoordinateScalar,
         EmailAddressField: EmailAddressScalar,
         CIDRField: CIDRScalar,
         HostnameField: HostnameScalar,

@@ -12,7 +12,6 @@ import asyncio
 import json
 import statistics
 import time
-from typing import Any
 
 import psycopg_pool
 
@@ -54,11 +53,11 @@ async def benchmark_query_with_transformation(
         times.append(elapsed * 1000)  # ms
 
     return {
-        'min_ms': min(times),
-        'max_ms': max(times),
-        'mean_ms': statistics.mean(times),
-        'median_ms': statistics.median(times),
-        'stdev_ms': statistics.stdev(times) if len(times) > 1 else 0,
+        "min_ms": min(times),
+        "max_ms": max(times),
+        "mean_ms": statistics.mean(times),
+        "median_ms": statistics.median(times),
+        "stdev_ms": statistics.stdev(times) if len(times) > 1 else 0,
     }
 
 
@@ -82,23 +81,23 @@ async def setup_test_table(pool: psycopg_pool.AsyncConnectionPool):
             test_cases = [
                 # Simple
                 {
-                    'user_id': i,
-                    'user_name': f'User {i}',
-                    'email_address': f'user{i}@example.com',
-                    'created_at': '2025-10-13T10:00:00Z',
-                    'is_active': True,
+                    "user_id": i,
+                    "user_name": f"User {i}",
+                    "email_address": f"user{i}@example.com",
+                    "created_at": "2025-10-13T10:00:00Z",
+                    "is_active": True,
                 }
                 for i in range(10)
             ] + [
                 # Nested (User with posts)
                 {
-                    'user_id': i,
-                    'user_name': f'User {i}',
-                    'user_posts': [
+                    "user_id": i,
+                    "user_name": f"User {i}",
+                    "user_posts": [
                         {
-                            'post_id': j,
-                            'post_title': f'Post {j}',
-                            'post_content': f'Content for post {j}',
+                            "post_id": j,
+                            "post_title": f"Post {j}",
+                            "post_content": f"Content for post {j}",
                         }
                         for j in range(10)
                     ]
@@ -116,8 +115,8 @@ async def setup_test_table(pool: psycopg_pool.AsyncConnectionPool):
 def transform_python(json_str: str) -> str:
     """Pure Python transformation."""
     def to_camel(s):
-        parts = s.split('_')
-        return parts[0] + ''.join(p.title() for p in parts[1:])
+        parts = s.split("_")
+        return parts[0] + "".join(p.title() for p in parts[1:])
 
     def transform_dict(d):
         result = {}
@@ -141,7 +140,7 @@ async def run_database_benchmark():
     # Check database availability
     try:
         import os
-        db_url = os.getenv('DATABASE_URL', 'postgresql://localhost/fraiseql_test')
+        db_url = os.getenv("DATABASE_URL", "postgresql://localhost/fraiseql_test")
 
         pool = psycopg_pool.AsyncConnectionPool(
             db_url,
@@ -190,7 +189,7 @@ async def run_database_benchmark():
                 pool, query, transform_python, iterations=30
             )
 
-            print(f"\nQuery + Python transformation:")
+            print("\nQuery + Python transformation:")
             print(f"  Mean:   {result_python['mean_ms']:.2f} ms")
             print(f"  Median: {result_python['median_ms']:.2f} ms")
             print(f"  Min:    {result_python['min_ms']:.2f} ms")
@@ -202,17 +201,17 @@ async def run_database_benchmark():
                     pool, query, fraiseql_rs.transform_json, iterations=30
                 )
 
-                print(f"\nQuery + Rust transformation:")
+                print("\nQuery + Rust transformation:")
                 print(f"  Mean:   {result_rust['mean_ms']:.2f} ms")
                 print(f"  Median: {result_rust['median_ms']:.2f} ms")
                 print(f"  Min:    {result_rust['min_ms']:.2f} ms")
                 print(f"  Max:    {result_rust['max_ms']:.2f} ms")
 
                 # Calculate impact
-                speedup = result_python['mean_ms'] / result_rust['mean_ms']
-                time_saved = result_python['mean_ms'] - result_rust['mean_ms']
+                speedup = result_python["mean_ms"] / result_rust["mean_ms"]
+                time_saved = result_python["mean_ms"] - result_rust["mean_ms"]
 
-                print(f"\n⚡ Impact:")
+                print("\n⚡ Impact:")
                 print(f"   Speedup: {speedup:.2f}x")
                 print(f"   Time saved: {time_saved:.2f} ms ({time_saved/result_python['mean_ms']*100:.1f}%)")
 
@@ -231,5 +230,5 @@ async def run_database_benchmark():
     print("=" * 80)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(run_database_benchmark())

@@ -660,6 +660,13 @@ class FraiseQLRepository:
                 where_composed = where_obj.to_sql()
                 if where_composed:
                     where_parts.append(where_composed)
+            elif hasattr(where_obj, "_to_sql_where"):
+                # Convert GraphQL WhereInput to SQL where type, then get SQL
+                sql_where_obj = where_obj._to_sql_where()
+                if hasattr(sql_where_obj, "to_sql"):
+                    where_composed = sql_where_obj.to_sql()
+                    if where_composed:
+                        where_parts.append(where_composed)
             elif isinstance(where_obj, dict):
                 # Use sophisticated dict processing for complex filters
                 # For now, pass None for table_columns to avoid async issues

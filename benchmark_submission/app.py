@@ -7,17 +7,11 @@ CQRS architecture, denormalized read models, and DataLoader N+1 prevention.
 import os
 
 # Import modules to register decorators
-import src.queries
-import src.mutations
 from src.models import (
     Comment,
-    CreatePostResult,
-    CreateUserResult,
-    DeleteUserResult,
     Direction,
     OrderBy,
     Post,
-    UpdateUserResult,
     User,
     UserFilter,
 )
@@ -106,8 +100,9 @@ async def root():
 
 # Configure database dependency injection for CQRS
 from psycopg_pool import AsyncConnectionPool
-from src.db import BenchmarkRepository
 from src.dataloaders import CommentDataLoader, PostDataLoader, UserDataLoader
+from src.db import BenchmarkRepository
+
 from fraiseql.optimization import dataloader_context
 
 # Create connection pool with optimal settings for benchmarking

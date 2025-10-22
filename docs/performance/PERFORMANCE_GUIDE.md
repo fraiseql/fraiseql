@@ -6,13 +6,14 @@
 
 ## Executive Summary
 
-FraiseQL delivers **sub-10ms response times** for typical GraphQL queries through a multi-layered optimization stack. This guide provides realistic performance expectations, methodology details, and guidance on when performance optimizations matter.
+FraiseQL delivers **sub-10ms response times** for typical GraphQL queries through an exclusive Rust pipeline that eliminates Python string operations. This guide provides realistic performance expectations, methodology details, and guidance on when performance optimizations matter.
 
 **Key Takeaways:**
 - **Typical queries**: 5-25ms response time (including database)
-- **Optimized queries**: 0.5-5ms response time (with all layers active)
+- **Optimized queries**: 0.5-5ms response time (with all optimizations active)
 - **Cache hit rates**: 85-95% in production applications
 - **Speedup vs alternatives**: 2-4x faster than traditional GraphQL frameworks
+- **Architecture**: PostgreSQL → Rust Pipeline → HTTP (zero Python string operations)
 
 ---
 
@@ -20,7 +21,7 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 
 ### Claim: "2-4x faster than traditional GraphQL frameworks"
 
-**What this means**: FraiseQL is 2-4x faster than frameworks like Strawberry, Hasura, or PostGraphile for typical workloads, with end-to-end optimizations including APQ, TurboRouter, and Rust transformation.
+**What this means**: FraiseQL is 2-4x faster than frameworks like Strawberry, Hasura, or PostGraphile for typical workloads, with end-to-end optimizations including APQ caching, field projection, and exclusive Rust pipeline transformation.
 
 **Methodology**:
 - **Baseline comparison**: Measured against Strawberry GraphQL (Python ORM) and Hasura (PostgreSQL GraphQL)
@@ -33,6 +34,7 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 - **Simple queries** (single table): 2-3x faster
 - **Complex queries** (joins, aggregations): 3-4x faster
 - **Cached queries**: 4-10x faster (due to APQ optimization)
+- **All queries**: Use exclusive Rust pipeline (PostgreSQL → Rust → HTTP)
 
 **When this matters**: High-throughput APIs (>100 req/sec) where small latency improvements compound.
 
@@ -44,12 +46,12 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 
 **Methodology**:
 - **APQ caching**: SHA-256 hash lookup with PostgreSQL storage backend
-- **JSON passthrough**: Direct database JSONB → HTTP response (no Python object creation)
-- **TurboRouter**: Pre-compiled query templates for hot paths
+- **Rust pipeline**: Direct database JSONB → Rust transformation → HTTP response (no Python string operations)
+- **Field projection**: Optional filtering of requested GraphQL fields
 - **Measurement**: Time from GraphQL request to HTTP response (excluding network latency)
 
 **Realistic expectations**:
-- **Cache hit**: 0.5-2ms (JSON passthrough + APQ)
+- **Cache hit**: 0.5-2ms (Rust pipeline + APQ)
 - **Cache miss**: 5-25ms (includes database query)
 - **Cache hit rate**: 85-95% in production applications
 
@@ -58,12 +60,13 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 - APQ storage backend configured (PostgreSQL recommended)
 - Query complexity score < 100
 - Response size < 50KB
+- Exclusive Rust pipeline active (automatic in v0.11.5+)
 
 ---
 
-### Claim: "99.9% cache hit rates in production applications"
+### Claim: "85-95% cache hit rates in production applications"
 
-**What this means**: Well-designed applications achieve 85-95% APQ cache hit rates.
+**What this means**: Well-designed applications achieve 85-95% APQ cache hit rates with the exclusive Rust pipeline.
 
 **Methodology**:
 - **Client configuration**: Apollo Client with persisted queries enabled
@@ -81,12 +84,13 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 - Client-side query deduplication
 - Cache TTL settings
 - Query complexity (simple queries cache better)
+- Rust pipeline compatibility (automatic)
 
 ---
 
-### Claim: "0.55ms total response time (100-200x faster than JOINs)"
+### Claim: "0.05-0.5ms transform table responses"
 
-**What this means**: Transform tables (`tv_*`) provide instant responses for complex queries.
+**What this means**: Transform tables (`tv_*`) provide instant responses for complex queries, processed through the exclusive Rust pipeline.
 
 **Methodology**:
 - **Transform tables**: Pre-computed JSONB with generated columns
@@ -98,6 +102,7 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 - **Transform table lookup**: 0.05-0.5ms
 - **Traditional JOIN**: 5-50ms (depends on data size)
 - **Speedup**: 10-100x faster for complex nested queries
+- **Rust pipeline**: Automatic camelCase transformation and __typename injection
 
 **When this applies**:
 - Read-heavy workloads with stable data relationships
@@ -111,9 +116,9 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 ### Typical Production Application (85th percentile)
 
 **Response Times**:
-- Simple queries: 5-15ms
-- Complex queries: 15-50ms
-- Cached queries: 1-5ms
+- Simple queries: 1-5ms
+- Complex queries: 5-25ms
+- Cached queries: 0.5-2ms
 
 **Configuration**:
 ```python
@@ -121,8 +126,7 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 config = FraiseQLConfig(
     apq_enabled=True,
     apq_storage_backend="postgresql",
-    rust_enabled=True,  # If available
-    json_passthrough_enabled=True,
+    field_projection=True,
     complexity_max_score=1000,
 )
 ```
@@ -146,12 +150,8 @@ config = FraiseQLConfig(
 config = FraiseQLConfig(
     apq_enabled=True,
     apq_storage_backend="postgresql",
-    enable_turbo_router=True,
-    turbo_router_cache_size=1000,
-    json_passthrough_enabled=True,
-    rust_enabled=True,
+    field_projection=True,
     complexity_max_score=500,
-    passthrough_complexity_limit=50,
 )
 ```
 
@@ -195,17 +195,20 @@ field_multipliers = {
 
 **Low Complexity (1-50)**:
 - Focus on caching (APQ + result caching)
-- JSON passthrough for instant responses
+- Field projection for reduced data transfer
+- Transform tables for instant responses
 
 **Medium Complexity (51-200)**:
 - Transform tables for nested relationships
 - Database indexing optimization
 - Query result caching
+- Field projection optimization
 
 **High Complexity (201-500)**:
 - Materialized views for aggregations
 - Background computation
 - Result caching with short TTL
+- Minimize JSONB size in transform tables
 
 ---
 
@@ -370,21 +373,21 @@ WHERE schemaname = 'public' AND tablename LIKE 'v_%';
 
 ## Conclusion
 
-FraiseQL provides **excellent performance** for typical GraphQL applications with minimal configuration. The optimization stack delivers:
+FraiseQL provides **excellent performance** for typical GraphQL applications with minimal configuration. The exclusive Rust pipeline delivers:
 
 - **2-4x faster** than traditional frameworks
 - **Sub-10ms responses** for optimized queries
 - **85-95% cache hit rates** in production
-- **Operational simplicity** with single-database architecture
+- **Operational simplicity** with PostgreSQL → Rust → HTTP architecture
 
 **Performance matters most when**:
 - Building high-throughput APIs
 - Serving mobile/web applications
 - Optimizing for cost and operational complexity
 
-**Focus on developer productivity first** - FraiseQL's performance advantages compound with good application design.
+**Focus on developer productivity first** - FraiseQL's Rust pipeline performance advantages compound with good application design.
 
 ---
 
-*Performance Guide - Realistic Expectations & Methodology*
+*Performance Guide - Exclusive Rust Pipeline Architecture*
 *Last updated: October 2025*

@@ -184,7 +184,7 @@ jobs:
         fi
 
     - name: Generate validation report
-        run: |
+      run: |
           echo "## Documentation Validation Report" > docs_validation_report.md
           echo "" >> docs_validation_report.md
           echo "**Date:** $(date)" >> docs_validation_report.md

@@ -22,9 +22,7 @@ class TestEndToEndIPFiltering:
         # Red cycle - this will fail initially because we haven't implemented the clean architecture yet
 
         # Simulate GraphQL where input
-        graphql_where = {
-            "ipAddress": {"eq": "21.43.63.2"}
-        }
+        graphql_where = {"ipAddress": {"eq": "21.43.63.2"}}
 
         # This should detect the field as IP address type
         field_type = detect_field_type("ipAddress", "21.43.63.2", None)
@@ -46,9 +44,7 @@ class TestEndToEndIPFiltering:
         """Should handle IP filtering with IN/NOT IN operators."""
         # Red cycle - this will fail initially
 
-        graphql_where = {
-            "serverIp": {"in_": ["192.168.1.1", "10.0.0.1", "172.16.0.1"]}
-        }
+        graphql_where = {"serverIp": {"in": ["192.168.1.1", "10.0.0.1", "172.16.0.1"]}}
 
         sql_result = build_where_clause(graphql_where)
         sql_str = sql_result.as_string(None)
@@ -64,9 +60,7 @@ class TestEndToEndIPFiltering:
         """Should handle network-specific operators like inSubnet."""
         # Red cycle - this will fail initially
 
-        graphql_where = {
-            "ipAddress": {"inSubnet": "192.168.1.0/24"}
-        }
+        graphql_where = {"ipAddress": {"inSubnet": "192.168.1.0/24"}}
 
         sql_result = build_where_clause(graphql_where)
         sql_str = sql_result.as_string(None)
@@ -81,8 +75,8 @@ class TestEndToEndIPFiltering:
 
         graphql_where = {
             "ipAddress": {"eq": "192.168.1.1"},  # IP field
-            "name": {"contains": "server"},       # String field
-            "port": {"eq": 80}                    # Integer field
+            "name": {"contains": "server"},  # String field
+            "port": {"eq": 80},  # Integer field
         }
 
         sql_result = build_where_clause(graphql_where)
@@ -93,18 +87,16 @@ class TestEndToEndIPFiltering:
         assert "::inet = '192.168.1.1'::inet" in sql_str
 
         # String field should use LIKE
-        assert "(data ->> 'name') LIKE '%server%'" in sql_str
+        assert "data ->> 'name' LIKE '%%server%%'" in sql_str
 
-        # Integer field should use integer casting
-        assert "((data ->> 'port'))::integer = 80" in sql_str
+        # Integer field should use numeric casting
+        assert "(data ->> 'port')::numeric = 80" in sql_str
 
     def test_ipv6_filtering(self):
         """Should handle IPv6 addresses correctly."""
         # Red cycle - this will fail initially
 
-        graphql_where = {
-            "ipv6Address": {"eq": "2001:db8::1"}
-        }
+        graphql_where = {"ipv6Address": {"eq": "2001:db8::1"}}
 
         sql_result = build_where_clause(graphql_where)
         sql_str = sql_result.as_string(None)
@@ -117,9 +109,7 @@ class TestEndToEndIPFiltering:
         """Should handle CIDR network addresses correctly."""
         # Red cycle - this will fail initially
 
-        graphql_where = {
-            "network": {"eq": "10.0.0.0/8"}
-        }
+        graphql_where = {"network": {"eq": "10.0.0.0/8"}}
 
         sql_result = build_where_clause(graphql_where)
         sql_str = sql_result.as_string(None)
