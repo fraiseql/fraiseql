@@ -338,22 +338,14 @@ class TestRepositoryWhereIntegration:
 
         assert isinstance(result, RustResponseBytes)
 
-        # Try to verify it's valid JSON (may fail during development)
-        try:
-            if isinstance(result.bytes, bytes):
-                json_str = result.bytes.decode("utf-8")
-            else:
-                json_str = str(result.bytes)
-            data = json.loads(json_str)
-            assert "data" in data
+        # Verify it's valid JSON (should work after Phase 1 fix)
+        json_str = bytes(result).decode("utf-8")
+        data = json.loads(json_str)
 
-            # Extract and verify the results
-            results = data["data"]["test_product_view"]
-            assert len(results) == 2
-            assert all(r["category"] == "widgets" for r in results)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            # Skip JSON validation if parsing fails (Rust pipeline may be in development)
-            pytest.skip("Rust pipeline JSON parsing not yet working - skipping validation")
+        assert "data" in data
+        results = data["data"]["test_product_view"]
+        assert len(results) == 2
+        assert all(r["category"] == "widgets" for r in results)
 
     @pytest.mark.asyncio
     async def test_empty_where_returns_all(self, db_pool, setup_test_views):
