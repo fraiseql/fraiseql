@@ -100,9 +100,18 @@ jobs:
         postgresql user: 'fraiseql'
         postgresql password: 'fraiseql'
 
+    - name: Set up Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install maturin
+      run: pip install maturin
+
     - name: Install FraiseQL
       run: |
-        pip install -e .
+        # Build Rust extension and install with all dependencies
+        pip install -e ".[dev,all]"
 
     - name: Test basic quickstart
       run: |
@@ -156,9 +165,18 @@ jobs:
         postgresql user: 'fraiseql'
         postgresql password: 'fraiseql'
 
+    - name: Set up Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install maturin
+      run: pip install maturin
+
     - name: Install FraiseQL
       run: |
-        pip install -e .
+        # Build Rust extension and install with all dependencies
+        pip install -e ".[dev,all]"
 
     - name: Test beginner onboarding (< 30 min target)
       run: |
