@@ -25,9 +25,15 @@ jobs:
       with:
         python-version: '3.13'
 
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+
     - name: Install dependencies
       run: |
-        pip install -e ".[docs]"
+        uv pip install --system -e ".[docs]"
 
     - name: Build documentation
       run: mkdocs build
