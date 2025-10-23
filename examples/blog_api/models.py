@@ -7,53 +7,92 @@ from uuid import UUID
 from pydantic import Field
 
 import fraiseql
-from fraiseql import fraise_field
 
 
 @fraiseql.type
 class User:
-    """User type for blog application."""
+    """User type for blog application.
+
+    Fields:
+        id: Unique identifier for the user
+        email: User's email address
+        name: User's display name
+        bio: User's biography or description
+        avatar_url: URL to user's profile picture
+        created_at: When the user account was created
+        updated_at: When the user account was last updated
+        is_active: Whether the user account is active
+        roles: List of roles assigned to the user
+    """
 
     id: UUID
-    email: str = fraise_field(description="Email address")
-    name: str = fraise_field(description="Display name")
-    bio: str | None = fraise_field(description="User biography")
-    avatar_url: str | None = fraise_field(description="Profile picture URL")
+    email: str
+    name: str
+    bio: str | None
+    avatar_url: str | None
     created_at: datetime
     updated_at: datetime
-    is_active: bool = fraise_field(default=True)
-    roles: list[str] = fraise_field(default_factory=list)
+    is_active: bool = True
+    roles: list[str] = []
 
 
 @fraiseql.type
 class Post:
-    """Blog post type."""
+    """Blog post type.
+
+    Fields:
+        id: Unique identifier for the post
+        title: Post title
+        slug: URL-friendly identifier for the post
+        content: Full post content in Markdown format
+        excerpt: Short description or summary of the post
+        author_id: ID of the user who authored the post
+        published_at: When the post was published (null for drafts)
+        created_at: When the post was created
+        updated_at: When the post was last updated
+        tags: List of tags associated with the post
+        is_published: Whether the post is published or draft
+        view_count: Number of times the post has been viewed
+        comments: List of comments on this post
+    """
 
     id: UUID
-    title: str = fraise_field(description="Post title")
-    slug: str = fraise_field(description="URL-friendly identifier")
-    content: str = fraise_field(description="Post content in Markdown")
-    excerpt: str | None = fraise_field(description="Short description")
+    title: str
+    slug: str
+    content: str
+    excerpt: str | None
     author_id: UUID
     published_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
-    tags: list[str] = fraise_field(default_factory=list)
-    is_published: bool = fraise_field(default=False)
-    view_count: int = fraise_field(default=0)
+    tags: list[str] = []
+    is_published: bool = False
+    view_count: int = 0
+    comments: list["Comment"] = []
 
 
 @fraiseql.type
 class Comment:
-    """Comment on a blog post."""
+    """Comment on a blog post.
+
+    Fields:
+        id: Unique identifier for the comment
+        post_id: ID of the post this comment belongs to
+        author_id: ID of the user who wrote the comment
+        content: Comment text content
+        created_at: When the comment was created
+        updated_at: When the comment was last updated
+        is_approved: Whether the comment has been approved for display
+        parent_comment_id: ID of parent comment (for nested replies)
+    """
 
     id: UUID
     post_id: UUID
     author_id: UUID
-    content: str = fraise_field(description="Comment text")
+    content: str
     created_at: datetime
     updated_at: datetime
-    is_approved: bool = fraise_field(default=True)
+    is_approved: bool = True
     parent_comment_id: UUID | None = None  # For nested comments
 
 
@@ -88,12 +127,12 @@ class PostEnterprise:
     # Enterprise features
     audit_trail: AuditTrail
     identifier: Optional[str] = None  # Business identifier
-    slug: str = fraise_field(description="URL-friendly identifier")
-    excerpt: str | None = fraise_field(description="Short description")
+    slug: str
+    excerpt: str | None = None
     author_id: UUID
     published_at: datetime | None = None
-    tags: list[str] = fraise_field(default_factory=list)
-    view_count: int = fraise_field(default=0)
+    tags: list[str] = []
+    view_count: int = 0
 
 
 @fraiseql.type
@@ -106,7 +145,7 @@ class UserEnterprise:
     bio: str | None = None
     avatar_url: str | None = None
     is_active: bool = True
-    roles: list[str] = fraise_field(default_factory=list)
+    roles: list[str] = []
 
     # Enterprise audit features
     audit_trail: AuditTrail
@@ -118,7 +157,15 @@ class UserEnterprise:
 
 @fraiseql.input
 class CreateUserInput:
-    """Input for creating a new user."""
+    """Input for creating a new user.
+
+    Args:
+        email: User's email address (must be unique)
+        name: User's display name
+        password: User's password (will be hashed)
+        bio: Optional biography for the user
+        avatar_url: Optional URL to user's profile picture
+    """
 
     email: str
     name: str
@@ -144,7 +191,14 @@ class CreateUserInputEnterprise:
 
 @fraiseql.input
 class UpdateUserInput:
-    """Input for updating user profile."""
+    """Input for updating user profile.
+
+    Args:
+        name: New display name for the user
+        bio: New biography for the user
+        avatar_url: New avatar URL for the user
+        is_active: New active status for the user
+    """
 
     name: str | None = None
     bio: str | None = None
@@ -154,7 +208,15 @@ class UpdateUserInput:
 
 @fraiseql.input
 class CreatePostInput:
-    """Input for creating a new post."""
+    """Input for creating a new post.
+
+    Args:
+        title: Title of the blog post
+        content: Full content of the post in Markdown
+        excerpt: Optional short summary of the post
+        tags: Optional list of tags for the post
+        is_published: Whether to publish immediately or save as draft
+    """
 
     title: str
     content: str
@@ -180,7 +242,15 @@ class CreatePostInputEnterprise:
 
 @fraiseql.input
 class UpdatePostInput:
-    """Input for updating a post."""
+    """Input for updating a post.
+
+    Args:
+        title: New title for the post
+        content: New content for the post
+        excerpt: New excerpt for the post
+        tags: New tags for the post
+        is_published: New published status for the post
+    """
 
     title: str | None = None
     content: str | None = None
@@ -191,7 +261,13 @@ class UpdatePostInput:
 
 @fraiseql.input
 class CreateCommentInput:
-    """Input for creating a comment."""
+    """Input for creating a comment.
+
+    Args:
+        post_id: ID of the post to comment on
+        content: Comment text content
+        parent_comment_id: ID of parent comment (for replies)
+    """
 
     post_id: UUID
     content: str
@@ -200,7 +276,16 @@ class CreateCommentInput:
 
 @fraiseql.input
 class PostFilters:
-    """Filters for querying posts."""
+    """Filters for querying posts.
+
+    Args:
+        author_id: Filter posts by specific author
+        is_published: Filter by published status (true for published, false for drafts)
+        tags_contain: Filter posts that contain any of these tags
+        created_after: Filter posts created after this date
+        created_before: Filter posts created before this date
+        search: Search in post title and content
+    """
 
     author_id: UUID | None = None
     is_published: bool | None = None
@@ -212,7 +297,12 @@ class PostFilters:
 
 @fraiseql.input
 class PostOrderBy:
-    """Ordering options for posts."""
+    """Ordering options for posts.
+
+    Args:
+        field: Field to order by (created_at, updated_at, title, view_count)
+        direction: Sort direction (asc or desc)
+    """
 
     field: str  # created_at, updated_at, title, view_count
     direction: str = "desc"  # asc or desc

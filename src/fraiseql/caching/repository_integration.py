@@ -37,7 +37,6 @@ class CachedRepository(FraiseQLRepository):
         # Copy attributes from base repository
         self._pool = base_repository._pool
         self.context = base_repository.context
-        self.mode = base_repository.mode
 
     async def find(
         self,
@@ -60,9 +59,13 @@ class CachedRepository(FraiseQLRepository):
         if skip_cache:
             return await self._base.find(view_name, **kwargs)
 
-        # Build cache key
+        # Extract tenant_id from context for cache key isolation
+        tenant_id = self._base.context.get("tenant_id")
+
+        # Build cache key with tenant_id for security
         cache_key = self._key_builder.build_key(
             query_name=view_name,
+            tenant_id=tenant_id,
             filters=kwargs,
         )
 
@@ -97,9 +100,13 @@ class CachedRepository(FraiseQLRepository):
         if skip_cache:
             return await self._base.find_one(view_name, **kwargs)
 
-        # Build cache key
+        # Extract tenant_id from context for cache key isolation
+        tenant_id = self._base.context.get("tenant_id")
+
+        # Build cache key with tenant_id for security
         cache_key = self._key_builder.build_key(
             query_name=f"{view_name}:one",
+            tenant_id=tenant_id,
             filters=kwargs,
         )
 

@@ -1,355 +1,221 @@
-# Architecture Decisions
+# FraiseQL Architecture Decisions
 
-Understanding why FraiseQL works the way it does helps you leverage its full power. Let's explore the key architectural decisions that make FraiseQL unique.
+This directory contains the evolution of architectural decisions for FraiseQL, documenting the thinking process and trade-offs for major design choices.
 
-## Why PostgreSQL First?
+## Mutation Response Architecture Evolution
 
-**Decision**: FraiseQL only supports PostgreSQL, not multiple databases.
+### ADR-001: GraphQL Mutation Response - Initial Plan
+**File**: `001_graphql_mutation_response_initial_plan.md`
+**Date**: 2025-10-16
+**Status**: Superseded by ADR-002
 
-**Reasoning**:
-- PostgreSQL's advanced features (JSONB, views, functions, CTEs) enable incredible performance optimizations
-- Single database focus means we can leverage PostgreSQL-specific features fully
-- 90% of applications only use one database anyway
-- PostgreSQL has become the de facto standard for modern applications
+**Decision**: Create GraphQL-native mutation responses with three-layer transformation (PostgreSQL → Python → Rust → GraphQL).
 
-**Trade-offs**:
-- ✅ **Pro**: 10-100x better performance through PostgreSQL-specific optimizations
-- ✅ **Pro**: Simpler codebase, fewer bugs, faster development
-- ✅ **Pro**: Can use advanced features like JSONB, arrays, full-text search
-- ❌ **Con**: Can't switch to MySQL/MongoDB/etc. later
-- ❌ **Con**: Teams without PostgreSQL experience need to learn it
+**Context**:
+- Original CDC-style response format incompatible with GraphQL cache normalization
+- Apollo Client, Relay, URQL require `id` + `__typename` for cache updates
+- Python layer would orchestrate transformation
 
-**Real-world impact**:
-Your API responses complete in 1-10ms instead of 50-500ms. Complex queries that would require multiple roundtrips in other databases complete in a single, optimized query.
+**Why Superseded**:
+- Introduced unnecessary Python parsing layer
+- User insight: "could there be even more direct path for the data?"
 
-## Why Views Instead of ORMs?
+---
 
-**Decision**: Use PostgreSQL views (`v_`) as the primary abstraction layer, not ORM models.
+### ADR-002: Ultra-Direct Mutation Path
+**File**: `002_ultra_direct_mutation_path.md`
+**Date**: 2025-10-16
+**Status**: Superseded by ADR-003
 
-**Reasoning**:
-- Views are declarative - you describe what you want, PostgreSQL figures out how to get it
-- Database optimizer has full visibility into your query patterns
-- Views can be indexed, materialized, and optimized at the database level
-- No impedance mismatch between objects and relations
+**Decision**: Eliminate Python parsing, use PostgreSQL JSONB::text → Rust → Client directly.
 
-**Trade-offs**:
-- ✅ **Pro**: Predictable, optimizable performance
-- ✅ **Pro**: Full power of SQL available (window functions, CTEs, etc.)
-- ✅ **Pro**: Changes to views don't require application restarts
-- ❌ **Con**: Developers need basic SQL knowledge
-- ❌ **Con**: Less familiar to ORM-heavy teams
+**Key Innovation**:
+- Reuse existing query path (RawJSONResult)
+- PostgreSQL returns JSONB as text string (no Python dict parsing)
+- Rust transformer handles camelCase + `__typename` injection
+- 10-80x faster than Python-based parsing
 
-**Real-world impact**:
+**Why Superseded**:
+- Didn't address CDC event logging requirements
+- User requirement: "could we still keep debezium compatible logging function?"
+
+---
+
+### ADR-003: Dual-Path Architecture (Ultra-Direct + CDC)
+**File**: `003_dual_path_cdc_pattern.md`
+**Date**: 2025-10-16
+**Status**: Superseded by ADR-005
+
+**Decision**: Implement two independent paths within same transaction:
+- **Path A (Client)**: Ultra-direct PostgreSQL → Rust → Client (~51ms)
+- **Path B (CDC)**: Async event logging with `PERFORM` (~1ms, doesn't block client)
+
+**Key Innovation**:
+- PostgreSQL `PERFORM` executes functions asynchronously within transaction
+- CDC logging doesn't block client response
+- Both paths maintain ACID guarantees
+
+**Architecture**:
 ```sql
--- This view automatically optimizes nested data fetching
-CREATE VIEW v_user_with_posts AS
-SELECT jsonb_build_object(
-    'id', u.id,
-    'name', u.name,
-    'posts', (
-        SELECT jsonb_agg(p.*)
-        FROM posts p
-        WHERE p.author_id = u.id
-        ORDER BY p.created_at DESC
-    )
-) as data
-FROM users u;
+-- Build response
+v_response := build_mutation_response(...);
 
--- No N+1 queries, no DataLoader configuration needed
+-- Log CDC event (ASYNC - doesn't block!)
+PERFORM log_cdc_event(...);
+
+-- Return immediately
+RETURN v_response;
 ```
 
-## Why JSONB Columns?
+**Why Superseded**:
+- Two separate operations (build response + log event)
+- Risk of divergence between client response and CDC event
+- User insight: "could we simplify by making the direct client response a part of the CDC event logging?"
 
-**Decision**: Every view returns a single `data` column containing JSONB.
+---
 
-**Reasoning**:
-- JSONB perfectly matches GraphQL's nested structure
-- PostgreSQL can index and query inside JSONB efficiently
-- Allows schema evolution without migrations
-- Eliminates object-relational mapping entirely
-- **Views can compose other views' pre-built JSONB structures**
+### ADR-004: Dual-Path Implementation Examples
+**File**: `004_dual_path_implementation_examples.md`
+**Date**: 2025-10-16
+**Status**: Reference Implementation (Superseded Pattern)
 
-**Trade-offs**:
-- ✅ **Pro**: Direct GraphQL to JSON mapping
-- ✅ **Pro**: Flexible schema evolution
-- ✅ **Pro**: Native PostgreSQL indexing support
-- ✅ **Pro**: Reduced serialization overhead
-- ✅ **Pro**: Composable - views build on other views
-- ❌ **Con**: Slightly more storage (but storage is cheap)
-- ❌ **Con**: Need to understand JSONB operators
+**Content**: Complete implementation examples of ADR-003 dual-path pattern:
+- Example 1: Create Customer (simple entity)
+- Example 2: Update Order (complex entity with validation)
+- Example 3: Delete Order (with business rules)
+- Complete CDC event formats
+- Performance characteristics
+- Apollo Client cache integration
 
-**Real-world impact**:
+**Value**:
+- Demonstrates thinking process
+- Shows how dual-path would have worked
+- Reference for understanding ADR-005 simplification
+
+---
+
+### ADR-005: Simplified Single-Source CDC ✅ CURRENT
+**File**: `005_simplified_single_source_cdc.md`
+**Date**: 2025-10-16
+**Status**: ✅ **ACTIVE - IMPLEMENT THIS**
+
+**Decision**: Store both client response AND CDC data in single event, Rust extracts `client_response` field.
+
+**Key Simplification**:
 ```sql
--- Base view for user
-CREATE VIEW v_user AS
-SELECT jsonb_build_object(
-    'id', u.id,
-    'name', u.name,
-    'email', u.email,
-    'avatar', u.avatar_url
-) as data
-FROM users u;
-
--- Comment view references user view's data column
-CREATE VIEW v_comment AS
-SELECT jsonb_build_object(
-    'id', c.id,
-    'text', c.text,
-    -- Don't rebuild user object, use the pre-built one
-    'author', (SELECT data FROM v_user WHERE id = c.author_id)
-) as data
-FROM comments c;
-
--- Post view composes from multiple views
-CREATE VIEW v_post AS
-SELECT jsonb_build_object(
-    'id', p.id,
-    'title', p.title,
-    'content', p.content,
-    -- Directly use pre-composed user JSONB
-    'author', (SELECT data FROM v_user WHERE id = p.author_id),
-    -- Aggregate pre-composed comment objects
-    'comments', (
-        SELECT jsonb_agg(data)
-        FROM v_comment
-        WHERE post_id = p.id
-    )
-) as data
-FROM posts p;
-
--- FraiseQL just returns the data column - no transformation needed
-```
-
-## Why Separate Tables from Views?
-
-**Decision**: Use prefixes to distinguish object types:
-- `tb_` for tables (source data)
-- `v_` for views (GraphQL queries)
-- `tv_` for table views (denormalized entities)
-- `fn_` for functions (mutations)
-
-**Reasoning**:
-- Clear separation of concerns
-- Instantly know an object's purpose from its name
-- Can have multiple views of the same table
-- Easier to manage permissions and optimization
-
-**Trade-offs**:
-- ✅ **Pro**: Clear code organization
-- ✅ **Pro**: Multiple API shapes from same data
-- ✅ **Pro**: Easy to identify performance bottlenecks
-- ❌ **Con**: More database objects to manage
-- ❌ **Con**: Naming convention to learn
-
-**Real-world impact**:
-```sql
--- Source table - normalized data
-CREATE TABLE tb_users (
-    id UUID PRIMARY KEY,
-    email TEXT UNIQUE,
-    name TEXT
+-- Single INSERT with everything
+v_event_id := log_mutation_event(
+    client_response,  -- What client receives
+    before_state,     -- What CDC consumers need
+    after_state,      -- What CDC consumers need
+    metadata          -- Audit trail
 );
 
--- Simple view for lists
-CREATE VIEW v_user_list AS
-SELECT jsonb_build_object(
-    'id', id,
-    'name', name
-) as data
-FROM tb_users;
-
--- Detailed view for single user
-CREATE VIEW v_user_detail AS
-SELECT jsonb_build_object(
-    'id', u.id,
-    'name', u.name,
-    'email', u.email,
-    'postCount', (SELECT COUNT(*) FROM tb_posts WHERE author_id = u.id),
-    'recentPosts', (SELECT jsonb_agg(...) FROM ...)
-) as data
-FROM tb_users u;
-
--- Table view for complete denormalized entity
-CREATE TABLE tv_user AS
-SELECT
-    u.id,
-    u.tenant_id,
-    jsonb_build_object(/* complete user data with all relations */) as data
-FROM tb_users u;
+-- Return client_response field directly
+RETURN (SELECT client_response::text FROM mutation_events WHERE event_id = v_event_id);
 ```
 
-## Why Use Functions for Mutations?
-
-**Decision**: All mutations are PostgreSQL functions (`fn_`), not direct table writes.
-
-**Reasoning**:
-- Functions encapsulate business logic at the database level
-- Atomic operations with proper transaction handling
-- Can return complex results (created entity + side effects)
-- Built-in validation and error handling
-
-**Trade-offs**:
-- ✅ **Pro**: Guaranteed data consistency
-- ✅ **Pro**: Complex business logic in transactions
-- ✅ **Pro**: Reusable across different APIs
-- ✅ **Pro**: Can trigger events/notifications
-- ❌ **Con**: Business logic in database (some prefer application layer)
-- ❌ **Con**: PostgreSQL-specific PL/pgSQL to learn
-
-**Real-world impact**:
+**Schema**:
 ```sql
--- Mutation function with business logic
-CREATE FUNCTION fn_create_post(
-    p_title TEXT,
-    p_content TEXT,
-    p_author_id UUID
-) RETURNS JSONB AS $$
-DECLARE
-    v_post_id UUID;
-    v_result JSONB;
-BEGIN
-    -- Validation
-    IF LENGTH(p_title) < 3 THEN
-        RAISE EXCEPTION 'Title too short';
-    END IF;
+CREATE TABLE app.mutation_events (
+    event_id BIGSERIAL PRIMARY KEY,
 
-    -- Create post
-    INSERT INTO tb_posts (title, content, author_id)
-    VALUES (p_title, p_content, p_author_id)
-    RETURNING id INTO v_post_id;
+    -- What client receives (extracted by Rust)
+    client_response JSONB NOT NULL,
 
-    -- Update user stats
-    UPDATE tb_users
-    SET post_count = post_count + 1
-    WHERE id = p_author_id;
+    -- What CDC consumers need
+    before_state JSONB,
+    after_state JSONB,
 
-    -- Return complete result using pre-composed views
-    SELECT jsonb_build_object(
-        'post', (SELECT data FROM v_post WHERE id = v_post_id),
-        'user', (SELECT data FROM v_user WHERE id = p_author_id)
-    ) INTO v_result;
-
-    RETURN v_result;
-END;
-$$ LANGUAGE plpgsql;
+    -- Audit metadata
+    metadata JSONB,
+    source JSONB,
+    event_timestamp TIMESTAMPTZ DEFAULT NOW(),
+    transaction_id BIGINT
+);
 ```
 
-## Why Table Views for Caching?
-
-**Decision**: Use table views (`tv_`) as materialized, denormalized entities for extreme performance.
-
-**Reasoning**:
-- Pre-compute expensive joins and aggregations
-- Serve complex queries from a single table scan
-- Trade storage (cheap) for computation (expensive)
-- Enable sub-millisecond response times
+**Benefits**:
+1. ✅ **Single Source of Truth**: One INSERT contains everything
+2. ✅ **Simpler Code**: No separate `build_mutation_response()` helper
+3. ✅ **Better Audit**: CDC log contains exact client response
+4. ✅ **Same Performance**: < 0.1ms overhead for event_id lookup
+5. ✅ **More Debuggable**: Replay exact client responses from CDC log
 
 **Trade-offs**:
-- ✅ **Pro**: 50-100x performance improvement
-- ✅ **Pro**: Predictable query performance
-- ✅ **Pro**: Reduced database CPU usage
-- ❌ **Con**: 3-5x more storage per entity
-- ❌ **Con**: Need to manage data synchronization
-- ❌ **Con**: Initial setup complexity
+- Slightly larger events (~50-100 bytes per mutation) - negligible
+- Requires SELECT after INSERT - < 0.1ms with PRIMARY KEY lookup
 
-**Real-world impact**:
-```sql
--- Instead of complex joins at query time
-SELECT /* complex 5-table join with aggregations */
+**Why This is Final**:
+- Maximum simplicity with no performance cost
+- Eliminates risk of client response vs CDC data diverging
+- Perfect audit trail (see exactly what client received)
+- Natural evolution from ADR-003 dual-path concept
 
--- Serve from pre-computed table view
-SELECT data FROM tv_user WHERE id = $1;
--- Returns in < 1ms with complete user data
+---
+
+## Decision Timeline
+
+```
+ADR-001 (Initial Plan)
+   ↓
+   └─→ User: "Use existing Rust transformer, simplify data path"
+   ↓
+ADR-002 (Ultra-Direct Path)
+   ↓
+   └─→ User: "Could we still keep CDC logging with ultra-fast returns?"
+   ↓
+ADR-003 (Dual-Path: Client + CDC)
+   ↓
+   └─→ User: "Could we simplify by making client response part of CDC event?"
+   ↓
+   └─→ User: "Store exact payload in dedicated field, no conditionals"
+   ↓
+ADR-005 (Single-Source CDC) ✅ FINAL
 ```
 
-## Why CQRS Pattern?
+## Key Lessons
 
-**Decision**: Separate write models (normalized tables) from read models (denormalized views).
+### 1. User-Driven Simplification
+Each ADR was refined based on user insights:
+- "Could there be even more direct path?" → Eliminated Python parsing
+- "Could we keep CDC logging?" → Dual-path pattern
+- "Could we simplify further?" → Single source of truth
 
-**Reasoning**:
-- Optimize reads and writes independently
-- Most applications are read-heavy (90%+ reads)
-- Can scale read and write paths differently
-- Matches how developers think about APIs
+### 2. Progressive Refinement
+- Started with 3 layers (PostgreSQL → Python → Rust)
+- Eliminated Python layer (PostgreSQL → Rust)
+- Added CDC logging (dual-path)
+- Unified into single source (one INSERT)
 
-**Trade-offs**:
-- ✅ **Pro**: Optimal performance for both reads and writes
-- ✅ **Pro**: Clear separation of concerns
-- ✅ **Pro**: Can evolve read/write models independently
-- ❌ **Con**: More complex than simple CRUD
-- ❌ **Con**: Eventual consistency considerations
+### 3. Performance Maintained Throughout
+- ADR-002: 10-80x faster than Python parsing
+- ADR-003: ~51ms client response (CDC doesn't block)
+- ADR-005: Same performance + simpler code
 
-**Real-world impact**:
-- Writes go to normalized tables with full constraints
-- Reads come from optimized views/table views
-- Can handle 100,000+ reads/second from table views
-- Writes maintain full ACID guarantees
+### 4. Architecture Drivers
+- **GraphQL Cache Compatibility**: `id` + `__typename` requirement
+- **Ultra-Direct Path**: Zero Python parsing overhead
+- **CDC Event Streaming**: Debezium-compatible audit trail
+- **Single Source of Truth**: Eliminate divergence risk
 
-## Why Python Over TypeScript?
+## Implementation Status
 
-**Decision**: Built FraiseQL in Python rather than Node.js/TypeScript.
+- [x] ADR-001: Documented
+- [x] ADR-002: Documented
+- [x] ADR-003: Documented + Reference implementation created
+- [x] ADR-004: Complete examples documented
+- [x] ADR-005: Designed and documented
+- [ ] ADR-005: Implement new CDC schema
+- [ ] ADR-005: Update mutation functions to use simplified pattern
+- [ ] ADR-005: Implement Python layer (execute_function_raw_json)
+- [ ] ADR-005: Test end-to-end with GraphQL client
 
-**Reasoning**:
-- Python has excellent PostgreSQL support (asyncpg, psycopg3)
-- Strong typing with Python 3.10+ and mypy
-- Rich ecosystem for data processing and analytics
-- Simpler async model than JavaScript
-- Better integration with data science tools
+## Next Steps
 
-**Trade-offs**:
-- ✅ **Pro**: Excellent PostgreSQL drivers
-- ✅ **Pro**: Clean async/await without callback hell
-- ✅ **Pro**: Type hints provide IDE support
-- ✅ **Pro**: Great for data-heavy applications
-- ❌ **Con**: Node.js has larger GraphQL ecosystem
-- ❌ **Con**: Some developers prefer TypeScript
-
-**Real-world impact**:
-```python
-# FraiseQL leverages views' data columns
-from fraiseql import FraiseQL
-
-app = FraiseQL(database_url="postgresql://...")
-
-# GraphQL query
-query = """
-    query GetPost($id: ID!) {
-        post(id: $id) {
-            title
-            author {
-                name
-                email
-            }
-            comments {
-                text
-                author {
-                    name
-                }
-            }
-        }
-    }
-"""
-
-# FraiseQL executes: SELECT data FROM v_post WHERE id = $1
-# The data column already contains the complete nested structure
-# No additional queries, no joins, no transformations
-# Just return the pre-composed JSONB from the view
-```
-
-## Summary
-
-These architectural decisions work together to create a unique approach to GraphQL APIs:
-
-1. **PostgreSQL-first** gives us powerful optimization capabilities
-2. **Views over ORMs** eliminates abstraction overhead
-3. **JSONB everywhere** provides perfect GraphQL alignment
-4. **View composition** - views build on other views' data columns
-5. **Clear naming conventions** keep code organized
-6. **Functions for mutations** ensure data integrity
-7. **Table views** enable extreme performance
-8. **CQRS pattern** optimizes both reads and writes
-9. **Python** provides clean, typed, async code
-
-The key insight: **Every view returns a `data` column with pre-composed JSONB**. Complex views don't rebuild everything from scratch - they compose from simpler views' data columns. This creates a hierarchy of reusable, optimized data structures that map directly to your GraphQL schema.
-
-Ready to see these decisions in action? Check out our [Blog API Tutorial](/tutorials/blog-api) or learn about [Pagination Patterns](/advanced/pagination) to see how these architectural choices benefit real applications.
+1. Implement ADR-005 simplified CDC schema
+2. Update ecommerce_api mutation functions
+3. Update blog_api mutation functions
+4. Implement Python layer changes
+5. Benchmark performance vs old mutation system
+6. Document CDC consumer patterns

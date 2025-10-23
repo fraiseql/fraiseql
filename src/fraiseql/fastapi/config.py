@@ -1,12 +1,36 @@
 """Configuration for FraiseQL FastAPI integration."""
 
 import logging
+from enum import Enum
 from typing import Annotated, Any, Literal
 
 from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
+
+
+class IntrospectionPolicy(str, Enum):
+    """Policy for GraphQL schema introspection access control.
+
+    - DISABLED: No introspection allowed for anyone
+    - PUBLIC: Introspection allowed for everyone (default)
+    - AUTHENTICATED: Introspection only allowed for authenticated users
+    """
+
+    DISABLED = "disabled"
+    PUBLIC = "public"
+    AUTHENTICATED = "authenticated"
+
+    def allows_introspection(self, is_authenticated: bool = False) -> bool:
+        """Check if introspection is allowed based on policy and authentication status."""
+        if self == IntrospectionPolicy.DISABLED:
+            return False
+        if self == IntrospectionPolicy.PUBLIC:
+            return True
+        if self == IntrospectionPolicy.AUTHENTICATED:
+            return is_authenticated
+        return False
 
 
 def validate_postgres_url(v: Any) -> str:
@@ -53,68 +77,53 @@ PostgresUrl = Annotated[str, Field(description="PostgreSQL connection URL (suppo
 
 
 class FraiseQLConfig(BaseSettings):
-    """Configuration for FraiseQL application.
+    """Configuration for FraiseQL application (Rust-first architecture).
 
-    This class defines all configuration options for a FraiseQL-powered FastAPI
-    application. Configuration values can be set through environment variables,
-    .env files, or directly in code.
+    FraiseQL v1+ uses Rust-first architecture with a single execution path.
+    All transformation is handled by fraiseql-rs (required dependency).
+    Configuration is simplified - no execution mode selection needed.
 
-    Environment variables should be prefixed with the app name and use uppercase
+    Configuration values can be set through environment variables, .env files,
+    or directly in code. Environment variables should be prefixed with FRAISEQL_
     (e.g., FRAISEQL_DATABASE_URL).
 
-    Attributes:
-        database_url: PostgreSQL connection URL with JSONB support required.
-            Supports Unix domain sockets (e.g., postgresql://user@/var/run/postgresql:5432/db).
-        database_pool_size: Maximum number of database connections in the pool.
-        database_max_overflow: Maximum overflow connections allowed beyond pool_size.
-        database_pool_timeout: Seconds to wait before timing out when acquiring connection.
-        database_echo: Enable SQL query logging (use only in development).
-        app_name: Application name displayed in API documentation.
-        app_version: Application version string.
-        environment: Current environment (development/production/testing).
-        enable_introspection: Allow GraphQL schema introspection queries.
-        enable_playground: Enable GraphQL playground IDE.
-        playground_tool: Which GraphQL IDE to use (graphiql or apollo-sandbox).
-        max_query_depth: Maximum allowed query depth to prevent abuse.
-        query_timeout: Maximum query execution time in seconds.
-        auto_camel_case: Automatically convert snake_case fields to camelCase.
-        enable_auth: Enable authentication and authorization.
-        auth_provider: Authentication provider to use.
-        auth0_domain: Auth0 tenant domain (required if using Auth0).
-        auth0_api_identifier: Auth0 API identifier (required if using Auth0).
-        auth0_cache_ttl: Cache TTL for Auth0 JWKS in seconds.
-        cors_allow_origins: List of allowed CORS origins.
-        cors_allow_credentials: Allow credentials in CORS requests.
-        cors_allow_methods: Allowed HTTP methods for CORS.
-        cors_allow_headers: Allowed headers for CORS requests.
-        enable_metrics: Enable Prometheus metrics endpoint.
-        metrics_path: URL path for metrics endpoint.
-        enable_health_check: Enable health check endpoints.
-        health_check_path: URL path for health check.
-        enable_rate_limiting: Enable rate limiting.
-        rate_limit_requests: Maximum requests per period.
-        rate_limit_period: Rate limit period in seconds.
-        log_level: Application log level.
-        log_format: Log format (json or text).
-        enable_request_logging: Log all incoming requests.
-        enable_response_logging: Log all outgoing responses.
-        request_id_header: Header name for request correlation ID.
-        jsonb_extraction_enabled: Enable automatic JSONB column extraction in production mode.
-        jsonb_default_columns: Default JSONB column names to search for.
-        jsonb_auto_detect: Automatically detect JSONB columns by analyzing content.
-        jsonb_field_limit_threshold: Field count threshold for full data column (default: 20).
-        camelforge_enabled: Enable CamelForge database-native camelCase transformation.
-        camelforge_function: Name of the CamelForge function to use (default: turbo.fn_camelforge).
-        camelforge_entity_mapping: Auto-derive entity type from GraphQL type names.
+    Core Settings:
+        database_url: PostgreSQL connection URL with JSONB support required
+        database_pool_size: Connection pool size (default: 20)
+        database_pool_timeout: Connection timeout in seconds (default: 30)
+        environment: development/production/testing (default: development)
+
+    GraphQL Settings:
+        introspection_policy: Schema introspection policy (PUBLIC/DISABLED/AUTHENTICATED)
+        enable_playground: Enable GraphQL IDE (auto-disabled in production)
+        max_query_depth: Maximum query nesting depth
+        auto_camel_case: Auto-convert snake_case to camelCase (default: True)
+
+    Auth Settings:
+        auth_enabled: Enable authentication (default: True)
+        auth_provider: Provider (auth0/custom/none)
+        auth0_domain: Auth0 tenant domain (if using Auth0)
+        auth0_api_identifier: Auth0 API identifier (if using Auth0)
+
+    Performance Settings:
+        cache_ttl: Query cache TTL in seconds (default: 300)
+        execution_timeout_ms: Query timeout in milliseconds (default: 30000)
+        jsonb_field_limit_threshold: Fields threshold for JSONB optimization (default: 20)
+
+    Security Settings:
+        complexity_enabled: Enable query complexity analysis (default: True)
+        rate_limit_enabled: Enable rate limiting (default: True)
+        cors_enabled: Enable CORS (default: False - use reverse proxy)
 
     Example:
         ```python
         from fraiseql.fastapi import FraiseQLConfig, create_fraiseql_app
 
+        # Production configuration
         config = FraiseQLConfig(
             database_url="postgresql://user:pass@localhost/mydb",
             environment="production",
-            enable_auth=True,
+            auth_enabled=True,
             auth_provider="auth0",
             auth0_domain="myapp.auth0.com",
             auth0_api_identifier="https://api.myapp.com"
@@ -122,6 +131,9 @@ class FraiseQLConfig(BaseSettings):
 
         app = create_fraiseql_app(types=[User, Post], config=config)
         ```
+
+    Note:
+        Rust transformer (fraiseql-rs) is required. Install with: pip install fraiseql-rs
     """
 
     # Database settings
@@ -137,17 +149,12 @@ class FraiseQLConfig(BaseSettings):
     environment: Literal["development", "production", "testing"] = "development"
 
     # GraphQL settings
-    enable_introspection: bool = True
+    introspection_policy: IntrospectionPolicy = IntrospectionPolicy.PUBLIC
     enable_playground: bool = True
     playground_tool: Literal["graphiql", "apollo-sandbox"] = "graphiql"  # Which GraphQL IDE to use
     max_query_depth: int | None = None
     query_timeout: int = 30  # seconds
     auto_camel_case: bool = True  # Auto-convert snake_case to camelCase in GraphQL
-
-    # JSON Passthrough settings
-    json_passthrough_enabled: bool = True  # Enable JSON passthrough optimization
-    json_passthrough_in_production: bool = True  # Auto-enable in production mode
-    json_passthrough_cache_nested: bool = True  # Cache wrapped nested objects
 
     # Auth settings
     auth_enabled: bool = True
@@ -178,24 +185,15 @@ class FraiseQLConfig(BaseSettings):
         return validate_postgres_url(v)
 
     # Performance settings
-    enable_query_caching: bool = True
     cache_ttl: int = 300  # seconds
-    enable_turbo_router: bool = True  # Enable TurboRouter for registered queries
     turbo_router_cache_size: int = 1000  # Max number of queries to cache
-
-    # JSONB Extraction settings
-    jsonb_extraction_enabled: bool = True  # Enable JSONB column extraction in production mode
-    # Default JSONB column names to try
-    jsonb_default_columns: list[str] = ["data", "json_data", "jsonb_data"]
-    jsonb_auto_detect: bool = True  # Auto-detect JSONB columns by content analysis
     jsonb_field_limit_threshold: int = (
         20  # Switch to full data column when field count exceeds this
     )
 
-    # CamelForge Integration settings
-    camelforge_enabled: bool = False
-    camelforge_function: str = "turbo.fn_camelforge"
-    camelforge_field_threshold: int = 20
+    # v1.0.0: Rust-first architecture - Single execution path
+    # All transformation handled by fraiseql-rs (required dependency)
+    # Execution mode options removed - always uses Rust passthrough
 
     # Token revocation settings
     revocation_enabled: bool = True
@@ -221,6 +219,12 @@ class FraiseQLConfig(BaseSettings):
     rate_limit_whitelist: list[str] = []
     rate_limit_blacklist: list[str] = []
 
+    # APQ Backend Configuration
+    apq_storage_backend: Literal["memory", "postgresql", "redis", "custom"] = "memory"
+    apq_cache_responses: bool = False
+    apq_response_cache_ttl: int = Field(default=600, ge=0)
+    apq_backend_config: dict[str, Any] = {}
+
     # CORS settings
     cors_enabled: bool = False  # Disabled by default to avoid conflicts with reverse proxies
     cors_origins: list[str] = []  # Empty by default, must be explicitly configured
@@ -228,41 +232,63 @@ class FraiseQLConfig(BaseSettings):
     # Sensible defaults instead of wildcard
     cors_headers: list[str] = ["Content-Type", "Authorization"]
 
-    # Execution mode settings
-    execution_mode_priority: list[str] = ["turbo", "passthrough", "normal"]
-    turbo_router_auto_register: bool = False
-    passthrough_complexity_limit: int = 50
-    passthrough_max_depth: int = 3
-
-    # Mode hints
-    enable_mode_hints: bool = True
-    mode_hint_pattern: str = r"#\s*@mode:\s*(\w+)"
-
-    # Unified executor settings
-    unified_executor_enabled: bool = True
-    include_execution_metadata: bool = False  # Include mode and timing in response
+    # Execution settings (Rust-first: single execution path)
     execution_timeout_ms: int = 30000  # 30 seconds
-
-    # TurboRouter enhanced settings
-    turbo_max_complexity: int = 100  # Max complexity score for turbo caching
-    turbo_max_total_weight: float = 2000.0  # Max total weight of cached queries
-    turbo_enable_adaptive_caching: bool = True  # Enable complexity-based admission
-
-    # Enhanced passthrough settings
-    passthrough_auto_detect_views: bool = True
-    passthrough_cache_view_metadata: bool = True
-    passthrough_view_metadata_ttl: int = 3600  # 1 hour
+    include_execution_metadata: bool = False  # Include timing in response
 
     # Default schema settings
     default_mutation_schema: str = "public"  # Default schema for mutations when not specified
     default_query_schema: str = "public"  # Default schema for queries when not specified
 
-    @field_validator("enable_introspection")
+    # Coordinate distance calculation method
+    coordinate_distance_method: Literal["postgis", "haversine", "earthdistance"] = "haversine"
+    """Distance calculation method for coordinate filtering.
+
+    - "postgis": Use PostGIS ST_DWithin (most accurate, requires PostGIS extension)
+    - "haversine": Use Haversine formula in pure SQL (good accuracy, no dependencies)
+    - "earthdistance": Use PostgreSQL earthdistance extension (moderate accuracy)
+
+    Default is "haversine" which works without any extensions.
+    For production use with global coordinates, install PostGIS and set to "postgis".
+    """
+
+    # Entity routing settings
+    entity_routing: Any = None
+    """Configuration for entity-aware query routing (optional)."""
+
+    @field_validator("entity_routing", mode="before")
     @classmethod
-    def introspection_for_dev_only(cls, v: bool, info) -> bool:
-        """Disable introspection in production unless explicitly enabled."""
-        if info.data.get("environment") == "production" and v is True:
-            return False
+    def validate_entity_routing(cls, v: Any) -> Any:
+        """Validate entity routing configuration."""
+        if v is None:
+            return None
+
+        from fraiseql.routing.config import EntityRoutingConfig
+
+        if isinstance(v, dict):
+            return EntityRoutingConfig(**v)
+        if isinstance(v, EntityRoutingConfig):
+            return v
+        raise ValueError("entity_routing must be an EntityRoutingConfig instance or dict")
+
+    @property
+    def enable_introspection(self) -> bool:
+        """Backward compatibility property for enable_introspection.
+
+        Returns True if introspection_policy allows any introspection.
+        For authenticated-only policies, this returns True to allow
+        the GraphQL execution layer to handle auth checks.
+        """
+        return self.introspection_policy != IntrospectionPolicy.DISABLED
+
+    @field_validator("introspection_policy")
+    @classmethod
+    def set_production_introspection_default(
+        cls, v: IntrospectionPolicy, info
+    ) -> IntrospectionPolicy:
+        """Set introspection policy to DISABLED in production unless explicitly set."""
+        if info.data.get("environment") == "production" and v == IntrospectionPolicy.PUBLIC:
+            return IntrospectionPolicy.DISABLED
         return v
 
     @field_validator("enable_playground")

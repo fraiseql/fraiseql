@@ -69,6 +69,7 @@ def __getattr__(name):
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
+# pyright: reportUnsupportedDunderAll=false
 __all__ = [
     "BooleanFilter",
     "DateFilter",

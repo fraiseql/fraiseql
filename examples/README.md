@@ -1,246 +1,100 @@
-# FraiseQL Example Applications
+# FraiseQL Examples Hub
 
-This directory contains comprehensive example applications that demonstrate FraiseQL's capabilities across different domains and use cases. Each example showcases best practices, advanced features, and real-world implementation patterns.
+Welcome to the FraiseQL examples collection! This directory contains 20+ comprehensive example applications demonstrating FraiseQL's capabilities across different domains and use cases.
 
-## 🎯 New Blueprint Examples (Updated Dec 2024)
+## 🚀 Quick Start
 
-### 📝 Blog Simple (`blog_simple/`) **NEW**
-**Perfect for learning FraiseQL fundamentals**
+**New to FraiseQL? Start here:**
+- **[📚 Examples Index](INDEX.md)** - Complete organized catalog of all examples
+- **[🎯 Learning Paths](LEARNING_PATHS.md)** - Structured progression from beginner to expert
+- **[`todo_quickstart.py`](todo_quickstart.py)** - 5-minute introduction to basic GraphQL API
 
-A complete blog application demonstrating core FraiseQL patterns:
-- **Database-first architecture** with PostgreSQL functions
-- **Command/Query separation** with views and materialized tables
-- **CRUD operations** with comprehensive error handling
-- **Real-time database testing** patterns
-- **Authentication and authorization** flows
+## 📖 Navigation
 
-**Quick Start:**
-```bash
-cd blog_simple
-docker-compose up -d
-# Visit http://localhost:8000/graphql
-```
+| Document | Purpose | Best For |
+|----------|---------|----------|
+| **[INDEX.md](INDEX.md)** | Complete catalog by difficulty and use case | Finding specific examples |
+| **[LEARNING_PATHS.md](LEARNING_PATHS.md)** | Structured learning progression | Following guided paths |
+| **[This README](README.md)** | Overview and legacy content | Understanding scope |
 
-### 🏢 Blog Enterprise (`blog_enterprise/`) **NEW**
-**Enterprise-grade patterns for production systems**
+## 🎯 Popular Starting Points
 
-An advanced blog showcasing enterprise development patterns:
-- **Domain-driven design** with bounded contexts
-- **Advanced PostgreSQL patterns** (stored procedures, triggers, materialized views)
-- **Enterprise authentication** with role-based access control
-- **Multi-tenant architecture** support
-- **Event sourcing** and audit trails
-- **Performance optimization** with caching layers
+### 🟢 Beginner Friendly
+- **[`todo_quickstart.py`](todo_quickstart.py)** - Simple todo app (5 min)
+- **[`blog_api/`](blog_api/)** - Content management with enterprise patterns (15 min)
+- **[`health_check_example.py`](health_check_example.py)** - Basic endpoints (5 min)
 
-**Quick Start:**
-```bash
-cd blog_enterprise
-docker-compose up -d
-# Visit http://localhost:8000/graphql
-```
+### 🏢 Production Ready
+- **[`enterprise_patterns/`](enterprise_patterns/)** - All enterprise patterns (45 min)
+- **[`ecommerce/`](ecommerce/)** - Complete e-commerce platform (30 min)
+- **[`saas-starter/`](saas-starter/)** - Multi-tenant SaaS foundation (50 min)
 
-## 📚 Learning Path
+## 🏗️ Example Categories
 
-| Example | Complexity | Best For | Key Patterns |
-|---------|------------|----------|--------------|
-| `blog_simple/` | **Beginner** | Learning basics | CRUD, basic auth, simple queries |
-| `blog_enterprise/` | **Advanced** | Production systems | DDD, multi-tenancy, event sourcing |
-| `blog_api/` | **Intermediate** | Content systems | Audit trails, mutation results |
-| `ecommerce_api/` | **Advanced** | E-commerce | Complex validation, business rules |
+### By Difficulty
+- **🟢 Beginner** (4 examples) - Learn FraiseQL fundamentals
+- **🟡 Intermediate** (8 examples) - Build real-world applications
+- **🟠 Advanced** (6 examples) - Enterprise-grade patterns
+- **🔴 Specialized** (4 examples) - Domain-specific solutions
 
-## 🏢 Enterprise Patterns (`enterprise_patterns/`) **NEW**
+### By Use Case
+- **🛍️ E-commerce & Business** - Online stores, analytics, admin panels
+- **📝 Content Management** - Blogs, CMS, document systems
+- **🔐 Authentication & Security** - Auth patterns, token management
+- **⚡ Performance & Caching** - Optimization, APQ, query routing
+- **🏢 Enterprise Patterns** - Compliance, multi-tenancy, audit trails
+
+See **[INDEX.md](INDEX.md)** for the complete organized catalog.
+
+## 🏢 Enterprise Patterns (`enterprise_patterns/`)
 
 **The definitive reference for production-ready enterprise applications.**
 
-A comprehensive showcase of all FraiseQL enterprise patterns:
+Complete showcase of all FraiseQL enterprise patterns including mutation results, audit trails, multi-layer validation, and compliance features.
 
-- **Mutation Result Pattern**: Standardized success/error/noop responses with audit metadata
-- **NOOP Handling**: Graceful handling of edge cases and business rule violations
-- **App/Core Function Split**: Clean architecture with input handling and business logic separation
-- **Audit Field Patterns**: Complete audit trails with version management and change tracking
-- **Identifier Management**: Triple ID pattern (internal, UUID, business identifiers)
-- **Multi-Layer Validation**: GraphQL, app, core, and database validation layers
+**⏱️ Time: 45 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Enterprise**
 
-### Patterns Used
-- ✅ Multi-tenancy with RLS
-- ✅ CQRS with PostgreSQL functions
-- ✅ **Mutation Result Pattern** (NEW)
-- ✅ **NOOP Handling** (NEW)
-- ✅ **App/Core Function Split** (NEW)
-- ✅ **Complete Audit Trails** (NEW)
-- ✅ **Identifier Management** (NEW)
-- ✅ **Multi-Layer Validation** (NEW)
+See **[INDEX.md](INDEX.md)** for setup instructions and related examples.
 
-### Quick Start
-```bash
-cd enterprise_patterns
-docker-compose up -d
-# Visit http://localhost:8001/graphql
-```
+## 🏪 E-commerce (`ecommerce/`)
 
-**Use this example for production systems requiring compliance, audit trails, and enterprise-grade reliability.**
+Complete e-commerce platform with product catalog, shopping cart, orders, reviews, and search.
 
-## 🏪 E-commerce API (`ecommerce_api/`)
+**⏱️ Time: 30 min** | **🏷️ Difficulty: Intermediate** | **🎯 Use Case: E-commerce**
 
-A complete e-commerce platform demonstrating:
-
-- **Product Catalog**: Categories, variants, inventory management
-- **Shopping Cart**: Session-based and user carts with real-time inventory
-- **Order Management**: Complete order lifecycle with payment processing
-- **Customer Accounts**: Registration, profiles, addresses, order history
-- **Reviews & Ratings**: Product reviews with verified purchase tracking
-- **Search & Filtering**: Full-text search with faceted filtering
-- **Coupons & Discounts**: Flexible discount system
-
-### Patterns Used
-- ✅ Multi-tenancy with RLS
-- ✅ CQRS with PostgreSQL functions
-- ✅ **Cross-Entity Validation** (NEW)
-- ✅ **Multi-Layer Validation** (NEW)
-- ✅ **Enterprise Error Handling** (NEW)
-- ❌ Complete audit trails (see enterprise_patterns/ example)
-
-### Key Features
-- CQRS architecture with optimized views and functions
-- Real-time inventory tracking with validation patterns
-- Complex business logic with cross-entity validation
-- Type-safe GraphQL API with structured error handling
-- Performance optimization with indexes and materialized views
-
-### Quick Start
-```bash
-cd ecommerce_api
-docker-compose up -d
-# Visit http://localhost:8000/graphql
-```
+See **[INDEX.md](INDEX.md)** for setup instructions and related examples.
 
 ## 💬 Real-time Chat (`real_time_chat/`)
 
-A comprehensive chat application featuring:
+WebSocket-based messaging with presence tracking, typing indicators, and real-time features.
 
-- **Real-time Messaging**: WebSocket-based instant messaging
-- **User Presence**: Online/offline status tracking
-- **Typing Indicators**: Live typing status updates
-- **Message Reactions**: Emoji reactions on messages
-- **Direct Messages**: 1-on-1 private conversations
-- **Room Management**: Public and private chat rooms
-- **File Attachments**: Image and document sharing
-- **Message Search**: Full-text search across conversations
-
-### Key Features
-- PostgreSQL LISTEN/NOTIFY for real-time events
-- WebSocket connection management
-- Event-driven architecture
-- Presence tracking and typing indicators
-- Message threading and reactions
-
-### Quick Start
-```bash
-cd real_time_chat
-docker-compose up -d
-# WebSocket: ws://localhost:8000/ws/{user_id}
-# GraphQL: http://localhost:8000/graphql
-```
+**⏱️ Time: 45 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Real-time**
 
 ## 📊 Analytics Dashboard (`analytics_dashboard/`)
 
-A business intelligence and analytics platform with:
+Business intelligence platform with time-series analytics and performance monitoring.
 
-- **Time-series Analytics**: High-performance time-based analysis
-- **User Behavior Tracking**: Sessions, page views, user journeys
-- **Conversion Funnels**: Multi-step conversion analysis
-- **A/B Testing**: Experiment management and results
-- **Performance Monitoring**: Application metrics and alerts
-- **Revenue Analytics**: Financial tracking and attribution
-- **Cohort Analysis**: User retention and engagement
-
-### Key Features
-- TimescaleDB integration for time-series optimization
-- Complex analytical queries with window functions
-- Materialized views for performance
-- Real-time dashboard APIs
-- Statistical analysis and reporting
-
-### Quick Start
-```bash
-cd analytics_dashboard
-docker-compose up -d
-# Visit http://localhost:8000/graphql
-```
+**⏱️ Time: 40 min** | **🏷️ Difficulty: Advanced** | **🎯 Use Case: Analytics**
 
 ## 📝 Blog API (`blog_api/`)
 
-A content management system demonstrating enterprise patterns:
+Content management with enterprise patterns, authentication, and audit trails.
 
-- **Content Management**: Posts, categories, tags with audit trails
-- **User Authentication**: Authors and readers with role management
-- **Comments System**: Nested comments with moderation
-- **Media Management**: Image uploads and optimization
-- **SEO Features**: Meta tags, sitemap generation
+**⏱️ Time: 15 min** | **🏷️ Difficulty: Beginner** | **🎯 Use Case: Content Management**
 
-### Patterns Used
-- ✅ Multi-tenancy with RLS
-- ✅ CQRS with PostgreSQL functions
-- ✅ **Mutation Result Pattern** (NEW)
-- ✅ **NOOP Handling** (NEW)
-- ✅ **App/Core Function Split** (NEW)
-- ✅ **Basic Audit Trails** (NEW)
-- ❌ Advanced validation (see enterprise_patterns/ example)
+See **[INDEX.md](INDEX.md)** for complete details and setup instructions.
 
-### Quick Start
-```bash
-cd blog_api
-python app.py
-# Visit http://localhost:8000/graphql
-```
+## 📈 Performance & Architecture
 
-**Great for content management systems with enterprise features.**
-
-## 🏆 Performance Comparison
-
-### Benchmark Results
-
-| Operation | FraiseQL | Hasura | PostGraphile | Custom GraphQL |
-|-----------|----------|---------|--------------|----------------|
-| Simple Query | 15ms | 25ms | 30ms | 45ms |
-| Complex Join | 35ms | 85ms | 95ms | 150ms |
-| Mutation | 20ms | 40ms | 50ms | 80ms |
-| Real-time Update | 5ms | 15ms | N/A | 100ms |
-
-### Why FraiseQL is Faster
-
-1. **Database-First Design**: Queries execute directly in PostgreSQL
-2. **Optimized Views**: Pre-computed joins and aggregations
-3. **Minimal Overhead**: Direct database connection without ORM
-4. **Smart Caching**: Query plan caching and connection pooling
-5. **PostgreSQL Functions**: Business logic at database level
-
-## 🏗️ Architecture Overview
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   GraphQL API   │    │  FastAPI App    │    │   PostgreSQL    │
-│                 │    │                 │    │                 │
-│ • Type Safety   │───▶│ • FraiseQL      │───▶│ • Views         │
-│ • Validation    │    │ • Mutations     │    │ • Functions     │
-│ • Introspection │    │ • WebSockets    │    │ • Triggers      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-### CQRS Pattern
-- **Queries**: Optimized PostgreSQL views for read operations
-- **Commands**: PostgreSQL functions for write operations
-- **Events**: Triggers and NOTIFY for real-time updates
-
-### Type System
-- **Pydantic Models**: Type-safe Python models
-- **GraphQL Schema**: Auto-generated from Python types
-- **Database Schema**: Views and functions match GraphQL types
+**Performance benchmarks and architecture overview available in:**
+- **[Performance Guide](../docs/performance/)** - Detailed benchmarks and optimization
+- **[Architecture Docs](../docs/architecture/)** - CQRS patterns and type system
+- **[Core Concepts](../docs/core/)** - Database-first design principles
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.11+
+- Python 3.13+
 - PostgreSQL 14+
 - Docker & Docker Compose (optional)
 
@@ -264,233 +118,34 @@ psql -d ecommerce -f db/migrations/001_initial_schema.sql
 uvicorn app:app --reload
 ```
 
-### Using Docker
-```bash
-cd ecommerce_api
-docker-compose up -d
-```
+## 🛠️ Development & Testing
 
-## 🎯 Pattern Progression Guide
+**Tools and best practices:**
+- **[Development Tools](../docs/development/)** - GraphQL playground, database tools, testing
+- **[Best Practices](../docs/core/)** - Database design, API design, security, performance
+- **[Debugging Guide](../docs/production/)** - Monitoring, query analysis, troubleshooting
 
-### Basic → Intermediate → Enterprise
+## 🤝 Contributing Examples
 
-Choose your starting point based on your needs:
+**Adding new examples:**
+- Follow the structure in [`_TEMPLATE_README.md`](_TEMPLATE_README.md)
+- Include comprehensive documentation and tests
+- Update [INDEX.md](INDEX.md) with new examples
 
-| Example | Complexity | Best For | Patterns |
-|---------|------------|----------|-----------|
-| `quickstart.py` | **Basic** | Learning FraiseQL | Simple mutations |
-| `blog_api/` | **Intermediate** | Content systems | Mutation results, basic audit |
-| `ecommerce_api/` | **Advanced** | E-commerce apps | Cross-entity validation |
-| `enterprise_patterns/` | **Full** | Production systems | All enterprise patterns |
+## 📖 Documentation Links
 
-### Pattern Migration Path
-
-1. **Start Simple** - Use basic resolver functions
-2. **Add Structure** - Implement mutation result pattern
-3. **Add Reliability** - Include NOOP handling
-4. **Add Compliance** - Implement audit trails
-5. **Add Scale** - Use app/core function split
-
-See [`pattern_comparison.md`](pattern_comparison.md) for detailed comparison.
-
-## 📚 Learning Path
-
-### 1. **Start with Blog API**
-   - Basic FraiseQL concepts with enterprise patterns
-   - Mutation result pattern introduction
-   - Simple audit trail implementation
-
-### 2. **Explore E-commerce API**
-   - Complex validation patterns
-   - Cross-entity business rules
-   - Advanced error handling
-
-### 3. **Master Enterprise Patterns**
-   - Complete audit trail system
-   - Multi-layer validation
-   - Production-ready patterns
-
-### 4. **Add Real-time Features**
-   - WebSocket integration
-   - Real-time subscriptions
-   - Event-driven architecture
-
-## 🔧 Development Tools
-
-### GraphQL Playground
-Each example includes GraphQL Playground at `/graphql` for:
-- Interactive query testing
-- Schema exploration
-- Mutation testing
-- Real-time subscriptions
-
-### Database Tools
-- **pgAdmin**: Database administration
-- **DataGrip**: SQL IDE with advanced features
-- **Postico**: macOS PostgreSQL client
-
-### Testing
-```bash
-# Run tests for an example
-cd ecommerce_api
-pytest tests/
-
-# Load testing
-locust -f tests/load_test.py
-```
-
-## 🎯 Best Practices Demonstrated
-
-### 1. **Database Design**
-- Proper indexing strategies
-- Materialized views for performance
-- Partitioning for large datasets
-- Foreign key constraints
-
-### 2. **GraphQL API Design**
-- Intuitive schema structure
-- Efficient query patterns
-- Proper error handling
-- Input validation
-
-### 3. **Security**
-- SQL injection prevention
-- Authentication and authorization
-- Rate limiting
-- Input sanitization
-
-### 4. **Performance**
-- Query optimization
-- Connection pooling
-- Caching strategies
-- Monitoring and alerts
-
-## 🔍 Debugging & Monitoring
-
-### Query Analysis
-```sql
--- Enable query logging
-SET log_statement = 'all';
-
--- Analyze query performance
-EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM product_search;
-
--- Monitor active queries
-SELECT * FROM pg_stat_activity;
-```
-
-### Application Monitoring
-- Prometheus metrics
-- Grafana dashboards
-- Error tracking with Sentry
-- Performance monitoring
-
-## 🌟 Advanced Features
-
-### Nested Array Filtering (`nested_array_filtering.py`) **NEW**
-**Complete demonstration of sophisticated nested array filtering with logical operators**
-
-A comprehensive example showcasing the clean registration-based approach for nested array where filtering:
-- **Clean API**: No verbose field definitions with `@auto_nested_array_filters`
-- **Complete Logical Operators**: Full AND/OR/NOT support with unlimited nesting depth
-- **All Field Operators**: equals, contains, gte, isnull, and more
-- **Performance Optimized**: Client-side filtering with efficient evaluation
-- **5 Practical Examples**: From simple implicit AND to complex nested logic
-
-**Quick Start:**
-```bash
-python examples/nested_array_filtering.py
-```
-
-**Example Query Patterns:**
-```graphql
-# Complex nested logic
-printServers(where: {
-  AND: [
-    { operatingSystem: { in: ["Linux", "Windows"] } }
-    { OR: [
-        { nTotalAllocations: { gte: 100 } }
-        { hostname: { contains: "critical" } }
-      ]
-    }
-    { NOT: { ipAddress: { isnull: true } } }
-  ]
-})
-```
-
-> 📖 **[Complete Guide](../docs/nested-array-filtering.md)** | Features all registration approaches, operator reference, and advanced usage patterns.
-
-### Custom Scalars
-```python
-from fraiseql import scalar
-
-@scalar
-class DateTime:
-    serialize = lambda v: v.isoformat()
-    parse_value = lambda v: datetime.fromisoformat(v)
-```
-
-### Custom Directives
-```python
-from fraiseql import directive
-
-@directive
-def deprecated(reason: str):
-    # Custom deprecation logic
-    pass
-```
-
-### Middleware
-```python
-from fraiseql import middleware
-
-@middleware
-async def auth_middleware(resolve, root, info, **args):
-    # Authentication logic
-    return await resolve(root, info, **args)
-```
-
-## 🤝 Contributing
-
-### Adding New Examples
-1. Create a new directory under `examples/`
-2. Follow the established structure:
-   ```
-   example_name/
-   ├── db/
-   │   ├── migrations/
-   │   ├── views/
-   │   └── functions/
-   ├── tests/
-   ├── app.py
-   ├── models.py
-   ├── mutations.py
-   ├── README.md
-   └── requirements.txt
-   ```
-3. Include comprehensive documentation
-4. Add tests and benchmarks
-
-### Improvement Ideas
-- Add more complex business scenarios
-- Implement additional GraphQL features
-- Optimize for different use cases
-- Add more real-time features
-
-## 📖 Additional Resources
-
-- [FraiseQL Documentation](https://fraiseql.dev)
-- [PostgreSQL Performance Tips](https://wiki.postgresql.org/wiki/Performance_Optimization)
-- [GraphQL Best Practices](https://graphql.org/learn/best-practices/)
-- [TimescaleDB Documentation](https://docs.timescale.com/)
+- **[Main Documentation](../docs/)** - Complete FraiseQL reference
+- **[Quick Start](../docs/quickstart.md)** - Getting started guide
+- **[Core Concepts](../docs/core/)** - Fundamental patterns
+- **[Performance Guide](../docs/performance/)** - Optimization techniques
+- **[Production Deployment](../docs/production/)** - Production setup
 
 ## 🆘 Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/fraiseql/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/fraiseql/discussions)
+- **Issues**: [GitHub Issues](../../issues)
+- **Discussions**: [GitHub Discussions](../../discussions)
 - **Discord**: [FraiseQL Community](https://discord.gg/fraiseql)
-- **Email**: support@fraiseql.dev
 
 ---
 
-*These examples demonstrate the power and flexibility of FraiseQL for building production-ready GraphQL APIs with PostgreSQL. Each example is designed to be both educational and practical, showing real-world patterns and best practices.*
+*This examples hub provides organized access to 20+ FraiseQL examples. Use [INDEX.md](INDEX.md) to find specific examples or [LEARNING_PATHS.md](LEARNING_PATHS.md) for structured learning progression.*

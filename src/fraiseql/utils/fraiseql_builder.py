@@ -15,6 +15,52 @@ from fraiseql.utils.field_counter import next_field_index
 T = TypeVar("T")
 
 
+def _is_string_field(field: FraiseQLField) -> bool:
+    """Check if a field is a string type (str)."""
+    if field.field_type is None:
+        return False
+
+    # Import here to avoid circular imports
+    from fraiseql.types.constructor import _extract_type
+
+    # Extract the base type from Optional/Union types
+    actual_type = _extract_type(field.field_type)
+    return actual_type is str
+
+
+def _validate_input_string_value(field_name: str, value: Any, field: FraiseQLField) -> None:
+    """Validate that a string value in INPUT types is not empty or whitespace-only.
+
+    This validation is ONLY applied to @fraiseql.input decorated classes to prevent
+    empty strings from being accepted as valid input. It is NOT applied to output
+    types (@fraiseql.type) to allow existing database records with empty fields
+    to be loaded successfully.
+
+    For optional fields (fields with defaults or None-able types), empty strings are
+    allowed but will be converted to None by _to_dict() in the mutation decorator.
+
+    Args:
+        field_name: The name of the field being validated
+        value: The value to validate
+        field: The FraiseQLField instance for additional validation context
+
+    Raises:
+        ValueError: If the value is None for a required string field, or if the value
+                   is a string but empty or contains only whitespace (for required fields only)
+    """
+    # Check if field is required (no default value and no default factory)
+    is_required = field.default is FRAISE_MISSING and field.default_factory is None
+
+    # Validate None values for required string fields
+    if value is None and is_required:
+        raise ValueError(f"Field '{field_name}' is required and cannot be None")
+
+    # Validate empty strings - ONLY for required fields
+    # Optional fields can accept empty strings (will be converted to None later)
+    if isinstance(value, str) and not value.strip() and is_required:
+        raise ValueError(f"Field '{field_name}' cannot be empty")
+
+
 def collect_annotations(cls: type) -> dict[str, Any]:
     """Collect type annotations across MRO with full support for Annotated/Extras."""
     annotations: dict[str, Any] = {}
@@ -172,8 +218,29 @@ def collect_fraise_fields(
     return gql_fields, annotations
 
 
-def make_init(fields: dict[str, FraiseQLField], *, kw_only: bool = True) -> Callable[..., None]:
-    """Create a custom __init__ method from FraiseQL fields."""
+def make_init(
+    fields: dict[str, FraiseQLField],
+    *,
+    kw_only: bool = True,
+    type_kind: Literal["input", "output", "type", "interface"] = "input",
+) -> Callable[..., None]:
+    """Create a custom __init__ method from FraiseQL fields.
+
+    This function creates an __init__ method that handles field initialization
+    and applies validation rules based on the type kind. String validation is
+    only applied to "input" types to prevent regressions where existing database
+    data with empty string fields cannot be loaded into "output"/"type" objects.
+
+    Args:
+        fields: Dictionary of field names to FraiseQLField instances
+        kw_only: Whether to make parameters keyword-only
+        type_kind: The FraiseQL type kind:
+                  - "input": Apply string validation (reject empty strings)
+                  - "output"/"type"/"interface": Skip validation (allow empty strings)
+
+    Returns:
+        A custom __init__ method that validates input appropriately based on type kind
+    """
     sorted_fields = sorted(fields.values(), key=lambda f: f.index or 0)
 
     positional: list[inspect.Parameter] = []
@@ -216,6 +283,12 @@ def make_init(fields: dict[str, FraiseQLField], *, kw_only: bool = True) -> Call
             final_value = value
             if final_value is None and field.default_factory is not None:
                 final_value = field.default_factory()
+
+            # Apply string validation only for INPUT types to prevent regression
+            # where existing database data with empty fields cannot be loaded
+            if type_kind == "input" and _is_string_field(field):
+                _validate_input_string_value(name, final_value, field)
+
             setattr(self, name, final_value)
 
     _fraiseql_init.__signature__ = inspect.Signature(

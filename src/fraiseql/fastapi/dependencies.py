@@ -66,28 +66,15 @@ async def get_db() -> FraiseQLRepository:
     pool = get_db_pool()
     config = get_fraiseql_config()
 
-    # Create repository with mode and timeout from config
+    # Create repository with timeout from config
     context = {}
     if config:
-        if hasattr(config, "environment"):
-            context["mode"] = "development" if config.environment == "development" else "production"
+        context["config"] = config
+
         if hasattr(config, "query_timeout"):
             context["query_timeout"] = config.query_timeout
         if hasattr(config, "jsonb_field_limit_threshold"):
             context["jsonb_field_limit_threshold"] = config.jsonb_field_limit_threshold
-
-        # CamelForge configuration (with environment variable overrides)
-        if hasattr(config, "camelforge_enabled"):
-            from fraiseql.fastapi.camelforge_config import CamelForgeConfig
-
-            camelforge_config = CamelForgeConfig.create(
-                enabled=config.camelforge_enabled,
-                function=config.camelforge_function,
-                field_threshold=config.camelforge_field_threshold,
-            )
-            context["camelforge_enabled"] = camelforge_config.enabled
-            context["camelforge_function"] = camelforge_config.function
-            context["camelforge_field_threshold"] = camelforge_config.field_threshold
 
     return FraiseQLRepository(pool=pool, context=context)
 
@@ -176,29 +163,17 @@ async def build_graphql_context(
     LoaderRegistry.set_current(loader_registry)
 
     config = get_fraiseql_config()
-    mode = "development" if config and config.environment == "development" else "production"
 
     context = {
         "db": db,
         "user": user,
         "authenticated": user is not None,
         "loader_registry": loader_registry,
-        "mode": mode,
+        "config": config,  # Add config for introspection policy access
     }
 
     # Add query timeout to context if configured
     if config and hasattr(config, "query_timeout"):
         context["query_timeout"] = config.query_timeout
-
-    # Add JSON passthrough configuration
-    if (
-        config
-        and hasattr(config, "json_passthrough_enabled")
-        and config.json_passthrough_enabled
-        and mode == "production"
-        and getattr(config, "json_passthrough_in_production", True)
-    ):
-        context["json_passthrough"] = True
-        context["execution_mode"] = "passthrough"
 
     return context

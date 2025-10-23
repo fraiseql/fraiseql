@@ -28,14 +28,16 @@ logger = logging.getLogger(__name__)
 
 class DatabaseStrategy(Enum):
     """Available database management strategies."""
+
     TEMPLATE_CLONE = "template_clone"  # Fast cloning from template
-    DIRECT_SETUP = "direct_setup"      # Direct setup each time
+    DIRECT_SETUP = "direct_setup"  # Direct setup each time
     REUSE_EXISTING = "reuse_existing"  # Reuse existing database
-    SKIP = "skip"                      # Skip database setup
+    SKIP = "skip"  # Skip database setup
 
 
 class DatabaseState(Enum):
     """Database states."""
+
     CLEAN = "clean"
     NEEDS_REBUILD = "needs_rebuild"
     TEMPLATE_MISSING = "template_missing"
@@ -46,6 +48,7 @@ class DatabaseState(Enum):
 @dataclass
 class DatabaseConfig:
     """Database configuration for examples."""
+
     host: str = "localhost"
     port: int = 5432
     user: str = "fraiseql"
@@ -58,6 +61,7 @@ class DatabaseConfig:
 @dataclass
 class ExampleConfig:
     """Configuration for a specific example."""
+
     name: str
     path: Path
     schema_files: List[Path] = field(default_factory=list)
@@ -93,7 +97,7 @@ class ExampleDatabaseManager:
     def _save_examples_cache(self):
         """Save examples cache to disk."""
         try:
-            with open(self.state_cache_file, 'w') as f:
+            with open(self.state_cache_file, "w") as f:
                 json.dump(self.examples_cache, f, indent=2)
         except OSError as e:
             logger.warning(f"Failed to save examples cache: {e}")
@@ -105,19 +109,19 @@ class ExampleDatabaseManager:
         # Include all schema files
         for schema_file in example_config.schema_files:
             if schema_file.exists():
-                with open(schema_file, 'rb') as f:
+                with open(schema_file, "rb") as f:
                     content = f.read()
                     checksums.append(hashlib.md5(content).hexdigest())
 
         # Include all seed files
         for seed_file in example_config.seed_files:
             if seed_file.exists():
-                with open(seed_file, 'rb') as f:
+                with open(seed_file, "rb") as f:
                     content = f.read()
                     checksums.append(hashlib.md5(content).hexdigest())
 
         # Create combined checksum
-        combined = ''.join(sorted(checksums))
+        combined = "".join(sorted(checksums))
         return hashlib.md5(combined.encode()).hexdigest()
 
     def _get_connection_string(self, db_name: str, admin: bool = False) -> str:
@@ -128,30 +132,31 @@ class ExampleDatabaseManager:
             f"@{self.config.host}:{self.config.port}/{target_db}"
         )
 
-    def _run_psql_command(self, sql: str, db_name: str = None, admin: bool = False) -> Tuple[bool, str]:
+    def _run_psql_command(
+        self, sql: str, db_name: str = None, admin: bool = False
+    ) -> Tuple[bool, str]:
         """Run a PostgreSQL command."""
         target_db = db_name or (self.config.admin_db if admin else None)
 
         cmd = [
-            'psql',
-            '-h', self.config.host,
-            '-p', str(self.config.port),
-            '-U', self.config.user,
-            '-d', target_db,
-            '-c', sql
+            "psql",
+            "-h",
+            self.config.host,
+            "-p",
+            str(self.config.port),
+            "-U",
+            self.config.user,
+            "-d",
+            target_db,
+            "-c",
+            sql,
         ]
 
         env = os.environ.copy()
-        env['PGPASSWORD'] = self.config.password
+        env["PGPASSWORD"] = self.config.password
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=30
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
             return result.returncode == 0, result.stdout + result.stderr
         except subprocess.TimeoutExpired:
             return False, "Command timeout"
@@ -162,7 +167,7 @@ class ExampleDatabaseManager:
         """Check if database exists."""
         sql = f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"
         success, output = self._run_psql_command(sql, admin=True)
-        return success and '1' in output
+        return success and "1" in output
 
     def _create_database(self, db_name: str, template: str = None) -> bool:
         """Create a database, optionally from template."""
@@ -212,16 +217,21 @@ class ExampleDatabaseManager:
 
             logger.info(f"Running schema file: {schema_file}")
             cmd = [
-                'psql',
-                '-h', self.config.host,
-                '-p', str(self.config.port),
-                '-U', self.config.user,
-                '-d', db_name,
-                '-f', str(schema_file)
+                "psql",
+                "-h",
+                self.config.host,
+                "-p",
+                str(self.config.port),
+                "-U",
+                self.config.user,
+                "-d",
+                db_name,
+                "-f",
+                str(schema_file),
             ]
 
             env = os.environ.copy()
-            env['PGPASSWORD'] = self.config.password
+            env["PGPASSWORD"] = self.config.password
 
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=120)
@@ -240,16 +250,21 @@ class ExampleDatabaseManager:
 
             logger.info(f"Running seed file: {seed_file}")
             cmd = [
-                'psql',
-                '-h', self.config.host,
-                '-p', str(self.config.port),
-                '-U', self.config.user,
-                '-d', db_name,
-                '-f', str(seed_file)
+                "psql",
+                "-h",
+                self.config.host,
+                "-p",
+                str(self.config.port),
+                "-U",
+                self.config.user,
+                "-d",
+                db_name,
+                "-f",
+                str(seed_file),
             ]
 
             env = os.environ.copy()
-            env['PGPASSWORD'] = self.config.password
+            env["PGPASSWORD"] = self.config.password
 
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=60)
@@ -290,7 +305,7 @@ class ExampleDatabaseManager:
         # Check if schema has changed
         current_checksum = self._calculate_schema_checksum(example_config)
         cached_data = self.examples_cache.get(example_config.name, {})
-        cached_checksum = cached_data.get('schema_checksum')
+        cached_checksum = cached_data.get("schema_checksum")
 
         if current_checksum != cached_checksum:
             return DatabaseState.NEEDS_REBUILD
@@ -316,7 +331,11 @@ class ExampleDatabaseManager:
             test_db = f"{example_name}{self.config.test_suffix}_{uuid4().hex[:8]}"
 
             # Handle different states
-            if state in [DatabaseState.TEMPLATE_MISSING, DatabaseState.NEEDS_REBUILD, DatabaseState.CORRUPTED]:
+            if state in [
+                DatabaseState.TEMPLATE_MISSING,
+                DatabaseState.NEEDS_REBUILD,
+                DatabaseState.CORRUPTED,
+            ]:
                 logger.info(f"Rebuilding template for {example_name} (state: {state.value})")
 
                 # Drop existing template
@@ -337,9 +356,9 @@ class ExampleDatabaseManager:
 
                 # Update cache
                 self.examples_cache[example_name] = {
-                    'schema_checksum': self._calculate_schema_checksum(example_config),
-                    'template_created_at': time.time(),
-                    'last_validated': time.time()
+                    "schema_checksum": self._calculate_schema_checksum(example_config),
+                    "template_created_at": time.time(),
+                    "last_validated": time.time(),
                 }
                 self._save_examples_cache()
 
@@ -369,16 +388,12 @@ class ExampleDatabaseManager:
             return ExampleConfig(
                 name=example_name,
                 path=example_path,
-                schema_files=[
-                    example_path / "db" / "setup.sql"
-                ],
-                seed_files=[
-                    example_path / "db" / "seed_data.sql"
-                ],
+                schema_files=[example_path / "db" / "setup.sql"],
+                seed_files=[example_path / "db" / "seed_data.sql"],
                 validation_queries=[
-                    "SELECT COUNT(*) FROM users WHERE id IS NOT NULL",
-                    "SELECT COUNT(*) FROM posts WHERE id IS NOT NULL"
-                ]
+                    "SELECT COUNT(*) FROM tb_user WHERE id IS NOT NULL",
+                    "SELECT COUNT(*) FROM tb_post WHERE id IS NOT NULL",
+                ],
             )
         elif example_name == "blog_enterprise":
             return ExampleConfig(
@@ -386,7 +401,7 @@ class ExampleDatabaseManager:
                 path=example_path,
                 schema_files=[],  # No SQL files yet
                 seed_files=[],
-                validation_queries=[]
+                validation_queries=[],
             )
 
         # Generic configuration for other examples
@@ -410,7 +425,7 @@ class ExampleDatabaseManager:
             path=example_path,
             schema_files=schema_files,
             seed_files=seed_files,
-            validation_queries=[]
+            validation_queries=[],
         )
 
     def cleanup_test_databases(self, pattern: str = None):
@@ -428,7 +443,7 @@ class ExampleDatabaseManager:
 
         # Extract database names
         db_names = []
-        for line in output.split('\n'):
+        for line in output.split("\n"):
             line = line.strip()
             if line and pattern in line and line != self.config.admin_db:
                 db_names.append(line)
@@ -441,14 +456,14 @@ class ExampleDatabaseManager:
     def get_manager_status(self) -> Dict[str, Any]:
         """Get current manager status for debugging."""
         return {
-            'cache_file_exists': self.state_cache_file.exists(),
-            'cached_examples': list(self.examples_cache.keys()),
-            'database_config': {
-                'host': self.config.host,
-                'port': self.config.port,
-                'user': self.config.user
+            "cache_file_exists": self.state_cache_file.exists(),
+            "cached_examples": list(self.examples_cache.keys()),
+            "database_config": {
+                "host": self.config.host,
+                "port": self.config.port,
+                "user": self.config.user,
             },
-            'available_examples': self._get_available_examples()
+            "available_examples": self._get_available_examples(),
         }
 
     def _get_available_examples(self) -> List[str]:
@@ -459,7 +474,7 @@ class ExampleDatabaseManager:
 
         examples = []
         for item in examples_dir.iterdir():
-            if item.is_dir() and not item.name.startswith('.'):
+            if item.is_dir() and not item.name.startswith("."):
                 # Check if it has recognizable structure
                 if (item / "app.py").exists() or (item / "models.py").exists():
                     examples.append(item.name)
@@ -469,6 +484,7 @@ class ExampleDatabaseManager:
 
 # Global instance for easy access
 _database_manager = None
+
 
 def get_database_manager() -> ExampleDatabaseManager:
     """Get global database manager instance."""

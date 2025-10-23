@@ -714,7 +714,7 @@ def turbo_query(
         if hasattr(func, "_graphql_query"):
             wrapper._graphql_query = func._graphql_query
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 

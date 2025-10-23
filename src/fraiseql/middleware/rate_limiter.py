@@ -1,14 +1,14 @@
 """Rate limiting middleware for FraiseQL.
 
 This module provides rate limiting functionality to prevent API abuse
-and ensure fair usage of resources.
+and ensure fair usage of resources. Supports both PostgreSQL and in-memory backends.
 """
 
 import asyncio
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Protocol, Set
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Protocol, Set
 
 from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -16,6 +16,16 @@ from starlette.types import ASGIApp
 
 from fraiseql.audit import get_security_logger
 from fraiseql.audit.security_logger import SecurityEvent, SecurityEventSeverity, SecurityEventType
+
+if TYPE_CHECKING:
+    from psycopg_pool import AsyncConnectionPool
+
+try:
+    from psycopg_pool import AsyncConnectionPool  # noqa: TC002
+
+    PSYCOPG_AVAILABLE = True
+except ImportError:
+    PSYCOPG_AVAILABLE = False
 
 
 class RateLimitExceeded(HTTPException):
@@ -275,98 +285,221 @@ class InMemoryRateLimiter:
             window.popleft()
 
 
-class RedisRateLimiter:
-    """Redis-backed rate limiter for distributed systems."""
+class SlidingWindowRateLimiter(InMemoryRateLimiter):
+    """Sliding window rate limiter for more accurate rate limiting."""
 
-    def __init__(self, redis, config: RateLimitConfig):
-        """Initialize Redis rate limiter."""
-        try:
-            import redis.asyncio as redis_asyncio  # noqa: F401
-        except ImportError as e:
-            raise ImportError(
-                "Redis is required for RedisRateLimiter. "
-                "Install it with: pip install fraiseql[redis]",
-            ) from e
-        self.redis = redis
+    # Inherits most functionality from InMemoryRateLimiter
+    # The deque-based implementation already provides sliding window behavior
+
+
+class PostgreSQLRateLimiter:
+    """PostgreSQL-based rate limiter for production/multi-instance deployments."""
+
+    def __init__(
+        self,
+        config: RateLimitConfig,
+        pool: "AsyncConnectionPool",
+        table_name: str = "tb_rate_limit",
+    ):
+        """Initialize PostgreSQL rate limiter."""
+        if not PSYCOPG_AVAILABLE:
+            msg = "psycopg and psycopg_pool required for PostgreSQL rate limiter"
+            raise ImportError(msg)
+
         self.config = config
-        self.key_prefix = "rate_limit"
+        self.pool = pool
+        self.table_name = table_name
+        self._initialized = False
 
-    def _minute_key(self, key: str) -> str:
-        """Get Redis key for minute window."""
-        return f"{self.key_prefix}:minute:{key}"
+    async def _ensure_initialized(self) -> None:
+        """Ensure rate limit table exists."""
+        if self._initialized:
+            return
 
-    def _hour_key(self, key: str) -> str:
-        """Get Redis key for hour window."""
-        return f"{self.key_prefix}:hour:{key}"
+        async with self.pool.connection() as conn, conn.cursor() as cur:
+            # Create rate limit table
+            await cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.table_name} (
+                    client_key TEXT NOT NULL,
+                    request_time TIMESTAMPTZ NOT NULL,
+                    window_type TEXT NOT NULL,
+                    PRIMARY KEY (client_key, request_time, window_type)
+                )
+            """)
+
+            # Create index for time-based queries
+            await cur.execute(f"""
+                CREATE INDEX IF NOT EXISTS {self.table_name}_time_idx
+                ON {self.table_name} (request_time)
+            """)
+
+            # Create index for client queries
+            await cur.execute(f"""
+                CREATE INDEX IF NOT EXISTS {self.table_name}_client_idx
+                ON {self.table_name} (client_key, window_type, request_time)
+            """)
+
+            await conn.commit()
+            self._initialized = True
 
     async def check_rate_limit(self, key: str) -> RateLimitInfo:
         """Check if request is allowed under rate limit."""
-        # Check blacklist
-        if key in self.config.blacklist:
-            return RateLimitInfo(
-                allowed=False,
-                remaining=0,
-                reset_after=3600,
-                retry_after=3600,
+        await self._ensure_initialized()
+
+        now = time.time()
+
+        async with self.pool.connection() as conn, conn.cursor() as cur:
+            # Clean old entries first
+            await cur.execute(
+                f"""
+                DELETE FROM {self.table_name}
+                WHERE request_time < NOW() - INTERVAL '1 hour'
+                """,
             )
 
-        # Check whitelist
-        if key in self.config.whitelist:
-            return RateLimitInfo(
-                allowed=True,
-                remaining=999999,
-                reset_after=0,
+            # Count recent requests
+            await cur.execute(
+                f"""
+                SELECT COUNT(*) FROM {self.table_name}
+                WHERE client_key = %s
+                AND window_type = 'minute'
+                AND request_time > NOW() - INTERVAL '1 minute'
+                """,
+                (key,),
             )
+            minute_result = await cur.fetchone()
+            minute_count = minute_result[0] if minute_result else 0
 
-        # Use pipeline for atomic operations
-        async with self.redis.pipeline(transaction=True) as pipe:
-            minute_key = self._minute_key(key)
-            hour_key = self._hour_key(key)
+            await cur.execute(
+                f"""
+                SELECT COUNT(*) FROM {self.table_name}
+                WHERE client_key = %s
+                AND window_type = 'hour'
+                AND request_time > NOW() - INTERVAL '1 hour'
+                """,
+                (key,),
+            )
+            hour_result = await cur.fetchone()
+            hour_count = hour_result[0] if hour_result else 0
 
-            # Increment counters
-            pipe.incr(minute_key)
-            pipe.incr(hour_key)
+            # Check blacklist
+            if key in self.config.blacklist:
+                await conn.commit()
+                return RateLimitInfo(
+                    allowed=False,
+                    remaining=0,
+                    reset_after=3600,
+                    retry_after=3600,
+                    minute_requests=minute_count,
+                    hour_requests=hour_count,
+                    minute_limit=0,
+                    hour_limit=0,
+                )
 
-            # Set expiry if new
-            pipe.expire(minute_key, 60)
-            pipe.expire(hour_key, 3600)
+            # Check whitelist
+            if key in self.config.whitelist:
+                await conn.commit()
+                return RateLimitInfo(
+                    allowed=True,
+                    remaining=999999,
+                    reset_after=0,
+                    minute_requests=minute_count,
+                    hour_requests=hour_count,
+                    minute_limit=999999,
+                    hour_limit=999999,
+                )
 
-            # Get TTLs
-            pipe.ttl(minute_key)
-            pipe.ttl(hour_key)
-
-            results = await pipe.execute()
-
-            minute_count = results[0]
-            hour_count = results[1]
-            minute_ttl = results[4]
-            hour_ttl = results[5]
-
-        # Check limits
-        if minute_count <= self.config.burst_size:
-            allowed = True
-        elif (
-            minute_count > self.config.requests_per_minute
-            or hour_count > self.config.requests_per_hour
-        ):
-            allowed = False
-        else:
-            allowed = True
-
-        if allowed:
-            remaining_minute = max(0, self.config.requests_per_minute - minute_count)
-            remaining_hour = max(0, self.config.requests_per_hour - hour_count)
-            remaining = min(remaining_minute, remaining_hour)
-            reset_after = minute_ttl
-        else:
-            remaining = 0
-
-            if minute_count > self.config.requests_per_minute:
-                retry_after = minute_ttl
+            # Check burst allowance
+            if minute_count < self.config.burst_size:
+                allowed = True
+            # Check minute and hour limits
+            elif (
+                minute_count >= self.config.requests_per_minute
+                or hour_count >= self.config.requests_per_hour
+            ):
+                allowed = False
             else:
-                retry_after = hour_ttl
+                allowed = True
 
-            reset_after = retry_after
+            if allowed:
+                # Record request
+                await cur.execute(
+                    f"""
+                    INSERT INTO {self.table_name} (client_key, request_time, window_type)
+                    VALUES (%s, TO_TIMESTAMP(%s), 'minute'),
+                           (%s, TO_TIMESTAMP(%s), 'hour')
+                    """,
+                    (key, now, key, now),
+                )
+
+                remaining_minute = max(0, self.config.requests_per_minute - minute_count - 1)
+                remaining_hour = max(0, self.config.requests_per_hour - hour_count - 1)
+                remaining = min(remaining_minute, remaining_hour)
+
+                # Calculate reset time
+                await cur.execute(
+                    f"""
+                    SELECT request_time FROM {self.table_name}
+                    WHERE client_key = %s AND window_type = 'minute'
+                    ORDER BY request_time ASC
+                    LIMIT 1
+                    """,
+                    (key,),
+                )
+                oldest_result = await cur.fetchone()
+                if oldest_result:
+                    oldest_time = oldest_result[0].timestamp()
+                    reset_after = int(60 - (now - oldest_time))
+                else:
+                    reset_after = 0
+
+                await conn.commit()
+
+                return RateLimitInfo(
+                    allowed=True,
+                    remaining=remaining,
+                    reset_after=reset_after,
+                    minute_requests=minute_count + 1,
+                    hour_requests=hour_count + 1,
+                    minute_limit=self.config.requests_per_minute,
+                    hour_limit=self.config.requests_per_hour,
+                )
+
+            # Rate limit exceeded
+            if minute_count >= self.config.requests_per_minute:
+                await cur.execute(
+                    f"""
+                    SELECT request_time FROM {self.table_name}
+                    WHERE client_key = %s AND window_type = 'minute'
+                    ORDER BY request_time ASC
+                    LIMIT 1
+                    """,
+                    (key,),
+                )
+                oldest_result = await cur.fetchone()
+                if oldest_result:
+                    oldest_time = oldest_result[0].timestamp()
+                    retry_after = int(60 - (now - oldest_time))
+                else:
+                    retry_after = 60
+            else:
+                await cur.execute(
+                    f"""
+                    SELECT request_time FROM {self.table_name}
+                    WHERE client_key = %s AND window_type = 'hour'
+                    ORDER BY request_time ASC
+                    LIMIT 1
+                    """,
+                    (key,),
+                )
+                oldest_result = await cur.fetchone()
+                if oldest_result:
+                    oldest_time = oldest_result[0].timestamp()
+                    retry_after = int(3600 - (now - oldest_time))
+                else:
+                    retry_after = 3600
+
+            await conn.commit()
 
             # Log rate limit event
             security_logger = get_security_logger()
@@ -385,7 +518,7 @@ class RedisRateLimiter:
             return RateLimitInfo(
                 allowed=False,
                 remaining=0,
-                reset_after=reset_after,
+                reset_after=retry_after,
                 retry_after=retry_after,
                 minute_requests=minute_count,
                 hour_requests=hour_count,
@@ -393,54 +526,84 @@ class RedisRateLimiter:
                 hour_limit=self.config.requests_per_hour,
             )
 
-        return RateLimitInfo(
-            allowed=True,
-            remaining=remaining,
-            reset_after=reset_after,
-            minute_requests=minute_count,
-            hour_requests=hour_count,
-            minute_limit=self.config.requests_per_minute,
-            hour_limit=self.config.requests_per_hour,
-        )
-
     async def get_rate_limit_info(self, key: str) -> RateLimitInfo:
         """Get current rate limit status without incrementing."""
-        minute_key = self._minute_key(key)
-        hour_key = self._hour_key(key)
+        await self._ensure_initialized()
 
-        # Get current counts
-        results = await self.redis.mget(minute_key, hour_key)
-        minute_count = int(results[0] or 0)
-        hour_count = int(results[1] or 0)
+        now = time.time()
 
-        # Get TTLs
-        minute_ttl = await self.redis.ttl(minute_key)
-        minute_ttl = max(minute_ttl, 0)
+        async with self.pool.connection() as conn, conn.cursor() as cur:
+            # Count recent requests
+            await cur.execute(
+                f"""
+                SELECT COUNT(*) FROM {self.table_name}
+                WHERE client_key = %s
+                AND window_type = 'minute'
+                AND request_time > NOW() - INTERVAL '1 minute'
+                """,
+                (key,),
+            )
+            minute_result = await cur.fetchone()
+            minute_count = minute_result[0] if minute_result else 0
 
-        remaining_minute = max(0, self.config.requests_per_minute - minute_count)
-        remaining_hour = max(0, self.config.requests_per_hour - hour_count)
-        remaining = min(remaining_minute, remaining_hour)
+            await cur.execute(
+                f"""
+                SELECT COUNT(*) FROM {self.table_name}
+                WHERE client_key = %s
+                AND window_type = 'hour'
+                AND request_time > NOW() - INTERVAL '1 hour'
+                """,
+                (key,),
+            )
+            hour_result = await cur.fetchone()
+            hour_count = hour_result[0] if hour_result else 0
 
-        return RateLimitInfo(
-            allowed=remaining > 0,
-            remaining=remaining,
-            reset_after=minute_ttl,
-            minute_requests=minute_count,
-            hour_requests=hour_count,
-            minute_limit=self.config.requests_per_minute,
-            hour_limit=self.config.requests_per_hour,
-        )
+            remaining_minute = max(0, self.config.requests_per_minute - minute_count)
+            remaining_hour = max(0, self.config.requests_per_hour - hour_count)
+            remaining = min(remaining_minute, remaining_hour)
+
+            # Calculate reset time
+            await cur.execute(
+                f"""
+                SELECT request_time FROM {self.table_name}
+                WHERE client_key = %s AND window_type = 'minute'
+                ORDER BY request_time ASC
+                LIMIT 1
+                """,
+                (key,),
+            )
+            oldest_result = await cur.fetchone()
+            if oldest_result:
+                oldest_time = oldest_result[0].timestamp()
+                reset_after = int(60 - (now - oldest_time))
+            else:
+                reset_after = 0
+
+            return RateLimitInfo(
+                allowed=remaining > 0,
+                remaining=remaining,
+                reset_after=reset_after,
+                minute_requests=minute_count,
+                hour_requests=hour_count,
+                minute_limit=self.config.requests_per_minute,
+                hour_limit=self.config.requests_per_hour,
+            )
 
     async def cleanup_expired(self) -> int:
-        """Redis handles expiry automatically."""
-        return 0
+        """Clean up expired entries."""
+        await self._ensure_initialized()
 
+        async with self.pool.connection() as conn, conn.cursor() as cur:
+            await cur.execute(
+                f"""
+                DELETE FROM {self.table_name}
+                WHERE request_time < NOW() - INTERVAL '1 hour'
+                """,
+            )
+            deleted = cur.rowcount
+            await conn.commit()
 
-class SlidingWindowRateLimiter(InMemoryRateLimiter):
-    """Sliding window rate limiter for more accurate rate limiting."""
-
-    # Inherits most functionality from InMemoryRateLimiter
-    # The deque-based implementation already provides sliding window behavior
+            return deleted
 
 
 class RateLimiterMiddleware(BaseHTTPMiddleware):

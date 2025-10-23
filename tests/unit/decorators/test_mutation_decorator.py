@@ -296,3 +296,168 @@ class TestInputConversion:
 
         with pytest.raises(TypeError, match="Cannot convert.*to dictionary"):
             _to_dict("string")
+
+
+class TestPrepareInputHook:
+    """Test the prepare_input hook for input transformation."""
+
+    @pytest.mark.asyncio
+    async def test_prepare_input_transforms_data_before_database_call(self) -> None:
+        """Test that prepare_input hook transforms input before calling database function."""
+
+        @fraise_input
+        class NetworkInput:
+            ip_address: str
+            subnet_mask: str
+
+        @mutation
+        class CreateNetworkConfig:
+            """Create network configuration with CIDR notation."""
+
+            input: NetworkInput
+            success: SampleSuccess
+            error: SampleError
+
+            @staticmethod
+            def prepare_input(input_data: dict) -> dict:
+                """Convert IP + subnet mask to CIDR notation."""
+                ip = input_data.get("ip_address")
+                mask = input_data.get("subnet_mask")
+
+                if ip and mask:
+                    # Simple conversion for /24 networks
+                    if mask == "255.255.255.0":
+                        cidr = f"{ip}/24"
+                    else:
+                        cidr = f"{ip}/32"  # Default to /32
+
+                    return {
+                        "ip_address": cidr,
+                        # subnet_mask is removed from output
+                    }
+                return input_data
+
+        resolver = CreateNetworkConfig.__fraiseql_resolver__
+
+        # Mock the database
+        mock_db = AsyncMock()
+        mock_db.execute_function.return_value = {
+            "status": "success",
+            "message": "Network config created",
+            "object_data": {"id": "123", "name": "Network", "email": "net@example.com"},
+        }
+
+        info = Mock()
+        info.context = {"db": mock_db}
+
+        # Create input with IP and subnet mask
+        input_obj = Mock()
+        input_obj.to_dict = lambda: {
+            "ip_address": "192.168.1.1",
+            "subnet_mask": "255.255.255.0",
+        }
+
+        # Call resolver
+        result = await resolver(info, input_obj)
+
+        # Verify that the database function received CIDR notation
+        # NOT the original IP + subnet mask
+        mock_db.execute_function.assert_called_once_with(
+            "public.create_network_config",
+            {
+                "ip_address": "192.168.1.1/24",
+                # subnet_mask should be removed
+            },
+        )
+
+        # Verify result
+        assert isinstance(result, SampleSuccess)
+
+    @pytest.mark.asyncio
+    async def test_mutation_without_prepare_input_works_normally(self) -> None:
+        """Test that mutations without prepare_input hook work as before."""
+
+        @mutation
+        class CreateUser:
+            input: SampleInput
+            success: SampleSuccess
+            error: SampleError
+            # No prepare_input method
+
+        resolver = CreateUser.__fraiseql_resolver__
+
+        mock_db = AsyncMock()
+        mock_db.execute_function.return_value = {
+            "status": "success",
+            "message": "User created",
+            "object_data": {"id": "123", "name": "John Doe", "email": "john@example.com"},
+        }
+
+        info = Mock()
+        info.context = {"db": mock_db}
+
+        input_obj = Mock()
+        input_obj.to_dict = lambda: {"name": "John Doe", "email": "john@example.com"}
+
+        # Call resolver
+        result = await resolver(info, input_obj)
+
+        # Verify normal behavior (unchanged input data)
+        mock_db.execute_function.assert_called_once_with(
+            "public.create_user", {"name": "John Doe", "email": "john@example.com"}
+        )
+
+        assert isinstance(result, SampleSuccess)
+
+    @pytest.mark.asyncio
+    async def test_prepare_input_can_convert_empty_strings_to_null(self) -> None:
+        """Test that prepare_input can handle empty string to null conversion."""
+
+        @fraise_input
+        class UpdateNoteInput:
+            id: str
+            notes: str | None = None
+
+        @mutation
+        class UpdateNote:
+            input: UpdateNoteInput
+            success: SampleSuccess
+            error: SampleError
+
+            @staticmethod
+            def prepare_input(input_data: dict) -> dict:
+                """Convert empty strings to None for nullable fields."""
+                result = input_data.copy()
+                if "notes" in result and result["notes"] == "":
+                    result["notes"] = None
+                return result
+
+        resolver = UpdateNote.__fraiseql_resolver__
+
+        mock_db = AsyncMock()
+        mock_db.execute_function.return_value = {
+            "status": "success",
+            "message": "Note updated",
+            "object_data": {"id": "123", "name": "Note", "email": "note@example.com"},
+        }
+
+        info = Mock()
+        info.context = {"db": mock_db}
+
+        # Input with empty string
+        input_obj = Mock()
+        input_obj.to_dict = lambda: {"id": "note-123", "notes": ""}
+
+        # Call resolver
+        result = await resolver(info, input_obj)
+
+        # Verify that empty string was converted to None
+        mock_db.execute_function.assert_called_once_with(
+            "public.update_note",
+            {
+                "id": "note-123",
+                "notes": None,  # Converted from ""
+            },
+        )
+
+        assert isinstance(result, SampleSuccess)

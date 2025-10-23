@@ -1,793 +1,989 @@
----
-← [Security](./security.md) | [Advanced Index](./index.md) | [Lazy Caching →](./lazy-caching.md)
----
+# Authentication & Authorization
 
-# Authentication Patterns
-
-> **In this section:** Implement secure authentication patterns including JWT, OAuth2, and multi-tenant auth
-> **Prerequisites:** Understanding of authentication protocols and security principles
-> **Time to complete:** 45 minutes
-
-Comprehensive authentication patterns and implementations for securing FraiseQL APIs with JWT, session-based auth, and database-level authorization.
+Complete guide to implementing enterprise-grade authentication and authorization in FraiseQL applications.
 
 ## Overview
 
-FraiseQL provides a flexible, provider-based authentication system designed for enterprise applications. The framework supports multiple authentication strategies including JWT tokens, session-based authentication, OAuth2/OIDC providers, and native PostgreSQL-backed authentication with advanced features like token rotation and theft detection.
+FraiseQL provides a flexible authentication system supporting multiple providers (Auth0, custom JWT, native sessions) with fine-grained authorization through decorators and field-level permissions.
 
-The authentication system integrates deeply with GraphQL resolvers, enabling field-level authorization and automatic context propagation through your entire API stack, including PostgreSQL functions and views.
+**Core Components:**
+- AuthProvider interface for pluggable authentication
+- UserContext structure propagated to all resolvers
+- Decorators: @requires_auth, @requires_permission, @requires_role
+- Token validation with JWKS
+- Token revocation (in-memory and Redis)
+- Session management
+- Field-level authorization
 
-## Architecture
+## Table of Contents
 
-FraiseQL's authentication architecture follows a provider-based pattern with pluggable implementations:
+- [Authentication Providers](#authentication-providers)
+- [UserContext Structure](#usercontext-structure)
+- [Auth0 Provider](#auth0-provider)
+- [Custom JWT Provider](#custom-jwt-provider)
+- [Native Authentication](#native-authentication)
+- [Authorization Decorators](#authorization-decorators)
+- [Token Revocation](#token-revocation)
+- [Session Management](#session-management)
+- [Field-Level Authorization](#field-level-authorization)
+- [Multi-Provider Setup](#multi-provider-setup)
+- [Security Best Practices](#security-best-practices)
 
-```mermaid
-graph TD
-    A[Client Request] --> B[Security Middleware]
-    B --> C[Auth Provider]
-    C --> D{Provider Type}
-    D -->|JWT| E[Auth0 Provider]
-    D -->|Native| F[PostgreSQL Provider]
-    D -->|Custom| G[Custom Provider]
-    E --> H[Token Validation]
-    F --> H
-    G --> H
-    H --> I[User Context]
-    I --> J[GraphQL Resolvers]
-    I --> K[PostgreSQL Functions]
-    J --> L[Field Authorization]
-    K --> M[Row-Level Security]
-```
+## Authentication Providers
 
-## Configuration
+### AuthProvider Interface
 
-### Basic Setup
+All authentication providers implement the `AuthProvider` abstract base class:
 
 ```python
-from fraiseql import FraiseQL
-from fraiseql.auth import Auth0Provider, NativeAuthProvider
-from fraiseql.auth.native import TokenManager
+from abc import ABC, abstractmethod
+from typing import Any
 
-# Auth0 Integration
-auth0_provider = Auth0Provider(
-    domain="your-domain.auth0.com",
-    api_identifier="https://your-api.com",
-    algorithms=["RS256"]  # Default
+class AuthProvider(ABC):
+    """Abstract base for authentication providers."""
+
+    @abstractmethod
+    async def validate_token(self, token: str) -> dict[str, Any]:
+        """Validate token and return decoded payload.
+
+        Raises:
+            TokenExpiredError: If token has expired
+            InvalidTokenError: If token is invalid
+        """
+        pass
+
+    @abstractmethod
+    async def get_user_from_token(self, token: str) -> UserContext:
+        """Extract UserContext from validated token."""
+        pass
+
+    async def refresh_token(self, refresh_token: str) -> tuple[str, str]:
+        """Optional: Refresh access token.
+
+        Returns:
+            Tuple of (new_access_token, new_refresh_token)
+        """
+        raise NotImplementedError("Token refresh not supported")
+
+    async def revoke_token(self, token: str) -> None:
+        """Optional: Revoke a token."""
+        raise NotImplementedError("Token revocation not supported")
+```
+
+**Implementation Requirements:**
+- Must validate token signature and expiration
+- Must extract user information into UserContext
+- Should log authentication events for audit
+- Should handle edge cases (expired, malformed, missing claims)
+
+## UserContext Structure
+
+UserContext is the standardized user representation passed to all resolvers:
+
+```python
+from dataclasses import dataclass, field
+from typing import Any
+from uuid import UUID
+
+@dataclass
+class UserContext:
+    """User context available in all GraphQL resolvers."""
+
+    user_id: UUID
+    email: str | None = None
+    name: str | None = None
+    roles: list[str] = field(default_factory=list)
+    permissions: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def has_role(self, role: str) -> bool:
+        """Check if user has specific role."""
+        return role in self.roles
+
+    def has_permission(self, permission: str) -> bool:
+        """Check if user has specific permission."""
+        return permission in self.permissions
+
+    def has_any_role(self, roles: list[str]) -> bool:
+        """Check if user has any of the specified roles."""
+        return any(role in self.roles for role in roles)
+
+    def has_any_permission(self, permissions: list[str]) -> bool:
+        """Check if user has any of the specified permissions."""
+        return any(perm in self.permissions for perm in permissions)
+
+    def has_all_roles(self, roles: list[str]) -> bool:
+        """Check if user has all specified roles."""
+        return all(role in self.roles for role in roles)
+
+    def has_all_permissions(self, permissions: list[str]) -> bool:
+        """Check if user has all specified permissions."""
+        return all(perm in self.permissions for perm in permissions)
+```
+
+**Access in Resolvers:**
+
+```python
+from fraiseql import query
+from graphql import GraphQLResolveInfo
+
+@query
+async def get_my_profile(info: GraphQLResolveInfo) -> User:
+    """Get current user's profile."""
+    user_context = info.context["user"]
+    if not user_context:
+        raise AuthenticationError("Not authenticated")
+
+    # user_context is UserContext instance
+    return await fetch_user_by_id(user_context.user_id)
+```
+
+## Auth0 Provider
+
+### Configuration
+
+Complete Auth0 integration with JWT validation and JWKS caching:
+
+```python
+from fraiseql.auth import Auth0Provider, Auth0Config
+from fraiseql.fastapi import create_fraiseql_app
+
+# Method 1: Direct provider instantiation
+auth_provider = Auth0Provider(
+    domain="your-tenant.auth0.com",
+    api_identifier="https://api.yourapp.com",
+    algorithms=["RS256"],
+    cache_jwks=True  # Cache JWKS keys for 1 hour
 )
 
-# Native PostgreSQL Authentication
-token_manager = TokenManager(
-    secret_key="your-secret-key",
-    access_token_expires=timedelta(minutes=15),
-    refresh_token_expires=timedelta(days=30),
-    algorithm="HS256"
+# Method 2: Using config object
+auth_config = Auth0Config(
+    domain="your-tenant.auth0.com",
+    api_identifier="https://api.yourapp.com",
+    client_id="your_client_id",  # Optional: for Management API
+    client_secret="your_client_secret",  # Optional: for Management API
+    algorithms=["RS256"]
 )
 
-native_provider = NativeAuthProvider(
-    token_manager=token_manager,
-    db_pool=db_pool
-)
+auth_provider = auth_config.create_provider()
 
-# Initialize FraiseQL with authentication
-app = FraiseQL(
-    connection_string="postgresql://...",
-    auth_provider=auth0_provider  # or native_provider
+# Create app with authentication
+app = create_fraiseql_app(
+    types=[User, Post, Order],
+    auth_provider=auth_provider
 )
-# Note: Providing an auth_provider automatically enforces authentication
-# All GraphQL requests will require valid authentication
-# (except introspection queries in development mode)
 ```
 
 ### Environment Variables
 
 ```bash
-# Auth0 Configuration
-AUTH0_DOMAIN=your-domain.auth0.com
-AUTH0_API_IDENTIFIER=https://your-api.com
-AUTH0_MANAGEMENT_DOMAIN=your-domain.auth0.com
-AUTH0_MANAGEMENT_CLIENT_ID=your-client-id
-AUTH0_MANAGEMENT_CLIENT_SECRET=your-client-secret
-
-# Native Auth Configuration
-JWT_SECRET_KEY=your-secret-key
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
-JWT_REFRESH_TOKEN_EXPIRE_DAYS=30
-JWT_ALGORITHM=HS256
-
-# Security Settings
-SECURITY_RATE_LIMIT_PER_MINUTE=60
-SECURITY_ENABLE_CSRF=true
-SECURITY_ENABLE_CORS=true
+# .env file
+FRAISEQL_AUTH_ENABLED=true
+FRAISEQL_AUTH_PROVIDER=auth0
+FRAISEQL_AUTH0_DOMAIN=your-tenant.auth0.com
+FRAISEQL_AUTH0_API_IDENTIFIER=https://api.yourapp.com
+FRAISEQL_AUTH0_ALGORITHMS=["RS256"]
 ```
 
-## Authentication Enforcement
+### Token Structure
 
-When an authentication provider is configured, FraiseQL automatically enforces authentication on all GraphQL requests:
+Auth0 JWT tokens must contain:
 
-1. **Automatic Enforcement**: Providing an `auth` parameter to `create_fraiseql_app()` or setting an `auth_provider` automatically enables authentication enforcement
-2. **401 Unauthorized**: Unauthenticated requests receive a 401 response
-3. **Development Exception**: Introspection queries (`__schema`) are allowed without authentication in development mode only
-4. **No Optional Auth**: Once configured, authentication cannot be made optional for specific endpoints (use separate apps if needed)
-
-```python
-# Authentication is ENFORCED - all requests require valid tokens
-app = create_fraiseql_app(
-    database_url="postgresql://localhost/db",
-    auth=auth_provider  # This enables enforcement
-)
-
-# Authentication is OPTIONAL - requests work with or without tokens
-app = create_fraiseql_app(
-    database_url="postgresql://localhost/db"
-    # No auth parameter = optional authentication
-)
+```json
+{
+  "sub": "auth0|507f1f77bcf86cd799439011",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "permissions": ["users:read", "users:write", "posts:create"],
+  "https://api.yourapp.com/roles": ["user", "editor"],
+  "aud": "https://api.yourapp.com",
+  "iss": "https://your-tenant.auth0.com/",
+  "iat": 1516239022,
+  "exp": 1516325422
+}
 ```
 
-## Implementation
+**Custom Claims:**
+- Roles: `https://{api_identifier}/roles` (namespaced)
+- Permissions: `permissions` or `scope` (standard OAuth2)
+- Metadata: Any additional claims
 
-### JWT Integration
+### Token Validation
 
-#### Auth0 Provider Example
-
-```python
-from fraiseql import FraiseQL, query, mutation
-from fraiseql.auth import Auth0Provider, requires_auth, requires_permission
-from fraiseql.auth.decorators import requires_role
-import strawberry
-
-# Configure Auth0 Provider
-auth_provider = Auth0Provider(
-    domain=os.getenv("AUTH0_DOMAIN"),
-    api_identifier=os.getenv("AUTH0_API_IDENTIFIER")
-)
-
-@strawberry.type
-class User:
-    id: str
-    email: str
-    name: str
-
-    @strawberry.field
-    @requires_permission("users:read:sensitive")
-    def social_security_number(self) -> str:
-        """Only users with sensitive data permission can access"""
-        return self._ssn
-
-@query(table="v_users", return_type=User)
-@requires_auth
-async def current_user(info) -> User:
-    """Get current authenticated user"""
-    user_context = info.context["user"]
-    return {"user_id": user_context.user_id}
-
-@mutation(function="fn_update_user_profile", schema="app")
-@requires_permission("users:write")
-class UpdateUserProfile:
-    """Update user profile with permission check"""
-    input: UpdateProfileInput
-    success: UpdateProfileSuccess
-    failure: UpdateProfileError
-```
-
-#### Token Validation and Management
+Auth0Provider automatically validates:
 
 ```python
-from fraiseql.auth.token_revocation import TokenRevocationService, InMemoryRevocationStore
+# Automatic validation process:
+# 1. Fetch JWKS from https://your-tenant.auth0.com/.well-known/jwks.json
+# 2. Verify signature using RS256 algorithm
+# 3. Check audience matches api_identifier
+# 4. Check issuer matches https://your-tenant.auth0.com/
+# 5. Check token not expired (exp claim)
+# 6. Extract user information into UserContext
 
-# Setup token revocation for logout functionality
-# For production with multiple instances, consider implementing PostgreSQL-based store
-# or use Redis if you already have it for other purposes
-revocation_store = InMemoryRevocationStore()  # Simple in-memory store
-revocation_service = TokenRevocationService(revocation_store)
+async def validate_token(self, token: str) -> dict[str, Any]:
+    """Validate Auth0 JWT token."""
+    try:
+        # Get signing key from JWKS (cached)
+        signing_key = self.jwks_client.get_signing_key_from_jwt(token)
 
-# Custom auth provider with revocation support
-class CustomAuthProvider(Auth0Provider):
-    def __init__(self, *args, revocation_service: TokenRevocationService, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.revocation_service = revocation_service
-
-    async def validate_token(self, token: str) -> dict[str, Any]:
-        payload = await super().validate_token(token)
-
-        # Check if token is revoked
-        if await self.revocation_service.is_token_revoked(payload):
-            raise AuthenticationError("Token has been revoked")
+        # Decode and verify
+        payload = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=self.algorithms,
+            audience=self.api_identifier,
+            issuer=self.issuer,
+        )
 
         return payload
 
-    async def logout(self, token: str) -> None:
-        """Revoke token on logout"""
-        payload = jwt.decode(token, options={"verify_signature": False})
-        await self.revocation_service.revoke_token(payload)
+    except jwt.ExpiredSignatureError:
+        raise TokenExpiredError("Token has expired")
+    except jwt.InvalidTokenError as e:
+        raise InvalidTokenError(f"Invalid token: {e}")
 ```
 
-### Session-based Auth
+### Management API Integration
 
-Native PostgreSQL-backed session management with secure refresh token rotation:
+Access Auth0 Management API for user profile, roles, permissions:
 
 ```python
-from fraiseql.auth.native import NativeAuthProvider, TokenManager
-from fraiseql.auth.native.middleware import SessionAuthMiddleware
-
-# Configure session-based authentication
-token_manager = TokenManager(
-    secret_key=os.getenv("JWT_SECRET_KEY"),
-    access_token_expires=timedelta(minutes=15),
-    refresh_token_expires=timedelta(days=30),
-    algorithm="HS256"
+# Fetch full user profile
+user_profile = await auth_provider.get_user_profile(
+    user_id="auth0|507f1f77bcf86cd799439011",
+    access_token=management_api_token
 )
+# Returns: {"user_id": "...", "email": "...", "name": "...", ...}
 
-native_auth = NativeAuthProvider(
-    token_manager=token_manager,
-    db_pool=db_pool
+# Fetch user roles
+roles = await auth_provider.get_user_roles(
+    user_id="auth0|507f1f77bcf86cd799439011",
+    access_token=management_api_token
 )
+# Returns: [{"id": "rol_...", "name": "admin", "description": "..."}]
 
-# Add session middleware
-app.add_middleware(SessionAuthMiddleware, auth_provider=native_auth)
+# Fetch user permissions
+permissions = await auth_provider.get_user_permissions(
+    user_id="auth0|507f1f77bcf86cd799439011",
+    access_token=management_api_token
+)
+# Returns: [{"permission_name": "users:write", "resource_server_identifier": "..."}]
+```
 
-@mutation(function="fn_login", schema="auth")
-class Login:
-    """User login with session creation"""
-    input: LoginInput
-    success: LoginSuccess
-    failure: LoginError
+**Management API Token:**
 
-    async def post_process(self, result: LoginSuccess, info) -> LoginSuccess:
-        """Add tokens to response"""
-        if isinstance(result, LoginSuccess):
-            # Tokens are automatically set in HTTP-only cookies
-            info.context["response"].set_cookie(
-                "access_token",
-                result.access_token,
-                httponly=True,
-                secure=True,
-                samesite="lax"
+```python
+import httpx
+
+async def get_management_api_token(domain: str, client_id: str, client_secret: str) -> str:
+    """Get Management API access token."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"https://{domain}/oauth/token",
+            json={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "audience": f"https://{domain}/api/v2/"
+            }
+        )
+        return response.json()["access_token"]
+```
+
+## Custom JWT Provider
+
+Implement custom JWT authentication for non-Auth0 providers:
+
+```python
+from fraiseql.auth import AuthProvider, UserContext, InvalidTokenError, TokenExpiredError
+import jwt
+from typing import Any
+
+class CustomJWTProvider(AuthProvider):
+    """Custom JWT authentication provider."""
+
+    def __init__(
+        self,
+        secret_key: str,
+        algorithm: str = "HS256",
+        issuer: str | None = None,
+        audience: str | None = None
+    ):
+        self.secret_key = secret_key
+        self.algorithm = algorithm
+        self.issuer = issuer
+        self.audience = audience
+
+    async def validate_token(self, token: str) -> dict[str, Any]:
+        """Validate JWT token with secret key."""
+        try:
+            payload = jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=[self.algorithm],
+                audience=self.audience,
+                issuer=self.issuer,
+                options={
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_aud": self.audience is not None,
+                    "verify_iss": self.issuer is not None
+                }
             )
-        return result
+            return payload
 
-@mutation(function="fn_refresh_token", schema="auth")
-class RefreshToken:
-    """Rotate refresh token with theft detection"""
-    success: RefreshSuccess
-    failure: RefreshError
-```
+        except jwt.ExpiredSignatureError:
+            raise TokenExpiredError("Token has expired")
+        except jwt.InvalidTokenError as e:
+            raise InvalidTokenError(f"Invalid token: {e}")
 
-### OAuth2/OIDC Integration
-
-Complete OAuth2 flow implementation with state management:
-
-```python
-from fraiseql.auth.oauth2 import OAuth2Provider
-from authlib.integrations.starlette_client import OAuth
-
-# Configure OAuth2 providers
-oauth = OAuth()
-oauth.register(
-    name='google',
-    client_id=os.getenv('GOOGLE_CLIENT_ID'),
-    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={'scope': 'openid email profile'}
-)
-
-class GoogleOAuth2Provider(OAuth2Provider):
-    def __init__(self, oauth_client):
-        self.client = oauth_client
-
-    async def get_authorization_url(self, redirect_uri: str) -> str:
-        """Generate OAuth2 authorization URL"""
-        return await self.client.google.authorize_redirect(redirect_uri)
-
-    async def handle_callback(self, request) -> UserContext:
-        """Process OAuth2 callback and create user context"""
-        token = await self.client.google.authorize_access_token(request)
-        user_info = token.get('userinfo')
-
-        # Create or update user in database
-        async with db_pool.connection() as conn:
-            user = await conn.fetchrow("""
-                INSERT INTO tb_users (email, name, oauth_provider, oauth_id)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (email)
-                DO UPDATE SET
-                    last_login = CURRENT_TIMESTAMP,
-                    name = EXCLUDED.name
-                RETURNING id, email, name
-            """, user_info['email'], user_info['name'], 'google', user_info['sub'])
+    async def get_user_from_token(self, token: str) -> UserContext:
+        """Extract UserContext from token payload."""
+        payload = await self.validate_token(token)
 
         return UserContext(
-            user_id=str(user['id']),
-            email=user['email'],
-            name=user['name'],
-            metadata={'provider': 'google'}
+            user_id=UUID(payload.get("sub", payload.get("user_id"))),
+            email=payload.get("email"),
+            name=payload.get("name"),
+            roles=payload.get("roles", []),
+            permissions=payload.get("permissions", []),
+            metadata={
+                k: v for k, v in payload.items()
+                if k not in ["sub", "user_id", "email", "name", "roles", "permissions", "exp", "iat", "iss", "aud"]
+            }
         )
 ```
 
-### API Key Authentication
-
-Service-to-service authentication with API keys:
+**Usage:**
 
 ```python
-from fraiseql.auth.api_key import APIKeyProvider
+from fraiseql.fastapi import create_fraiseql_app
 
-class DatabaseAPIKeyProvider(APIKeyProvider):
-    def __init__(self, db_pool):
-        self.db_pool = db_pool
+# Create provider
+auth_provider = CustomJWTProvider(
+    secret_key="your-secret-key-keep-secure",
+    algorithm="HS256",
+    issuer="https://yourapp.com",
+    audience="https://api.yourapp.com"
+)
 
-    async def validate_api_key(self, api_key: str) -> UserContext | None:
-        """Validate API key against database"""
-        async with self.db_pool.connection() as conn:
-            # Check API key and get associated service account
-            service = await conn.fetchrow("""
-                SELECT
-                    s.id,
-                    s.name,
-                    s.permissions,
-                    s.rate_limit
-                FROM tb_service_accounts s
-                JOIN tb_api_keys k ON k.service_account_id = s.id
-                WHERE k.key_hash = crypt($1, k.key_hash)
-                    AND k.expires_at > CURRENT_TIMESTAMP
-                    AND k.is_active = true
-            """, api_key)
+# Create app
+app = create_fraiseql_app(
+    types=[User, Post],
+    auth_provider=auth_provider
+)
+```
 
-            if not service:
-                return None
+## Native Authentication
 
-            # Log API key usage
-            await conn.execute("""
-                INSERT INTO tb_api_key_usage (api_key_id, used_at, ip_address)
-                VALUES (
-                    (SELECT id FROM tb_api_keys WHERE key_hash = crypt($1, key_hash)),
-                    CURRENT_TIMESTAMP,
-                    $2
-                )
-            """, api_key, info.context.get("client_ip"))
+FraiseQL includes native username/password authentication with session management:
 
-            return UserContext(
-                user_id=f"service:{service['id']}",
-                name=service['name'],
-                permissions=service['permissions'],
-                metadata={'rate_limit': service['rate_limit']}
+```python
+from fraiseql.auth.native import (
+    NativeAuthProvider,
+    NativeAuthFactory,
+    UserRepository
+)
+
+# 1. Implement user repository
+class PostgresUserRepository(UserRepository):
+    """User repository backed by PostgreSQL."""
+
+    async def get_user_by_username(self, username: str) -> User | None:
+        async with db.connection() as conn:
+            result = await conn.execute(
+                "SELECT * FROM users WHERE username = $1",
+                username
             )
+            row = await result.fetchone()
+            return User(**row) if row else None
 
-# Use in middleware
-app.add_middleware(
-    APIKeyAuthMiddleware,
-    provider=DatabaseAPIKeyProvider(db_pool),
-    header_name="X-API-Key"
-)
-```
-
-### Context Propagation
-
-FraiseQL automatically propagates authentication context through all layers:
-
-```python
-@mutation(
-    function="fn_create_post",
-    schema="app",
-    context_params={
-        "author_id": "user",  # Maps context["user"].user_id to function parameter
-        "tenant_id": "tenant_id",  # Maps context["tenant_id"] to parameter
-    }
-)
-class CreatePost:
-    """Context parameters are automatically injected into PostgreSQL function"""
-    input: CreatePostInput
-    success: Post
-    failure: CreatePostError
-
-# The PostgreSQL function receives context
-"""
-CREATE FUNCTION fn_create_post(
-    p_title text,
-    p_content text,
-    p_author_id uuid,  -- Automatically injected from context
-    p_tenant_id uuid   -- Automatically injected from context
-) RETURNS jsonb AS $$
-BEGIN
-    -- Context is also available via session variables
-    -- current_setting('app.user_id')
-    -- current_setting('app.tenant_id')
-
-    INSERT INTO tb_posts (title, content, author_id, tenant_id)
-    VALUES (p_title, p_content, p_author_id, p_tenant_id);
-
-    -- Return through secure view
-    RETURN (
-        SELECT row_to_json(p)
-        FROM v_posts p
-        WHERE p.id = LASTVAL()
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-"""
-
-# Context is also available in queries
-@query(
-    sql="""
-    SELECT * FROM v_posts
-    WHERE tenant_id = current_setting('app.tenant_id')::uuid
-        AND (
-            author_id = current_setting('app.user_id')::uuid
-            OR EXISTS (
-                SELECT 1 FROM v_post_permissions
-                WHERE post_id = v_posts.id
-                    AND user_id = current_setting('app.user_id')::uuid
+    async def get_user_by_id(self, user_id: str) -> User | None:
+        async with db.connection() as conn:
+            result = await conn.execute(
+                "SELECT * FROM users WHERE id = $1",
+                user_id
             )
-        )
-    """,
-    return_type=list[Post]
+            row = await result.fetchone()
+            return User(**row) if row else None
+
+    async def create_user(self, username: str, password_hash: str, email: str) -> User:
+        async with db.connection() as conn:
+            result = await conn.execute(
+                "INSERT INTO users (username, password_hash, email) VALUES ($1, $2, $3) RETURNING *",
+                username, password_hash, email
+            )
+            row = await result.fetchone()
+            return User(**row)
+
+# 2. Create provider
+user_repo = PostgresUserRepository()
+
+auth_provider = NativeAuthFactory.create_provider(
+    user_repository=user_repo,
+    secret_key="your-secret-key",
+    access_token_ttl=3600,  # 1 hour
+    refresh_token_ttl=2592000  # 30 days
 )
+
+# 3. Mount authentication routes
+from fraiseql.auth.native import create_auth_router
+
+auth_router = create_auth_router(auth_provider)
+app.include_router(auth_router, prefix="/auth")
+```
+
+**Authentication Endpoints:**
+
+```bash
+# Register
+POST /auth/register
+{
+  "username": "john",
+  "password": "secure_password",
+  "email": "john@example.com"
+}
+
+# Login
+POST /auth/login
+{
+  "username": "john",
+  "password": "secure_password"
+}
+# Returns: {"access_token": "...", "refresh_token": "...", "token_type": "bearer"}
+
+# Refresh token
+POST /auth/refresh
+{
+  "refresh_token": "..."
+}
+# Returns: {"access_token": "...", "refresh_token": "..."}
+
+# Logout
+POST /auth/logout
+Authorization: Bearer <access_token>
+```
+
+## Authorization Decorators
+
+### @requires_auth
+
+Require authentication for any resolver:
+
+```python
+from fraiseql import query, mutation
+from fraiseql.auth import requires_auth
+
+@query
 @requires_auth
-async def my_posts(info) -> list[Post]:
-    """Posts filtered by tenant and permissions"""
-    pass
-```
+async def get_my_orders(info) -> list[Order]:
+    """Get current user's orders - requires authentication."""
+    user = info.context["user"]  # Guaranteed to exist
+    return await fetch_user_orders(user.user_id)
 
-### PostgreSQL Role Integration
-
-Advanced database-level security with row-level security policies:
-
-```python
-# Setup database roles and policies
-"""
--- Create application roles
-CREATE ROLE app_anonymous;
-CREATE ROLE app_authenticated;
-CREATE ROLE app_admin;
-
--- Grant base permissions
-GRANT SELECT ON v_public_posts TO app_anonymous;
-GRANT SELECT, INSERT, UPDATE ON v_posts TO app_authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA app TO app_admin;
-
--- Row Level Security Policies
-ALTER TABLE tb_posts ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY tenant_isolation ON tb_posts
-    FOR ALL
-    TO app_authenticated
-    USING (tenant_id = current_setting('app.tenant_id')::uuid);
-
-CREATE POLICY author_access ON tb_posts
-    FOR UPDATE, DELETE
-    TO app_authenticated
-    USING (author_id = current_setting('app.user_id')::uuid);
-
--- Function to set session context
-CREATE FUNCTION set_auth_context(
-    p_user_id uuid,
-    p_tenant_id uuid,
-    p_role text
-) RETURNS void AS $$
-BEGIN
-    PERFORM set_config('app.user_id', p_user_id::text, true);
-    PERFORM set_config('app.tenant_id', p_tenant_id::text, true);
-    EXECUTE format('SET LOCAL ROLE %I', p_role);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-"""
-
-# Middleware to set PostgreSQL context
-class PostgreSQLAuthMiddleware:
-    async def resolve(self, next, root, info, **args):
-        user_context = info.context.get("user")
-
-        if user_context:
-            # Set PostgreSQL session variables
-            async with info.context["db_pool"].connection() as conn:
-                await conn.execute(
-                    "SELECT set_auth_context($1, $2, $3)",
-                    user_context.user_id,
-                    info.context.get("tenant_id"),
-                    "app_authenticated" if not user_context.has_role("admin") else "app_admin"
-                )
-
-        return await next(root, info, **args)
-```
-
-### Multi-tenant Patterns
-
-Complete multi-tenant authentication with automatic tenant isolation:
-
-```python
-from fraiseql.auth.multitenant import TenantMiddleware, TenantContext
-
-@dataclass
-class TenantContext:
-    tenant_id: str
-    tenant_name: str
-    tenant_settings: dict[str, Any]
-
-class DatabaseTenantMiddleware(TenantMiddleware):
-    async def get_tenant_from_request(self, request) -> TenantContext | None:
-        # Extract tenant from subdomain
-        host = request.headers.get("host", "")
-        subdomain = host.split(".")[0]
-
-        async with self.db_pool.connection() as conn:
-            tenant = await conn.fetchrow("""
-                SELECT id, name, settings
-                FROM tb_tenants
-                WHERE subdomain = $1 AND is_active = true
-            """, subdomain)
-
-            if tenant:
-                return TenantContext(
-                    tenant_id=str(tenant['id']),
-                    tenant_name=tenant['name'],
-                    tenant_settings=tenant['settings']
-                )
-
-        return None
-
-# Automatic tenant filtering in queries
-@query(
-    table="v_tenant_users",  # View automatically filters by tenant
-    return_type=list[User]
-)
-@requires_auth
-async def list_users(info) -> list[User]:
-    """List all users in current tenant"""
-    # The view v_tenant_users already filters by current_setting('app.tenant_id')
-    pass
-
-# Tenant-aware mutations
-@mutation(
-    function="fn_invite_user",
-    schema="app",
-    context_params={
-        "tenant_id": "tenant_id",
-        "invited_by": "user"
-    }
-)
-class InviteUser:
-    """Invite user to current tenant"""
-    input: InviteUserInput
-    success: InviteUserSuccess
-    failure: InviteUserError
-```
-
-## Performance Considerations
-
-### Token Validation Caching
-
-```python
-# Token validation caching
-# Note: Currently only Redis-backed cache is implemented
-# For most use cases, JWT validation is fast enough without caching
-# Consider implementing PostgreSQL-based cache if needed
-
-class CachedAuthProvider(Auth0Provider):
-    def __init__(self, *args, token_cache: TokenCache, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.token_cache = token_cache
-
-    async def validate_token(self, token: str) -> dict[str, Any]:
-        # Check cache first
-        cached = await self.token_cache.get(token)
-        if cached:
-            return cached
-
-        # Validate and cache
-        payload = await super().validate_token(token)
-        await self.token_cache.set(token, payload)
-        return payload
-```
-
-### Database Connection Pooling
-
-```python
-# Optimize connection pool for auth queries
-auth_pool = await asyncpg.create_pool(
-    connection_string,
-    min_size=10,  # Keep connections ready for auth
-    max_size=20,  # Limit concurrent auth operations
-    max_inactive_connection_lifetime=300
-)
-
-# Dedicated read replica for auth queries
-read_replica_pool = await asyncpg.create_pool(
-    read_replica_connection_string,
-    min_size=5,
-    max_size=10
-)
-```
-
-### Query Performance
-
-- **Index user lookups**: `CREATE INDEX idx_users_email ON tb_users(email)`
-- **Index API keys**: `CREATE INDEX idx_api_keys_hash ON tb_api_keys(key_hash)`
-- **Partial indexes for active records**: `CREATE INDEX idx_active_sessions ON tb_sessions(user_id) WHERE expires_at > CURRENT_TIMESTAMP`
-- **Composite indexes for tenant queries**: `CREATE INDEX idx_tenant_users ON tb_users(tenant_id, email)`
-
-## Security Implications
-
-### Token Security
-
-1. **Short-lived access tokens**: 15 minutes default expiry
-2. **Refresh token rotation**: New refresh token on each use
-3. **Token theft detection**: Invalidate token family on reuse
-4. **Secure storage**: HTTP-only cookies for web apps
-5. **CSRF protection**: Double-submit cookie pattern
-
-### Rate Limiting
-
-```python
-from fraiseql.auth.native.middleware import RateLimitMiddleware
-
-# Configure rate limiting
-app.add_middleware(
-    RateLimitMiddleware,
-    rate_limit_per_minute=60,
-    auth_endpoints_limit=10,  # Stricter for auth endpoints
-    by_ip=True,
-    by_user=True
-)
-```
-
-### Input Validation
-
-```python
-from fraiseql.validation import EmailStr, SecurePassword
-
-@strawberry.input
-class LoginInput:
-    email: EmailStr  # Validates email format
-    password: SecurePassword  # Validates password strength
-
-    @validator("password")
-    def validate_password(cls, v):
-        if len(v) < 12:
-            raise ValueError("Password must be at least 12 characters")
-        return v
-```
-
-## Best Practices
-
-1. **Always use HTTPS** in production for token transmission
-2. **Implement token rotation** for refresh tokens to prevent theft
-3. **Use field-level authorization** for sensitive data
-4. **Log authentication events** for security auditing
-5. **Implement account lockout** after failed attempts
-6. **Use secure password hashing** (bcrypt, scrypt, or argon2)
-7. **Validate all inputs** to prevent injection attacks
-8. **Set secure headers** (HSTS, CSP, X-Frame-Options)
-9. **Use database roles** for defense in depth
-10. **Monitor for anomalies** in authentication patterns
-
-## Common Pitfalls
-
-### Pitfall 1: Storing tokens in localStorage
-**Problem**: Vulnerable to XSS attacks
-**Solution**: Use HTTP-only cookies or secure memory storage
-
-```python
-# Bad: JavaScript accessible
-localStorage.setItem('token', token)
-
-# Good: HTTP-only cookie
-response.set_cookie(
-    "access_token",
-    token,
-    httponly=True,
-    secure=True,
-    samesite="lax",
-    max_age=900  # 15 minutes
-)
-```
-
-### Pitfall 2: Not validating token expiry
-**Problem**: Accepting expired tokens
-**Solution**: Always validate expiry and implement token refresh
-
-```python
-# Bad: No expiry check
-payload = jwt.decode(token, key, options={"verify_signature": True})
-
-# Good: Full validation
-payload = jwt.decode(
-    token,
-    key,
-    algorithms=["HS256"],
-    options={
-        "verify_signature": True,
-        "verify_exp": True,
-        "verify_nbf": True,
-        "verify_iat": True,
-        "verify_aud": True,
-        "require": ["exp", "iat", "nbf"]
-    }
-)
-```
-
-### Pitfall 3: Weak session invalidation
-**Problem**: Sessions remain valid after logout
-**Solution**: Implement proper token revocation
-
-```python
-# Bad: Client-side only logout
-localStorage.removeItem('token')
-
-# Good: Server-side revocation
 @mutation
-async def logout(info) -> bool:
-    token = info.context["auth_token"]
-    await auth_provider.logout(token)
+@requires_auth
+async def update_profile(info, name: str, email: str) -> User:
+    """Update user profile - requires authentication."""
+    user = info.context["user"]
+    return await update_user_profile(user.user_id, name, email)
+```
 
-    # Clear session data
-    await conn.execute("""
-        UPDATE tb_sessions
-        SET revoked_at = CURRENT_TIMESTAMP
-        WHERE token = $1
-    """, token)
+**Behavior:**
+- Checks `info.context["user"]` exists and is UserContext instance
+- Raises GraphQLError with code "UNAUTHENTICATED" if not authenticated
+- Resolver only executes if user is authenticated
 
+### @requires_permission
+
+Require specific permission:
+
+```python
+from fraiseql import mutation
+from fraiseql.auth import requires_permission
+
+@mutation
+@requires_permission("orders:create")
+async def create_order(info, product_id: str, quantity: int) -> Order:
+    """Create order - requires orders:create permission."""
+    user = info.context["user"]
+    return await create_order_for_user(user.user_id, product_id, quantity)
+
+@mutation
+@requires_permission("users:delete")
+async def delete_user(info, user_id: str) -> bool:
+    """Delete user - requires users:delete permission."""
+    await delete_user_by_id(user_id)
     return True
 ```
 
-### Pitfall 4: Insufficient context isolation
-**Problem**: Tenant data leakage
-**Solution**: Always filter by tenant at database level
+**Permission Format:**
+- Convention: `resource:action` (e.g., "orders:read", "users:write")
+- Flexible: Any string format works
+- Case-sensitive: "Orders:Read" != "orders:read"
+
+### @requires_role
+
+Require specific role:
 
 ```python
-# Bad: Application-level filtering
-posts = await get_all_posts()
-return [p for p in posts if p.tenant_id == current_tenant]
+from fraiseql import query, mutation
+from fraiseql.auth import requires_role
 
-# Good: Database-level filtering with RLS
-"""
-CREATE POLICY tenant_isolation ON tb_posts
-    FOR ALL
-    USING (tenant_id = current_setting('app.tenant_id')::uuid);
-"""
+@query
+@requires_role("admin")
+async def get_all_users(info) -> list[User]:
+    """Get all users - admin only."""
+    return await fetch_all_users()
+
+@mutation
+@requires_role("moderator")
+async def ban_user(info, user_id: str, reason: str) -> bool:
+    """Ban user - moderator only."""
+    await ban_user_by_id(user_id, reason)
+    return True
 ```
 
-## Troubleshooting
+### @requires_any_permission
 
-### Error: "JWT signature verification failed"
-**Cause**: Mismatched signing keys or algorithms
-**Solution**:
+Require any of multiple permissions:
+
 ```python
-# Verify JWKS endpoint for Auth0
-print(f"JWKS URL: {auth_provider.jwks_uri}")
-# Check algorithm matches
-print(f"Algorithms: {auth_provider.algorithms}")
+from fraiseql import mutation
+from fraiseql.auth import requires_any_permission
+
+@mutation
+@requires_any_permission("orders:write", "admin:all")
+async def update_order(info, order_id: str, status: str) -> Order:
+    """Update order - requires orders:write OR admin:all permission."""
+    return await update_order_status(order_id, status)
 ```
 
-### Error: "Token has been revoked"
-**Cause**: Token in revocation list
-**Solution**:
+### @requires_any_role
+
+Require any of multiple roles:
+
 ```python
-# Check revocation status
-is_revoked = await revocation_service.is_token_revoked(payload)
-# Clear revocation if needed (admin action)
-await revocation_service.clear_revocation(jti)
+from fraiseql import mutation
+from fraiseql.auth import requires_any_role
+
+@mutation
+@requires_any_role("admin", "moderator")
+async def moderate_content(info, content_id: str, action: str) -> bool:
+    """Moderate content - admin or moderator."""
+    await moderate_content_by_id(content_id, action)
+    return True
 ```
 
-### Error: "Refresh token theft detected"
-**Cause**: Refresh token reused after rotation
-**Solution**:
+### Combining Decorators
+
+Stack decorators for complex authorization:
+
 ```python
-# Invalidate entire token family
-await token_manager.invalidate_token_family(family_id)
-# Force user to re-authenticate
+from fraiseql import mutation
+from fraiseql.auth import requires_auth, requires_permission
+
+@mutation
+@requires_auth
+@requires_permission("orders:refund")
+async def refund_order(info, order_id: str, reason: str) -> Order:
+    """Refund order - requires authentication and orders:refund permission."""
+    user = info.context["user"]
+
+    # Additional custom checks
+    order = await fetch_order(order_id)
+    if order.user_id != user.user_id and not user.has_role("admin"):
+        raise GraphQLError("Can only refund your own orders")
+
+    return await process_refund(order_id, reason)
 ```
 
-### Error: "Permission denied for relation"
-**Cause**: PostgreSQL role lacks permissions
-**Solution**:
-```sql
--- Check current role
-SELECT current_user, current_setting('role');
--- Grant necessary permissions
-GRANT SELECT ON v_posts TO app_authenticated;
+**Decorator Order:**
+- Outermost decorator executes first
+- Recommended: @mutation/@query first, then auth decorators
+- Auth checks happen before resolver logic
+
+## Token Revocation
+
+Support logout and session invalidation with token revocation:
+
+### In-Memory Store (Development)
+
+```python
+from fraiseql.auth import (
+    InMemoryRevocationStore,
+    TokenRevocationService,
+    RevocationConfig
+)
+
+# Create revocation store
+revocation_store = InMemoryRevocationStore()
+
+# Create revocation service
+revocation_service = TokenRevocationService(
+    store=revocation_store,
+    config=RevocationConfig(
+        enabled=True,
+        check_revocation=True,
+        ttl=86400,  # 24 hours
+        cleanup_interval=3600  # Clean expired every hour
+    )
+)
+
+# Start cleanup task
+await revocation_service.start()
 ```
 
-## See Also
+### Redis Store (Production)
 
-- [Security Guide](./security.md) - Comprehensive security features
-- [Configuration Reference](./configuration.md) - All authentication environment variables
-- [Field Authorization](../api-reference/decorators.md#authorize_field) - Field-level permission control
-- [PostgreSQL Function Mutations](../mutations/postgresql-function-based.md) - Secure mutation patterns
-- [Multi-tenant Patterns](./domain-driven-database.md#multi-tenant-design) - Tenant isolation strategies
+```python
+from fraiseql.auth import RedisRevocationStore, TokenRevocationService
+import redis.asyncio as redis
+
+# Create Redis client
+redis_client = redis.from_url("redis://localhost:6379/0")
+
+# Create revocation store
+revocation_store = RedisRevocationStore(
+    redis_client=redis_client,
+    ttl=86400  # 24 hours
+)
+
+# Create revocation service
+revocation_service = TokenRevocationService(
+    store=revocation_store,
+    config=RevocationConfig(
+        enabled=True,
+        check_revocation=True,
+        ttl=86400
+    )
+)
+```
+
+### Integration with Auth Provider
+
+```python
+from fraiseql.auth import Auth0ProviderWithRevocation
+
+# Auth0 with revocation support
+auth_provider = Auth0ProviderWithRevocation(
+    domain="your-tenant.auth0.com",
+    api_identifier="https://api.yourapp.com",
+    revocation_service=revocation_service
+)
+
+# Revoke specific token
+await auth_provider.logout(token_payload)
+
+# Revoke all user tokens (logout all sessions)
+await auth_provider.logout_all_sessions(user_id)
+```
+
+### Logout Endpoint
+
+```python
+from fastapi import APIRouter, Header, HTTPException
+from fraiseql.auth import AuthenticationError
+
+router = APIRouter()
+
+@router.post("/logout")
+async def logout(authorization: str = Header(...)):
+    """Logout current session."""
+    try:
+        # Extract token
+        token = authorization.replace("Bearer ", "")
+
+        # Validate and decode
+        payload = await auth_provider.validate_token(token)
+
+        # Revoke token
+        await auth_provider.logout(payload)
+
+        return {"message": "Logged out successfully"}
+
+    except AuthenticationError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+@router.post("/logout-all")
+async def logout_all_sessions(authorization: str = Header(...)):
+    """Logout all sessions for current user."""
+    try:
+        token = authorization.replace("Bearer ", "")
+        payload = await auth_provider.validate_token(token)
+        user_id = payload["sub"]
+
+        # Revoke all user tokens
+        await auth_provider.logout_all_sessions(user_id)
+
+        return {"message": "All sessions logged out"}
+
+    except AuthenticationError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+```
+
+**Token Requirements:**
+- Tokens must include `jti` (JWT ID) claim for revocation tracking
+- Tokens must include `sub` (subject) claim for user identification
+
+## Session Management
+
+### Session Variables
+
+Store user-specific state in session:
+
+```python
+from fraiseql import query
+
+@query
+async def get_cart(info) -> Cart:
+    """Get user's shopping cart from session."""
+    user = info.context["user"]
+    session = info.context.get("session", {})
+
+    cart_id = session.get(f"cart:{user.user_id}")
+    if not cart_id:
+        # Create new cart
+        cart = await create_cart(user.user_id)
+        session[f"cart:{user.user_id}"] = cart.id
+    else:
+        cart = await fetch_cart(cart_id)
+
+    return cart
+```
+
+### Session Middleware
+
+```python
+from starlette.middleware.sessions import SessionMiddleware
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key="your-session-secret-key",
+    session_cookie="fraiseql_session",
+    max_age=86400,  # 24 hours
+    same_site="lax",
+    https_only=True  # Production only
+)
+```
+
+## Field-Level Authorization
+
+Restrict access to specific fields based on roles/permissions:
+
+```python
+from fraiseql import type_
+from fraiseql.security import authorize_field, any_permission
+
+@type_
+class User:
+    id: str
+    name: str
+    email: str
+
+    # Only admins or user themselves can see email
+    @authorize_field(lambda user, info: (
+        info.context["user"].user_id == user.id or
+        info.context["user"].has_role("admin")
+    ))
+    async def email(self) -> str:
+        return self._email
+
+    # Only admins can see internal notes
+    @authorize_field(any_permission("admin:all"))
+    async def internal_notes(self) -> str | None:
+        return self._internal_notes
+```
+
+**Authorization Patterns:**
+
+```python
+# Permission-based
+@authorize_field(lambda obj, info: info.context["user"].has_permission("users:read_pii"))
+async def ssn(self) -> str:
+    return self._ssn
+
+# Role-based
+@authorize_field(lambda obj, info: info.context["user"].has_role("admin"))
+async def audit_log(self) -> list[AuditEvent]:
+    return self._audit_log
+
+# Owner-based
+@authorize_field(lambda order, info: order.user_id == info.context["user"].user_id)
+async def payment_details(self) -> PaymentDetails:
+    return self._payment_details
+
+# Combined
+@authorize_field(lambda obj, info: (
+    info.context["user"].has_permission("orders:read_all") or
+    obj.user_id == info.context["user"].user_id
+))
+async def internal_status(self) -> str:
+    return self._internal_status
+```
+
+## Multi-Provider Setup
+
+Support multiple authentication methods simultaneously:
+
+```python
+from fraiseql.auth import Auth0Provider, CustomJWTProvider
+from fraiseql.fastapi import create_fraiseql_app
+
+class MultiAuthProvider:
+    """Support multiple authentication providers."""
+
+    def __init__(self):
+        self.providers = {
+            "auth0": Auth0Provider(
+                domain="tenant.auth0.com",
+                api_identifier="https://api.app.com"
+            ),
+            "api_key": CustomJWTProvider(
+                secret_key="api-key-secret",
+                algorithm="HS256"
+            )
+        }
+
+    async def validate_token(self, token: str) -> dict:
+        """Try each provider until one succeeds."""
+        errors = []
+
+        for name, provider in self.providers.items():
+            try:
+                return await provider.validate_token(token)
+            except Exception as e:
+                errors.append(f"{name}: {e}")
+
+        raise InvalidTokenError(f"All providers failed: {errors}")
+
+    async def get_user_from_token(self, token: str) -> UserContext:
+        """Extract user from first successful provider."""
+        payload = await self.validate_token(token)
+
+        # Determine provider from token and extract user
+        if "iss" in payload and "auth0.com" in payload["iss"]:
+            return await self.providers["auth0"].get_user_from_token(token)
+        else:
+            return await self.providers["api_key"].get_user_from_token(token)
+```
+
+## Security Best Practices
+
+### Token Security
+
+**DO:**
+- Use RS256 for Auth0 (asymmetric keys)
+- Use HS256 for internal services (symmetric keys)
+- Rotate secret keys periodically
+- Set appropriate token expiration (1 hour for access, 30 days for refresh)
+- Include `jti` claim for revocation tracking
+- Validate `aud` and `iss` claims
+
+**DON'T:**
+- Store tokens in localStorage (use httpOnly cookies or memory)
+- Use weak secret keys (minimum 32 bytes)
+- Set excessive expiration times
+- Skip signature verification
+- Log tokens in error messages
+
+### Permission Design
+
+**Hierarchical Permissions:**
+
+```python
+# Resource-based
+"orders:read"       # Read orders
+"orders:write"      # Create/update orders
+"orders:delete"     # Delete orders
+"orders:*"          # All order permissions
+
+# Scope-based
+"users:read:self"   # Read own user
+"users:read:team"   # Read team users
+"users:read:all"    # Read all users
+
+# Admin override
+"admin:all"         # All permissions
+```
+
+### Role-Based Access Control (RBAC)
+
+```python
+# Define roles with associated permissions
+ROLES = {
+    "user": [
+        "orders:read:self",
+        "orders:write:self",
+        "profile:read:self",
+        "profile:write:self"
+    ],
+    "manager": [
+        "orders:read:team",
+        "orders:write:team",
+        "users:read:team",
+        "reports:read:team"
+    ],
+    "admin": [
+        "admin:all"
+    ]
+}
+
+# Check in resolver
+@mutation
+async def delete_order(info, order_id: str) -> bool:
+    user = info.context["user"]
+
+    if not user.has_any_permission(["orders:delete", "admin:all"]):
+        raise GraphQLError("Insufficient permissions")
+
+    order = await fetch_order(order_id)
+
+    # Owners can delete own orders
+    if order.user_id != user.user_id and not user.has_permission("admin:all"):
+        raise GraphQLError("Can only delete your own orders")
+
+    await delete_order_by_id(order_id)
+    return True
+```
+
+### Audit Logging
+
+Log all authentication and authorization events:
+
+```python
+from fraiseql.audit import get_security_logger, SecurityEventType
+
+security_logger = get_security_logger()
+
+# Log successful authentication
+security_logger.log_auth_success(
+    user_id=user.user_id,
+    user_email=user.email,
+    metadata={"provider": "auth0", "roles": user.roles}
+)
+
+# Log failed authentication
+security_logger.log_auth_failure(
+    reason="Invalid token",
+    metadata={"token_type": "bearer", "error": str(error)}
+)
+
+# Log authorization failure
+security_logger.log_event(
+    SecurityEvent(
+        event_type=SecurityEventType.AUTH_PERMISSION_DENIED,
+        severity=SecurityEventSeverity.WARNING,
+        user_id=user.user_id,
+        metadata={"required_permission": "orders:delete", "resource": order_id}
+    )
+)
+```
+
+## Next Steps
+
+- [Multi-Tenancy](multi-tenancy.md) - Tenant isolation and context propagation
+- [Field-Level Authorization](../core/queries-and-mutations.md) - Advanced authorization patterns
+- [Security Best Practices](../production/security.md) - Production security hardening
+- [Monitoring](../production/monitoring.md) - Authentication metrics and alerts

@@ -278,6 +278,10 @@ def _parse_error(
                 if value is not None:
                     fields[field_name] = value
 
+    # Handle conflict entity instantiation from errors.details.conflict.conflictObject
+    # This fixes the bug where DEFAULT_ERROR_CONFIG doesn't populate conflict_* fields
+    _populate_conflict_fields(result, annotations, fields)
+
     # Try to populate remaining fields from object_data
     if result.object_data:
         for field_name, field_type in annotations.items():
@@ -477,6 +481,22 @@ def _instantiate_type(field_type: type, data: Any) -> Any:
             try:
                 return field_type(**cleaned_data)
             except TypeError:
+                # Special handling for Error objects - provide default values for required fields
+                if hasattr(field_type, "__name__") and field_type.__name__ == "Error":
+                    # Ensure required Error fields have default values
+                    error_data = cleaned_data.copy()
+                    if "message" not in error_data:
+                        error_data["message"] = "Unknown error"
+                    if "code" not in error_data:
+                        error_data["code"] = 500
+                    if "identifier" not in error_data:
+                        error_data["identifier"] = "unknown_error"
+
+                    try:
+                        return field_type(**error_data)
+                    except TypeError:
+                        pass  # Still failed, continue to from_dict fallback
+
                 # If direct construction fails, try from_dict if available
                 if hasattr(field_type, "from_dict"):
                     return field_type.from_dict(cleaned_data)
@@ -607,3 +627,105 @@ def _is_single_entity_object_data(
         return True
 
     return False
+
+
+def _extract_conflict_from_camel_case_format(
+    extra_metadata: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Extract conflict object from camelCase format: errors.details.conflict.conflictObject."""
+    if "errors" not in extra_metadata:
+        return None
+
+    errors_list = extra_metadata.get("errors", [])
+    if not isinstance(errors_list, list) or len(errors_list) == 0:
+        return None
+
+    first_error = errors_list[0]
+    if not isinstance(first_error, dict):
+        return None
+
+    details = first_error.get("details", {})
+    if not isinstance(details, dict) or "conflict" not in details:
+        return None
+
+    conflict_data = details["conflict"]
+    if not isinstance(conflict_data, dict) or "conflictObject" not in conflict_data:
+        return None
+
+    conflict_object = conflict_data["conflictObject"]
+    if isinstance(conflict_object, dict):
+        logger.debug(
+            "Found conflict object in camelCase format: errors.details.conflict.conflictObject"
+        )
+        return conflict_object
+
+    return None
+
+
+def _extract_conflict_from_snake_case_format(
+    extra_metadata: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Extract conflict object from snake_case format: conflict.conflict_object."""
+    if "conflict" not in extra_metadata:
+        return None
+
+    conflict_data = extra_metadata["conflict"]
+    if not isinstance(conflict_data, dict) or "conflict_object" not in conflict_data:
+        return None
+
+    conflict_object = conflict_data["conflict_object"]
+    if isinstance(conflict_object, dict):
+        logger.debug("Found conflict object in snake_case format: conflict.conflict_object")
+        return conflict_object
+
+    return None
+
+
+def _populate_conflict_fields(
+    result: MutationResult,
+    annotations: dict[str, type],
+    fields: dict[str, Any],
+) -> None:
+    """Populate conflict_* fields from conflict object data in multiple formats.
+
+    This function fixes the bug where DEFAULT_ERROR_CONFIG doesn't automatically
+    instantiate conflict entities from the nested error structure returned by
+    PostgreSQL functions.
+
+    Supports both formats for backward compatibility:
+    1. errors.details.conflict.conflictObject (camelCase - API format)
+    2. conflict.conflict_object (snake_case - internal format)
+
+    Args:
+        result: The parsed mutation result containing extra_metadata
+        annotations: Field annotations from the error class
+        fields: Dictionary to populate with conflict field values
+    """
+    if not (result.extra_metadata and isinstance(result.extra_metadata, dict)):
+        return
+
+    # Try to extract conflict object from either format
+    conflict_object = _extract_conflict_from_camel_case_format(
+        result.extra_metadata
+    ) or _extract_conflict_from_snake_case_format(result.extra_metadata)
+
+    # If we found a conflict object in either format, process it
+    if conflict_object is not None:
+        # Map conflict object to all conflict_* fields that haven't been populated yet
+        for field_name, field_type in annotations.items():
+            if field_name.startswith("conflict_") and field_name not in fields:
+                try:
+                    # Try to instantiate the conflict entity using the type system
+                    value = _instantiate_type(field_type, conflict_object)
+                    if value is not None:
+                        fields[field_name] = value
+                        logger.debug(
+                            "Successfully populated conflict field %s with %s",
+                            field_name,
+                            type(value).__name__,
+                        )
+                except Exception as e:
+                    # If instantiation fails, don't break the entire parsing process
+                    # This maintains backward compatibility with existing error handling
+                    logger.debug("Failed to instantiate conflict field %s: %s", field_name, e)
+                    continue

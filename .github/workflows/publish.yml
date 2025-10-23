@@ -38,13 +38,36 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v6
 
-    - name: Install dependencies
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install maturin
+      run: pip install maturin
+
+    - name: Create virtual environment and install dependencies
       run: |
-        # Use uv for faster and more reliable dependency resolution
-        # Install all optional dependencies for comprehensive testing
-        uv pip install --system -e ".[dev,all]"
+        # Create virtual environment
+        python -m venv .venv
+        source .venv/bin/activate
+
+        # Verify venv is active
+        which python
+        python --version
+
+        # Install dependencies with uv (this will build fraiseql_rs automatically)
+        uv pip install -e ".[dev,all]" --no-cache
+
+        # Verify Rust extension installed correctly
+        python -c "import fraiseql_rs; print(f'fraiseql_rs version: {getattr(fraiseql_rs, \"__version__\", \"no version\")}')"
+        python -c "import fraiseql_rs; print(f'fraiseql_rs functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
 
     - name: Run core tests with coverage
+      run: |
+        source .venv/bin/activate
+        # Run core tests first - MUST PASS for release
+        pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise"
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -52,11 +75,12 @@ jobs:
         DB_PORT: 5432
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
-      run: |
-        # Run core tests first - MUST PASS for release
-        pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise"
 
     - name: Run example integration tests
+      run: |
+        source .venv/bin/activate
+        # Run example integration tests - MUST PASS for release
+        pytest tests/integration/examples/ -v --tb=short
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -68,9 +92,6 @@ jobs:
         FRAISEQL_ENVIRONMENT: ci
         FRAISEQL_AUTO_INSTALL: false
         FRAISEQL_LOG_LEVEL: INFO
-      run: |
-        # Run example integration tests - MUST PASS for release
-        pytest tests/integration/examples/ -v --tb=short
 
   lint:
     name: Lint (Required for Release)
@@ -83,12 +104,25 @@ jobs:
         python-version: '3.13'
     - name: Install uv
       uses: astral-sh/setup-uv@v6
-    - name: Install dependencies
-      run: uv pip install --system -e ".[dev]"
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    - name: Install maturin
+      run: pip install maturin
+    - name: Create virtual environment and install dependencies
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        uv pip install -e ".[dev]" --no-cache
     - name: Run ruff
-      run: ruff check .
+      run: |
+        source .venv/bin/activate
+        ruff check .
     - name: Run ruff format
-      run: ruff format --check .
+      run: |
+        source .venv/bin/activate
+        ruff format --check .
 
   security:
     name: Security (Required for Release)
@@ -101,10 +135,21 @@ jobs:
         python-version: '3.13'
     - name: Install uv
       uses: astral-sh/setup-uv@v6
-    - name: Install dependencies
-      run: uv pip install --system -e ".[dev]"
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+    - name: Install maturin
+      run: pip install maturin
+    - name: Create virtual environment and install dependencies
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        uv pip install -e ".[dev]" --no-cache
     - name: Run bandit
-      run: bandit -r src/ -f json || true
+      run: |
+        source .venv/bin/activate
+        bandit -r src/ -f json || true
 
   publish:
     name: Publish to PyPI

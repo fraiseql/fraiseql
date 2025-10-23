@@ -2,11 +2,14 @@
 
 import re
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.turbo import TurboRegistry
+
+if TYPE_CHECKING:
+    from fraiseql.routing.query_router import QueryRouter
 
 
 class ExecutionMode(Enum):
@@ -29,6 +32,7 @@ class ModeSelector:
         self.config = config
         self.turbo_registry: Optional[TurboRegistry] = None
         self.query_analyzer: Optional[QueryAnalyzer] = None
+        self.query_router: Optional[QueryRouter] = None
         self.mode_hint_pattern = re.compile(
             getattr(config, "mode_hint_pattern", r"#\s*@mode:\s*(\w+)")
         )
@@ -49,6 +53,14 @@ class ModeSelector:
         """
         self.query_analyzer = analyzer
 
+    def set_query_router(self, router: "QueryRouter"):
+        """Set query router for entity-aware routing.
+
+        Args:
+            router: QueryRouter instance
+        """
+        self.query_router = router
+
     def select_mode(
         self, query: str, variables: Dict[str, Any], context: Dict[str, Any]
     ) -> ExecutionMode:
@@ -67,6 +79,16 @@ class ModeSelector:
             mode_hint = self._extract_mode_hint(query)
             if mode_hint:
                 return mode_hint
+
+        # Check entity routing if available and enabled
+        if (
+            self.query_router
+            and hasattr(self.config, "entity_routing")
+            and self.config.entity_routing
+        ):
+            entity_mode = self.query_router.determine_execution_mode(query)
+            if entity_mode is not None:
+                return entity_mode
 
         # Check mode priority from config
         execution_mode_priority = getattr(
@@ -107,15 +129,14 @@ class ModeSelector:
     def _can_use_turbo(self, query: str) -> bool:
         """Check if query can use TurboRouter.
 
+        TurboRouter is always enabled for maximum performance.
+
         Args:
             query: GraphQL query string
 
         Returns:
             True if TurboRouter can handle the query
         """
-        if not self.config.enable_turbo_router:
-            return False
-
         if not self.turbo_registry:
             return False
 
@@ -126,6 +147,8 @@ class ModeSelector:
     def _can_use_passthrough(self, query: str, variables: Dict[str, Any]) -> bool:
         """Check if query can use raw JSON passthrough.
 
+        JSON passthrough is always enabled for maximum performance.
+
         Args:
             query: GraphQL query string
             variables: Query variables
@@ -133,9 +156,6 @@ class ModeSelector:
         Returns:
             True if passthrough can handle the query
         """
-        if not self.config.json_passthrough_enabled:
-            return False
-
         if not self.query_analyzer:
             return False
 
@@ -160,9 +180,9 @@ class ModeSelector:
             Dictionary of metrics
         """
         metrics = {
-            "turbo_enabled": self.config.enable_turbo_router,
-            "passthrough_enabled": self.config.json_passthrough_enabled,
-            "mode_hints_enabled": getattr(self.config, "enable_mode_hints", True),
+            "turbo_enabled": True,  # Always enabled for max performance
+            "passthrough_enabled": True,  # Always enabled for max performance
+            "mode_hints_enabled": True,  # Always enabled
             "priority": getattr(
                 self.config, "execution_mode_priority", ["turbo", "passthrough", "normal"]
             ),

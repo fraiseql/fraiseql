@@ -17,7 +17,7 @@ GraphQL Scalar Types:
 - SubnetMaskStringType: A GraphQL scalar type for subnet mask strings.
 """
 
-from ipaddress import IPv4Address, IPv4Network, IPv6Address, ip_address
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, ip_address, ip_interface
 from typing import Any
 
 from graphql import GraphQLError, GraphQLScalarType
@@ -48,10 +48,16 @@ def serialize_ip_address_string(value: Any) -> str:
 
 
 def parse_ip_address_value(value: Any) -> IPv4Address | IPv6Address:
-    """Parse a string into an IP address object."""
+    """Parse a string into an IP address object.
+
+    Accepts both plain IP addresses and CIDR notation (e.g., "192.168.1.1/24").
+    When CIDR notation is provided, only the IP address part is extracted.
+    """
     if isinstance(value, str):
         try:
-            return ip_address(value)
+            # Accept both "192.168.1.1" and "192.168.1.1/24" (CIDR notation)
+            interface = ip_interface(value)
+            return interface.ip  # Extract just the IP part
         except ValueError as e:
             msg = f"Invalid IP address string: {value!r}"
             raise GraphQLError(msg) from e

@@ -2,9 +2,14 @@
 
 This module provides clean functions to build SQL for LTree hierarchical operations
 using proper PostgreSQL ltree casting and specialized hierarchical operators.
+
+Basic comparison operators use the generic base builders. LTree-specific hierarchical
+operators (@>, <@, ~, ?) are implemented directly as they have no generic equivalent.
 """
 
 from psycopg.sql import SQL, Composed, Literal
+
+from .base_builders import build_comparison_sql, build_in_list_sql
 
 
 def build_ltree_eq_sql(path_sql: SQL, value: str) -> Composed:
@@ -17,7 +22,7 @@ def build_ltree_eq_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::ltree = 'value'::ltree
     """
-    return Composed([SQL("("), path_sql, SQL(")::ltree = "), Literal(value), SQL("::ltree")])
+    return build_comparison_sql(path_sql, value, "=", "ltree")
 
 
 def build_ltree_neq_sql(path_sql: SQL, value: str) -> Composed:
@@ -30,7 +35,7 @@ def build_ltree_neq_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::ltree != 'value'::ltree
     """
-    return Composed([SQL("("), path_sql, SQL(")::ltree != "), Literal(value), SQL("::ltree")])
+    return build_comparison_sql(path_sql, value, "!=", "ltree")
 
 
 def build_ltree_in_sql(path_sql: SQL, value: list[str]) -> Composed:
@@ -46,18 +51,7 @@ def build_ltree_in_sql(path_sql: SQL, value: list[str]) -> Composed:
     Raises:
         TypeError: If value is not a list
     """
-    if not isinstance(value, list):
-        raise TypeError(f"'in' operator requires a list, got {type(value)}")
-
-    parts = [SQL("("), path_sql, SQL(")::ltree IN (")]
-
-    for i, ltree_path in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.extend([Literal(ltree_path), SQL("::ltree")])
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+    return build_in_list_sql(path_sql, value, "IN", "ltree")
 
 
 def build_ltree_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
@@ -73,18 +67,10 @@ def build_ltree_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
     Raises:
         TypeError: If value is not a list
     """
-    if not isinstance(value, list):
-        raise TypeError(f"'notin' operator requires a list, got {type(value)}")
+    return build_in_list_sql(path_sql, value, "NOT IN", "ltree")
 
-    parts = [SQL("("), path_sql, SQL(")::ltree NOT IN (")]
 
-    for i, ltree_path in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.extend([Literal(ltree_path), SQL("::ltree")])
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+# LTree-specific hierarchical operators (no generic equivalent)
 
 
 def build_ancestor_of_sql(path_sql: SQL, value: str) -> Composed:

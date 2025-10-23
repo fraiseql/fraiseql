@@ -1,6 +1,22 @@
 # Blog API Example - Enterprise Patterns Showcase
 
+🟢 BEGINNER | ⏱️ 15 min | 🎯 Content Management | 🏷️ Enterprise Patterns
+
 This example demonstrates how to build a complete GraphQL API using FraiseQL with enterprise-grade patterns for production systems.
+
+**What you'll learn:**
+- CQRS architecture with PostgreSQL functions
+- Enterprise mutation patterns (success/error/noop)
+- Audit trails and change tracking
+- Authentication and role-based access
+- Production-ready error handling
+
+**Prerequisites:** None (great starting point!)
+
+**Next steps:**
+- `../ecommerce/` - Add complex business logic
+- `../enterprise_patterns/` - Master all enterprise patterns
+- `../apq_multi_tenant/` - Add performance optimization
 
 ## Patterns Demonstrated
 
@@ -20,10 +36,11 @@ This example demonstrates how to build a complete GraphQL API using FraiseQL wit
 - Type-safe core functions with JSONB app wrappers
 - See: `db/functions/app_functions.sql` and `core_functions.sql`
 
-### ✅ Basic Audit Trails
-- Created/updated tracking with user attribution
-- Version management for optimistic locking
-- See: `AuditTrail` type and audit field usage throughout
+### ✅ Unified Audit Logging
+- **Single `audit_events` table** with CDC + cryptographic chain
+- PostgreSQL-native crypto (no Python overhead)
+- Tamper-proof audit trails with SHA-256 hashing
+- See: `core.log_and_return_mutation()` function and unified audit table
 
 ### ❌ Advanced Features
 For complete enterprise patterns (identifier management, multi-layer validation), see `../enterprise_patterns/`
@@ -280,7 +297,7 @@ app = create_fraiseql_app(config=config, ...)
 ### Docker Deployment
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 

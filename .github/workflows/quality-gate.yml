@@ -46,22 +46,42 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v6
 
-    - name: Install dependencies
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Install maturin
+      run: pip install maturin
+
+    - name: Create virtual environment and install dependencies
       run: |
-        # Ensure pip cache directory exists before installation
-        python -m pip config list || echo "No pip config available"
-        python -c "import site; print(f'Site packages: {site.getsitepackages()}')" || echo "Cannot get site packages"
-        echo "Installing with uv (bypassing pip caching issues)..."
-        uv pip install --system -e ".[dev,all]" --no-cache
+        # Create virtual environment
+        python -m venv .venv
+        source .venv/bin/activate
+
+        # Verify venv is active
+        which python
+        python --version
+
+        # Install dependencies with uv
+        uv pip install -e ".[dev,all]" --no-cache
+
+        # Verify installation
+        python -c "import fraiseql_rs; print(f'fraiseql_rs functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
 
     - name: Verify Environment
       run: |
+        source .venv/bin/activate
         echo "=== Environment Verification ==="
         python --version
         uv --version
         pytest --version
+        rustc --version
         pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
         python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
+        echo "=== Rust Extension Verification ==="
+        python -c "import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
     - name: Run core tests
       env:
@@ -74,6 +94,7 @@ jobs:
         # Environment variables for pytest configuration
         PYTEST_CURRENT_TEST: ""
       run: |
+        source .venv/bin/activate
         echo "=== Starting Core Tests ==="
         echo "Environment variables:"
         printenv | grep -E "(DATABASE_URL|DB_|PYTEST_)" || echo "No relevant env vars"
@@ -102,6 +123,7 @@ jobs:
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
       run: |
+        source .venv/bin/activate
         echo "=== Validating Network Filtering Bug Fix ==="
         echo "This validates the core bug fix from PR #25"
 
@@ -133,6 +155,7 @@ jobs:
         FRAISEQL_AUTO_INSTALL: false
         FRAISEQL_LOG_LEVEL: INFO
       run: |
+        source .venv/bin/activate
         echo "=== Running Example Integration Tests ==="
         python -m pytest tests/integration/examples/ -v --tb=short || {
           echo "❌ Example integration tests failed"

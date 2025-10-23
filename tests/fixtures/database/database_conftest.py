@@ -144,6 +144,12 @@ async def db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPo
             CREATE EXTENSION IF NOT EXISTS "ltree";
         """
         )
+        # Try to create pg_fraiseql_cache extension (optional)
+        try:
+            await conn.execute('CREATE EXTENSION IF NOT EXISTS "pg_fraiseql_cache";')
+        except Exception:
+            # Extension not installed, skip silently
+            pass
         await conn.commit()
 
     yield pool

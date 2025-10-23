@@ -22,6 +22,7 @@ Exports:
 """
 
 from .cidr import CIDRScalar
+from .coordinates import CoordinateScalar
 from .date import DateScalar
 from .daterange import DateRangeScalar
 from .datetime import DateTimeScalar
@@ -35,6 +36,7 @@ from .uuid import UUIDScalar
 
 __all__ = [
     "CIDRScalar",
+    "CoordinateScalar",
     "DateRangeScalar",
     "DateScalar",
     "DateTimeScalar",

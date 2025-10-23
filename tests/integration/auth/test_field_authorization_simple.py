@@ -24,9 +24,9 @@ def test_field_authorization_in_graphql():
         # Check authorization at query level
         if info.context.get("is_admin", False):
             return SimpleUser(name="John Doe", email="john@example.com")
-        # Return user without email for non-admins
-        user = SimpleUser(name="John Doe", email="")
-        # Set email to None in the response
+        # Return user with valid email for non-admins, then override for authorization
+        user = SimpleUser(name="John Doe", email="user@example.com")
+        # Set email to None in the response for authorization
         user.email = None
         return user
 

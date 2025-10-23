@@ -7,72 +7,1427 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.8.0] - 2025-10-12
+### 🐛 Bug Fixes
 
-### 🔧 **Bug Fixes**
-- **Psycopg Compatibility**: Fixed compatibility with psycopg 3.2.10 by using `as_string(None)` instead of `as_string({})` in test files
+**WHERE Filter Mixed Nested/Direct Bug Fix** (Issue #117)
+- **FIXED**: Dict-based WHERE filters with mixed nested object filters (e.g., `{machine: {id: {eq: value}}}`) and direct field filters (e.g., `{is_current: {eq: true}}`) now work correctly
+- **Root Cause**: `is_nested_object` flag variable scoping issue in `_convert_dict_where_to_sql()` caused state carry-over between field iterations
+- **Impact**: Previously, second and subsequent filters after a nested filter were incorrectly ignored, causing incorrect query results in production
 
-## [0.7.11] - 2025-09-08
+**Technical Implementation:**
+- Modified `src/fraiseql/db.py` `_convert_dict_where_to_sql()` method (lines 758-822)
+- **Phase 1: GREEN** - Added logic to detect nested objects even when `table_columns` is not available (for development/testing scenarios)
+- **Phase 2: REFACTOR** - Added comprehensive safeguards and validation:
+  - Structural validation: Checks that filter structure matches nested object pattern (`len(field_filter) == 1` or only `id` + `__typename` keys)
+  - Logging: Debug logging for all three detection paths (BEST CASE: actual column metadata, FALLBACK: heuristics, SAFETY: reject invalid structures)
+  - Validation: Ensures `id_filter` is a valid dict before iteration
+  - Clear documentation of risks when using heuristic fallback
+- **Phase 3: QA** - Verified no regressions (107 tests passing, 5/5 WHERE filter tests passing)
 
-### 🚀 **New Feature**
-
-#### **Complete Nested Array WHERE Filtering with Logical Operators**
-- **Comprehensive Logical Operators**: Full AND/OR/NOT expression support with unlimited nesting depth for nested array filtering
-- **Clean Registration API**: New `@auto_nested_array_filters` decorator for effortless setup without verbose field definitions
-- **26+ Field Operators**: Complete operator set including equals, contains, gte, isnull, startsWith, endsWith, in, notIn, and more
-- **Client-Side Filtering**: Efficient evaluation with optimized performance and early termination
-- **Dynamic WhereInput Generation**: Automatic GraphQL schema generation from FraiseQL types with complete type safety
-
-#### **Advanced Query Capabilities**
-- **Complex GraphQL Queries**: Support for sophisticated nested filtering expressions
-- **Unlimited Nesting Depth**: AND/OR/NOT operators can be nested to any depth for complex business logic
-- **All Standard Field Types**: String, numeric, boolean, UUID, date/datetime operations fully supported
-- **Performance Optimized**: Efficient client-side filtering with smart evaluation strategies
-
-#### **Developer Experience**
-- **Convention over Configuration**: Simple `@auto_nested_array_filters` decorator automatically enables filtering
-- **Backward Compatibility**: Zero breaking changes - purely additive feature that works with existing code
-- **Complete Documentation**: Comprehensive docs and examples in `docs/nested-array-filtering.md`
-- **Working Examples**: Full demonstration in `examples/nested_array_filtering.py`
-
-### 🔧 **Implementation Details**
-- **Enhanced Field Resolver**: `create_nested_array_field_resolver_with_where()` with complete logical operator evaluation
-- **GraphQL Integration**: Automatic GraphQL field argument creation with WhereInput types
-- **Registry System**: Clean registration-based approach in `src/fraiseql/nested_array_filters.py`
-- **Type Safety**: Full type inference and validation for WhereInput generation
-
-### 📝 **Example Usage**
+**Example:**
 ```python
-from fraiseql.nested_array_filters import auto_nested_array_filters
+# Before (broken): Only applied machine filter, ignored is_current
+where_dict = {
+    "machine": {"id": {"eq": machine_1_id}},  # ✅ Applied
+    "is_current": {"eq": True},               # ❌ Ignored (bug!)
+}
+# Result: 2 configs for machine_1 (both current AND non-current)
 
-@auto_nested_array_filters  # One line setup
-@fraise_type(sql_source="tv_network_configuration", jsonb_column="data")
-class NetworkConfiguration:
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+# After (fixed): Applies both filters correctly
+where_dict = {
+    "machine": {"id": {"eq": machine_1_id}},  # ✅ Applied
+    "is_current": {"eq": True},               # ✅ Now applied!
+}
+# Result: 1 config (only the current one for machine_1)
 ```
 
+**Best Practices:**
+- **Recommended**: Register table metadata with `register_type_for_view()` to ensure accurate column detection
+- **Fallback**: If metadata not available, heuristics are used (works for standard patterns)
+- **Safety**: Invalid filter structures are rejected with warning logs
+
+## [1.0.0] - 2025-10-23
+
+### 🎉 Major Release: FraiseQL v1.0.0
+
+FraiseQL v1.0.0 is the first production-stable release, marking the culmination of extensive development, testing, and refinement. This release represents a mature, battle-tested framework ready for production use.
+
+### 🏆 Release Highlights
+
+**100% Test Suite Health**
+- ✅ 3,556 tests passing (100% pass rate)
+- ✅ 0 skipped tests
+- ✅ 0 failing tests
+- ✅ Comprehensive integration and regression coverage
+
+**Production Stability**
+- ✅ Rust pipeline fully operational and stable
+- ✅ All critical bugs resolved
+- ✅ Performance optimizations complete
+- ✅ Documentation comprehensive and accurate
+
+**Enterprise-Ready Features**
+- ✅ CQRS architecture with PostgreSQL
+- ✅ Rust-accelerated JSON transformation
+- ✅ Hybrid table support
+- ✅ Advanced type system
+- ✅ Nested object filtering
+- ✅ Trinity identifier patterns
+
+### 🔧 What's New in v1.0.0
+
+#### Fixed
+- **PostgreSQL placeholder format bug** - Corrected invalid placeholder generation in complex nested filters
+- **Hybrid table nested object filtering** - Fixed filtering logic for tables with both regular and JSONB columns
+- **Field name conversion** - Proper camelCase ↔ snake_case conversion in all SQL generation paths
+- **JSONB column metadata** - Enhanced database registry for type-safe JSONB operations
+
+#### Added
+- **VERSION_STATUS.md** - Clear versioning and support policy documentation
+- **Comprehensive examples** - All examples tested and documented
+- **Archive organization** - Historical documentation properly organized
+- **Consolidated documentation** - Moved CONTRIBUTING.md, GETTING_STARTED.md, INSTALLATION.md to docs/ directory
+
+#### Changed
+- **Documentation structure** - Reorganized for clarity and maintainability
+  - Centralized all guides in docs/ directory
+  - Updated 35+ files with corrected internal links
+  - Improved discoverability and navigation
+- **Test organization** - Archived obsolete tests, 100% active test health
+- **Root directory** - Cleaned up for production release
+
+### 📊 Performance Metrics
+
+- **Query latency**: 0.5-5ms typical (sub-millisecond for cached queries)
+- **Rust acceleration**: 7-10x faster than pure Python JSON processing
+- **Test execution**: ~64 seconds for full suite (3,556 tests)
+- **Code quality**: All linting passes (ruff, pyright)
+
+### 🔄 Migration from v0.11.x
+
+FraiseQL v1.0.0 is fully backward compatible with v0.11.5. Simply upgrade:
+
+```bash
+pip install --upgrade fraiseql
+```
+
+For detailed migration instructions, see [docs/migration/v0-to-v1.md](docs/migration/v0-to-v1.md).
+
+### 🙏 Acknowledgments
+
+This release represents months of development, testing, and refinement. Special thanks to:
+- The PostgreSQL team for an amazing database
+- The Rust community for excellent tooling
+- Early adopters and testers for valuable feedback
+
+### 📚 Documentation
+
+- **Getting Started**: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+- **Installation**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
+- **Contributing**: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- **First Hour Guide**: [docs/FIRST_HOUR.md](docs/FIRST_HOUR.md)
+- **Full Docs**: [docs/](docs/)
+- **Examples**: [examples/](examples/)
+
+### 🚀 Next Steps
+
+See [docs/strategic/VERSION_STATUS.md](docs/strategic/VERSION_STATUS.md) for the v1.1+ roadmap.
+
+---
+
+## [0.11.5] - 2025-10-13
+
+### 🐛 Critical Bug Fixes
+
+**Missing Rust CamelCase Transformation in Production Mode**
+- **CRITICAL FIX**: Fixed missing Rust transformation in `FraiseQLRepository.find()` and `find_one()` methods
+- Production mode (default) was returning `snake_case` field names instead of expected `camelCase` for GraphQL
+- This would cause ALL GraphQL queries to receive incorrectly formatted responses
+- Added `type_name` parameter to `execute_raw_json_*()` calls to enable Rust transformation
+
+**Before (broken):**
+```json
+{"ip_address": "192.168.1.1", "created_at": "2025-01-01"}
+```
+
+**After (fixed):**
+```json
+{"ipAddress": "192.168.1.1", "createdAt": "2025-01-01"}
+```
+
+**Technical Details:**
+- Modified `src/fraiseql/db.py`:
+  - Lines 515-539: Added type_name extraction in `find()` production mode path
+  - Lines 649-673: Added type_name extraction in `find_one()` production mode path
+  - Now passes `type_name` to `execute_raw_json_list_query()` and `execute_raw_json_query()`
+- Modified `src/fraiseql/fastapi/dependencies.py`:
+  - Ensured `db.context` receives `json_passthrough` and `execution_mode` flags
+
+**Impact:**
+- ✅ GraphQL responses now correctly return camelCase field names
+- ✅ Rust transformer properly converts snake_case → camelCase + adds __typename
+- ✅ Maintains 10-80x performance benefit over Python transformation
+- 🚨 **BREAKING if relying on snake_case**: If you were working around the bug by expecting snake_case, you'll need to update to camelCase
+
+**Upgrade:**
+```bash
+# Using pip
+pip install --upgrade fraiseql
+
+# Using uv
+uv pip install --upgrade fraiseql
+```
+
+**Affected Versions:** 0.11.4 (and possibly earlier versions using production mode)
+
+## [0.11.4] - 2025-10-13
+
+### 🐛 Bug Fixes
+
+**Connection Health Check for Multi-Worker Setups**
+- Added connection health check to prevent using terminated connections in multi-worker uvicorn deployments
+- Fixes issue where database connections terminated externally (e.g., via `pg_terminate_backend()` during database reseeding) would cause query failures
+- Added `check_connection` callback to `AsyncConnectionPool` that validates connections before reuse
+- Implements PostgreSQL best practice for production connection pooling
+- Minimal performance overhead (check only runs when getting connection from pool, not on every query)
+- Resolves issue #85
+
+**Technical Details:**
+- Modified `src/fraiseql/fastapi/app.py`: Added async `check_connection` callback with `SELECT 1` health check
+- Connection pool now automatically detects and replaces terminated connections
+- Critical for production environments with multiple uvicorn workers
+
+**Impact:**
+- ✅ Prevents "terminating connection due to administrator command" errors
+- ✅ Improves reliability in multi-worker production deployments
+- ✅ Graceful recovery when connections are terminated externally
+
+**Upgrade:**
+```bash
+# Using pip
+pip install --upgrade fraiseql
+
+# Using uv
+uv pip install --upgrade fraiseql
+```
+
+No code changes required - this is a drop-in replacement.
+
+## [0.11.3] - 2025-10-13
+
+### 🔧 CI/CD & Build Infrastructure
+
+This is a maintenance release focused on CI/CD improvements and build infrastructure.
+
+#### **CI/CD Enhancements**
+
+**Rust Extension Build Support in CI**
+- Added Rust toolchain setup to GitHub Actions workflow
+- Integrated maturin build step for `fraiseql_rs` extension
+- Ensures all 100+ Rust integration tests run in CI environment
+- Prevents build failures from missing Rust extension
+
+**Changes:**
+- `.github/workflows/quality-gate.yml`: Added Rust toolchain and maturin build steps
+- Rust extension now built automatically during CI test runs
+- All 3,481 tests now pass in CI (previously ~100 tests failing)
+
+#### **Code Quality**
+
+**Linting Fixes**
+- Fixed PYI059 in `src/fraiseql/optimization/dataloader.py`
+- Reordered base classes: `DataLoader(Generic[K, V], ABC)` → `DataLoader(ABC, Generic[K, V])`
+- Ensures `Generic[]` is always the last base class as required by PYI059
+
+#### **Version Management**
+
+**Package Version Updates**
+- Updated `pyproject.toml`: 0.11.0 → 0.11.3
+- Updated `src/fraiseql/__init__.py`: 0.11.0 → 0.11.3
+- Synchronized `uv.lock` with new version
+
+#### **Build Requirements**
+
+**Rust Toolchain**
+- Rust stable toolchain now required for building from source
+- Maturin used for building Python extension
+- Pre-built wheels available on PyPI (no Rust needed for pip install)
+
+#### **Backwards Compatibility**
+
+This release maintains full API compatibility with v0.11.0:
+- All GraphQL query syntax unchanged
+- All mutation patterns unchanged
+- All decorators and type definitions unchanged
+- No breaking changes to configuration
+
+#### **Upgrade Path**
+
+From v0.11.0 to v0.11.3:
+```bash
+# Using pip
+pip install --upgrade fraiseql
+
+# Using uv
+uv pip install --upgrade fraiseql
+```
+
+No code changes required - this is a drop-in replacement.
+
+#### **Testing**
+
+- ✅ All 3,481 tests passing locally
+- ✅ CI now builds Rust extension and runs all tests
+- ✅ Linting passes (ruff check)
+- ✅ Type checking clean (pyright)
+
+## [0.11.1] - 2025-10-12
+
+### ✨ **New Features**
+
+**SQL Logging Support**: Added integrated SQL query logging functionality via the `database_echo` configuration parameter.
+
+- Enable SQL logging by setting `database_echo=True` in your `FraiseQLConfig`
+- Automatically configures psycopg loggers to DEBUG level for full SQL query visibility
+- Useful for development and debugging database queries
+- Environment variable support: `FRAISEQL_DATABASE_ECHO=true`
+
+### 📚 **Documentation**
+
+- Added comprehensive SQL logging guide (`SQL_LOGGING.md`)
+- Updated configuration documentation with `database_echo` parameter details
+
+## [0.11.0] - 2025-10-12
+
+### 🚀 Maximum Performance by Default - Zero Configuration Required
+
+This is a **major performance-focused release** that removes all performance configuration switches and makes FraiseQL deliver maximum speed out of the box. No configuration needed - you automatically get the fastest possible GraphQL API.
+
+#### **Breaking Changes**
+
+**Configuration Simplification**: The following configuration flags have been **removed** as their features are now always enabled:
+
+- `json_passthrough_enabled` / `json_passthrough_in_production` / `json_passthrough_cache_nested`
+- `pure_json_passthrough` - Now **always enabled** (25-60x faster queries)
+- `pure_passthrough_use_rust` - Now **always enabled** (10-80x faster JSON transformation)
+- `enable_query_caching` / `enable_turbo_router` - Now **always enabled**
+- `jsonb_extraction_enabled` / `jsonb_auto_detect` / `jsonb_default_columns` - Now **always enabled**
+- `unified_executor_enabled` / `turbo_enable_adaptive_caching` - Now **always enabled**
+- `passthrough_auto_detect_views` / `passthrough_cache_view_metadata` - Now **always enabled**
+- `enable_mode_hints` - Now **always enabled**
+- **`camelforge_function` / `camelforge_field_threshold`** - PostgreSQL CamelForge function **removed**, Rust handles all transformation
+
+**Migration Guide**: Simply remove these config flags from your `FraiseQLConfig`. The features they controlled are now always active, delivering maximum performance automatically.
+
+```python
+# Before v0.11.0
+config = FraiseQLConfig(
+    database_url="postgresql://...",
+    pure_json_passthrough=True,  # Remove this
+    pure_passthrough_use_rust=True,  # Remove this
+    enable_turbo_router=True,  # Remove this
+    jsonb_extraction_enabled=True,  # Remove this
+)
+
+# After v0.11.0 - Clean and simple!
+config = FraiseQLConfig(
+    database_url="postgresql://...",
+    # All performance features automatically enabled
+)
+```
+
+#### **Performance Improvements**
+
+1. **Pure JSON Passthrough (25-60x faster)** - Always enabled
+   - Uses `SELECT data::text` instead of field extraction
+   - Bypasses Python object creation
+   - Direct PostgreSQL → HTTP pipeline
+
+2. **Rust Transformation (10-80x faster)** - Always enabled
+   - Snake_case → camelCase conversion in Rust
+   - Automatic `__typename` injection
+   - Zero Python overhead
+
+3. **JSONB Extraction** - Always enabled
+   - Automatic detection of JSONB columns
+   - Intelligent column selection
+   - Optimized queries for hybrid tables
+
+4. **TurboRouter Caching** - Always enabled
+   - Registered queries execute instantly
+   - Adaptive caching based on complexity
+   - Zero overhead for cache hits
+
+5. **Rust-Only Transformation** - PostgreSQL CamelForge removed
+   - All camelCase transformation now handled by Rust
+   - No PostgreSQL function dependency required
+   - Simpler deployment and configuration
+
+#### **What This Means For You**
+
+- **Zero Configuration**: Maximum performance out of the box
+- **Simpler Code**: No performance flags to manage
+- **Faster APIs**: 25-60x query speedup automatically
+- **Better DX**: No need to tune performance settings
+
+#### **Files Changed**
+
+**Core Performance**:
+- `src/fraiseql/fastapi/config.py` - Removed 13 performance config flags
+- `src/fraiseql/db.py` - Pure passthrough always enabled
+- `src/fraiseql/core/raw_json_executor.py` - Rust transformation always enabled
+- `src/fraiseql/fastapi/dependencies.py` - Passthrough always enabled in production
+- `src/fraiseql/execution/mode_selector.py` - All modes always available
+- `src/fraiseql/fastapi/app.py` - TurboRouter always enabled
+
+**Tests Updated**:
+- `tests/test_pure_passthrough_sql.py` - Updated for always-on behavior
+- `tests/integration/auth/test_json_passthrough_config_fix.py` - Updated tests
+- Removed obsolete configuration test files
+
+#### **Backwards Compatibility**
+
+This release maintains API compatibility for:
+- All GraphQL query syntax
+- All mutation patterns
+- Database schema requirements
+- Type definitions and decorators
+- Authentication and authorization
+
+The only breaking changes are the **removed configuration flags** which are no longer needed since the features they controlled are now always active.
+
+#### **Upgrade Recommendation**
+
+✅ **Highly Recommended**: All users should upgrade to v0.11.0 to get automatic 25-60x performance improvements with simpler configuration.
+
+#### **Testing**
+
+- ✅ All 19 pure passthrough tests passing
+- ✅ All Rust transformation tests passing
+- ✅ Integration tests verified
+- ✅ Performance benchmarks confirmed
+
+## [0.10.3] - 2025-10-06
+
+### ✨ IpAddressString Scalar CIDR Notation Support
+
+This release enhances the `IpAddressString` scalar to accept CIDR notation for improved PostgreSQL INET compatibility.
+
+#### **Enhancement (Fixes #77)**
+
+**IpAddressString now accepts CIDR notation** while remaining fully backward compatible.
+
+**What's New:**
+- Accepts both plain IP addresses and CIDR notation
+- Extracts just the IP address from CIDR input
+- Maintains backward compatibility with existing code
+
+**Examples:**
+```python
+# Plain IP (existing behavior)
+"192.168.1.1" → IPv4Address("192.168.1.1")
+
+# CIDR notation (new)
+"192.168.1.1/24" → IPv4Address("192.168.1.1")  # Extracts IP only
+"2001:db8::1/64" → IPv6Address("2001:db8::1")  # Works for IPv6 too
+```
+
+**Use Cases:**
+1. **PostgreSQL INET compatibility**: Accept CIDR input from frontend forms
+2. **Flexible input patterns**: Support both traditional IP+subnet and CIDR notation
+3. **Network configuration APIs**: Users can provide network info in familiar formats
+
+**Implementation:**
+- Changed from `ip_address()` to `ip_interface()` for parsing
+- Returns only the IP address part (discards prefix length)
+- Full test coverage for IPv4 and IPv6 with CIDR notation
+
+**GraphQL Usage:**
 ```graphql
-printServers(where: {
-  AND: [
-    { operatingSystem: { in: ["Linux", "Windows"] } }
-    { OR: [
-        { nTotalAllocations: { gte: 100 } }
-        { hostname: { contains: "critical" } }
-      ]
-    }
-    { NOT: { ipAddress: { isnull: true } } }
-  ]
-})
+mutation {
+  updateNetworkConfig(
+    ipAddress: "192.168.1.1/24"  # CIDR accepted, stores IP only
+  ) {
+    success
+  }
+}
 ```
 
-### 📋 **Files Added/Modified**
-- `src/fraiseql/nested_array_filters.py` - New registration API and decorators
-- `src/fraiseql/core/nested_field_resolver.py` - Enhanced resolver with logical operators
-- `src/fraiseql/core/graphql_type.py` - Enhanced resolver integration
-- `src/fraiseql/fields.py` - Extended field metadata for where filtering
-- `docs/nested-array-filtering.md` - Complete documentation and examples
-- `examples/nested_array_filtering.py` - Comprehensive demonstration
-- Multiple comprehensive test files for complete coverage
+**PostgreSQL Integration Patterns:**
+
+For applications storing CIDR in PostgreSQL INET columns, use mutually exclusive input fields:
+
+```python
+from fraiseql import UNSET
+from fraiseql.types import IpAddress, SubnetMask, CIDR
+
+@fraise_input
+class NetworkConfigInput:
+    # Pattern 1: Traditional IP + Subnet Mask
+    ip_address: IpAddress | None = UNSET
+    subnet_mask: SubnetMask | None = UNSET
+
+    # Pattern 2: CIDR notation
+    ip_address_cidr: CIDR | None = UNSET
+```
+
+Validate exactly one pattern in your resolver and convert to PostgreSQL INET format.
+
+#### **Files Changed**
+
+- `src/fraiseql/types/scalars/ip_address.py` - Updated parsing logic
+- `tests/unit/core/type_system/test_ip_address_scalar.py` - Added CIDR tests
+
+#### **Breaking Changes**
+
+None - fully backward compatible.
+
+## [0.10.2] - 2025-10-06
+
+### ✨ Mutation Input Transformation and Empty String Handling
+
+This release adds powerful input transformation capabilities to mutations and improves frontend compatibility with automatic empty string handling.
+
+#### **New Features**
+
+**1. `prepare_input` Hook for Mutations (Fixes #75)**
+
+Adds an optional `prepare_input` static method to mutation classes that allows transforming input data after GraphQL validation but before the PostgreSQL function call.
+
+**Use Cases:**
+- Multi-field transformations (IP + subnet mask → CIDR notation)
+- Empty string normalization
+- Date format conversions
+- Coordinate transformations
+- Unit conversions
+
+**Example:**
+```python
+@mutation
+class CreateNetworkConfig:
+    input: NetworkConfigInput
+    success: NetworkConfigSuccess
+    error: NetworkConfigError
+
+    @staticmethod
+    def prepare_input(input_data: dict) -> dict:
+        """Transform IP + subnet mask to CIDR notation."""
+        ip = input_data.get("ip_address")
+        mask = input_data.get("subnet_mask")
+
+        if ip and mask:
+            cidr_prefix = {
+                "255.255.255.0": 24,
+                "255.255.0.0": 16,
+            }.get(mask, 32)
+            return {"ip_address": f"{ip}/{cidr_prefix}"}
+        return input_data
+```
+
+**2. Automatic Empty String to NULL Conversion**
+
+Frontends commonly send empty strings (`""`) when users clear text fields. FraiseQL now automatically converts empty strings to `None` for optional fields while maintaining data quality validation for required fields.
+
+**Behavior:**
+- **Optional fields** (`notes: str | None`): Accept `""`, convert to `None` ✅
+- **Required fields** (`name: str`): Reject `""` with validation error ❌
+
+**Example:**
+```python
+# Frontend sends:
+{ id: "123", notes: "" }
+
+# Backend receives and stores:
+{ id: "123", notes: null }
+```
+
+#### **Benefits**
+
+- ✅ Clean separation of frontend and backend data formats
+- ✅ No need for custom resolvers or middleware
+- ✅ Maintains type safety and data quality validation
+- ✅ Supports standard frontend form behavior with nullable fields
+- ✅ Non-breaking: existing mutations work unchanged
+
+#### **Test Coverage**
+
+- 3 new `prepare_input` hook tests
+- 6 new empty string conversion tests
+- All 3,295 existing tests pass (no regressions)
+
+#### **Files Changed**
+
+- `src/fraiseql/mutations/mutation_decorator.py` - Added `prepare_input` hook and documentation
+- `src/fraiseql/types/constructor.py` - Empty string → None conversion in serialization
+- `src/fraiseql/utils/fraiseql_builder.py` - Updated validation for optional fields
+- `tests/unit/decorators/test_mutation_decorator.py` - Hook tests
+- `tests/unit/decorators/test_empty_string_to_null.py` - Conversion tests (new)
+- `tests/unit/core/type_system/test_empty_string_validation.py` - Updated test
+
+## [0.10.1] - 2025-10-05
+
+### 🐛 Bugfix: TurboRouter Dual-Hash APQ Lookup
+
+**Problem**: TurboRouter failed to activate for Apollo Client APQ requests when using dual-hash registration, causing 30x-50x performance degradation (600ms instead of <20ms).
+
+**Root Cause**: `TurboRegistry.get(query_text)` only checked normalized and raw hashes, never the `_apollo_hash_to_primary` mapping. When query text from APQ hashed to the apollo_client_hash instead of the server hash, the lookup failed.
+
+**Fix**: Enhanced `TurboRegistry.get()` to check the `_apollo_hash_to_primary` mapping after trying direct hash lookups. Now correctly resolves Apollo Client hashes to their registered primary hashes.
+
+**Impact**:
+- ✅ TurboRouter now activates correctly for Apollo Client APQ requests with dual-hash support
+- ✅ 30x-50x performance improvement restored (600ms → 15ms)
+- ✅ 100% backward compatible - no code changes required
+- ✅ Works with most common production GraphQL client (Apollo Client)
+
+**Files Changed**:
+- `src/fraiseql/fastapi/turbo.py:174-216` - Enhanced `get()` method with apollo hash mapping lookup
+
+**Testing**:
+- New test: `test_get_by_query_text_with_dual_hash_apollo_format` validates the fix
+- All 25 turbo-related tests pass
+- Full backward compatibility maintained
+
+## [0.10.0] - 2025-10-04
+
+### ✨ Context Parameters Support for Turbo Queries
+
+This release adds `context_params` support to TurboQuery, enabling multi-tenant turbo-optimized queries with row-level security. This mirrors the mutation pattern and allows passing authentication context (tenant_id, user_id) from JWT to SQL functions.
+
+#### **🎯 Problem Solved**
+- Turbo queries could not access context parameters (tenant_id, user_id) from JWT
+- Multi-tenant applications had to choose between turbo performance OR tenant isolation
+- Required workarounds with session variables that didn't work with FraiseQL
+- Security risk if trying to pass tenant_id via GraphQL variables (client-controlled)
+
+#### **✨ New Features**
+- **`context_params` field** in `TurboQuery` for context-to-SQL parameter mapping
+- **Automatic context injection** in `TurboRouter.execute()` (mirrors mutation pattern)
+- **Error handling** for missing required context parameters
+- **100% backward compatible** - context_params is optional
+
+#### **🔧 Usage**
+```python
+from fraiseql.fastapi import TurboQuery
+
+# Register turbo query with context parameters
+turbo_query = TurboQuery(
+    graphql_query=query,
+    sql_template="SELECT turbo.fn_get_allocations(%(period)s, %(tenant_id)s)::json",
+    param_mapping={"period": "period"},         # From GraphQL variables
+    operation_name="GetAllocations",
+    context_params={"tenant_id": "tenant_id"},  # ✨ NEW: From JWT context
+)
+
+registry.register(turbo_query)
+
+# Execute with context (from JWT authentication)
+result = await turbo_router.execute(
+    query=query,
+    variables={"period": "CURRENT"},
+    context={"db": db, "tenant_id": "tenant-123"}  # From JWT
+)
+
+# SQL receives: fn_get_allocations('CURRENT', 'tenant-123')
+# ✅ Both variable AND context parameter!
+```
+
+#### **✅ Benefits**
+- **Multi-tenant support** for turbo queries with row-level security
+- **10x+ performance** with tenant isolation (no compromise needed)
+- **Security** - tenant_id from server-side JWT, not client input
+- **Consistent API** - matches mutation `context_params` pattern
+- **Audit trails** - pass user_id for created_by/updated_by tracking
+
+#### **📚 Documentation**
+- Full test coverage in `tests/integration/caching/test_turbo_router.py`
+- Error handling tests for missing context parameters
+
+#### **🔍 Technical Details**
+- Added `context_params: dict[str, str] | None` to `TurboQuery` dataclass
+- Updated `TurboRouter.execute()` to map context values to SQL params
+- Follows exact same pattern as `MutationDefinition.create_resolver()`
+- Raises `ValueError` for missing required context parameters
+
+#### **🎨 Use Cases**
+- **Multi-tenant SaaS** - Enforce tenant isolation in turbo queries
+- **Audit logging** - Track user_id for all data access
+- **Row-level security** - Pass authentication context to PostgreSQL RLS
+- **Cache isolation** - Include tenant_id in cache keys
+
+## [0.9.6] - 2025-10-04
+
+### ✨ Native Dual-Hash Support for Apollo Client APQ
+
+This release adds first-class support for Apollo Client's Automatic Persisted Queries (APQ) with native dual-hash compatibility, eliminating hash mismatches between frontend and backend.
+
+#### **🎯 Problem Solved**
+- Apollo Client and FraiseQL compute different SHA-256 hashes for queries with parameters
+- Previous workaround required registering queries twice (once per hash)
+- "Hash mismatch" warnings appeared even though both hashes were valid
+
+#### **✨ New Features**
+- **`apollo_client_hash` field** in `TurboQuery` for Apollo Client hash
+- **Dual-hash registration** - single registration, both hashes work
+- **`get_by_hash()` method** for direct hash-based query retrieval
+- **Automatic LRU cleanup** for apollo hash mappings
+- **100% backward compatible** - apollo_client_hash is optional
+
+#### **🔧 Usage**
+```python
+from fraiseql.fastapi import TurboQuery
+
+turbo_query = TurboQuery(
+    graphql_query=query,
+    sql_template=template,
+    param_mapping=mapping,
+    operation_name="GetMetrics",
+    apollo_client_hash="ce8fae62...",  # ✨ NEW: Apollo Client's hash
+)
+
+# Single registration handles both hashes
+registry.register_with_raw_hash(turbo_query, fraiseql_server_hash)
+
+# ✅ Works with either hash!
+result = registry.get_by_hash(fraiseql_server_hash)  # Works
+result = registry.get_by_hash(apollo_client_hash)    # Also works!
+```
+
+#### **✅ Benefits**
+- **Single registration** instead of double
+- **No hash mismatch warnings** when apollo_client_hash provided
+- **Cleaner API** for Apollo Client + FraiseQL integration
+- **First-class APQ support** as a core feature
+- **Memory efficient** - no query duplication
+
+#### **📚 Documentation**
+- Comprehensive section in `docs/advanced/turbo-router.md`
+- Full test coverage in `tests/test_apollo_client_apq_dual_hash.py`
+- Database schema examples for production use
+
+#### **🔍 Technical Details**
+- Added `_apollo_hash_to_primary` mapping in `TurboRegistry`
+- Enhanced `register_with_raw_hash()` for automatic dual-hash registration
+- New `get_by_hash()` method supports both server and Apollo hashes
+- Updated `clear()` and LRU eviction to clean up mappings
+
+#### **🎨 Related Issues**
+- Resolves #72: Feature Request: Native dual-hash support for Apollo Client APQ compatibility
+
+## [0.9.5] - 2025-09-28
+
+### 🐛 Critical Fix: Nested Object Filtering on Hybrid Tables
+
+This release fixes a critical performance and correctness issue where nested object filters on hybrid tables (with both SQL columns and JSONB data) were using slow JSONB traversal instead of indexed SQL columns.
+
+#### **🚨 Issue Fixed**
+- Nested object filters on hybrid tables were generating inefficient JSONB paths
+- Before: `WHERE (data -> 'machine' ->> 'id') = '...'` (slow JSONB traversal)
+- After: `WHERE machine_id = '...'` (fast indexed column access)
+- **10-100x performance improvement** for nested object filtering
+
+#### **🔧 Technical Details**
+- Modified `_build_find_query()` to detect hybrid tables with nested filters
+- Added `_where_obj_to_dict()` to convert WHERE objects for inspection
+- Updated `_convert_dict_where_to_sql()` to map nested objects to SQL columns
+- Intelligent routing: uses SQL columns when available, JSONB as fallback
+
+#### **✅ Impact**
+- **Severity**: Critical - incorrect results and severe performance degradation
+- **Affected**: Hybrid tables using `register_type_for_view()` with `has_jsonb_data=True`
+- **Performance**: 10-100x faster queries using indexed columns vs JSONB
+- **Migration**: No action required - automatic optimization
+
+#### **📊 Bonus**
+- `WhereInput` types now work correctly on regular (non-JSONB) tables
+- Type-safe UUID comparisons instead of text/UUID mismatches
+- Eliminated "Unsupported operator: id" warnings
+
+## [0.9.4] - 2025-09-28
+
+### 🐛 Critical Fix: Nested Object Filtering in JSONB WHERE Clauses
+
+This release fixes a critical bug where nested object filters in GraphQL WHERE clauses were generating incorrect SQL for JSONB-backed tables, causing filters to fail silently.
+
+#### **🚨 Issue Fixed**
+- Nested object filters were accessing fields at root level instead of proper nested paths
+- Before: `WHERE (data ->> 'id') = '...'` (incorrect root-level access)
+- After: `WHERE (data -> 'machine' ->> 'id') = '...'` (correct nested path)
+
+#### **🔧 Technical Details**
+- Modified `where_generator.py` to pass `parent_path` through the `to_sql()` chain
+- Added `_build_nested_path()` helper for cleaner path construction
+- Fixed logical operators (AND, OR, NOT) to maintain parent context
+- Enhanced test coverage for deep nesting (3+ levels)
+
+#### **✅ Impact**
+- **Severity**: High - filters were silently failing
+- **Affected**: JSONB tables with nested object filtering
+- **Migration**: No action required - existing code automatically benefits
+
+## [0.9.3] - 2025-09-21
+
+### ✨ Built-in Tenant-Aware APQ Caching
+
+This release adds native tenant isolation support to FraiseQL's APQ (Automatic Persisted Queries) caching system, enabling secure multi-tenant applications without custom implementations.
+
+#### **🎯 Key Features**
+- **Automatic Tenant Isolation**: Both `MemoryAPQBackend` and `PostgreSQLAPQBackend` now automatically isolate cached responses by tenant
+- **Zero Configuration**: Works out of the box - just pass context with tenant_id
+- **Security by Default**: Prevents cross-tenant data leakage with built-in isolation
+- **Context Propagation**: Router automatically passes JWT context to APQ backends
+
+#### **🏗️ Implementation Details**
+
+**MemoryAPQBackend**:
+- Generates tenant-specific cache keys: `{tenant_id}:{hash}`
+- Maintains separate cache spaces per tenant
+- Global cache available for non-tenant requests
+
+**PostgreSQLAPQBackend**:
+- Added `tenant_id` column to responses table
+- Composite primary key `(hash, COALESCE(tenant_id, ''))`
+- Indexed tenant_id for optimal performance
+
+#### **📚 Documentation**
+- Comprehensive guide: `docs/apq_tenant_context_guide.md`
+- Multi-tenant example: `examples/apq_multi_tenant.py`
+- Full test coverage with tenant isolation validation
+
+#### **🔧 Usage**
+```python
+# Tenant isolation is automatic!
+context = {"user": {"metadata": {"tenant_id": "acme-corp"}}}
+response = backend.get_cached_response(hash, context=context)
+```
+
+## [0.9.2] - 2025-09-21
+
+### 🐛 APQ Backend Integration Fix
+
+This release fixes a critical issue with Automatic Persisted Queries (APQ) backend integration, enabling custom storage backends to properly store and retrieve persisted queries and cached responses.
+
+#### **🎯 Problem Solved**
+- Custom APQ backends (PostgreSQL, MongoDB, Redis) were not being called during APQ request processing
+- Backend methods `store_persisted_query()` and `store_cached_response()` were never invoked
+- Made it impossible to use database-backed APQ storage in production environments
+
+#### **✅ Solution Implemented**
+- **Query Registration**: APQ registration requests (query + hash) now properly store queries in custom backends
+- **Backend Priority**: Custom backends are checked first before falling back to memory storage
+- **Response Caching**: Successful query responses are now cached in custom backends for performance
+- **Backward Compatibility**: Maintains full compatibility with existing memory-only APQ implementations
+
+#### **🔒 Security & Multi-tenancy**
+- **JWT Context Preserved**: Authentication context including `tenant_id` from JWT metadata flows through entire APQ lifecycle
+- **Tenant Isolation**: Multi-tenant applications maintain proper query isolation
+- **Authentication First**: Security checks occur before APQ processing
+- **Full Context Preservation**: User context, permissions, and metadata remain intact
+
+#### **🚀 Impact**
+- Enables production-ready APQ with persistent storage
+- Supports distributed caching across multiple servers
+- Allows custom backend implementations for specific infrastructure needs
+- Fixes integration with custom backends like `printoptim_backend`
+
+#### **🧪 Testing**
+- All 19 APQ-specific tests pass
+- Full test suite of 3246 tests maintains 100% pass rate
+- Added verification for backend integration and tenant ID preservation
+
+## [0.9.1] - 2025-09-21
+
+### ✨ Comprehensive Automatic Field Description Extraction
+
+This release introduces **comprehensive automatic field description extraction** that transforms Python docstrings into detailed GraphQL field descriptions, building on the v0.9.0 automatic docstring extraction foundation.
+
+#### **🎯 Key Features**
+- **Automatic Field Descriptions**: Extracts field descriptions from docstring `Fields:`, `Attributes:`, and `Args:` sections
+- **Enhanced Where Clause Documentation**: 35+ filter operations automatically documented with type-aware descriptions
+- **Multiple Documentation Sources**: Intelligent priority system supporting various docstring formats
+- **Apollo Studio Integration**: Field descriptions appear as tooltips with comprehensive operation explanations
+- **Zero Configuration**: Works with existing code without any changes required
+
+#### **🧪 Quality Assurance**
+- **35 Comprehensive Unit Tests**: Full coverage of field description extraction functionality
+- **3200+ Integration Tests**: Complete test suite ensuring backward compatibility
+- **Performance Optimized**: Minimal overhead with intelligent caching
+- **Type-Safe Implementation**: Maintains existing type safety guarantees
+
+#### **📚 Documentation & Examples**
+- **Complete Feature Documentation**: Comprehensive guides and API reference
+- **3 Working Examples**: Demonstrating all aspects of automatic field descriptions
+- **Migration Guide**: Easy adoption for existing codebases
+- **Best Practices**: Usage patterns and optimization recommendations
+
+#### **🔄 Implementation Details**
+- **2 New Utility Modules**: `docstring_extractor.py` and `where_clause_descriptions.py`
+- **Seamless Pipeline Integration**: Works with existing FraiseQL type system
+- **Automatic Filter Enhancement**: All existing filter types gain comprehensive documentation
+- **Clean Architecture**: Maintainable code following project conventions
+
+## [0.9.0] - 2025-09-20
+
+### ✨ Automatic Docstring Extraction for GraphQL Schema Descriptions
+
+This release introduces **automatic docstring extraction** that transforms Python docstrings into GraphQL schema descriptions visible in Apollo Studio, providing zero-configuration documentation for your GraphQL APIs.
+
+#### **🎯 Key Features**
+- **Type-Level Descriptions**: `@fraise_type` classes automatically use their docstrings as GraphQL type descriptions
+- **Query/Mutation Descriptions**: `@query` functions and `@mutation` classes automatically extract docstrings for field descriptions
+- **Multiline Support**: Automatic cleaning and formatting of multiline docstrings using `inspect.cleandoc`
+- **Apollo Studio Integration**: All descriptions appear automatically in GraphQL introspection and Apollo Studio
+
+#### **🔧 Implementation**
+- **Zero Configuration**: No code changes required - existing docstrings automatically become GraphQL descriptions
+- **Backward Compatibility**: Existing explicit `description` parameters continue to work unchanged
+- **Smart Extraction**: Mutation classes use original docstrings, not auto-generated fallback descriptions
+- **Clean Formatting**: Proper indentation and whitespace handling for professional documentation
+
+#### **📚 Developer Experience**
+```python
+@fraiseql.type
+class User:
+    """A user account with authentication and profile information."""  # ✅ Apollo Studio
+    id: UUID
+    name: str
+
+@fraiseql.query
+async def get_users(info) -> list[User]:
+    """Get all users with their profile information."""  # ✅ Apollo Studio
+    return await repo.find("v_user")
+```
+
+#### **🧪 Testing**
+- **12 comprehensive unit tests** covering all functionality and edge cases
+- **Type descriptions**: Automatic extraction, multiline cleaning, missing docstrings
+- **Query/mutation descriptions**: Function docstrings, class docstrings, backward compatibility
+- **Integration tests**: Full GraphQL schema generation and introspection
+
+#### **📖 Documentation**
+- **Enhanced type system docs** with automatic documentation examples
+- **Updated README** showcasing the feature in quick start guide
+- **Code purification** achieving eternal sunshine repository state
+
+This release significantly enhances the developer experience by providing automatic, rich documentation for GraphQL schemas without requiring any configuration or code changes.
+
+## [0.8.1] - 2025-09-20
+
+### ✨ Entity-Aware Query Routing
+
+This release introduces **intelligent query routing** that automatically determines execution mode based on entity complexity, optimizing performance while ensuring cache consistency.
+
+#### **🎯 Key Features**
+- **EntityRoutingConfig**: Declarative entity classification system for configuring which entities should use turbo vs normal mode
+- **EntityExtractor**: GraphQL query analysis engine that automatically detects entities using schema introspection
+- **QueryRouter**: Intelligent execution mode determination based on entity types and configurable strategies
+- **ModeSelector Integration**: Seamless integration with existing execution pipeline
+
+#### **🚀 Benefits**
+- **Performance Optimization**: Complex entities with materialized views automatically get turbo caching
+- **Cache Consistency**: Simple entities without materialized views get real-time data to avoid stale cache issues
+- **Developer Experience**: Configuration-driven approach with automatic routing - no manual mode hints needed
+- **Backward Compatibility**: Optional feature that preserves all existing behavior when not configured
+
+#### **📝 Usage**
+```python
+FraiseQLConfig(
+    entity_routing=EntityRoutingConfig(
+        turbo_entities=["allocation", "contract", "machine"],  # Complex entities
+        normal_entities=["dnsServer", "gateway"],              # Simple entities
+        mixed_query_strategy="normal",                         # Mixed query strategy
+        auto_routing_enabled=True,
+    )
+)
+```
+
+#### **🔄 Query Routing Logic**
+- **Mode hints** (e.g., `# @mode: turbo`) → Always override entity routing
+- **Turbo entities only** → `ExecutionMode.TURBO` (optimized caching)
+- **Normal entities only** → `ExecutionMode.NORMAL` (real-time data)
+- **Mixed queries** → Use configured strategy (normal/turbo/split)
+- **Unknown entities** → Safe fallback to normal mode
+
+## [0.8.0] - 2025-09-20
+
+### 🚀 Major Features - APQ Storage Backend Abstraction
+
+This release implements **Automatic Persisted Queries (APQ) Storage Backend Abstraction**, completing FraiseQL's three-layer performance optimization architecture and positioning it as the **fastest Python GraphQL framework**.
+
+#### **✨ APQ Storage Backends**
+- **Memory Backend**: Zero-configuration default for development and simple applications
+- **PostgreSQL Backend**: Enterprise-grade persistent storage with multi-instance coordination
+- **Redis Backend**: High-performance distributed caching for scalable deployments
+- **Factory Pattern**: Pluggable architecture for easy backend switching and extension
+
+#### **🎯 Key Features**
+- **SHA-256 Query Hashing**: Secure and collision-resistant query identification
+- **Bandwidth Reduction**: 70% smaller requests via hash-based query lookup
+- **Enterprise Configuration**: Schema isolation and custom connection settings
+- **Graceful Fallback**: Automatic degradation to full queries when cache misses occur
+- **Multi-Instance Ready**: PostgreSQL and Redis backends support distributed deployments
+
+#### **📊 Performance Achievements**
+- **0.5-2ms Response Times**: All three optimization layers working in harmony
+- **100-500x Performance Improvement**: Combined APQ + TurboRouter + JSON Passthrough
+- **95% Cache Hit Rates**: Real production benchmarks with enterprise workloads
+- **Sub-millisecond Cached Responses**: JSON passthrough optimization eliminates serialization
+
+#### **🔧 Configuration Examples**
+```python
+# Memory Backend (development/simple apps)
+config = FraiseQLConfig(apq_storage_backend="memory")
+
+# PostgreSQL Backend (enterprise scale)
+config = FraiseQLConfig(
+    apq_storage_backend="postgresql",
+    apq_storage_schema="apq_cache"  # Custom schema isolation
+)
+
+# Redis Backend (high-performance caching)
+config = FraiseQLConfig(apq_storage_backend="redis")
+```
+
+#### **🏗️ Architecture Completion**
+FraiseQL now features the complete three-layer optimization stack:
+1. **APQ Layer** → 70% bandwidth reduction
+2. **TurboRouter Layer** → 4-10x execution speedup
+3. **JSON Passthrough Layer** → 5-20x serialization speedup
+4. **Combined Impact** → **100-500x total performance improvement**
+
+### 📚 **Documentation Enhancements**
+
+#### **New Comprehensive Guides**
+- **Performance Optimization Layers Guide** (636 lines): Complete analysis of how APQ, TurboRouter, and JSON Passthrough work together
+- **APQ Storage Backends Guide** (433 lines): Configuration examples, troubleshooting, and production deployment patterns
+- **Updated README**: Enhanced performance comparisons with optimization layer breakdown
+
+#### **Production-Ready Documentation**
+- **Enterprise Configuration**: Multi-instance coordination patterns
+- **Troubleshooting Guides**: Common issues and resolutions
+- **Performance Monitoring**: KPIs and observability strategies
+- **Migration Guides**: Seamless adoption paths for existing applications
+
+### 🧪 **Testing Infrastructure**
+
+#### **Comprehensive Test Coverage**
+- **1,000+ New Tests**: Full coverage for all APQ storage backends
+- **335 Integration Tests**: Multi-backend APQ functionality validation
+- **258 Middleware Tests**: Caching behavior and error handling
+- **227 PostgreSQL Tests**: Enterprise storage backend verification
+- **200 Factory Tests**: Backend selection and configuration testing
+
+#### **Quality Assurance**
+- **3,204 Total Tests**: All passing with comprehensive regression coverage
+- **Production Validation**: Real-world enterprise workload testing
+- **Performance Benchmarks**: Verified 100-500x improvement claims
+
+### 🔄 **Migration & Compatibility**
+
+#### **Zero Breaking Changes**
+- **Fully Backward Compatible**: Existing applications continue working unchanged
+- **Gradual Adoption**: APQ can be enabled incrementally
+- **Configuration Override**: Easy opt-in with environment variables
+- **Legacy Support**: Full compatibility with existing TurboRouter and JSON passthrough setups
+
+#### **Enterprise Migration**
+- **Database Schema**: Automatic APQ table creation for PostgreSQL backend
+- **Connection Pooling**: Optimized database connections for APQ storage
+- **Monitoring Integration**: CloudWatch, Prometheus, and custom metrics support
+
+### 💎 **Repository Quality Improvements**
+
+#### **Eternal Repository Perfection**
+- **Version Consistency**: Fixed all version mismatches across package metadata
+- **Code Quality**: Zero linting issues, consistent patterns across 50 modified files
+- **Documentation Coherence**: 95 documentation files with verified internal links
+- **Artifact Cleanup**: Removed temporary files and optimized .gitignore
+
+#### **Development Excellence**
+- **Disciplined TDD**: Five-phase implementation with comprehensive test coverage
+- **Clean Architecture**: Proper separation of concerns and dependency injection
+- **Production Patterns**: Enterprise-ready configuration and error handling
+
+### 🎉 **Why This Release Matters**
+
+This release establishes FraiseQL as the **definitive solution for high-performance Python GraphQL APIs**:
+
+- **Production-Grade APQ**: Enterprise storage options with schema isolation
+- **Architectural Completeness**: All three optimization layers working in harmony
+- **Developer Experience**: Zero-configuration memory backend to enterprise PostgreSQL
+- **Performance Leadership**: Verifiable 100-500x improvements over traditional frameworks
+- **Enterprise Ready**: Multi-tenant, distributed, and monitoring-integrated
+
+### 📈 **Performance Comparison Matrix**
+
+| Configuration | Response Time | Bandwidth | Use Case |
+|---------------|---------------|-----------|----------|
+| **All 3 Layers** (APQ + TurboRouter + Passthrough) | **0.5-2ms** | -70% | Ultimate performance |
+| **APQ + TurboRouter** | 2-5ms | -70% | Enterprise standard |
+| **APQ + Passthrough** | 1-10ms | -70% | Modern web applications |
+| **TurboRouter Only** | 5-25ms | Standard | API-focused applications |
+| **Standard Mode** | 25-100ms | Standard | Development & complex queries |
+
+### 🔧 **Technical Implementation**
+
+#### **Core Components Added**
+- `src/fraiseql/middleware/apq.py` - APQ middleware integration
+- `src/fraiseql/middleware/apq_caching.py` - Caching logic and storage abstraction
+- `src/fraiseql/storage/backends/` - Storage backend implementations
+- `src/fraiseql/storage/apq_store.py` - Unified storage interface
+
+#### **FastAPI Integration**
+- Enhanced router with backward-compatible APQ middleware
+- Automatic APQ detection and processing
+- Configurable storage backend selection
+- Production-ready error handling and logging
+
+### 🏆 **Achievement Summary**
+
+FraiseQL v0.8.0 delivers on the promise of **sub-millisecond GraphQL responses** with:
+- **Complete optimization stack** with pluggable APQ storage
+- **Enterprise-grade documentation** with production deployment guides
+- **Comprehensive testing** ensuring reliability at scale
+- **Zero breaking changes** enabling seamless upgrades
+
+This release represents a **major milestone** in Python GraphQL performance optimization, establishing FraiseQL as the fastest and most production-ready solution available.
+
+---
+
+**Files Changed**: 50 files (+4,464 additions, -2,016 deletions)
+**Test Coverage**: 3,204 tests passing, 1,000+ new APQ-specific tests
+**Documentation**: 2 comprehensive new guides (1,069 total lines)
+
+## [0.7.26] - 2025-09-17
+
+### 🔒 Security
+
+#### Authentication-Aware GraphQL Introspection
+- **SEC**: Enhanced introspection policy with authentication awareness
+- **SEC**: Configurable introspection access control based on user context
+- **SEC**: Production-ready introspection security patterns
+
+### 🧪 Testing
+
+#### Security Test Coverage
+- **TEST**: Authentication-aware introspection policy validation
+- **TEST**: Security configuration testing
+- **TEST**: Production security scenario verification
+
+## [0.7.25] - 2025-09-17
+
+### 🐛 Fixed
+
+#### Critical WHERE Clause Generation Bugs
+- **FIX**: Hostname filtering no longer incorrectly applies ltree casting for `.local` domains
+- **FIX**: Proper parentheses placement for type casting: `((path))::type` instead of `path::type`
+- **FIX**: Boolean operations consistently use text comparison (`= 'true'/'false'`) instead of `::boolean` casting
+- **FIX**: Numeric operations consistently use `::numeric` casting for proper PostgreSQL comparison
+- **FIX**: Resolves production issues where `printserver01.local` caused SQL syntax errors
+
+### 🧪 Testing
+
+#### Industrial-Grade Test Coverage
+- **TEST**: Comprehensive regression tests for WHERE clause generation edge cases
+- **TEST**: 41+ new regression tests covering hostname, boolean, and numeric filtering
+- **TEST**: SQL injection resistance validation
+- **TEST**: PostgreSQL syntax compliance verification
+- **TEST**: Production scenario validation for enterprise use cases
+
+### 🔒 Security
+
+- **SEC**: Enhanced SQL injection prevention in type casting operations
+- **SEC**: Parameterized query validation for all operator strategies
+
+## [0.7.24] - 2025-09-17
+
+### 🚀 Added
+
+#### Hybrid Table Support
+- **NEW**: Full support for hybrid tables with both regular SQL columns and JSONB data
+- **NEW**: Automatic field detection and optimal SQL generation
+- **NEW**: Registration-time metadata for zero-latency field classification
+- **NEW**: `register_type_for_view()` enhanced with `table_columns` and `has_jsonb_data` parameters
+
+### 🏃‍♂️ Performance
+
+#### SQL Generation Optimization
+- **PERF**: 0.4μs field detection time with metadata registration (1670x faster than DB query)
+- **PERF**: Zero runtime database introspection for registered hybrid tables
+- **PERF**: Multi-level caching system for field path decisions
+- **PERF**: Minimal memory overhead (~1KB per table for metadata)
+
+### 🐛 Fixed
+
+#### Critical Filtering Bug
+- **FIX**: Hybrid tables now correctly filter on regular SQL columns
+- **FIX**: Dynamic filter construction works properly on mixed column types
+- **FIX**: WHERE clause generation automatically detects column vs JSONB fields
+- **FIX**: Resolves issue where `WHERE is_active = true` was incorrectly generated as `WHERE data->>'is_active' = true`
+
+### 📚 Documentation
+
+- **DOCS**: Complete hybrid tables guide with examples
+- **DOCS**: API reference for registration functions
+- **DOCS**: Performance benchmarks and optimization guide
+- **DOCS**: Migration guide from pure JSONB to hybrid tables
+
+### 🧪 Testing
+
+- **TEST**: Comprehensive hybrid table filtering test suite
+- **TEST**: Performance benchmarks for SQL generation
+- **TEST**: Generic examples replacing domain-specific ones
+
+## [0.7.21] - 2025-09-14
+
+### 🐛 **Bug Fixes**
+
+#### **Mutation Name Collision Fix**
+- **Problem solved**: Mutations with similar names (e.g., `CreateItem` and `CreateItemComponent`) were causing parameter validation confusion where `createItemComponent` incorrectly required `item_serial_number` from `CreateItemInput` instead of its own `CreateItemComponentInput` fields
+- **Impact**: 🟡 **High** - GraphQL mutations with similar names would fail validation with incorrect error messages, blocking API functionality
+- **Root cause**: Resolver naming strategy used `to_snake_case(class_name)` which could create collisions when similar class names produced identical snake_case names, causing one mutation to overwrite another's metadata in the GraphQL schema registry
+- **Solution**: Updated resolver naming to use PostgreSQL function names for uniqueness (e.g., `create_item` vs `create_item_component`) and ensure fresh annotation dictionaries prevent shared references
+- **Files modified**:
+  - `src/fraiseql/mutations/mutation_decorator.py` - Enhanced resolver naming logic for collision prevention
+- **Test coverage**: Added comprehensive collision-specific test suite `test_similar_mutation_names_collision_fix.py` with 8 test scenarios covering resolver naming, input type assignment, registry separation, and metadata independence
+- **Validation behavior**:
+  - **✅ Before fix**: `CreateItem` and `CreateItemComponent` could share parameter validation causing incorrect errors
+  - **✅ After fix**: Each mutation validates independently with correct input type requirements
+  - **✅ Backward compatibility**: No breaking changes - existing functionality preserved
+- **Quality assurance**: All 2,979+ existing tests continue to pass + 8 new collision-prevention tests
+
+## [0.7.20] - 2025-09-13
+
+### 🐛 **Bug Fixes**
+
+#### **JSONB Numeric Ordering Fix**
+- **Problem solved**: ORDER BY clauses were using JSONB text extraction (`data->>'field'`) causing lexicographic sorting where `"125.0" > "1234.53"` due to string comparison
+- **Impact**: 🔴 **Critical** - Data integrity issue for financial data, amounts, quantities, and all numeric field ordering
+- **Root cause**: `order_by_generator.py` generated `ORDER BY data ->> 'amount' ASC` (text) instead of `ORDER BY data -> 'amount' ASC` (JSONB numeric)
+- **Solution**: Changed `OrderBy.to_sql()` to use JSONB extraction preserving original data types for proper PostgreSQL numeric comparison
+- **Files modified**:
+  - `src/fraiseql/sql/order_by_generator.py` - Core fix + enhanced documentation explaining JSONB vs text extraction
+  - 6 existing test files updated to expect correct JSONB extraction behavior
+- **Test coverage**: Added comprehensive `test_numeric_ordering_bug.py` with 7 test scenarios covering single/multiple fields, nested paths, financial amounts, and decimal precision
+- **Performance benefits**:
+  - **✅ Native PostgreSQL numeric comparison** instead of text parsing
+  - **✅ Better index utilization** potential for numeric fields
+  - **✅ Reduced conversion overhead** in sorting operations
+- **Backward compatibility**: ✅ **Fully maintained** - no breaking changes, existing GraphQL queries work unchanged
+- **Before/After behavior**:
+  - **❌ Before**: `['1000.0', '1234.53', '125.0', '25.0']` (lexicographic)
+  - **✅ After**: `[25.0, 125.0, 1000.0, 1234.53]` (proper numeric)
+
+#### **Architecture Design Note**
+- **WHERE clauses remain unchanged**: Correctly use text extraction with casting `(data->>'field')::numeric` for PostgreSQL type conversion
+- **ORDER BY clauses now fixed**: Use JSONB extraction `data->'field'` for type preservation and proper sorting
+- **Design principle**: Text extraction for casting operations, JSONB extraction for type-preserving operations
+
+## [0.7.19] - 2025-09-12
+
+### 🚨 **CRITICAL SECURITY FIX**
+
+#### **None Value Validation Bypass Regression Fix**
+- **Problem solved**: v0.7.18 still allowed `None` values for required string fields in GraphQL input processing, bypassing validation completely
+- **Security impact**: 🔴 **CRITICAL** - Data integrity violation, complete validation bypass for `None` values
+- **Root cause**: Validation logic in `make_init()` checked `final_value is not None` before applying string validation, allowing `None` to completely bypass required field validation
+- **Solution**: Enhanced `_validate_input_string_value()` to validate `None` values for required fields before string-specific validation
+- **Files modified**:
+  - `src/fraiseql/utils/fraiseql_builder.py` - Enhanced validation logic to check for `None` values in required fields
+- **Test coverage**: Added `None` value validation test cases to existing regression tests
+- **Validation behavior**:
+  - **✅ Required fields**: `name: str` now properly rejects `None` values with "Field 'name' is required and cannot be None"
+  - **✅ Empty strings**: Still rejected with "Field 'name' cannot be empty"
+  - **✅ Optional fields**: `name: str | None = None` continues to work correctly
+  - **✅ Backward compatibility**: No breaking changes for valid code
+
+#### **Enhanced Error Messages**
+- **None value errors**: Clear distinction between `None` and empty string validation failures
+- **Field context**: Error messages include field names for precise debugging
+- **GraphQL compatibility**: Error format suitable for GraphQL mutation responses
+
+## [0.7.18] - 2025-09-12
+
+### 🐛 **Note**
+This version contained a validation regression where `None` values bypassed validation for required fields. **Upgrade to v0.7.19 immediately**.
+
+## [0.7.17] - 2025-09-11
+
+### 🚨 **CRITICAL REGRESSION FIX**
+
+#### **Empty String Validation Regression Fix**
+- **Problem solved**: v0.7.16 validation was incorrectly applied during field resolution, preventing existing database records with empty string fields from being loaded
+- **Impact**: 15+ production tests failed, breaking existing API consumers who couldn't upgrade from v0.7.15
+- **Root cause**: String validation was applied in `make_init()` for ALL type kinds (input, output, type, interface) during object instantiation
+- **Solution**: Apply validation only for `@fraiseql.input` types, not output/type/interface types
+- **Files modified**:
+  - `src/fraiseql/utils/fraiseql_builder.py` - Modified `make_init()` to accept `type_kind` parameter
+  - `src/fraiseql/types/constructor.py` - Pass type kind information to `make_init()`
+- **Test coverage**: Added comprehensive regression test suite (`tests/regression/test_v0716_empty_string_validation_regression.py`)
+
+#### **Validation Behavior Clarification**
+- **✅ Input validation**: `@fraiseql.input` types still reject empty strings (validation preserved)
+- **✅ Data loading**: `@fraiseql.type` types can load existing data with empty fields (regression fixed)
+- **✅ Backward compatibility**: No breaking changes, users can upgrade immediately
+- **✅ Performance**: Maintains v0.7.16 performance improvements
+
+#### **Technical Implementation**
+- **Separation of concerns**: Clear distinction between input validation and data loading
+- **Type-aware validation**: Validation logic now respects FraiseQL type kinds
+- **Enhanced documentation**: Added comprehensive code comments explaining validation behavior
+- **Future-proof**: Prevents similar regressions with proper type kind handling
+
+## [0.7.16] - 2025-09-11
+
+### 🐛 **Fixed**
+
+#### **FraiseQL Empty String Validation for Required Fields**
+- **Enhancement**: FraiseQL now properly validates required string fields to reject empty strings and whitespace-only values
+- **Problem solved**: Previously, FraiseQL accepted empty strings (`""`) and whitespace-only strings (`"   "`) for required string fields, creating inconsistent validation behavior
+- **Key features**:
+  - **Empty string rejection**: Required string fields (`name: str`) now reject `""` and `"   "` with clear error messages
+  - **Consistent behavior**: Aligns with existing `null` value rejection for required fields
+  - **Optional field support**: Optional string fields (`name: str | None`) still accept `None` but reject empty strings when explicitly provided
+  - **Clear error messages**: Validation failures show `"Field 'field_name' cannot be empty"` for easy debugging
+  - **Type-aware validation**: Only applies to string fields, preserves existing behavior for other types
+- **Framework-level validation**: Automatic validation with no boilerplate code required
+- **GraphQL compatibility**: Error messages suitable for GraphQL error responses
+- **Zero breaking changes**: Only adds validation where it was missing, maintains backward compatibility
+
+#### **Technical Implementation**
+- **Validation location**: Integrated into `make_init()` function for automatic enforcement
+- **Type detection**: Uses existing `_extract_type()` function to handle `Optional`/`Union` types correctly
+- **Performance**: Minimal overhead, only validates string fields during object construction
+- **Test coverage**: 15 comprehensive tests covering all scenarios including inheritance and nested types
+
+### 🧪 **Testing**
+- **New test suite**: Added comprehensive test coverage for empty string validation scenarios
+- **Integration tests**: Verified functionality works correctly in nested inputs and complex scenarios
+- **Regression testing**: All existing 501 type system tests continue to pass
+
+## [0.7.15] - 2025-09-11
+
+### ✨ **Added**
+
+#### **Built-in JSON Serialization for FraiseQL Input Objects**
+- **New feature**: All FraiseQL input objects now have native JSON serialization support via built-in `to_dict()` and `__json__()` methods
+- **Problem solved**: Resolves v0.7.14 JSON serialization errors where nested FraiseQL input objects could not be JSON serialized, causing `"Object of type X is not JSON serializable"` errors
+- **Key features**:
+  - **`to_dict()` method**: Converts input objects to dictionaries, automatically excluding UNSET values
+  - **`__json__()` method**: Provides direct JSON serialization compatibility
+  - **Recursive serialization**: Handles nested FraiseQL objects and lists seamlessly
+  - **UNSET filtering**: Automatically excludes UNSET values during serialization
+  - **Type consistency**: Properly handles dates, UUIDs, enums using existing SQL generator logic
+- **Zero breaking changes**: Fully backward compatible with existing code
+- **Framework integration**: Built into core type system - no user setup required
+
+### 🐛 **Fixed**
+- **JSON Serialization**: Fixed critical issue where FraiseQL input objects failed JSON serialization when used as nested objects
+- **Date serialization**: Ensured date, UUID, enum, and other special types are properly serialized to string formats in `to_dict()` method
+- **Recursive handling**: Fixed serialization of complex nested structures with multiple levels of FraiseQL objects
+
+### 🧪 **Testing**
+- **Comprehensive test coverage**: Added 20+ tests covering all JSON serialization scenarios
+- **Red-Green-Refactor**: Followed TDD methodology with failing tests, minimal fixes, and clean refactoring
+- **Edge cases**: Tests cover nested objects, lists, UNSET values, date serialization, and complex structures
+- **Backward compatibility**: Verified existing functionality remains unaffected
+
+### 🛠️ **Technical Implementation**
+- Enhanced `define_fraiseql_type()` in `src/fraiseql/types/constructor.py` to add serialization methods to input types
+- Added `_serialize_field_value()` helper for recursive serialization with existing type handling
+- Integrated with existing `_serialize_basic()` from SQL generator for consistent type serialization
+- Maintains full compatibility with existing `FraiseQLJSONEncoder`
+
+### 📝 **Usage Example**
+```python
+@fraiseql.input
+class CreateAddressInput:
+    street: str
+    city: str
+    postal_code: str | None = UNSET
+    created_at: datetime.date
+
+# Before v0.7.15: ❌ JSON serialization failed
+# After v0.7.15: ✅ Works seamlessly
+
+address = CreateAddressInput(
+    street="123 Main St",
+    city="New York",
+    created_at=datetime.date(2025, 1, 15)
+)
+
+result = json.dumps(address, cls=FraiseQLJSONEncoder)  # ✅ Works!
+dict_result = address.to_dict()
+# ✅ {'street': '123 Main St', 'city': 'New York', 'created_at': '2025-01-15'}
+```
+
+### 📁 **Files Modified**
+- `src/fraiseql/types/constructor.py` - Added JSON serialization methods to input types
+- `tests/unit/mutations/test_nested_input_json_serialization*.py` - Comprehensive test coverage
+- `tests/unit/mutations/test_date_serialization_in_to_dict.py` - Date serialization verification
+
+## [0.7.14] - 2025-09-11
+
+### 🐛 **Fixed**
+
+#### **Critical Nested Input Conversion Fix**
+- **Fixed critical nested input conversion bug in v0.7.13**: Resolved the actual root cause where nested FraiseQL input objects were not being properly converted from GraphQL camelCase to Python snake_case field names
+- **Problem**: The v0.7.13 release claimed to fix nested input conversion but the issue persisted - nested input objects still retained camelCase field names, causing PostgreSQL functions to receive inconsistent data formats
+- **Root cause**: The `_coerce_field_value()` function in coercion system only checked for `typing.Union` but not `types.UnionType` (Python 3.10+ syntax). Fields defined as `NestedInput | None` used `types.UnionType` and bypassed proper coercion
+- **Solution**: Enhanced Union type detection in `src/fraiseql/types/coercion.py` to handle both `typing.Union` and `types.UnionType`, ensuring all nested input objects get properly converted
+- **Impact**:
+  - **BREAKING**: All nested input field names now consistently convert to snake_case - remove any dual-format workarounds from PostgreSQL functions
+  - Eliminates architectural inconsistency where direct mutations and nested objects had different field naming
+  - Database functions can now rely on consistent snake_case field names across all mutation patterns
+- **Verification**: Added comprehensive test suite covering direct vs nested input conversion, Union type handling, and real-world scenario replication
+
+### 🧪 **Testing**
+- **Added comprehensive test coverage**: 12 new tests covering nested input conversion edge cases, Union type coercion, and real-world scenarios
+- **Regression prevention**: Added specific tests for `types.UnionType` vs `typing.Union` handling to prevent future regressions
+- **Real-world validation**: Tests replicate the exact scenarios described in user bug reports
+
+### 📁 **Files Modified**
+- `src/fraiseql/types/coercion.py` - Enhanced Union type detection for Python 3.10+ compatibility
+- `tests/unit/mutations/test_nested_input_conversion_comprehensive.py` - New comprehensive test suite
+- `tests/unit/mutations/test_real_world_nested_input_scenario.py` - Real-world scenario validation
+
+## [0.7.13] - 2025-09-11
+
+### 🐛 **Fixed**
+
+#### **Nested Input Object Field Name Conversion**
+- **Fixed nested input field naming inconsistency**: Resolved issue where nested input objects bypassed camelCase→snake_case field name conversion, causing inconsistent data formats sent to PostgreSQL functions
+- **Problem**: Direct mutations correctly converted `streetNumber` → `street_number`, but nested input objects passed raw GraphQL field names, forcing database functions to handle dual formats
+- **Root cause**: The `_serialize_value()` function in SQL generator didn't apply field name conversion to nested dictionaries and FraiseQL input objects
+- **Solution**:
+  - Enhanced `_serialize_value()` to apply `to_snake_case()` conversion to all dict keys
+  - Added special handling for FraiseQL input objects (`__fraiseql_definition__` detection)
+  - Ensured recursive conversion for deeply nested structures
+- **Impact**:
+  - Eliminates architectural inconsistency in mutation pipeline
+  - Database functions no longer need to handle dual naming formats (`streetNumber` vs `street_number`)
+  - Maintains full backward compatibility with existing mutations
+- **Test coverage**: Added comprehensive test suite covering direct vs nested comparison, recursive conversion, mixed format handling, and edge cases
+
+### 🔧 **Infrastructure**
+
+#### **Linting Tooling Alignment**
+- **Updated ruff dependency**: Aligned local development with CI environment by updating ruff requirement from `>=0.8.4` to `>=0.13.0`
+- **Fixed new lint warnings**: Resolved RUF059 unused variable warnings introduced in ruff 0.13.0 by prefixing unused variables with underscore
+- **Fixed Generic inheritance order**: Moved `Generic` to last position in `DataLoader` class inheritance to comply with PYI059 rule
+- **Impact**: Eliminates CI/local environment inconsistencies and ensures reliable linting pipeline
+
+### 🧪 **Testing**
+- **Enhanced test coverage**: Added 6 new tests for nested input conversion covering edge cases and regression prevention
+- **All existing tests pass**: Verified no regressions with full test suite (2901+ tests)
+
+### 📁 **Files Modified**
+- `src/fraiseql/mutations/sql_generator.py` - Enhanced nested input serialization
+- `tests/unit/mutations/test_nested_input_conversion.py` - New comprehensive test suite
+- `pyproject.toml` - Updated ruff dependency version
+- `src/fraiseql/security/rate_limiting.py` - Fixed unused variable warnings
+- `src/fraiseql/security/validators.py` - Fixed unused variable warnings
+- `src/fraiseql/optimization/dataloader.py` - Fixed Generic inheritance order
 
 ## [0.7.10-beta.1] - 2025-09-08
 

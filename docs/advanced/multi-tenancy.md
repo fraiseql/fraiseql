@@ -1,568 +1,911 @@
----
-← [Event Sourcing](event-sourcing.md) | [Advanced Topics](index.md) | [Next: Bounded Contexts](bounded-contexts.md) →
----
+# Multi-Tenancy
 
-# Multi-tenancy
+Comprehensive guide to implementing multi-tenant architectures in FraiseQL with complete data isolation, tenant context propagation, and scalable database patterns.
 
-> **In this section:** Implement secure multi-tenant architectures with FraiseQL
-> **Prerequisites:** Understanding of [security patterns](security.md) and [database design](../core-concepts/database-views.md)
-> **Time to complete:** 30 minutes
+## Overview
 
-FraiseQL provides several multi-tenancy patterns to isolate tenant data while maintaining performance and security.
+Multi-tenancy allows a single application instance to serve multiple organizations (tenants) with complete data isolation and customizable behavior per tenant.
 
-## Tenancy Patterns
+**Key Strategies:**
+- Row-level security (RLS) with tenant_id filtering
+- Database per tenant
+- Schema per tenant
+- Shared database with tenant isolation
+- Hybrid approaches
 
-### 1. Schema-per-Tenant (High Isolation)
+## Tenant Isolation Architecture
 
-#### Database Schema
+### Multi-Tenant Data Flow
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Client    │───▶│  Auth       │───▶│ Repository  │───▶│ PostgreSQL  │
+│  Request    │    │ Middleware  │    │  Layer      │    │  Database   │
+│             │    │             │    │             │    │             │
+│ JWT Token   │    │ Extract     │    │ Tenant      │    │ RLS Policy  │
+│ X-Tenant-ID │    │ Tenant ID   │    │ Context     │    │ Filtering   │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                                                          │
+                                                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    TENANT DATA ONLY                         │
+│  • tenant_a.users can only see tenant_a data               │
+│  • tenant_b.users can only see tenant_b data               │
+│  • Complete isolation at database level                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Isolation Layers:**
+1. **Network**: API Gateway routes by subdomain/header
+2. **Application**: Middleware sets tenant context
+3. **Database**: RLS policies enforce row-level filtering
+4. **Caching**: Tenant-scoped cache invalidation
+
+**[🔒 Isolation Details](../diagrams/multi-tenant-isolation.md)** - Complete tenant security architecture
+
+## Table of Contents
+
+- [Architecture Patterns](#architecture-patterns)
+- [Row-Level Security](#row-level-security)
+- [Tenant Context](#tenant-context)
+- [Database Pool Strategies](#database-pool-strategies)
+- [Tenant Resolution](#tenant-context)
+- [Cross-Tenant Queries](#cross-tenant-queries)
+- [Tenant-Aware Caching](#tenant-aware-caching)
+- [Data Export & Import](#data-export-import)
+- [Tenant Provisioning](#tenant-provisioning)
+- [Performance Optimization](#performance-optimization)
+
+## Architecture Patterns
+
+### Pattern 1: Row-Level Security (Most Common)
+
+Single database, tenant_id column in all tables:
+
 ```sql
--- Create tenant schemas dynamically
-CREATE SCHEMA tenant_acme_corp;
-CREATE SCHEMA tenant_globex_ltd;
-
--- Each tenant gets identical table structure
-CREATE TABLE tenant_acme_corp.tb_user (
+-- Example schema
+CREATE TABLE organizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
+    subdomain TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE tenant_globex_ltd.tb_user (
+CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-#### Dynamic Schema Resolution
-```python
-from fraiseql import FraiseQL
-from fraiseql.repository import FraiseQLRepository
-
-class MultiTenantRepository(FraiseQLRepository):
-    def __init__(self, database_url: str, tenant_id: str):
-        super().__init__(database_url)
-        self.tenant_schema = f"tenant_{tenant_id}"
-
-    async def find(self, view_name: str, **kwargs):
-        """Override to use tenant schema"""
-        qualified_view = f"{self.tenant_schema}.{view_name}"
-        return await super().find(qualified_view, **kwargs)
-
-    async def find_one(self, view_name: str, **kwargs):
-        """Override to use tenant schema"""
-        qualified_view = f"{self.tenant_schema}.{view_name}"
-        return await super().find_one(qualified_view, **kwargs)
-
-# Context setup
-async def get_tenant_context(request):
-    # Extract tenant from subdomain, header, or JWT
-    tenant_id = extract_tenant_id(request)
-
-    if not tenant_id:
-        raise HTTPException(401, "Tenant not specified")
-
-    return {
-        "repo": MultiTenantRepository(DATABASE_URL, tenant_id),
-        "tenant_id": tenant_id,
-        "user": await get_current_user(request)
-    }
-```
-
-### 2. Row-Level Security (Shared Schema)
-
-#### RLS Setup
-```sql
--- Enable RLS on tables
-ALTER TABLE tb_user ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tb_post ENABLE ROW LEVEL SECURITY;
-
--- Add tenant_id to all tables
-ALTER TABLE tb_user ADD COLUMN tenant_id UUID NOT NULL;
-ALTER TABLE tb_post ADD COLUMN tenant_id UUID NOT NULL;
-
--- Create RLS policies
-CREATE POLICY tenant_isolation_user ON tb_user
-    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
-
-CREATE POLICY tenant_isolation_post ON tb_post
-    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
-
--- Views with RLS
-CREATE VIEW v_user AS
-SELECT
-    id,
-    jsonb_build_object(
-        'id', id,
-        'name', name,
-        'email', email,
-        'created_at', created_at
-    ) AS data
-FROM tb_user
-WHERE tenant_id = current_setting('app.current_tenant_id')::UUID;
-```
-
-#### RLS Repository Implementation
-```python
-class RLSRepository(FraiseQLRepository):
-    def __init__(self, database_url: str):
-        super().__init__(database_url)
-
-    async def set_tenant_context(self, tenant_id: str):
-        """Set tenant context for RLS"""
-        await self.execute(
-            "SELECT set_config('app.current_tenant_id', $1, true)",
-            tenant_id
-        )
-
-    async def with_tenant(self, tenant_id: str):
-        """Context manager for tenant operations"""
-        await self.set_tenant_context(tenant_id)
-        return self
-
-# Usage in resolvers
-@fraiseql.query
-async def users(info) -> list[User]:
-    repo = info.context["repo"]
-    tenant_id = info.context["tenant_id"]
-
-    async with repo.with_tenant(tenant_id):
-        return await repo.find("v_user")
-```
-
-### 3. Discriminator Column (Simple)
-
-#### Schema with Tenant Column
-```sql
--- Simple tenant_id column approach
-CREATE TABLE tb_user (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL,
-    name TEXT NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES organizations(id),
     email TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-
-    -- Unique constraints scoped to tenant
+    name TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(tenant_id, email)
 );
 
--- Views automatically filter by tenant
-CREATE VIEW v_user AS
-SELECT
-    id,
-    tenant_id,
-    jsonb_build_object(
-        'id', id,
-        'name', name,
-        'email', email,
-        'created_at', created_at
-    ) AS data
-FROM tb_user;
+CREATE TABLE orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES organizations(id),
+    user_id UUID NOT NULL REFERENCES users(id),
+    total DECIMAL(10, 2) NOT NULL,
+    status TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for tenant filtering
+CREATE INDEX idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX idx_orders_tenant_id ON orders(tenant_id);
+
+-- RLS policies
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation_users ON users
+    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+
+CREATE POLICY tenant_isolation_orders ON orders
+    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
 ```
 
-#### Application-Level Filtering
+**Pros:**
+- Simple to implement
+- Cost-effective (single database)
+- Easy cross-tenant analytics (for admins)
+- Straightforward backups
+
+**Cons:**
+- Shared database (noisy neighbor risk)
+- RLS overhead on queries
+- Must maintain tenant_id discipline
+
+### Pattern 2: Database Per Tenant
+
+Separate database for each tenant:
+
 ```python
-@fraiseql.query
-async def users(info, limit: int = 10) -> list[User]:
-    """Users scoped to current tenant"""
-    repo = info.context["repo"]
-    tenant_id = info.context["tenant_id"]
+from fraiseql.db import DatabasePool
 
-    return await repo.find(
-        "v_user",
-        where={"tenant_id": tenant_id},
-        limit=limit
-    )
+class TenantDatabaseManager:
+    """Manage separate database per tenant."""
 
-@fraiseql.mutation
-async def create_user(info, name: str, email: str) -> User:
-    """Create user in current tenant"""
-    repo = info.context["repo"]
-    tenant_id = info.context["tenant_id"]
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self.pools: dict[str, DatabasePool] = {}
 
-    user_id = await repo.call_function(
-        "fn_create_user",
-        p_tenant_id=tenant_id,
-        p_name=name,
-        p_email=email
-    )
+    async def get_pool(self, tenant_id: str) -> DatabasePool:
+        """Get database pool for specific tenant."""
+        if tenant_id not in self.pools:
+            # Create tenant-specific connection
+            db_url = f"{self.base_url.rsplit('/', 1)[0]}/tenant_{tenant_id}"
+            self.pools[tenant_id] = DatabasePool(db_url)
 
-    result = await repo.find_one(
-        "v_user",
-        where={"id": user_id, "tenant_id": tenant_id}
-    )
-    return User(**result)
+        return self.pools[tenant_id]
+
+    async def close_all(self):
+        """Close all tenant database pools."""
+        for pool in self.pools.values():
+            await pool.close()
 ```
 
-## Tenant Management
+**Pros:**
+- Complete isolation
+- Per-tenant scaling
+- Easy to backup/restore individual tenants
+- No RLS overhead
 
-### Tenant Registration
+**Cons:**
+- Higher infrastructure cost
+- Connection pool per database
+- Complex cross-tenant queries
+- Schema migration overhead
+
+### Pattern 3: Schema Per Tenant
+
+Separate PostgreSQL schema per tenant in single database:
+
 ```sql
--- Tenant management tables
-CREATE TABLE tb_tenant (
+-- Create tenant schema
+CREATE SCHEMA tenant_acme;
+CREATE SCHEMA tenant_globex;
+
+-- Each tenant has isolated tables
+CREATE TABLE tenant_acme.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    slug TEXT UNIQUE NOT NULL,
-    subscription_tier TEXT DEFAULT 'basic',
-    created_at TIMESTAMP DEFAULT NOW(),
-    is_active BOOLEAN DEFAULT TRUE
+    email TEXT NOT NULL UNIQUE,
+    name TEXT
 );
 
-CREATE TABLE tb_tenant_user (
+CREATE TABLE tenant_globex.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tb_tenant(id),
-    user_id UUID NOT NULL,
-    role TEXT NOT NULL DEFAULT 'member',
-    created_at TIMESTAMP DEFAULT NOW(),
-
-    UNIQUE(tenant_id, user_id)
+    email TEXT NOT NULL UNIQUE,
+    name TEXT
 );
 ```
 
-### Tenant Provisioning
 ```python
-@fraiseql.mutation
-async def create_tenant(info, name: str, slug: str) -> Tenant:
-    """Create new tenant with schema"""
-    repo = info.context["repo"]
-    user = info.context["user"]
+from fraiseql.db import DatabasePool
 
-    async with repo.transaction():
-        # Create tenant record
-        tenant_id = await repo.call_function(
-            "fn_create_tenant",
-            p_name=name,
-            p_slug=slug,
-            p_owner_id=user.id
+class SchemaPerTenantManager:
+    """Manage schema-per-tenant pattern."""
+
+    def __init__(self, db_pool: DatabasePool):
+        self.db_pool = db_pool
+
+    async def set_search_path(self, tenant_id: str):
+        """Set PostgreSQL search_path to tenant schema."""
+        async with self.db_pool.connection() as conn:
+            await conn.execute(
+                f"SET search_path TO tenant_{tenant_id}, public"
+            )
+```
+
+**Pros:**
+- Good isolation
+- Single database connection pool
+- Per-tenant schema versioning
+- Lower cost than database-per-tenant
+
+**Cons:**
+- Search path management complexity
+- Schema migration overhead
+- PostgreSQL schema limits
+
+## Row-Level Security
+
+### Tenant Context Propagation
+
+Set tenant context in PostgreSQL session:
+
+```python
+from fraiseql.db import get_db_pool
+from graphql import GraphQLResolveInfo
+
+async def set_tenant_context(tenant_id: str):
+    """Set tenant_id in PostgreSQL session variable."""
+    pool = get_db_pool()
+    async with pool.connection() as conn:
+        await conn.execute(
+            "SET LOCAL app.current_tenant_id = $1",
+            tenant_id
         )
 
-        # For schema-per-tenant: create schema
-        if TENANCY_MODEL == "schema":
-            schema_name = f"tenant_{slug}"
-            await repo.execute(f"CREATE SCHEMA {schema_name}")
+# Middleware to set tenant context
+from starlette.middleware.base import BaseHTTPMiddleware
 
-            # Run migration scripts for new schema
-            await provision_tenant_schema(repo, schema_name)
+class TenantContextMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # Extract tenant from request (subdomain, header, JWT)
+        tenant_id = await resolve_tenant_id(request)
 
-        result = await repo.find_one("v_tenant", where={"id": tenant_id})
-        return Tenant(**result)
+        # Store in request state
+        request.state.tenant_id = tenant_id
 
-async def provision_tenant_schema(repo: FraiseQLRepository, schema_name: str):
-    """Provision tenant schema with tables and views"""
-    migration_sql = f"""
-    CREATE TABLE {schema_name}.tb_user (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
+        # Set in database session
+        await set_tenant_context(tenant_id)
+
+        response = await call_next(request)
+        return response
+```
+
+### Automatic Tenant Filtering
+
+FraiseQL automatically adds tenant_id filters when context is set:
+
+```python
+from fraiseql import query, type_
+from uuid import UUID
+
+@type_
+class Order:
+    id: UUID
+    tenant_id: UUID  # Automatically filtered
+    user_id: UUID
+    total: float
+    status: str
+
+@query
+async def get_orders(info: GraphQLResolveInfo) -> list[Order]:
+    """Get orders for current tenant."""
+    tenant_id = info.context["tenant_id"]
+
+    # Explicit tenant filtering (recommended for clarity)
+    async with db.connection() as conn:
+        result = await conn.execute(
+            "SELECT * FROM orders WHERE tenant_id = $1",
+            tenant_id
+        )
+        return [Order(**row) for row in await result.fetchall()]
+
+@query
+async def get_order(info: GraphQLResolveInfo, order_id: UUID) -> Order | None:
+    """Get specific order - tenant isolation enforced."""
+    tenant_id = info.context["tenant_id"]
+
+    async with db.connection() as conn:
+        result = await conn.execute(
+            "SELECT * FROM orders WHERE id = $1 AND tenant_id = $2",
+            order_id, tenant_id
+        )
+        row = await result.fetchone()
+        return Order(**row) if row else None
+```
+
+### RLS Policy Examples
+
+```sql
+-- Basic tenant isolation
+CREATE POLICY tenant_isolation ON orders
+    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+
+-- Allow tenant admins to see all data
+CREATE POLICY tenant_admin_all ON orders
+    USING (
+        tenant_id = current_setting('app.current_tenant_id')::UUID
+        OR current_setting('app.user_role', TRUE) = 'admin'
     );
 
-    CREATE VIEW {schema_name}.v_user AS
-    SELECT
-        id,
-        jsonb_build_object(
-            'id', id,
-            'name', name,
-            'email', email,
-            'created_at', created_at
-        ) AS data
-    FROM {schema_name}.tb_user;
-    """
+-- User can only see own orders
+CREATE POLICY user_own_orders ON orders
+    USING (
+        tenant_id = current_setting('app.current_tenant_id')::UUID
+        AND user_id = current_setting('app.current_user_id')::UUID
+    );
 
-    await repo.execute(migration_sql)
+-- Separate policies for SELECT vs INSERT/UPDATE/DELETE
+CREATE POLICY tenant_select ON orders
+    FOR SELECT
+    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+
+CREATE POLICY tenant_insert ON orders
+    FOR INSERT
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id')::UUID);
+
+CREATE POLICY tenant_update ON orders
+    FOR UPDATE
+    USING (tenant_id = current_setting('app.current_tenant_id')::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id')::UUID);
+
+CREATE POLICY tenant_delete ON orders
+    FOR DELETE
+    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
 ```
 
-## Tenant Context Resolution
+## Tenant Context
 
-### JWT-Based Tenant Resolution
+### Tenant Resolution Strategies
+
+#### 1. Subdomain-Based
+
 ```python
-import jwt
-from fastapi import HTTPException, Request
+from urllib.parse import urlparse
 
-async def extract_tenant_from_jwt(request: Request) -> str:
-    """Extract tenant from JWT token"""
-    auth_header = request.headers.get("authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(401, "Missing authentication")
-
-    token = auth_header[7:]
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        tenant_id = payload.get("tenant_id")
-        if not tenant_id:
-            raise HTTPException(401, "Tenant not specified in token")
-        return tenant_id
-    except jwt.InvalidTokenError:
-        raise HTTPException(401, "Invalid token")
-```
-
-### Subdomain-Based Resolution
-```python
-async def extract_tenant_from_subdomain(request: Request) -> str:
-    """Extract tenant from subdomain"""
+def extract_tenant_from_subdomain(request) -> str:
+    """Extract tenant from subdomain (e.g., acme.yourapp.com)."""
     host = request.headers.get("host", "")
-    if not host:
-        raise HTTPException(400, "Host header required")
+    subdomain = host.split(".")[0]
 
-    parts = host.split(".")
-    if len(parts) < 2:
-        raise HTTPException(400, "Subdomain required")
-
-    subdomain = parts[0]
+    # Validate subdomain
     if subdomain in ["www", "api", "admin"]:
-        raise HTTPException(400, "Invalid tenant subdomain")
+        raise ValueError("Invalid tenant subdomain")
 
     return subdomain
+
+# Look up tenant ID from subdomain
+async def resolve_tenant_id(subdomain: str) -> str:
+    async with db.connection() as conn:
+        result = await conn.execute(
+            "SELECT id FROM organizations WHERE subdomain = $1",
+            subdomain
+        )
+        row = await result.fetchone()
+        if not row:
+            raise ValueError(f"Unknown tenant: {subdomain}")
+        return row["id"]
 ```
 
-### Header-Based Resolution
+#### 2. Header-Based
+
 ```python
-async def extract_tenant_from_header(request: Request) -> str:
-    """Extract tenant from custom header"""
-    tenant_id = request.headers.get("x-tenant-id")
+def extract_tenant_from_header(request) -> str:
+    """Extract tenant from X-Tenant-ID header."""
+    tenant_id = request.headers.get("X-Tenant-ID")
     if not tenant_id:
-        raise HTTPException(400, "X-Tenant-ID header required")
+        raise ValueError("Missing X-Tenant-ID header")
     return tenant_id
 ```
 
-## Multi-Tenant Security
+#### 3. JWT-Based
 
-### Tenant Access Control
 ```python
-class TenantAccessControl:
-    @staticmethod
-    async def verify_tenant_access(user_id: str, tenant_id: str, repo: FraiseQLRepository) -> bool:
-        """Verify user has access to tenant"""
-        result = await repo.find_one(
-            "tb_tenant_user",
-            where={"user_id": user_id, "tenant_id": tenant_id}
-        )
-        return result is not None
-
-    @staticmethod
-    async def verify_tenant_role(user_id: str, tenant_id: str, required_role: str, repo: FraiseQLRepository) -> bool:
-        """Verify user has required role in tenant"""
-        result = await repo.find_one(
-            "tb_tenant_user",
-            where={"user_id": user_id, "tenant_id": tenant_id}
-        )
-
-        if not result:
-            return False
-
-        user_role = result["role"]
-        role_hierarchy = ["member", "admin", "owner"]
-
-        return (role_hierarchy.index(user_role) >=
-                role_hierarchy.index(required_role))
-
-# Usage in resolvers
-@fraiseql.query
-async def tenant_users(info) -> list[User]:
-    """Admin-only: list all users in tenant"""
-    repo = info.context["repo"]
-    user = info.context["user"]
-    tenant_id = info.context["tenant_id"]
-
-    # Check permission
-    if not await TenantAccessControl.verify_tenant_role(
-        user.id, tenant_id, "admin", repo
-    ):
-        raise GraphQLError("Insufficient permissions", code="FORBIDDEN")
-
-    return await repo.find("v_user", where={"tenant_id": tenant_id})
+def extract_tenant_from_jwt(request) -> str:
+    """Extract tenant from JWT token."""
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    payload = jwt.decode(token, verify=False)  # Already verified by auth middleware
+    tenant_id = payload.get("tenant_id")
+    if not tenant_id:
+        raise ValueError("Token missing tenant_id claim")
+    return tenant_id
 ```
 
-### Cross-Tenant Data Protection
+### Complete Tenant Context Setup
+
 ```python
-@fraiseql.query
-async def user(info, id: ID) -> User | None:
-    """Ensure user belongs to current tenant"""
-    repo = info.context["repo"]
+from fastapi import FastAPI, Request, HTTPException
+from fraiseql.fastapi import create_fraiseql_app
+
+app = FastAPI()
+
+@app.middleware("http")
+async def tenant_context_middleware(request: Request, call_next):
+    """Set tenant context for all requests."""
+    try:
+        # 1. Resolve tenant (try multiple strategies)
+        tenant_id = None
+
+        # Try JWT first
+        if "Authorization" in request.headers:
+            try:
+                tenant_id = extract_tenant_from_jwt(request)
+            except:
+                pass
+
+        # Try subdomain
+        if not tenant_id:
+            try:
+                subdomain = extract_tenant_from_subdomain(request)
+                tenant_id = await resolve_tenant_id(subdomain)
+            except:
+                pass
+
+        # Try header
+        if not tenant_id:
+            try:
+                tenant_id = extract_tenant_from_header(request)
+            except:
+                pass
+
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Tenant not identified")
+
+        # 2. Store in request state
+        request.state.tenant_id = tenant_id
+
+        # 3. Set in database session
+        await set_tenant_context(tenant_id)
+
+        # 4. Continue request
+        response = await call_next(request)
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tenant resolution failed: {e}")
+```
+
+### GraphQL Context Integration
+
+```python
+from fraiseql.fastapi import create_fraiseql_app
+
+def get_graphql_context(request: Request) -> dict:
+    """Build GraphQL context with tenant."""
+    return {
+        "request": request,
+        "tenant_id": request.state.tenant_id,
+        "user": request.state.user,  # From auth middleware
+    }
+
+app = create_fraiseql_app(
+    types=[User, Order, Product],
+    context_getter=get_graphql_context
+)
+```
+
+## Database Pool Strategies
+
+### Strategy 1: Shared Pool with RLS
+
+Single connection pool, tenant isolation via RLS:
+
+```python
+from fraiseql.fastapi.config import FraiseQLConfig
+from fraiseql.db import DatabasePool
+
+config = FraiseQLConfig(
+    database_url="postgresql://user:pass@localhost/app",
+    database_pool_size=20,
+    database_max_overflow=10
+)
+
+# Single pool shared by all tenants
+pool = DatabasePool(
+    config.database_url,
+    min_size=config.database_pool_size,
+    max_size=config.database_pool_size + config.database_max_overflow
+)
+
+# Use set_tenant_context before queries
+async with pool.connection() as conn:
+    await conn.execute("SET LOCAL app.current_tenant_id = $1", tenant_id)
+    # All queries now filtered by tenant_id via RLS
+```
+
+**Characteristics:**
+- Cost-effective (single pool)
+- Must set session variable for each connection
+- RLS provides safety net
+
+### Strategy 2: Pool Per Tenant
+
+Dedicated connection pool per tenant:
+
+```python
+class TenantPoolManager:
+    """Manage connection pool per tenant."""
+
+    def __init__(self, base_db_url: str, pool_size: int = 5):
+        self.base_db_url = base_db_url
+        self.pool_size = pool_size
+        self.pools: dict[str, DatabasePool] = {}
+
+    async def get_pool(self, tenant_id: str) -> DatabasePool:
+        """Get or create pool for tenant."""
+        if tenant_id not in self.pools:
+            # Option 1: Different database per tenant
+            db_url = f"{self.base_db_url.rsplit('/', 1)[0]}/tenant_{tenant_id}"
+
+            # Option 2: Same database, different schema
+            # db_url = self.base_db_url
+            # Set search_path after connection
+
+            self.pools[tenant_id] = DatabasePool(
+                db_url,
+                min_size=self.pool_size,
+                max_size=self.pool_size * 2
+            )
+
+        return self.pools[tenant_id]
+
+    async def close_pool(self, tenant_id: str):
+        """Close pool for inactive tenant."""
+        if tenant_id in self.pools:
+            await self.pools[tenant_id].close()
+            del self.pools[tenant_id]
+
+    async def close_all(self):
+        """Close all tenant pools."""
+        for pool in self.pools.values():
+            await pool.close()
+        self.pools.clear()
+
+# Usage
+pool_manager = TenantPoolManager("postgresql://user:pass@localhost/app")
+
+@app.middleware("http")
+async def tenant_pool_middleware(request: Request, call_next):
+    tenant_id = await resolve_tenant_id(request)
+    request.state.db_pool = await pool_manager.get_pool(tenant_id)
+    response = await call_next(request)
+    return response
+```
+
+**Characteristics:**
+- Better isolation
+- Higher memory usage (N pools)
+- Good for large tenants with high traffic
+- Can scale pools independently
+
+### Strategy 3: Hybrid (Shared + Dedicated)
+
+Small tenants share pool, large tenants get dedicated pools:
+
+```python
+class HybridPoolManager:
+    """Hybrid pool management based on tenant size."""
+
+    def __init__(self, shared_db_url: str):
+        self.shared_pool = DatabasePool(shared_db_url, min_size=20, max_size=50)
+        self.dedicated_pools: dict[str, DatabasePool] = {}
+        self.large_tenants = set()  # Tenants with dedicated pools
+
+    async def get_pool(self, tenant_id: str) -> DatabasePool:
+        """Get pool for tenant based on size."""
+        if tenant_id in self.large_tenants:
+            return self.dedicated_pools[tenant_id]
+        return self.shared_pool
+
+    async def promote_to_dedicated(self, tenant_id: str):
+        """Promote tenant to dedicated pool."""
+        if tenant_id not in self.large_tenants:
+            db_url = f"postgresql://user:pass@localhost/tenant_{tenant_id}"
+            self.dedicated_pools[tenant_id] = DatabasePool(db_url, min_size=10, max_size=20)
+            self.large_tenants.add(tenant_id)
+```
+
+## Cross-Tenant Queries
+
+### Admin Cross-Tenant Access
+
+Allow admins to query across tenants:
+
+```python
+from fraiseql import query
+
+@query
+@requires_role("super_admin")
+async def get_all_tenants_orders(
+    info,
+    tenant_id: str | None = None,
+    limit: int = 100
+) -> list[Order]:
+    """Admin query: Get orders across tenants."""
+    # Bypass RLS by using superuser connection or disabling RLS
+    async with db.connection() as conn:
+        # Disable RLS for this query (requires appropriate permissions)
+        await conn.execute("SET LOCAL row_security = off")
+
+        if tenant_id:
+            result = await conn.execute(
+                "SELECT * FROM orders WHERE tenant_id = $1 LIMIT $2",
+                tenant_id, limit
+            )
+        else:
+            result = await conn.execute(
+                "SELECT * FROM orders LIMIT $1",
+                limit
+            )
+
+        return [Order(**row) for row in await result.fetchall()]
+```
+
+### Aggregated Analytics
+
+```python
+@query
+@requires_role("super_admin")
+async def get_tenant_statistics(info) -> list[TenantStats]:
+    """Get statistics across all tenants."""
+    async with db.connection() as conn:
+        await conn.execute("SET LOCAL row_security = off")
+
+        result = await conn.execute("""
+            SELECT
+                t.id as tenant_id,
+                t.name as tenant_name,
+                COUNT(DISTINCT u.id) as user_count,
+                COUNT(DISTINCT o.id) as order_count,
+                COALESCE(SUM(o.total), 0) as total_revenue
+            FROM organizations t
+            LEFT JOIN users u ON u.tenant_id = t.id
+            LEFT JOIN orders o ON o.tenant_id = t.id
+            GROUP BY t.id, t.name
+            ORDER BY total_revenue DESC
+        """)
+
+        return [TenantStats(**row) for row in await result.fetchall()]
+```
+
+## Tenant-Aware Caching
+
+Cache data per tenant to avoid leakage:
+
+```python
+from fraiseql.caching import Cache
+
+class TenantCache:
+    """Tenant-aware caching wrapper."""
+
+    def __init__(self, cache: Cache):
+        self.cache = cache
+
+    def _tenant_key(self, tenant_id: str, key: str) -> str:
+        """Generate tenant-scoped cache key."""
+        return f"tenant:{tenant_id}:{key}"
+
+    async def get(self, tenant_id: str, key: str):
+        """Get cached value for tenant."""
+        return await self.cache.get(self._tenant_key(tenant_id, key))
+
+    async def set(self, tenant_id: str, key: str, value, ttl: int = 300):
+        """Set cached value for tenant."""
+        return await self.cache.set(
+            self._tenant_key(tenant_id, key),
+            value,
+            ttl=ttl
+        )
+
+    async def delete(self, tenant_id: str, key: str):
+        """Delete cached value for tenant."""
+        return await self.cache.delete(self._tenant_key(tenant_id, key))
+
+    async def clear_tenant(self, tenant_id: str):
+        """Clear all cache for tenant."""
+        pattern = f"tenant:{tenant_id}:*"
+        await self.cache.delete_pattern(pattern)
+
+# Usage
+tenant_cache = TenantCache(cache)
+
+@query
+async def get_products(info) -> list[Product]:
+    """Get products with tenant-aware caching."""
     tenant_id = info.context["tenant_id"]
 
-    # Always include tenant_id in queries
-    result = await repo.find_one(
-        "v_user",
-        where={"id": id, "tenant_id": tenant_id}
-    )
+    # Check cache
+    cached = await tenant_cache.get(tenant_id, "products")
+    if cached:
+        return cached
 
-    return User(**result) if result else None
+    # Fetch from database
+    async with db.connection() as conn:
+        result = await conn.execute(
+            "SELECT * FROM products WHERE tenant_id = $1",
+            tenant_id
+        )
+        products = [Product(**row) for row in await result.fetchall()]
 
-# Middleware to enforce tenant isolation
-@app.middleware("http")
-async def enforce_tenant_isolation(request: Request, call_next):
-    """Middleware to verify all operations are tenant-scoped"""
-    response = await call_next(request)
+    # Cache result
+    await tenant_cache.set(tenant_id, "products", products, ttl=600)
+    return products
+```
 
-    # Log cross-tenant access attempts
-    if hasattr(request.state, "tenant_violations"):
-        logger.warning(f"Cross-tenant access attempt: {request.state.tenant_violations}")
+## Data Export & Import
 
-    return response
+### Tenant Data Export
+
+```python
+import json
+from datetime import datetime
+
+@mutation
+@requires_permission("tenant:export")
+async def export_tenant_data(info) -> str:
+    """Export all tenant data as JSON."""
+    tenant_id = info.context["tenant_id"]
+
+    export_data = {
+        "tenant_id": tenant_id,
+        "exported_at": datetime.utcnow().isoformat(),
+        "users": [],
+        "orders": [],
+        "products": []
+    }
+
+    async with db.connection() as conn:
+        # Export users
+        result = await conn.execute(
+            "SELECT * FROM users WHERE tenant_id = $1",
+            tenant_id
+        )
+        export_data["users"] = [dict(row) for row in await result.fetchall()]
+
+        # Export orders
+        result = await conn.execute(
+            "SELECT * FROM orders WHERE tenant_id = $1",
+            tenant_id
+        )
+        export_data["orders"] = [dict(row) for row in await result.fetchall()]
+
+        # Export products
+        result = await conn.execute(
+            "SELECT * FROM products WHERE tenant_id = $1",
+            tenant_id
+        )
+        export_data["products"] = [dict(row) for row in await result.fetchall()]
+
+    # Save to file or return JSON
+    export_json = json.dumps(export_data, default=str)
+    return export_json
+```
+
+### Tenant Data Import
+
+```python
+@mutation
+@requires_permission("tenant:import")
+async def import_tenant_data(info, data: str) -> bool:
+    """Import tenant data from JSON."""
+    tenant_id = info.context["tenant_id"]
+    import_data = json.loads(data)
+
+    async with db.connection() as conn:
+        async with conn.transaction():
+            # Import users
+            for user_data in import_data.get("users", []):
+                user_data["tenant_id"] = tenant_id  # Force current tenant
+                await conn.execute("""
+                    INSERT INTO users (id, tenant_id, email, name, created_at)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (id) DO UPDATE SET
+                        email = EXCLUDED.email,
+                        name = EXCLUDED.name
+                """, user_data["id"], user_data["tenant_id"],
+                     user_data["email"], user_data["name"], user_data["created_at"])
+
+            # Import orders
+            for order_data in import_data.get("orders", []):
+                order_data["tenant_id"] = tenant_id
+                await conn.execute("""
+                    INSERT INTO orders (id, tenant_id, user_id, total, status, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (id) DO UPDATE SET
+                        total = EXCLUDED.total,
+                        status = EXCLUDED.status
+                """, order_data["id"], order_data["tenant_id"], order_data["user_id"],
+                     order_data["total"], order_data["status"], order_data["created_at"])
+
+    return True
+```
+
+## Tenant Provisioning
+
+### New Tenant Workflow
+
+```python
+from uuid import uuid4
+
+@mutation
+@requires_role("super_admin")
+async def provision_tenant(
+    info,
+    name: str,
+    subdomain: str,
+    admin_email: str,
+    plan: str = "basic"
+) -> Organization:
+    """Provision new tenant with admin user."""
+    tenant_id = str(uuid4())
+
+    async with db.connection() as conn:
+        async with conn.transaction():
+            # 1. Create organization
+            result = await conn.execute("""
+                INSERT INTO organizations (id, name, subdomain, plan, created_at)
+                VALUES ($1, $2, $3, $4, NOW())
+                RETURNING *
+            """, tenant_id, name, subdomain, plan)
+
+            org = await result.fetchone()
+
+            # 2. Create admin user
+            admin_id = str(uuid4())
+            await conn.execute("""
+                INSERT INTO users (id, tenant_id, email, name, roles, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+            """, admin_id, tenant_id, admin_email, "Admin User", ["admin"])
+
+            # 3. Create default data (optional)
+            await conn.execute("""
+                INSERT INTO settings (tenant_id, key, value)
+                VALUES
+                    ($1, 'theme', 'default'),
+                    ($1, 'timezone', 'UTC'),
+                    ($1, 'locale', 'en-US')
+            """, tenant_id)
+
+            # 4. Initialize schema (if using schema-per-tenant)
+            # await conn.execute(f"CREATE SCHEMA IF NOT EXISTS tenant_{tenant_id}")
+            # Run migrations for tenant schema
+
+    # 5. Send welcome email
+    await send_welcome_email(admin_email, subdomain)
+
+    return Organization(**org)
 ```
 
 ## Performance Optimization
 
-### Connection Pooling per Tenant
-```python
-from typing import Dict
-import asyncpg
+### Index Strategy
 
-class MultiTenantConnectionManager:
-    def __init__(self):
-        self.pools: Dict[str, asyncpg.Pool] = {}
+```sql
+-- Ensure tenant_id is first column in composite indexes
+CREATE INDEX idx_orders_tenant_user ON orders(tenant_id, user_id);
+CREATE INDEX idx_orders_tenant_status ON orders(tenant_id, status);
+CREATE INDEX idx_orders_tenant_created ON orders(tenant_id, created_at DESC);
 
-    async def get_pool(self, tenant_id: str) -> asyncpg.Pool:
-        """Get or create connection pool for tenant"""
-        if tenant_id not in self.pools:
-            self.pools[tenant_id] = await asyncpg.create_pool(
-                DATABASE_URL,
-                min_size=5,
-                max_size=20,
-                command_timeout=60
-            )
-        return self.pools[tenant_id]
-
-    async def close_all(self):
-        """Close all tenant pools"""
-        for pool in self.pools.values():
-            await pool.close()
-
-# Global connection manager
-connection_manager = MultiTenantConnectionManager()
+-- Partial indexes for active tenants
+CREATE INDEX idx_active_tenant_orders ON orders(tenant_id, created_at)
+WHERE status IN ('pending', 'processing');
 ```
 
-### Tenant-Specific Caching
+### Query Optimization
+
 ```python
-from typing import Dict, Any
-import redis
+# GOOD: tenant_id first in WHERE clause
+SELECT * FROM orders
+WHERE tenant_id = 'uuid' AND status = 'completed'
+ORDER BY created_at DESC
+LIMIT 10;
 
-class MultiTenantCache:
-    def __init__(self, redis_url: str):
-        self.redis = redis.from_url(redis_url)
+# BAD: Missing tenant_id filter
+SELECT * FROM orders
+WHERE user_id = 'uuid'
+ORDER BY created_at DESC;
 
-    def _tenant_key(self, tenant_id: str, key: str) -> str:
-        """Scope cache keys to tenant"""
-        return f"tenant:{tenant_id}:{key}"
-
-    async def get(self, tenant_id: str, key: str) -> Any:
-        """Get tenant-scoped cache value"""
-        tenant_key = self._tenant_key(tenant_id, key)
-        return await self.redis.get(tenant_key)
-
-    async def set(self, tenant_id: str, key: str, value: Any, ttl: int = 3600):
-        """Set tenant-scoped cache value"""
-        tenant_key = self._tenant_key(tenant_id, key)
-        await self.redis.setex(tenant_key, ttl, value)
-
-    async def invalidate_tenant(self, tenant_id: str):
-        """Invalidate all cache for tenant"""
-        pattern = f"tenant:{tenant_id}:*"
-        keys = await self.redis.keys(pattern)
-        if keys:
-            await self.redis.delete(*keys)
+# GOOD: Explicit tenant_id
+SELECT * FROM orders
+WHERE tenant_id = 'uuid' AND user_id = 'uuid'
+ORDER BY created_at DESC;
 ```
 
-## Migration and Scaling
+### Connection Pool Tuning
 
-### Schema Migration for Multi-Tenant
 ```python
-class TenantMigrator:
-    def __init__(self, repo: FraiseQLRepository):
-        self.repo = repo
+# Small tenants: Shared pool
+config = FraiseQLConfig(
+    database_pool_size=20,
+    database_max_overflow=10
+)
 
-    async def migrate_all_tenants(self, migration_sql: str):
-        """Apply migration to all tenant schemas"""
-        tenants = await self.repo.find("tb_tenant", where={"is_active": True})
-
-        for tenant in tenants:
-            try:
-                if TENANCY_MODEL == "schema":
-                    # Schema-per-tenant migration
-                    schema_name = f"tenant_{tenant['slug']}"
-                    tenant_migration = migration_sql.replace(
-                        "{{schema}}", schema_name
-                    )
-                    await self.repo.execute(tenant_migration)
-                else:
-                    # Shared schema migration (run once)
-                    await self.repo.execute(migration_sql)
-                    break
-
-                logger.info(f"Migrated tenant {tenant['id']}")
-
-            except Exception as e:
-                logger.error(f"Migration failed for tenant {tenant['id']}: {e}")
-                raise
+# Large tenant: Dedicated pool
+large_tenant_pool = DatabasePool(
+    "postgresql://user:pass@localhost/tenant_large",
+    min_size=10,
+    max_size=30
+)
 ```
 
-### Tenant Archival
-```python
-@fraiseql.mutation
-async def archive_tenant(info, tenant_id: ID) -> bool:
-    """Archive inactive tenant data"""
-    repo = info.context["repo"]
-    user = info.context["user"]
+## Next Steps
 
-    # Verify permission (platform admin only)
-    if not user.is_platform_admin:
-        raise GraphQLError("Insufficient permissions", code="FORBIDDEN")
-
-    async with repo.transaction():
-        # Mark tenant as archived
-        await repo.execute(
-            "UPDATE tb_tenant SET is_active = FALSE, archived_at = NOW() WHERE id = $1",
-            tenant_id
-        )
-
-        if TENANCY_MODEL == "schema":
-            # For schema-per-tenant: rename schema for archival
-            tenant = await repo.find_one("tb_tenant", where={"id": tenant_id})
-            old_schema = f"tenant_{tenant['slug']}"
-            archived_schema = f"archived_{tenant['slug']}_{datetime.now().strftime('%Y%m%d')}"
-
-            await repo.execute(f"ALTER SCHEMA {old_schema} RENAME TO {archived_schema}")
-
-        return True
-```
-
-## Best Practices
-
-### Security
-- Always validate tenant context in every request
-- Use parameterized queries to prevent injection
-- Implement proper role-based access within tenants
-- Log cross-tenant access attempts
-- Regular security audits of tenant isolation
-
-### Performance
-- Use connection pooling per tenant for schema-per-tenant
-- Implement tenant-aware caching strategies
-- Consider tenant data distribution for sharding
-- Monitor query performance per tenant
-
-### Operational
-- Automate tenant provisioning and deprovisioning
-- Implement tenant-aware monitoring and alerting
-- Plan for tenant data migration and archival
-- Document tenant onboarding procedures
-
-## See Also
-
-### Related Concepts
-- [**Security Patterns**](security.md) - Authentication and authorization
-- [**Performance Tuning**](performance.md) - Optimization strategies
-- [**Database Views**](../core-concepts/database-views.md) - View design patterns
-
-### Implementation
-- [**Authentication**](authentication.md) - User authentication patterns
-- [**CQRS**](cqrs.md) - Multi-tenant CQRS patterns
-- [**Testing**](../testing/integration-testing.md) - Multi-tenant testing
-
-### Advanced Topics
-- [**Bounded Contexts**](bounded-contexts.md) - Domain boundaries
-- [**Event Sourcing**](event-sourcing.md) - Multi-tenant event stores
-- [**Deployment**](../deployment/index.md) - Multi-tenant deployment
+- [Authentication](authentication.md) - Tenant-scoped authentication
+- [Bounded Contexts](bounded-contexts.md) - Multi-tenant DDD patterns
+- [Performance](../performance/index.md) - Query optimization per tenant
+- [Security](../production/security.md) - Tenant isolation security

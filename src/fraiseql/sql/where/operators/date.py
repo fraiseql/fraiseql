@@ -2,9 +2,14 @@
 
 This module provides clean functions to build SQL for ISO 8601 date operations
 using proper date casting for temporal comparisons.
+
+These operators are thin wrappers around the generic base builders, specialized
+for PostgreSQL date type.
 """
 
-from psycopg.sql import SQL, Composed, Literal
+from psycopg.sql import SQL, Composed
+
+from .base_builders import build_comparison_sql, build_in_list_sql
 
 
 def build_date_eq_sql(path_sql: SQL, value: str) -> Composed:
@@ -17,7 +22,7 @@ def build_date_eq_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::date = 'value'::date
     """
-    return Composed([SQL("("), path_sql, SQL(")::date = "), Literal(value), SQL("::date")])
+    return build_comparison_sql(path_sql, value, "=", "date")
 
 
 def build_date_neq_sql(path_sql: SQL, value: str) -> Composed:
@@ -30,7 +35,7 @@ def build_date_neq_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::date != 'value'::date
     """
-    return Composed([SQL("("), path_sql, SQL(")::date != "), Literal(value), SQL("::date")])
+    return build_comparison_sql(path_sql, value, "!=", "date")
 
 
 def build_date_in_sql(path_sql: SQL, value: list[str]) -> Composed:
@@ -46,18 +51,7 @@ def build_date_in_sql(path_sql: SQL, value: list[str]) -> Composed:
     Raises:
         TypeError: If value is not a list
     """
-    if not isinstance(value, list):
-        raise TypeError(f"'in' operator requires a list, got {type(value)}")
-
-    parts = [SQL("("), path_sql, SQL(")::date IN (")]
-
-    for i, date_str in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.extend([Literal(date_str), SQL("::date")])
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+    return build_in_list_sql(path_sql, value, "IN", "date")
 
 
 def build_date_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
@@ -73,18 +67,7 @@ def build_date_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
     Raises:
         TypeError: If value is not a list
     """
-    if not isinstance(value, list):
-        raise TypeError(f"'notin' operator requires a list, got {type(value)}")
-
-    parts = [SQL("("), path_sql, SQL(")::date NOT IN (")]
-
-    for i, date_str in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.extend([Literal(date_str), SQL("::date")])
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+    return build_in_list_sql(path_sql, value, "NOT IN", "date")
 
 
 def build_date_gt_sql(path_sql: SQL, value: str) -> Composed:
@@ -97,7 +80,7 @@ def build_date_gt_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::date > 'value'::date
     """
-    return Composed([SQL("("), path_sql, SQL(")::date > "), Literal(value), SQL("::date")])
+    return build_comparison_sql(path_sql, value, ">", "date")
 
 
 def build_date_gte_sql(path_sql: SQL, value: str) -> Composed:
@@ -110,7 +93,7 @@ def build_date_gte_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::date >= 'value'::date
     """
-    return Composed([SQL("("), path_sql, SQL(")::date >= "), Literal(value), SQL("::date")])
+    return build_comparison_sql(path_sql, value, ">=", "date")
 
 
 def build_date_lt_sql(path_sql: SQL, value: str) -> Composed:
@@ -123,7 +106,7 @@ def build_date_lt_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::date < 'value'::date
     """
-    return Composed([SQL("("), path_sql, SQL(")::date < "), Literal(value), SQL("::date")])
+    return build_comparison_sql(path_sql, value, "<", "date")
 
 
 def build_date_lte_sql(path_sql: SQL, value: str) -> Composed:
@@ -136,4 +119,4 @@ def build_date_lte_sql(path_sql: SQL, value: str) -> Composed:
     Returns:
         Composed SQL: (path)::date <= 'value'::date
     """
-    return Composed([SQL("("), path_sql, SQL(")::date <= "), Literal(value), SQL("::date")])
+    return build_comparison_sql(path_sql, value, "<=", "date")

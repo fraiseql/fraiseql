@@ -1,0 +1,18 @@
+# Multi-Tenant APQ Example Dependencies
+
+# Core framework
+fraiseql>=0.10.0
+
+# Optional: Production backends
+# redis>=4.5.0  # For Redis APQ backend
+# psycopg2-binary>=2.9.0  # For PostgreSQL APQ backend
+
+# Optional: JWT authentication
+# pyjwt>=2.8.0
+
+# Optional: Monitoring
+# prometheus-client>=0.17.0
+
+# Development/Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

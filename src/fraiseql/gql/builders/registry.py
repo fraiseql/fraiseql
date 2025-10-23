@@ -93,12 +93,14 @@ class SchemaRegistry:
             from fraiseql.db import register_type_for_view
 
             sql_source = typ.__fraiseql_definition__.sql_source
+            jsonb_column = getattr(typ.__fraiseql_definition__, "jsonb_column", None)
             logger.debug(
-                "Registering type '%s' with repository for view '%s'",
+                "Registering type '%s' with repository for view '%s' (jsonb_column: %s)",
                 typ.__name__,
                 sql_source,
+                jsonb_column,
             )
-            register_type_for_view(sql_source, typ)
+            register_type_for_view(sql_source, typ, jsonb_column=jsonb_column)
 
     def register_enum(self, enum_cls: type, graphql_enum: GraphQLEnumType) -> None:
         """Register a Python Enum class as a GraphQL enum type.

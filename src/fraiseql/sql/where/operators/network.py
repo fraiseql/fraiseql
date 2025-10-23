@@ -2,9 +2,14 @@
 
 This module contains the core fix for the IP filtering bug described in the guide.
 The key insight is to use proper PostgreSQL inet casting instead of string comparison.
+
+Basic comparison operators use the generic base builders. Network-specific operators
+(in_subnet, is_private, is_public) are implemented directly as they have no generic equivalent.
 """
 
 from psycopg.sql import SQL, Composed, Literal
+
+from .base_builders import build_comparison_sql, build_in_list_sql
 
 
 def build_ip_eq_sql(path_sql: SQL, value: str) -> Composed:
@@ -16,44 +21,25 @@ def build_ip_eq_sql(path_sql: SQL, value: str) -> Composed:
     We generate proper inet casting:
     (data->>'ip_address')::inet = '192.168.1.1'::inet
     """
-    return Composed([SQL("("), path_sql, SQL(")::inet = "), Literal(value), SQL("::inet")])
+    return build_comparison_sql(path_sql, value, "=", "inet")
 
 
 def build_ip_neq_sql(path_sql: SQL, value: str) -> Composed:
     """Build SQL for IP address inequality with proper inet casting."""
-    return Composed([SQL("("), path_sql, SQL(")::inet != "), Literal(value), SQL("::inet")])
+    return build_comparison_sql(path_sql, value, "!=", "inet")
 
 
 def build_ip_in_sql(path_sql: SQL, value: list[str]) -> Composed:
     """Build SQL for IP address IN list with proper inet casting."""
-    if not isinstance(value, list):
-        raise TypeError(f"'in' operator requires a list, got {type(value)}")
-
-    parts = [SQL("("), path_sql, SQL(")::inet IN (")]
-
-    for i, ip in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.extend([Literal(ip), SQL("::inet")])
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+    return build_in_list_sql(path_sql, value, "IN", "inet")
 
 
 def build_ip_notin_sql(path_sql: SQL, value: list[str]) -> Composed:
     """Build SQL for IP address NOT IN list with proper inet casting."""
-    if not isinstance(value, list):
-        raise TypeError(f"'notin' operator requires a list, got {type(value)}")
+    return build_in_list_sql(path_sql, value, "NOT IN", "inet")
 
-    parts = [SQL("("), path_sql, SQL(")::inet NOT IN (")]
 
-    for i, ip in enumerate(value):
-        if i > 0:
-            parts.append(SQL(", "))
-        parts.extend([Literal(ip), SQL("::inet")])
-
-    parts.append(SQL(")"))
-    return Composed(parts)
+# Network-specific operators (no generic equivalent)
 
 
 def build_in_subnet_sql(path_sql: SQL, value: str) -> Composed:

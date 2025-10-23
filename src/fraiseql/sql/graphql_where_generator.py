@@ -201,31 +201,55 @@ class MacAddressFilter:
 
 @fraise_input
 class LTreeFilter:
-    """Restricted filter for LTree hierarchical paths.
+    """Filter for LTree hierarchical paths with full operator support.
 
-    Only exposes basic equality operations until proper ltree operators
-    (ancestor_of, descendant_of, matches_lquery) are implemented.
+    Provides both basic comparison operators and PostgreSQL ltree-specific
+    hierarchical operators for path ancestry, descendancy, and pattern matching.
     """
 
+    # Basic comparison operators
     eq: str | None = None
     neq: str | None = None
+    in_: list[str] | None = fraise_field(default=None, graphql_name="in")
+    nin: list[str] | None = None
     isnull: bool | None = None
-    # Intentionally excludes: contains, startswith, endswith, in_, nin
-    # TODO(fraiseql): Add ltree-specific operators: ancestor_of, descendant_of, matches_lquery - https://github.com/fraiseql/fraiseql/issues/ltree-operators
+
+    # LTree-specific hierarchical operators
+    ancestor_of: str | None = None  # @> - Is ancestor of path
+    descendant_of: str | None = None  # <@ - Is descendant of path
+    matches_lquery: str | None = None  # ~ - Matches lquery pattern
+    matches_ltxtquery: str | None = None  # ? - Matches ltxtquery text pattern
+
+    # Intentionally excludes: contains, startswith, endswith (use ltree operators instead)
 
 
 @fraise_input
 class DateRangeFilter:
-    """Restricted filter for PostgreSQL date range types.
+    """Filter for PostgreSQL date range types with full operator support.
 
-    Only exposes basic operations until proper range operators are implemented.
+    Provides both basic comparison operators and PostgreSQL range-specific
+    operators for containment, overlap, adjacency, and positioning queries.
     """
 
+    # Basic comparison operators
     eq: str | None = None
     neq: str | None = None
+    in_: list[str] | None = fraise_field(default=None, graphql_name="in")
+    nin: list[str] | None = None
     isnull: bool | None = None
-    # Intentionally excludes string pattern matching
-    # TODO(fraiseql): Add range-specific operators: contains_date, overlaps, adjacent - https://github.com/fraiseql/fraiseql/issues/range-operators
+
+    # Range-specific operators
+    contains_date: str | None = None  # @> - Range contains date/range
+    overlaps: str | None = None  # && - Ranges overlap
+    adjacent: str | None = None  # -|- - Ranges are adjacent
+
+    # Range positioning operators
+    strictly_left: str | None = None  # << - Strictly left of
+    strictly_right: str | None = None  # >> - Strictly right of
+    not_left: str | None = None  # &> - Does not extend to the left
+    not_right: str | None = None  # &< - Does not extend to the right
+
+    # Intentionally excludes string pattern matching (use range operators instead)
 
 
 def _get_filter_type_for_field(field_type: type, parent_class: type | None = None) -> type:
@@ -247,7 +271,8 @@ def _get_filter_type_for_field(field_type: type, parent_class: type | None = Non
     # Check if it's a List type
     if origin in (list, List):
         # For now, treat lists as StringFilter
-        # TODO(fraiseql): Implement list relationship filtering - https://github.com/fraiseql/fraiseql/issues/list-filtering
+        # Known limitation: List relationship filtering not yet implemented
+        # GitHub issue: Implement list relationship filtering
         return StringFilter
 
     # Check if this is a FraiseQL type (nested object)

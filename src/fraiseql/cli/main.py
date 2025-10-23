@@ -4,16 +4,19 @@ import sys
 
 import click
 
-from .commands import check, dev, generate, init_command, sql
+from fraiseql import __version__
+
+from .commands import check, dev, generate, init_command, migrate, sql, turbo
 
 
 @click.group()
-@click.version_option(version="0.7.11", prog_name="fraiseql")
+@click.version_option(version=__version__, prog_name="fraiseql")
 def cli() -> None:
-    """FraiseQL - Lightweight GraphQL-to-PostgreSQL query builder.
+    """FraiseQL - Production-ready GraphQL API framework for PostgreSQL.
 
-    A complete GraphQL API framework that provides strongly-typed
-    GraphQL-to-PostgreSQL translation with built-in FastAPI integration.
+    A comprehensive GraphQL framework with CQRS architecture, type-safe mutations,
+    JSONB optimization, and enterprise-grade features like conflict resolution,
+    authentication, caching, and FastAPI integration.
     """
 
 
@@ -23,6 +26,8 @@ cli.add_command(dev)
 cli.add_command(generate)
 cli.add_command(check)
 cli.add_command(sql)
+cli.add_command(turbo)
+cli.add_command(migrate)
 
 
 def main() -> None:

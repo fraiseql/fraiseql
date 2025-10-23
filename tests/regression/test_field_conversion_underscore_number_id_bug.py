@@ -69,7 +69,7 @@ class MockDatabase:
 
         # Return a success response matching the expected structure
         return {
-            "success": True,
+            "status": "success",
             "object_data": {
                 "id": str(uuid.uuid4()),
                 "name": input_data.get("name", "Test Config"),
@@ -78,7 +78,10 @@ class MockDatabase:
                 "backup_1_id": input_data.get("backup_1_id"),
                 "gateway_id": input_data.get("gateway_id"),
             },
-            "message": "Network configuration created successfully"
+            "message": "Network configuration created successfully",
+            "extra_metadata": {
+                "entity": "network_configuration"
+            }
         }
 
 

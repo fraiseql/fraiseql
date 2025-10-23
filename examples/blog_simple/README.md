@@ -300,13 +300,13 @@ class CreatePost:
 ```python
 # tests/conftest.py
 import pytest
-import asyncpg
+import psycopg
 from fraiseql.cqrs import CQRSRepository
 
 @pytest.fixture
 async def db():
     """Database connection for testing."""
-    conn = await asyncpg.connect("postgresql://fraiseql:fraiseql@localhost/fraiseql_blog_simple_test")
+    conn = await psycopg.AsyncConnection.connect("postgresql://fraiseql:fraiseql@localhost/fraiseql_blog_simple_test")
     yield CQRSRepository(conn)
     await conn.close()
 

@@ -9,19 +9,17 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from graphql import GraphQLSchema
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.auth.base import AuthProvider
-from fraiseql.core.raw_json_executor import RawJSONResult
 from fraiseql.execution.mode_selector import ModeSelector
 from fraiseql.execution.unified_executor import UnifiedExecutor
 from fraiseql.fastapi.config import FraiseQLConfig
-from fraiseql.fastapi.custom_response import RawJSONResponse
 from fraiseql.fastapi.dependencies import build_graphql_context
 from fraiseql.fastapi.json_encoder import FraiseQLJSONResponse, clean_unset_values
 from fraiseql.fastapi.turbo import TurboRegistry, TurboRouter
-from fraiseql.graphql import execute_with_passthrough_check
+from fraiseql.graphql.execute import execute_graphql
 from fraiseql.optimization.n_plus_one_detector import (
     N1QueryDetectedError,
     configure_detector,
@@ -35,11 +33,42 @@ _default_context_dependency = Depends(build_graphql_context)
 
 
 class GraphQLRequest(BaseModel):
-    """GraphQL request model."""
+    """GraphQL request model supporting Apollo Automatic Persisted Queries (APQ)."""
 
-    query: str
+    query: str | None = None
     variables: dict[str, Any] | None = None
     operationName: str | None = None  # noqa: N815 - GraphQL spec requires this name
+    extensions: dict[str, Any] | None = None
+
+    @field_validator("extensions")
+    @classmethod
+    def validate_extensions(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Validate extensions field structure for APQ compliance."""
+        if v is None:
+            return v
+
+        # If extensions contains persistedQuery, validate APQ structure
+        if "persistedQuery" in v:
+            persisted_query = v["persistedQuery"]
+            if not isinstance(persisted_query, dict):
+                raise ValueError("persistedQuery must be an object")
+
+            # APQ requires version and sha256Hash
+            if "version" not in persisted_query:
+                raise ValueError("persistedQuery.version is required")
+            if "sha256Hash" not in persisted_query:
+                raise ValueError("persistedQuery.sha256Hash is required")
+
+            # Version must be 1 (APQ v1)
+            if persisted_query["version"] != 1:
+                raise ValueError("Only APQ version 1 is supported")
+
+            # sha256Hash must be a non-empty string
+            sha256_hash = persisted_query["sha256Hash"]
+            if not isinstance(sha256_hash, str) or not sha256_hash:
+                raise ValueError("persistedQuery.sha256Hash must be a non-empty string")
+
+        return v
 
 
 def create_graphql_router(
@@ -151,15 +180,98 @@ def create_graphql_router(
         context: dict[str, Any] = context_dependency,
     ):
         """Execute GraphQL query with adaptive behavior."""
-        # Check authentication if required
+        # Check authentication first (before APQ processing to ensure security)
+        # For APQ requests, we need to check auth regardless of query availability
         if (
             config.auth_enabled
             and auth_provider
             and not context.get("authenticated", False)
-            and not (config.environment == "development" and "__schema" in request.query)
+            and not (
+                config.environment == "development"
+                and request.query
+                and "__schema" in request.query
+            )
         ):
             # Return 401 for unauthenticated requests when auth is required
             raise HTTPException(status_code=401, detail="Authentication required")
+
+        # Initialize APQ backend for potential caching
+        apq_backend = None
+        is_apq_request = request.extensions and "persistedQuery" in request.extensions
+
+        # Handle APQ (Automatic Persisted Queries) if detected
+        if is_apq_request and request.extensions:
+            from fraiseql.middleware.apq import create_apq_error_response, get_persisted_query
+            from fraiseql.middleware.apq_caching import (
+                get_apq_backend,
+                handle_apq_request_with_cache,
+            )
+            from fraiseql.storage.apq_store import store_persisted_query
+
+            logger.debug("APQ request detected, processing...")
+
+            persisted_query = request.extensions["persistedQuery"]
+            sha256_hash = persisted_query.get("sha256Hash")
+
+            # Validate hash format
+            if not sha256_hash or not isinstance(sha256_hash, str) or not sha256_hash.strip():
+                logger.debug("APQ request failed: invalid hash format")
+                return create_apq_error_response(
+                    "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                )
+
+            # Get APQ backend for caching
+            apq_backend = get_apq_backend(config)
+
+            # Check if this is a registration request (has both hash and query)
+            if request.query:
+                # This is a registration request - store the query
+                logger.debug(f"APQ registration: storing query with hash {sha256_hash[:8]}...")
+
+                # Store in the global store (for backward compatibility)
+                store_persisted_query(sha256_hash, request.query)
+
+                # Also store in the backend if available
+                if apq_backend:
+                    apq_backend.store_persisted_query(sha256_hash, request.query)
+
+                # Continue with normal execution using the provided query
+                # The response will be cached after execution (see lines 361-370)
+
+            else:
+                # This is a hash-only request - try to retrieve the query
+
+                # 1. Try cached response first (JSON passthrough)
+                cached_response = handle_apq_request_with_cache(
+                    request, apq_backend, config, context=context
+                )
+                if cached_response:
+                    logger.debug(f"APQ cache hit: {sha256_hash[:8]}...")
+                    return cached_response
+
+                # 2. Fallback to query resolution from backend
+                persisted_query_text = None
+
+                # Try backend first
+                if apq_backend:
+                    persisted_query_text = apq_backend.get_persisted_query(sha256_hash)
+
+                # Fallback to global store
+                if not persisted_query_text:
+                    persisted_query_text = get_persisted_query(sha256_hash)
+
+                if not persisted_query_text:
+                    logger.debug(f"APQ request failed: hash not found: {sha256_hash[:8]}...")
+                    return create_apq_error_response(
+                        "PERSISTED_QUERY_NOT_FOUND", "PersistedQueryNotFound"
+                    )
+
+                # Replace request query with persisted query for normal execution
+                logger.debug(
+                    f"APQ request resolved: hash {sha256_hash[:8]}... -> "
+                    f"query length {len(persisted_query_text)}"
+                )
+                request.query = persisted_query_text
 
         try:
             # Determine execution mode from headers and config
@@ -171,22 +283,15 @@ def create_graphql_router(
                 mode = http_request.headers["x-mode"].lower()
                 context["mode"] = mode
 
-                # Enable passthrough for production/staging modes if configured
-                if mode in ("production", "staging"):  # noqa: SIM102
-                    # Respect json_passthrough configuration settings
-                    if config.json_passthrough_enabled and getattr(
-                        config, "json_passthrough_in_production", True
-                    ):
-                        json_passthrough = True
+                # Enable passthrough for production/staging/testing modes (always enabled)
+                if mode in ("production", "staging", "testing"):
+                    json_passthrough = True
             else:
                 # Use environment as default mode
                 context["mode"] = mode
-                if is_production_env:  # noqa: SIM102
-                    # Respect json_passthrough configuration settings
-                    if config.json_passthrough_enabled and getattr(
-                        config, "json_passthrough_in_production", True
-                    ):
-                        json_passthrough = True
+                # Passthrough is always enabled in production/staging/testing
+                if is_production_env or mode in ("staging", "testing"):
+                    json_passthrough = True
 
             # Check for explicit passthrough header
             if "x-json-passthrough" in http_request.headers:
@@ -216,13 +321,6 @@ def create_graphql_router(
                     context=context,
                 )
 
-                # Check if result is RawJSONResult
-                if isinstance(result, RawJSONResult):
-                    return RawJSONResponse(
-                        content=result.json_string,
-                        media_type=result.content_type,
-                    )
-
                 return result
 
             # Fallback to standard execution
@@ -233,7 +331,7 @@ def create_graphql_router(
             if not is_production_env:
                 async with n1_detection_context(request_id) as detector:
                     context["n1_detector"] = detector
-                    result = await execute_with_passthrough_check(
+                    result = await execute_graphql(
                         schema,
                         request.query,
                         context_value=context,
@@ -242,7 +340,7 @@ def create_graphql_router(
                         enable_introspection=config.enable_introspection,
                     )
             else:
-                result = await execute_with_passthrough_check(
+                result = await execute_graphql(
                     schema,
                     request.query,
                     context_value=context,
@@ -250,21 +348,6 @@ def create_graphql_router(
                     operation_name=request.operationName,
                     enable_introspection=config.enable_introspection,
                 )
-
-            # Check if result contains RawJSONResult
-            if isinstance(result.data, RawJSONResult):
-                return RawJSONResponse(
-                    content=result.data.json_string,
-                    media_type=result.data.content_type,
-                )
-
-            if result.data and isinstance(result.data, dict):
-                for value in result.data.values():
-                    if isinstance(value, RawJSONResult):
-                        return RawJSONResponse(
-                            content=value.json_string,
-                            media_type=value.content_type,
-                        )
 
             # Build response
             response: dict[str, Any] = {}
@@ -274,6 +357,26 @@ def create_graphql_router(
                 response["errors"] = [
                     _format_error(error, is_production_env) for error in result.errors
                 ]
+
+            # Cache response for APQ if it was an APQ request and response is cacheable
+            if is_apq_request and apq_backend:
+                from fraiseql.middleware.apq_caching import (
+                    get_apq_hash_from_request,
+                    store_response_in_cache,
+                )
+
+                apq_hash = get_apq_hash_from_request(request)
+                if apq_hash:
+                    # Store the response in cache for future requests
+                    store_response_in_cache(
+                        apq_hash, response, apq_backend, config, context=context
+                    )
+
+                    # Also store the cached response in the backend
+                    import json
+
+                    response_json = json.dumps(response, separators=(",", ":"))
+                    apq_backend.store_cached_response(apq_hash, response_json, context=context)
 
             return response
 

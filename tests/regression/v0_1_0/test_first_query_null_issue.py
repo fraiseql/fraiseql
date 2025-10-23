@@ -1,5 +1,6 @@
 """Test to reproduce the first query returning null issue."""
 
+import json
 import uuid
 from typing import Optional
 
@@ -10,6 +11,7 @@ from graphql import GraphQLResolveInfo
 from fraiseql import query
 from fraiseql.fastapi import create_fraiseql_app
 from fraiseql.types import fraise_type
+from tests.unit.utils.test_response_utils import extract_graphql_data
 
 # Define the User type
 
@@ -91,7 +93,6 @@ def test_first_query_returns_null_simple():
             """
         }
 
-
         response1 = client.post("/graphql", json=query1)
         result1 = response1.json()
 
@@ -113,15 +114,13 @@ def test_first_query_returns_null_simple():
             """
         }
 
-
         response3 = client.post("/graphql", json=query3)
         result3 = response3.json()
 
         # Assertions
         first_query_user = result1.get("data", {}).get("user")
         second_query_user = result2.get("data", {}).get("user")
-        result3.get("data", {}).get("users", [])
-
+        users_data = result3.get("data", {}).get("users", [])
 
         # The bug: first query returns null, second query works
         if first_query_user is None and second_query_user is not None:

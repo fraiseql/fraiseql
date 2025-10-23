@@ -93,24 +93,30 @@ class TestRestrictedFilterTypes:
         assert "endswith" not in operators
 
     def test_ltree_filter_restrictions(self):
-        """Test that LTreeFilter has very conservative operator set."""
+        """Test that LTreeFilter has conservative operator set with ltree-specific operators."""
         operators = [
             attr
             for attr in dir(LTreeFilter)
             if not attr.startswith("_") and not callable(getattr(LTreeFilter, attr))
         ]
 
-        # Should only include most basic operators
+        # Should include basic comparison operators
         assert "eq" in operators
         assert "neq" in operators
+        assert "in_" in operators  # List operators are safe for LTree
+        assert "nin" in operators
         assert "isnull" in operators
 
-        # Should NOT include ANY problematic operators
+        # Should include ltree-specific hierarchical operators
+        assert "ancestor_of" in operators
+        assert "descendant_of" in operators
+        assert "matches_lquery" in operators
+        assert "matches_ltxtquery" in operators
+
+        # Should NOT include problematic string operators
         assert "contains" not in operators
         assert "startswith" not in operators
         assert "endswith" not in operators
-        assert "in_" not in operators  # Even list operators excluded for LTree
-        assert "nin" not in operators
 
     def test_generated_where_input_uses_restricted_filters(self):
         """Test that generated GraphQL where input uses restricted filters."""

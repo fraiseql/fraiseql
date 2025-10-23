@@ -96,25 +96,6 @@ class TestNetworkOperatorConsistencyBug:
 class TestSQLBehaviorWithPostgreSQL:
     """Test SQL behavior differences that could explain the bug."""
 
-    @pytest.mark.skip(reason="Requires PostgreSQL connection - for documentation purposes")
-    async def test_host_vs_direct_cast_behavior(self):
-        """Demonstrate how host() vs direct cast behaves differently.
-
-        This test is for documentation - it shows why the inconsistency causes issues.
-        """
-        # Example SQL that would behave differently:
-
-        # Case 1: JSONB contains "192.168.1.1"
-        # host(('192.168.1.1')::inet) = '192.168.1.1'  -- ✅ Works
-        # ('192.168.1.1')::inet <<= '192.168.1.0/24'::inet  -- ✅ Works
-
-        # Case 2: JSONB contains "192.168.1.1/32"
-        # host(('192.168.1.1/32')::inet) = '192.168.1.1'  -- ✅ Works (strips /32)
-        # ('192.168.1.1/32')::inet <<= '192.168.1.0/24'::inet  -- ✅ Works
-
-        # Case 3: The actual bug might be elsewhere - let's investigate field type handling
-
-
     def test_field_type_detection_issue(self):
         """Test if the issue is in field type detection for network operators."""
         from fraiseql.sql.operator_strategies import get_operator_registry

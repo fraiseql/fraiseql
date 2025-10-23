@@ -235,7 +235,7 @@ if __name__ == "__main__":
     print("FraiseQL v0.5.5 Network Filtering Issues - Comprehensive Test Cases")
     print("=" * 70)
     print("Generated for FraiseQL development team")
-    print("Based on analysis from PrintOptim Backend project")
+    print("Based on production network filtering analysis")
     print()
 
     # Run all test cases

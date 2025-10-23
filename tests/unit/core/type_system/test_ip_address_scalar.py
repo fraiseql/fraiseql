@@ -72,6 +72,25 @@ class TestIpAddressParsing:
         result = parse_ip_address_value("::1")
         assert str(result) == "::1"
 
+    def test_parse_ipv4_with_cidr_notation(self):
+        """Test parsing IPv4 addresses with CIDR notation (extracts IP only)."""
+        result = parse_ip_address_value("192.168.1.1/24")
+        assert str(result) == "192.168.1.1"
+
+        result = parse_ip_address_value("10.0.0.1/8")
+        assert str(result) == "10.0.0.1"
+
+        result = parse_ip_address_value("172.16.0.1/16")
+        assert str(result) == "172.16.0.1"
+
+    def test_parse_ipv6_with_cidr_notation(self):
+        """Test parsing IPv6 addresses with CIDR notation (extracts IP only)."""
+        result = parse_ip_address_value("2001:db8::1/64")
+        assert str(result) == "2001:db8::1"
+
+        result = parse_ip_address_value("fe80::1/10")
+        assert str(result) == "fe80::1"
+
     def test_parse_invalid_ip(self):
         """Test parsing invalid IP addresses raises error."""
         with pytest.raises(GraphQLError, match="Invalid IP address string"):
@@ -115,6 +134,14 @@ class TestIpAddressLiteralParsing:
         assert str(result) == "192.168.1.1"
 
         result = parse_ip_address_literal(StringValueNode(value="2001:db8::1"))
+        assert str(result) == "2001:db8::1"
+
+    def test_parse_literal_with_cidr_notation(self):
+        """Test parsing IP address literals with CIDR notation."""
+        result = parse_ip_address_literal(StringValueNode(value="192.168.1.1/24"))
+        assert str(result) == "192.168.1.1"
+
+        result = parse_ip_address_literal(StringValueNode(value="2001:db8::1/64"))
         assert str(result) == "2001:db8::1"
 
     def test_parse_invalid_literal_format(self):

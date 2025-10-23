@@ -137,9 +137,6 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
-# Ruff cache
-.ruff_cache/
-
 # Cython debug symbols
 cython_debug/
 
@@ -162,6 +159,8 @@ Thumbs.db
 *.sqlite3
 /private/
 *debug*.py
+# Only ignore test_*.py files in the root directory, not in tests/
+/test_*.py
 !tests/
 
 # Benchmark results
@@ -169,3 +168,16 @@ benchmarks/performance-benchmarks/results-aggregator/*.json
 
 # Private tickets
 /tickets/
+
+# Test fixture caches
+tests/fixtures/examples/.database_state_cache.json
+tests/fixtures/examples/.dependency_cache.json
+tests/fixtures/examples/.install_log.txt
+
+# Additional caches and logs
+.ruff_cache/
+.mypy_cache/
+security_events.log
+
+# TODO directory (deployment analysis and guides)
+TODO/

@@ -557,3 +557,124 @@ class TestTurboRouter:
 
         # Ensure we don't have nested data structure
         assert "data" not in products[0], "Found double-wrapping - products contain 'data' field"
+
+    @pytest.mark.asyncio
+    async def test_turbo_query_with_context_params(self, turbo_registry) -> None:
+        """Test turbo query with context parameters for multi-tenant support."""
+        # Multi-tenant query that requires tenant_id from context
+        query = """
+        query GetAllocations($period: String!) {
+            allocations(period: $period) {
+                id
+                name
+                amount
+            }
+        }
+        """
+
+        # SQL template that expects both variable (period) and context params (tenant_id)
+        sql_template = """
+        SELECT turbo.fn_get_allocations(%(period)s, %(tenant_id)s)::json as result
+        """
+
+        # Create TurboQuery with context_params (like mutations support)
+        turbo_query = TurboQuery(
+            graphql_query=query,
+            sql_template=sql_template,
+            param_mapping={"period": "period"},
+            operation_name="GetAllocations",
+            context_params={"tenant_id": "tenant_id"},  # Map context.tenant_id -> SQL param
+        )
+        turbo_registry.register(turbo_query)
+
+        # Mock database
+        mock_db_result = [
+            {
+                "result": [
+                    {"id": "1", "name": "Allocation A", "amount": 1000},
+                    {"id": "2", "name": "Allocation B", "amount": 2000},
+                ]
+            }
+        ]
+
+        mock_db = AsyncMock()
+        executed_sql_params = None
+
+        async def mock_transaction(func):
+            mock_conn = AsyncMock()
+            mock_cursor = AsyncMock()
+
+            # Capture the SQL parameters that were passed
+            async def capture_execute(sql, params=None):
+                nonlocal executed_sql_params
+                # Only capture params from the actual query, not SET LOCAL commands
+                if params is not None:
+                    executed_sql_params = params
+
+            mock_cursor.execute = AsyncMock(side_effect=capture_execute)
+            mock_cursor.fetchall = AsyncMock(return_value=mock_db_result)
+            mock_cursor.row_factory = None  # TurboRouter sets this
+
+            cursor_cm = AsyncMock()
+            cursor_cm.__aenter__ = AsyncMock(return_value=mock_cursor)
+            cursor_cm.__aexit__ = AsyncMock(return_value=None)
+            mock_conn.cursor = MagicMock(return_value=cursor_cm)
+
+            return await func(mock_conn)
+
+        mock_db.run_in_transaction = AsyncMock(side_effect=mock_transaction)
+
+        # Context with tenant_id (like JWT authentication provides)
+        context = {"db": mock_db, "tenant_id": "tenant-123"}
+        variables = {"period": "CURRENT"}
+
+        turbo_router = TurboRouter(turbo_registry)
+        result = await turbo_router.execute(query, variables, context)
+
+        # Verify result structure
+        assert result is not None
+        assert "data" in result
+        assert "allocations" in result["data"]
+
+        # CRITICAL: Verify that SQL received BOTH period (from variables) AND tenant_id (from context)
+        assert executed_sql_params is not None, "SQL parameters were not captured"
+        assert "period" in executed_sql_params, "period from variables missing"
+        assert executed_sql_params["period"] == "CURRENT"
+        assert "tenant_id" in executed_sql_params, "tenant_id from context missing"
+        assert executed_sql_params["tenant_id"] == "tenant-123"
+
+    @pytest.mark.asyncio
+    async def test_turbo_query_missing_required_context_param(self, turbo_registry) -> None:
+        """Test that turbo query raises error when required context param is missing."""
+        query = """
+        query GetAllocations($period: String!) {
+            allocations(period: $period) {
+                id
+                name
+            }
+        }
+        """
+
+        sql_template = """
+        SELECT turbo.fn_get_allocations(%(period)s, %(tenant_id)s)::json as result
+        """
+
+        turbo_query = TurboQuery(
+            graphql_query=query,
+            sql_template=sql_template,
+            param_mapping={"period": "period"},
+            operation_name="GetAllocations",
+            context_params={"tenant_id": "tenant_id"},  # Required but not provided
+        )
+        turbo_registry.register(turbo_query)
+
+        mock_db = AsyncMock()
+        # Context WITHOUT tenant_id
+        context = {"db": mock_db}
+        variables = {"period": "CURRENT"}
+
+        turbo_router = TurboRouter(turbo_registry)
+
+        # Should raise ValueError for missing required context parameter
+        with pytest.raises(ValueError, match="Required context parameter 'tenant_id'"):
+            await turbo_router.execute(query, variables, context)

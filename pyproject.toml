@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fraiseql"
-version = "0.8.0"
+version = "1.0.0"
 description = "Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
@@ -45,6 +45,13 @@ dependencies = [
   "structlog>=23.0.0",
   "passlib[argon2]>=1.7.4",
   "aiosqlite>=0.21.0",
+  "typer>=0.12.0",
+  "rich>=13.7.0",
+  "pyyaml>=6.0.1",
+  "sqlparse>=0.5.0",
+  "fraiseql-confiture>=0.1.0",
+  "fraiseql-rs",
+  "jinja2>=3.1.0",
 ]
 
 [project.urls]
@@ -72,7 +79,7 @@ dev = [
   "pytest-cov>=4.0.0",
   "pytest-mock>=3.11.0",
   "tox>=4.0.0",
-  "ruff>=0.8.4",
+  "ruff>=0.13.0",
   "pyright>=1.1.401",
   "build>=1.0.0",
   "twine>=6.1.0",
@@ -98,11 +105,7 @@ tracing = [
   "opentelemetry-exporter-otlp>=1.20.0",
   "opentelemetry-exporter-jaeger>=1.20.0",
 ]
-redis = [
-  "redis>=5.0.0",
-]
 all = [
-  "redis>=5.0.0",
   "protobuf>=4.25.8,<5.0",
   "wrapt>=1.16.0",
   "opentelemetry-api>=1.20.0",
@@ -152,7 +155,6 @@ markers = [
     "domain: Domain model tests (DDD patterns)",
     "regression: Regression tests for specific bugs and version features",
     "skip_ci: Skip in CI environment",
-    "camelforge: Tests for CamelForge functionality",
     "turbo: Tests for TurboRouter functionality"
 ]
 
@@ -302,6 +304,22 @@ ignore = [
   "D102",    # Missing method docstrings in tests
   "D103",    # Missing function docstrings in tests
 ]
+"benchmarks/**/*.py" = [
+  "T201",    # Print statements OK in benchmarks
+  "E501",    # Long lines OK in benchmarks
+  "SIM117",  # Nested with statements OK in benchmarks
+  "B007",    # Loop control variables OK in benchmarks
+  "F841",    # Unused variables OK in benchmarks
+]
+"archive/**/*.py" = [
+  "ALL",     # Ignore all linting rules in archived code
+]
+"frameworks/**/*.py" = [
+  "ALL",     # Prototype frameworks - not production code
+]
+"fraiseql_rs/**/*.py" = [
+  "ALL",     # Rust bridge code - has special requirements
+]
 "tests/types/test_json_type_support.py" = [
   "E501",    # Long JSON string in test
 ]
@@ -346,6 +364,22 @@ ignore = [
 "scripts/**/*.py" = [
   "ALL",     # Utility scripts - not production code
 ]
+"src/fraiseql/enterprise/**/*.py" = [
+  "TD002",   # Missing author in TODO
+  "TD003",   # Missing issue link in TODO
+  "E501",    # Long lines acceptable in enterprise modules
+  "TC001",   # Type-checking imports
+  "TC002",   # Type-checking imports
+  "TC003",   # Type-checking imports
+  "F841",    # Unused variables (often placeholders)
+  "D106",    # Missing docstring in nested class (Config classes)
+  "T201",    # Print statements (for debugging)
+  "B007",    # Loop control variables
+  "DTZ003",  # datetime.utcnow() usage
+]
+"rename_examples.py" = [
+  "ALL",     # One-off utility script
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -379,13 +413,28 @@ include = [
     "src/fraiseql/py.typed"
 ]
 
+[tool.uv.workspace]
+members = [
+    "fraiseql_rs",
+]
+
+[tool.uv.sources]
+fraiseql-rs = { workspace = true }
+
+# Development: Use local fraiseql-confiture for development
+# Production/CI: Comment out for releases to use PyPI version
+# [tool.uv.sources]
+# fraiseql-confiture = { path = "../confiture", editable = true }
+
 [dependency-groups]
 dev = [
     "build>=1.2.2.post1",
     "docker>=7.1.0",
+    "maturin>=1.9.6",
     "pre-commit>=4.2.0",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
+    "pytest-cov>=7.0.0",
     "testcontainers>=4.10.0",
     "twine>=6.1.0",
 ]

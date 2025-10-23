@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Protocol
+from uuid import UUID
 
 from psycopg.sql import SQL, Composed, Literal
 
@@ -78,7 +79,8 @@ class BaseOperatorStrategy(ABC):
             # Check MAC addresses first (most specific - before IP addresses)
             if self._looks_like_mac_address_value(val, op):
                 # Apply MAC address casting for network hardware operations
-                return Composed([path_sql, SQL("::macaddr")])
+                # CRITICAL FIX: Proper parentheses for casting JSONB extracted value
+                return Composed([SQL("("), path_sql, SQL(")::macaddr")])
 
             # Check for IP addresses (after MAC addresses to avoid collision)
             if self._looks_like_ip_address_value(val, op):
@@ -93,25 +95,38 @@ class BaseOperatorStrategy(ABC):
             # Check for LTree paths
             if self._looks_like_ltree_value(val, op):
                 # Apply LTree casting for hierarchical path operations
-                return Composed([path_sql, SQL("::ltree")])
+                # CRITICAL FIX: Proper parentheses for casting JSONB extracted value
+                return Composed([SQL("("), path_sql, SQL(")::ltree")])
 
             # Check for DateRange values
             if self._looks_like_daterange_value(val, op):
                 # Apply DateRange casting for temporal range operations
-                return Composed([path_sql, SQL("::daterange")])
+                # CRITICAL FIX: Proper parentheses for casting JSONB extracted value
+                return Composed([SQL("("), path_sql, SQL(")::daterange")])
 
-        # Handle booleans first
+        # CRITICAL FIX: Consistent type casting for JSONB fields based on value types
+        # JSONB ->> extracts as text, but we need type-aware operations for proper behavior
+
+        # Cast based on value type for consistent behavior across all operations
+        # CRITICAL: Check bool BEFORE int since bool is subclass of int in Python
         if isinstance(val, bool):
-            return Composed([path_sql, SQL("::boolean")])
+            # CRITICAL: For boolean operations, convert value to JSONB text representation
+            # JSONB stores booleans as "true"/"false" text when extracted with ->>
+            # So we compare text-to-text rather than casting to boolean
+            return (
+                path_sql  # No casting - will handle value conversion in ComparisonOperatorStrategy
+            )
+        if isinstance(val, (int, float, Decimal)):
+            # All numeric operations need numeric casting for proper comparison
+            return Composed([SQL("("), path_sql, SQL(")::numeric")])
+        if isinstance(val, datetime):
+            return Composed([SQL("("), path_sql, SQL(")::timestamp")])
+        if isinstance(val, date):
+            return Composed([SQL("("), path_sql, SQL(")::date")])
 
-        # For comparison operators, apply type casting
-        if op in ("gt", "gte", "lt", "lte") or (op in ("eq", "neq") and not isinstance(val, str)):
-            if isinstance(val, (int, float, Decimal)):
-                return Composed([path_sql, SQL("::numeric")])
-            if isinstance(val, datetime):
-                return Composed([path_sql, SQL("::timestamp")])
-            if isinstance(val, date):
-                return Composed([path_sql, SQL("::date")])
+        # Handle UUID values - cast JSONB text to UUID for comparison
+        if isinstance(val, UUID):
+            return Composed([SQL("("), path_sql, SQL(")::uuid")])
 
         return path_sql
 
@@ -132,6 +147,32 @@ class BaseOperatorStrategy(ABC):
 
             return field_type == IpAddressField or (
                 isinstance(field_type, type) and issubclass(field_type, IpAddressField)
+            )
+        except ImportError:
+            return False
+
+    def _is_ltree_type(self, field_type: type) -> bool:
+        """Check if field_type is an LTree type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types import LTree
+            from fraiseql.types.scalars.ltree import LTreeField
+
+            return field_type in (LTree, LTreeField) or (
+                isinstance(field_type, type) and issubclass(field_type, LTreeField)
+            )
+        except ImportError:
+            return False
+
+    def _is_mac_address_type(self, field_type: type) -> bool:
+        """Check if field_type is a MAC address type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types import MacAddress
+            from fraiseql.types.scalars.mac_address import MacAddressField
+
+            return field_type in (MacAddress, MacAddressField) or (
+                isinstance(field_type, type) and issubclass(field_type, MacAddressField)
             )
         except ImportError:
             return False
@@ -252,6 +293,7 @@ class BaseOperatorStrategy(ABC):
             "app",
             "api",
             "www",
+            "local",  # CRITICAL FIX: .local domains (mDNS) are NOT ltree paths
         }
 
         # If the last part is a common domain extension, probably not an LTree
@@ -401,7 +443,9 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
         casted_path = self._apply_type_cast(path_sql, val, op, field_type)
         sql_op = self.operator_map[op]
 
-        # CRITICAL FIX: If we detected IP address and cast the field to ::inet,
+        # CRITICAL FIX: Handle value type conversion for JSONB fields
+
+        # If we detected IP address and cast the field to ::inet,
         # we must also cast the literal value to ::inet for PostgreSQL compatibility
         if (
             not field_type  # Only when field_type is missing (production CQRS pattern)
@@ -411,6 +455,50 @@ class ComparisonOperatorStrategy(BaseOperatorStrategy):
             and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
         ):
             return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::inet")])
+
+        # CRITICAL FIX: If we detected LTree path and cast the field to ::ltree,
+        # we must also cast the literal value to ::ltree for PostgreSQL compatibility
+        if (
+            not field_type  # Only when field_type is missing (production CQRS pattern)
+            and op in ("eq", "neq")
+            and self._looks_like_ltree_value(val, op)
+            and casted_path != path_sql  # Path was modified
+            and "::ltree" in str(casted_path)  # Specifically cast to ltree
+        ):
+            return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::ltree")])
+
+        # CRITICAL FIX: If we detected MAC address and cast the field to ::macaddr,
+        # we must also cast the literal value to ::macaddr for PostgreSQL compatibility
+        if (
+            not field_type  # Only when field_type is missing (production CQRS pattern)
+            and op in ("eq", "neq")
+            and self._looks_like_mac_address_value(val, op)
+            and casted_path != path_sql  # Path was modified
+            and "::macaddr" in str(casted_path)  # Specifically cast to macaddr
+        ):
+            return Composed([casted_path, SQL(sql_op), Literal(val), SQL("::macaddr")])
+
+        # CRITICAL FIX: If we kept the path as text (for booleans only),
+        # convert boolean values to JSONB text representation for text-to-text comparison
+        if (
+            casted_path == path_sql  # Path was NOT cast (still text from JSONB ->>)
+            and isinstance(val, bool)  # Only for boolean values
+            and op in ("eq", "neq", "in", "notin")  # Only for equality/membership
+        ):
+            # Convert Python boolean to JSONB text representation
+            string_val = "true" if val else "false"
+            return Composed([casted_path, SQL(sql_op), Literal(string_val)])
+
+        # Handle boolean lists for membership tests
+        if (
+            casted_path == path_sql  # Path was NOT cast
+            and isinstance(val, list)
+            and op in ("in", "notin")
+            and all(isinstance(v, bool) for v in val)  # All values are booleans
+        ):
+            # Convert boolean list to string list
+            string_vals = ["true" if v else "false" for v in val]
+            return Composed([casted_path, SQL(sql_op), Literal(string_vals)])
 
         return Composed([casted_path, SQL(sql_op), Literal(val)])
 
@@ -450,7 +538,7 @@ class PatternMatchingStrategy(BaseOperatorStrategy):
     """Strategy for pattern matching operators."""
 
     def __init__(self) -> None:
-        super().__init__(["matches", "startswith", "contains", "endswith"])
+        super().__init__(["matches", "startswith", "contains", "endswith", "ilike"])
 
     def build_sql(
         self,
@@ -467,22 +555,32 @@ class PatternMatchingStrategy(BaseOperatorStrategy):
             return Composed([casted_path, SQL(" ~ "), Literal(val)])
         if op == "startswith":
             if isinstance(val, str):
-                # Use LIKE for better performance
-                return Composed([casted_path, SQL(" LIKE "), Literal(val + "%")])
-            return Composed([casted_path, SQL(" ~ "), Literal(str(val) + ".*")])
-        if op == "contains":
-            if isinstance(val, str):
-                # Use LIKE for substring matching
-                # Note: % is already properly handled by psycopg's Literal
-                like_val = f"%{val}%"
+                # Use LIKE for prefix matching
+                # Use %% to escape % for psycopg3
+                like_val = f"{val}%%"
                 return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
-            return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}.*")])
+            return Composed([casted_path, SQL(" ~ "), Literal(f"^{val}.*")])
         if op == "endswith":
             if isinstance(val, str):
                 # Use LIKE for suffix matching
-                like_val = f"%{val}"
+                # Use %% to escape % for psycopg3
+                like_val = f"%%{val}"
                 return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
             return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}$")])
+        if op == "contains":
+            if isinstance(val, str):
+                # Use LIKE for substring matching
+                # Use %% to escape % for psycopg3
+                like_val = f"%%{val}%%"
+                return Composed([casted_path, SQL(" LIKE "), Literal(like_val)])
+            return Composed([casted_path, SQL(" ~ "), Literal(f".*{val}.*")])
+        if op == "ilike":
+            if isinstance(val, str):
+                # Use ILIKE for case-insensitive substring matching with automatic wildcards
+                # Use %% to escape % for psycopg3
+                like_val = f"%%{val}%%"
+                return Composed([casted_path, SQL(" ILIKE "), Literal(like_val)])
+            return Composed([casted_path, SQL(" ~* "), Literal(val)])
         raise ValueError(f"Unsupported pattern operator: {op}")
 
 
@@ -516,21 +614,47 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             and "::inet" in str(casted_path)  # Specifically cast to inet (not macaddr/ltree/etc)
         )
 
-        # Check if we need numeric casting (but not for IP addresses)
-        if not (field_type and self._is_ip_address_type(field_type)):
-            if val and all(isinstance(v, (int, float, Decimal)) for v in val):
-                casted_path = Composed([casted_path, SQL("::numeric")])
+        # CRITICAL FIX: Detect if we're dealing with LTree paths without field_type
+        is_ltree_list_without_field_type = (
+            not field_type  # Production CQRS pattern
+            and val  # List is not empty
+            and self._looks_like_ltree_value(val, op)  # Detects LTree lists
+            and casted_path != path_sql  # Path was modified
+            and "::ltree" in str(casted_path)  # Specifically cast to ltree
+        )
+
+        # CRITICAL FIX: Detect if we're dealing with MAC addresses without field_type
+        is_mac_list_without_field_type = (
+            not field_type  # Production CQRS pattern
+            and val  # List is not empty
+            and self._looks_like_mac_address_value(val, op)  # Detects MAC address lists
+            and casted_path != path_sql  # Path was modified
+            and "::macaddr" in str(casted_path)  # Specifically cast to macaddr
+        )
+
+        # Handle value conversion based on type (aligned with _apply_type_cast logic)
+        if not (
+            field_type
+            and (
+                self._is_ip_address_type(field_type)
+                or self._is_ltree_type(field_type)
+                or self._is_mac_address_type(field_type)
+            )
+        ):
+            # Check if this is a boolean list (check bool first since bool is subclass of int)
+            if val and all(isinstance(v, bool) for v in val):
+                # For boolean lists, use text comparison with converted values
+                converted_vals = ["true" if v else "false" for v in val]
+                literals = [Literal(v) for v in converted_vals]
+            elif val and all(isinstance(v, (int, float, Decimal)) for v in val):
+                # For numeric lists, the _apply_type_cast already added ::numeric
+                # Don't add it again to avoid double-casting
                 literals = [Literal(v) for v in val]
             else:
-                # Convert booleans to strings for JSONB text comparison
-                converted_vals = [str(v).lower() if isinstance(v, bool) else v for v in val]
-                if is_ip_list_without_field_type:
-                    # For IP addresses detected without field_type, use original values
-                    literals = [Literal(v) for v in val]
-                else:
-                    literals = [Literal(v) for v in converted_vals]
+                # For other types (strings, etc.), use values as-is
+                literals = [Literal(v) for v in val]
         else:
-            # For IP addresses, use string literals
+            # For IP addresses, LTree, and MAC addresses, use string literals
             literals = [Literal(str(v)) for v in val]
 
         # Build the IN/NOT IN clause
@@ -544,6 +668,12 @@ class ListOperatorStrategy(BaseOperatorStrategy):
             # CRITICAL FIX: Cast each literal to ::inet if we detected IP addresses
             if is_ip_list_without_field_type:
                 parts.append(SQL("::inet"))
+            # CRITICAL FIX: Cast each literal to ::ltree if we detected LTree paths
+            elif is_ltree_list_without_field_type:
+                parts.append(SQL("::ltree"))
+            # CRITICAL FIX: Cast each literal to ::macaddr if we detected MAC addresses
+            elif is_mac_list_without_field_type:
+                parts.append(SQL("::macaddr"))
 
         parts.append(SQL(")"))
         return Composed(parts)
@@ -735,7 +865,46 @@ class DateRangeOperatorStrategy(BaseOperatorStrategy):
 
 
 class LTreeOperatorStrategy(BaseOperatorStrategy):
-    """Strategy for LTree hierarchical path operators with PostgreSQL ltree type casting."""
+    """Strategy for PostgreSQL ltree hierarchical path operators.
+
+    Provides comprehensive filtering operations for hierarchical path data stored
+    as PostgreSQL ltree values. Supports exact matching, hierarchical relationships,
+    pattern matching, path analysis, and array operations.
+
+    Basic Operations:
+        eq: Exact path equality
+        neq: Path inequality
+        in_: Path in list of paths
+        notin: Path not in list of paths
+
+    Hierarchical Relationships:
+        ancestor_of: Path is ancestor of target path (@> operator)
+        descendant_of: Path is descendant of target path (<@ operator)
+
+    Pattern Matching:
+        matches_lquery: Path matches lquery pattern with wildcards (~ operator)
+        matches_ltxtquery: Path matches text search pattern (? operator)
+        matches_any_lquery: Path matches any of multiple lquery patterns
+
+    Path Analysis:
+        nlevel: Get number of path levels
+        nlevel_eq/gt/gte/lt/lte: Filter by path depth
+        subpath: Extract subpath segment (offset, length)
+        index: Find position of sublabel in path
+        index_eq/gte: Filter by sublabel position
+
+    Path Manipulation:
+        concat: Concatenate two paths (|| operator)
+        lca: Find lowest common ancestor of multiple paths
+
+    Array Operations:
+        in_array: Path contained in array of paths (<@ operator)
+        array_contains: Array contains target path (@> operator)
+
+    Note: Pattern operators (contains, startswith, endswith) are explicitly
+    rejected for ltree fields as they don't make sense for hierarchical paths.
+    Use the specialized hierarchical operators instead.
+    """
 
     def __init__(self) -> None:
         # Include hierarchical operators and basic operations, restrict problematic patterns
@@ -749,6 +918,24 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
                 "descendant_of",  # Hierarchical relationships
                 "matches_lquery",
                 "matches_ltxtquery",  # Pattern matching
+                # Path analysis operators
+                "nlevel",
+                "nlevel_eq",
+                "nlevel_gt",
+                "nlevel_gte",
+                "nlevel_lt",
+                "nlevel_lte",
+                "subpath",
+                "index",
+                "index_eq",
+                "index_gte",
+                # Path manipulation operators
+                "concat",
+                "lca",
+                # Array matching operators
+                "matches_any_lquery",
+                "in_array",
+                "array_contains",
                 "contains",
                 "startswith",
                 "endswith",  # Generic patterns (to restrict)
@@ -783,7 +970,25 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         val: Any,
         field_type: type | None = None,
     ) -> Composed:
-        """Build SQL for LTree operators with proper ltree casting."""
+        """Build SQL for LTree operators with proper PostgreSQL ltree type casting.
+
+        Generates optimized SQL for hierarchical path operations using PostgreSQL's
+        native ltree operators and functions. All operations properly cast values
+        to ltree type for correct comparison and indexing.
+
+        Args:
+            path_sql: SQL expression for the path field (e.g., data->>'path')
+            op: Operator name (one of the 23 supported ltree operators)
+            val: Value for the operation (type depends on operator)
+            field_type: Field type (should be LTree for validation)
+
+        Returns:
+            Composed SQL expression ready for execution
+
+        Raises:
+            ValueError: If operator is not supported for ltree fields
+            TypeError: If operator value has incorrect type
+        """
         # Safety check: if we know the field type and it's NOT an LTree, something is wrong
         if field_type and not self._is_ltree_type(field_type):
             raise ValueError(
@@ -843,6 +1048,157 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
             # path ? ltxtquery means path matches ltxtquery text query
             casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
             return Composed([casted_path, SQL(" ? "), Literal(val), SQL("::ltxtquery")])
+
+        # Path analysis operators
+        elif op == "nlevel":
+            # nlevel(ltree) - returns number of labels in path
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([SQL("nlevel("), casted_path, SQL(")")])
+
+        elif op.startswith("nlevel_"):
+            # Extract comparison operator (eq, gt, gte, lt, lte)
+            comparison = op.replace("nlevel_", "")
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            nlevel_expr = Composed([SQL("nlevel("), casted_path, SQL(")")])
+
+            comparison_ops = {"eq": "=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+            sql_op = comparison_ops[comparison]
+
+            return Composed([nlevel_expr, SQL(f" {sql_op} "), Literal(val)])
+
+        elif op == "subpath":
+            # val is tuple (offset, length)
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(f"subpath operator requires a tuple (offset, length), got {val}")
+            offset, length = val
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed(
+                [
+                    SQL("subpath("),
+                    casted_path,
+                    SQL(", "),
+                    Literal(offset),
+                    SQL(", "),
+                    Literal(length),
+                    SQL(")"),
+                ]
+            )
+
+        elif op == "index":
+            # index(path, sublabel) returns int position
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([SQL("index("), casted_path, SQL(", "), Literal(val), SQL("::ltree)")])
+
+        elif op == "index_eq":
+            # Filter by exact position
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"index_eq operator requires a tuple (sublabel, position), got {val}"
+                )
+            sublabel, position = val
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            index_expr = Composed(
+                [SQL("index("), casted_path, SQL(", "), Literal(sublabel), SQL("::ltree)")]
+            )
+            return Composed([index_expr, SQL(" = "), Literal(position)])
+
+        elif op == "index_gte":
+            # Filter by minimum position
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"index_gte operator requires a tuple (sublabel, min_position), got {val}"
+                )
+            sublabel, min_position = val
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            index_expr = Composed(
+                [SQL("index("), casted_path, SQL(", "), Literal(sublabel), SQL("::ltree)")]
+            )
+            return Composed([index_expr, SQL(" >= "), Literal(min_position)])
+
+        elif op == "concat":
+            # path1 || path2 - concatenate two ltree paths
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+            return Composed([casted_path, SQL(" || "), Literal(val), SQL("::ltree")])
+
+        elif op == "lca":
+            # lca(ARRAY[path1, path2, ...]) - lowest common ancestor
+            if not isinstance(val, list):
+                raise TypeError(f"lca operator requires a list of paths, got {type(val)}")
+
+            if not val:  # Empty list
+                raise ValueError("lca operator requires at least one path")
+
+            # Build lca(ARRAY['path1'::ltree, 'path2'::ltree, ...])
+            parts = [SQL("lca(ARRAY[")]
+            for i, path in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(path), SQL("::ltree")])
+            parts.append(SQL("])"))
+
+            return Composed(parts)
+
+        elif op == "matches_any_lquery":
+            # path ? ARRAY[lquery1, lquery2, ...]
+            if not isinstance(val, list):
+                raise TypeError(f"matches_any_lquery requires a list, got {type(val)}")
+
+            if not val:  # Empty list
+                raise ValueError("matches_any_lquery requires at least one pattern")
+
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            # Build ARRAY[lquery1, lquery2, ...]
+            parts = [casted_path, SQL(" ? ARRAY[")]
+            for i, pattern in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(pattern))  # PostgreSQL will cast to lquery
+            parts.append(SQL("]"))
+
+            return Composed(parts)
+
+        elif op == "in_array":
+            # path <@ ARRAY[path1, path2, ...]
+            if not isinstance(val, list):
+                raise TypeError(f"in_array requires a list, got {type(val)}")
+
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            parts = []
+            parts.append(casted_path)
+            parts.append(SQL(" <@ ARRAY["))
+            for i, path in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(path))
+                parts.append(SQL("::ltree"))
+            parts.append(SQL("]"))
+
+            return Composed(parts)
+
+        elif op == "array_contains":
+            # ARRAY[path1, path2, ...] @> target_path
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"array_contains requires a tuple (paths_array, target_path), got {val}"
+                )
+
+            paths_array, target_path = val
+            if not isinstance(paths_array, list):
+                raise TypeError(
+                    f"array_contains first element must be a list, got {type(paths_array)}"
+                )
+
+            # Build ARRAY['path1'::ltree, 'path2'::ltree, ...] @> 'target'::ltree
+            parts = [SQL("ARRAY[")]
+            for i, path in enumerate(paths_array):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(path), SQL("::ltree")])
+            parts.extend([SQL("] @> "), Literal(target_path), SQL("::ltree")])
+
+            return Composed(parts)
 
         # For pattern operators (contains, startswith, endswith), explicitly reject them
         elif op in ("contains", "startswith", "endswith"):
@@ -940,10 +1296,72 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
                         parts.append(SQL(", "))
                     parts.extend([Literal(mac), SQL("::macaddr")])
                 parts.append(SQL(")"))
-                return Composed(parts)
+            return Composed(parts)
+
+        if op == "matches_any_lquery":
+            # path ? ARRAY[lquery1, lquery2, ...]
+            if not isinstance(val, list):
+                raise TypeError(f"matches_any_lquery requires a list, got {type(val)}")
+
+            if not val:  # Empty list
+                raise ValueError("matches_any_lquery requires at least one pattern")
+
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            # Build ARRAY[lquery1, lquery2, ...]
+            parts = [casted_path, SQL(" ? ARRAY[")]
+            for i, pattern in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(pattern))  # PostgreSQL will cast to lquery
+            parts.append(SQL("]"))
+
+            return Composed(parts)
+
+        if op == "in_array":
+            # path <@ ARRAY[path1, path2, ...]
+            if not isinstance(val, list):
+                raise TypeError(f"in_array requires a list, got {type(val)}")
+
+            casted_path = Composed([SQL("("), path_sql, SQL(")::ltree")])
+
+            parts = []
+            parts.append(casted_path)
+            parts.append(SQL(" <@ ARRAY["))
+            for i, path in enumerate(val):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.append(Literal(path))
+                parts.append(SQL("::ltree"))
+            parts.append(SQL("]"))
+
+            return Composed(parts)
+
+        if op == "array_contains":
+            # ARRAY[path1, path2, ...] @> target_path
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"array_contains requires a tuple (paths_array, target_path), got {val}"
+                )
+
+            paths_array, target_path = val
+            if not isinstance(paths_array, list):
+                raise TypeError(
+                    f"array_contains first element must be a list, got {type(paths_array)}"
+                )
+
+            # Build ARRAY['path1'::ltree, 'path2'::ltree, ...] @> 'target'::ltree
+            parts = [SQL("ARRAY[")]
+            for i, path in enumerate(paths_array):
+                if i > 0:
+                    parts.append(SQL(", "))
+                parts.extend([Literal(path), SQL("::ltree")])
+            parts.extend([SQL("] @> "), Literal(target_path), SQL("::ltree")])
+
+            return Composed(parts)
 
         # For pattern operators (contains, startswith, endswith), explicitly reject them
-        elif op in ("contains", "startswith", "endswith"):
+        if op in ("contains", "startswith", "endswith"):
             raise ValueError(
                 f"Pattern operator '{op}' is not supported for MAC address fields. "
                 f"Use only: eq, neq, in, notin, isnull for MAC address filtering."
@@ -960,6 +1378,192 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
 
             return field_type in (MacAddress, MacAddressField) or (
                 isinstance(field_type, type) and issubclass(field_type, MacAddressField)
+            )
+        except ImportError:
+            return False
+
+
+class CoordinateOperatorStrategy(BaseOperatorStrategy):
+    """Strategy for geographic coordinate operators with PostgreSQL POINT type casting.
+
+    Provides comprehensive coordinate filtering operations including exact equality,
+    distance calculations, and PostgreSQL POINT type integration.
+
+    Basic Operations:
+        eq: Exact coordinate equality
+        neq: Coordinate inequality
+        in: Coordinate in list of coordinates
+        notin: Coordinate not in list of coordinates
+
+    Distance Operations:
+        distance_within: Find coordinates within distance (meters) of center point
+    """
+
+    def __init__(self) -> None:
+        super().__init__(["eq", "neq", "in", "notin", "distance_within"])
+
+    def can_handle(self, op: str, field_type: type | None = None) -> bool:
+        """Check if this strategy can handle the given operator.
+
+        Coordinate operators should only be used with Coordinate field types.
+        For Coordinate types, we handle ALL operators to properly restrict unsupported ones.
+        """
+        if op not in self.operators:
+            return False
+
+        # Define coordinate-specific operators that we can safely handle without field type info
+        coordinate_specific_ops = {"distance_within"}
+
+        # If no field type provided, only handle coordinate-specific operators
+        # Generic operators (eq, neq, in, notin) should go to appropriate generic strategies
+        if field_type is None:
+            return op in coordinate_specific_ops
+
+        # For Coordinate types, handle ALL the operators we're configured for
+        # This ensures we can properly restrict the problematic ones
+        return self._is_coordinate_type(field_type)
+
+    def build_sql(
+        self,
+        path_sql: SQL,
+        op: str,
+        val: Any,
+        field_type: type | None = None,
+    ) -> Composed:
+        """Build SQL for coordinate operators with proper PostgreSQL POINT type casting."""
+        # Safety check: if we know the field type and it's NOT a Coordinate, something is wrong
+        if field_type and not self._is_coordinate_type(field_type):
+            raise ValueError(
+                f"Coordinate operator '{op}' can only be used with Coordinate fields, "
+                f"got {field_type}"
+            )
+
+        # For basic operations, cast both sides to point for proper PostgreSQL handling
+        if op in ("eq", "neq", "in", "notin"):
+            casted_path = Composed([SQL("("), path_sql, SQL(")::point")])
+
+            if op == "eq":
+                if not isinstance(val, tuple) or len(val) != 2:
+                    raise TypeError(
+                        f"eq operator requires a coordinate tuple (lat, lng), got {val}"
+                    )
+                lat, lng = val
+                return Composed(
+                    [casted_path, SQL(" = POINT("), Literal(lng), SQL(","), Literal(lat), SQL(")")]
+                )
+
+            if op == "neq":
+                if not isinstance(val, tuple) or len(val) != 2:
+                    raise TypeError(
+                        f"neq operator requires a coordinate tuple (lat, lng), got {val}"
+                    )
+                lat, lng = val
+                return Composed(
+                    [
+                        casted_path,
+                        SQL(" != POINT("),
+                        Literal(lng),
+                        SQL(","),
+                        Literal(lat),
+                        SQL(")"),
+                    ]
+                )
+
+            if op == "in":
+                if not isinstance(val, list):
+                    msg = f"'in' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" IN (")]
+                for i, coord in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    if not isinstance(coord, tuple) or len(coord) != 2:
+                        raise TypeError(
+                            f"in operator requires coordinate tuples (lat, lng), got {coord}"
+                        )
+                    lat, lng = coord
+                    parts.extend([SQL("POINT("), Literal(lng), SQL(","), Literal(lat), SQL(")")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+
+            if op == "notin":
+                if not isinstance(val, list):
+                    msg = f"'notin' operator requires a list, got {type(val)}"
+                    raise TypeError(msg)
+
+                parts = [casted_path, SQL(" NOT IN (")]
+                for i, coord in enumerate(val):
+                    if i > 0:
+                        parts.append(SQL(", "))
+                    if not isinstance(coord, tuple) or len(coord) != 2:
+                        raise TypeError(
+                            f"notin operator requires coordinate tuples (lat, lng), got {coord}"
+                        )
+                    lat, lng = coord
+                    parts.extend([SQL("POINT("), Literal(lng), SQL(","), Literal(lat), SQL(")")])
+                parts.append(SQL(")"))
+                return Composed(parts)
+
+        # For distance operations
+        elif op == "distance_within":
+            # val should be a tuple: (center_coord, distance_meters)
+            if not isinstance(val, tuple) or len(val) != 2:
+                raise TypeError(
+                    f"distance_within operator requires a tuple "
+                    f"(center_coord, distance_meters), got {val}"
+                )
+
+            center_coord, distance_meters = val
+            if not isinstance(center_coord, tuple) or len(center_coord) != 2:
+                raise TypeError(
+                    f"distance_within center must be a coordinate tuple "
+                    f"(lat, lng), got {center_coord}"
+                )
+            if not isinstance(distance_meters, (int, float)) or distance_meters < 0:
+                raise TypeError(
+                    f"distance_within distance must be a positive number, got {distance_meters}"
+                )
+
+            # Import coordinate distance builders
+            # Get distance method from environment or use default
+            import os
+
+            from fraiseql.sql.where.operators.coordinate import (
+                build_coordinate_distance_within_sql,
+                build_coordinate_distance_within_sql_earthdistance,
+                build_coordinate_distance_within_sql_haversine,
+            )
+
+            method = os.environ.get("FRAISEQL_COORDINATE_DISTANCE_METHOD", "haversine").lower()
+
+            # Build SQL based on configured method
+            if method == "postgis":
+                return build_coordinate_distance_within_sql(path_sql, center_coord, distance_meters)
+            if method == "earthdistance":
+                return build_coordinate_distance_within_sql_earthdistance(
+                    path_sql, center_coord, distance_meters
+                )
+            if method == "haversine":
+                return build_coordinate_distance_within_sql_haversine(
+                    path_sql, center_coord, distance_meters
+                )
+            raise ValueError(
+                f"Invalid coordinate_distance_method: '{method}'. "
+                f"Valid options: 'postgis', 'haversine', 'earthdistance'"
+            )
+
+        raise ValueError(f"Unsupported coordinate operator: {op}")
+
+    def _is_coordinate_type(self, field_type: type) -> bool:
+        """Check if field_type is a Coordinate type."""
+        # Import here to avoid circular imports
+        try:
+            from fraiseql.types import Coordinate
+            from fraiseql.types.scalars.coordinates import CoordinateField
+
+            return field_type in (Coordinate, CoordinateField) or (
+                isinstance(field_type, type) and issubclass(field_type, CoordinateField)
             )
         except ImportError:
             return False
@@ -1370,6 +1974,7 @@ class OperatorRegistry:
             NullOperatorStrategy(),
             DateRangeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             LTreeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
+            CoordinateOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             MacAddressOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             NetworkOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             ComparisonOperatorStrategy(),

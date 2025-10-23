@@ -1,19 +1,16 @@
 # Development Documentation
 
-## Purpose
-Internal development documentation including planning documents, agent prompts, and fix documentation.
+Guides for developing with FraiseQL.
 
-## Contents
-- **agent-prompts/**: Agent automation prompts and templates
-- **planning/**: Project planning and strategy documents
-- **fixes/**: Documentation of fixes and workarounds
+## Topics
 
-## When to Add Files Here
-- Internal planning documents
-- Agent automation configurations
-- Fix documentation and workarounds
-- Development strategies and approaches
+- Development Setup
+- Testing
+- Debugging
+- Contributing
 
-## Related Documentation
-- [Architecture](../architecture/) for system design
-- [Getting Started](../getting-started/) for contributor onboarding
+## Related
+
+- [Contributing Guide](CONTRIBUTING.md)
+- [Examples](../../examples/)
+- [Core Concepts](../core/)

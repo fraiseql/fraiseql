@@ -26,12 +26,14 @@ from graphql import (
 )
 
 from .cidr import CIDRField, CIDRScalar
+from .coordinates import CoordinateField, CoordinateScalar
 from .date import DateScalar
 from .datetime import DateTimeScalar
 from .email_address import EmailAddressField, EmailAddressScalar
 from .hostname import HostnameField, HostnameScalar
 from .ip_address import IpAddressField, IpAddressScalar, SubnetMaskScalar
 from .json import JSONField, JSONScalar
+from .ltree import LTreeField, LTreeScalar
 from .mac_address import MacAddressField, MacAddressScalar
 from .port import PortField, PortScalar
 from .uuid import UUIDField
@@ -54,13 +56,15 @@ def convert_scalar_to_graphql(typ: type) -> GraphQLScalarType:
         ipaddress.IPv4Address: IpAddressScalar,
         ipaddress.IPv4Network: SubnetMaskScalar,
         IpAddressField: IpAddressScalar,
+        CoordinateField: CoordinateScalar,
         EmailAddressField: EmailAddressScalar,
         CIDRField: CIDRScalar,
         HostnameField: HostnameScalar,
+        LTreeField: LTreeScalar,
         MacAddressField: MacAddressScalar,
         PortField: PortScalar,
         # Note: tuple and list are too generic to map to specific scalars
-        # DateRangeScalar and LTreeScalar should be used via specific marker types
+        # DateRangeScalar should be used via specific marker types
     }
 
     if typ in scalar_map:

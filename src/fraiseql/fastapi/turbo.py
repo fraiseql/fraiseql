@@ -18,6 +18,8 @@ class TurboQuery:
     sql_template: str
     param_mapping: dict[str, str]  # GraphQL variable path -> SQL parameter name
     operation_name: str | None = None
+    apollo_client_hash: str | None = None  # Apollo Client APQ hash (if different from server hash)
+    context_params: dict[str, str] | None = None  # Context key -> SQL parameter name
 
     def map_variables(self, graphql_variables: dict[str, Any]) -> dict[str, Any]:
         """Map GraphQL variables to SQL parameters.
@@ -56,6 +58,8 @@ class TurboRegistry:
         """
         self.max_size = max_size
         self._queries: OrderedDict[str, TurboQuery] = OrderedDict()
+        # Map apollo_client_hash -> primary_hash for dual-hash support
+        self._apollo_hash_to_primary: dict[str, str] = {}
 
     def hash_query(self, query: str) -> str:
         """Generate a normalized hash for a GraphQL query.
@@ -137,9 +141,12 @@ class TurboRegistry:
         This method is useful for backward compatibility with systems that
         have pre-computed raw hashes stored in databases.
 
+        If the TurboQuery has an apollo_client_hash that differs from the raw_hash,
+        both hashes will be registered to support dual-hash lookup (for Apollo Client APQ).
+
         Args:
             turbo_query: The TurboQuery to register
-            raw_hash: The pre-computed raw hash to use as the key
+            raw_hash: The pre-computed raw hash to use as the primary key
 
         Returns:
             The raw hash that was used for registration
@@ -153,7 +160,14 @@ class TurboRegistry:
 
             # Evict oldest if over limit
             if len(self._queries) > self.max_size:
-                self._queries.popitem(last=False)
+                _evicted_hash, evicted_query = self._queries.popitem(last=False)
+                # Clean up apollo hash mapping if it exists
+                if evicted_query.apollo_client_hash:
+                    self._apollo_hash_to_primary.pop(evicted_query.apollo_client_hash, None)
+
+        # Register apollo_client_hash if present and different from primary hash
+        if turbo_query.apollo_client_hash and turbo_query.apollo_client_hash != raw_hash:
+            self._apollo_hash_to_primary[turbo_query.apollo_client_hash] = raw_hash
 
         return raw_hash
 
@@ -163,6 +177,7 @@ class TurboRegistry:
         This method tries multiple hash strategies for maximum compatibility:
         1. Normalized hash (default FraiseQL behavior)
         2. Raw hash (for backward compatibility with external registrations)
+        3. Apollo hash mapping (for dual-hash queries where client hash differs from server hash)
 
         Args:
             query: GraphQL query string
@@ -184,11 +199,54 @@ class TurboRegistry:
             self._queries.move_to_end(raw_hash)
             return self._queries[raw_hash]
 
+        # Try apollo_client_hash mapping for dual-hash queries
+        # Check if either computed hash is an Apollo hash that maps to a primary hash
+        if normalized_hash in self._apollo_hash_to_primary:
+            primary_hash = self._apollo_hash_to_primary[normalized_hash]
+            if primary_hash in self._queries:
+                self._queries.move_to_end(primary_hash)
+                return self._queries[primary_hash]
+
+        if raw_hash in self._apollo_hash_to_primary:
+            primary_hash = self._apollo_hash_to_primary[raw_hash]
+            if primary_hash in self._queries:
+                self._queries.move_to_end(primary_hash)
+                return self._queries[primary_hash]
+
+        return None
+
+    def get_by_hash(self, query_hash: str) -> TurboQuery | None:
+        """Get a registered TurboQuery by hash (supports both server and apollo hashes).
+
+        This method supports dual-hash lookup for Apollo Client APQ compatibility.
+        It will find queries registered with either the server hash or apollo_client_hash.
+
+        Args:
+            query_hash: The hash to lookup (server hash or apollo_client_hash)
+
+        Returns:
+            TurboQuery if registered, None otherwise
+        """
+        # Try direct lookup first (primary hash)
+        if query_hash in self._queries:
+            # Move to end for LRU
+            self._queries.move_to_end(query_hash)
+            return self._queries[query_hash]
+
+        # Try apollo_client_hash mapping
+        if query_hash in self._apollo_hash_to_primary:
+            primary_hash = self._apollo_hash_to_primary[query_hash]
+            if primary_hash in self._queries:
+                # Move to end for LRU
+                self._queries.move_to_end(primary_hash)
+                return self._queries[primary_hash]
+
         return None
 
     def clear(self) -> None:
         """Clear all registered queries."""
         self._queries.clear()
+        self._apollo_hash_to_primary.clear()
 
     def __len__(self) -> int:
         """Return the number of registered queries."""
@@ -237,6 +295,18 @@ class TurboRouter:
 
         # Map GraphQL variables to SQL parameters
         sql_params = turbo_query.map_variables(variables)
+
+        # Map context parameters to SQL parameters (like mutations do)
+        if turbo_query.context_params:
+            for context_key, sql_param in turbo_query.context_params.items():
+                context_value = context.get(context_key)
+                if context_value is None:
+                    msg = (
+                        f"Required context parameter '{context_key}' "
+                        f"not found in GraphQL context for turbo query"
+                    )
+                    raise ValueError(msg)
+                sql_params[sql_param] = context_value
 
         # Execute the SQL directly using FraiseQLRepository
 

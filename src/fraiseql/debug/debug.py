@@ -339,8 +339,8 @@ class QueryDebugger:
 
     async def __aenter__(self) -> "QueryDebugger":
         self.start_time = time.perf_counter()
-        # TODO(fraiseql): Hook into query execution to capture queries
-        # https://github.com/fraiseql/fraiseql/issues/TBD
+        # Known limitation: Query execution hooking not yet implemented
+        # GitHub issue: Hook into query execution to capture queries for debugging
         return self
 
     async def __aexit__(

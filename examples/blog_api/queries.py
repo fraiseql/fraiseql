@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 @fraiseql.query
-async def get_user(info, id: UUID) -> Optional[User]:
+async def user(info, id: UUID) -> Optional[User]:
     """Get a user by ID."""
     db: BlogRepository = info.context["db"]
     user_data = await db.get_user_by_id(id)
@@ -33,7 +33,7 @@ async def me(info) -> Optional[User]:
 
 
 @fraiseql.query
-async def get_post(info, id: UUID) -> Optional[Post]:
+async def post(info, id: UUID) -> Optional[Post]:
     """Get a post by ID."""
     db: BlogRepository = info.context["db"]
 
@@ -49,7 +49,7 @@ async def get_post(info, id: UUID) -> Optional[Post]:
 
 
 @fraiseql.query
-async def get_posts(
+async def posts(
     info,
     filters: Optional[PostFilters] = None,
     order_by: Optional[PostOrderBy] = None,
@@ -86,7 +86,7 @@ async def get_posts(
 
 
 @fraiseql.query
-async def get_comments_for_post(info, post_id: UUID) -> list[Comment]:
+async def comments(info, post_id: UUID) -> list[Comment]:
     """Get all comments for a post."""
     db: BlogRepository = info.context["db"]
     comments_data = await db.get_comments_by_post(post_id)
@@ -105,14 +105,6 @@ async def resolve_post_author(post: Post, info) -> Optional[User]:
     user_loader = get_loader(UserDataLoader)
     user_data = await user_loader.load(UUID(post.author_id))
     return User.from_dict(user_data) if user_data else None
-
-
-async def resolve_post_comments(post: Post, info) -> list[Comment]:
-    """Resolve the comments field for a post using DataLoader to prevent N+1 queries."""
-    # Use DataLoader for efficient batching
-    comments_loader = get_loader(CommentsByPostDataLoader)
-    comments_data = await comments_loader.load(UUID(post.id))
-    return [Comment.from_dict(data) for data in comments_data]
 
 
 async def resolve_comment_author(comment: Comment, info) -> Optional[User]:
@@ -144,6 +136,8 @@ async def resolve_comment_replies(comment: Comment, info) -> list[Comment]:
     all_comments = await comments_loader.load(UUID(comment.post_id))
 
     # Filter for replies to this comment
+    if not all_comments:
+        return []
     return [Comment.from_dict(c) for c in all_comments if c.get("parentCommentId") == comment.id]
 
 
