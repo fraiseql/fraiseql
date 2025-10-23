@@ -195,4 +195,3 @@ Found interesting results? Please share:
 
 - [PostgreSQL JSON Functions](https://www.postgresql.org/docs/current/functions-json.html)
 - [pgbench Documentation](https://www.postgresql.org/docs/current/pgbench.html)
-- [FraiseQL Query Execution Path Analysis](../../QUERY_EXECUTION_PATH_ANALYSIS.md)

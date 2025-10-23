@@ -542,21 +542,7 @@ create_nested_array_field_resolver_with_where(
 create_graphql_where_input(cls: type, name: str | None = None) -> type
 ```
 
-## Examples
 
-See the complete working example in [`example_clean_nested_array_filtering.py`](example_clean_nested_array_filtering.py) which demonstrates:
-
-- All three registration approaches
-- All logical operators (AND/OR/NOT)
-- Complex nested conditions
-- Field operator usage
-- Performance testing
-
-Run the example:
-
-```bash
-python example_clean_nested_array_filtering.py
-```
 
 ## Testing
 
