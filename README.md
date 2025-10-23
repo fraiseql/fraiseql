@@ -31,7 +31,7 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 
 ---
 
-## 👥 Is This For Me?
+## 👥 Is this for me?
 
 **FraiseQL is designed for production teams** building GraphQL APIs with PostgreSQL. Here's how to know if it's right for you:
 
