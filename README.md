@@ -20,6 +20,7 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 ## 📋 Project Versions & Navigation
 
 ### Version Overview
+
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
 | **v1.0.0** | Root level | Production Stable | Stable release | ✅ Recommended |
@@ -35,6 +36,7 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 **FraiseQL is designed for production teams** building GraphQL APIs with PostgreSQL. Here's how to know if it's right for you:
 
 ### **✅ You Should Use FraiseQL If:**
+
 - Building GraphQL APIs with PostgreSQL
 - Need sub-millisecond query performance
 - Want database-native caching and monitoring
@@ -42,6 +44,7 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 - Team size: 2-50 developers
 
 ### **❌ Consider Alternatives If:**
+
 - Not using PostgreSQL as your primary database
 - Need multi-database support
 - Prefer traditional ORM approaches
@@ -52,26 +55,33 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 **Prerequisites**: Python 3.13+, PostgreSQL 13+
 
 #### 🆕 Brand New to FraiseQL?
+
 **[📚 First Hour Guide](docs/FIRST_HOUR.md)** - 60 minutes, hands-on
+
 - Progressive tutorial from zero to production
 - Builds complete blog API
 - Covers CQRS, types, mutations, testing
 - **Recommended for**: Learning the framework thoroughly
 
 #### ⚡ Want to See It Working Now?
+
 **[⚡ 5-Minute Quickstart](docs/quickstart.md)** - Copy, paste, run
+
 - Working API in 5 minutes
 - Minimal explanation
 - **Recommended for**: Evaluating the framework quickly
 
 #### 🧠 Prefer to Understand First?
+
 **[🧠 Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10 minute read
+
 - Conceptual overview with diagrams
 - Architecture deep dive
 - No code, just concepts
 - **Recommended for**: Architects and decision-makers
 
 #### 📖 Already Using FraiseQL?
+
 **[📖 Quick Reference](docs/reference/quick-reference.md)** - Lookup syntax and patterns
 **[📚 Full Documentation](docs/)** - Complete guides and references
 
@@ -81,6 +91,7 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 **Need help?** → See [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 **For Contributors:**
+
 ```bash
 git clone https://github.com/fraiseql/fraiseql
 cd fraiseql && make setup-dev
@@ -93,9 +104,11 @@ cd fraiseql && make setup-dev
 ## 🚀 Why FraiseQL?
 
 ### **🏛️ In PostgreSQL Everything**
+
 **One database to rule them all.** FraiseQL eliminates external dependencies by implementing caching, error tracking, and observability directly in PostgreSQL.
 
 **Cost Savings:**
+
 ```
 Traditional Stack:
 - Sentry: $300-3,000/month
@@ -108,18 +121,21 @@ FraiseQL Stack:
 ```
 
 **Operational Simplicity:**
+
 ```
 Before: FastAPI + PostgreSQL + Redis + Sentry + Grafana = 5 services
 After:  FastAPI + PostgreSQL + Grafana = 3 services
 ```
 
 **PostgreSQL-Native Stack:**
+
 - **Caching**: UNLOGGED tables (Redis-level performance, no WAL overhead)
 - **Error Tracking**: Automatic fingerprinting, grouping, notifications (like Sentry)
 - **Observability**: OpenTelemetry traces + metrics in PostgreSQL
 - **Monitoring**: Grafana dashboards querying PostgreSQL directly
 
 ### **⚡ Blazing Fast Performance**
+
 - **Automatic Persisted Queries (APQ)**: SHA-256 hash lookup with pluggable storage backends
 - **Memory & PostgreSQL storage**: In-memory for simplicity, PostgreSQL for enterprise scale
 - **JSON passthrough optimization**: Sub-millisecond cached responses (0.5-2ms for simple queries)
@@ -129,12 +145,14 @@ After:  FastAPI + PostgreSQL + Grafana = 3 services
 **[📊 Performance Guide](docs/performance/index.md)** - Methodology, realistic expectations, and benchmark details
 
 ### **🏗️ Database-First Architecture**
+
 - **CQRS by design**: Commands via PostgreSQL functions, queries via views
 - **JSONB-powered**: Flexible schema evolution with full type safety
 - **View-based queries**: `v_*` for real-time, `tv_*` for materialized performance
 - **PostgreSQL does the heavy lifting**: Joins, aggregations, transformations in-database
 
 ### **🔧 Developer Experience**
+
 - **Type-safe**: Full Python 3.13+ type hints with automatic GraphQL schema generation
 - **Automatic documentation**: Python docstrings become GraphQL descriptions in Apollo Studio
 - **One command setup**: `fraiseql init my-api && fraiseql dev`
@@ -152,11 +170,11 @@ Every GraphQL request follows this optimized path:
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
 │   GraphQL   │───▶│   FastAPI   │───▶│ PostgreSQL  │───▶│    Rust     │
-│   Query     │    │  Resolver   │    │   View      │    │ Transform   │
+│   Query     │    │  Resolver   │    │    View     │    │ Transform   │
 │             │    │             │    │             │    │             │
 │ { users {   │    │ @query      │    │ SELECT      │    │ jsonb →     │
-│   name      │    │ def users:  │    │ jsonb_build_ │    │ GraphQL     │
-│ } }         │    │   return db │    │ object     │    │ Response    │
+│   name      │    │ def users:  │    │ jsonb_build │    │ GraphQL     │
+│ } }         │    │   return db │    │ object      │    │ Response    │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
 ```
 
@@ -213,22 +231,29 @@ Your GraphQL API is live at `http://localhost:8000/graphql` 🎉
 FraiseQL uses innovative patterns that might be new if you're coming from traditional frameworks:
 
 ### **CQRS (Command Query Responsibility Segregation)**
+
 Separate reading data from writing data - like having separate lines for ordering food vs. picking it up.
+
 - **Commands** (writes): `tb_*` tables for data changes
 - **Queries** (reads): `v_*`/`tv_*` views for data access
 
 ### **JSONB Views**
+
 Pre-packaged data as JSONB objects for GraphQL - like meal kits ready to serve.
+
 - **`v_*` views**: Real-time JSONB computation
 - **`tv_*` tables**: Pre-computed JSONB for speed
 
 ### **Trinity Identifiers**
+
 Three types of identifiers per entity for different purposes:
+
 - **`pk_*`**: Internal fast joins (never exposed)
 - **`id`**: Public API identifier (UUID)
 - **`identifier`**: Human-readable slug (SEO-friendly)
 
 ### **Database-First Architecture**
+
 Design your API starting from PostgreSQL, not the other way around. Business logic lives in database functions.
 
 **[Learn more about these concepts →](docs/core/concepts-glossary.md)**
@@ -238,6 +263,7 @@ Design your API starting from PostgreSQL, not the other way around. Business log
 FraiseQL provides enterprise-grade APQ support with pluggable storage backends:
 
 ### **Storage Backends**
+
 ```python
 from fraiseql import FraiseQLConfig
 
@@ -254,12 +280,14 @@ config = FraiseQLConfig(
 ```
 
 ### **How APQ Works**
+
 1. **Client sends query hash** instead of full query
 2. **FraiseQL checks storage backend** for cached query
 3. **JSON passthrough optimization** returns results in 0.5-2ms
 4. **Fallback to normal execution** if query not found
 
 ### **Enterprise Benefits**
+
 - **85-95% cache hit rates** in production applications (99.9% for highly stable query patterns)
 - **70% bandwidth reduction** with large queries
 - **Multi-instance coordination** with PostgreSQL backend
@@ -270,6 +298,7 @@ config = FraiseQLConfig(
 ## 🎯 Core Features
 
 ### **Enterprise Security & Compliance**
+
 - **Unified Audit Logging with Cryptographic Chain**: Tamper-proof audit trails with SHA-256 hashing and HMAC signatures
 - **PostgreSQL-native crypto**: No Python overhead for event creation and verification
 - **Multi-tenant isolation**: Per-tenant cryptographic chains for SOX/HIPAA compliance
@@ -277,6 +306,7 @@ config = FraiseQLConfig(
 - **Row-level security**: PostgreSQL RLS integration for data isolation
 
 ### **Advanced Type System**
+
 Specialized operators for network types, hierarchical data, ranges, and **comprehensive nested array filtering**:
 
 ```graphql
@@ -309,6 +339,7 @@ query {
 
 **Unified Rust-First Execution**
 All queries follow the same high-performance path:
+
 ```
 PostgreSQL → Rust → HTTP (0.5-5ms response time)
 ```
@@ -318,6 +349,7 @@ PostgreSQL → Rust → HTTP (0.5-5ms response time)
 - **Zero Python Overhead**: Direct RustResponseBytes to FastAPI
 
 **Supported specialized types:**
+
 - **Network**: `IPv4`, `IPv6`, `CIDR`, `MACAddress` with subnet/range operations
 - **Hierarchical**: `LTree` with ancestor/descendant queries
 - **Temporal**: `DateRange` with overlap/containment operations
@@ -327,6 +359,7 @@ PostgreSQL → Rust → HTTP (0.5-5ms response time)
 > 📖 **[Complete Nested Array Filtering Guide →](docs/nested-array-filtering.md)**
 
 ### **Intelligent Mutations**
+
 PostgreSQL functions handle business logic with structured error handling:
 
 ```python
@@ -345,6 +378,7 @@ def create_user(input: CreateUserInput) -> Optional[User]:
 ```
 
 ### **Multi-Tenant Architecture**
+
 Built-in tenant isolation with per-tenant caching:
 
 ```python
@@ -359,6 +393,7 @@ def users() -> List[User]:
 ```
 
 ### **Table Views (tv_*)**
+
 Denormalized projection tables for instant GraphQL responses:
 
 ```sql
@@ -394,6 +429,7 @@ def user(id: int) -> User:
 ```
 
 **Benefits:**
+
 - **0.05-0.5ms database lookup time** (10-100x faster than complex JOINs for nested data)
 - **Embedded relations** (no N+1 queries)
 - **Always up-to-date** (generated columns + triggers)
@@ -402,6 +438,7 @@ def user(id: int) -> User:
 ## 📊 Performance Comparison
 
 ### Framework Comparison (Real Measurements)
+
 | Framework | Simple Query | Complex Query | Cache Hit | APQ Support |
 |-----------|-------------|---------------|-----------|-------------|
 | **FraiseQL** | **1-5ms** | **5-25ms** | **85-95%** | **Native** |
@@ -412,6 +449,7 @@ def user(id: int) -> User:
 *Test conditions: PostgreSQL 15, 10k records, standard cloud instance. See [Performance Guide](docs/performance/index.md) for methodology.*
 
 ### FraiseQL Optimization Layers
+
 | Optimization Stack | Response Time | Use Case |
 |-------------------|---------------|----------|
 | **Rust Pipeline + APQ** | **0.5-2ms** | Production applications |
@@ -439,6 +477,7 @@ FraiseQL's **Rust-first** architecture delivers exceptional performance through 
 ```
 
 ### **Key Innovations**
+
 1. **Exclusive Rust Pipeline**: PostgreSQL → Rust → HTTP (no Python overhead)
 2. **Rust Field Projection**: 7-10x faster JSON transformation than Python
 3. **Table Views**: `tv_*` tables with generated JSONB for instant queries
@@ -448,6 +487,7 @@ FraiseQL's **Rust-first** architecture delivers exceptional performance through 
 ## 🚦 When to Choose FraiseQL
 
 ### **✅ Perfect For:**
+
 - **Cost-conscious teams**: Save $300-3,000/month vs Redis + Sentry
 - **High-performance APIs**: Sub-10ms response time requirements
 - **Multi-tenant SaaS**: Per-tenant isolation and caching
@@ -457,6 +497,7 @@ FraiseQL's **Rust-first** architecture delivers exceptional performance through 
 - **Self-hosted infrastructure**: Full control, no SaaS vendor lock-in
 
 ### **❌ Consider Alternatives:**
+
 - **Simple CRUD**: Basic applications without performance requirements
 - **Non-PostgreSQL databases**: FraiseQL is PostgreSQL-specific
 - **Microservices**: Better suited for monolithic or database-per-service architectures
@@ -466,6 +507,7 @@ FraiseQL's **Rust-first** architecture delivers exceptional performance through 
 FraiseQL includes a complete observability stack built directly into PostgreSQL—eliminating the need for external services like Sentry, Redis, or third-party APM tools.
 
 ### **Error Tracking** (Alternative to Sentry)
+
 ```python
 from fraiseql.monitoring import init_error_tracker
 
@@ -482,6 +524,7 @@ await tracker.capture_exception(error, context={...})
 ```
 
 ### **Caching** (Alternative to Redis)
+
 ```python
 from fraiseql.caching import PostgresCache
 
@@ -497,6 +540,7 @@ await cache.set("key", value, ttl=3600)
 ```
 
 ### **OpenTelemetry Integration**
+
 ```python
 # All traces and metrics stored in PostgreSQL
 # Query for debugging:
@@ -506,13 +550,16 @@ WHERE error_id = 'error-123'  -- Full correlation
 ```
 
 ### **Grafana Dashboards**
+
 Pre-built dashboards included in `grafana/`:
+
 - Error monitoring dashboard
 - OpenTelemetry traces dashboard
 - Performance metrics dashboard
 - All querying PostgreSQL directly
 
 **Migration Guides**:
+
 - [v1 to v2 Migration](./docs/migration/v1-to-v2.md) - Unified Rust-first architecture
 - [Monitoring Migration](./docs/production/monitoring.md) - From Redis and Sentry
 
@@ -536,6 +583,7 @@ fraiseql sql explain <query>   # Show PostgreSQL execution plan
 ## 🤝 Contributing
 
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
 - Development setup and testing
 - Architecture decisions and patterns
 - Code style and review process
@@ -549,6 +597,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 ## 🙏 Acknowledgments
 
 FraiseQL draws inspiration from:
+
 - **[Strawberry GraphQL](https://strawberry.rocks/)** - Excellent Python GraphQL library ("Fraise" = French for strawberry)
 - **Harry Percival's "Architecture Patterns with Python"** - Clean architecture and repository patterns
 - **Eric Evans' "Domain-Driven Design"** - Database-centric domain modeling
@@ -571,11 +620,13 @@ FraiseQL is the result: database-first CQRS where PostgreSQL does what it does b
 Full disclosure: I built this while compulsively preparing for scale I didn't have. But that obsession led somewhere real—sub-millisecond responses, zero N+1 queries, and a framework that both humans and AI can understand.
 
 **Connect:**
+
 - 💼 GitHub: [@evoludigit](https://github.com/evoludigit)
-- 📧 lionel.hamayon@evolution-digitale.fr
+- 📧 <lionel.hamayon@evolution-digitale.fr>
 - 🏢 [Évolution digitale](https://evolution-digitale.fr)
 
 **Support FraiseQL:**
+
 - ⭐ Star [fraiseql/fraiseql](https://github.com/fraiseql/fraiseql)
 - 💬 Join discussions and share feedback
 - 🤝 Contribute to the project

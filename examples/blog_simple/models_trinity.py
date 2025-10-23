@@ -94,7 +94,7 @@ class Post(TrinityMixin):
     - identifier (TEXT): URL slug (post-title)
 
     Foreign Keys:
-    - pk_author (SERIAL): Fast join to users
+    - fk_author (SERIAL): Fast join to users
     """
 
     # Public Trinity IDs (exposed in GraphQL)
@@ -111,16 +111,16 @@ class Post(TrinityMixin):
     created_at: datetime
     updated_at: datetime
 
-    # Internal FK (not exposed - use pk_author internally)
-    # pk_author: int
+    # Internal FK (not exposed - use fk_author internally)
+    # fk_author: int
 
     @fraiseql.field
     async def author(self, info: GraphQLResolveInfo) -> User:
         """Post author via SERIAL FK."""
         db = info.context["db"]
         # Use SERIAL FK for fast join
-        pk_author = getattr(self, "pk_author")
-        return await db.find_one("users", pk_user=pk_author)
+        fk_author = getattr(self, "fk_author")
+        return await db.find_one("users", pk_user=fk_author)
 
     @fraiseql.field
     async def url(self, info: GraphQLResolveInfo) -> str:
@@ -152,9 +152,9 @@ class Comment(TrinityMixin):
     - id (UUID): Public API, secure
 
     Foreign Keys:
-    - pk_post (SERIAL): Fast join to posts
-    - pk_author (SERIAL): Fast join to users
-    - pk_parent (SERIAL): Fast join to parent comment
+    - fk_post (SERIAL): Fast join to posts
+    - fk_author (SERIAL): Fast join to users
+    - fk_parent (SERIAL): Fast join to parent comment
     """
 
     # Public Trinity IDs (exposed in GraphQL)
@@ -167,23 +167,23 @@ class Comment(TrinityMixin):
     updated_at: datetime
 
     # Internal FKs (not exposed - use pk_* internally)
-    # pk_post: int
-    # pk_author: int
-    # pk_parent: int | None
+    # fk_post: int
+    # fk_author: int
+    # fk_parent: int | None
 
     @fraiseql.field
     async def author(self, info: GraphQLResolveInfo) -> User:
         """Comment author via SERIAL FK."""
         db = info.context["db"]
-        pk_author = getattr(self, "pk_author")
-        return await db.find_one("users", pk_user=pk_author)
+        fk_author = getattr(self, "fk_author")
+        return await db.find_one("users", pk_user=fk_author)
 
     @fraiseql.field
     async def post(self, info: GraphQLResolveInfo) -> Post:
         """Comment's post via SERIAL FK."""
         db = info.context["db"]
-        pk_post = getattr(self, "pk_post")
-        return await db.find_one("posts", pk_post=pk_post)
+        fk_post = getattr(self, "fk_post")
+        return await db.find_one("posts", pk_post=fk_post)
 
 
 @fraiseql.type(sql_source="tags", jsonb_column=None)
@@ -257,9 +257,9 @@ class UpdatePostInput:
 class CreateCommentInput:
     """Input for creating a comment."""
 
-    post_id: UUID  # Public UUID (will be converted to pk_post)
+    post_id: UUID  # Public UUID (will be converted to fk_post)
     content: str
-    parent_id: UUID | None = None  # Public UUID (will be converted to pk_parent)
+    parent_id: UUID | None = None  # Public UUID (will be converted to fk_parent)
 
 
 @fraiseql.input
@@ -380,15 +380,16 @@ class CreatePost:
                 "slug": slug,
                 "content": self.input.content,
                 "excerpt": self.input.excerpt or self.input.content[:200],
-                "pk_author": user_pk,  # SERIAL FK (fast)
+                "fk_author": user_pk,  # SERIAL FK (fast)
                 "status": PostStatus.DRAFT.value,
             }
 
             # Insert and get pk_post
             from fraiseql.db import DatabaseQuery
+
             insert_query = DatabaseQuery(
                 """
-                INSERT INTO posts (title, slug, content, excerpt, pk_author, status)
+                INSERT INTO posts (title, slug, content, excerpt, fk_author, status)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING pk_post
                 """,
@@ -397,7 +398,7 @@ class CreatePost:
                     post_data["slug"],
                     post_data["content"],
                     post_data["excerpt"],
-                    post_data["pk_author"],
+                    post_data["fk_author"],
                     post_data["status"],
                 ],
             )
@@ -412,7 +413,7 @@ class CreatePost:
                     if tag:
                         pk_tag = getattr(tag, "pk_tag")
                         tag_query = DatabaseQuery(
-                            "INSERT INTO post_tags (pk_post, pk_tag) VALUES (%s, %s)",
+                            "INSERT INTO post_tags (fk_post, fk_tag) VALUES (%s, %s)",
                             [pk_post, pk_tag],
                         )
                         await db.run(tag_query)
