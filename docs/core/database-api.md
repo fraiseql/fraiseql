@@ -13,6 +13,28 @@ FraiseQL provides a repository layer for database operations that:
 - Provides tenant isolation
 - Returns RustResponseBytes for automatic GraphQL processing
 
+## Query Flow Architecture
+
+### Repository Query Execution
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ GraphQL     │───▶│ Repository  │───▶│ PostgreSQL  │───▶│   Rust      │
+│ Resolver    │    │  Method     │    │   View      │    │ Pipeline    │
+│             │    │             │    │             │    │             │
+│ @query      │    │ find_rust() │    │ SELECT *    │    │ Transform   │
+│ def users:  │    │             │    │ FROM v_user │    │ JSONB→GraphQL│
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+**Query Flow Steps:**
+1. **GraphQL Resolver** calls repository method with filters
+2. **Repository** builds SQL query with WHERE clauses and pagination
+3. **PostgreSQL** executes view and returns JSONB results
+4. **Rust Pipeline** transforms JSONB to GraphQL response format
+
+**[📊 Detailed Query Flow](diagrams/request-flow.md)** - Complete request lifecycle
+
 ## FraiseQLRepository
 
 Core repository class for async database operations with exclusive Rust pipeline integration.
@@ -374,7 +396,7 @@ options = QueryOptions(
 
 ## Nested Object Filtering
 
-FraiseQL v0.11.6+ supports filtering on nested objects stored in JSONB columns.
+FraiseQL v1.0.0+ supports filtering on nested objects stored in JSONB columns.
 
 ### Basic Nested Filter
 
@@ -450,7 +472,7 @@ All standard operators work with nested objects:
 
 ## Coordinate Filtering
 
-FraiseQL v0.11.6+ supports geographic coordinate filtering with PostgreSQL POINT type casting.
+FraiseQL v1.0.0+ supports geographic coordinate filtering with PostgreSQL POINT type casting.
 
 ### Basic Coordinate Equality
 

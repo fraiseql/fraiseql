@@ -17,7 +17,7 @@ Query → Mode Selection → Python Processing → Response
                              (NORMAL/PASSTHROUGH/TURBO)
 ```
 
-**After (v0.11.5+):**
+**After (v1.0.0+):**
 ```
 Query → Rust Pipeline → Response
 ```
@@ -198,7 +198,7 @@ assert len(users) > 0  # ✅ Now works
 **Problem:** Queries seem slower after migration.
 
 **Solution:** The Rust pipeline should be faster. Check:
-1. You're using FraiseQL v0.11.5+
+1. You're using FraiseQL v1.0.0+
 2. No Python post-processing of results
 3. Using `RustResponseBytes` directly with FastAPI
 
@@ -278,7 +278,7 @@ async def test_user_creation(repo):
 
 ## Validation Checklist
 
-- [ ] Updated to FraiseQL v0.11.5+
+- [ ] Updated to FraiseQL v1.0.0+
 - [ ] Removed all `ExecutionMode` references
 - [ ] Removed mode-specific configuration
 - [ ] Updated test assertions to use `extract_graphql_data`

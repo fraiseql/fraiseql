@@ -8,6 +8,21 @@ Key concepts and terminology in FraiseQL.
 
 Separating read and write operations for optimal performance:
 
+**Traditional vs FraiseQL:**
+```
+Traditional Approach:                    FraiseQL Approach:
+┌─────────────────┐                     ┌─────────────────────────────────────┐
+│   GraphQL       │                     │         GraphQL API                 │
+│   API           │                     ├──────────────────┬──────────────────┤
+├─────────┬───────┤                     │   QUERIES        │   MUTATIONS      │
+│ Query   │ Mut. │                     │   (Reads)        │   (Writes)       │
+├─────────┼───────┤                     ├──────────────────┼──────────────────┤
+│ ORM     │ ORM   │                     │  v_* views       │  fn_* functions  │
+│ Read    │ Write │                     │  tv_* tables     │  tb_* tables     │
+└─────────┴───────┘                     └──────────────────┴──────────────────┘
+Same code path                          Separate optimized paths
+```
+
 - **Commands (Writes)**: Mutations that modify data
 - **Queries (Reads)**: Queries that fetch data from optimized views
 
@@ -19,6 +34,18 @@ Separating read and write operations for optimal performance:
 ### Repository Pattern
 
 Abstraction layer for database operations:
+
+**JSONB View Pattern:**
+```
+┌─────────────┐      ┌──────────────┐      ┌─────────────┐
+│  tb_user    │  →   │   v_user     │  →   │  GraphQL    │
+│ (table)     │      │  (view)      │      │  Response   │
+│             │      │              │      │             │
+│ id: 1       │      │ SELECT       │      │ {           │
+│ name: Alice │      │ jsonb_build_ │      │   "id": 1   │
+│ email: a@b  │      │   object     │      │   "name":.. │
+└─────────────┘      └──────────────┘      └─────────────┘
+```
 
 ```python
 from fraiseql.db import FraiseQLRepository
@@ -40,12 +67,12 @@ See [Hybrid Tables Example](../../examples/hybrid_tables.py)
 Automatic batching to prevent N+1 queries:
 
 ```python
-from fraiseql import dataloader
+from fraiseql import field
 
-@fraiseql.field
-@dataloader
-async def posts(user: User, info: Info) -> List[Post]:
-    return await info.context.repo.find("posts_view", user_id=user.id)
+@field
+def posts(user: User) -> List[Post]:
+    """Get posts for user."""
+    pass  # Implementation handled by framework
 ```
 
 ## GraphQL Concepts
@@ -55,7 +82,9 @@ async def posts(user: User, info: Info) -> List[Post]:
 Define your data models:
 
 ```python
-@fraiseql.type
+from fraiseql import type
+
+@type(sql_source="v_user")
 class User:
     id: UUID
     name: str
@@ -67,9 +96,13 @@ class User:
 Read operations:
 
 ```python
-@fraiseql.query
-def get_users(info: Info) -> List[User]:
-    return info.context.repo.find("users_view")
+from fraiseql import query
+from typing import List
+
+@query
+def get_users() -> List[User]:
+    """Get all users."""
+    pass  # Implementation handled by framework
 ```
 
 ### Mutation
@@ -77,9 +110,12 @@ def get_users(info: Info) -> List[User]:
 Write operations:
 
 ```python
-@fraiseql.mutation
-async def create_user(info: Info, name: str, email: str) -> User:
-    return await info.context.repo.insert("users", {"name": name, "email": email})
+from fraiseql import mutation
+
+@mutation
+def create_user(name: str, email: str) -> User:
+    """Create a new user."""
+    pass  # Implementation handled by framework
 ```
 
 ### Connection
@@ -87,9 +123,13 @@ async def create_user(info: Info, name: str, email: str) -> User:
 Paginated results:
 
 ```python
-@fraiseql.connection
-def users(info: Info, first: int = 100) -> Connection[User]:
-    return info.context.repo.find("users_view", limit=first)
+from fraiseql import connection
+from typing import List
+
+@connection(node_type=User)
+def users(first: int = 100) -> Connection[User]:
+    """Get paginated users."""
+    pass  # Implementation handled by framework
 ```
 
 ### Field
@@ -97,9 +137,13 @@ def users(info: Info, first: int = 100) -> Connection[User]:
 Computed or related fields:
 
 ```python
-@fraiseql.field
-async def posts(user: User, info: Info) -> List[Post]:
-    return info.context.repo.find("posts_view", user_id=user.id)
+from fraiseql import field
+from typing import List
+
+@field
+def posts(user: User) -> List[Post]:
+    """Get posts for user."""
+    pass  # Implementation handled by framework
 ```
 
 ## Database Concepts
@@ -167,7 +211,9 @@ High-performance JSON processing using Rust for 10-100x speed improvement.
 Control access at the field level:
 
 ```python
-@fraiseql.field
+from fraiseql import field
+
+@field
 @requires_permission("read:sensitive")
 def sensitive_field(user: User, info: Info) -> str:
     return user.sensitive_data

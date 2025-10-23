@@ -348,7 +348,7 @@ config = FraiseQLConfig(
 )
 ```
 
-## Rust Pipeline (v0.11.5+)
+## Rust Pipeline (v1.0.0+)
 
 **v0.11.5 Architectural Change**: FraiseQL now uses an exclusive Rust pipeline for all query execution. No mode detection or conditional logic.
 
@@ -374,7 +374,7 @@ config = FraiseQLConfig(
     passthrough_detection_enabled=True,                         # ❌ Remove
 )
 
-# v0.11.5+ (NEW)
+# v1.0.0+ - Exclusive Rust pipeline
 config = FraiseQLConfig(
     database_url="postgresql://localhost/mydb",
     # ✅ Rust pipeline always active, minimal config needed

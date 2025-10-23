@@ -1,59 +1,44 @@
 # FraiseQL Documentation
 
-Welcome to the FraiseQL documentation!
+## Getting Started
 
-## Quick Links
+- [5-Minute Quickstart](quickstart.md) - Fastest way to get running
+- [First Hour Guide](FIRST_HOUR.md) - Progressive tutorial
+- [Understanding FraiseQL](UNDERSTANDING.md) - Conceptual overview
+- [Installation](../INSTALLATION.md) - Detailed setup instructions
 
-- [Quick Start Guide](quickstart.md)
-- [Performance Guide](../PERFORMANCE_GUIDE.md)
-- [Contributing Guide](../CONTRIBUTING.md)
-- [Security Policy](../SECURITY.md)
-- [Roadmap](ROADMAP.md)
+## Core Concepts
 
-## Documentation Sections
+- [Concepts & Glossary](core/concepts-glossary.md)
+- [Types and Schema](core/types-and-schema.md)
+- [Database API](core/database-api.md)
+- [Configuration](core/configuration.md)
 
-### [Core](core/)
-Core concepts, type system, queries, and mutations.
+## Advanced Features
 
-### [Performance](performance/)
-Performance optimization, benchmarks, and Rust pipeline.
+- [Authentication](advanced/authentication.md)
+- [Multi-Tenancy](advanced/multi-tenancy.md)
+- [Field-Level Authorization](advanced/authorization.md)
 
-### [Architecture](architecture/)
-System architecture, CQRS patterns, and design decisions.
+## Performance
 
-### [API Reference](api-reference/)
-Detailed API documentation for all modules.
+- [Performance Guide](performance/index.md)
+- [APQ Optimization](performance/apq-optimization-guide.md)
+- [Rust Pipeline](performance/rust-pipeline-optimization.md)
 
-### [Advanced](advanced/)
-Advanced patterns, event sourcing, and bounded contexts.
+## Reference
 
-### [Enterprise](enterprise/)
-Enterprise features, RBAC, and audit logging.
+- [Quick Reference](reference/quick-reference.md)
+- [Type Operator Architecture](architecture/type-operator-architecture.md)
+- [Configuration Reference](reference/config.md)
 
-### [Production](production/)
-Production deployment, monitoring, and scaling.
+## Development
 
-### [Development](development/)
-Development setup, testing, and contributing.
+- [Contributing](../CONTRIBUTING.md)
+- [Style Guide](development/style-guide.md)
+- [Architecture Decisions](architecture/)
 
-### [Patterns](patterns/)
-Common design patterns and best practices.
+## Troubleshooting
 
-## Migration Guides
-
-- [v0.x to v1.0](migration/v0-to-v1.md)
-- [v1.0 to v2.0](migration/v1-to-v2.md) (future)
-
-## Examples
-
-See the [examples directory](../examples/) for complete working examples.
-
-## Getting Help
-
-- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
-- [Issue Tracker](https://github.com/fraiseql/fraiseql/issues)
-- [Contributing Guide](../CONTRIBUTING.md)
-
----
-
-FraiseQL - High-performance GraphQL for PostgreSQL
+- [Common Issues](TROUBLESHOOTING.md)
+- [FAQ](FAQ.md)

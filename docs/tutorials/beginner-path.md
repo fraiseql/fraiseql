@@ -46,8 +46,11 @@ python app.py
 
 **Practice Exercise**:
 ```python
+from fraiseql import type, query
+from typing import List
+
 # Create a simple Note API
-@fraiseql.type
+@type(sql_source="v_note")
 class Note:
     id: UUID
     title: str
@@ -55,13 +58,9 @@ class Note:
     created_at: datetime
 
 @query
-async def notes(info) -> list[Note]:
-    repo = info.context["repo"]
-    results, _ = await repo.select_from_json_view(
-        tenant_id=info.context["tenant_id"],
-        view_name="v_note"
-    )
-    return [Note(**row) for row in results]
+def notes() -> List[Note]:
+    """Get all notes."""
+    pass  # Implementation handled by framework
 ```
 
 ---
@@ -127,27 +126,13 @@ $$ LANGUAGE plpgsql;
 ```
 
 ```python
+from fraiseql import mutation
+
 # Python mutation
 @mutation
-async def create_note(info, title: str, content: str) -> Note:
-    repo = info.context["repo"]
-    user_id = info.context["user_id"]
-
-    note_id = await repo.call_function(
-        "fn_create_note",
-        p_user_id=user_id,
-        p_title=title,
-        p_content=content
-    )
-
-    # Fetch and return created note
-    results, _ = await repo.select_from_json_view(
-        tenant_id=info.context["tenant_id"],
-        view_name="v_note",
-        options=QueryOptions(filters={"id": note_id})
-    )
-
-    return Note(**results[0])
+def create_note(title: str, content: str) -> Note:
+    """Create a new note."""
+    pass  # Implementation handled by framework
 ```
 
 ---
@@ -208,13 +193,15 @@ async def users(info) -> list[User]:
 
 ### ❌ Mistake 3: Not handling NULL
 ```python
+from fraiseql import type
+
 # WRONG: Crashes on NULL
-@fraiseql.type
+@type
 class User:
     bio: str  # What if bio is NULL?
 
 # CORRECT: Use | None for nullable fields
-@fraiseql.type
+@type
 class User:
     bio: str | None
 ```
@@ -235,8 +222,11 @@ class User:
 
 ### Essential Pattern
 ```python
+from fraiseql import type, query
+from typing import List
+
 # 1. Define type
-@fraiseql.type
+@type(sql_source="v_item")
 class Item:
     id: UUID
     name: str
@@ -254,13 +244,9 @@ FROM tb_item;
 
 # 3. Query
 @query
-async def items(info) -> list[Item]:
-    repo = info.context["repo"]
-    results, _ = await repo.select_from_json_view(
-        tenant_id=info.context["tenant_id"],
-        view_name="v_item"
-    )
-    return [Item(**row) for row in results]
+def items() -> List[Item]:
+    """Get all items."""
+    pass  # Implementation handled by framework
 ```
 
 ### Essential Commands

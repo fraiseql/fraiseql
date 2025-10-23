@@ -603,6 +603,9 @@ async def user(info, id: UUID) -> User | None:
 **No Manual Schema Documentation Needed:**
 
 ```python
+from fraiseql import type
+from decimal import Decimal
+
 # ✅ Good: Write docstrings once with Fields section
 @type(sql_source="v_product")
 class Product:

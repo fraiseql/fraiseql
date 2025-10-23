@@ -176,9 +176,10 @@ FROM tb_post p;
 ```python
 from datetime import datetime
 from uuid import UUID
-import fraiseql
+from fraiseql import type
+from typing import List
 
-@fraiseql.type
+@type(sql_source="v_user")
 class User:
     id: UUID
     email: str
@@ -187,28 +188,28 @@ class User:
     avatar_url: str | None
     created_at: datetime
 
-@fraiseql.type
+@type(sql_source="v_comment")
 class Comment:
     id: UUID
     content: str
     created_at: datetime
     author: User
     post: "Post"
-    replies: list["Comment"]
+    replies: List["Comment"]
 
-@fraiseql.type
+@type(sql_source="v_post")
 class Post:
     id: UUID
     title: str
     slug: str
     content: str
     excerpt: str | None
-    tags: list[str]
+    tags: List[str]
     is_published: bool
     published_at: datetime | None
     created_at: datetime
     author: User
-    comments: list[Comment]
+    comments: List[Comment]
 ```
 
 ## Queries
@@ -216,51 +217,21 @@ class Post:
 ```python
 from uuid import UUID
 from fraiseql import query
-from fraiseql.db import PsycopgRepository, QueryOptions
-from fraiseql.db.pagination import PaginationInput, OrderByInstructions, OrderByInstruction, OrderDirection
+from typing import List, Optional
 
 @query
-async def get_post(info, id: UUID) -> Post | None:
+def get_post(id: UUID) -> Optional[Post]:
     """Get single post with all nested data."""
-    repo: PsycopgRepository = info.context["repo"]
-    tenant_id = info.context["tenant_id"]
-
-    results, _ = await repo.select_from_json_view(
-        tenant_id=tenant_id,
-        view_name="v_post_full",
-        options=QueryOptions(filters={"id": id})
-    )
-
-    return Post(**results[0]) if results else None
+    pass  # Implementation handled by framework
 
 @query
-async def get_posts(
-    info,
-    is_published: bool | None = None,
+def get_posts(
+    is_published: Optional[bool] = None,
     limit: int = 20,
     offset: int = 0
-) -> list[Post]:
+) -> List[Post]:
     """List posts with filtering and pagination."""
-    repo: PsycopgRepository = info.context["repo"]
-    tenant_id = info.context["tenant_id"]
-
-    filters = {}
-    if is_published is not None:
-        filters["is_published"] = is_published
-
-    results, total = await repo.select_from_json_view(
-        tenant_id=tenant_id,
-        view_name="v_post",
-        options=QueryOptions(
-            filters=filters,
-            pagination=PaginationInput(limit=limit, offset=offset),
-            order_by=OrderByInstructions(instructions=[
-                OrderByInstruction(field="created_at", direction=OrderDirection.DESC)
-            ])
-        )
-    )
-
-    return [Post(**row) for row in results]
+    pass  # Implementation handled by framework
 ```
 
 ## Mutations
@@ -350,66 +321,31 @@ $$ LANGUAGE plpgsql;
 
 ```python
 from fraiseql import mutation, input
+from typing import List, Optional
 
 @input
 class CreatePostInput:
     title: str
     content: str
-    excerpt: str | None = None
-    tags: list[str] | None = None
+    excerpt: Optional[str] = None
+    tags: Optional[List[str]] = None
     is_published: bool = False
 
 @input
 class CreateCommentInput:
     post_id: UUID
     content: str
-    parent_id: UUID | None = None
+    parent_id: Optional[UUID] = None
 
 @mutation
-async def create_post(info, input: CreatePostInput) -> Post:
+def create_post(input: CreatePostInput) -> Post:
     """Create new blog post."""
-    repo: PsycopgRepository = info.context["repo"]
-    user_id = info.context["user_id"]
-
-    # Call PostgreSQL function
-    post_id = await repo.call_function(
-        "fn_create_post",
-        p_author_id=user_id,
-        p_title=input.title,
-        p_content=input.content,
-        p_excerpt=input.excerpt,
-        p_tags=input.tags or [],
-        p_is_published=input.is_published
-    )
-
-    # Fetch created post
-    post = await get_post(info, id=post_id)
-    return post
+    pass  # Implementation handled by framework
 
 @mutation
-async def create_comment(info, input: CreateCommentInput) -> Comment:
+def create_comment(input: CreateCommentInput) -> Comment:
     """Add comment to post."""
-    repo: PsycopgRepository = info.context["repo"]
-    user_id = info.context["user_id"]
-    tenant_id = info.context["tenant_id"]
-
-    # Call PostgreSQL function
-    comment_id = await repo.call_function(
-        "fn_create_comment",
-        p_author_id=user_id,
-        p_post_id=input.post_id,
-        p_content=input.content,
-        p_parent_id=input.parent_id
-    )
-
-    # Fetch created comment
-    results, _ = await repo.select_from_json_view(
-        tenant_id=tenant_id,
-        view_name="v_comment",
-        options=QueryOptions(filters={"id": comment_id})
-    )
-
-    return Comment(**results[0])
+    pass  # Implementation handled by framework
 ```
 
 ## Application Setup

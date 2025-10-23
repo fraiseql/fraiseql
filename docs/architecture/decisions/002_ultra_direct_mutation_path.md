@@ -712,6 +712,7 @@ Developers don't need to change anything:
 
 ```python
 # mutations.py (UNCHANGED)
+from fraiseql import mutation
 
 @mutation(function="app.delete_customer")
 class DeleteCustomer:

@@ -47,30 +47,46 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 - Prefer traditional ORM approaches
 - Building simple CRUD APIs (consider REST)
 
-### **🎯 Quick Start by Experience:**
+### **🏁 Choose Your Path**
 
-**Beginners** (new to GraphQL/Python/PostgreSQL):
-```bash
-fraiseql init my-api
-cd my-api && fraiseql run
-```
-→ Working API in 5 minutes
+**Prerequisites**: Python 3.13+, PostgreSQL 13+
 
-**Production Teams** (experienced developers):
-```bash
-pip install fraiseql[enterprise]
-cd examples/ecommerce/
-```
-→ Enterprise features & performance
+#### 🆕 Brand New to FraiseQL?
+**[📚 First Hour Guide](docs/FIRST_HOUR.md)** - 60 minutes, hands-on
+- Progressive tutorial from zero to production
+- Builds complete blog API
+- Covers CQRS, types, mutations, testing
+- **Recommended for**: Learning the framework thoroughly
 
-**Contributors** (framework developers):
+#### ⚡ Want to See It Working Now?
+**[⚡ 5-Minute Quickstart](docs/quickstart.md)** - Copy, paste, run
+- Working API in 5 minutes
+- Minimal explanation
+- **Recommended for**: Evaluating the framework quickly
+
+#### 🧠 Prefer to Understand First?
+**[🧠 Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10 minute read
+- Conceptual overview with diagrams
+- Architecture deep dive
+- No code, just concepts
+- **Recommended for**: Architects and decision-makers
+
+#### 📖 Already Using FraiseQL?
+**[📖 Quick Reference](docs/reference/quick-reference.md)** - Lookup syntax and patterns
+**[📚 Full Documentation](docs/)** - Complete guides and references
+
+---
+
+**New here?** → Start with [First Hour Guide](docs/FIRST_HOUR.md)
+**Need help?** → See [Troubleshooting](docs/TROUBLESHOOTING.md)
+
+**For Contributors:**
 ```bash
 git clone https://github.com/fraiseql/fraiseql
 cd fraiseql && make setup-dev
 ```
-→ Start contributing
 
-**Learn more:** [Audiences Guide](AUDIENCES.md) • [Quickstart](docs/quickstart.md)
+**Learn more:** [Audiences Guide](AUDIENCES.md) • [Getting Started](GETTING_STARTED.md)
 
 ---
 
@@ -110,7 +126,7 @@ After:  FastAPI + PostgreSQL + Grafana = 3 services
 - **Pre-compiled queries**: TurboRouter with intelligent caching (2-4x faster than standard GraphQL)
 - **Real production benchmarks**: 85-95% cache hit rate for stable query patterns
 
-**[📊 Performance Guide](PERFORMANCE_GUIDE.md)** - Methodology, realistic expectations, and benchmark details
+**[📊 Performance Guide](docs/performance/index.md)** - Methodology, realistic expectations, and benchmark details
 
 ### **🏗️ Database-First Architecture**
 - **CQRS by design**: Commands via PostgreSQL functions, queries via views
@@ -125,6 +141,51 @@ After:  FastAPI + PostgreSQL + Grafana = 3 services
 - **Intelligent WHERE clauses**: Automatic type-aware SQL optimization for network types, dates, and more
 - **Hybrid table support**: Seamless filtering across regular columns and JSONB fields
 - **Built-in security**: Field-level authorization, rate limiting, CSRF protection
+
+## 🔄 How It Works
+
+### **Request Flow: GraphQL → PostgreSQL → Rust → Response**
+
+Every GraphQL request follows this optimized path:
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   GraphQL   │───▶│   FastAPI   │───▶│ PostgreSQL  │───▶│    Rust     │
+│   Query     │    │  Resolver   │    │   View      │    │ Transform   │
+│             │    │             │    │             │    │             │
+│ { users {   │    │ @query      │    │ SELECT      │    │ jsonb →     │
+│   name      │    │ def users:  │    │ jsonb_build_ │    │ GraphQL     │
+│ } }         │    │   return db │    │ object     │    │ Response    │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+1. **GraphQL Query** arrives at FastAPI
+2. **Python Resolver** calls PostgreSQL view/function
+3. **Database** returns pre-composed JSONB
+4. **Rust Pipeline** transforms to GraphQL response
+
+**[📊 Detailed Request Flow Diagram](docs/diagrams/request-flow.md)** - Complete lifecycle with examples
+**[Deep dive: Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10-minute visual guide to the architecture
+
+### **CQRS Pattern: Reads vs Writes**
+
+FraiseQL implements **Command Query Responsibility Segregation**:
+
+```
+┌─────────────────────────────────────┐
+│         GraphQL API                 │
+├──────────────────┬──────────────────┤
+│   QUERIES        │   MUTATIONS      │
+│   (Reads)        │   (Writes)       │
+├──────────────────┼──────────────────┤
+│  v_* views       │  fn_* functions  │
+│  tv_* tables     │  tb_* tables     │
+└──────────────────┴──────────────────┘
+```
+
+**Queries** use views for fast, fresh data. **Mutations** use functions for business logic.
+
+**[🔄 CQRS Pattern Details](docs/diagrams/cqrs-pattern.md)** - Read vs write separation explained
 
 ## 🏁 Quick Start
 
@@ -177,6 +238,8 @@ FraiseQL provides enterprise-grade APQ support with pluggable storage backends:
 
 ### **Storage Backends**
 ```python
+from fraiseql import FraiseQLConfig
+
 # Memory backend (default - zero configuration)
 config = FraiseQLConfig(
     apq_storage_backend="memory"  # Perfect for development & simple apps
@@ -200,6 +263,8 @@ config = FraiseQLConfig(
 - **70% bandwidth reduction** with large queries
 - **Multi-instance coordination** with PostgreSQL backend
 - **Automatic cache warming** for frequently used queries
+
+**[⚡ APQ Cache Flow Details](docs/diagrams/apq-cache-flow.md)** - How persisted queries work
 
 ## 🎯 Core Features
 
@@ -247,43 +312,36 @@ PostgreSQL → Rust → HTTP (0.5-5ms response time)
 PostgreSQL functions handle business logic with structured error handling:
 
 ```python
-@fraiseql.input
+from fraiseql import input, mutation
+from typing import Optional
+
+@input
 class CreateUserInput:
     name: str
-    email: EmailAddress
+    email: str  # Email validation handled by PostgreSQL
 
-class CreateUserSuccess:
-    user: User
-    message: str = "User created successfully"
-
-class CreateUserError:
-    message: str
-    error_code: str
-
-class CreateUser(
-    FraiseQLMutation,
-    function="fn_create_user",  # PostgreSQL function
-    validation_strict=True
-):
-    input: CreateUserInput
-    success: CreateUserSuccess
-    failure: CreateUserError
+@mutation
+def create_user(input: CreateUserInput) -> Optional[User]:
+    """Create a new user."""
+    pass  # Implementation handled by framework
 ```
 
 ### **Multi-Tenant Architecture**
 Built-in tenant isolation with per-tenant caching:
 
 ```python
+from fraiseql import query
+from typing import List
+
 # Automatic tenant context
-@fraiseql.query
-async def users(info) -> list[User]:
-    repo = info.context["repo"]
-    tenant_id = info.context["tenant_id"]  # Auto-injected
-    return await repo.find("v_user", tenant_id=tenant_id)
+@query
+def users() -> List[User]:
+    """Get all users for current tenant."""
+    pass  # Implementation handled by framework
 ```
 
-### **Transform Tables (tv_*)**
-Pre-computed JSONB tables for instant GraphQL responses:
+### **Table Views (tv_*)**
+Denormalized projection tables for instant GraphQL responses:
 
 ```sql
 -- Transform table (actually a TABLE, not a view!)
@@ -300,18 +358,21 @@ CREATE TABLE tv_user (
 ```
 
 ```python
+from fraiseql import type, query
+from typing import List
+
 # Type definition
-@fraiseql.type(sql_source="tv_user", jsonb_column="data")
+@type(sql_source="tv_user", jsonb_column="data")
 class User:
     id: int
     first_name: str      # Rust transforms to firstName
-    user_posts: list[Post]  # Embedded relations!
+    user_posts: List[Post]  # Embedded relations!
 
 # Query (0.05ms lookup + 0.5ms Rust transform)
-@fraiseql.query
-async def user(info, id: int) -> User:
-    repo = info.context["repo"]
-    return await repo.find("tv_user", "user", info, id=id)
+@query
+def user(id: int) -> User:
+    """Get user by ID."""
+    pass  # Implementation handled by framework
 ```
 
 **Benefits:**
@@ -330,7 +391,7 @@ async def user(info, id: int) -> User:
 | Strawberry | 100-200ms | 300-600ms | External | Manual |
 | Hasura | 25-75ms | 150-300ms | External | Limited |
 
-*Test conditions: PostgreSQL 15, 10k records, standard cloud instance. See [Performance Guide](PERFORMANCE_GUIDE.md) for methodology.*
+*Test conditions: PostgreSQL 15, 10k records, standard cloud instance. See [Performance Guide](docs/performance/index.md) for methodology.*
 
 ### FraiseQL Optimization Layers
 | Optimization Stack | Response Time | Use Case |
@@ -362,7 +423,7 @@ FraiseQL's **Rust-first** architecture delivers exceptional performance through 
 ### **Key Innovations**
 1. **Exclusive Rust Pipeline**: PostgreSQL → Rust → HTTP (no Python overhead)
 2. **Rust Field Projection**: 7-10x faster JSON transformation than Python
-3. **Transform Tables**: `tv_*` tables with generated JSONB for instant queries
+3. **Table Views**: `tv_*` tables with generated JSONB for instant queries
 4. **APQ Storage Abstraction**: Pluggable backends (Memory/PostgreSQL) for query hash storage
 5. **Zero-Copy Path**: Sub-millisecond responses with zero Python serialization
 

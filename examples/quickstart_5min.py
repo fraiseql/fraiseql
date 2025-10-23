@@ -1,106 +1,121 @@
-# Quick Start Guide
+"""
 
-Get started with FraiseQL in 5 minutes! This guide will walk you through creating a simple note-taking GraphQL API.
+5-Minute Quickstart Example
 
-## Prerequisites
+This is the complete code from the 5-minute quickstart guide.
 
-- Python 3.8+
-- PostgreSQL database
+Setup instructions:
 
-## Step 1: Install FraiseQL
+1. Install FraiseQL: pip install fraiseql
 
-```bash
-pip install fraiseql[all]
-```
+2. Create database: createdb quickstart_notes
 
-## Step 2: Create Database
+3. Run schema: psql quickstart_notes < quickstart_5min_schema.sql
 
-Create a PostgreSQL database for your notes:
+4. Run this file: python quickstart_5min.py
 
-```bash
-createdb quickstart_notes
-```
-
-## Step 3: Set Up Database Schema
-
-Create a file called `schema.sql` with this content:
+Database Schema:
 
 ```sql
+
 -- Simple notes table
+
 CREATE TABLE tb_note (
+
     id SERIAL PRIMARY KEY,
+
     title VARCHAR(200) NOT NULL,
+
     content TEXT,
+
     created_at TIMESTAMP DEFAULT NOW()
+
 );
 
 -- Notes view for GraphQL queries
+
 CREATE VIEW v_note AS
+
 SELECT
+
     id,
+
     jsonb_build_object(
+
         'id', id,
+
         'title', title,
+
         'content', content,
+
         'created_at', created_at
+
     ) AS data
+
 FROM tb_note;
 
 -- Sample data
+
 INSERT INTO tb_note (title, content) VALUES
+
     ('Welcome to FraiseQL', 'This is your first note!'),
+
     ('GraphQL is awesome', 'Queries and mutations made simple'),
+
     ('Database-first design', 'Views compose data for optimal performance');
+
 ```
 
-Run the schema:
+"""
 
-```bash
-psql quickstart_notes < schema.sql
-```
-
-## Step 4: Create Your GraphQL API
-
-Create a file called `app.py` with this complete code:
-
-```python
 from datetime import datetime
 from typing import List, Optional
+
 import uvicorn
-from fraiseql import type, query, mutation, input, success, failure
+
+import fraiseql
 from fraiseql.fastapi import create_fraiseql_app
 
+
 # Define GraphQL types
-@type(sql_source="v_note", jsonb_column="data")
+@fraiseql.type(sql_source="v_note", jsonb_column="data")
 class Note:
     """A simple note with title and content."""
+
     id: int
     title: str
     content: Optional[str]
     created_at: datetime
 
+
 # Define input types
-@input
+@fraiseql.input
 class CreateNoteInput:
     """Input for creating a new note."""
+
     title: str
     content: Optional[str] = None
 
+
 # Define success/failure types
-@success
+@fraiseql.success
 class CreateNoteSuccess:
     """Success response for note creation."""
+
     note: Note
     message: str = "Note created successfully"
 
-@failure
+
+@fraiseql.failure
 class ValidationError:
     """Validation error."""
+
     message: str
     code: str = "VALIDATION_ERROR"
 
+
 # Queries
-@query
+@fraiseql.query
 async def notes(info) -> List[Note]:
     """Get all notes."""
     db = info.context["db"]
@@ -112,7 +127,8 @@ async def notes(info) -> List[Note]:
     result = await db.run(query)
     return [Note(**row["data"]) for row in result]
 
-@query
+
+@fraiseql.query
 async def note(info, id: int) -> Optional[Note]:
     """Get a single note by ID."""
     db = info.context["db"]
@@ -124,10 +140,12 @@ async def note(info, id: int) -> Optional[Note]:
         return Note(**result[0]["data"])
     return None
 
+
 # Mutations
-@mutation
+@fraiseql.mutation
 class CreateNote:
     """Create a new note."""
+
     input: CreateNoteInput
     success: CreateNoteSuccess
     failure: ValidationError
@@ -144,6 +162,7 @@ class CreateNote:
 
             # Get the created note from the view
             from fraiseql.db import DatabaseQuery
+
             query = DatabaseQuery(
                 "SELECT data FROM v_note WHERE (data->>'id')::int = %s", [result["id"]]
             )
@@ -157,15 +176,18 @@ class CreateNote:
         except Exception as e:
             return ValidationError(message=f"Failed to create note: {e!s}")
 
-# Create the app
+
+# Collect types, queries, and mutations for app creation
 QUICKSTART_TYPES = [Note]
 QUICKSTART_QUERIES = [notes, note]
 QUICKSTART_MUTATIONS = [CreateNote]
 
+
+# Create and run the app
 if __name__ == "__main__":
     import os
 
-    # Database URL (override with DATABASE_URL environment variable)
+    # Allow database URL to be overridden via environment variable
     database_url = os.getenv("DATABASE_URL", "postgresql://localhost/quickstart_notes")
 
     app = create_fraiseql_app(
@@ -182,87 +204,3 @@ if __name__ == "__main__":
     print("📖 GraphQL Playground: http://localhost:8000/graphql")
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
-```
-
-## Step 5: Run Your API
-
-```bash
-python app.py
-```
-
-Visit `http://localhost:8000/graphql` to open the GraphQL Playground!
-
-## Step 6: Try Your First Queries
-
-### Get all notes:
-```graphql
-query {
-  notes {
-    id
-    title
-    content
-    createdAt
-  }
-}
-```
-
-### Get a specific note:
-```graphql
-query {
-  note(id: 1) {
-    id
-    title
-    content
-    createdAt
-  }
-}
-```
-
-### Create a new note:
-```graphql
-mutation {
-  createNote(input: { title: "My New Note", content: "This is awesome!" }) {
-    ... on CreateNoteSuccess {
-      note {
-        id
-        title
-        content
-        createdAt
-      }
-      message
-    }
-    ... on ValidationError {
-      message
-      code
-    }
-  }
-}
-```
-
-## What Just Happened?
-
-🎉 **Congratulations!** You just built a complete GraphQL API with:
-
-- **Database Schema**: PostgreSQL table and JSONB view
-- **GraphQL Types**: Note type with proper typing
-- **Queries**: Get all notes and get note by ID
-- **Mutations**: Create new notes with success/failure handling
-- **FastAPI Integration**: Ready-to-deploy web server
-
-## Next Steps
-
-- [Understanding FraiseQL](../docs/UNDERSTANDING.md) - Learn the architecture
-- [First Hour Guide](../docs/FIRST_HOUR.md) - Progressive tutorial
-- [Troubleshooting](../docs/TROUBLESHOOTING.md) - Common issues and solutions
-- [Examples](../examples/) - More complete examples
-- [Style Guide](../docs/STYLE_GUIDE.md) - Best practices
-
-## Need Help?
-
-- [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
-- [Documentation](https://docs.fraiseql.com)
-- [Troubleshooting Guide](../docs/TROUBLESHOOTING.md)
-
----
-
-Ready to build something amazing? Let's go! 🚀

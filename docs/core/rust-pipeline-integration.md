@@ -4,7 +4,7 @@ This guide explains how FraiseQL's Python code integrates with the Rust pipeline
 
 ## Overview
 
-FraiseQL is primarily a Python framework (GraphQL schema, resolvers, database queries) with a **Rust performance layer** for JSON transformation.
+FraiseQL's architecture separates responsibilities: Python handles GraphQL schema, resolvers, and PostgreSQL queries, while an **exclusive Rust pipeline** handles all JSON transformation, field projection, and HTTP response generation. Every query flows through the Rust pipeline—there is no fallback or mode detection.
 
 ```
 ┌─────────────────────────────────────────────┐
