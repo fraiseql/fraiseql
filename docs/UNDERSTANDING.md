@@ -179,7 +179,7 @@ FraiseQL implements **Command Query Responsibility Segregation**:
 └──────────────────┴──────────────────┘
 ```
 
-**Queries** (reads) use views for fast, fresh data.
+**Queries** (reads) use read-optimized tables/views for fast, fresh data.
 **Mutations** (writes) use functions for business logic and data integrity.
 
 ## Development Workflow

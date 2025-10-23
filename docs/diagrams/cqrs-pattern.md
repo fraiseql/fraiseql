@@ -26,12 +26,12 @@ FraiseQL implements the Command Query Responsibility Segregation (CQRS) pattern 
 
 ### Query Path (Reads)
 ```
-GraphQL Query ──▶ v_* JSONB View ──▶ Direct Result
+GraphQL Query ──▶ tv_* JSONB Table ──▶ Direct Result
                      │
                      ▼
-               PostgreSQL View
+               PostgreSQL Table
+               - Generated JSONB columns
                - Pre-computed joins
-               - JSONB aggregation
                - Optimized for reads
 ```
 
@@ -57,17 +57,17 @@ graph TD
     end
 
     subgraph "Database Layer"
-        RQ --> V[v_* Views<br/>JSONB Results]
+        RQ --> TV[tv_* Tables<br/>JSONB Results]
         CQ --> F[fn_* Functions<br/>Business Logic]
         F --> T[tb_* Tables<br/>Normalized Data]
     end
 
-    V --> R[Fast Response]
+    TV --> R[Fast Response]
     T --> R
 
     style Q fill:#e3f2fd
     style M fill:#fce4ec
-    style V fill:#e8f5e8
+    style TV fill:#e8f5e8
     style F fill:#fff3e0
     style T fill:#f3e5f5
 ```
@@ -249,7 +249,7 @@ User → ORM → SQL → Database → ORM → User
 
 ### After (CQRS)
 ```
-User → GraphQL → v_* View → JSONB → Response
+User → GraphQL → tv_* Table → JSONB → Response
 User → GraphQL → fn_* Function → Transaction → Success
 ```
 
