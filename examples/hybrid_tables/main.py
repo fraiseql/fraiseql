@@ -1,14 +1,11 @@
-"""Hybrid Table Optimization Example for FraiseQL.
+"""Hybrid Table Filtering Example for FraiseQL.
 
-This example demonstrates how to combine indexed SQL columns with JSONB
-for optimal performance and flexibility.
+This example demonstrates the hybrid filtering pattern where:
+- **tv_* tables**: Contain JSONB data for fast GraphQL queries (0.05-0.5ms)
+- **Dedicated SQL columns**: Provide indexed filtering capabilities
+- **Hybrid filtering**: Filter using SQL columns, return JSONB data
 
-Strategy:
-- **Indexed columns**: For frequently filtered/sorted fields (IDs, foreign keys, status, dates)
-- **JSONB data**: For flexible metadata, nested objects, dynamic fields
-
-PostgreSQL's query planner automatically uses indexes when available,
-giving you 10-100x performance improvements on large datasets.
+The "hybrid" aspect is filtering using SQL columns while querying JSONB data.
 """
 
 from dataclasses import dataclass
@@ -22,20 +19,22 @@ from fraiseql import FraiseQL
 app = FraiseQL(database_url="postgresql://localhost/ecommerce")
 
 
-@app.type
+@app.type(sql_source="tv_products", jsonb_column="data")
 @dataclass
 class Product:
-    """E-commerce product with hybrid storage.
+    """E-commerce product with hybrid filtering.
 
-    Performance-critical fields (category_id, price, is_active) are indexed.
-    Flexible metadata (specifications, images, tags) stored in JSONB.
+    Uses tv_products table with:
+    - Dedicated SQL columns for filtering (category_id, price, is_active)
+    - JSONB data column for complete GraphQL responses
     """
 
-    id: int
-    """Product ID - Primary key (B-tree indexed)"""
+    id: str  # UUID from tv_products.id
+    """GraphQL ID - Primary key for queries"""
 
+    # Fields from dedicated SQL columns (for filtering)
     category_id: int
-    """Category foreign key - Indexed for fast filtering"""
+    """Category ID - Indexed for fast filtering"""
 
     is_active: bool
     """Active status - Partial index for active products"""
@@ -43,7 +42,10 @@ class Product:
     price: Decimal
     """Price - Indexed for range queries and sorting"""
 
-    # JSONB fields (flexible schema)
+    created_at: datetime
+    """Creation timestamp - Indexed for sorting"""
+
+    # Fields from JSONB data (complete response data)
     name: str
     """Product name from JSONB"""
 
@@ -67,12 +69,6 @@ class Product:
 
     metadata: dict
     """Additional flexible metadata"""
-
-    created_at: datetime
-    """Creation timestamp - Indexed for sorting"""
-
-    updated_at: datetime
-    """Last update timestamp"""
 
 
 @app.type
@@ -116,6 +112,7 @@ class Order:
 # GraphQL Queries - Demonstrating Performance
 # =============================================================================
 
+
 @app.query
 async def products(
     info,
@@ -125,7 +122,7 @@ async def products(
     max_price: Optional[Decimal] = None,
     brand: Optional[str] = None,
     limit: int = 20,
-    offset: int = 0
+    offset: int = 0,
 ) -> list[Product]:
     """Query products with hybrid filtering.
 
@@ -162,10 +159,12 @@ async def products(
         ```
     """
     db = info.context["db"]
-    filters = {"is_active": is_active}
+    filters = {}
 
     if category_id is not None:
         filters["category_id"] = category_id
+    if is_active is not None:
+        filters["is_active"] = is_active
     if min_price is not None:
         filters["price__gte"] = min_price
     if max_price is not None:
@@ -174,11 +173,11 @@ async def products(
         # JSONB path search
         filters["data__brand"] = brand
 
-    return await db.find("v_products", limit=limit, offset=offset, **filters)
+    return await db.find("tv_products", limit=limit, offset=offset, **filters)
 
 
 @app.query
-async def expensive_products(info, min_price: Decimal = 1000) -> list[Product]:
+async def expensive_products(info, min_price: Decimal = Decimal("1000")) -> list[Product]:
     """Find expensive products using indexed price column.
 
     **Performance:**
@@ -198,7 +197,7 @@ async def expensive_products(info, min_price: Decimal = 1000) -> list[Product]:
         ```
     """
     db = info.context["db"]
-    return await db.find("v_products", price__gte=min_price, is_active=True)
+    return await db.find("tv_products", price__gte=min_price, is_active=True)
 
 
 @app.query
@@ -209,7 +208,7 @@ async def orders(
     min_amount: Optional[Decimal] = None,
     from_date: Optional[datetime] = None,
     limit: int = 20,
-    offset: int = 0
+    offset: int = 0,
 ) -> list[Order]:
     """Query orders with hybrid filtering.
 
@@ -249,140 +248,75 @@ async def orders(
     if from_date:
         filters["created_at__gte"] = from_date
 
-    return await db.find("v_orders", limit=limit, offset=offset, order_by="-created_at", **filters)
+    return await db.find("tv_orders", limit=limit, offset=offset, order_by="-created_at", **filters)
 
 
 # =============================================================================
-# Database Schema - Hybrid Table Pattern
+# Database Schema - Hybrid Filtering Pattern
 # =============================================================================
 """
--- Products table: Indexed columns + JSONB data
+-- Base table: Normalized data with constraints
 CREATE TABLE tb_products (
-    -- Indexed columns for performance-critical operations
-    id SERIAL PRIMARY KEY,
+    pk_product SERIAL PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     category_id INT NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT true,
     price DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-
-    -- JSONB column for flexible data
-    data JSONB NOT NULL DEFAULT '{}'::jsonb,
-
-    -- Foreign key constraint
+    name TEXT NOT NULL,
+    description TEXT,
+    sku TEXT UNIQUE,
     CONSTRAINT fk_category FOREIGN KEY (category_id) REFERENCES tb_categories(id)
 );
 
--- Performance indexes
-CREATE INDEX idx_products_category ON tb_products(category_id);
-CREATE INDEX idx_products_price ON tb_products(price);
-CREATE INDEX idx_products_created ON tb_products(created_at DESC);
-
--- Partial index: Only index active products
-CREATE INDEX idx_products_active ON tb_products(is_active) WHERE is_active = true;
-
--- JSONB indexes for flexible querying
-CREATE INDEX idx_products_data_brand ON tb_products USING btree ((data->>'brand'));
-CREATE INDEX idx_products_data_gin ON tb_products USING gin (data);  -- Full JSONB search
-
--- View that exposes both indexed columns and JSONB fields
-CREATE VIEW v_products AS
-SELECT
-    id,
-    category_id,
-    is_active,
-    price,
-    data->>'name' as name,
-    data->>'description' as description,
-    data->>'sku' as sku,
-    data->>'brand' as brand,
-    data->'specifications' as specifications,
-    data->'images' as images,
-    data->'tags' as tags,
-    data->'metadata' as metadata,
-    created_at,
-    updated_at,
-    jsonb_build_object(
-        'id', id,
-        'categoryId', category_id,
-        'isActive', is_active,
-        'price', price,
-        'name', data->>'name',
-        'description', data->>'description',
-        'sku', data->>'sku',
-        'brand', data->>'brand',
-        'specifications', data->'specifications',
-        'images', data->'images',
-        'tags', data->'tags',
-        'metadata', data->'metadata',
-        'createdAt', created_at,
-        'updatedAt', updated_at
-    ) as data  -- For JSON passthrough
-FROM tb_products;
-
--- Orders table
-CREATE TABLE tb_orders (
-    id SERIAL PRIMARY KEY,
-    customer_id INT NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    total_amount DECIMAL(10,2) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-
-    -- JSONB for flexible order data
-    data JSONB NOT NULL DEFAULT '{}'::jsonb,
-
-    CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES tb_customers(id)
+-- Query table: Hybrid filtering with dedicated columns + JSONB data
+CREATE TABLE tv_products (
+    id UUID PRIMARY KEY,  -- GraphQL identifier
+    category_id INT NOT NULL,  -- Dedicated column for filtering
+    is_active BOOLEAN NOT NULL DEFAULT true,  -- Dedicated column for filtering
+    price DECIMAL(10,2) NOT NULL,  -- Dedicated column for filtering
+    created_at TIMESTAMP NOT NULL,  -- Dedicated column for filtering
+    data JSONB NOT NULL  -- Complete JSONB data for GraphQL responses
 );
 
--- Performance indexes
-CREATE INDEX idx_orders_customer ON tb_orders(customer_id);
-CREATE INDEX idx_orders_status ON tb_orders(status);
-CREATE INDEX idx_orders_amount ON tb_orders(total_amount);
-CREATE INDEX idx_orders_created ON tb_orders(created_at DESC);
+-- Performance indexes for filtering
+CREATE INDEX idx_tv_products_category ON tv_products(category_id);
+CREATE INDEX idx_tv_products_price ON tv_products(price);
+CREATE INDEX idx_tv_products_created ON tv_products(created_at DESC);
+CREATE INDEX idx_tv_products_active ON tv_products(is_active) WHERE is_active = true;
+CREATE INDEX idx_tv_products_category_price ON tv_products(category_id, price);
 
--- Composite index for common query pattern
-CREATE INDEX idx_orders_customer_status ON tb_orders(customer_id, status);
+-- Orders query table: Hybrid filtering
+CREATE TABLE tv_orders (
+    id UUID PRIMARY KEY,  -- GraphQL identifier
+    customer_id UUID NOT NULL,  -- Dedicated column for filtering
+    status VARCHAR(50) NOT NULL,  -- Dedicated column for filtering
+    total_amount DECIMAL(10,2) NOT NULL,  -- Dedicated column for filtering
+    created_at TIMESTAMP NOT NULL,  -- Dedicated column for filtering
+    data JSONB NOT NULL  -- Complete JSONB data for GraphQL responses
+);
 
--- Orders view
-CREATE VIEW v_orders AS
-SELECT
-    id,
-    customer_id,
-    status,
-    total_amount,
-    created_at,
-    data->'shipping_address' as shipping_address,
-    data->'billing_address' as billing_address,
-    data->'items' as items,
-    data->'payment_method' as payment_method,
-    data->>'notes' as notes,
-    jsonb_build_object(
-        'id', id,
-        'customerId', customer_id,
-        'status', status,
-        'totalAmount', total_amount,
-        'shippingAddress', data->'shipping_address',
-        'billingAddress', data->'billing_address',
-        'items', data->'items',
-        'paymentMethod', data->'payment_method',
-        'notes', data->>'notes',
-        'createdAt', created_at
-    ) as data
-FROM tb_orders;
+-- Performance indexes for filtering
+CREATE INDEX idx_tv_orders_customer ON tv_orders(customer_id);
+CREATE INDEX idx_tv_orders_status ON tv_orders(status);
+CREATE INDEX idx_tv_orders_amount ON tv_orders(total_amount);
+CREATE INDEX idx_tv_orders_created ON tv_orders(created_at DESC);
+CREATE INDEX idx_tv_orders_customer_status ON tv_orders(customer_id, status);
 
 -- Performance comparison queries
 
--- FAST: Uses indexed columns
--- EXPLAIN ANALYZE SELECT * FROM v_products WHERE category_id = 5 AND price >= 10 AND price <= 100;
--- Result: Index Scan using idx_products_category + idx_products_price (~5-10ms on 1M rows)
+-- FAST: Uses dedicated SQL columns for filtering
+-- EXPLAIN ANALYZE SELECT data FROM tv_products WHERE category_id = 5 AND price >= 10 AND price <= 100;
+-- Result: Index Scan using idx_tv_products_category + idx_tv_products_price (~5-10ms on 1M rows)
 
--- FLEXIBLE: Uses JSONB
--- EXPLAIN ANALYZE SELECT * FROM v_products WHERE data->>'brand' = 'Acme Corp';
--- Result: Index Scan using idx_products_data_brand (~50ms on 1M rows)
+-- FLEXIBLE: Uses JSONB path filtering
+-- EXPLAIN ANALYZE SELECT data FROM tv_products WHERE data->>'brand' = 'Acme Corp';
+-- Result: Index Scan using JSONB path index (~50ms on 1M rows)
 --         OR Seq Scan if no JSONB index (~500ms on 1M rows)
 
--- HYBRID: Best of both worlds
--- EXPLAIN ANALYZE SELECT * FROM v_products WHERE category_id = 5 AND data->>'brand' = 'Acme Corp';
+-- HYBRID: Filter using SQL columns, return JSONB data
+-- EXPLAIN ANALYZE SELECT data FROM tv_products WHERE category_id = 5 AND data->>'brand' = 'Acme Corp';
 -- Result: Uses category_id index first (fast), then filters by brand (~15ms on 1M rows)
 """
 
@@ -461,15 +395,15 @@ if __name__ == "__main__":
     print("Starting FraiseQL Hybrid Tables Example...")
     print()
     print("This example demonstrates:")
-    print("  ✅ Indexed columns for performance-critical fields")
-    print("  ✅ JSONB for flexible, dynamic data")
+    print("  ✅ tv_* tables for fast GraphQL queries (JSONB data)")
+    print("  ✅ Dedicated SQL columns for efficient filtering")
+    print("  ✅ Hybrid filtering: SQL WHERE clauses + JSONB responses")
     print("  ✅ 10-100x speedup on large datasets")
-    print("  ✅ PostgreSQL's query planner automatically uses indexes")
     print()
     print("Performance comparison on 1M rows:")
-    print("  - Indexed query (category_id, price): ~5-10ms")
-    print("  - JSONB query (brand): ~50-100ms")
-    print("  - Hybrid query: ~15ms (index first, then JSONB)")
+    print("  - SQL column filtering: ~5-10ms")
+    print("  - JSONB path filtering: ~50-100ms")
+    print("  - Hybrid filtering: ~15ms (SQL first, then JSONB)")
     print()
     print("Open http://localhost:8000/graphql to try queries")
 

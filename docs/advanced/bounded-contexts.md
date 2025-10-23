@@ -288,7 +288,7 @@ from uuid import uuid4
 class Order:
     """Order aggregate root - enforces all business rules."""
 
-    id: str = field(default_factory=lambda: str(uuid4()))
+    id: UUID = field(default_factory=lambda: str(uuid4()))
     customer_id: str = ""
     items: list['OrderItem'] = field(default_factory=list)
     status: str = "draft"
@@ -361,7 +361,7 @@ class Order:
 @dataclass
 class OrderItem:
     """Order item - part of Order aggregate."""
-    id: str
+    id: UUID
     order_id: str
     product_id: str
     quantity: int
@@ -520,7 +520,7 @@ class CustomerId:
 # Usage in Orders Context
 @dataclass
 class Order:
-    id: str
+    id: UUID
     customer_id: CustomerId  # Shared type
     shipping_address: Address  # Shared type
     items: list['OrderItem']
@@ -530,7 +530,7 @@ class Order:
 # Usage in Billing Context
 @dataclass
 class Invoice:
-    id: str
+    id: UUID
     customer_id: CustomerId  # Same shared type
     billing_address: Address  # Same shared type
     amount: Money  # Same shared type

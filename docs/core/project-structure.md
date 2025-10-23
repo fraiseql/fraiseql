@@ -169,7 +169,7 @@ my-project/
 **Purpose**: Contains all Python application code organized by responsibility.
 
 - **`main.py`**: Entry point with GraphQL schema definition and FastAPI app
-- **`types/`**: GraphQL type definitions using `@fraiseql.type` decorators
+- **`types/`**: GraphQL type definitions using `@type` decorators
 - **`queries/`**: Custom query resolvers for complex business logic
 - **`mutations/`**: Mutation handlers for data modification operations
 
@@ -200,11 +200,11 @@ my-project/
 
 ```python
 # src/types/user.py
-import fraiseql
+from fraiseql import type, query, mutation, input, field
 from fraiseql import fraise_field
 from fraiseql.types.scalars import UUID
 
-@fraiseql.type
+@type
 class User:
     """A user in the system."""
     id: UUID = fraise_field(description="User ID")
@@ -218,12 +218,12 @@ class User:
 ```python
 # src/queries/user_queries.py
 from typing import List
-import fraiseql
+from fraiseql import type, query, mutation, input, field
 from fraiseql import fraise_field
 
 from ..types.user import User
 
-@fraiseql.type
+@type
 class UserQueries:
     """User-related query operations."""
 
@@ -245,19 +245,19 @@ class UserQueries:
 
 ```python
 # src/mutations/user_mutations.py
-import fraiseql
+from fraiseql import type, query, mutation, input, field
 from fraiseql import fraise_field
 from fraiseql.types.scalars import UUID
 
 from ..types.user import User
 
-@fraiseql.input
+@input
 class CreateUserInput:
     """Input for creating a new user."""
     username: str = fraise_field(description="Desired username")
     email: str = fraise_field(description="Email address")
 
-@fraiseql.type
+@type
 class UserMutations:
     """User-related mutation operations."""
 
@@ -281,19 +281,19 @@ class UserMutations:
 import os
 from typing import List
 
-import fraiseql
+from fraiseql import type, query, mutation, input, field
 from fraiseql import fraise_field
 
 from .types.user import User
 from .queries.user_queries import UserQueries
 from .mutations.user_mutations import UserMutations
 
-@fraiseql.type
+@type
 class QueryRoot(UserQueries):
     """Root query type combining all query operations."""
     pass
 
-@fraiseql.type
+@type
 class MutationRoot(UserMutations):
     """Root mutation type combining all mutation operations."""
     pass

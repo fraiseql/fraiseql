@@ -371,6 +371,8 @@ class OrderEventReplayer:
 Query entity state at any point in time:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def get_order_timeline(
     info,
@@ -432,6 +434,8 @@ async def compare_states(
 ### Complete Audit Dashboard
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type_
 class AuditSummary:
     total_changes: int

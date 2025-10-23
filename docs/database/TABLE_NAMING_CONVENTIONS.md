@@ -77,10 +77,12 @@ CREATE TABLE tb_comment (
 
 **GraphQL Mapping** (not recommended directly):
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Don't query tb_* directly in GraphQL
 # Use tv_* or v_* instead
 
-@fraiseql.type(sql_source="tb_user")  # ❌ Slow - requires JOINs
+@type(sql_source="tb_user")  # ❌ Slow - requires JOINs
 class User:
     ...
 ```
@@ -134,23 +136,33 @@ SELECT * FROM v_user WHERE id = 1;
 ```
 
 **When to Use**:
-- Simple queries without aggregations
-- When storage is constrained
-- When absolute freshness required (no staleness)
+- ✅ Simple queries on small datasets (< 10k rows)
+- ✅ When storage is constrained (no extra space for tv_* tables)
+- ✅ When absolute freshness required (no staleness acceptable)
+- ✅ Prototypes and development (quick to set up)
+- ✅ Admin interfaces (performance less critical)
+
+**When NOT to Use**:
+- ❌ Large datasets (> 100k rows) - too slow (5-10ms per query)
+- ❌ High-traffic GraphQL APIs - JOIN overhead kills performance
+- ❌ Complex aggregations - better with mv_* materialized views
 
 **GraphQL Mapping**:
 ```python
-@fraiseql.type(sql_source="v_user")  # ⚠️ Acceptable but not optimal
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="v_user")  # ⚠️ OK for small datasets, not for production APIs
 class User:
     id: int
     first_name: str
     posts_json: list[dict]  # JSON, not transformed
 ```
 
-**Problem**:
-- Still slow (5-10ms per query due to JOIN)
+**Trade-offs**:
+- Still slow (5-10ms per query due to JOINs)
 - Returns JSON (snake_case), needs transformation
-- No benefit over querying `tb_user` directly
+- No storage overhead but runtime performance cost
+- Good for development, bad for production scale
 
 ---
 
@@ -259,7 +271,9 @@ SELECT * FROM v_user WHERE id = 1;
 
 **GraphQL Mapping** (optimal):
 ```python
-@fraiseql.type(sql_source="tv_user", jsonb_column="data")
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="tv_user", jsonb_column="data")
 class User:
     id: int
     first_name: str  # Rust transforms to firstName
@@ -267,7 +281,7 @@ class User:
     email: str
     user_posts: list[Post] | None = None  # Embedded!
 
-@fraiseql.query
+@query
 async def user(info, id: int) -> User:
     # 1. SELECT data FROM tv_user WHERE id = $1 (0.05ms)
     # 2. Rust transform (0.5ms)
@@ -565,13 +579,15 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 ### With `tv_*` Tables
 
 ```python
-@fraiseql.type(sql_source="tv_user", jsonb_column="data")
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="tv_user", jsonb_column="data")
 class User:
     id: int
     first_name: str
     user_posts: list[Post] | None
 
-@fraiseql.query
+@query
 async def user(info, id: int) -> User:
     # Queries tv_user (0.05ms lookup + 0.5ms Rust transform = 0.55ms)
     repo = Repository(info.context["db"], info.context)
@@ -581,12 +597,14 @@ async def user(info, id: int) -> User:
 ### Without Prefixes (Simpler)
 
 ```python
-@fraiseql.type(sql_source="users", jsonb_column="data")
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="users", jsonb_column="data")
 class User:
     id: int
     first_name: str
 
-@fraiseql.query
+@query
 async def user(info, id: int) -> User:
     repo = Repository(info.context["db"], info.context)
     return await repo.find_one("users", id=id)
@@ -651,12 +669,17 @@ CREATE TABLE tv_user (  -- ← It's a TABLE!
 
 **Performance**: 0.05-0.5ms (100-200x faster than views/JOINs)
 
-### 3. Skip `v_*` Views in Rust-First
+### 3. Choose `v_*` or `tv_*` Based on Scale
 
-**`v_*` (SQL views)** don't add value:
-- Still requires JOINs on every read (5-10ms)
-- No benefit over `tv_*` pattern
-- Use `tv_*` instead
+**`v_*` (SQL views)** are appropriate for:
+- Small datasets (< 10k rows) where JOIN overhead is acceptable
+- Development/prototypes where setup speed matters
+- Cases where absolute freshness is required
+
+**`tv_*` (transform tables)** are optimal for:
+- Large datasets (> 100k rows) needing sub-millisecond queries
+- Production GraphQL APIs with high traffic
+- Complex relations with pre-computed JSONB
 
 ### 4. Use `mv_*` Selectively
 
@@ -720,7 +743,7 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 
 | Use Case | Pattern | Tables |
 |----------|---------|--------|
-| **MVP/Small app** | Simple | `users` (with JSONB column) |
+| **MVP/Small app** | Simple or `v_*` | `users` (with JSONB) or `tb_user` + `v_user` |
 | **Production API** | `tb_*` + `tv_*` | `tb_user` (writes) + `tv_user` (reads) |
 | **With analytics** | `tb_*` + `tv_*` + `mv_*` | Add `mv_dashboard` for aggregations |
 
@@ -730,4 +753,4 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 - Perfect for Rust transformer
 - 100-200x faster than JOINs
 
-**Simplification**: Can skip `v_*` views entirely in Rust-first architecture - they don't add value when `tv_*` tables exist.
+**Simplification**: Prefer `tv_*` tables for production GraphQL APIs, but `v_*` views work well for smaller applications where JOIN overhead is acceptable.

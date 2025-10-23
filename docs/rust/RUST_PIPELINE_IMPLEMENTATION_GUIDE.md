@@ -95,6 +95,8 @@ async def search_users(
 Use Rust pipeline methods in field resolvers:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type
 class User:
     id: UUID
@@ -274,6 +276,8 @@ find_one()       # Raw Python objects
 ### Error Handling
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def users(info) -> RustResponseBytes:
     try:

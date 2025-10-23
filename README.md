@@ -27,11 +27,11 @@ Pre-compiled queries, Automatic Persisted Queries (APQ), PostgreSQL-native cachi
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
 | **v0.11.5** | Superseded | Legacy | Use v1.0.0 | ⚠️ Migrate |
 
-**New to FraiseQL?** → **[Getting Started](GETTING_STARTED.md)** • [Project Structure](PROJECT_STRUCTURE.md) • [Documentation](docs/)
+**New to FraiseQL?** → **[Getting Started](docs/GETTING_STARTED.md)** • [Project Structure](docs/strategic/PROJECT_STRUCTURE.md) • [Documentation](docs/)
 
 ---
 
-## 👥 Is This For Me?
+## 👥 Is this for me?
 
 **FraiseQL is designed for production teams** building GraphQL APIs with PostgreSQL. Here's how to know if it's right for you:
 
@@ -97,7 +97,7 @@ git clone https://github.com/fraiseql/fraiseql
 cd fraiseql && make setup-dev
 ```
 
-**Learn more:** [Audiences Guide](AUDIENCES.md) • [Getting Started](GETTING_STARTED.md)
+**Learn more:** [Audiences Guide](AUDIENCES.md) • [Getting Started](docs/GETTING_STARTED.md)
 
 ---
 

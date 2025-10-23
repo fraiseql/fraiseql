@@ -619,6 +619,8 @@ async def get_all_tenants_orders(
 ### Aggregated Analytics
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 @requires_role("super_admin")
 async def get_tenant_statistics(info) -> list[TenantStats]:
@@ -648,6 +650,8 @@ async def get_tenant_statistics(info) -> list[TenantStats]:
 Cache data per tenant to avoid leakage:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.caching import Cache
 
 class TenantCache:
@@ -712,6 +716,8 @@ async def get_products(info) -> list[Product]:
 ### Tenant Data Export
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 import json
 from datetime import datetime
 
@@ -759,6 +765,8 @@ async def export_tenant_data(info) -> str:
 ### Tenant Data Import
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 @requires_permission("tenant:import")
 async def import_tenant_data(info, data: str) -> bool:
@@ -800,6 +808,8 @@ async def import_tenant_data(info, data: str) -> bool:
 ### New Tenant Workflow
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from uuid import uuid4
 
 @mutation

@@ -47,7 +47,7 @@ class DocLinter:
         # Check for old import patterns
         old_patterns = [
             r"from fraiseql\.decorators import",
-            r"import fraiseql",
+            r"\bimport fraiseql\b",
             r"@fraiseql\.",
         ]
 

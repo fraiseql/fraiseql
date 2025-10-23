@@ -12,8 +12,8 @@ FraiseQL implements the Command Query Responsibility Segregation (CQRS) pattern 
 │   QUERIES        │   MUTATIONS      │
 │   (Reads)        │   (Writes)       │
 ├──────────────────┼──────────────────┤
-│  v_* views       │  fn_* functions  │
-│  tv_* tables     │  tb_* tables     │
+│  tv_* tables     │  fn_* functions  │
+│  v_* views       │  tb_* tables     │
 │  (JSONB)         │  (Business Logic)│
 ├──────────────────┼──────────────────┤
 │  Fast reads      │  ACID compliance │
@@ -26,12 +26,12 @@ FraiseQL implements the Command Query Responsibility Segregation (CQRS) pattern 
 
 ### Query Path (Reads)
 ```
-GraphQL Query ──▶ v_* JSONB View ──▶ Direct Result
+GraphQL Query ──▶ tv_* JSONB Table ──▶ Direct Result
                      │
                      ▼
-               PostgreSQL View
+               PostgreSQL Table
+               - Generated JSONB columns
                - Pre-computed joins
-               - JSONB aggregation
                - Optimized for reads
 ```
 
@@ -57,17 +57,17 @@ graph TD
     end
 
     subgraph "Database Layer"
-        RQ --> V[v_* Views<br/>JSONB Results]
+        RQ --> TV[tv_* Tables<br/>JSONB Results]
         CQ --> F[fn_* Functions<br/>Business Logic]
         F --> T[tb_* Tables<br/>Normalized Data]
     end
 
-    V --> R[Fast Response]
+    TV --> R[Fast Response]
     T --> R
 
     style Q fill:#e3f2fd
     style M fill:#fce4ec
-    style V fill:#e8f5e8
+    style TV fill:#e8f5e8
     style F fill:#fff3e0
     style T fill:#f3e5f5
 ```
@@ -77,11 +77,11 @@ graph TD
 ### Queries (Read Operations)
 **Purpose**: Retrieve data efficiently
 **Database Objects**:
-- `v_*` views: JSONB views for simple queries
-- `tv_*` tables: Table views for complex aggregations
+- `tv_*` tables: Primary read source with generated JSONB (optimal for GraphQL)
+- `v_*` views: Alternative for simple queries or small datasets
 
 **Characteristics**:
-- Optimized for speed
+- Optimized for speed with pre-computed JSONB
 - May use denormalized data
 - Read-only operations
 - No side effects
@@ -102,27 +102,57 @@ graph TD
 
 ### Read Operations (Queries)
 ```sql
--- Simple post list (uses v_* view)
-CREATE VIEW v_post AS
-SELECT jsonb_build_object(
-    'id', p.id,
-    'title', p.title,
-    'content', p.content,
-    'author', jsonb_build_object('name', u.name)
-) as data
-FROM tb_post p
-JOIN tb_user u ON p.author_id = u.id;
+-- Primary read source: tv_* table with generated JSONB
+CREATE TABLE tv_post (
+    id UUID PRIMARY KEY,
+    author_id UUID,
+    title TEXT,
+    created_at TIMESTAMPTZ,
 
--- Complex analytics (uses tv_* table)
-CREATE TABLE tv_post_stats AS
+    -- Generated JSONB with complete nested data
+    data JSONB GENERATED ALWAYS AS (
+        jsonb_build_object(
+            '__typename', 'Post',
+            'id', id,
+            'title', title,
+            'createdAt', created_at,
+            'author', (
+                SELECT jsonb_build_object(
+                    'id', u.id,
+                    'name', u.name,
+                    'email', u.email
+                )
+                FROM tb_user u
+                WHERE u.id = tv_post.author_id
+            ),
+            'comments', COALESCE(
+                (
+                    SELECT jsonb_agg(jsonb_build_object(
+                        'id', c.id,
+                        'content', c.content,
+                        'author', jsonb_build_object('name', cu.name)
+                    ) ORDER BY c.created_at)
+                    FROM tb_comment c
+                    JOIN tb_user cu ON c.user_id = cu.id
+                    WHERE c.post_id = tv_post.id
+                ),
+                '[]'::jsonb
+            )
+        )
+    ) STORED
+);
+
+-- Alternative: v_* view for simple cases
+CREATE VIEW v_post_simple AS
 SELECT
     p.id,
-    p.title,
-    COUNT(c.id) as comment_count,
-    AVG(c.rating) as avg_rating
+    jsonb_build_object(
+        'id', p.id,
+        'title', p.title,
+        'authorName', u.name
+    ) as data
 FROM tb_post p
-LEFT JOIN tb_comment c ON p.id = c.post_id
-GROUP BY p.id, p.title;
+JOIN tb_user u ON p.author_id = u.id;
 ```
 
 ### Write Operations (Mutations)
@@ -171,17 +201,18 @@ $$ LANGUAGE plpgsql;
 
 ## When to Use Each Pattern
 
-### Use v_* Views (Reads)
-- Simple object retrieval
-- Real-time data requirements
-- No complex aggregations
-- Performance-critical reads
+### Use tv_* Tables (Reads) - Recommended for Production
+- GraphQL APIs with complex nested data
+- High-traffic applications needing sub-millisecond queries
+- Large datasets (> 100k rows)
+- Complex aggregations and relationships
+- Real-time consistency requirements
 
-### Use tv_* Tables (Reads)
-- Complex aggregations
-- Statistical data
-- Data that changes infrequently
-- Heavy computation requirements
+### Use v_* Views (Reads) - For Simple Cases
+- Small datasets (< 10k rows) where JOIN overhead is acceptable
+- Development/prototyping (quick setup)
+- Simple queries without heavy aggregations
+- Cases requiring absolute freshness (no caching)
 
 ### Use fn_* Functions (Writes)
 - Business logic required
@@ -218,7 +249,7 @@ User → ORM → SQL → Database → ORM → User
 
 ### After (CQRS)
 ```
-User → GraphQL → v_* View → JSONB → Response
+User → GraphQL → tv_* Table → JSONB → Response
 User → GraphQL → fn_* Function → Transaction → Success
 ```
 

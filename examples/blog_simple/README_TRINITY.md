@@ -302,7 +302,7 @@ print(f"Improvement: {mean(uuid_times)/mean(serial_times):.2f}x")
 ## Learn More
 
 - [Trinity Pattern Documentation](/docs/patterns/trinity_identifiers.md)
-- [POST_V1_ENHANCEMENTS.md](/POST_V1_ENHANCEMENTS.md) - Full Trinity implementation guide
+- [POST_V1_ENHANCEMENTS.md](../../archive/planning/POST_V1_ENHANCEMENTS.md) - Full Trinity implementation guide
 - [FraiseQL Documentation](https://github.com/anthropics/fraiseql)
 
 ## Summary

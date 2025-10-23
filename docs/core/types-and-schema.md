@@ -167,6 +167,8 @@ class User:
 
 With nested object resolution:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Department will be resolved via separate query
 @type(sql_source="departments", resolve_nested=True)
 class Department:
@@ -184,6 +186,8 @@ class Employee:
 
 With embedded nested objects (default):
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Department data is embedded in parent's JSONB
 @type(sql_source="departments")
 class Department:
@@ -282,6 +286,8 @@ class Post:
 
 Interface with computed fields:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @interface
 class Timestamped:
     created_at: datetime
@@ -305,6 +311,8 @@ class Article:
 
 Multiple interface implementation:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @interface
 class Searchable:
     search_text: str
@@ -356,6 +364,8 @@ class Document:
 
 **Usage Example**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.types import (
     IpAddress,
     CIDR,
@@ -388,6 +398,8 @@ class Category:
 
 **Types**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type
 class PageInfo:
     has_next_page: bool
@@ -431,6 +443,8 @@ async def users_connection(
 
 **Manual usage**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.types import create_connection
 
 @query
@@ -446,6 +460,8 @@ async def users_connection(info, first: int = 20) -> Connection[User]:
 
 **Usage**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def users_paginated(
     info,
@@ -494,6 +510,8 @@ class UpdateUserInput:
 
 **Usage in Mutations**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def update_user(info, input: UpdateUserInput) -> User:
     db = info.context["db"]
