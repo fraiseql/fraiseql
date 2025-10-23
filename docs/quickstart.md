@@ -26,9 +26,11 @@ createdb quickstart_notes
 Create a file called `schema.sql` with this content:
 
 ```sql
--- Simple notes table
+-- Simple notes table with trinity pattern
 CREATE TABLE tb_note (
-    id SERIAL PRIMARY KEY,
+    pk_note SERIAL PRIMARY KEY,              -- Internal fast joins
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),  -- Public API
+    identifier TEXT UNIQUE,                  -- Optional human-readable identifier
     title VARCHAR(200) NOT NULL,
     content TEXT,
     created_at TIMESTAMP DEFAULT NOW()
@@ -39,7 +41,7 @@ CREATE VIEW v_note AS
 SELECT
     id,
     jsonb_build_object(
-        'id', id,
+        'id', id,                            -- UUID for GraphQL API
         'title', title,
         'content', content,
         'created_at', created_at
@@ -64,6 +66,7 @@ psql quickstart_notes < schema.sql
 Create a file called `app.py` with this complete code:
 
 ```python
+import uuid
 from datetime import datetime
 from typing import List, Optional
 import uvicorn
@@ -74,7 +77,7 @@ from fraiseql.fastapi import create_fraiseql_app
 @type(sql_source="v_note", jsonb_column="data")
 class Note:
     """A simple note with title and content."""
-    id: int
+    id: uuid.UUID
     title: str
     content: Optional[str]
     created_at: datetime
@@ -113,12 +116,12 @@ async def notes(info) -> List[Note]:
     return [Note(**row["data"]) for row in result]
 
 @query
-async def note(info, id: int) -> Optional[Note]:
+async def note(info, id: uuid.UUID) -> Optional[Note]:
     """Get a single note by ID."""
     db = info.context["db"]
     from fraiseql.db import DatabaseQuery
 
-    query = DatabaseQuery("SELECT data FROM v_note WHERE (data->>'id')::int = %s", [id])
+    query = DatabaseQuery("SELECT data FROM v_note WHERE (data->>'id')::uuid = %s", [id])
     result = await db.run(query)
     if result:
         return Note(**result[0]["data"])
@@ -145,7 +148,7 @@ class CreateNote:
             # Get the created note from the view
             from fraiseql.db import DatabaseQuery
             query = DatabaseQuery(
-                "SELECT data FROM v_note WHERE (data->>'id')::int = %s", [result["id"]]
+                "SELECT data FROM v_note WHERE (data->>'id')::uuid = %s", [result["id"]]
             )
             note_result = await db.run(query)
             if note_result:
@@ -209,7 +212,7 @@ query {
 ### Get a specific note:
 ```graphql
 query {
-  note(id: 1) {
+  note(id: "550e8400-e29b-41d4-a716-446655440000") {
     id
     title
     content
@@ -217,6 +220,8 @@ query {
   }
 }
 ```
+
+**Note**: Replace the UUID with an actual ID from your database. You can get IDs from the `notes` query above.
 
 ### Create a new note:
 ```graphql
