@@ -46,7 +46,7 @@ where_dict = {
 - **Fallback**: If metadata not available, heuristics are used (works for standard patterns)
 - **Safety**: Invalid filter structures are rejected with warning logs
 
-## [1.0.0] - 2025-10-22
+## [1.0.0] - 2025-10-23
 
 ### 🎉 Major Release: FraiseQL v1.0.0
 
@@ -86,9 +86,13 @@ FraiseQL v1.0.0 is the first production-stable release, marking the culmination 
 - **VERSION_STATUS.md** - Clear versioning and support policy documentation
 - **Comprehensive examples** - All examples tested and documented
 - **Archive organization** - Historical documentation properly organized
+- **Consolidated documentation** - Moved CONTRIBUTING.md, GETTING_STARTED.md, INSTALLATION.md to docs/ directory
 
 #### Changed
 - **Documentation structure** - Reorganized for clarity and maintainability
+  - Centralized all guides in docs/ directory
+  - Updated 35+ files with corrected internal links
+  - Improved discoverability and navigation
 - **Test organization** - Archived obsolete tests, 100% active test health
 - **Root directory** - Cleaned up for production release
 
@@ -118,14 +122,16 @@ This release represents months of development, testing, and refinement. Special 
 
 ### 📚 Documentation
 
-- **Getting Started**: [GETTING_STARTED.md](GETTING_STARTED.md)
-- **Installation**: [INSTALLATION.md](INSTALLATION.md)
+- **Getting Started**: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+- **Installation**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
+- **Contributing**: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- **First Hour Guide**: [docs/FIRST_HOUR.md](docs/FIRST_HOUR.md)
 - **Full Docs**: [docs/](docs/)
 - **Examples**: [examples/](examples/)
 
 ### 🚀 Next Steps
 
-See [VERSION_STATUS.md](VERSION_STATUS.md) for the v1.1+ roadmap.
+See [docs/strategic/VERSION_STATUS.md](docs/strategic/VERSION_STATUS.md) for the v1.1+ roadmap.
 
 ---
 
