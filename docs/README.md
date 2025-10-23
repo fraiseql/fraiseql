@@ -18,7 +18,7 @@
 
 - [Authentication](advanced/authentication.md)
 - [Multi-Tenancy](advanced/multi-tenancy.md)
-- [Field-Level Authorization](advanced/authorization.md)
+- [Database Patterns](advanced/database-patterns.md)
 
 ## Performance
 
@@ -41,4 +41,4 @@
 ## Troubleshooting
 
 - [Common Issues](TROUBLESHOOTING.md)
-- [FAQ](FAQ.md)
+- [Quick Reference](reference/quick-reference.md)
