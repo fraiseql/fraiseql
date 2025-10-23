@@ -1,0 +1,2593 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry">
+      
+      
+        <meta name="author" content="Lionel Hamayon">
+      
+      
+        <link rel="canonical" href="https://fraiseql.dev/docs/performance/apq-optimization-guide/">
+      
+      
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>APQ Optimization Guide - FraiseQL Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#apq-optimization-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="FraiseQL Documentation" class="md-header__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            FraiseQL Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              APQ Optimization Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../tutorials/beginner-path/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../core/fraiseql-philosophy/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Performance
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../advanced/authentication/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Advanced
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../production/deployment/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Production
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api-reference/database/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="FraiseQL Documentation" class="md-nav__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    FraiseQL Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tutorials
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Tutorials
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/beginner-path/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Beginner Learning Path
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/blog-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Blog API Tutorial
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/production-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Production Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Core Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Core Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/fraiseql-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    FraiseQL Philosophy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/types-and-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Types & Schema
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/queries-and-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Queries & Mutations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/database-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Performance
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Performance
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Authentication
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/multi-tenancy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-Tenancy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/bounded-contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Bounded Contexts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/event-sourcing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Event Sourcing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/database-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database Patterns
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/llm-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LLM Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Production
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Production
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Security
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api-reference/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      Table of Contents
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#performance-impact" class="md-nav__link">
+    <span class="md-ellipsis">
+      Performance Impact
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#understanding-apq" class="md-nav__link">
+    <span class="md-ellipsis">
+      Understanding APQ
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Understanding APQ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-layer-caching-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Two-Layer Caching Strategy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use-each-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Use Each Layer
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-enable-apq" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Enable APQ
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="When to Enable APQ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#query-cache-default-enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query Cache (Default: Enabled)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response-cache-default-disabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      Response Cache (Default: Disabled)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration Guide
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration Guide">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Configuration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#storage-backend-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Storage Backend Options
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring &amp; Metrics
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Monitoring &amp; Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dashboard-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dashboard Access
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-metrics-to-monitor" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Metrics to Monitor
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prometheus-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prometheus Integration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optimization-strategies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Optimization Strategies
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Optimization Strategies">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-improve-query-cache-hit-rate" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Improve Query Cache Hit Rate
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-optimize-response-cache-hit-rate" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Optimize Response Cache Hit Rate
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-storage-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Storage Optimization
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#problem-low-query-cache-hit-rate-70" class="md-nav__link">
+    <span class="md-ellipsis">
+      Problem: Low Query Cache Hit Rate (&lt;70%)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#problem-response-cache-not-working" class="md-nav__link">
+    <span class="md-ellipsis">
+      Problem: Response Cache Not Working
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#problem-high-memory-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Problem: High Memory Usage
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#problem-stale-data-being-served" class="md-nav__link">
+    <span class="md-ellipsis">
+      Problem: Stale Data Being Served
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      Production Best Practices
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Production Best Practices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-configuration-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Configuration Checklist
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-monitoring-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Monitoring Setup
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-performance-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Performance Testing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-rollout-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Rollout Strategy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Maintenance
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Advanced Topics
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Topics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#custom-cache-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom Cache Backends
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#integration-with-cdn" class="md-nav__link">
+    <span class="md-ellipsis">
+      Integration with CDN
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-tier-caching-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-Tier Caching Strategy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Summary">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quick-decision-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Decision Matrix
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Takeaways
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#further-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      Further Reading
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="apq-optimization-guide">APQ Optimization Guide<a class="headerlink" href="#apq-optimization-guide" title="Permanent link">&para;</a></h1>
+<p><strong>FraiseQL Automatic Persisted Queries - Performance Tuning &amp; Best Practices</strong></p>
+<hr />
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ol>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#understanding-apq">Understanding APQ</a></li>
+<li><a href="#when-to-enable-apq">When to Enable APQ</a></li>
+<li><a href="#configuration-guide">Configuration Guide</a></li>
+<li><a href="#monitoring-metrics">Monitoring &amp; Metrics</a></li>
+<li><a href="#optimization-strategies">Optimization Strategies</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#production-best-practices">Production Best Practices</a></li>
+</ol>
+<hr />
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>APQ (Automatic Persisted Queries) is a GraphQL optimization technique that eliminates query parsing overhead by caching parsed queries by their SHA256 hash. FraiseQL's APQ implementation provides <strong>two layers of caching</strong>:</p>
+<ol>
+<li><strong>Query Cache</strong>: Stores query strings by hash (always active)</li>
+<li><strong>Response Cache</strong>: Stores complete query responses (optional)</li>
+</ol>
+<h3 id="performance-impact">Performance Impact<a class="headerlink" href="#performance-impact" title="Permanent link">&para;</a></h3>
+<p><strong>Query Cache Benefits:</strong>
+- Eliminates 20-80ms query parsing overhead per request
+- Reduces network payload (hash instead of full query)
+- Target: 90%+ hit rate in production</p>
+<p><strong>Response Cache Benefits:</strong>
+- Can provide 260-460x speedup for identical queries
+- Bypasses GraphQL execution entirely
+- Best for read-heavy, cacheable data</p>
+<hr />
+<h2 id="understanding-apq">Understanding APQ<a class="headerlink" href="#understanding-apq" title="Permanent link">&para;</a></h2>
+<h3 id="two-layer-caching-strategy">Two-Layer Caching Strategy<a class="headerlink" href="#two-layer-caching-strategy" title="Permanent link">&para;</a></h3>
+<p>FraiseQL uses a sophisticated caching approach:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌──────────────────────────────────────────────────────────┐
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│                    APQ Request Flow                       │
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>└──────────────────────────────────────────────────────────┘
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>1. Client sends: {&quot;extensions&quot;: {&quot;persistedQuery&quot;: {&quot;sha256Hash&quot;: &quot;abc123...&quot;}}}
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>2. FraiseQL checks Response Cache (if enabled)
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>   ├─ HIT  → Return cached response immediately (fastest)
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>   └─ MISS → Continue to step 3
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>3. FraiseQL checks Query Cache
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>   ├─ HIT  → Use cached query string, execute GraphQL
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>   └─ MISS → Request full query from client, store it
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>4. Execute GraphQL query → Generate response
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>5. Store response in Response Cache (if enabled, for future requests)
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>6. Return response to client
+</span></code></pre></div>
+<h3 id="when-to-use-each-layer">When to Use Each Layer<a class="headerlink" href="#when-to-use-each-layer" title="Permanent link">&para;</a></h3>
+<p><strong>Query Cache (Always Use):</strong>
+- ✅ All production environments
+- ✅ Development (helpful for debugging)
+- ✅ No downside, minimal overhead
+- ✅ Automatic query string deduplication</p>
+<p><strong>Response Cache (Selective Use):</strong>
+- ✅ Read-heavy APIs with cacheable data
+- ✅ Public data that doesn't change frequently
+- ✅ Queries without user-specific data
+- ❌ User-specific queries (unless using tenant isolation)
+- ❌ Real-time data requirements
+- ❌ High mutation rate data</p>
+<hr />
+<h2 id="when-to-enable-apq">When to Enable APQ<a class="headerlink" href="#when-to-enable-apq" title="Permanent link">&para;</a></h2>
+<h3 id="query-cache-default-enabled">Query Cache (Default: Enabled)<a class="headerlink" href="#query-cache-default-enabled" title="Permanent link">&para;</a></h3>
+<p><strong>Always enable query caching</strong> - it provides pure performance benefits with no downsides.</p>
+<p>Benefits:
+- Eliminates query parsing overhead
+- Reduces network payload size
+- Improves response time consistency
+- Automatic deduplication of queries</p>
+<h3 id="response-cache-default-disabled">Response Cache (Default: Disabled)<a class="headerlink" href="#response-cache-default-disabled" title="Permanent link">&para;</a></h3>
+<p><strong>Enable response caching</strong> when you have:</p>
+<ol>
+<li><strong>Cacheable Data Patterns:</strong></li>
+<li>Public data (blogs, docs, product catalogs)</li>
+<li>Reference data (countries, currencies, categories)</li>
+<li>Aggregated statistics</li>
+<li>
+<p>Infrequently changing data</p>
+</li>
+<li>
+<p><strong>Traffic Patterns:</strong></p>
+</li>
+<li>Repeated identical queries</li>
+<li>High read-to-write ratio (&gt;10:1)</li>
+<li>
+<p>Predictable query patterns</p>
+</li>
+<li>
+<p><strong>Performance Requirements:</strong></p>
+</li>
+<li>Sub-10ms response time targets</li>
+<li>High throughput requirements (&gt;1000 req/s)</li>
+<li>Cost optimization (reduce compute)</li>
+</ol>
+<p><strong>Do NOT enable response caching</strong> when:
+- Data changes frequently (real-time updates)
+- Queries are highly personalized
+- Strong consistency requirements
+- Complex authorization rules</p>
+<hr />
+<h2 id="configuration-guide">Configuration Guide<a class="headerlink" href="#configuration-guide" title="Permanent link">&para;</a></h2>
+<h3 id="basic-configuration">Basic Configuration<a class="headerlink" href="#basic-configuration" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.fastapi.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FraiseQLConfig</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># Query cache only (recommended starting point)</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">db_url</span><span class="o">=</span><span class="s2">&quot;postgresql://...&quot;</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">apq_storage_backend</span><span class="o">=</span><span class="s2">&quot;memory&quot;</span><span class="p">,</span>  <span class="c1"># or &quot;postgresql&quot;, &quot;redis&quot;</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">apq_cache_responses</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>     <span class="c1"># Response caching disabled</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">)</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Full APQ with response caching</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">db_url</span><span class="o">=</span><span class="s2">&quot;postgresql://...&quot;</span><span class="p">,</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">apq_storage_backend</span><span class="o">=</span><span class="s2">&quot;memory&quot;</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="n">apq_cache_responses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>      <span class="c1"># Enable response caching</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="n">apq_backend_config</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>        <span class="s2">&quot;response_ttl&quot;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>        <span class="c1"># 5 minutes</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>    <span class="p">}</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="storage-backend-options">Storage Backend Options<a class="headerlink" href="#storage-backend-options" title="Permanent link">&para;</a></h3>
+<h4 id="1-memory-backend-default">1. Memory Backend (Default)<a class="headerlink" href="#1-memory-backend-default" title="Permanent link">&para;</a></h4>
+<p><strong>Best for:</strong> Development, small deployments, single-instance apps</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">apq_storage_backend</span><span class="o">=</span><span class="s2">&quot;memory&quot;</span><span class="p">,</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Pros:</strong>
+- Fastest performance (&lt;0.1ms lookup)
+- Zero external dependencies
+- Simple configuration</p>
+<p><strong>Cons:</strong>
+- Lost on restart
+- Not shared across instances
+- Memory consumption grows with queries</p>
+<p><strong>Recommended:</strong> Development and single-server production</p>
+<h4 id="2-postgresql-backend">2. PostgreSQL Backend<a class="headerlink" href="#2-postgresql-backend" title="Permanent link">&para;</a></h4>
+<p><strong>Best for:</strong> Production, multi-instance deployments, persistence</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">apq_storage_backend</span><span class="o">=</span><span class="s2">&quot;postgresql&quot;</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">apq_backend_config</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="s2">&quot;db_url&quot;</span><span class="p">:</span> <span class="s2">&quot;postgresql://...&quot;</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="s2">&quot;table_name&quot;</span><span class="p">:</span> <span class="s2">&quot;apq_cache&quot;</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="s2">&quot;response_ttl&quot;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>  <span class="c1"># 5 minutes</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="p">}</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Pros:</strong>
+- Shared across instances
+- Survives restarts
+- Leverages existing PostgreSQL infrastructure
+- Automatic cleanup via TTL</p>
+<p><strong>Cons:</strong>
+- Slightly slower than memory (~1-2ms)
+- Requires database connection
+- Additional database load</p>
+<p><strong>Recommended:</strong> Production with multiple app instances</p>
+<h4 id="3-redis-backend">3. Redis Backend<a class="headerlink" href="#3-redis-backend" title="Permanent link">&para;</a></h4>
+<p><strong>Best for:</strong> High-traffic production, distributed systems</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">apq_storage_backend</span><span class="o">=</span><span class="s2">&quot;redis&quot;</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">apq_backend_config</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="s2">&quot;redis_url&quot;</span><span class="p">:</span> <span class="s2">&quot;redis://localhost:6379/0&quot;</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="s2">&quot;key_prefix&quot;</span><span class="p">:</span> <span class="s2">&quot;fraiseql:apq:&quot;</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="s2">&quot;response_ttl&quot;</span><span class="p">:</span> <span class="mi">300</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="p">}</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Pros:</strong>
+- Fastest distributed cache (~0.5-1ms)
+- Shared across instances
+- Built-in TTL and eviction
+- Scales independently</p>
+<p><strong>Cons:</strong>
+- Additional infrastructure
+- Network latency
+- Serialization overhead</p>
+<p><strong>Recommended:</strong> High-traffic production (&gt;1000 req/s)</p>
+<hr />
+<h2 id="monitoring-metrics">Monitoring &amp; Metrics<a class="headerlink" href="#monitoring-metrics" title="Permanent link">&para;</a></h2>
+<h3 id="dashboard-access">Dashboard Access<a class="headerlink" href="#dashboard-access" title="Permanent link">&para;</a></h3>
+<p>Access the interactive monitoring dashboard:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>http://your-server:port/admin/apq/dashboard
+</span></code></pre></div>
+<p>Features:
+- Real-time hit rate visualization
+- Top queries analysis
+- Health status monitoring
+- Performance trends</p>
+<h3 id="key-metrics-to-monitor">Key Metrics to Monitor<a class="headerlink" href="#key-metrics-to-monitor" title="Permanent link">&para;</a></h3>
+<h4 id="1-query-cache-hit-rate">1. Query Cache Hit Rate<a class="headerlink" href="#1-query-cache-hit-rate" title="Permanent link">&para;</a></h4>
+<p><strong>Target:</strong> &gt;70% (ideally &gt;90%)</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>curl<span class="w"> </span>http://localhost:8000/admin/apq/health
+</span></code></pre></div>
+<p><strong>What it means:</strong>
+- <strong>&gt;90%</strong>: Excellent - queries are being reused effectively
+- <strong>70-90%</strong>: Good - normal for varied query patterns
+- <strong>50-70%</strong>: Warning - high query diversity or cache warming needed
+- <strong>&lt;50%</strong>: Critical - investigate query patterns or cache configuration</p>
+<h4 id="2-response-cache-hit-rate">2. Response Cache Hit Rate<a class="headerlink" href="#2-response-cache-hit-rate" title="Permanent link">&para;</a></h4>
+<p><strong>Target:</strong> &gt;50% (when enabled)</p>
+<p><strong>What it means:</strong>
+- <strong>&gt;80%</strong>: Excellent - significant performance gains
+- <strong>50-80%</strong>: Good - response caching is beneficial
+- <strong>30-50%</strong>: Marginal - consider disabling if overhead isn't worth it
+- <strong>&lt;30%</strong>: Poor - disable response caching</p>
+<h4 id="3-top-queries">3. Top Queries<a class="headerlink" href="#3-top-queries" title="Permanent link">&para;</a></h4>
+<p>Monitor the top queries endpoint:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>curl<span class="w"> </span>http://localhost:8000/admin/apq/top-queries?limit<span class="o">=</span><span class="m">10</span>
+</span></code></pre></div>
+<p><strong>Look for:</strong>
+- High miss rate on frequent queries (cache warming opportunity)
+- Queries with long parse times (optimization candidates)
+- Unexpected query patterns (potential issues)</p>
+<h3 id="prometheus-integration">Prometheus Integration<a class="headerlink" href="#prometheus-integration" title="Permanent link">&para;</a></h3>
+<p>Add to your Prometheus configuration:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># prometheus.yml</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nt">scrape_configs</span><span class="p">:</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">job_name</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;fraiseql-apq&#39;</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nt">metrics_path</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;/admin/apq/metrics&#39;</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="nt">scrape_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15s</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="nt">static_configs</span><span class="p">:</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">targets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&#39;localhost:8000&#39;</span><span class="p p-Indicator">]</span>
+</span></code></pre></div>
+<p>Available metrics:
+- <code>apq_query_cache_hit_rate</code>: Query cache effectiveness
+- <code>apq_response_cache_hit_rate</code>: Response cache effectiveness
+- <code>apq_requests_total</code>: Total APQ requests
+- <code>apq_storage_bytes_total</code>: Cache memory usage
+- <code>apq_health_status</code>: System health status</p>
+<hr />
+<h2 id="optimization-strategies">Optimization Strategies<a class="headerlink" href="#optimization-strategies" title="Permanent link">&para;</a></h2>
+<h3 id="1-improve-query-cache-hit-rate">1. Improve Query Cache Hit Rate<a class="headerlink" href="#1-improve-query-cache-hit-rate" title="Permanent link">&para;</a></h3>
+<h4 id="strategy-cache-warming">Strategy: Cache Warming<a class="headerlink" href="#strategy-cache-warming" title="Permanent link">&para;</a></h4>
+<p>Pre-populate the cache with common queries:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.storage.apq_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">store_persisted_query</span><span class="p">,</span> <span class="n">compute_query_hash</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># Get top queries from analytics</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">top_queries</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="s2">&quot;query GetUsers { users { id name email } }&quot;</span><span class="p">,</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="s2">&quot;query GetPosts { posts { id title content } }&quot;</span><span class="p">,</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="c1"># ... more queries</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="p">]</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># Pre-warm the cache</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="k">for</span> <span class="n">query</span> <span class="ow">in</span> <span class="n">top_queries</span><span class="p">:</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>    <span class="n">hash_value</span> <span class="o">=</span> <span class="n">compute_query_hash</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="n">store_persisted_query</span><span class="p">(</span><span class="n">hash_value</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span>
+</span></code></pre></div>
+<h4 id="strategy-client-side-apq">Strategy: Client-Side APQ<a class="headerlink" href="#strategy-client-side-apq" title="Permanent link">&para;</a></h4>
+<p>Configure your GraphQL client to use APQ:</p>
+<p><strong>Apollo Client:</strong>
+<div class="language-javascript highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createPersistedQueryLink</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;@apollo/client/link/persisted-queries&quot;</span><span class="p">;</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">sha256</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;crypto-hash&quot;</span><span class="p">;</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kd">const</span><span class="w"> </span><span class="nx">link</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createPersistedQueryLink</span><span class="p">({</span><span class="w"> </span><span class="nx">sha256</span><span class="w"> </span><span class="p">});</span>
+</span></code></pre></div></p>
+<p><strong>urql:</strong>
+<div class="language-javascript highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">Client</span><span class="p">,</span><span class="w"> </span><span class="nx">cacheExchange</span><span class="p">,</span><span class="w"> </span><span class="nx">fetchExchange</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;urql&quot;</span><span class="p">;</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">persistedExchange</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;@urql/exchange-persisted&quot;</span><span class="p">;</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="kd">const</span><span class="w"> </span><span class="nx">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Client</span><span class="p">({</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nx">exchanges</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="nx">persistedExchange</span><span class="p">({</span><span class="w"> </span><span class="nx">generateHash</span><span class="o">:</span><span class="w"> </span><span class="nx">sha256</span><span class="w"> </span><span class="p">}),</span><span class="w"> </span><span class="nx">cacheExchange</span><span class="p">,</span><span class="w"> </span><span class="nx">fetchExchange</span><span class="p">],</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="p">});</span>
+</span></code></pre></div></p>
+<h3 id="2-optimize-response-cache-hit-rate">2. Optimize Response Cache Hit Rate<a class="headerlink" href="#2-optimize-response-cache-hit-rate" title="Permanent link">&para;</a></h3>
+<h4 id="strategy-tenant-isolation">Strategy: Tenant Isolation<a class="headerlink" href="#strategy-tenant-isolation" title="Permanent link">&para;</a></h4>
+<p>For multi-tenant applications:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.middleware.apq_caching</span><span class="w"> </span><span class="kn">import</span> <span class="n">handle_apq_request_with_cache</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="c1"># Add tenant context</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">context</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;tenant_id&quot;</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;X-Tenant-ID&quot;</span><span class="p">)}</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="n">cached_response</span> <span class="o">=</span> <span class="n">handle_apq_request_with_cache</span><span class="p">(</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">request</span><span class="o">=</span><span class="n">graphql_request</span><span class="p">,</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    <span class="n">backend</span><span class="o">=</span><span class="n">backend</span><span class="p">,</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>  <span class="c1"># Tenant-specific caching</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="p">)</span>
+</span></code></pre></div>
+<h4 id="strategy-ttl-tuning">Strategy: TTL Tuning<a class="headerlink" href="#strategy-ttl-tuning" title="Permanent link">&para;</a></h4>
+<p>Adjust response TTL based on data freshness requirements:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Aggressive caching (5-15 minutes)</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">apq_backend_config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;response_ttl&quot;</span><span class="p">:</span> <span class="mi">900</span><span class="p">}</span>  <span class="c1"># 15 minutes</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># Moderate caching (1-5 minutes)</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="n">apq_backend_config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;response_ttl&quot;</span><span class="p">:</span> <span class="mi">300</span><span class="p">}</span>  <span class="c1"># 5 minutes</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># Short-term caching (30-60 seconds)</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="n">apq_backend_config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;response_ttl&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">}</span>  <span class="c1"># 1 minute</span>
+</span></code></pre></div>
+<h4 id="strategy-selective-caching">Strategy: Selective Caching<a class="headerlink" href="#strategy-selective-caching" title="Permanent link">&para;</a></h4>
+<p>Cache only specific query types:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.middleware.apq_caching</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_cacheable_response</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">custom_is_cacheable</span><span class="p">(</span><span class="n">response</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">query_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Custom caching logic.&quot;&quot;&quot;</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="c1"># Only cache read-only queries</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="k">if</span> <span class="s2">&quot;mutation&quot;</span> <span class="ow">in</span> <span class="n">query_string</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>        <span class="k">return</span> <span class="kc">False</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="c1"># Don&#39;t cache queries with specific directives</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    <span class="k">if</span> <span class="s2">&quot;@nocache&quot;</span> <span class="ow">in</span> <span class="n">query_string</span><span class="p">:</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>        <span class="k">return</span> <span class="kc">False</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    <span class="c1"># Use default logic</span>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>    <span class="k">return</span> <span class="n">is_cacheable_response</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="3-storage-optimization">3. Storage Optimization<a class="headerlink" href="#3-storage-optimization" title="Permanent link">&para;</a></h3>
+<h4 id="monitor-cache-size">Monitor Cache Size<a class="headerlink" href="#monitor-cache-size" title="Permanent link">&para;</a></h4>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.storage.apq_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_storage_stats</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">stats</span> <span class="o">=</span> <span class="n">get_storage_stats</span><span class="p">()</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Stored queries: </span><span class="si">{</span><span class="n">stats</span><span class="p">[</span><span class="s1">&#39;stored_queries&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total size: </span><span class="si">{</span><span class="n">stats</span><span class="p">[</span><span class="s1">&#39;total_size_bytes&#39;</span><span class="p">]</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1024</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> KB&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<h4 id="implement-eviction-postgresqlredis">Implement Eviction (PostgreSQL/Redis)<a class="headerlink" href="#implement-eviction-postgresqlredis" title="Permanent link">&para;</a></h4>
+<p>PostgreSQL backend automatically cleans up expired entries. For memory backend, implement periodic cleanup:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.storage.apq_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">clear_storage</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">periodic_cleanup</span><span class="p">():</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Clear cache every 24 hours.&quot;&quot;&quot;</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">86400</span><span class="p">)</span>  <span class="c1"># 24 hours</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>        <span class="n">clear_storage</span><span class="p">()</span>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;APQ cache cleared&quot;</span><span class="p">)</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="c1"># Run in background</span>
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">periodic_cleanup</span><span class="p">())</span>
+</span></code></pre></div>
+<hr />
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="problem-low-query-cache-hit-rate-70">Problem: Low Query Cache Hit Rate (&lt;70%)<a class="headerlink" href="#problem-low-query-cache-hit-rate-70" title="Permanent link">&para;</a></h3>
+<p><strong>Diagnosis:</strong>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>curl<span class="w"> </span>http://localhost:8000/admin/apq/top-queries?limit<span class="o">=</span><span class="m">20</span>
+</span></code></pre></div></p>
+<p><strong>Common Causes:</strong></p>
+<ol>
+<li><strong>Client not configured for APQ</strong></li>
+<li>Solution: Configure GraphQL client to send <code>persistedQuery</code> extension</li>
+<li>
+<p>Verify: Check network requests for <code>extensions.persistedQuery.sha256Hash</code></p>
+</li>
+<li>
+<p><strong>High query diversity</strong></p>
+</li>
+<li>Solution: This is expected for APIs with many unique queries</li>
+<li>
+<p>Target: Optimize the most frequent queries instead of all queries</p>
+</li>
+<li>
+<p><strong>Cache cleared frequently</strong></p>
+</li>
+<li>Solution: Use PostgreSQL or Redis backend instead of memory</li>
+<li>
+<p>Verify: Check <code>apq_stored_queries_total</code> metric over time</p>
+</li>
+<li>
+<p><strong>Development environment</strong></p>
+</li>
+<li>Solution: Low hit rates are normal during development</li>
+<li>Action: Focus on production metrics</li>
+</ol>
+<h3 id="problem-response-cache-not-working">Problem: Response Cache Not Working<a class="headerlink" href="#problem-response-cache-not-working" title="Permanent link">&para;</a></h3>
+<p><strong>Diagnosis:</strong>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>curl<span class="w"> </span>http://localhost:8000/admin/apq/health
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="c1"># Check response_cache_hit_rate</span>
+</span></code></pre></div></p>
+<p><strong>Common Causes:</strong></p>
+<ol>
+<li>
+<p><strong>Response caching disabled</strong>
+   <div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Check config</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span><span class="n">apq_cache_responses</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># Must be True</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Queries with errors</strong></p>
+</li>
+<li>Responses with errors are never cached</li>
+<li>
+<p>Solution: Fix query errors or validation issues</p>
+</li>
+<li>
+<p><strong>User-specific queries</strong></p>
+</li>
+<li>Different users get different responses</li>
+<li>
+<p>Solution: Implement tenant isolation with context</p>
+</li>
+<li>
+<p><strong>Cache expired</strong></p>
+</li>
+<li>TTL too short for query patterns</li>
+<li>Solution: Increase <code>response_ttl</code> in config</li>
+</ol>
+<h3 id="problem-high-memory-usage">Problem: High Memory Usage<a class="headerlink" href="#problem-high-memory-usage" title="Permanent link">&para;</a></h3>
+<p><strong>Diagnosis:</strong>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>curl<span class="w"> </span>http://localhost:8000/admin/apq/metrics<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>storage_bytes
+</span></code></pre></div></p>
+<p><strong>Solutions:</strong></p>
+<ol>
+<li>
+<p><strong>Switch to PostgreSQL backend:</strong>
+   <div class="language-python highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span><span class="n">apq_storage_backend</span><span class="o">=</span><span class="s2">&quot;postgresql&quot;</span><span class="p">)</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Reduce response TTL:</strong>
+   <div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">apq_backend_config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;response_ttl&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">}</span>  <span class="c1"># Shorter expiration</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Implement cache size limits:</strong>
+   <div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.storage.apq_store</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_storage_stats</span><span class="p">,</span> <span class="n">clear_storage</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="n">stats</span> <span class="o">=</span> <span class="n">get_storage_stats</span><span class="p">()</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="k">if</span> <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;total_size_bytes&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">100</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">:</span>  <span class="c1"># 100MB</span>
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>    <span class="n">clear_storage</span><span class="p">()</span>
+</span></code></pre></div></p>
+</li>
+</ol>
+<h3 id="problem-stale-data-being-served">Problem: Stale Data Being Served<a class="headerlink" href="#problem-stale-data-being-served" title="Permanent link">&para;</a></h3>
+<p><strong>Diagnosis:</strong>
+Response cache serving outdated data after mutations</p>
+<p><strong>Solutions:</strong></p>
+<ol>
+<li>
+<p><strong>Disable response caching:</strong>
+   <div class="language-python highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span><span class="n">apq_cache_responses</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Reduce TTL for volatile data:</strong>
+   <div class="language-python highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="n">apq_backend_config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;response_ttl&quot;</span><span class="p">:</span> <span class="mi">30</span><span class="p">}</span>  <span class="c1"># 30 seconds</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Implement cache invalidation:</strong>
+   <div class="language-python highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">apq_store</span>
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="c1"># After mutation</span>
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="n">apq_store</span><span class="o">.</span><span class="n">clear_storage</span><span class="p">()</span>  <span class="c1"># Clear all caches</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Use materialized views instead:</strong></p>
+</li>
+<li>FraiseQL already uses <code>tv_{entity}</code> materialized views</li>
+<li>These provide data-level caching at PostgreSQL layer</li>
+<li>More appropriate for frequently changing data</li>
+</ol>
+<hr />
+<h2 id="production-best-practices">Production Best Practices<a class="headerlink" href="#production-best-practices" title="Permanent link">&para;</a></h2>
+<h3 id="1-configuration-checklist">1. Configuration Checklist<a class="headerlink" href="#1-configuration-checklist" title="Permanent link">&para;</a></h3>
+<p>✅ <strong>Always Enable:</strong>
+- [ ] Query caching (<code>apq_storage_backend</code> configured)
+- [ ] Metrics tracking (automatic)
+- [ ] Health monitoring endpoint
+- [ ] Dashboard access for operations team</p>
+<p>✅ <strong>Consider Enabling:</strong>
+- [ ] Response caching (if read-heavy workload)
+- [ ] PostgreSQL/Redis backend (if multi-instance)
+- [ ] Prometheus integration (if using monitoring)</p>
+<p>✅ <strong>Never Do:</strong>
+- [ ] Enable response caching for user-specific data without tenant isolation
+- [ ] Use memory backend in multi-instance deployments
+- [ ] Ignore health warnings (hit rate &lt;50%)</p>
+<h3 id="2-monitoring-setup">2. Monitoring Setup<a class="headerlink" href="#2-monitoring-setup" title="Permanent link">&para;</a></h3>
+<p><strong>Set up alerts for:</strong></p>
+<ol>
+<li>
+<p><strong>Critical Alert: Hit Rate &lt;50%</strong>
+   <div class="language-yaml highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Prometheus alert</span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">alert</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APQHitRateCritical</span>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apq_query_cache_hit_rate &lt; 0.5</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">  </span><span class="nt">for</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10m</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">critical</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Warning Alert: Hit Rate &lt;70%</strong>
+   <div class="language-yaml highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">alert</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APQHitRateWarning</span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apq_query_cache_hit_rate &lt; 0.7</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span><span class="nt">for</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Storage Alert: High Memory Usage</strong>
+   <div class="language-yaml highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">alert</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APQHighStorage</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apq_storage_bytes_total &gt; 100 * 1024 * 1024</span>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span><span class="nt">for</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5m</span>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">  </span><span class="nt">labels</span><span class="p">:</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span></code></pre></div></p>
+</li>
+</ol>
+<h3 id="3-performance-testing">3. Performance Testing<a class="headerlink" href="#3-performance-testing" title="Permanent link">&para;</a></h3>
+<p>Before enabling in production:</p>
+<ol>
+<li>
+<p><strong>Baseline without APQ:</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Disable APQ</span>
+</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="nv">config</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>FraiseQLConfig<span class="o">(</span><span class="nv">apq_storage_backend</span><span class="o">=</span>None<span class="o">)</span>
+</span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
+</span><span id="__span-30-4"><a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Run load test</span>
+</span><span id="__span-30-5"><a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>ab<span class="w"> </span>-n<span class="w"> </span><span class="m">10000</span><span class="w"> </span>-c<span class="w"> </span><span class="m">100</span><span class="w"> </span>http://localhost:8000/graphql
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Test with query cache only:</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="nv">config</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>FraiseQLConfig<span class="o">(</span>
+</span><span id="__span-31-2"><a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">    </span><span class="nv">apq_storage_backend</span><span class="o">=</span><span class="s2">&quot;memory&quot;</span>,
+</span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">    </span><span class="nv">apq_cache_responses</span><span class="o">=</span>False,
+</span><span id="__span-31-4"><a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="o">)</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Test with full APQ:</strong>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nv">config</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>FraiseQLConfig<span class="o">(</span>
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">    </span><span class="nv">apq_storage_backend</span><span class="o">=</span><span class="s2">&quot;memory&quot;</span>,
+</span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">    </span><span class="nv">apq_cache_responses</span><span class="o">=</span>True,
+</span><span id="__span-32-4"><a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="o">)</span>
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Compare metrics:</strong></p>
+</li>
+<li>Response time percentiles (p50, p95, p99)</li>
+<li>Throughput (requests/second)</li>
+<li>Memory usage</li>
+<li>CPU usage</li>
+</ol>
+<h3 id="4-rollout-strategy">4. Rollout Strategy<a class="headerlink" href="#4-rollout-strategy" title="Permanent link">&para;</a></h3>
+<p><strong>Phase 1: Query Cache Only</strong>
+1. Enable memory backend in production
+2. Monitor for 1 week
+3. Verify hit rate &gt;70%
+4. No rollback needed (pure performance gain)</p>
+<p><strong>Phase 2: PostgreSQL Backend</strong> (if multi-instance)
+1. Deploy PostgreSQL backend to canary
+2. Monitor for 48 hours
+3. Verify no increased latency
+4. Roll out to production</p>
+<p><strong>Phase 3: Response Caching</strong> (if applicable)
+1. Enable for read-only, public queries only
+2. Start with short TTL (60s)
+3. Monitor for stale data issues
+4. Gradually increase TTL if no issues
+5. Rollback plan: Set <code>apq_cache_responses=False</code></p>
+<h3 id="5-maintenance">5. Maintenance<a class="headerlink" href="#5-maintenance" title="Permanent link">&para;</a></h3>
+<p><strong>Daily:</strong>
+- Check dashboard for warnings
+- Monitor hit rates
+- Review top queries</p>
+<p><strong>Weekly:</strong>
+- Analyze hit rate trends
+- Review storage usage
+- Check for query pattern changes</p>
+<p><strong>Monthly:</strong>
+- Review and optimize top queries
+- Audit cache effectiveness
+- Update TTL configuration if needed</p>
+<p><strong>Quarterly:</strong>
+- Performance benchmark comparison
+- Review backend choice (memory vs PostgreSQL vs Redis)
+- Consider cache warming strategies</p>
+<hr />
+<h2 id="advanced-topics">Advanced Topics<a class="headerlink" href="#advanced-topics" title="Permanent link">&para;</a></h2>
+<h3 id="custom-cache-backends">Custom Cache Backends<a class="headerlink" href="#custom-cache-backends" title="Permanent link">&para;</a></h3>
+<p>Implement custom storage backend:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.storage.backends.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">APQStorageBackend</span>
+</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>
+</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">CustomBackend</span><span class="p">(</span><span class="n">APQStorageBackend</span><span class="p">):</span>
+</span><span id="__span-33-4"><a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_persisted_query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hash_value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-33-5"><a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>        <span class="c1"># Your implementation</span>
+</span><span id="__span-33-6"><a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>        <span class="k">pass</span>
+</span><span id="__span-33-7"><a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>
+</span><span id="__span-33-8"><a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">store_persisted_query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hash_value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-33-9"><a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>        <span class="c1"># Your implementation</span>
+</span><span id="__span-33-10"><a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a>        <span class="k">pass</span>
+</span><span id="__span-33-11"><a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a>
+</span><span id="__span-33-12"><a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_cached_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hash_value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-33-13"><a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a>        <span class="c1"># Your implementation</span>
+</span><span id="__span-33-14"><a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a>        <span class="k">pass</span>
+</span><span id="__span-33-15"><a id="__codelineno-33-15" name="__codelineno-33-15" href="#__codelineno-33-15"></a>
+</span><span id="__span-33-16"><a id="__codelineno-33-16" name="__codelineno-33-16" href="#__codelineno-33-16"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">store_cached_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hash_value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-33-17"><a id="__codelineno-33-17" name="__codelineno-33-17" href="#__codelineno-33-17"></a>        <span class="c1"># Your implementation</span>
+</span><span id="__span-33-18"><a id="__codelineno-33-18" name="__codelineno-33-18" href="#__codelineno-33-18"></a>        <span class="k">pass</span>
+</span></code></pre></div>
+<h3 id="integration-with-cdn">Integration with CDN<a class="headerlink" href="#integration-with-cdn" title="Permanent link">&para;</a></h3>
+<p>For public APIs, combine with CDN caching:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">Response</span>
+</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>
+</span><span id="__span-34-3"><a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/graphql&quot;</span><span class="p">)</span>
+</span><span id="__span-34-4"><a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">graphql_endpoint</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">GraphQLRequest</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="n">Response</span><span class="p">):</span>
+</span><span id="__span-34-5"><a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>    <span class="c1"># Add cache headers for CDN</span>
+</span><span id="__span-34-6"><a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>    <span class="k">if</span> <span class="n">is_public_query</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+</span><span id="__span-34-7"><a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>        <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s2">&quot;Cache-Control&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;public, max-age=300&quot;</span>
+</span><span id="__span-34-8"><a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>
+</span><span id="__span-34-9"><a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>    <span class="c1"># APQ handles query and response caching</span>
+</span><span id="__span-34-10"><a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a>    <span class="k">return</span> <span class="k">await</span> <span class="n">execute_graphql</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="multi-tier-caching-strategy">Multi-Tier Caching Strategy<a class="headerlink" href="#multi-tier-caching-strategy" title="Permanent link">&para;</a></h3>
+<p>Combine FraiseQL caching layers:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>┌────────────────────────────────────────────────────┐
+</span><span id="__span-35-2"><a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>│ CDN Layer (Cloudflare, Fastly)                    │
+</span><span id="__span-35-3"><a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>│ • Full response caching                            │
+</span><span id="__span-35-4"><a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>│ • 5-15 minute TTL                                  │
+</span><span id="__span-35-5"><a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>│ • Public queries only                              │
+</span><span id="__span-35-6"><a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>└─────────────────┬──────────────────────────────────┘
+</span><span id="__span-35-7"><a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>                  │ CDN miss
+</span><span id="__span-35-8"><a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>                  ↓
+</span><span id="__span-35-9"><a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>┌────────────────────────────────────────────────────┐
+</span><span id="__span-35-10"><a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>│ APQ Response Cache                                 │
+</span><span id="__span-35-11"><a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a>│ • FraiseQL in-process or Redis                     │
+</span><span id="__span-35-12"><a id="__codelineno-35-12" name="__codelineno-35-12" href="#__codelineno-35-12"></a>│ • 1-5 minute TTL                                   │
+</span><span id="__span-35-13"><a id="__codelineno-35-13" name="__codelineno-35-13" href="#__codelineno-35-13"></a>│ • All cacheable queries                            │
+</span><span id="__span-35-14"><a id="__codelineno-35-14" name="__codelineno-35-14" href="#__codelineno-35-14"></a>└─────────────────┬──────────────────────────────────┘
+</span><span id="__span-35-15"><a id="__codelineno-35-15" name="__codelineno-35-15" href="#__codelineno-35-15"></a>                  │ Response cache miss
+</span><span id="__span-35-16"><a id="__codelineno-35-16" name="__codelineno-35-16" href="#__codelineno-35-16"></a>                  ↓
+</span><span id="__span-35-17"><a id="__codelineno-35-17" name="__codelineno-35-17" href="#__codelineno-35-17"></a>┌────────────────────────────────────────────────────┐
+</span><span id="__span-35-18"><a id="__codelineno-35-18" name="__codelineno-35-18" href="#__codelineno-35-18"></a>│ APQ Query Cache                                    │
+</span><span id="__span-35-19"><a id="__codelineno-35-19" name="__codelineno-35-19" href="#__codelineno-35-19"></a>│ • Eliminates parsing overhead                      │
+</span><span id="__span-35-20"><a id="__codelineno-35-20" name="__codelineno-35-20" href="#__codelineno-35-20"></a>│ • Permanent (no TTL)                               │
+</span><span id="__span-35-21"><a id="__codelineno-35-21" name="__codelineno-35-21" href="#__codelineno-35-21"></a>│ • All queries                                      │
+</span><span id="__span-35-22"><a id="__codelineno-35-22" name="__codelineno-35-22" href="#__codelineno-35-22"></a>└─────────────────┬──────────────────────────────────┘
+</span><span id="__span-35-23"><a id="__codelineno-35-23" name="__codelineno-35-23" href="#__codelineno-35-23"></a>                  │ Query cache miss
+</span><span id="__span-35-24"><a id="__codelineno-35-24" name="__codelineno-35-24" href="#__codelineno-35-24"></a>                  ↓
+</span><span id="__span-35-25"><a id="__codelineno-35-25" name="__codelineno-35-25" href="#__codelineno-35-25"></a>┌────────────────────────────────────────────────────┐
+</span><span id="__span-35-26"><a id="__codelineno-35-26" name="__codelineno-35-26" href="#__codelineno-35-26"></a>│ PostgreSQL Materialized Views (tv_{entity})       │
+</span><span id="__span-35-27"><a id="__codelineno-35-27" name="__codelineno-35-27" href="#__codelineno-35-27"></a>│ • Data-level caching                               │
+</span><span id="__span-35-28"><a id="__codelineno-35-28" name="__codelineno-35-28" href="#__codelineno-35-28"></a>│ • Refresh strategy configured per entity           │
+</span><span id="__span-35-29"><a id="__codelineno-35-29" name="__codelineno-35-29" href="#__codelineno-35-29"></a>│ • All queries                                      │
+</span><span id="__span-35-30"><a id="__codelineno-35-30" name="__codelineno-35-30" href="#__codelineno-35-30"></a>└─────────────────┬──────────────────────────────────┘
+</span><span id="__span-35-31"><a id="__codelineno-35-31" name="__codelineno-35-31" href="#__codelineno-35-31"></a>                  │ Materialized view miss
+</span><span id="__span-35-32"><a id="__codelineno-35-32" name="__codelineno-35-32" href="#__codelineno-35-32"></a>                  ↓
+</span><span id="__span-35-33"><a id="__codelineno-35-33" name="__codelineno-35-33" href="#__codelineno-35-33"></a>┌────────────────────────────────────────────────────┐
+</span><span id="__span-35-34"><a id="__codelineno-35-34" name="__codelineno-35-34" href="#__codelineno-35-34"></a>│ PostgreSQL Base Tables                             │
+</span><span id="__span-35-35"><a id="__codelineno-35-35" name="__codelineno-35-35" href="#__codelineno-35-35"></a>│ • Source of truth                                  │
+</span><span id="__span-35-36"><a id="__codelineno-35-36" name="__codelineno-35-36" href="#__codelineno-35-36"></a>│ • Full query execution                             │
+</span><span id="__span-35-37"><a id="__codelineno-35-37" name="__codelineno-35-37" href="#__codelineno-35-37"></a>└────────────────────────────────────────────────────┘
+</span></code></pre></div>
+<hr />
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<h3 id="quick-decision-matrix">Quick Decision Matrix<a class="headerlink" href="#quick-decision-matrix" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Query Cache</th>
+<th>Response Cache</th>
+<th>Backend</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Development</td>
+<td>✅ Memory</td>
+<td>❌ Disabled</td>
+<td>Memory</td>
+</tr>
+<tr>
+<td>Single instance production</td>
+<td>✅ Memory</td>
+<td>⚠️ Selective</td>
+<td>Memory</td>
+</tr>
+<tr>
+<td>Multi-instance production</td>
+<td>✅ PostgreSQL</td>
+<td>⚠️ Selective</td>
+<td>PostgreSQL</td>
+</tr>
+<tr>
+<td>High-traffic (&gt;1000 req/s)</td>
+<td>✅ Redis</td>
+<td>✅ Enabled</td>
+<td>Redis</td>
+</tr>
+<tr>
+<td>Read-heavy public API</td>
+<td>✅ Redis</td>
+<td>✅ Enabled</td>
+<td>Redis</td>
+</tr>
+<tr>
+<td>Real-time data</td>
+<td>✅ Memory</td>
+<td>❌ Disabled</td>
+<td>Memory</td>
+</tr>
+<tr>
+<td>User-specific queries</td>
+<td>✅ PostgreSQL</td>
+<td>⚠️ With isolation</td>
+<td>PostgreSQL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-takeaways">Key Takeaways<a class="headerlink" href="#key-takeaways" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Always use query caching</strong> - no downside, pure performance gain</li>
+<li><strong>Response caching is powerful but selective</strong> - only for appropriate workloads</li>
+<li><strong>Monitor hit rates continuously</strong> - &lt;70% indicates optimization opportunity</li>
+<li><strong>Choose backend based on deployment</strong> - memory for single, PostgreSQL/Redis for distributed</li>
+<li><strong>Combine with materialized views</strong> - FraiseQL's two-layer caching strategy is ideal</li>
+</ol>
+<hr />
+<h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../">FraiseQL Performance Guide</a></li>
+<li><a href="../caching/">Caching Guide</a></li>
+<li><a href="https://www.apollographql.com/docs/react/api/link/persisted-queries/">GraphQL APQ Specification</a></li>
+</ul>
+<hr />
+<p><em>Last Updated: 2025-10-23 | FraiseQL v1.0.0</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2025 <a href="https://github.com/fraiseql" target="_blank" rel="noopener">FraiseQL Project</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/fraiseql/fraiseql" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/fraiseql/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

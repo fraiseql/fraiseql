@@ -1,0 +1,3270 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry">
+      
+      
+        <meta name="author" content="Lionel Hamayon">
+      
+      
+        <link rel="canonical" href="https://fraiseql.dev/docs/core/database-api/">
+      
+      
+        <link rel="prev" href="../queries-and-mutations/">
+      
+      
+        <link rel="next" href="../configuration/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>Database API - FraiseQL Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#database-api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="FraiseQL Documentation" class="md-header__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            FraiseQL Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Database API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../tutorials/beginner-path/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../fraiseql-philosophy/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../performance/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Performance
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../advanced/authentication/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Advanced
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../production/deployment/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Production
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api-reference/database/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="FraiseQL Documentation" class="md-nav__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    FraiseQL Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tutorials
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Tutorials
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/beginner-path/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Beginner Learning Path
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/blog-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Blog API Tutorial
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/production-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Production Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Core Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Core Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fraiseql-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    FraiseQL Philosophy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../types-and-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Types & Schema
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../queries-and-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Queries & Mutations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#query-flow-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query Flow Architecture
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Query Flow Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#repository-query-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      Repository Query Execution
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fraiseqlrepository" class="md-nav__link">
+    <span class="md-ellipsis">
+      FraiseQLRepository
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FraiseQLRepository">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Methods
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#initialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Initialization
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#select_from_json_view" class="md-nav__link">
+    <span class="md-ellipsis">
+      select_from_json_view()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fetch_one" class="md-nav__link">
+    <span class="md-ellipsis">
+      fetch_one()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fetch_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      fetch_all()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      execute()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execute_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      execute_many()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queryoptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      QueryOptions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dynamic Filters
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic Filters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Operators
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Filter Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nested-object-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Nested Object Filtering
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Nested Object Filtering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-nested-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Nested Filter
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multiple-nesting-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multiple Nesting Levels
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combined-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Combined Filters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#graphql-whereinput-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      GraphQL WhereInput Objects
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supported-operators_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Operators
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coordinate-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coordinate Filtering
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Coordinate Filtering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-coordinate-equality" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Coordinate Equality
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coordinate-list-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coordinate List Operations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#distance-based-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Distance-Based Filtering
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coordinate-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coordinate Operators
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pagination" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pagination
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pagination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#paginationinput" class="md-nav__link">
+    <span class="md-ellipsis">
+      PaginationInput
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pagination-sql-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pagination SQL Pattern
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ordering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ordering
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ordering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#orderbyinstructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      OrderByInstructions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ordering-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ordering Patterns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-tenancy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-Tenancy
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Multi-Tenancy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tenant-column-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tenant Column Detection
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic Filtering
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bypassing-tenant-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Bypassing Tenant Filtering
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sql-builder-utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      SQL Builder Utilities
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SQL Builder Utilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_filter_conditions_and_params" class="md-nav__link">
+    <span class="md-ellipsis">
+      build_filter_conditions_and_params()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate_order_by_clause" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate_order_by_clause()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate_pagination_query" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate_pagination_query()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Handling
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exception-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Exception Hierarchy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#type-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      Type Safety
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Type Safety">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tosqlprotocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      ToSQLProtocol
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      Best Practices
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      Complete Example
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../performance/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Performance
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Performance
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Authentication
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/multi-tenancy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-Tenancy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/bounded-contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Bounded Contexts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/event-sourcing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Event Sourcing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/database-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database Patterns
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/llm-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LLM Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Production
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Production
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Security
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api-reference/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#query-flow-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query Flow Architecture
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Query Flow Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#repository-query-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      Repository Query Execution
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fraiseqlrepository" class="md-nav__link">
+    <span class="md-ellipsis">
+      FraiseQLRepository
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FraiseQLRepository">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Methods
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#initialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Initialization
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#select_from_json_view" class="md-nav__link">
+    <span class="md-ellipsis">
+      select_from_json_view()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fetch_one" class="md-nav__link">
+    <span class="md-ellipsis">
+      fetch_one()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fetch_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      fetch_all()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      execute()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execute_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      execute_many()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#queryoptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      QueryOptions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dynamic Filters
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic Filters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Operators
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Filter Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nested-object-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Nested Object Filtering
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Nested Object Filtering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-nested-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Nested Filter
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multiple-nesting-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multiple Nesting Levels
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combined-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Combined Filters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#graphql-whereinput-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      GraphQL WhereInput Objects
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supported-operators_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Operators
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#coordinate-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coordinate Filtering
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Coordinate Filtering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-coordinate-equality" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Coordinate Equality
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coordinate-list-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coordinate List Operations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#distance-based-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Distance-Based Filtering
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coordinate-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coordinate Operators
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pagination" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pagination
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pagination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#paginationinput" class="md-nav__link">
+    <span class="md-ellipsis">
+      PaginationInput
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pagination-sql-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pagination SQL Pattern
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ordering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ordering
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ordering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#orderbyinstructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      OrderByInstructions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ordering-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ordering Patterns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-tenancy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-Tenancy
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Multi-Tenancy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tenant-column-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tenant Column Detection
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic Filtering
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bypassing-tenant-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Bypassing Tenant Filtering
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sql-builder-utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      SQL Builder Utilities
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SQL Builder Utilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_filter_conditions_and_params" class="md-nav__link">
+    <span class="md-ellipsis">
+      build_filter_conditions_and_params()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate_order_by_clause" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate_order_by_clause()
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate_pagination_query" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate_pagination_query()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Handling
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Error Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exception-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Exception Hierarchy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#type-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      Type Safety
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Type Safety">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tosqlprotocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      ToSQLProtocol
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      Best Practices
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      Complete Example
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h1>
+<p>Repository pattern for async database operations with type safety, structured queries, and JSONB views.</p>
+<p><strong>📍 Navigation</strong>: <a href="../queries-and-mutations/">← Queries &amp; Mutations</a> • <a href="../../performance/">Performance →</a> • <a href="../../advanced/database-patterns/">Database Patterns →</a></p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>FraiseQL provides a repository layer for database operations that:
+- Executes structured queries against JSONB views
+- Supports dynamic filtering with operators
+- Handles pagination and ordering
+- Provides tenant isolation
+- Returns RustResponseBytes for automatic GraphQL processing</p>
+<h2 id="query-flow-architecture">Query Flow Architecture<a class="headerlink" href="#query-flow-architecture" title="Permanent link">&para;</a></h2>
+<h3 id="repository-query-execution">Repository Query Execution<a class="headerlink" href="#repository-query-execution" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│ GraphQL     │───▶│ Repository  │───▶│ PostgreSQL  │───▶│   Rust      │
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│ Resolver    │    │  Method     │    │   View      │    │ Pipeline    │
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│             │    │             │    │             │    │             │
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│ @query      │    │ find_rust() │    │ SELECT *    │    │ Transform   │
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│ def users:  │    │             │    │ FROM v_user │    │ JSONB→GraphQL│
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+</span></code></pre></div>
+<p><strong>Query Flow Steps:</strong>
+1. <strong>GraphQL Resolver</strong> calls repository method with filters
+2. <strong>Repository</strong> builds SQL query with WHERE clauses and pagination
+3. <strong>PostgreSQL</strong> executes view and returns JSONB results
+4. <strong>Rust Pipeline</strong> transforms JSONB to GraphQL response format</p>
+<p><strong><a href="../../diagrams/request-flow/">📊 Detailed Query Flow</a></strong> - Complete request lifecycle</p>
+<h2 id="fraiseqlrepository">FraiseQLRepository<a class="headerlink" href="#fraiseqlrepository" title="Permanent link">&para;</a></h2>
+<p>Core repository class for async database operations with exclusive Rust pipeline integration.</p>
+<h3 id="key-methods">Key Methods<a class="headerlink" href="#key-methods" title="Permanent link">&para;</a></h3>
+<h4 id="find_rustview_name-field_name-info-kwargs">find_rust(view_name, field_name, info, **kwargs)<a class="headerlink" href="#find_rustview_name-field_name-info-kwargs" title="Permanent link">&para;</a></h4>
+<p>Execute query using exclusive Rust pipeline and return RustResponseBytes.</p>
+<p><strong>Fastest method</strong> - PostgreSQL → Rust → HTTP with zero Python string operations.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Exclusive Rust pipeline methods:</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">users</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">find_rust</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">user</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">find_one_rust</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">filtered</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">find_rust</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="s2">&quot;users&quot;</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">age__gt</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Parameters:</strong>
+- <code>view_name: str</code> - Database view name (e.g., "v_user")
+- <code>field_name: str</code> - GraphQL field name for response wrapping
+- <code>info: Any</code> - GraphQL resolver info for field paths
+- <code>**kwargs</code> - Filter parameters and options</p>
+<p><strong>Returns:</strong> <code>RustResponseBytes</code> - Pre-serialized GraphQL response ready for HTTP</p>
+<h4 id="find_one_rustview_name-field_name-info-kwargs">find_one_rust(view_name, field_name, info, **kwargs)<a class="headerlink" href="#find_one_rustview_name-field_name-info-kwargs" title="Permanent link">&para;</a></h4>
+<p>Execute single-result query using exclusive Rust pipeline.</p>
+<p><strong>Parameters:</strong>
+- <code>view_name: str</code> - Database view name
+- <code>field_name: str</code> - GraphQL field name for response wrapping
+- <code>info: Any</code> - GraphQL resolver info for field paths
+- <code>**kwargs</code> - Filter parameters</p>
+<p><strong>Returns:</strong> <code>RustResponseBytes</code> - Single result as GraphQL response</p>
+<h4 id="findsource-wherenone-kwargs">find(source, where=None, **kwargs)<a class="headerlink" href="#findsource-wherenone-kwargs" title="Permanent link">&para;</a></h4>
+<p>Execute query and return Python objects.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Direct database access (bypasses Rust pipeline)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">users</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">user</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">find_one</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="mi">123</span><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Parameters:</strong>
+- <code>source: str</code> - View name (e.g., "v_user")
+- <code>where: dict</code> - WHERE clause filters (optional)
+- <code>**kwargs</code> - Additional filters</p>
+<p><strong>Returns:</strong> Python objects (slower path)</p>
+<h3 id="initialization">Initialization<a class="headerlink" href="#initialization" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">psycopg_pool</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncConnectionPool</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">pool</span> <span class="o">=</span> <span class="n">AsyncConnectionPool</span><span class="p">(</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">conninfo</span><span class="o">=</span><span class="s2">&quot;postgresql://localhost/mydb&quot;</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">min_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">max_size</span><span class="o">=</span><span class="mi">20</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">)</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">repo</span> <span class="o">=</span> <span class="n">PsycopgRepository</span><span class="p">(</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">pool</span><span class="o">=</span><span class="n">pool</span><span class="p">,</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">tenant_id</span><span class="o">=</span><span class="s2">&quot;tenant-123&quot;</span>  <span class="c1"># Optional: tenant context</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Parameters</strong>:
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| pool | AsyncConnectionPool | Yes | Connection pool instance |
+| tenant_id | str | None | No | Tenant identifier for multi-tenant contexts |</p>
+<h3 id="select_from_json_view">select_from_json_view()<a class="headerlink" href="#select_from_json_view" title="Permanent link">&para;</a></h3>
+<p>Primary method for querying JSONB views with filtering, pagination, and ordering.</p>
+<p><strong>Signature</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">select_from_json_view</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="bp">self</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">UUID</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">view_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">options</span><span class="p">:</span> <span class="n">QueryOptions</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]],</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span>
+</span></code></pre></div></p>
+<p><strong>Parameters</strong>:
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| tenant_id | UUID | Yes | Tenant identifier for multi-tenant filtering |
+| view_name | str | Yes | Database view name (e.g., "v_orders") |
+| options | QueryOptions | None | No | Query options (filters, pagination, ordering) |</p>
+<p><strong>Returns</strong>: <code>tuple[Sequence[dict[str, object]], int | None]</code>
+- First element: List of result dictionaries from json_data column
+- Second element: Total count (if paginated), None otherwise</p>
+<p><strong>Example</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">PsycopgRepository</span><span class="p">,</span> <span class="n">QueryOptions</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">PaginationInput</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">OrderByInstructions</span><span class="p">,</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">OrderByInstruction</span><span class="p">,</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">OrderDirection</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="p">)</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">repo</span> <span class="o">=</span> <span class="n">PsycopgRepository</span><span class="p">(</span><span class="n">connection_pool</span><span class="p">)</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="n">filters</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;active&quot;</span><span class="p">,</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>        <span class="s2">&quot;created_at__min&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>        <span class="s2">&quot;price__max&quot;</span><span class="p">:</span> <span class="mf">100.00</span>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="p">},</span>
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>    <span class="n">order_by</span><span class="o">=</span><span class="n">OrderByInstructions</span><span class="p">(</span>
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>        <span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>            <span class="n">OrderByInstruction</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="n">OrderDirection</span><span class="o">.</span><span class="n">DESC</span><span class="p">)</span>
+</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>        <span class="p">]</span>
+</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>    <span class="p">),</span>
+</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>    <span class="n">pagination</span><span class="o">=</span><span class="n">PaginationInput</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="p">)</span>
+</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a>
+</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="n">data</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">select_from_json_view</span><span class="p">(</span>
+</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a>    <span class="n">tenant_id</span><span class="o">=</span><span class="n">tenant_id</span><span class="p">,</span>
+</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a>    <span class="n">view_name</span><span class="o">=</span><span class="s2">&quot;v_orders&quot;</span><span class="p">,</span>
+</span><span id="__span-5-28"><a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a>    <span class="n">options</span><span class="o">=</span><span class="n">options</span>
+</span><span id="__span-5-29"><a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a><span class="p">)</span>
+</span><span id="__span-5-30"><a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a>
+</span><span id="__span-5-31"><a id="__codelineno-5-31" name="__codelineno-5-31" href="#__codelineno-5-31"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Retrieved </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="si">}</span><span class="s2"> orders out of </span><span class="si">{</span><span class="n">total</span><span class="si">}</span><span class="s2"> total&quot;</span><span class="p">)</span>
+</span><span id="__span-5-32"><a id="__codelineno-5-32" name="__codelineno-5-32" href="#__codelineno-5-32"></a><span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+</span><span id="__span-5-33"><a id="__codelineno-5-33" name="__codelineno-5-33" href="#__codelineno-5-33"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Order </span><span class="si">{</span><span class="n">order</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">order</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span></code></pre></div></p>
+<h3 id="fetch_one">fetch_one()<a class="headerlink" href="#fetch_one" title="Permanent link">&para;</a></h3>
+<p>Fetch single row from database.</p>
+<p><strong>Signature</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_one</span><span class="p">(</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="bp">self</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">query</span><span class="p">:</span> <span class="n">Composed</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">args</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span>
+</span></code></pre></div></p>
+<p><strong>Parameters</strong>:
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| query | Composed | Yes | Psycopg Composed SQL query |
+| args | tuple | () | No | Query parameters |</p>
+<p><strong>Returns</strong>: Dictionary representing single row</p>
+<p><strong>Raises</strong>:
+- <code>ValueError</code> - No row returned
+- <code>DatabaseConnectionError</code> - Connection failure
+- <code>DatabaseQueryError</code> - Query execution error</p>
+<p><strong>Example</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">psycopg.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">SQL</span><span class="p">,</span> <span class="n">Identifier</span><span class="p">,</span> <span class="n">Placeholder</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">query</span> <span class="o">=</span> <span class="n">SQL</span><span class="p">(</span><span class="s2">&quot;SELECT json_data FROM </span><span class="si">{}</span><span class="s2"> WHERE id = </span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">Identifier</span><span class="p">(</span><span class="s2">&quot;v_user&quot;</span><span class="p">),</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">Placeholder</span><span class="p">()</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="p">)</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="n">user</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">fetch_one</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="n">user_id</span><span class="p">,))</span>
+</span></code></pre></div></p>
+<h3 id="fetch_all">fetch_all()<a class="headerlink" href="#fetch_all" title="Permanent link">&para;</a></h3>
+<p>Fetch all rows from database query.</p>
+<p><strong>Signature</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_all</span><span class="p">(</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="bp">self</span><span class="p">,</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">query</span><span class="p">:</span> <span class="n">Composed</span><span class="p">,</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">args</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]</span>
+</span></code></pre></div></p>
+<p><strong>Parameters</strong>:
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| query | Composed | Yes | Psycopg Composed SQL query |
+| args | tuple | () | No | Query parameters |</p>
+<p><strong>Returns</strong>: List of dictionaries representing all rows</p>
+<p><strong>Example</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">query</span> <span class="o">=</span> <span class="n">SQL</span><span class="p">(</span><span class="s2">&quot;SELECT json_data FROM </span><span class="si">{}</span><span class="s2"> WHERE tenant_id = </span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">Identifier</span><span class="p">(</span><span class="s2">&quot;v_orders&quot;</span><span class="p">),</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">Placeholder</span><span class="p">()</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="p">)</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">orders</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">fetch_all</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="n">tenant_id</span><span class="p">,))</span>
+</span></code></pre></div></p>
+<h3 id="execute">execute()<a class="headerlink" href="#execute" title="Permanent link">&para;</a></h3>
+<p>Execute query without returning results (INSERT, UPDATE, DELETE).</p>
+<p><strong>Signature</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="bp">self</span><span class="p">,</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">query</span><span class="p">:</span> <span class="n">Composed</span><span class="p">,</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">args</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div></p>
+<p><strong>Example</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">query</span> <span class="o">=</span> <span class="n">SQL</span><span class="p">(</span><span class="s2">&quot;UPDATE </span><span class="si">{}</span><span class="s2"> SET status = </span><span class="si">{}</span><span class="s2"> WHERE id = </span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="n">Identifier</span><span class="p">(</span><span class="s2">&quot;tb_orders&quot;</span><span class="p">),</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="n">Placeholder</span><span class="p">(),</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="n">Placeholder</span><span class="p">()</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="p">)</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;shipped&quot;</span><span class="p">,</span> <span class="n">order_id</span><span class="p">))</span>
+</span></code></pre></div></p>
+<h3 id="execute_many">execute_many()<a class="headerlink" href="#execute_many" title="Permanent link">&para;</a></h3>
+<p>Execute query multiple times with different parameters in single transaction.</p>
+<p><strong>Signature</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">execute_many</span><span class="p">(</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="bp">self</span><span class="p">,</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="n">query</span><span class="p">:</span> <span class="n">Composed</span><span class="p">,</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">args_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div></p>
+<p><strong>Example</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">query</span> <span class="o">=</span> <span class="n">SQL</span><span class="p">(</span><span class="s2">&quot;INSERT INTO </span><span class="si">{}</span><span class="s2"> (name, email) VALUES (</span><span class="si">{}</span><span class="s2">, </span><span class="si">{}</span><span class="s2">)&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="n">Identifier</span><span class="p">(</span><span class="s2">&quot;tb_users&quot;</span><span class="p">),</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="n">Placeholder</span><span class="p">(),</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="n">Placeholder</span><span class="p">()</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="p">)</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">execute_many</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">[</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    <span class="p">(</span><span class="s2">&quot;Alice&quot;</span><span class="p">,</span> <span class="s2">&quot;alice@example.com&quot;</span><span class="p">),</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    <span class="p">(</span><span class="s2">&quot;Bob&quot;</span><span class="p">,</span> <span class="s2">&quot;bob@example.com&quot;</span><span class="p">),</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>    <span class="p">(</span><span class="s2">&quot;Charlie&quot;</span><span class="p">,</span> <span class="s2">&quot;charlie@example.com&quot;</span><span class="p">)</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="p">])</span>
+</span></code></pre></div></p>
+<h2 id="queryoptions">QueryOptions<a class="headerlink" href="#queryoptions" title="Permanent link">&para;</a></h2>
+<p>Structured query parameters for filtering, pagination, and ordering.</p>
+<p><strong>Definition</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nd">@dataclass</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">QueryOptions</span><span class="p">:</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">aggregations</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="n">order_by</span><span class="p">:</span> <span class="n">OrderByInstructions</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="n">dimension_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    <span class="n">pagination</span><span class="p">:</span> <span class="n">PaginationInput</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    <span class="n">filters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    <span class="n">where</span><span class="p">:</span> <span class="n">ToSQLProtocol</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    <span class="n">ignore_tenant_column</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span></code></pre></div></p>
+<p><strong>Fields</strong>:
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| aggregations | dict[str, str] | None | None | Aggregation functions (SUM, AVG, COUNT, MIN, MAX) |
+| order_by | OrderByInstructions | None | None | Ordering specifications |
+| dimension_key | str | None | None | JSON dimension key for nested ordering |
+| pagination | PaginationInput | None | None | Pagination parameters (limit, offset) |
+| filters | dict[str, object] | None | None | Dynamic filters with operators |
+| where | ToSQLProtocol | None | None | Custom WHERE clause object |
+| ignore_tenant_column | bool | False | False | Bypass tenant filtering |</p>
+<h2 id="dynamic-filters">Dynamic Filters<a class="headerlink" href="#dynamic-filters" title="Permanent link">&para;</a></h2>
+<p>Filter syntax supports multiple operators for flexible querying.</p>
+<h3 id="supported-operators">Supported Operators<a class="headerlink" href="#supported-operators" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>SQL Equivalent</th>
+<th>Example</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(none)</td>
+<td>=</td>
+<td><code>{"status": "active"}</code></td>
+<td>Exact match</td>
+</tr>
+<tr>
+<td>__min</td>
+<td>&gt;=</td>
+<td><code>{"created_at__min": "2024-01-01"}</code></td>
+<td>Greater than or equal</td>
+</tr>
+<tr>
+<td>__max</td>
+<td>&lt;=</td>
+<td><code>{"price__max": 100}</code></td>
+<td>Less than or equal</td>
+</tr>
+<tr>
+<td>__in</td>
+<td>IN</td>
+<td><code>{"status__in": ["active", "pending"]}</code></td>
+<td>Match any value in list</td>
+</tr>
+<tr>
+<td>__contains</td>
+<td>&lt;@</td>
+<td><code>{"path__contains": "electronics"}</code></td>
+<td>ltree path containment</td>
+</tr>
+</tbody>
+</table>
+<p><strong>NULL Handling</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">filters</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="kc">None</span>  <span class="c1"># Translates to: WHERE description IS NULL</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="p">}</span>
+</span></code></pre></div></p>
+<h3 id="filter-examples">Filter Examples<a class="headerlink" href="#filter-examples" title="Permanent link">&para;</a></h3>
+<p><strong>Simple equality</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="n">filters</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;active&quot;</span><span class="p">}</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="p">)</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># SQL: WHERE status = &#39;active&#39;</span>
+</span></code></pre></div></p>
+<p><strong>Range queries</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="n">filters</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>        <span class="s2">&quot;created_at__min&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>        <span class="s2">&quot;created_at__max&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-12-31&quot;</span><span class="p">,</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>        <span class="s2">&quot;price__min&quot;</span><span class="p">:</span> <span class="mf">10.00</span><span class="p">,</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>        <span class="s2">&quot;price__max&quot;</span><span class="p">:</span> <span class="mf">100.00</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>    <span class="p">}</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="p">)</span>
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="c1"># SQL: WHERE created_at &gt;= &#39;2024-01-01&#39; AND created_at &lt;= &#39;2024-12-31&#39;</span>
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1">#      AND price &gt;= 10.00 AND price &lt;= 100.00</span>
+</span></code></pre></div></p>
+<p><strong>IN operator</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="n">filters</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>        <span class="s2">&quot;status__in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="s2">&quot;pending&quot;</span><span class="p">,</span> <span class="s2">&quot;processing&quot;</span><span class="p">]</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="p">}</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="p">)</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="c1"># SQL: WHERE status IN (&#39;active&#39;, &#39;pending&#39;, &#39;processing&#39;)</span>
+</span></code></pre></div></p>
+<p><strong>Multiple conditions</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">filters</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>        <span class="s2">&quot;category&quot;</span><span class="p">:</span> <span class="s2">&quot;electronics&quot;</span><span class="p">,</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>        <span class="s2">&quot;price__max&quot;</span><span class="p">:</span> <span class="mf">500.00</span><span class="p">,</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>        <span class="s2">&quot;in_stock&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>        <span class="s2">&quot;vendor__in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;vendor-a&quot;</span><span class="p">,</span> <span class="s2">&quot;vendor-b&quot;</span><span class="p">]</span>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>    <span class="p">}</span>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="p">)</span>
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="c1"># SQL: WHERE category = &#39;electronics&#39;</span>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="c1">#      AND price &lt;= 500.00</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="c1">#      AND in_stock = TRUE</span>
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="c1">#      AND vendor IN (&#39;vendor-a&#39;, &#39;vendor-b&#39;)</span>
+</span></code></pre></div></p>
+<h2 id="nested-object-filtering">Nested Object Filtering<a class="headerlink" href="#nested-object-filtering" title="Permanent link">&para;</a></h2>
+<p>FraiseQL v1.0.0+ supports filtering on nested objects stored in JSONB columns.</p>
+<h3 id="basic-nested-filter">Basic Nested Filter<a class="headerlink" href="#basic-nested-filter" title="Permanent link">&para;</a></h3>
+<p>Filter on nested JSONB objects using dot notation:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># Dictionary-based filtering</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="n">where</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>    <span class="s2">&quot;machine&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>        <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;eq&quot;</span><span class="p">:</span> <span class="s2">&quot;Server-01&quot;</span><span class="p">}</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>    <span class="p">}</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="p">}</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;allocations&quot;</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="n">where</span><span class="p">)</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="c1"># SQL: WHERE data-&gt;&#39;machine&#39;-&gt;&gt;&#39;name&#39; = &#39;Server-01&#39;</span>
+</span></code></pre></div>
+<h3 id="multiple-nesting-levels">Multiple Nesting Levels<a class="headerlink" href="#multiple-nesting-levels" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">where</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    <span class="s2">&quot;location&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>        <span class="s2">&quot;address&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>            <span class="s2">&quot;city&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;eq&quot;</span><span class="p">:</span> <span class="s2">&quot;Seattle&quot;</span><span class="p">}</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>        <span class="p">}</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>    <span class="p">}</span>
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="p">}</span>
+</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="c1"># SQL: WHERE data-&gt;&#39;location&#39;-&gt;&#39;address&#39;-&gt;&gt;&#39;city&#39; = &#39;Seattle&#39;</span>
+</span></code></pre></div>
+<h3 id="combined-filters">Combined Filters<a class="headerlink" href="#combined-filters" title="Permanent link">&para;</a></h3>
+<p>Mix flat and nested filters:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">where</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>    <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;eq&quot;</span><span class="p">:</span> <span class="s2">&quot;active&quot;</span><span class="p">},</span>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>    <span class="s2">&quot;machine&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;eq&quot;</span><span class="p">:</span> <span class="s2">&quot;Server&quot;</span><span class="p">},</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>        <span class="s2">&quot;power&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;gte&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">}</span>
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>    <span class="p">}</span>
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="p">}</span>
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="c1"># SQL: WHERE data-&gt;&gt;&#39;status&#39; = &#39;active&#39;</span>
+</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="c1">#      AND data-&gt;&#39;machine&#39;-&gt;&gt;&#39;type&#39; = &#39;Server&#39;</span>
+</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="c1">#      AND data-&gt;&#39;machine&#39;-&gt;&gt;&#39;power&#39; &gt;= 100</span>
+</span></code></pre></div>
+<h3 id="graphql-whereinput-objects">GraphQL WhereInput Objects<a class="headerlink" href="#graphql-whereinput-objects" title="Permanent link">&para;</a></h3>
+<p>Use generated WhereInput types for type-safe filtering:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_graphql_where_input</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="n">MachineWhereInput</span> <span class="o">=</span> <span class="n">create_graphql_where_input</span><span class="p">(</span><span class="n">Machine</span><span class="p">)</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="n">AllocationWhereInput</span> <span class="o">=</span> <span class="n">create_graphql_where_input</span><span class="p">(</span><span class="n">Allocation</span><span class="p">)</span>
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>
+</span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="n">where</span> <span class="o">=</span> <span class="n">AllocationWhereInput</span><span class="p">(</span>
+</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>    <span class="n">machine</span><span class="o">=</span><span class="n">MachineWhereInput</span><span class="p">(</span>
+</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>        <span class="n">name</span><span class="o">=</span><span class="n">StringFilter</span><span class="p">(</span><span class="n">eq</span><span class="o">=</span><span class="s2">&quot;Server-01&quot;</span><span class="p">)</span>
+</span><span id="__span-23-9"><a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>    <span class="p">)</span>
+</span><span id="__span-23-10"><a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="p">)</span>
+</span><span id="__span-23-11"><a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;allocations&quot;</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="n">where</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="supported-operators_1">Supported Operators<a class="headerlink" href="#supported-operators_1" title="Permanent link">&para;</a></h3>
+<p>All standard operators work with nested objects:
+- <code>eq</code>, <code>neq</code> - equality/inequality
+- <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code> - comparisons
+- <code>in</code>, <code>notin</code> - list membership
+- <code>contains</code>, <code>startswith</code>, <code>endswith</code> - string patterns
+- <code>is_null</code> - null checks</p>
+<h2 id="coordinate-filtering">Coordinate Filtering<a class="headerlink" href="#coordinate-filtering" title="Permanent link">&para;</a></h2>
+<p>FraiseQL v1.0.0+ supports geographic coordinate filtering with PostgreSQL POINT type casting.</p>
+<h3 id="basic-coordinate-equality">Basic Coordinate Equality<a class="headerlink" href="#basic-coordinate-equality" title="Permanent link">&para;</a></h3>
+<p>Filter by exact coordinate match:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Dictionary-based filtering</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="n">where</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>    <span class="s2">&quot;coordinates&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;eq&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">45.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">122.6</span><span class="p">)}</span>  <span class="c1"># (latitude, longitude)</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="p">}</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;locations&quot;</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="n">where</span><span class="p">)</span>
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="c1"># SQL: WHERE (data-&gt;&gt;&#39;coordinates&#39;)::point = POINT(-122.6, 45.5)</span>
+</span></code></pre></div>
+<h3 id="coordinate-list-operations">Coordinate List Operations<a class="headerlink" href="#coordinate-list-operations" title="Permanent link">&para;</a></h3>
+<p>Check if coordinates are in a list:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="n">where</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="s2">&quot;coordinates&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;in&quot;</span><span class="p">:</span> <span class="p">[</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>        <span class="p">(</span><span class="mf">45.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">122.6</span><span class="p">),</span>  <span class="c1"># Seattle</span>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>        <span class="p">(</span><span class="mf">47.6097</span><span class="p">,</span> <span class="o">-</span><span class="mf">122.3425</span><span class="p">),</span>  <span class="c1"># Pike Place</span>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>        <span class="p">(</span><span class="mf">40.7128</span><span class="p">,</span> <span class="o">-</span><span class="mf">74.0060</span><span class="p">)</span>  <span class="c1"># NYC</span>
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>    <span class="p">]}</span>
+</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="p">}</span>
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="c1"># SQL: WHERE (data-&gt;&gt;&#39;coordinates&#39;)::point IN (POINT(-122.6, 45.5), ...)</span>
+</span></code></pre></div>
+<h3 id="distance-based-filtering">Distance-Based Filtering<a class="headerlink" href="#distance-based-filtering" title="Permanent link">&para;</a></h3>
+<p>Find locations within distance:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="n">where</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    <span class="s2">&quot;coordinates&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>        <span class="s2">&quot;distance_within&quot;</span><span class="p">:</span> <span class="p">((</span><span class="mf">45.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">122.6</span><span class="p">),</span> <span class="mi">5000</span><span class="p">)</span>  <span class="c1"># Center point, radius in meters</span>
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>    <span class="p">}</span>
+</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>FraiseQL supports three distance calculation methods:</p>
+<ol>
+<li><strong>Haversine Formula</strong> (default, no dependencies)</li>
+<li>Pure SQL implementation using great-circle distance</li>
+<li>Accuracy: ±0.5% for distances &lt; 1000km</li>
+<li>
+<p>Works with standard PostgreSQL</p>
+</li>
+<li>
+<p><strong>PostGIS ST_DWithin</strong> (most accurate)</p>
+</li>
+<li>Geodesic distance on spheroid model</li>
+<li>Accuracy: ±0.1% at any distance</li>
+<li>
+<p>Requires: <code>CREATE EXTENSION postgis;</code></p>
+</li>
+<li>
+<p><strong>earthdistance</strong> (moderate accuracy)</p>
+</li>
+<li>PostgreSQL earthdistance extension</li>
+<li>Accuracy: ±1-2%</li>
+<li>Requires: <code>CREATE EXTENSION earthdistance;</code></li>
+</ol>
+<h4 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h4>
+<p>Set the distance method in your config:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FraiseQLConfig</span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="n">config</span> <span class="o">=</span> <span class="n">FraiseQLConfig</span><span class="p">(</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>    <span class="n">database_url</span><span class="o">=</span><span class="s2">&quot;postgresql://...&quot;</span><span class="p">,</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>    <span class="n">coordinate_distance_method</span><span class="o">=</span><span class="s2">&quot;haversine&quot;</span>  <span class="c1"># default</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>    <span class="c1"># or &quot;postgis&quot; for production</span>
+</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>    <span class="c1"># or &quot;earthdistance&quot; for legacy systems</span>
+</span><span id="__span-27-8"><a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Or via environment variable:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">FRAISEQL_COORDINATE_DISTANCE_METHOD</span><span class="o">=</span>postgis
+</span></code></pre></div>
+<h3 id="coordinate-operators">Coordinate Operators<a class="headerlink" href="#coordinate-operators" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>eq</code>, <code>neq</code> - exact coordinate equality</li>
+<li><code>in</code>, <code>notin</code> - coordinate list membership</li>
+<li><code>distance_within</code> - distance-based filtering</li>
+</ul>
+<p><strong>Note</strong>: Coordinates are stored as <code>(latitude, longitude)</code> tuples but converted to PostgreSQL <code>POINT(longitude, latitude)</code> for spatial operations.</p>
+<h2 id="pagination">Pagination<a class="headerlink" href="#pagination" title="Permanent link">&para;</a></h2>
+<p>Efficient pagination using ROW_NUMBER() window function.</p>
+<h3 id="paginationinput">PaginationInput<a class="headerlink" href="#paginationinput" title="Permanent link">&para;</a></h3>
+<p><strong>Definition</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="nd">@dataclass</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">PaginationInput</span><span class="p">:</span>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>    <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div></p>
+<p><strong>Fields</strong>:
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| limit | int | None | None | Maximum number of results (default: 250) |
+| offset | int | None | None | Number of results to skip (default: 0) |</p>
+<p><strong>Example</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Page 1</span>
+</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="n">pagination</span><span class="o">=</span><span class="n">PaginationInput</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-30-4"><a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="p">)</span>
+</span><span id="__span-30-5"><a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
+</span><span id="__span-30-6"><a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="c1"># Page 2</span>
+</span><span id="__span-30-7"><a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-30-8"><a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="n">pagination</span><span class="o">=</span><span class="n">PaginationInput</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</span><span id="__span-30-9"><a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="p">)</span>
+</span><span id="__span-30-10"><a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>
+</span><span id="__span-30-11"><a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="c1"># Page 3</span>
+</span><span id="__span-30-12"><a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-30-13"><a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>    <span class="n">pagination</span><span class="o">=</span><span class="n">PaginationInput</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">40</span><span class="p">)</span>
+</span><span id="__span-30-14"><a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="p">)</span>
+</span></code></pre></div></p>
+<h3 id="pagination-sql-pattern">Pagination SQL Pattern<a class="headerlink" href="#pagination-sql-pattern" title="Permanent link">&para;</a></h3>
+<p>FraiseQL uses efficient ROW_NUMBER() pagination:</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="k">WITH</span><span class="w"> </span><span class="n">paginated_cte</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-31-2"><a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">json_data</span><span class="p">,</span>
+</span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">           </span><span class="n">ROW_NUMBER</span><span class="p">()</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">row_num</span>
+</span><span id="__span-31-4"><a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="n">v_orders</span>
+</span><span id="__span-31-5"><a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">tenant_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="err">$</span><span class="mi">1</span>
+</span><span id="__span-31-6"><a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="p">)</span>
+</span><span id="__span-31-7"><a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">paginated_cte</span>
+</span><span id="__span-31-8"><a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">row_num</span><span class="w"> </span><span class="k">BETWEEN</span><span class="w"> </span><span class="err">$</span><span class="mi">2</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="err">$</span><span class="mi">3</span>
+</span></code></pre></div>
+<p><strong>Benefits</strong>:
+- Consistent results across pages
+- Works with complex ORDER BY clauses
+- Efficient for moderate offsets
+- Returns total count separately</p>
+<h2 id="ordering">Ordering<a class="headerlink" href="#ordering" title="Permanent link">&para;</a></h2>
+<p>Structured ordering with support for native columns, JSON fields, and aggregations.</p>
+<h3 id="orderbyinstructions">OrderByInstructions<a class="headerlink" href="#orderbyinstructions" title="Permanent link">&para;</a></h3>
+<p><strong>Definition</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nd">@dataclass</span>
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrderByInstructions</span><span class="p">:</span>
+</span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="n">instructions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">OrderByInstruction</span><span class="p">]</span>
+</span><span id="__span-32-4"><a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>
+</span><span id="__span-32-5"><a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="nd">@dataclass</span>
+</span><span id="__span-32-6"><a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrderByInstruction</span><span class="p">:</span>
+</span><span id="__span-32-7"><a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>    <span class="n">field</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-32-8"><a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>    <span class="n">direction</span><span class="p">:</span> <span class="n">OrderDirection</span>
+</span><span id="__span-32-9"><a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>
+</span><span id="__span-32-10"><a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrderDirection</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+</span><span id="__span-32-11"><a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>    <span class="n">ASC</span> <span class="o">=</span> <span class="s2">&quot;asc&quot;</span>
+</span><span id="__span-32-12"><a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>    <span class="n">DESC</span> <span class="o">=</span> <span class="s2">&quot;desc&quot;</span>
+</span></code></pre></div></p>
+<p><strong>Example</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>    <span class="n">order_by</span><span class="o">=</span><span class="n">OrderByInstructions</span><span class="p">(</span>
+</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>        <span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-33-4"><a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>            <span class="n">OrderByInstruction</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="n">OrderDirection</span><span class="o">.</span><span class="n">DESC</span><span class="p">),</span>
+</span><span id="__span-33-5"><a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>            <span class="n">OrderByInstruction</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;total_amount&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="n">OrderDirection</span><span class="o">.</span><span class="n">ASC</span><span class="p">)</span>
+</span><span id="__span-33-6"><a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>        <span class="p">]</span>
+</span><span id="__span-33-7"><a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>    <span class="p">)</span>
+</span><span id="__span-33-8"><a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="p">)</span>
+</span></code></pre></div></p>
+<h3 id="ordering-patterns">Ordering Patterns<a class="headerlink" href="#ordering-patterns" title="Permanent link">&para;</a></h3>
+<p><strong>Native column ordering</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="n">order_by</span><span class="o">=</span><span class="n">OrderByInstructions</span><span class="p">(</span><span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>    <span class="n">OrderByInstruction</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="n">OrderDirection</span><span class="o">.</span><span class="n">DESC</span><span class="p">)</span>
+</span><span id="__span-34-3"><a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="p">])</span>
+</span><span id="__span-34-4"><a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># SQL: ORDER BY created_at DESC</span>
+</span></code></pre></div></p>
+<p><strong>JSON field ordering</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="n">order_by</span><span class="o">=</span><span class="n">OrderByInstructions</span><span class="p">(</span><span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-35-2"><a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>    <span class="n">OrderByInstruction</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;customer_name&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="n">OrderDirection</span><span class="o">.</span><span class="n">ASC</span><span class="p">)</span>
+</span><span id="__span-35-3"><a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="p">])</span>
+</span><span id="__span-35-4"><a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="c1"># SQL: ORDER BY json_data-&gt;&gt;&#39;customer_name&#39; ASC</span>
+</span></code></pre></div></p>
+<p><strong>Aggregation ordering</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-36-1"><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-36-2"><a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>    <span class="n">aggregations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;total&quot;</span><span class="p">:</span> <span class="s2">&quot;SUM&quot;</span><span class="p">},</span>
+</span><span id="__span-36-3"><a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>    <span class="n">order_by</span><span class="o">=</span><span class="n">OrderByInstructions</span><span class="p">(</span><span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-36-4"><a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>        <span class="n">OrderByInstruction</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;total&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="n">OrderDirection</span><span class="o">.</span><span class="n">DESC</span><span class="p">)</span>
+</span><span id="__span-36-5"><a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="p">])</span>
+</span><span id="__span-36-6"><a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a><span class="p">)</span>
+</span><span id="__span-36-7"><a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="c1"># SQL: SUM(total) AS total_agg ORDER BY total_agg DESC</span>
+</span></code></pre></div></p>
+<h2 id="multi-tenancy">Multi-Tenancy<a class="headerlink" href="#multi-tenancy" title="Permanent link">&para;</a></h2>
+<p>Automatic tenant filtering for multi-tenant applications.</p>
+<h3 id="tenant-column-detection">Tenant Column Detection<a class="headerlink" href="#tenant-column-detection" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-37-1"><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_tenant_column</span>
+</span><span id="__span-37-2"><a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>
+</span><span id="__span-37-3"><a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="n">tenant_info</span> <span class="o">=</span> <span class="n">get_tenant_column</span><span class="p">(</span><span class="n">view_name</span><span class="o">=</span><span class="s2">&quot;v_orders&quot;</span><span class="p">)</span>
+</span><span id="__span-37-4"><a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="c1"># Returns: {&quot;table&quot;: &quot;tenant_id&quot;, &quot;view&quot;: &quot;tenant_id&quot;}</span>
+</span></code></pre></div>
+<p><strong>Tenant column mapping</strong>:
+- <strong>Tables</strong>: <code>tenant_id</code> - Foreign key to tenant table
+- <strong>Views</strong>: <code>tenant_id</code> - Denormalized tenant identifier</p>
+<h3 id="automatic-filtering">Automatic Filtering<a class="headerlink" href="#automatic-filtering" title="Permanent link">&para;</a></h3>
+<p>Repository automatically adds tenant filter to all queries:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-38-1"><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="n">repo</span> <span class="o">=</span> <span class="n">PsycopgRepository</span><span class="p">(</span><span class="n">pool</span><span class="p">,</span> <span class="n">tenant_id</span><span class="o">=</span><span class="s2">&quot;tenant-123&quot;</span><span class="p">)</span>
+</span><span id="__span-38-2"><a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>
+</span><span id="__span-38-3"><a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="c1"># This query:</span>
+</span><span id="__span-38-4"><a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a><span class="n">data</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">select_from_json_view</span><span class="p">(</span>
+</span><span id="__span-38-5"><a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>    <span class="n">tenant_id</span><span class="o">=</span><span class="n">tenant_id</span><span class="p">,</span>
+</span><span id="__span-38-6"><a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>    <span class="n">view_name</span><span class="o">=</span><span class="s2">&quot;v_orders&quot;</span>
+</span><span id="__span-38-7"><a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a><span class="p">)</span>
+</span><span id="__span-38-8"><a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>
+</span><span id="__span-38-9"><a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a><span class="c1"># Automatically adds: WHERE tenant_id = $1</span>
+</span></code></pre></div>
+<h3 id="bypassing-tenant-filtering">Bypassing Tenant Filtering<a class="headerlink" href="#bypassing-tenant-filtering" title="Permanent link">&para;</a></h3>
+<p>For admin queries that need cross-tenant access:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-39-1"><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-39-2"><a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>    <span class="n">ignore_tenant_column</span><span class="o">=</span><span class="kc">True</span>
+</span><span id="__span-39-3"><a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a><span class="p">)</span>
+</span><span id="__span-39-4"><a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>
+</span><span id="__span-39-5"><a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a><span class="n">data</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">select_from_json_view</span><span class="p">(</span>
+</span><span id="__span-39-6"><a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>    <span class="n">tenant_id</span><span class="o">=</span><span class="n">tenant_id</span><span class="p">,</span>
+</span><span id="__span-39-7"><a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>    <span class="n">view_name</span><span class="o">=</span><span class="s2">&quot;v_orders&quot;</span><span class="p">,</span>
+</span><span id="__span-39-8"><a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>    <span class="n">options</span><span class="o">=</span><span class="n">options</span>
+</span><span id="__span-39-9"><a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a><span class="p">)</span>
+</span><span id="__span-39-10"><a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a><span class="c1"># No tenant_id filter applied</span>
+</span></code></pre></div>
+<h2 id="sql-builder-utilities">SQL Builder Utilities<a class="headerlink" href="#sql-builder-utilities" title="Permanent link">&para;</a></h2>
+<p>Low-level utilities for constructing dynamic SQL queries.</p>
+<h3 id="build_filter_conditions_and_params">build_filter_conditions_and_params()<a class="headerlink" href="#build_filter_conditions_and_params" title="Permanent link">&para;</a></h3>
+<p><strong>Signature</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-40-1"><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_filter_conditions_and_params</span><span class="p">(</span>
+</span><span id="__span-40-2"><a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>    <span class="n">filters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span>
+</span><span id="__span-40-3"><a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Scalar</span> <span class="o">|</span> <span class="n">ScalarList</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>
+</span></code></pre></div></p>
+<p><strong>Returns</strong>: Tuple of (condition strings, parameters)</p>
+<p><strong>Example</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-41-1"><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db.sql_builder</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-41-2"><a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>    <span class="n">build_filter_conditions_and_params</span>
+</span><span id="__span-41-3"><a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a><span class="p">)</span>
+</span><span id="__span-41-4"><a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>
+</span><span id="__span-41-5"><a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a><span class="n">filters</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-41-6"><a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>    <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;active&quot;</span><span class="p">,</span>
+</span><span id="__span-41-7"><a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>    <span class="s2">&quot;price__min&quot;</span><span class="p">:</span> <span class="mf">10.00</span><span class="p">,</span>
+</span><span id="__span-41-8"><a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>    <span class="s2">&quot;tags__in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;electronics&quot;</span><span class="p">,</span> <span class="s2">&quot;gadgets&quot;</span><span class="p">]</span>
+</span><span id="__span-41-9"><a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a><span class="p">}</span>
+</span><span id="__span-41-10"><a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>
+</span><span id="__span-41-11"><a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a><span class="n">conditions</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">build_filter_conditions_and_params</span><span class="p">(</span><span class="n">filters</span><span class="p">)</span>
+</span><span id="__span-41-12"><a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a><span class="c1"># conditions: [&quot;status = %s&quot;, &quot;price &gt;= %s&quot;, &quot;tags IN (%s, %s)&quot;]</span>
+</span><span id="__span-41-13"><a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a><span class="c1"># params: (&quot;active&quot;, 10.00, &quot;electronics&quot;, &quot;gadgets&quot;)</span>
+</span></code></pre></div></p>
+<h3 id="generate_order_by_clause">generate_order_by_clause()<a class="headerlink" href="#generate_order_by_clause" title="Permanent link">&para;</a></h3>
+<p><strong>Signature</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-42-1"><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">generate_order_by_clause</span><span class="p">(</span>
+</span><span id="__span-42-2"><a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>    <span class="n">order_by</span><span class="p">:</span> <span class="n">OrderByInstructions</span><span class="p">,</span>
+</span><span id="__span-42-3"><a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>    <span class="n">aggregations</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+</span><span id="__span-42-4"><a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a>    <span class="n">view_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-42-5"><a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>    <span class="n">alias_mapping</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-42-6"><a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a>    <span class="n">dimension_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-42-7"><a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Composed</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">Composed</span><span class="p">]]</span>
+</span></code></pre></div></p>
+<p><strong>Returns</strong>: Tuple of (ORDER BY clause, aggregated column expressions)</p>
+<h3 id="generate_pagination_query">generate_pagination_query()<a class="headerlink" href="#generate_pagination_query" title="Permanent link">&para;</a></h3>
+<p><strong>Signature</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-43-1"><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">generate_pagination_query</span><span class="p">(</span>
+</span><span id="__span-43-2"><a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>    <span class="n">base_query</span><span class="p">:</span> <span class="n">Composable</span><span class="p">,</span>
+</span><span id="__span-43-3"><a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a>    <span class="n">order_by_clause</span><span class="p">:</span> <span class="n">Composable</span><span class="p">,</span>
+</span><span id="__span-43-4"><a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a>    <span class="n">aggregated_columns</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Composed</span><span class="p">],</span>
+</span><span id="__span-43-5"><a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a>    <span class="n">pagination</span><span class="p">:</span> <span class="n">PaginationInput</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-43-6"><a id="__codelineno-43-6" name="__codelineno-43-6" href="#__codelineno-43-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Composed</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>
+</span></code></pre></div></p>
+<p><strong>Returns</strong>: Tuple of (paginated query, (start_row, end_row))</p>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<p>Custom exceptions for database operations.</p>
+<h3 id="exception-hierarchy">Exception Hierarchy<a class="headerlink" href="#exception-hierarchy" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-44-1"><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-44-2"><a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>    <span class="n">DatabaseConnectionError</span><span class="p">,</span>    <span class="c1"># Connection pool or network errors</span>
+</span><span id="__span-44-3"><a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a>    <span class="n">DatabaseQueryError</span><span class="p">,</span>          <span class="c1"># SQL execution errors</span>
+</span><span id="__span-44-4"><a id="__codelineno-44-4" name="__codelineno-44-4" href="#__codelineno-44-4"></a>    <span class="n">InvalidFilterError</span>           <span class="c1"># Filter validation errors</span>
+</span><span id="__span-44-5"><a id="__codelineno-44-5" name="__codelineno-44-5" href="#__codelineno-44-5"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>Usage</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-45-1"><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-45-2"><a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>    <span class="n">data</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">select_from_json_view</span><span class="p">(</span>
+</span><span id="__span-45-3"><a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>        <span class="n">tenant_id</span><span class="o">=</span><span class="n">tenant_id</span><span class="p">,</span>
+</span><span id="__span-45-4"><a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a>        <span class="n">view_name</span><span class="o">=</span><span class="s2">&quot;v_orders&quot;</span><span class="p">,</span>
+</span><span id="__span-45-5"><a id="__codelineno-45-5" name="__codelineno-45-5" href="#__codelineno-45-5"></a>        <span class="n">options</span><span class="o">=</span><span class="n">options</span>
+</span><span id="__span-45-6"><a id="__codelineno-45-6" name="__codelineno-45-6" href="#__codelineno-45-6"></a>    <span class="p">)</span>
+</span><span id="__span-45-7"><a id="__codelineno-45-7" name="__codelineno-45-7" href="#__codelineno-45-7"></a><span class="k">except</span> <span class="n">DatabaseConnectionError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-45-8"><a id="__codelineno-45-8" name="__codelineno-45-8" href="#__codelineno-45-8"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Database connection failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-45-9"><a id="__codelineno-45-9" name="__codelineno-45-9" href="#__codelineno-45-9"></a>    <span class="c1"># Retry logic or fallback</span>
+</span><span id="__span-45-10"><a id="__codelineno-45-10" name="__codelineno-45-10" href="#__codelineno-45-10"></a><span class="k">except</span> <span class="n">DatabaseQueryError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-45-11"><a id="__codelineno-45-11" name="__codelineno-45-11" href="#__codelineno-45-11"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Query execution failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-45-12"><a id="__codelineno-45-12" name="__codelineno-45-12" href="#__codelineno-45-12"></a>    <span class="c1"># Check query syntax</span>
+</span><span id="__span-45-13"><a id="__codelineno-45-13" name="__codelineno-45-13" href="#__codelineno-45-13"></a><span class="k">except</span> <span class="n">InvalidFilterError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="__span-45-14"><a id="__codelineno-45-14" name="__codelineno-45-14" href="#__codelineno-45-14"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid filter provided: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-45-15"><a id="__codelineno-45-15" name="__codelineno-45-15" href="#__codelineno-45-15"></a>    <span class="c1"># Validate filter input</span>
+</span></code></pre></div></p>
+<h2 id="type-safety">Type Safety<a class="headerlink" href="#type-safety" title="Permanent link">&para;</a></h2>
+<p>Repository uses Protocol-based typing for extensibility.</p>
+<h3 id="tosqlprotocol">ToSQLProtocol<a class="headerlink" href="#tosqlprotocol" title="Permanent link">&para;</a></h3>
+<p>Interface for objects that can generate SQL clauses:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-46-1"><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ToSQLProtocol</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+</span><span id="__span-46-2"><a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">to_sql</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">view_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Composed</span><span class="p">:</span>
+</span><span id="__span-46-3"><a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a>        <span class="o">...</span>
+</span></code></pre></div>
+<p><strong>Example implementation</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-47-1"><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">psycopg.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">SQL</span><span class="p">,</span> <span class="n">Identifier</span><span class="p">,</span> <span class="n">Placeholder</span>
+</span><span id="__span-47-2"><a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>
+</span><span id="__span-47-3"><a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">CustomFilter</span><span class="p">:</span>
+</span><span id="__span-47-4"><a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">):</span>
+</span><span id="__span-47-5"><a id="__codelineno-47-5" name="__codelineno-47-5" href="#__codelineno-47-5"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">field</span> <span class="o">=</span> <span class="n">field</span>
+</span><span id="__span-47-6"><a id="__codelineno-47-6" name="__codelineno-47-6" href="#__codelineno-47-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+</span><span id="__span-47-7"><a id="__codelineno-47-7" name="__codelineno-47-7" href="#__codelineno-47-7"></a>
+</span><span id="__span-47-8"><a id="__codelineno-47-8" name="__codelineno-47-8" href="#__codelineno-47-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">to_sql</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">view_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Composed</span><span class="p">:</span>
+</span><span id="__span-47-9"><a id="__codelineno-47-9" name="__codelineno-47-9" href="#__codelineno-47-9"></a>        <span class="k">return</span> <span class="n">SQL</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> = </span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+</span><span id="__span-47-10"><a id="__codelineno-47-10" name="__codelineno-47-10" href="#__codelineno-47-10"></a>            <span class="n">Identifier</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">),</span>
+</span><span id="__span-47-11"><a id="__codelineno-47-11" name="__codelineno-47-11" href="#__codelineno-47-11"></a>            <span class="n">Placeholder</span><span class="p">()</span>
+</span><span id="__span-47-12"><a id="__codelineno-47-12" name="__codelineno-47-12" href="#__codelineno-47-12"></a>        <span class="p">)</span>
+</span><span id="__span-47-13"><a id="__codelineno-47-13" name="__codelineno-47-13" href="#__codelineno-47-13"></a>
+</span><span id="__span-47-14"><a id="__codelineno-47-14" name="__codelineno-47-14" href="#__codelineno-47-14"></a><span class="n">custom_filter</span> <span class="o">=</span> <span class="n">CustomFilter</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;active&quot;</span><span class="p">)</span>
+</span><span id="__span-47-15"><a id="__codelineno-47-15" name="__codelineno-47-15" href="#__codelineno-47-15"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span><span class="n">where</span><span class="o">=</span><span class="n">custom_filter</span><span class="p">)</span>
+</span></code></pre></div></p>
+<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
+<p><strong>Use structured queries</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-48-1"><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="c1"># Good: Structured with QueryOptions</span>
+</span><span id="__span-48-2"><a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-48-3"><a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a>    <span class="n">filters</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;active&quot;</span><span class="p">},</span>
+</span><span id="__span-48-4"><a id="__codelineno-48-4" name="__codelineno-48-4" href="#__codelineno-48-4"></a>    <span class="n">pagination</span><span class="o">=</span><span class="n">PaginationInput</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+</span><span id="__span-48-5"><a id="__codelineno-48-5" name="__codelineno-48-5" href="#__codelineno-48-5"></a>    <span class="n">order_by</span><span class="o">=</span><span class="n">OrderByInstructions</span><span class="p">(</span><span class="n">instructions</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">])</span>
+</span><span id="__span-48-6"><a id="__codelineno-48-6" name="__codelineno-48-6" href="#__codelineno-48-6"></a><span class="p">)</span>
+</span><span id="__span-48-7"><a id="__codelineno-48-7" name="__codelineno-48-7" href="#__codelineno-48-7"></a><span class="n">data</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">select_from_json_view</span><span class="p">(</span><span class="n">tenant_id</span><span class="p">,</span> <span class="s2">&quot;v_orders&quot;</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+</span><span id="__span-48-8"><a id="__codelineno-48-8" name="__codelineno-48-8" href="#__codelineno-48-8"></a>
+</span><span id="__span-48-9"><a id="__codelineno-48-9" name="__codelineno-48-9" href="#__codelineno-48-9"></a><span class="c1"># Avoid: Raw SQL strings</span>
+</span><span id="__span-48-10"><a id="__codelineno-48-10" name="__codelineno-48-10" href="#__codelineno-48-10"></a><span class="n">query</span> <span class="o">=</span> <span class="s2">&quot;SELECT * FROM v_orders WHERE status = &#39;active&#39; LIMIT 50&quot;</span>
+</span></code></pre></div></p>
+<p><strong>Use connection pooling</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-49-1"><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a><span class="c1"># Good: Shared connection pool</span>
+</span><span id="__span-49-2"><a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a><span class="n">pool</span> <span class="o">=</span> <span class="n">AsyncConnectionPool</span><span class="p">(</span><span class="n">conninfo</span><span class="o">=</span><span class="n">DATABASE_URL</span><span class="p">,</span> <span class="n">min_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">max_size</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</span><span id="__span-49-3"><a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a><span class="n">repo</span> <span class="o">=</span> <span class="n">PsycopgRepository</span><span class="p">(</span><span class="n">pool</span><span class="p">)</span>
+</span><span id="__span-49-4"><a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a>
+</span><span id="__span-49-5"><a id="__codelineno-49-5" name="__codelineno-49-5" href="#__codelineno-49-5"></a><span class="c1"># Avoid: Creating connections per request</span>
+</span></code></pre></div></p>
+<p><strong>Handle pagination correctly</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-50-1"><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="c1"># Good: Check total count</span>
+</span><span id="__span-50-2"><a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="n">data</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">select_from_json_view</span><span class="p">(</span>
+</span><span id="__span-50-3"><a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a>    <span class="n">tenant_id</span><span class="p">,</span> <span class="s2">&quot;v_orders&quot;</span><span class="p">,</span>
+</span><span id="__span-50-4"><a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a>    <span class="n">options</span><span class="o">=</span><span class="n">QueryOptions</span><span class="p">(</span><span class="n">pagination</span><span class="o">=</span><span class="n">PaginationInput</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+</span><span id="__span-50-5"><a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a><span class="p">)</span>
+</span><span id="__span-50-6"><a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a><span class="n">has_next_page</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="n">offset</span> <span class="o">&lt;</span> <span class="n">total</span>
+</span><span id="__span-50-7"><a id="__codelineno-50-7" name="__codelineno-50-7" href="#__codelineno-50-7"></a>
+</span><span id="__span-50-8"><a id="__codelineno-50-8" name="__codelineno-50-8" href="#__codelineno-50-8"></a><span class="c1"># Avoid: Assuming more results exist</span>
+</span></code></pre></div></p>
+<p><strong>Use tenant filtering</strong>:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-51-1"><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="c1"># Good: Automatic tenant isolation</span>
+</span><span id="__span-51-2"><a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a><span class="n">data</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">select_from_json_view</span><span class="p">(</span><span class="n">tenant_id</span><span class="p">,</span> <span class="s2">&quot;v_orders&quot;</span><span class="p">)</span>
+</span><span id="__span-51-3"><a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a>
+</span><span id="__span-51-4"><a id="__codelineno-51-4" name="__codelineno-51-4" href="#__codelineno-51-4"></a><span class="c1"># Avoid: Manual tenant filtering in WHERE clauses</span>
+</span></code></pre></div></p>
+<h2 id="complete-example">Complete Example<a class="headerlink" href="#complete-example" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-52-1"><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+</span><span id="__span-52-2"><a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">psycopg_pool</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncConnectionPool</span>
+</span><span id="__span-52-3"><a id="__codelineno-52-3" name="__codelineno-52-3" href="#__codelineno-52-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">PsycopgRepository</span><span class="p">,</span> <span class="n">QueryOptions</span>
+</span><span id="__span-52-4"><a id="__codelineno-52-4" name="__codelineno-52-4" href="#__codelineno-52-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fraiseql.db.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-52-5"><a id="__codelineno-52-5" name="__codelineno-52-5" href="#__codelineno-52-5"></a>    <span class="n">PaginationInput</span><span class="p">,</span>
+</span><span id="__span-52-6"><a id="__codelineno-52-6" name="__codelineno-52-6" href="#__codelineno-52-6"></a>    <span class="n">OrderByInstructions</span><span class="p">,</span>
+</span><span id="__span-52-7"><a id="__codelineno-52-7" name="__codelineno-52-7" href="#__codelineno-52-7"></a>    <span class="n">OrderByInstruction</span><span class="p">,</span>
+</span><span id="__span-52-8"><a id="__codelineno-52-8" name="__codelineno-52-8" href="#__codelineno-52-8"></a>    <span class="n">OrderDirection</span>
+</span><span id="__span-52-9"><a id="__codelineno-52-9" name="__codelineno-52-9" href="#__codelineno-52-9"></a><span class="p">)</span>
+</span><span id="__span-52-10"><a id="__codelineno-52-10" name="__codelineno-52-10" href="#__codelineno-52-10"></a>
+</span><span id="__span-52-11"><a id="__codelineno-52-11" name="__codelineno-52-11" href="#__codelineno-52-11"></a><span class="c1"># Initialize repository</span>
+</span><span id="__span-52-12"><a id="__codelineno-52-12" name="__codelineno-52-12" href="#__codelineno-52-12"></a><span class="n">pool</span> <span class="o">=</span> <span class="n">AsyncConnectionPool</span><span class="p">(</span>
+</span><span id="__span-52-13"><a id="__codelineno-52-13" name="__codelineno-52-13" href="#__codelineno-52-13"></a>    <span class="n">conninfo</span><span class="o">=</span><span class="s2">&quot;postgresql://localhost/mydb&quot;</span><span class="p">,</span>
+</span><span id="__span-52-14"><a id="__codelineno-52-14" name="__codelineno-52-14" href="#__codelineno-52-14"></a>    <span class="n">min_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+</span><span id="__span-52-15"><a id="__codelineno-52-15" name="__codelineno-52-15" href="#__codelineno-52-15"></a>    <span class="n">max_size</span><span class="o">=</span><span class="mi">20</span>
+</span><span id="__span-52-16"><a id="__codelineno-52-16" name="__codelineno-52-16" href="#__codelineno-52-16"></a><span class="p">)</span>
+</span><span id="__span-52-17"><a id="__codelineno-52-17" name="__codelineno-52-17" href="#__codelineno-52-17"></a><span class="n">repo</span> <span class="o">=</span> <span class="n">PsycopgRepository</span><span class="p">(</span><span class="n">pool</span><span class="p">)</span>
+</span><span id="__span-52-18"><a id="__codelineno-52-18" name="__codelineno-52-18" href="#__codelineno-52-18"></a>
+</span><span id="__span-52-19"><a id="__codelineno-52-19" name="__codelineno-52-19" href="#__codelineno-52-19"></a><span class="c1"># Query with filtering, pagination, and ordering</span>
+</span><span id="__span-52-20"><a id="__codelineno-52-20" name="__codelineno-52-20" href="#__codelineno-52-20"></a><span class="n">tenant_id</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span>
+</span><span id="__span-52-21"><a id="__codelineno-52-21" name="__codelineno-52-21" href="#__codelineno-52-21"></a><span class="n">options</span> <span class="o">=</span> <span class="n">QueryOptions</span><span class="p">(</span>
+</span><span id="__span-52-22"><a id="__codelineno-52-22" name="__codelineno-52-22" href="#__codelineno-52-22"></a>    <span class="n">filters</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-52-23"><a id="__codelineno-52-23" name="__codelineno-52-23" href="#__codelineno-52-23"></a>        <span class="s2">&quot;status__in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="s2">&quot;pending&quot;</span><span class="p">],</span>
+</span><span id="__span-52-24"><a id="__codelineno-52-24" name="__codelineno-52-24" href="#__codelineno-52-24"></a>        <span class="s2">&quot;created_at__min&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-01-01&quot;</span><span class="p">,</span>
+</span><span id="__span-52-25"><a id="__codelineno-52-25" name="__codelineno-52-25" href="#__codelineno-52-25"></a>        <span class="s2">&quot;total_amount__min&quot;</span><span class="p">:</span> <span class="mf">100.00</span>
+</span><span id="__span-52-26"><a id="__codelineno-52-26" name="__codelineno-52-26" href="#__codelineno-52-26"></a>    <span class="p">},</span>
+</span><span id="__span-52-27"><a id="__codelineno-52-27" name="__codelineno-52-27" href="#__codelineno-52-27"></a>    <span class="n">order_by</span><span class="o">=</span><span class="n">OrderByInstructions</span><span class="p">(</span>
+</span><span id="__span-52-28"><a id="__codelineno-52-28" name="__codelineno-52-28" href="#__codelineno-52-28"></a>        <span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-52-29"><a id="__codelineno-52-29" name="__codelineno-52-29" href="#__codelineno-52-29"></a>            <span class="n">OrderByInstruction</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="n">OrderDirection</span><span class="o">.</span><span class="n">DESC</span><span class="p">)</span>
+</span><span id="__span-52-30"><a id="__codelineno-52-30" name="__codelineno-52-30" href="#__codelineno-52-30"></a>        <span class="p">]</span>
+</span><span id="__span-52-31"><a id="__codelineno-52-31" name="__codelineno-52-31" href="#__codelineno-52-31"></a>    <span class="p">),</span>
+</span><span id="__span-52-32"><a id="__codelineno-52-32" name="__codelineno-52-32" href="#__codelineno-52-32"></a>    <span class="n">pagination</span><span class="o">=</span><span class="n">PaginationInput</span><span class="p">(</span><span class="n">limit</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-52-33"><a id="__codelineno-52-33" name="__codelineno-52-33" href="#__codelineno-52-33"></a><span class="p">)</span>
+</span><span id="__span-52-34"><a id="__codelineno-52-34" name="__codelineno-52-34" href="#__codelineno-52-34"></a>
+</span><span id="__span-52-35"><a id="__codelineno-52-35" name="__codelineno-52-35" href="#__codelineno-52-35"></a><span class="n">data</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="k">await</span> <span class="n">repo</span><span class="o">.</span><span class="n">select_from_json_view</span><span class="p">(</span>
+</span><span id="__span-52-36"><a id="__codelineno-52-36" name="__codelineno-52-36" href="#__codelineno-52-36"></a>    <span class="n">tenant_id</span><span class="o">=</span><span class="n">tenant_id</span><span class="p">,</span>
+</span><span id="__span-52-37"><a id="__codelineno-52-37" name="__codelineno-52-37" href="#__codelineno-52-37"></a>    <span class="n">view_name</span><span class="o">=</span><span class="s2">&quot;v_orders&quot;</span><span class="p">,</span>
+</span><span id="__span-52-38"><a id="__codelineno-52-38" name="__codelineno-52-38" href="#__codelineno-52-38"></a>    <span class="n">options</span><span class="o">=</span><span class="n">options</span>
+</span><span id="__span-52-39"><a id="__codelineno-52-39" name="__codelineno-52-39" href="#__codelineno-52-39"></a><span class="p">)</span>
+</span><span id="__span-52-40"><a id="__codelineno-52-40" name="__codelineno-52-40" href="#__codelineno-52-40"></a>
+</span><span id="__span-52-41"><a id="__codelineno-52-41" name="__codelineno-52-41" href="#__codelineno-52-41"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Retrieved </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">total</span><span class="si">}</span><span class="s2"> orders&quot;</span><span class="p">)</span>
+</span><span id="__span-52-42"><a id="__codelineno-52-42" name="__codelineno-52-42" href="#__codelineno-52-42"></a><span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+</span><span id="__span-52-43"><a id="__codelineno-52-43" name="__codelineno-52-43" href="#__codelineno-52-43"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Order </span><span class="si">{</span><span class="n">order</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">: $</span><span class="si">{</span><span class="n">order</span><span class="p">[</span><span class="s1">&#39;total_amount&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../queries-and-mutations/">Queries &amp; Mutations</a> - Using repository methods in GraphQL resolvers</li>
+<li><a href="../../advanced/database-patterns/">Database Patterns</a> - View design and N+1 prevention</li>
+<li><a href="../../performance/">Performance</a> - Query optimization</li>
+<li><a href="../../advanced/multi-tenancy/">Multi-Tenancy</a> - Tenant isolation patterns</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2025 <a href="https://github.com/fraiseql" target="_blank" rel="noopener">FraiseQL Project</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/fraiseql/fraiseql" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/fraiseql/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

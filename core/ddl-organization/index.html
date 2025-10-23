@@ -1,0 +1,2763 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry">
+      
+      
+        <meta name="author" content="Lionel Hamayon">
+      
+      
+        <link rel="canonical" href="https://fraiseql.dev/docs/core/ddl-organization/">
+      
+      
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>DDL Organization in FraiseQL - FraiseQL Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ddl-organization-in-fraiseql" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="FraiseQL Documentation" class="md-header__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            FraiseQL Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              DDL Organization in FraiseQL
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../tutorials/beginner-path/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../fraiseql-philosophy/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../performance/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Performance
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../advanced/authentication/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Advanced
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../production/deployment/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Production
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api-reference/database/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="FraiseQL Documentation" class="md-nav__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    FraiseQL Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tutorials
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Tutorials
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/beginner-path/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Beginner Learning Path
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/blog-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Blog API Tutorial
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/production-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Production Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Core Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Core Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fraiseql-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    FraiseQL Philosophy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../types-and-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Types & Schema
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../queries-and-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Queries & Mutations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../database-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../performance/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Performance
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Performance
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Authentication
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/multi-tenancy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-Tenancy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/bounded-contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Bounded Contexts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/event-sourcing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Event Sourcing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/database-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database Patterns
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/llm-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LLM Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Production
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Production
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Security
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api-reference/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      Table of Contents
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Philosophy
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Philosophy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deterministic-ordering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deterministic Ordering
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#number-of-digits-depth-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      Number of Digits = Depth Level
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#size-based-organization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Size-Based Organization
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Size-Based Organization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#xs-projects-single-file-100-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      XS Projects (Single File, &lt;100 lines)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#s-projects-flat-20-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      S Projects (Flat, &lt;20 files)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m-projects-1-level-deep-20-100-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      M Projects (1 level deep, 20-100 files)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l-projects-2-levels-deep-100-500-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      L Projects (2 levels deep, 100-500 files)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#xl-projects-3-levels-deep-500-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      XL Projects (3+ levels deep, 500+ files)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Recommended Structure
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recommended Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#standard-execution-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      Standard Execution Order
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gaps-are-intentional" class="md-nav__link">
+    <span class="md-ellipsis">
+      Gaps Are Intentional
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bounded-context-mapping-large-apps" class="md-nav__link">
+    <span class="md-ellipsis">
+      Bounded Context Mapping (Large Apps)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bounded Context Mapping (Large Apps)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-e-commerce-platform" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example: E-commerce Platform
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#numbering-strategy-for-bounded-contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Numbering Strategy for Bounded Contexts
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-new-bounded-contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Adding New Bounded Contexts
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#context-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Context Dependencies
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Examples
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-1-blog-simple-s-2-digit" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 1: Blog Simple (S - 2-digit)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-blog-api-m-3-digit-cqrs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 2: Blog API (M - 3-digit, CQRS)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-3-e-commerce-api-l-4-digit" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 3: E-commerce API (L - 4-digit)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      Best Practices
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Best Practices">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-start-small-grow-as-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Start Small, Grow as Needed
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-group-related-entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Group Related Entities
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-document-your-numbering-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Document Your Numbering System
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-use-descriptive-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Use Descriptive Names
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-handle-dependencies-explicitly" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. Handle Dependencies Explicitly
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-fraiseql-cqrs-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. FraiseQL CQRS Pattern
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Migration Integration
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Migration Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema-files-vs-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Schema Files vs Migrations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      Workflow
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating-migrations-from-schema-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating Migrations from Schema Changes
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-naming-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      File Naming Conventions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Naming Conventions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tables
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#views" class="md-nav__link">
+    <span class="md-ellipsis">
+      Views
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Functions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#triggers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Triggers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-specific-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment-Specific Files
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-mistakes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Common Mistakes
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Mistakes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mistake-1-no-number-prefixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      ❌ Mistake 1: No Number Prefixes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mistake-2-no-gaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      ❌ Mistake 2: No Gaps
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mistake-3-wrong-size-classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      ❌ Mistake 3: Wrong Size Classification
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Reference
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Summary
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="ddl-organization-in-fraiseql">DDL Organization in FraiseQL<a class="headerlink" href="#ddl-organization-in-fraiseql" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Best practices for structuring database schemas using confiture-style numbered prefixes</strong></p>
+</blockquote>
+<p>FraiseQL embraces <a href="https://github.com/fraiseql/confiture">confiture</a>'s deterministic file ordering approach for organizing database DDL (Data Definition Language) files. This guide explains how to structure your database schema files for projects of any size.</p>
+<hr />
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<p><strong>Choose your project size:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Size</th>
+<th>Files</th>
+<th>Structure</th>
+<th>When to Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>XS</strong></td>
+<td>1 file</td>
+<td><code>0_schema/schema.sql</code></td>
+<td>Prototypes, demos, microservices</td>
+</tr>
+<tr>
+<td><strong>S</strong></td>
+<td>&lt;20</td>
+<td><code>0_schema/01_tables.sql</code></td>
+<td>Small blogs, simple APIs</td>
+</tr>
+<tr>
+<td><strong>M</strong></td>
+<td>20-100</td>
+<td><code>0_schema/01_tables/010_users.sql</code></td>
+<td>Production APIs, SaaS apps</td>
+</tr>
+<tr>
+<td><strong>L</strong></td>
+<td>100-500</td>
+<td><code>0_schema/01_core/010_users/0101_user.sql</code></td>
+<td>Enterprise apps, complex domains</td>
+</tr>
+<tr>
+<td><strong>XL</strong></td>
+<td>500+</td>
+<td><code>0_schema/00_common/000_security/00001_roles.sql</code></td>
+<td>Multi-tenant, platforms</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key principle</strong>: Start small, grow structure as needed.</p>
+<hr />
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="#philosophy">Philosophy</a></li>
+<li><a href="#size-based-organization">Size-Based Organization</a></li>
+<li><a href="#recommended-structure">Recommended Structure</a></li>
+<li><a href="#examples">Examples</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#migration-integration">Migration Integration</a></li>
+</ul>
+<hr />
+<h2 id="philosophy">Philosophy<a class="headerlink" href="#philosophy" title="Permanent link">&para;</a></h2>
+<h3 id="deterministic-ordering">Deterministic Ordering<a class="headerlink" href="#deterministic-ordering" title="Permanent link">&para;</a></h3>
+<p>FraiseQL uses <strong>numbered prefixes</strong> to control SQL execution order through alphabetical sorting. This approach:</p>
+<ul>
+<li>✅ <strong>Explicit</strong>: Dependencies are clear from file names</li>
+<li>✅ <strong>Scalable</strong>: Works for 5 files or 500 files</li>
+<li>✅ <strong>Predictable</strong>: Same order every time</li>
+<li>✅ <strong>Flexible</strong>: Easy to insert new files without renumbering</li>
+</ul>
+<h3 id="number-of-digits-depth-level">Number of Digits = Depth Level<a class="headerlink" href="#number-of-digits-depth-level" title="Permanent link">&para;</a></h3>
+<p>The key insight from confiture: <strong>match numbering to directory depth</strong></p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>XS (Extra Small) → Single file     (schema.sql)
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>S  (Small)       → Flat            (0_schema/01_tables.sql)
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>M  (Medium)      → 1 level deep    (0_schema/01_tables/010_users.sql)
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>L  (Large)       → 2 levels deep   (0_schema/01_domain/010_users/0101_user.sql)
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>XL (Extra Large) → 3+ levels deep  (0_schema/00_common/000_security/0000_roles/00001_admin.sql)
+</span></code></pre></div>
+<p><strong>Key principle</strong>: <strong>Number of digits = depth level</strong>
+- <strong>Level 1</strong> (top-level directories): <strong>1 digit</strong> (<code>0_schema/</code>, <code>1_seed/</code>)
+- <strong>Level 2</strong> (subdirectories): <strong>2 digits</strong> (<code>01_tables/</code>, <code>10_users/</code>)
+- <strong>Level 3</strong> (sub-subdirectories): <strong>3 digits</strong> (<code>010_user/</code>, <code>101_profile/</code>)
+- <strong>Level 4</strong> (files): <strong>4 digits</strong> (<code>0101_tb_user.sql</code>, <code>1011_tb_profile.sql</code>)
+- <strong>Level 5+</strong>: Add one digit per level</p>
+<p><strong>Visual example with materialized paths:</strong>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>db/
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>└── 0_schema/                      ← Level 1 (1 digit: &quot;0&quot;)
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    ├── 00_common/                 ← Level 2 (2 digits: &quot;0&quot; + &quot;0&quot;)
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    │   └── 001_extensions.sql     ← Level 3 (3 digits: &quot;0&quot; + &quot;0&quot; + &quot;1&quot;)
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    └── 01_tables/                 ← Level 2 (2 digits: &quot;0&quot; + &quot;1&quot;)
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        ├── 010_users/             ← Level 3 (3 digits: &quot;0&quot; + &quot;1&quot; + &quot;0&quot;)
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        │   └── 0101_tb_user.sql   ← Level 4 (4 digits: &quot;0&quot; + &quot;1&quot; + &quot;0&quot; + &quot;1&quot;)
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        └── 011_posts/             ← Level 3 (3 digits: &quot;0&quot; + &quot;1&quot; + &quot;1&quot;)
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>            └── 0111_tb_post.sql   ← Level 4 (4 digits: &quot;0&quot; + &quot;1&quot; + &quot;1&quot; + &quot;1&quot;)
+</span></code></pre></div></p>
+<p><strong>Reading the path</strong>: File <code>0101_tb_user.sql</code> decodes as:
+- <code>0</code> = in <code>0_schema/</code> directory (level 1)
+- <code>01</code> = in <code>01_tables/</code> subdirectory (level 2)
+- <code>010</code> = in <code>010_users/</code> subdirectory (level 3)
+- <code>0101</code> = this file (level 4)
+- <strong>Full path</strong>: <code>0_schema/01_tables/010_users/0101_tb_user.sql</code></p>
+<hr />
+<h2 id="size-based-organization">Size-Based Organization<a class="headerlink" href="#size-based-organization" title="Permanent link">&para;</a></h2>
+<h3 id="xs-projects-single-file-100-lines">XS Projects (Single File, &lt;100 lines)<a class="headerlink" href="#xs-projects-single-file-100-lines" title="Permanent link">&para;</a></h3>
+<p><strong>Use a single schema file</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>db/
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── 0_schema/
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>│   └── schema.sql     # Everything in one file
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>└── 1_seed_dev/
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    └── seed_data.sql  # Optional: development seed data
+</span></code></pre></div>
+<p><strong>When to use</strong>: Prototypes, demos, learning examples, microservices with 1-2 tables</p>
+<p><strong>Example</strong>: Simple todo app with <code>users</code> and <code>todos</code> tables</p>
+<p><strong>Numbering logic</strong>:
+- <strong>Level 1</strong> (top-level directories): <strong>1 digit</strong> - <code>0_schema/</code>, <code>1_seed_dev/</code>
+- Files inside have no numbering prefix when there's only one file per directory</p>
+<hr />
+<h3 id="s-projects-flat-20-files">S Projects (Flat, &lt;20 files)<a class="headerlink" href="#s-projects-flat-20-files" title="Permanent link">&para;</a></h3>
+<p><strong>Use flat structure with numbered files</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>db/
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>├── 0_schema/
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>│   ├── 00_extensions.sql
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>│   ├── 01_tables.sql
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>│   ├── 02_views.sql
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>│   ├── 03_functions.sql
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>│   └── 04_triggers.sql
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>├── 10_seed_common/
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>│   └── 11_base_data.sql
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>└── 20_seed_dev/
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    └── 21_test_data.sql
+</span></code></pre></div>
+<p><strong>When to use</strong>: Small blogs, simple APIs, basic CRUD apps</p>
+<p><strong>Numbering logic</strong>:
+- <strong>Level 1</strong> (directories): <strong>1-2 digits</strong> - <code>0_schema/</code>, <code>10_seed_common/</code>, <code>20_seed_dev/</code>
+- <strong>Level 2</strong> (files): <strong>2-3 digits</strong> - Inherits parent's prefix:
+  - Within <code>0_schema/</code>: <code>00_</code>, <code>01_</code>, <code>02_</code>, <code>03_</code>, <code>04_</code> (inherits <code>0</code> from parent)
+  - Within seed directories: <code>11_</code>, <code>21_</code>, etc. (inherits first digit from parent)</p>
+<hr />
+<h3 id="m-projects-1-level-deep-20-100-files">M Projects (1 level deep, 20-100 files)<a class="headerlink" href="#m-projects-1-level-deep-20-100-files" title="Permanent link">&para;</a></h3>
+<p><strong>Use subdirectories to organize related files</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>db/
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>├── 0_schema/
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>│   ├── 00_common/
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>│   │   └── 001_extensions.sql
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>│   ├── 01_write/                # Command side (tb_* tables + indexes)
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>│   │   ├── 010_tb_user.sql      # tb_user + indexes
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>│   │   ├── 011_tb_post.sql      # tb_post + indexes
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>│   │   └── 012_tb_comment.sql   # tb_comment + indexes
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>│   ├── 02_views/
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>│   │   ├── 020_tv_user.sql
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>│   │   └── 021_tv_post.sql
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>│   └── 03_functions/
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>│       └── 030_fn_user_mutations.sql
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>├── 10_seed_common/
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>│   └── 11_base_data.sql
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>└── 20_seed_dev/
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>    └── 21_test_users.sql
+</span></code></pre></div>
+<p><strong>When to use</strong>: Production APIs, SaaS applications, standard business apps</p>
+<p><strong>Numbering logic</strong>:
+- <strong>Level 1</strong> (directories): <strong>1-2 digits</strong> - <code>0_schema/</code>, <code>10_seed_common/</code>, <code>20_seed_dev/</code>
+- <strong>Level 2</strong> (subdirectories): <strong>2 digits</strong> - <code>00_common/</code>, <code>01_tables/</code>, <code>02_views/</code>, <code>03_functions/</code>
+- <strong>Level 3</strong> (files in schema): <strong>3 digits</strong> - Inherits parent's 2 digits + adds 1, with descriptive suffixes
+- <strong>Level 2</strong> (files in seed): <strong>2 digits</strong> - Inherits first digit from parent</p>
+<hr />
+<h3 id="l-projects-2-levels-deep-100-500-files">L Projects (2 levels deep, 100-500 files)<a class="headerlink" href="#l-projects-2-levels-deep-100-500-files" title="Permanent link">&para;</a></h3>
+<p><strong>Use 2-digit prefixes</strong> at each level (3 levels total):</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>db/
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>├── 0_schema/
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>│   ├── 00_common/
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>│   │   ├── 000_security/
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>│   │   │   ├── 0001_roles.sql
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>│   │   │   └── 0002_schemas.sql
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>│   │   ├── 001_extensions/
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>│   │   │   └── 0011_extensions.sql
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>│   │   └── 002_types/
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>│   │       └── 0021_enums.sql
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>│   │
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>│   ├── 01_core_domain/
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>│   │   ├── 010_users/
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>│   │   │   ├── 0101_user_table.sql
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>│   │   │   └── 0102_user_profile.sql
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>│   │   ├── 011_content/
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>│   │   │   ├── 0111_posts_table.sql
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>│   │   │   └── 0112_comments_table.sql
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>│   │   └── 012_analytics/
+</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>│   │       └── 0121_events_table.sql
+</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>│   │
+</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a>│   ├── 02_views/
+</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>│   │   ├── 020_user_views/
+</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a>│   │   │   └── 0201_user_stats.sql
+</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a>│   │   └── 021_content_views/
+</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a>│   │       └── 0211_post_with_author.sql
+</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a>│   │
+</span><span id="__span-5-28"><a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a>│   └── 03_functions/
+</span><span id="__span-5-29"><a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a>│       ├── 030_user_functions/
+</span><span id="__span-5-30"><a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a>│       │   └── 0301_fn_create_user.sql
+</span><span id="__span-5-31"><a id="__codelineno-5-31" name="__codelineno-5-31" href="#__codelineno-5-31"></a>│       └── 031_content_functions/
+</span><span id="__span-5-32"><a id="__codelineno-5-32" name="__codelineno-5-32" href="#__codelineno-5-32"></a>│           └── 0311_fn_publish_post.sql
+</span><span id="__span-5-33"><a id="__codelineno-5-33" name="__codelineno-5-33" href="#__codelineno-5-33"></a>│
+</span><span id="__span-5-34"><a id="__codelineno-5-34" name="__codelineno-5-34" href="#__codelineno-5-34"></a>├── 10_seed_common/
+</span><span id="__span-5-35"><a id="__codelineno-5-35" name="__codelineno-5-35" href="#__codelineno-5-35"></a>│   └── 11_reference_data.sql
+</span><span id="__span-5-36"><a id="__codelineno-5-36" name="__codelineno-5-36" href="#__codelineno-5-36"></a>│
+</span><span id="__span-5-37"><a id="__codelineno-5-37" name="__codelineno-5-37" href="#__codelineno-5-37"></a>└── 20_seed_dev/
+</span><span id="__span-5-38"><a id="__codelineno-5-38" name="__codelineno-5-38" href="#__codelineno-5-38"></a>    └── 21_test_users.sql
+</span></code></pre></div>
+<p><strong>When to use</strong>: Enterprise applications, complex domains, multi-bounded contexts</p>
+<p><strong>Numbering logic</strong>:
+- Level 1: <code>0_schema/</code>, <code>10_seed_common/</code>, <code>20_seed_dev/</code>
+- Level 2 within <code>0_schema/</code>: <code>00_common/</code>, <code>01_core_domain/</code>, <code>02_views/</code>, <code>03_functions/</code>
+- Level 3 within <code>00_common/</code>: <code>000_security/</code>, <code>001_extensions/</code>, <code>002_types/</code> (inherits <code>00</code>)
+- Level 3 within <code>01_core_domain/</code>: <code>010_users/</code>, <code>011_content/</code>, <code>012_analytics/</code> (inherits <code>01</code>)
+- Level 4 files within <code>000_security/</code>: <code>0001_</code>, <code>0002_</code> (inherits <code>000</code>)
+- Level 4 files within <code>0101_user_table.sql</code> (inherits <code>010</code>)
+- <strong>Each level inherits parent's full prefix and adds one more digit</strong></p>
+<hr />
+<h3 id="xl-projects-3-levels-deep-500-files">XL Projects (3+ levels deep, 500+ files)<a class="headerlink" href="#xl-projects-3-levels-deep-500-files" title="Permanent link">&para;</a></h3>
+<p><strong>Use hierarchical numbering</strong> with inherited prefixes (4+ levels total):</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>db/
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>├── 0_schema/
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>│   ├── 00_common/
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>│   │   ├── 000_security/
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│   │   │   ├── 0000_roles/
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│   │   │   │   ├── 00001_admin_role.sql
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>│   │   │   │   └── 00002_user_role.sql
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>│   │   │   ├── 0001_schemas/
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>│   │   │   │   └── 00011_create_schemas.sql
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>│   │   │   └── 0002_permissions/
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>│   │   │       └── 00021_grant_permissions.sql
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>│   │   ├── 001_extensions/
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>│   │   │   ├── 0011_postgis.sql
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>│   │   │   └── 0012_pg_trgm.sql
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>│   │   └── 002_types/
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>│   │       ├── 0021_enums.sql
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>│   │       └── 0022_composite_types.sql
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>│   │
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>│   ├── 01_domain_users/
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>│   │   ├── 010_core/
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>│   │   │   ├── 0101_tb_user.sql
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>│   │   │   ├── 0102_tb_profile.sql
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>│   │   │   └── 0103_tb_auth.sql
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>│   │   └── 011_views/
+</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>│       └── 0111_tv_user.sql
+</span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>│   │
+</span><span id="__span-6-27"><a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>│   ├── 02_domain_content/
+</span><span id="__span-6-28"><a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a>│   │   ├── 020_core/
+</span><span id="__span-6-29"><a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a>│   │   │   ├── 0201_tb_post.sql
+</span><span id="__span-6-30"><a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>│   │   │   └── 0202_tb_comment.sql
+</span><span id="__span-6-31"><a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a>│   │   └── 021_views/
+</span><span id="__span-6-32"><a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a>│       └── 0211_tv_content.sql
+</span><span id="__span-6-33"><a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a>│   │
+</span><span id="__span-6-34"><a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a>│   └── 09_finalize/
+</span><span id="__span-6-35"><a id="__codelineno-6-35" name="__codelineno-6-35" href="#__codelineno-6-35"></a>│       └── 091_analyze.sql
+</span><span id="__span-6-36"><a id="__codelineno-6-36" name="__codelineno-6-36" href="#__codelineno-6-36"></a>│
+</span><span id="__span-6-37"><a id="__codelineno-6-37" name="__codelineno-6-37" href="#__codelineno-6-37"></a>├── 10_seed_common/
+</span><span id="__span-6-38"><a id="__codelineno-6-38" name="__codelineno-6-38" href="#__codelineno-6-38"></a>│   └── 11_countries.sql
+</span><span id="__span-6-39"><a id="__codelineno-6-39" name="__codelineno-6-39" href="#__codelineno-6-39"></a>│
+</span><span id="__span-6-40"><a id="__codelineno-6-40" name="__codelineno-6-40" href="#__codelineno-6-40"></a>└── 20_seed_dev/
+</span><span id="__span-6-41"><a id="__codelineno-6-41" name="__codelineno-6-41" href="#__codelineno-6-41"></a>    └── 21_test_data.sql
+</span></code></pre></div>
+<p><strong>When to use</strong>: Multi-tenant SaaS, enterprise systems, platform products</p>
+<p><strong>Numbering logic</strong>:
+- Level 1: <code>0_schema/</code>, <code>10_seed_common/</code>, <code>20_seed_dev/</code>
+- Level 2 within <code>00_</code>: <code>00_common/</code>, <code>01_domain_users/</code>, <code>02_domain_content/</code>, <code>09_finalize/</code>
+- Level 3 within <code>00_common/</code>: <code>000_security/</code>, <code>001_extensions/</code>, <code>002_types/</code>
+- Level 4 within <code>000_security/</code>: <code>0000_roles/</code>, <code>0001_schemas/</code>, <code>0002_permissions/</code>
+- Level 5 files within <code>0000_roles/</code>: <code>00001_</code>, <code>00002_</code>
+- <strong>Each level adds one digit to parent's prefix</strong> - materialized path!</p>
+<hr />
+<h2 id="recommended-structure">Recommended Structure<a class="headerlink" href="#recommended-structure" title="Permanent link">&para;</a></h2>
+<h3 id="standard-execution-order">Standard Execution Order<a class="headerlink" href="#standard-execution-order" title="Permanent link">&para;</a></h3>
+<p>FraiseQL follows PostgreSQL dependency order:</p>
+<p><strong>Top-level directories:</strong>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>0_schema/              # DDL (CREATE statements)
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>10_seed_common/         # Production reference data
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>20_seed_dev/            # Development/test data
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>30_seed_staging/        # Staging-specific data
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>50_post_build/          # Post-build scripts (REFRESH, ANALYZE)
+</span></code></pre></div></p>
+<p><strong>Within 0_schema/ (CQRS Pattern):</strong>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>00_  Common              (Extensions, schemas, types, security)
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>01_  Write (Command)     (CREATE TABLE tb_* - normalized writes, source of truth)
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>02_  Read (Query)        (CREATE TABLE tv_* or VIEW v_* - denormalized reads)
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>03_  Functions           (CREATE FUNCTION - mutations, business logic)
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>04_  Triggers            (CREATE TRIGGER - sync mechanisms)
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>05_  Indexes             (CREATE INDEX - performance optimization)
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>06_  Security            (RLS policies, row-level security)
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>09_  Finalization        (GRANT, permissions, analyze)
+</span></code></pre></div></p>
+<p><strong>FraiseQL CQRS Convention:</strong>
+- <strong><code>01_write/</code></strong>: Contains all <code>tb_*</code> tables (normalized, source of truth)
+- <strong><code>02_read/</code></strong>: Contains all <code>v_*</code> or <code>tv_*</code> views/tables (denormalized, optimized)
+- <strong><code>03_functions/</code></strong>: Mutation functions and business logic
+- Write tables load <strong>before</strong> read views (dependency order)</p>
+<p><strong>Key</strong>: Files within <code>0_schema/</code> use <code>00_</code>, <code>01_</code>, <code>02_</code>, <code>03_</code>, etc. (inheriting <code>0</code> from parent)</p>
+<h3 id="gaps-are-intentional">Gaps Are Intentional<a class="headerlink" href="#gaps-are-intentional" title="Permanent link">&para;</a></h3>
+<p>Always leave gaps in numbering to allow insertion without renumbering:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>✅ GOOD: 01_, 03_, 05_, 07_
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>   → Easy to add 02_new_feature or 04_another_feature later
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>❌ BAD: 01_, 02_, 03_, 04_
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>   → Must renumber everything to insert between 01_ and 02_
+</span></code></pre></div>
+<p><strong>Why gaps matter:</strong>
+- Start with: <code>01_users/</code>, <code>03_posts/</code>, <code>05_comments/</code>
+- Later add: <code>02_profiles/</code> between users and posts
+- Later add: <code>04_tags/</code> between posts and comments
+- No renumbering needed!</p>
+<hr />
+<h2 id="bounded-context-mapping-large-apps">Bounded Context Mapping (Large Apps)<a class="headerlink" href="#bounded-context-mapping-large-apps" title="Permanent link">&para;</a></h2>
+<p>For enterprise applications with multiple bounded contexts (domains), the numbering system maps naturally to DDD patterns:</p>
+<h3 id="example-e-commerce-platform">Example: E-commerce Platform<a class="headerlink" href="#example-e-commerce-platform" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>db/
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>└── 0_schema/
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    ├── 00_common/                    # Shared kernel
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    │   ├── 001_extensions.sql
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    │   ├── 002_types.sql
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    │   └── 003_security.sql
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    │
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    ├── 01_write/                     # COMMAND SIDE: All write tables (tb_*)
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    │   ├── 010_identity/             # Identity bounded context
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    │   │   ├── 0101_user.sql         # tb_user
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    │   │   ├── 0102_role.sql         # tb_role
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>    │   │   └── 0103_permission.sql   # tb_permission
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>    │   ├── 011_catalog/              # Catalog bounded context
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>    │   │   ├── 0111_product.sql      # tb_product
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>    │   │   ├── 0112_category.sql     # tb_category
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>    │   │   └── 0113_inventory.sql    # tb_inventory
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>    │   ├── 012_order/                # Order bounded context
+</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>    │   │   ├── 0121_order.sql        # tb_order
+</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>    │   │   ├── 0122_order_item.sql   # tb_order_item
+</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>    │   │   └── 0123_payment.sql      # tb_payment
+</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>    │   └── 013_shipping/             # Shipping bounded context
+</span><span id="__span-10-22"><a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>    │       ├── 0131_shipment.sql     # tb_shipment
+</span><span id="__span-10-23"><a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>    │       └── 0132_tracking.sql     # tb_tracking
+</span><span id="__span-10-24"><a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>    │
+</span><span id="__span-10-25"><a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>    ├── 02_read/                      # QUERY SIDE: All read views (v_* or tv_*)
+</span><span id="__span-10-26"><a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>    │   ├── 020_identity/             # Identity bounded context
+</span><span id="__span-10-27"><a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>    │   │   └── 0201_user_with_roles.sql  # v_user_with_roles
+</span><span id="__span-10-28"><a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>    │   ├── 021_catalog/              # Catalog bounded context
+</span><span id="__span-10-29"><a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a>    │   │   └── 0211_product_catalog.sql  # v_product_catalog
+</span><span id="__span-10-30"><a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a>    │   ├── 022_order/                # Order bounded context
+</span><span id="__span-10-31"><a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a>    │   │   └── 0221_order_summary.sql    # v_order_summary
+</span><span id="__span-10-32"><a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a>    │   └── 023_shipping/             # Shipping bounded context
+</span><span id="__span-10-33"><a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a>    │       └── 0231_shipment_status.sql  # v_shipment_status
+</span><span id="__span-10-34"><a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a>    │
+</span><span id="__span-10-35"><a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a>    ├── 03_functions/                 # BUSINESS LOGIC: All mutations and logic
+</span><span id="__span-10-36"><a id="__codelineno-10-36" name="__codelineno-10-36" href="#__codelineno-10-36"></a>│   ├── 030_identity/             # Identity bounded context
+</span><span id="__span-10-37"><a id="__codelineno-10-37" name="__codelineno-10-37" href="#__codelineno-10-37"></a>│   │   └── 0301_fn_auth.sql
+</span><span id="__span-10-38"><a id="__codelineno-10-38" name="__codelineno-10-38" href="#__codelineno-10-38"></a>│   ├── 031_catalog/              # Catalog bounded context
+</span><span id="__span-10-39"><a id="__codelineno-10-39" name="__codelineno-10-39" href="#__codelineno-10-39"></a>│   │   └── 0311_fn_catalog.sql
+</span><span id="__span-10-40"><a id="__codelineno-10-40" name="__codelineno-10-40" href="#__codelineno-10-40"></a>│   ├── 032_order/                # Order bounded context
+</span><span id="__span-10-41"><a id="__codelineno-10-41" name="__codelineno-10-41" href="#__codelineno-10-41"></a>│   │   └── 0321_fn_order.sql
+</span><span id="__span-10-42"><a id="__codelineno-10-42" name="__codelineno-10-42" href="#__codelineno-10-42"></a>│   └── 033_shipping/             # Shipping bounded context
+</span><span id="__span-10-43"><a id="__codelineno-10-43" name="__codelineno-10-43" href="#__codelineno-10-43"></a>│       └── 0331_fn_shipping.sql
+</span><span id="__span-10-44"><a id="__codelineno-10-44" name="__codelineno-10-44" href="#__codelineno-10-44"></a>│
+</span><span id="__span-10-45"><a id="__codelineno-10-45" name="__codelineno-10-45" href="#__codelineno-10-45"></a>├── 04_triggers/                  # SYNC: Cross-context sync mechanisms
+</span><span id="__span-10-46"><a id="__codelineno-10-46" name="__codelineno-10-46" href="#__codelineno-10-46"></a>│   └── 041_tr_sync.sql
+</span><span id="__span-10-47"><a id="__codelineno-10-47" name="__codelineno-10-47" href="#__codelineno-10-47"></a>    │
+</span><span id="__span-10-48"><a id="__codelineno-10-48" name="__codelineno-10-48" href="#__codelineno-10-48"></a>    └── 09_finalize/
+</span><span id="__span-10-49"><a id="__codelineno-10-49" name="__codelineno-10-49" href="#__codelineno-10-49"></a>        └── 091_grants.sql
+</span></code></pre></div>
+<h3 id="numbering-strategy-for-bounded-contexts">Numbering Strategy for Bounded Contexts<a class="headerlink" href="#numbering-strategy-for-bounded-contexts" title="Permanent link">&para;</a></h3>
+<p><strong>Top-level context allocation within <code>0_schema/</code>:</strong>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>00_  Shared kernel / Common           (Extensions, types, shared utilities)
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>01_  Identity &amp; Access Management     (Users, roles, auth)
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>02_  Core domain #1                   (Your main business domain)
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>03_  Core domain #2                   (Another critical domain)
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>04_  Supporting domain #1             (Supporting subdomain)
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>05_  Supporting domain #2
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>...
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>08_  Generic subdomains               (Notifications, audit, etc.)
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>09_  Infrastructure                   (Finalization, cleanup)
+</span></code></pre></div></p>
+<p><strong>Materialized Path Encoding:</strong>
+- All files in <code>01_write/</code> start with <code>01</code>: <code>010_</code>, <code>0101_</code>, <code>01011_</code>
+- All files in <code>02_read/</code> start with <code>02</code>: <code>020_</code>, <code>0201_</code>, <code>02011_</code>
+- All files in <code>03_functions/</code> start with <code>03</code>: <code>030_</code>, <code>0301_</code>, <code>03011_</code></p>
+<p><strong>Within each layer, contexts are numbered:</strong>
+- <code>01_write/010_identity/</code> - Identity write tables
+- <code>01_write/011_catalog/</code> - Catalog write tables
+- <code>02_read/020_identity/</code> - Identity read views
+- <code>02_read/021_catalog/</code> - Catalog read views</p>
+<p><strong>Benefits:</strong>
+- <strong>CQRS enforced by structure</strong> - write side completely loaded before read side
+- <strong>Layer-first organization</strong> - see architectural layers clearly
+- <strong>File number encodes layer + context</strong>: <code>0201</code> = <code>0_schema/02_read/020_identity/0201_view.sql</code>
+- <strong>Context isolation within layers</strong> - easy to see all writes or all reads per context
+- <strong>Team ownership by layer</strong> - DBA team owns write layer, query optimization team owns read layer</p>
+<h3 id="adding-new-bounded-contexts">Adding New Bounded Contexts<a class="headerlink" href="#adding-new-bounded-contexts" title="Permanent link">&para;</a></h3>
+<p>With gaps, adding contexts is trivial:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>Initial (within 01_write/):
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>├── 010_identity/
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>├── 012_catalog/                     # Gap left intentionally
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>└── 014_order/
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>Later add (within 01_write/):
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>├── 010_identity/
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>├── 011_customer/                    # NEW: Added in the gap
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>├── 012_catalog/
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>├── 013_pricing/                     # NEW: Added in the gap
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>└── 014_order/
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a># Same numbering pattern in 02_read/ and 03_functions/
+</span></code></pre></div>
+<p><strong>No files renamed!</strong> The materialized path numbers stay stable.</p>
+<h3 id="context-dependencies">Context Dependencies<a class="headerlink" href="#context-dependencies" title="Permanent link">&para;</a></h3>
+<p>The numbering also shows context dependencies:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>0_schema/
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>  ├── 00_common/              # Shared by all
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>  │     ↓
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>  ├── 01_write/               # ALL command tables (tb_*)
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>  │   ├── 010_identity/       # tb_user, tb_role
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>  │   ├── 011_catalog/        # tb_product, tb_category
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>  │   ├── 012_order/          # tb_order, tb_order_item
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>  │   └── 013_shipping/       # tb_shipment
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>  │     ↓
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>  ├── 02_read/                # ALL query views (v_* or tv_*)
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>  │   ├── 020_identity/       # v_user_with_roles
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>  │   ├── 021_catalog/        # v_product_catalog
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>  │   ├── 022_order/          # v_order_summary
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>  │   └── 023_shipping/       # v_shipment_status
+</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>  │     ↓
+</span><span id="__span-13-16"><a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>  └── 03_functions/           # ALL business logic
+</span><span id="__span-13-17"><a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>      ├── 030_identity/       # Auth functions
+</span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>      ├── 031_catalog/        # Catalog mutations
+</span><span id="__span-13-19"><a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a>      ├── 032_order/          # Order mutations
+</span><span id="__span-13-20"><a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a>      └── 033_shipping/       # Shipping mutations
+</span></code></pre></div>
+<p><strong>Load order guarantees:</strong>
+1. All write tables load completely before any read views
+2. All read views load completely before any functions
+3. Within each layer, contexts load in order (identity → catalog → order → shipping)</p>
+<p><strong>Materialized Path Example:</strong>
+- File <code>0121_order.sql</code> decodes to:
+  - <code>0</code> = in <code>0_schema/</code>
+  - <code>01</code> = in <code>01_write/</code> (command side)
+  - <code>012</code> = in <code>012_order/</code> (order context)
+  - <code>0121</code> = this file (tb_order table)
+- Full path: <code>0_schema/01_write/012_order/0121_order.sql</code></p>
+<p><strong>Cross-layer example</strong> - same entity in different layers:
+- <code>0121_order.sql</code> = <code>0_schema/01_write/012_order/0121_order.sql</code> (tb_order - write)
+- <code>0221_order_summary.sql</code> = <code>0_schema/02_read/022_order/0221_order_summary.sql</code> (v_order_summary - read)
+- <code>0321_order_mutations.sql</code> = <code>0_schema/03_functions/032_order/0321_order_mutations.sql</code> (business logic)</p>
+<hr />
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<h3 id="example-1-blog-simple-s-2-digit">Example 1: Blog Simple (S - 2-digit)<a class="headerlink" href="#example-1-blog-simple-s-2-digit" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>examples/blog_simple/db/
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>└── 0_schema/
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    ├── 00_common.sql           # Extensions, types
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    ├── 01_write.sql            # tb_user, tb_post, tb_comment (command side)
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    ├── 02_read.sql             # v_user, v_post, v_comment (query side)
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    ├── 03_functions.sql        # Mutation functions
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    ├── 04_triggers.sql         # updated_at, slug generation
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    ├── 05_indexes.sql          # Performance indexes
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    ├── 06_security.sql         # RLS policies
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    └── 09_finalize.sql         # Grant statements
+</span></code></pre></div>
+<p><strong>Total: 8 files</strong> → Small flat structure with CQRS separation (01=write, 02=read, 03=functions)</p>
+<hr />
+<h3 id="example-2-blog-api-m-3-digit-cqrs">Example 2: Blog API (M - 3-digit, CQRS)<a class="headerlink" href="#example-2-blog-api-m-3-digit-cqrs" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>examples/blog_api/db/
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>├── 0_schema/
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>│   ├── 00_common/
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>│   │   ├── 001_extensions.sql
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>│   │   └── 002_types.sql
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>│   ├── 01_write/                # Command side (tb_* tables + indexes)
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>│   │   ├── 011_tb_user.sql      # tb_user + indexes
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>│   │   ├── 012_tb_post.sql      # tb_post + indexes
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>│   │   └── 013_tb_comment.sql   # tb_comment + indexes
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>│   ├── 02_read/                 # Query side (v_* or tv_* views/tables)
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>│   │   ├── 021_tv_user.sql      # v_user or tv_user
+</span><span id="__span-15-12"><a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>│   │   ├── 022_tv_post.sql      # v_post or tv_post
+</span><span id="__span-15-13"><a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>│   │   └── 023_tv_comment.sql   # v_comment or tv_comment
+</span><span id="__span-15-14"><a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>│   ├── 03_functions/            # Business logic
+</span><span id="__span-15-15"><a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>│   │   ├── 031_fn_user.sql
+</span><span id="__span-15-16"><a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a>│   │   ├── 032_fn_post.sql
+</span><span id="__span-15-17"><a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>│   │   └── 033_fn_comment.sql
+</span><span id="__span-15-18"><a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a>└── 04_triggers/             # Sync mechanisms
+</span><span id="__span-15-19"><a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a>    └── 041_tr_sync.sql
+</span><span id="__span-15-20"><a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a>└── 10_seed_common/
+</span><span id="__span-15-21"><a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a>    └── 11_sample_data.sql
+</span></code></pre></div>
+<p><strong>Total: ~13 files</strong> → Medium structure with clear CQRS separation (01=write, 02=read, 03=functions)</p>
+<hr />
+<h3 id="example-3-e-commerce-api-l-4-digit">Example 3: E-commerce API (L - 4-digit)<a class="headerlink" href="#example-3-e-commerce-api-l-4-digit" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>examples/ecommerce_api/db/schema/
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>├── 00_common/
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>│   ├── 000_security/
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>│   │   └── 0001_extensions.sql
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>│   └── 001_types/
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>│       └── 0010_enums.sql
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>│
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>├── 01_core_domain/
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>│   ├── 010_customers/
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>│   │   ├── 0101_customer_table.sql
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>│   │   └── 0102_customer_address.sql
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>│   ├── 020_products/
+</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>│   │   ├── 0201_product_table.sql
+</span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>│   │   ├── 0202_category_table.sql
+</span><span id="__span-16-15"><a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>│   │   └── 0203_product_category.sql
+</span><span id="__span-16-16"><a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>│   ├── 030_orders/
+</span><span id="__span-16-17"><a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>│   │   ├── 0301_order_table.sql
+</span><span id="__span-16-18"><a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>│   │   └── 0302_order_item_table.sql
+</span><span id="__span-16-19"><a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a>│   └── 040_cart/
+</span><span id="__span-16-20"><a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>│       ├── 0401_cart_table.sql
+</span><span id="__span-16-21"><a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a>│       └── 0402_cart_item_table.sql
+</span><span id="__span-16-22"><a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a>│
+</span><span id="__span-16-23"><a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a>├── 02_views/
+</span><span id="__span-16-24"><a id="__codelineno-16-24" name="__codelineno-16-24" href="#__codelineno-16-24"></a>│   ├── 010_customer_views/
+</span><span id="__span-16-25"><a id="__codelineno-16-25" name="__codelineno-16-25" href="#__codelineno-16-25"></a>│   │   └── 0101_customer_orders.sql
+</span><span id="__span-16-26"><a id="__codelineno-16-26" name="__codelineno-16-26" href="#__codelineno-16-26"></a>│   ├── 020_product_views/
+</span><span id="__span-16-27"><a id="__codelineno-16-27" name="__codelineno-16-27" href="#__codelineno-16-27"></a>│   │   └── 0201_products_with_categories.sql
+</span><span id="__span-16-28"><a id="__codelineno-16-28" name="__codelineno-16-28" href="#__codelineno-16-28"></a>│   └── 030_order_views/
+</span><span id="__span-16-29"><a id="__codelineno-16-29" name="__codelineno-16-29" href="#__codelineno-16-29"></a>│       └── 0301_orders_with_items.sql
+</span><span id="__span-16-30"><a id="__codelineno-16-30" name="__codelineno-16-30" href="#__codelineno-16-30"></a>│
+</span><span id="__span-16-31"><a id="__codelineno-16-31" name="__codelineno-16-31" href="#__codelineno-16-31"></a>├── 03_functions/
+</span><span id="__span-16-32"><a id="__codelineno-16-32" name="__codelineno-16-32" href="#__codelineno-16-32"></a>│   ├── 010_customer_functions/
+</span><span id="__span-16-33"><a id="__codelineno-16-33" name="__codelineno-16-33" href="#__codelineno-16-33"></a>│   │   └── 0101_customer_mutations.sql
+</span><span id="__span-16-34"><a id="__codelineno-16-34" name="__codelineno-16-34" href="#__codelineno-16-34"></a>│   ├── 020_product_functions/
+</span><span id="__span-16-35"><a id="__codelineno-16-35" name="__codelineno-16-35" href="#__codelineno-16-35"></a>│   │   └── 0201_product_mutations.sql
+</span><span id="__span-16-36"><a id="__codelineno-16-36" name="__codelineno-16-36" href="#__codelineno-16-36"></a>│   ├── 030_order_functions/
+</span><span id="__span-16-37"><a id="__codelineno-16-37" name="__codelineno-16-37" href="#__codelineno-16-37"></a>│   │   └── 0301_order_mutations.sql
+</span><span id="__span-16-38"><a id="__codelineno-16-38" name="__codelineno-16-38" href="#__codelineno-16-38"></a>│   └── 040_cart_functions/
+</span><span id="__span-16-39"><a id="__codelineno-16-39" name="__codelineno-16-39" href="#__codelineno-16-39"></a>│       └── 0401_cart_mutations.sql
+</span><span id="__span-16-40"><a id="__codelineno-16-40" name="__codelineno-16-40" href="#__codelineno-16-40"></a>│
+</span><span id="__span-16-41"><a id="__codelineno-16-41" name="__codelineno-16-41" href="#__codelineno-16-41"></a>└── 09_seeds/
+</span><span id="__span-16-42"><a id="__codelineno-16-42" name="__codelineno-16-42" href="#__codelineno-16-42"></a>    └── 0901_sample_products.sql
+</span></code></pre></div>
+<p><strong>Total: ~20 files</strong> → Large 4-digit numbering with hierarchy</p>
+<hr />
+<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
+<h3 id="1-start-small-grow-as-needed">1. Start Small, Grow as Needed<a class="headerlink" href="#1-start-small-grow-as-needed" title="Permanent link">&para;</a></h3>
+<p>Begin with the smallest structure that works. Refactor as you grow:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>Project start:   1 file      → XS: Single schema.sql
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>After 1 month:   5-10 files  → S: Refactor to 2-digit (10_, 20_, 30_)
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>After 6 months:  25 files    → M: Refactor to 3-digit (010_, 020_)
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>After 1 year:    100 files   → L: Refactor to 4-digit (0101_, 0102_)
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>Enterprise:      500+ files  → XL: Multi-level hierarchy
+</span></code></pre></div>
+<h3 id="2-group-related-entities">2. Group Related Entities<a class="headerlink" href="#2-group-related-entities" title="Permanent link">&para;</a></h3>
+<p>Keep related tables, views, and functions together:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>010_users/
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>├── 0101_tb_user.sql          # Table + indexes
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>├── 0102_tb_user_profile.sql  # Related table + indexes
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>└── 0103_tr_user.sql          # Triggers
+</span></code></pre></div>
+<h3 id="3-document-your-numbering-system">3. Document Your Numbering System<a class="headerlink" href="#3-document-your-numbering-system" title="Permanent link">&para;</a></h3>
+<p>Add a <code>README.md</code> in your schema directory:</p>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="gh"># Schema Organization</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="gu">## Top-Level Numbers</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="k">-</span><span class="w"> </span><span class="sb">`00_common`</span>: Infrastructure (extensions, types, security)
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="k">-</span><span class="w"> </span><span class="sb">`01_core_domain`</span>: Core business entities
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="k">-</span><span class="w"> </span><span class="sb">`02_views`</span>: Read-optimized views (CQRS query side)
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="k">-</span><span class="w"> </span><span class="sb">`03_functions`</span>: Business logic mutations
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="k">-</span><span class="w"> </span><span class="sb">`09_seeds`</span>: Sample/test data
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="gu">## Domain Numbers (Second Level)</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="k">-</span><span class="w"> </span><span class="sb">`010_`</span>: Users domain
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="k">-</span><span class="w"> </span><span class="sb">`020_`</span>: Content domain
+</span><span id="__span-19-13"><a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="k">-</span><span class="w"> </span><span class="sb">`030_`</span>: Analytics domain
+</span></code></pre></div>
+<h3 id="4-use-descriptive-names">4. Use Descriptive Names<a class="headerlink" href="#4-use-descriptive-names" title="Permanent link">&para;</a></h3>
+<p>File names should be self-documenting:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>✅ GOOD:
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>0101_user_table.sql
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>0102_user_profile_table.sql
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>0201_user_stats_view.sql
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>❌ BAD:
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>01_init.sql
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>02_data.sql
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>03_misc.sql
+</span></code></pre></div>
+<h3 id="5-handle-dependencies-explicitly">5. Handle Dependencies Explicitly<a class="headerlink" href="#5-handle-dependencies-explicitly" title="Permanent link">&para;</a></h3>
+<p>Ensure dependencies load before dependents:</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1">-- ❌ BAD: View before table</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="mi">10</span><span class="n">_user_stats_view</span><span class="p">.</span><span class="k">sql</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="mi">20</span><span class="n">_users_table</span><span class="p">.</span><span class="k">sql</span><span class="w">          </span><span class="c1">-- ERROR: users doesn&#39;t exist!</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="c1">-- ✅ GOOD: Table before view</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="mi">10</span><span class="n">_users_table</span><span class="p">.</span><span class="k">sql</span>
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="mi">20</span><span class="n">_user_stats_view</span><span class="p">.</span><span class="k">sql</span><span class="w">      </span><span class="c1">-- OK: users exists</span>
+</span></code></pre></div>
+<h3 id="6-fraiseql-cqrs-pattern">6. FraiseQL CQRS Pattern<a class="headerlink" href="#6-fraiseql-cqrs-pattern" title="Permanent link">&para;</a></h3>
+<p>FraiseQL uses <strong><a href="../concepts-glossary/#cqrs-command-query-responsibility-segregation">CQRS (Command Query Responsibility Segregation)</a></strong> with explicit directory separation:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>0_schema/
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>├── 00_common/                # Extensions, types (if needed)
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>├── 01_write/                 # COMMAND SIDE (ALWAYS FIRST)
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>│   ├── 011_user.sql          # tb_user - normalized, source of truth
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>│   ├── 012_post.sql          # tb_post - write-optimized
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>│   └── 013_comment.sql       # tb_comment
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>│
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>├── 02_read/                  # QUERY SIDE (DEPENDS ON WRITE)
+</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>│   ├── 021_user_view.sql     # v_user or tv_user - denormalized
+</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>│   ├── 022_post_view.sql     # v_post or tv_post - read-optimized
+</span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>│   └── 023_comment_view.sql  # v_comment or tv_comment
+</span><span id="__span-22-12"><a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>│
+</span><span id="__span-22-13"><a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>└── 03_functions/             # BUSINESS LOGIC (DEPENDS ON BOTH)
+</span><span id="__span-22-14"><a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>    ├── 031_user_mutations.sql
+</span><span id="__span-22-15"><a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a>    └── 032_post_mutations.sql
+</span></code></pre></div>
+<p><strong>Naming Conventions:</strong>
+- <strong>Command side (write)</strong>: <code>tb_*</code> tables (e.g., <code>tb_user</code>, <code>tb_post</code>)
+- <strong>Query side (read)</strong>:
+  - <code>v_*</code> views (e.g., <code>v_user</code>, <code>v_post_with_author</code>)
+  - <code>tv_*</code> Trinity views/tables (e.g., <code>tv_user</code>, <code>tv_post</code>)</p>
+<p><strong>Directory Names (following confiture style):</strong>
+- <strong><code>01_write/</code></strong> - Contains all <code>tb_*</code> tables + their indexes
+- <strong><code>02_read/</code></strong> - Contains all <code>v_*</code> or <code>tv_*</code> views/tables
+- <strong><code>03_functions/</code></strong> - Mutation functions and business logic</p>
+<p><strong>Standard CQRS Load Order:</strong>
+1. <strong><code>00_common/</code></strong> - Extensions, types, shared utilities
+2. <strong><code>01_write/</code></strong> - Command tables (<code>tb_*</code>) + indexes - source of truth
+3. <strong><code>02_read/</code></strong> - Query views/tables (<code>v_*</code>/<code>tv_*</code>) - depend on write tables
+4. <strong><code>03_functions/</code></strong> - Business logic - may use both write and read
+5. <strong><code>04_triggers/</code></strong> - Sync mechanisms</p>
+<hr />
+<h2 id="migration-integration">Migration Integration<a class="headerlink" href="#migration-integration" title="Permanent link">&para;</a></h2>
+<h3 id="schema-files-vs-migrations">Schema Files vs Migrations<a class="headerlink" href="#schema-files-vs-migrations" title="Permanent link">&para;</a></h3>
+<p>FraiseQL uses <strong>both</strong> approaches:</p>
+<ol>
+<li><strong>Schema files</strong> (this guide): Source of truth for fresh builds</li>
+<li><strong>Migrations</strong> (sequential): Incremental changes to existing databases</li>
+</ol>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>db/
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>├── schema/                    # Organized DDL (confiture style)
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>│   ├── 010_tables/
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>│   │   └── 011_user.sql
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>│   └── 020_views/
+</span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>│       └── 021_user_view.sql
+</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>│
+</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>└── migrations/                # Sequential migrations
+</span><span id="__span-23-9"><a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>    ├── 001_initial_schema.sql
+</span><span id="__span-23-10"><a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>    ├── 002_add_user_bio.sql
+</span><span id="__span-23-11"><a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>    └── 003_add_post_tags.sql
+</span></code></pre></div>
+<h3 id="workflow">Workflow<a class="headerlink" href="#workflow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Fresh database</strong>: Build from <code>schema/</code> files</li>
+<li><strong>Existing database</strong>: Apply <code>migrations/</code> sequentially</li>
+<li><strong>After migration</strong>: Update corresponding <code>schema/</code> files</li>
+</ol>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Development: Fresh build</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>confiture<span class="w"> </span>build<span class="w"> </span>--from<span class="w"> </span>db/schema<span class="w"> </span>--to<span class="w"> </span>my_database
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="c1"># Production: Apply migrations</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>fraiseql<span class="w"> </span>migrate<span class="w"> </span>up
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>
+</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="c1"># Maintenance: Keep schema files in sync</span>
+</span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>vim<span class="w"> </span>db/schema/010_tables/011_user.sql<span class="w">  </span><span class="c1"># Add bio column</span>
+</span></code></pre></div>
+<h3 id="creating-migrations-from-schema-changes">Creating Migrations from Schema Changes<a class="headerlink" href="#creating-migrations-from-schema-changes" title="Permanent link">&para;</a></h3>
+<p>When you modify schema files, create a migration:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># 1. Edit schema file</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>vim<span class="w"> </span>db/schema/010_tables/011_user.sql
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="c1"># Add: bio TEXT</span>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="c1"># 2. Create migration</span>
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>fraiseql<span class="w"> </span>migrate<span class="w"> </span>create<span class="w"> </span>add_user_bio
+</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="c1"># 3. Write migration content</span>
+</span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>vim<span class="w"> </span>db/migrations/004_add_user_bio.sql
+</span><span id="__span-25-10"><a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="c1"># ALTER TABLE tb_user ADD COLUMN bio TEXT;</span>
+</span><span id="__span-25-11"><a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>
+</span><span id="__span-25-12"><a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="c1"># 4. Apply migration</span>
+</span><span id="__span-25-13"><a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>fraiseql<span class="w"> </span>migrate<span class="w"> </span>up
+</span></code></pre></div>
+<p><strong>Key principle</strong>: Schema files are source of truth. Migrations are derived.</p>
+<hr />
+<h2 id="file-naming-conventions">File Naming Conventions<a class="headerlink" href="#file-naming-conventions" title="Permanent link">&para;</a></h2>
+<h3 id="tables">Tables<a class="headerlink" href="#tables" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>{number}_tb_{entity}.sql
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>Examples:
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>0101_tb_user.sql
+</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>0201_tb_post.sql
+</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>0301_tb_order.sql
+</span></code></pre></div>
+<h3 id="views">Views<a class="headerlink" href="#views" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>{number}_tv_{entity}.sql
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>Examples:
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>0101_tv_user.sql
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>0201_tv_post_with_author.sql
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>0301_tv_order_summary.sql
+</span></code></pre></div>
+<h3 id="functions">Functions<a class="headerlink" href="#functions" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>{number}_fn_{operation}_{entity}.sql
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>Examples:
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>0301_fn_create_user.sql
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>0311_fn_publish_post.sql
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>0321_fn_cancel_order.sql
+</span></code></pre></div>
+<h3 id="triggers">Triggers<a class="headerlink" href="#triggers" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>{number}_tr_{trigger_name}.sql
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>Examples:
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>0301_tr_update_timestamp.sql
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>0411_tr_invalidate_cache.sql
+</span></code></pre></div>
+<h3 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>{number}_sec_{policy_name}.sql
+</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
+</span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>Examples:
+</span><span id="__span-30-4"><a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>0601_sec_rls_user_data.sql
+</span><span id="__span-30-5"><a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>0611_sec_grant_permissions.sql
+</span></code></pre></div>
+<hr />
+<h2 id="environment-specific-files">Environment-Specific Files<a class="headerlink" href="#environment-specific-files" title="Permanent link">&para;</a></h2>
+<p>Use confiture's environment configs to load different files per environment:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># db/environments/production.yaml</span>
+</span><span id="__span-31-2"><a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="nt">includes</span><span class="p">:</span>
+</span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">../schema</span><span class="w">              </span><span class="c1"># Only schema</span>
+</span><span id="__span-31-4"><a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
+</span><span id="__span-31-5"><a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="c1"># db/environments/development.yaml</span>
+</span><span id="__span-31-6"><a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="nt">includes</span><span class="p">:</span>
+</span><span id="__span-31-7"><a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">../schema</span><span class="w">              </span><span class="c1"># Schema</span>
+</span><span id="__span-31-8"><a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">../seeds/development</span><span class="w">   </span><span class="c1"># Dev seeds</span>
+</span><span id="__span-31-9"><a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">../debug</span><span class="w">               </span><span class="c1"># Debug tools</span>
+</span></code></pre></div>
+<hr />
+<h2 id="common-mistakes">Common Mistakes<a class="headerlink" href="#common-mistakes" title="Permanent link">&para;</a></h2>
+<h3 id="mistake-1-no-number-prefixes">❌ Mistake 1: No Number Prefixes<a class="headerlink" href="#mistake-1-no-number-prefixes" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>schema/
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>├── extensions.sql
+</span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>├── tables.sql            # Which comes first?
+</span><span id="__span-32-4"><a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>├── views.sql             # Depends on filesystem!
+</span><span id="__span-32-5"><a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>└── functions.sql
+</span></code></pre></div>
+<p><strong>Fix</strong>: Add numbered prefixes</p>
+<h3 id="mistake-2-no-gaps">❌ Mistake 2: No Gaps<a class="headerlink" href="#mistake-2-no-gaps" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>001_extensions.sql
+</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>002_types.sql
+</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>003_tables.sql           # Hard to insert between!
+</span></code></pre></div>
+<p><strong>Fix</strong>: Use 010_, 020_, 030_</p>
+<h3 id="mistake-3-wrong-size-classification">❌ Mistake 3: Wrong Size Classification<a class="headerlink" href="#mistake-3-wrong-size-classification" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a># 100+ files but using S (2-digit flat) structure
+</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>10_user.sql
+</span><span id="__span-34-3"><a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>11_user_profile.sql
+</span><span id="__span-34-4"><a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>12_user_settings.sql
+</span><span id="__span-34-5"><a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>13_post.sql
+</span><span id="__span-34-6"><a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>14_post_tag.sql
+</span><span id="__span-34-7"><a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>...
+</span><span id="__span-34-8"><a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>89_analytics.sql         # Unmanageable!
+</span></code></pre></div>
+<p><strong>Fix</strong>: Refactor to L (4-digit hierarchical) structure</p>
+<hr />
+<h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Size</th>
+<th>Files</th>
+<th>Depth</th>
+<th>Numbering</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>XS</strong></td>
+<td>1</td>
+<td>Flat</td>
+<td>N/A</td>
+<td><code>0_schema/schema.sql</code></td>
+</tr>
+<tr>
+<td><strong>S</strong></td>
+<td>&lt;20</td>
+<td>Flat</td>
+<td>2-digit</td>
+<td><code>0_schema/01_tables.sql</code></td>
+</tr>
+<tr>
+<td><strong>M</strong></td>
+<td>20-100</td>
+<td>1 level</td>
+<td>3-digit</td>
+<td><code>0_schema/01_tables/011_users.sql</code></td>
+</tr>
+<tr>
+<td><strong>L</strong></td>
+<td>100-500</td>
+<td>2 levels</td>
+<td>4-digit</td>
+<td><code>0_schema/01_domain/010_users/0101_user.sql</code></td>
+</tr>
+<tr>
+<td><strong>XL</strong></td>
+<td>500+</td>
+<td>3+ levels</td>
+<td>5+ digits</td>
+<td><code>0_schema/00_common/000_security/0000_roles/00001_admin.sql</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Materialized Path</strong>: Each level adds one digit to parent (e.g., <code>00_</code> → <code>001_</code> → <code>0011_</code> → <code>00111_</code>)</p>
+<hr />
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="https://github.com/fraiseql/confiture/blob/main/docs/organizing-sql-files.md">confiture: Organizing SQL Files</a></strong> - Original documentation</li>
+<li><strong><a href="../migrations/">FraiseQL Migrations</a></strong> - Migration workflow</li>
+<li><strong><a href="../../advanced/database-patterns/">Database Patterns</a></strong> - CQRS and other patterns</li>
+<li><strong><a href="../../examples/complete_cqrs_blog/">Complete CQRS Example</a></strong> - Full working example</li>
+</ul>
+<hr />
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>✅ <strong>Materialized path numbering</strong>: Each child inherits parent's full prefix + adds one digit
+✅ <strong>Match structure to project size</strong>: XS → S → M → L → XL as you grow
+✅ <strong>Start simple</strong>: Begin with flat structure, add hierarchy only when needed
+✅ <strong>Leave gaps</strong>: <code>01_</code>, <code>03_</code>, <code>05_</code> (not <code>01_</code>, <code>02_</code>, <code>03_</code>) for easy insertion
+✅ <strong>Explicit dependencies</strong>: Extensions → Types → Tables → Views → Functions
+✅ <strong>Top-level organization</strong>: <code>0_schema/</code>, <code>10_seed_common/</code>, <code>20_seed_dev/</code>
+✅ <strong>Document your system</strong>: Add README in schema directory
+✅ <strong>Schema is truth</strong>: Migrations are derived from schema files</p>
+<p><strong>The Key Insight</strong>: By using materialized path numbering (<code>00_</code> → <code>001_</code> → <code>0011_</code>), the file numbers themselves encode the full directory path, making the organization self-documenting and easy to maintain.</p>
+<hr />
+<p><strong>Last Updated</strong>: 2025-10-16
+<strong>FraiseQL Version</strong>: 0.11.5+</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2025 <a href="https://github.com/fraiseql" target="_blank" rel="noopener">FraiseQL Project</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/fraiseql/fraiseql" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/fraiseql/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>
