@@ -10,6 +10,8 @@ Complete reference for all FraiseQL decorators with signatures, parameters, and 
 
 **Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type(
     sql_source: str | None = None,
     jsonb_column: str | None = "data",
@@ -35,6 +37,8 @@ Complete reference for all FraiseQL decorators with signatures, parameters, and 
 
 **Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @input
 class InputName:
     field1: str
@@ -85,6 +89,8 @@ class InterfaceName:
 
 **Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType:
     pass
@@ -126,6 +132,8 @@ async def search_users(
 
 **Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @connection(
     node_type: type,
     view_name: str | None = None,
@@ -196,6 +204,8 @@ async def posts_connection(
 
 **Function-based Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def mutation_name(info, input: InputType) -> ReturnType:
     pass
@@ -203,6 +213,8 @@ async def mutation_name(info, input: InputType) -> ReturnType:
 
 **Class-based Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation(
     function: str | None = None,
     schema: str | None = None,
@@ -226,6 +238,8 @@ class MutationName:
 
 **Examples**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Function-based
 @mutation
 async def create_user(info, input: CreateUserInput) -> User:
@@ -265,6 +279,8 @@ class CreateLocation:
 `context_params` automatically injects GraphQL context values as PostgreSQL function parameters:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # GraphQL mutation
 @mutation(
     function="create_location",
@@ -289,6 +305,8 @@ class CreateLocation:
 **Real-World Example**:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Context from JWT
 async def get_context(request: Request) -> dict:
     token = extract_jwt(request)
@@ -369,6 +387,8 @@ class CreateUserResult:
 
 **Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @field(
     resolver: Callable[..., Any] | None = None,
     description: str | None = None,
@@ -389,6 +409,8 @@ def method_name(self, info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type
 class User:
     first_name: str
@@ -540,6 +562,8 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.auth import requires_auth
 
 @query
@@ -582,6 +606,8 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.auth import requires_permission
 
 @mutation
@@ -621,6 +647,8 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.auth import requires_role
 
 @query
@@ -659,6 +687,8 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.auth import requires_any_permission
 
 @mutation
@@ -692,6 +722,8 @@ async def resolver_name(info, ...params) -> ReturnType:
 
 **Examples**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.auth import requires_any_role
 
 @query

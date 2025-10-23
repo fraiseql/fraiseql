@@ -368,6 +368,8 @@ WHERE u.id = '550e8400-...'  -- Lookup by UUID
 
 **Traditional approach** (Python-heavy):
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def create_user(info, name: str, email: str) -> User:
     db = info.context["db"]
@@ -455,6 +457,8 @@ $$ LANGUAGE plpgsql;
 
 **Python becomes trivial**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def create_user(
     info,
@@ -580,6 +584,8 @@ $$ LANGUAGE plpgsql;
 
 **Python mutations** (all follow same trivial pattern):
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def create_post(
     info,

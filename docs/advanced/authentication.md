@@ -778,7 +778,7 @@ from fraiseql.security import authorize_field, any_permission
 
 @type_
 class User:
-    id: str
+    id: UUID
     name: str
     email: str
 
@@ -911,6 +911,8 @@ class MultiAuthProvider:
 ### Role-Based Access Control (RBAC)
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Define roles with associated permissions
 ROLES = {
     "user": [

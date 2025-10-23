@@ -46,9 +46,9 @@ repo.find("users_view", email=email)
 Better support for PostgreSQL types:
 
 ```python
-from fraiseql import fraiseql
+from fraiseql import type, query, mutation, input, field
 
-@fraiseql.type
+@type
 class User:
     id: UUID  # Now properly handled
     email: EmailStr  # Email validation
@@ -119,9 +119,9 @@ Add proper type hints:
 
 ```python
 from typing import List
-from fraiseql import Info
+from fraiseql import type, query, mutation, input, field, Info
 
-@fraiseql.query
+@query
 def get_users(info: Info, limit: int = 10) -> List[User]:
     return info.context.repo.find("users_view", limit=limit)
 ```
@@ -141,8 +141,10 @@ pytest
 Automatically enabled - no changes needed:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # JSON responses are now 10-100x faster
-@fraiseql.query
+@query
 def get_data(info: Info) -> dict:
     return {"key": "value"}  # Fast JSON serialization
 ```
@@ -166,9 +168,9 @@ users = await repo.find(
 Pagination support:
 
 ```python
-from fraiseql import connection
+from fraiseql import type, query, mutation, input, field, connection
 
-@fraiseql.connection
+@connection
 def users(
     info: Info,
     first: int = 100
@@ -181,9 +183,9 @@ def users(
 Automatic N+1 query prevention:
 
 ```python
-from fraiseql import dataloader
+from fraiseql import type, query, mutation, input, field, dataloader
 
-@fraiseql.field
+@field
 @dataloader
 async def posts(user: User, info: Info) -> List[Post]:
     return await info.context.repo.find("posts_view", user_id=user.id)
@@ -267,10 +269,12 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 **Solution**: Update type annotations:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from typing import Optional
 from datetime import datetime
 
-@fraiseql.type
+@type
 class User:
     created_at: datetime  # Not 'date'
     middle_name: Optional[str] = None  # Explicit optional

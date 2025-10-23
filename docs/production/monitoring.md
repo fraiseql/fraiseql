@@ -53,6 +53,8 @@ FraiseQL Stack:
 ### Setup
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.monitoring import init_error_tracker, ErrorNotificationChannel
 
 # Initialize error tracker
@@ -691,6 +693,8 @@ async def sentry_middleware(request: Request, call_next):
 ### Datadog Integration
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from ddtrace import tracer, patch_all
 from ddtrace.contrib.fastapi import patch as patch_fastapi
 
@@ -702,7 +706,7 @@ patch_fastapi(app)
 
 # Custom span
 @query
-async def get_user(info, id: str) -> User:
+async def get_user(info, id: UUID) -> User:
     with tracer.trace("get_user", service="fraiseql") as span:
         span.set_tag("user.id", id)
         span.set_tag("operation", "query")

@@ -34,6 +34,8 @@ Production security requires defense in depth: multiple layers of protection fro
 FraiseQL uses parameterized queries exclusively:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # SAFE: Parameterized query
 async def get_user(user_id: str) -> User:
     async with db.connection() as conn:
@@ -52,6 +54,8 @@ async def get_user(user_id: str) -> User:
 ### Input Validation
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.security import InputValidator, ValidationResult
 
 class UserInputValidator:
@@ -362,6 +366,8 @@ app.add_middleware(
 ### Token Security
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # JWT configuration
 from fraiseql.auth import CustomJWTProvider
 
@@ -450,12 +456,14 @@ class PasswordHasher:
 ### PII Protection
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from dataclasses import dataclass
 
 @dataclass
 class User:
     """User with PII protection."""
-    id: str
+    id: UUID
     email: str
     name: str
     _ssn: str | None = None  # Private field
@@ -478,7 +486,7 @@ class User:
 # GraphQL type
 @type_
 class UserGQL:
-    id: str
+    id: UUID
     email: str
     name: str
 
@@ -534,6 +542,8 @@ ssn = encryptor.decrypt(encrypted)
 ### Security Event Logging
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.audit import get_security_logger, SecurityEventType, SecurityEventSeverity
 
 security_logger = get_security_logger()
@@ -586,6 +596,8 @@ async def get_user_pii(info, user_id: str) -> UserPII:
 ### Entity Change Log
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Automatic audit trail via PostgreSQL trigger
 # See advanced/event-sourcing.md for complete implementation
 
@@ -615,6 +627,8 @@ async def update_order_status(info, order_id: str, status: str) -> Order:
 ### GDPR Compliance
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 @requires_auth
 async def export_my_data(info) -> str:
@@ -675,6 +689,8 @@ async def delete_my_account(info) -> bool:
 ### SOC2 Controls
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Access control matrix
 ROLE_PERMISSIONS = {
     "user": ["orders:read:self", "profile:write:self"],

@@ -77,10 +77,12 @@ CREATE TABLE tb_comment (
 
 **GraphQL Mapping** (not recommended directly):
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Don't query tb_* directly in GraphQL
 # Use tv_* or v_* instead
 
-@fraiseql.type(sql_source="tb_user")  # ❌ Slow - requires JOINs
+@type(sql_source="tb_user")  # ❌ Slow - requires JOINs
 class User:
     ...
 ```
@@ -147,7 +149,9 @@ SELECT * FROM v_user WHERE id = 1;
 
 **GraphQL Mapping**:
 ```python
-@fraiseql.type(sql_source="v_user")  # ⚠️ OK for small datasets, not for production APIs
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="v_user")  # ⚠️ OK for small datasets, not for production APIs
 class User:
     id: int
     first_name: str
@@ -267,7 +271,9 @@ SELECT * FROM v_user WHERE id = 1;
 
 **GraphQL Mapping** (optimal):
 ```python
-@fraiseql.type(sql_source="tv_user", jsonb_column="data")
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="tv_user", jsonb_column="data")
 class User:
     id: int
     first_name: str  # Rust transforms to firstName
@@ -275,7 +281,7 @@ class User:
     email: str
     user_posts: list[Post] | None = None  # Embedded!
 
-@fraiseql.query
+@query
 async def user(info, id: int) -> User:
     # 1. SELECT data FROM tv_user WHERE id = $1 (0.05ms)
     # 2. Rust transform (0.5ms)
@@ -573,13 +579,15 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 ### With `tv_*` Tables
 
 ```python
-@fraiseql.type(sql_source="tv_user", jsonb_column="data")
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="tv_user", jsonb_column="data")
 class User:
     id: int
     first_name: str
     user_posts: list[Post] | None
 
-@fraiseql.query
+@query
 async def user(info, id: int) -> User:
     # Queries tv_user (0.05ms lookup + 0.5ms Rust transform = 0.55ms)
     repo = Repository(info.context["db"], info.context)
@@ -589,12 +597,14 @@ async def user(info, id: int) -> User:
 ### Without Prefixes (Simpler)
 
 ```python
-@fraiseql.type(sql_source="users", jsonb_column="data")
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="users", jsonb_column="data")
 class User:
     id: int
     first_name: str
 
-@fraiseql.query
+@query
 async def user(info, id: int) -> User:
     repo = Repository(info.context["db"], info.context)
     return await repo.find_one("users", id=id)

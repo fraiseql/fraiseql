@@ -1702,6 +1702,8 @@ CREATE INDEX idx_entity_log_status ON core.tb_entity_change_log (change_status);
 
 **Usage in Mutations**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def update_order(info, id: UUID, name: str) -> MutationResult:
     db = info.context["db"]
@@ -1972,6 +1974,8 @@ class MutationLogResult:
 
 **Usage in Resolver**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def update_product(
     info,

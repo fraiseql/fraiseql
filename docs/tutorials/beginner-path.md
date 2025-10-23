@@ -180,6 +180,8 @@ FROM tb_user;
 
 ### ❌ Mistake 2: Missing return type
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # WRONG: No type hint
 @query
 async def users(info):

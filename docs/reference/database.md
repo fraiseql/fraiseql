@@ -7,6 +7,8 @@ Complete reference for FraiseQL database operations and repository methods.
 FraiseQL provides a high-performance database API through the `FraiseQLRepository` class, which is automatically available in GraphQL resolvers via `info.context["db"]`.
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def get_user(info, id: UUID) -> User:
     db = info.context["db"]
@@ -252,6 +254,8 @@ async def create_one(
 
 **Example Pattern**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
@@ -279,6 +283,8 @@ async def update_one(
 
 **Example Pattern**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def update_user(info, id: UUID, input: UpdateUserInput) -> User:
     db = info.context["db"]
@@ -481,6 +487,8 @@ async def run_in_transaction(
 
 **Examples**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 async def transfer_funds(conn, source_id, dest_id, amount):
     # Deduct from source
     await conn.execute(
@@ -592,6 +600,8 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 Now all queries to `v_order` automatically see only their tenant's data:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def orders(info) -> list[Order]:
     db = info.context["db"]
@@ -734,6 +744,8 @@ WHERE tenant_id = current_setting('app.tenant_id')::uuid;
 **3. GraphQL Query (Python)**:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def products(info) -> list[Product]:
     """Get products for current tenant.
@@ -839,6 +851,8 @@ stats = await db.find("v_user_stats")
 
 **Error Handling**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def get_user(info, id: UUID) -> User | None:
     try:

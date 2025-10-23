@@ -12,11 +12,11 @@ Trinity Identifiers provide a consistent way to handle entity identification acr
 ## Pattern Structure
 
 ```python
-import fraiseql
+from fraiseql import type, query, mutation, input, field
 from uuid import UUID
 from typing import Optional
 
-@fraiseql.type
+@type
 class Product:
     """Product with Trinity identifiers."""
     # Internal database ID
@@ -79,7 +79,9 @@ CREATE INDEX idx_products_external_id ON products(external_id)
 ### GraphQL Queries
 
 ```python
-@fraiseql.query
+from fraiseql import type, query, mutation, input, field
+
+@query
 def get_product_by_public_id(
     info: Info,
     public_id: str
@@ -90,7 +92,7 @@ def get_product_by_public_id(
         public_id=public_id
     )
 
-@fraiseql.query
+@query
 def get_product_by_external_id(
     info: Info,
     external_id: str
@@ -105,7 +107,9 @@ def get_product_by_external_id(
 ### Mutations
 
 ```python
-@fraiseql.mutation
+from fraiseql import type, query, mutation, input, field
+
+@mutation
 async def create_product(
     info: Info,
     public_id: str,  # SKU or public identifier
@@ -185,7 +189,9 @@ class ProductInput(BaseModel):
 ### 4. Handle ID Migrations
 
 ```python
-@fraiseql.query
+from fraiseql import type, query, mutation, input, field
+
+@query
 def get_product(
     info: Info,
     id: Optional[str] = None,

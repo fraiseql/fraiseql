@@ -253,7 +253,7 @@ psql mydb < schema.sql
 from fraiseql import type, query, mutation, input, field
 
 # Not these (old/incorrect):
-# from fraiseql.decorators import type
+# from fraiseql import type, query, mutation, input, field
 # import fraiseql as fq; fq.type
 ```
 
