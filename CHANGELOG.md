@@ -7,44 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🐛 Bug Fixes
-
-**WHERE Filter Mixed Nested/Direct Bug Fix** (Issue #117)
-- **FIXED**: Dict-based WHERE filters with mixed nested object filters (e.g., `{machine: {id: {eq: value}}}`) and direct field filters (e.g., `{is_current: {eq: true}}`) now work correctly
-- **Root Cause**: `is_nested_object` flag variable scoping issue in `_convert_dict_where_to_sql()` caused state carry-over between field iterations
-- **Impact**: Previously, second and subsequent filters after a nested filter were incorrectly ignored, causing incorrect query results in production
-
-**Technical Implementation:**
-- Modified `src/fraiseql/db.py` `_convert_dict_where_to_sql()` method (lines 758-822)
-- **Phase 1: GREEN** - Added logic to detect nested objects even when `table_columns` is not available (for development/testing scenarios)
-- **Phase 2: REFACTOR** - Added comprehensive safeguards and validation:
-  - Structural validation: Checks that filter structure matches nested object pattern (`len(field_filter) == 1` or only `id` + `__typename` keys)
-  - Logging: Debug logging for all three detection paths (BEST CASE: actual column metadata, FALLBACK: heuristics, SAFETY: reject invalid structures)
-  - Validation: Ensures `id_filter` is a valid dict before iteration
-  - Clear documentation of risks when using heuristic fallback
-- **Phase 3: QA** - Verified no regressions (107 tests passing, 5/5 WHERE filter tests passing)
-
-**Example:**
-```python
-# Before (broken): Only applied machine filter, ignored is_current
-where_dict = {
-    "machine": {"id": {"eq": machine_1_id}},  # ✅ Applied
-    "is_current": {"eq": True},               # ❌ Ignored (bug!)
-}
-# Result: 2 configs for machine_1 (both current AND non-current)
-
-# After (fixed): Applies both filters correctly
-where_dict = {
-    "machine": {"id": {"eq": machine_1_id}},  # ✅ Applied
-    "is_current": {"eq": True},               # ✅ Now applied!
-}
-# Result: 1 config (only the current one for machine_1)
-```
-
-**Best Practices:**
-- **Recommended**: Register table metadata with `register_type_for_view()` to ensure accurate column detection
-- **Fallback**: If metadata not available, heuristics are used (works for standard patterns)
-- **Safety**: Invalid filter structures are rejected with warning logs
+_No unreleased changes at this time._
 
 ## [1.0.0] - 2025-10-23
 
@@ -77,10 +40,12 @@ FraiseQL v1.0.0 is the first production-stable release, marking the culmination 
 ### 🔧 What's New in v1.0.0
 
 #### Fixed
+- **WHERE Filter Mixed Nested/Direct Bug** (Issue #117) - Fixed dict-based WHERE filters with mixed nested object filters and direct field filters. Previously, filters after a nested filter were incorrectly ignored due to variable scoping issue in `_convert_dict_where_to_sql()`
 - **PostgreSQL placeholder format bug** - Corrected invalid placeholder generation in complex nested filters
 - **Hybrid table filtering optimization** - Efficient filtering for views using hybrid tables (SQL columns + JSONB) when indexed filtering is needed
 - **Field name conversion** - Proper camelCase ↔ snake_case conversion in all SQL generation paths
 - **JSONB column metadata** - Enhanced database registry for type-safe JSONB operations
+- **Documentation validation workflow** - Fixed CI docs validation by adding Rust toolchain setup and using uv for proper fraiseql-rs extension builds
 
 #### Added
 - **VERSION_STATUS.md** - Clear versioning and support policy documentation
