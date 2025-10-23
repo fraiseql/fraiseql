@@ -55,7 +55,7 @@ This release includes a major documentation restructure for better discoverabili
 
 ### Fixed
 - **PostgreSQL placeholder format bug** - Corrected invalid placeholder generation in complex nested filters
-- **Hybrid table nested object filtering** - Fixed filtering logic for tables with both regular and JSONB columns
+- **Hybrid table filtering optimization** - Efficient filtering for views using hybrid tables (SQL columns + JSONB) when indexed filtering is needed
 - **Field name conversion** - Proper camelCase ↔ snake_case conversion in all SQL generation paths
 - **JSONB column metadata** - Enhanced database registry for type-safe JSONB operations
 - **WHERE filter mixed nested/direct bug** - Fixed state carry-over causing filter omissions

@@ -67,9 +67,9 @@ FraiseQL v1.0.0 is the first production-stable release, marking the culmination 
 - ✅ Documentation comprehensive and accurate
 
 **Enterprise-Ready Features**
-- ✅ CQRS architecture with PostgreSQL
+- ✅ CQRS architecture with PostgreSQL JSONB views
 - ✅ Rust-accelerated JSON transformation
-- ✅ Hybrid table support
+- ✅ JSON-only views with optional hybrid tables for efficient filtering
 - ✅ Advanced type system
 - ✅ Nested object filtering
 - ✅ Trinity identifier patterns
@@ -78,7 +78,7 @@ FraiseQL v1.0.0 is the first production-stable release, marking the culmination 
 
 #### Fixed
 - **PostgreSQL placeholder format bug** - Corrected invalid placeholder generation in complex nested filters
-- **Hybrid table nested object filtering** - Fixed filtering logic for tables with both regular and JSONB columns
+- **Hybrid table filtering optimization** - Efficient filtering for views using hybrid tables (SQL columns + JSONB) when indexed filtering is needed
 - **Field name conversion** - Proper camelCase ↔ snake_case conversion in all SQL generation paths
 - **JSONB column metadata** - Enhanced database registry for type-safe JSONB operations
 

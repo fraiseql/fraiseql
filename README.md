@@ -140,7 +140,7 @@ After:  FastAPI + PostgreSQL + Grafana = 3 services
 - **One command setup**: `fraiseql init my-api && fraiseql dev`
 - **Convention over Configuration**: Clean registration-based API with `@auto_nested_array_filters`
 - **Intelligent WHERE clauses**: Automatic type-aware SQL optimization for network types, dates, and more
-- **Hybrid table support**: Seamless filtering across regular columns and JSONB fields
+- **JSON-only views**: PostgreSQL JSONB views for optimal performance with optional hybrid tables for efficient filtering
 - **Built-in security**: Field-level authorization, rate limiting, CSRF protection
 
 ## 🔄 How It Works
