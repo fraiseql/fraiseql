@@ -83,12 +83,13 @@ UserContext is the standardized user representation passed to all resolvers:
 ```python
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import UUID
 
 @dataclass
 class UserContext:
     """User context available in all GraphQL resolvers."""
 
-    user_id: str
+    user_id: UUID
     email: str | None = None
     name: str | None = None
     roles: list[str] = field(default_factory=list)
@@ -342,7 +343,7 @@ class CustomJWTProvider(AuthProvider):
         payload = await self.validate_token(token)
 
         return UserContext(
-            user_id=payload.get("sub", payload.get("user_id")),
+            user_id=UUID(payload.get("sub", payload.get("user_id"))),
             email=payload.get("email"),
             name=payload.get("name"),
             roles=payload.get("roles", []),
@@ -549,6 +550,7 @@ async def ban_user(info, user_id: str, reason: str) -> bool:
 Require any of multiple permissions:
 
 ```python
+from fraiseql import mutation
 from fraiseql.auth import requires_any_permission
 
 @mutation
@@ -563,6 +565,7 @@ async def update_order(info, order_id: str, status: str) -> Order:
 Require any of multiple roles:
 
 ```python
+from fraiseql import mutation
 from fraiseql.auth import requires_any_role
 
 @mutation

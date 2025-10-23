@@ -60,7 +60,7 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 - APQ storage backend configured (PostgreSQL recommended)
 - Query complexity score < 100
 - Response size < 50KB
-- Exclusive Rust pipeline active (automatic in v0.11.5+)
+- Exclusive Rust pipeline active (automatic in v1.0.0+)
 
 ---
 
@@ -88,13 +88,13 @@ FraiseQL delivers **sub-10ms response times** for typical GraphQL queries throug
 
 ---
 
-### Claim: "0.05-0.5ms transform table responses"
+### Claim: "0.05-0.5ms table view responses"
 
-**What this means**: Transform tables (`tv_*`) provide instant responses for complex queries, processed through the exclusive Rust pipeline.
+**What this means**: Table views (`tv_*`) provide instant responses for complex queries, processed through the exclusive Rust pipeline.
 
 **Methodology**:
-- **Transform tables**: Pre-computed JSONB with generated columns
-- **Comparison**: Traditional JOIN queries vs transform table lookups
+- **Table views**: Denormalized tables with pre-computed data
+- **Comparison**: Traditional JOIN queries vs table view lookups
 - **Dataset**: 10k users with 50k posts (average 5 posts/user)
 - **Measurement**: Database query time only (EXPLAIN ANALYZE)
 
@@ -208,7 +208,7 @@ field_multipliers = {
 - Materialized views for aggregations
 - Background computation
 - Result caching with short TTL
-- Minimize JSONB size in transform tables
+- Minimize JSONB size in table views
 
 ---
 

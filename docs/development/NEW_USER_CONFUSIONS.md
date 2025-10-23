@@ -56,7 +56,7 @@ As a new user exploring this repository, I encountered several areas that were n
 
 **Confusion**: The README and docs use advanced concepts without sufficient explanation:
 - CQRS (Command Query Responsibility Segregation)
-- JSONB views and transform tables (tv_*)
+- JSONB views and table views (tv_*)
 - Trinity identifiers (pk_*, fk_*, id, identifier)
 - Database-first architecture
 - Rust acceleration layers

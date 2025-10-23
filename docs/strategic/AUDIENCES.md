@@ -1,6 +1,6 @@
 # FraiseQL Audiences & User Types
 
-**Last Updated**: October 17, 2025
+**Last Updated**: October 23, 2025
 
 ---
 

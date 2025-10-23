@@ -85,6 +85,7 @@ FraiseQL repositories encapsulate database access per bounded context:
 ```python
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar, List
+from uuid import UUID
 from fraiseql.db import DatabasePool
 
 T = TypeVar('T')
@@ -102,7 +103,7 @@ class Repository(ABC, Generic[T]):
         """Get table name for this repository."""
         pass
 
-    async def get_by_id(self, id: str) -> T | None:
+    async def get_by_id(self, id: UUID) -> T | None:
         """Get entity by ID."""
         async with self.db.connection() as conn:
             result = await conn.execute(
@@ -126,7 +127,7 @@ class Repository(ABC, Generic[T]):
         # Implemented by subclasses
         raise NotImplementedError
 
-    async def delete(self, id: str) -> bool:
+    async def delete(self, id: UUID) -> bool:
         """Delete entity by ID."""
         async with self.db.connection() as conn:
             result = await conn.execute(
@@ -147,13 +148,14 @@ class Repository(ABC, Generic[T]):
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 # Orders Context Domain Model
 @dataclass
 class Order:
     """Order aggregate root."""
-    id: str
-    customer_id: str
+    id: UUID
+    customer_id: UUID
     items: list['OrderItem']
     total: Decimal
     status: str
@@ -163,121 +165,12 @@ class Order:
 @dataclass
 class OrderItem:
     """Order line item."""
-    id: str
-    order_id: str
-    product_id: str
+    id: UUID
+    order_id: UUID
+    product_id: UUID
     quantity: int
     price: Decimal
     total: Decimal
-
-# Orders Repository
-class OrderRepository(Repository[Order]):
-    """Repository for Order aggregate."""
-
-    def _get_table_name(self) -> str:
-        return "orders"
-
-    def __init__(self, db_pool: DatabasePool):
-        super().__init__(db_pool, schema="orders")
-
-    async def get_by_id(self, id: str) -> Order | None:
-        """Get order with items (aggregate)."""
-        async with self.db.connection() as conn:
-            # Get order
-            result = await conn.execute(
-                f"SELECT * FROM {self.schema}.orders WHERE id = $1",
-                id
-            )
-            order_row = await result.fetchone()
-            if not order_row:
-                return None
-
-            # Get order items
-            result = await conn.execute(
-                f"SELECT * FROM {self.schema}.order_items WHERE order_id = $1",
-                id
-            )
-            item_rows = await result.fetchall()
-
-            return self._map_to_entity(order_row, item_rows)
-
-    async def save(self, order: Order) -> Order:
-        """Save order aggregate (order + items)."""
-        async with self.db.connection() as conn:
-            async with conn.transaction():
-                # Upsert order
-                await conn.execute(f"""
-                    INSERT INTO {self.schema}.orders
-                        (id, customer_id, total, status, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                    ON CONFLICT (id) DO UPDATE SET
-                        total = EXCLUDED.total,
-                        status = EXCLUDED.status,
-                        updated_at = EXCLUDED.updated_at
-                """, order.id, order.customer_id, order.total,
-                     order.status, order.created_at, order.updated_at)
-
-                # Delete existing items
-                await conn.execute(
-                    f"DELETE FROM {self.schema}.order_items WHERE order_id = $1",
-                    order.id
-                )
-
-                # Insert items
-                for item in order.items:
-                    await conn.execute(f"""
-                        INSERT INTO {self.schema}.order_items
-                            (id, order_id, product_id, quantity, price, total)
-                        VALUES ($1, $2, $3, $4, $5, $6)
-                    """, item.id, item.order_id, item.product_id,
-                         item.quantity, item.price, item.total)
-
-        return order
-
-    async def get_by_customer(self, customer_id: str) -> list[Order]:
-        """Get all orders for customer."""
-        async with self.db.connection() as conn:
-            result = await conn.execute(
-                f"SELECT * FROM {self.schema}.orders WHERE customer_id = $1 ORDER BY created_at DESC",
-                customer_id
-            )
-            orders = []
-            for order_row in await result.fetchall():
-                # Get items for each order
-                result = await conn.execute(
-                    f"SELECT * FROM {self.schema}.order_items WHERE order_id = $1",
-                    order_row["id"]
-                )
-                item_rows = await result.fetchall()
-                orders.append(self._map_to_entity(order_row, item_rows))
-
-            return orders
-
-    def _map_to_entity(self, order_row, item_rows=None) -> Order:
-        """Map database rows to Order aggregate."""
-        items = []
-        if item_rows:
-            items = [
-                OrderItem(
-                    id=row["id"],
-                    order_id=row["order_id"],
-                    product_id=row["product_id"],
-                    quantity=row["quantity"],
-                    price=row["price"],
-                    total=row["total"]
-                )
-                for row in item_rows
-            ]
-
-        return Order(
-            id=order_row["id"],
-            customer_id=order_row["customer_id"],
-            items=items,
-            total=order_row["total"],
-            status=order_row["status"],
-            created_at=order_row["created_at"],
-            updated_at=order_row["updated_at"]
-        )
 ```
 
 ## Schema Organization
@@ -481,9 +374,10 @@ class OrderItem:
 ```python
 from fraiseql import mutation, query
 from graphql import GraphQLResolveInfo
+from uuid import UUID
 
 @mutation
-async def create_order(info: GraphQLResolveInfo, customer_id: str) -> Order:
+async def create_order(info: GraphQLResolveInfo, customer_id: UUID) -> Order:
     """Create new order."""
     order = Order(customer_id=customer_id)
     order_repo = get_order_repository()
@@ -492,8 +386,8 @@ async def create_order(info: GraphQLResolveInfo, customer_id: str) -> Order:
 @mutation
 async def add_order_item(
     info: GraphQLResolveInfo,
-    order_id: str,
-    product_id: str,
+    order_id: UUID,
+    product_id: UUID,
     quantity: int,
     price: float
 ) -> Order:
@@ -512,7 +406,7 @@ async def add_order_item(
     return await order_repo.save(order)
 
 @mutation
-async def submit_order(info: GraphQLResolveInfo, order_id: str) -> Order:
+async def submit_order(info: GraphQLResolveInfo, order_id: UUID) -> Order:
     """Submit order for processing."""
     order_repo = get_order_repository()
 
@@ -553,16 +447,19 @@ async def submit_order(info: GraphQLResolveInfo, order_id: str) -> Order:
 ### Integration via GraphQL
 
 ```python
+from fraiseql import query, mutation
+from uuid import UUID
+
 # Orders Context exports queries
 @query
-async def get_order(info, order_id: str) -> Order:
+async def get_order(info, order_id: UUID) -> Order:
     """Orders context: Get order details."""
     order_repo = get_order_repository()
     return await order_repo.get_by_id(order_id)
 
 # Billing Context consumes Orders data
 @mutation
-async def create_invoice_for_order(info, order_id: str) -> Invoice:
+async def create_invoice_for_order(info, order_id: UUID) -> Invoice:
     """Billing context: Create invoice from order."""
     # Fetch order data via internal call or event
     order = await get_order(info, order_id)
@@ -658,7 +555,7 @@ class ExternalProduct:
 @dataclass
 class Product:
     """Internal product model."""
-    id: str
+    id: UUID
     name: str
     price: Money
     quantity_available: int
@@ -688,6 +585,8 @@ class ProductACL:
         )
 
 # Usage
+from fraiseql import query
+
 @query
 async def get_product_from_external(info, sku: str) -> Product:
     """Fetch product from external system via ACL."""
@@ -713,8 +612,11 @@ class DomainEvent:
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
 # Orders Context: Publish event
+from fraiseql import mutation
+from uuid import UUID
+
 @mutation
-async def submit_order(info, order_id: str) -> Order:
+async def submit_order(info, order_id: UUID) -> Order:
     """Submit order and publish event."""
     order_repo = get_order_repository()
     order = await order_repo.get_by_id(order_id)

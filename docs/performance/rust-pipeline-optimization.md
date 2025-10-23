@@ -10,8 +10,8 @@ The Rust pipeline is **already optimized** and provides 0.5-5ms response times o
 
 The Rust pipeline is fast (< 1ms), but database queries can take 1-100ms+ depending on complexity.
 
-### Use Transform Tables (tv_*)
-Pre-compute JSONB responses in the database:
+### Use Table Views (tv_*)
+Pre-compute denormalized data in the database:
 
 ```sql
 -- Slow: Compute JSONB on every query
@@ -22,8 +22,8 @@ SELECT jsonb_build_object(
 ) FROM tb_user u;
 -- Takes: 10-50ms for complex queries
 
--- Fast: Pre-computed JSONB in transform table
-SELECT data FROM tv_user WHERE id = $1;
+-- Fast: Pre-computed data in table view
+SELECT * FROM tv_user WHERE id = $1;
 -- Takes: 0.5-2ms (just index lookup!)
 ```
 
@@ -173,7 +173,7 @@ work_mem = 64MB               -- For complex queries
 
 ## Performance Checklist
 
-- [ ] Use transform tables (tv_*) for complex queries
+- [ ] Use table views (tv_*) for complex queries
 - [ ] Index JSONB paths used in WHERE clauses
 - [ ] Enable field projection (default: enabled)
 - [ ] Enable APQ for production

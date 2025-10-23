@@ -1,0 +1,380 @@
+docs/advanced/authentication.md:- [Multi-Tenancy](multi-tenancy.md) - Tenant isolation and context propagation
+docs/advanced/authentication.md:- [Field-Level Authorization](../core/queries-and-mutations.md) - Advanced authorization patterns
+docs/advanced/authentication.md:- [Security Best Practices](../production/security.md) - Production security hardening
+docs/advanced/authentication.md:- [Monitoring](../production/monitoring.md) - Authentication metrics and alerts
+docs/advanced/llm-integration.md:- [Security](../production/security.md) - Securing LLM endpoints
+docs/advanced/llm-integration.md:- [Performance](../performance/index.md) - Optimizing LLM-generated queries
+docs/advanced/llm-integration.md:- [Authentication](authentication.md) - User context for LLM queries
+docs/advanced/llm-integration.md:- [Monitoring](../production/monitoring.md) - Tracking LLM query patterns
+docs/advanced/bounded-contexts.md:- [Event Sourcing](event-sourcing.md) - Event-driven architecture patterns
+docs/advanced/bounded-contexts.md:- [Repository Pattern](../api-reference/database.md) - Complete repository API
+docs/advanced/bounded-contexts.md:- [Multi-Tenancy](multi-tenancy.md) - Tenant isolation in bounded contexts
+docs/advanced/bounded-contexts.md:- [Performance](../performance/index.md) - Context-specific optimization
+docs/advanced/event-sourcing.md:**[CQRS (Command Query Responsibility Segregation)](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)** separates read and write models using event sourcing:
+docs/advanced/event-sourcing.md:- [Bounded Contexts](bounded-contexts.md) - Event-driven context integration
+docs/advanced/event-sourcing.md:- [CQRS](../advanced/database-patterns.md) - Command Query Responsibility Segregation
+docs/advanced/event-sourcing.md:- [Monitoring](../production/monitoring.md) - Event sourcing metrics
+docs/advanced/event-sourcing.md:- [Performance](../performance/index.md) - Audit log optimization
+docs/advanced/multi-tenancy.md:**[🔒 Isolation Details](diagrams/multi-tenant-isolation.md)** - Complete tenant security architecture
+docs/advanced/multi-tenancy.md:- [Authentication](authentication.md) - Tenant-scoped authentication
+docs/advanced/multi-tenancy.md:- [Bounded Contexts](bounded-contexts.md) - Multi-tenant DDD patterns
+docs/advanced/multi-tenancy.md:- [Performance](../performance/index.md) - Query optimization per tenant
+docs/advanced/multi-tenancy.md:- [Security](../production/security.md) - Tenant isolation security
+docs/patterns/trinity_identifiers.md:- [Security Best Practices](../../SECURITY.md)
+docs/quickstart.md:- [Understanding FraiseQL](../docs/UNDERSTANDING.md) - Learn the architecture
+docs/quickstart.md:- [First Hour Guide](../docs/FIRST_HOUR.md) - Progressive tutorial
+docs/quickstart.md:- [Troubleshooting](../docs/TROUBLESHOOTING.md) - Common issues and solutions
+docs/quickstart.md:- [Style Guide](../docs/STYLE_GUIDE.md) - Best practices
+docs/quickstart.md:- [Troubleshooting Guide](../docs/TROUBLESHOOTING.md)
+docs/deployment/README.md:- [Security](../../SECURITY.md)
+docs/reference/database.md:- [Queries and Mutations](../core/queries-and-mutations.md) - Using database in resolvers
+docs/reference/database.md:- [Configuration](../core/configuration.md) - Database configuration options
+docs/reference/database.md:- [PostgreSQL Functions](../core/database-api.md) - Writing database functions
+docs/reference/cli.md:- [5-Minute Quickstart](../quickstart.md) - Get started quickly
+docs/reference/cli.md:- [Database API](../core/database-api.md) - Repository patterns
+docs/reference/cli.md:- [Production Deployment](../tutorials/production-deployment.md) - Deployment guide
+docs/reference/cli.md:- [Configuration](../core/configuration.md) - Application configuration
+docs/reference/decorators.md:**Examples**: See [Types and Schema](../core/types-and-schema.md)
+docs/reference/decorators.md:**Examples**: See [Types and Schema](../core/types-and-schema.md)
+docs/reference/decorators.md:**Examples**: See [Types and Schema](../core/types-and-schema.md)
+docs/reference/decorators.md:**Examples**: See [Types and Schema](../core/types-and-schema.md)
+docs/reference/decorators.md:**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#query-decorator)
+docs/reference/decorators.md:**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#connection-decorator)
+docs/reference/decorators.md:**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#mutation-decorator)
+docs/reference/decorators.md:**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#field-decorator)
+docs/reference/decorators.md:**See Also**: [Queries and Mutations](../core/queries-and-mutations.md#subscription-decorator)
+docs/reference/decorators.md:- [Types and Schema](../core/types-and-schema.md) - Type system details
+docs/reference/decorators.md:- [Queries and Mutations](../core/queries-and-mutations.md) - Query and mutation patterns
+docs/reference/decorators.md:- [Configuration](../core/configuration.md) - Configure decorator behavior
+docs/reference/config.md:**Migration from v0.11.4 and earlier**: Remove all execution mode configuration. See the [Multi-Mode to Rust Pipeline Migration Guide](../migration-guides/multi-mode-to-rust-pipeline.md) for details.
+docs/reference/config.md:- [Configuration Guide](../core/configuration.md) - Configuration patterns and examples
+docs/reference/config.md:- [Deployment](../production/deployment.md) - Production configuration
+docs/QUICK_REFERENCE.md:- [First Hour Guide](FIRST_HOUR.md) - Progressive tutorial
+docs/QUICK_REFERENCE.md:- [Troubleshooting](TROUBLESHOOTING.md) - Common issues
+docs/QUICK_REFERENCE.md:- [Understanding FraiseQL](UNDERSTANDING.md) - Architecture overview
+docs/UNDERSTANDING.md:- **[5-Minute Quickstart](quickstart.md)** - Get a working API immediately
+docs/UNDERSTANDING.md:- **[First Hour Guide](FIRST_HOUR.md)** - Progressive tutorial from zero to production
+docs/UNDERSTANDING.md:- **[Core Concepts](core/concepts-glossary.md)** - Deep dive into each pattern
+docs/UNDERSTANDING.md:- **[Visual Glossary](VISUAL_GLOSSARY.md)** - Side-by-side examples and diagrams
+docs/UNDERSTANDING.md:**Ready to code?** Start with the [quickstart](quickstart.md) to see it in action.
+docs/development/README.md:- [Contributing Guide](../../CONTRIBUTING.md)
+docs/production/deployment.md:- [Monitoring](monitoring.md) - Metrics, logs, and alerting
+docs/production/deployment.md:- [Security](security.md) - Production security hardening
+docs/production/deployment.md:- [Performance](../performance/index.md) - Production optimization
+docs/production/security.md:- [Authentication](../advanced/authentication.md) - Authentication patterns
+docs/production/security.md:- [Monitoring](monitoring.md) - Security monitoring
+docs/production/security.md:- [Deployment](deployment.md) - Secure deployment
+docs/production/security.md:- [Audit Logging](../advanced/event-sourcing.md) - Complete audit trails
+docs/production/health-checks.md:- [Production Deployment](../production/deployment.md) - Kubernetes health probes
+docs/production/health-checks.md:- [Monitoring](../production/monitoring.md) - Metrics and observability
+docs/production/health-checks.md:- [Sentry Integration](../production/monitoring.md#sentry-integration) - Error tracking
+docs/production/monitoring.md:- [Deployment](deployment.md) - Production deployment patterns
+docs/production/monitoring.md:- [Security](security.md) - Security monitoring
+docs/production/monitoring.md:- [Performance](../performance/index.md) - Performance optimization
+docs/production/README.md:- [Security Policy](../../SECURITY.md)
+docs/production/README.md:- [Performance Guide](../../PERFORMANCE_GUIDE.md)
+docs/production/observability.md:- [Monitoring Guide](monitoring.md) - Detailed monitoring setup
+docs/production/observability.md:- [Deployment](deployment.md) - Production deployment patterns
+docs/production/observability.md:- [Security](security.md) - Security best practices
+docs/production/observability.md:- [Health Checks](health-checks.md) - Application health monitoring
+docs/migration/v1-to-v2.md:- Follow the [roadmap](../ROADMAP.md)
+docs/migration/v0-to-v1.md:1. Review the [Performance Guide](../../PERFORMANCE_GUIDE.md)
+docs/migration/v0-to-v1.md:2. Explore [Enterprise Features](../enterprise/ENTERPRISE.md)
+docs/ROADMAP.md:We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+docs/ROADMAP.md:- [Feature Requests](https://github.com/fraiseql/fraiseql/issues/new?template=feature_request.md)
+docs/strategic/VERSION_STATUS.md:- See [CONTRIBUTING.md](../../CONTRIBUTING.md)
+docs/strategic/VERSION_STATUS.md:- [Installation Guide](../../INSTALLATION.md)
+docs/strategic/VERSION_STATUS.md:- [Quickstart](../quickstart.md)
+docs/strategic/VERSION_STATUS.md:- Check [Documentation](../README.md) for comprehensive guides
+docs/case-studies/README.md:1. **Use the Template**: Start with [`template.md`](./template.md)
+docs/case-studies/README.md:Download: [`template.md`](./template.md)
+docs/case-studies/README.md:- **Security**: See [SECURITY.md](../../SECURITY.md)
+docs/migration-guides/multi-mode-to-rust-pipeline.md:2. Review the [Rust Pipeline Integration Guide](../core/rust-pipeline-integration.md)
+docs/migration-guides/multi-mode-to-rust-pipeline.md:- See [Rust Pipeline Overview](../rust/RUST_FIRST_PIPELINE.md)
+docs/migration-guides/ltree-migration-guide.md:- [FraiseQL Documentation](../README.md) - Comprehensive guides and references
+docs/core/postgresql-extensions.md:- [Complete CQRS Example](../../examples/complete_cqrs_blog/README.md) - Uses extensions
+docs/core/postgresql-extensions.md:- [Explicit Sync Guide](./explicit-sync.md) - How sync uses jsonb_ivm
+docs/core/postgresql-extensions.md:- [CASCADE Invalidation](../performance/cascade-invalidation.md) - Uses pg_fraiseql_cache
+docs/core/postgresql-extensions.md:- [Migrations Guide](./migrations.md) - Setting up databases with confiture
+docs/core/configuration.md:**📖 Before configuring**: Make sure FraiseQL is [installed](../../INSTALLATION.md) and your environment is set up.
+docs/core/configuration.md:**Migration from v0.11.4 and earlier**: Remove all execution mode configuration. See the [Multi-Mode to Rust Pipeline Migration Guide](../migration-guides/multi-mode-to-rust-pipeline.md) for details.
+docs/core/configuration.md:- [API Reference - Config](../reference/config.md) - Complete config reference
+docs/core/configuration.md:- [Deployment](../production/deployment.md) - Production deployment guides
+docs/core/types-and-schema.md:**📍 Navigation**: [← Beginner Path](../tutorials/beginner-path.md) • [Queries & Mutations →](queries-and-mutations.md) • [Database API →](database-api.md)
+docs/core/types-and-schema.md:**[🔗 Type System Details](diagrams/database-schema-conventions.md)** - Database naming conventions
+docs/core/types-and-schema.md:- [Queries and Mutations](./queries-and-mutations.md) - Using types in resolvers
+docs/core/types-and-schema.md:- [Decorators Reference](../reference/decorators.md) - Complete decorator API
+docs/core/types-and-schema.md:- [Configuration](./configuration.md) - Type system configuration options
+docs/core/project-structure.md:**Example Projects**: [Todo App Quickstart](../../docs/quickstart.md)
+docs/core/fraiseql-philosophy.md:- **[CQRS](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation)**: Separate reading data from writing data
+docs/core/fraiseql-philosophy.md:- **[JSONB Views](../core/concepts-glossary.md#view)**: Pre-packaged data ready for GraphQL
+docs/core/fraiseql-philosophy.md:- **[Trinity Identifiers](../patterns/trinity_identifiers.md)**: Three types of IDs per entity
+docs/core/fraiseql-philosophy.md:- **[Database-First](../core/concepts-glossary.md)**: Business logic lives in PostgreSQL
+docs/core/fraiseql-philosophy.md:- [Database API](../reference/database.md) - Auto-injected database methods
+docs/core/fraiseql-philosophy.md:- [Session Variables](../reference/database.md#context-and-session-variables) - Automatic injection details
+docs/core/fraiseql-philosophy.md:- [Decorators](../reference/decorators.md) - FraiseQL decorator patterns
+docs/core/fraiseql-philosophy.md:- [Performance](../performance/index.md) - JSON passthrough and optimization layers
+docs/core/migrations.md:- [Complete CQRS Example](../../examples/complete_cqrs_blog/README.md)
+docs/core/migrations.md:- [CASCADE Invalidation Guide](../performance/cascade-invalidation.md)
+docs/core/migrations.md:- [Explicit Sync Guide](./explicit-sync.md)
+docs/core/migrations.md:- [Database Patterns](../advanced/database-patterns.md)
+docs/core/explicit-sync.md:Traditional **[CQRS](concepts-glossary.md#cqrs-command-query-responsibility-segregation)** implementations use database triggers to automatically sync data:
+docs/core/explicit-sync.md:- [CASCADE Invalidation](../performance/cascade-invalidation.md) - Cache invalidation with sync
+docs/core/explicit-sync.md:- [Migrations Guide](./migrations.md) - Setting up tb_/tv_ tables
+docs/core/explicit-sync.md:- [Database Patterns](../advanced/database-patterns.md) - Advanced sync patterns
+docs/core/dependencies.md:**Documentation**: [PostgreSQL Extensions Guide](./postgresql-extensions.md#jsonb_ivm-extension)
+docs/core/dependencies.md:**Documentation**: [CASCADE Invalidation Guide](../performance/cascade-invalidation.md)
+docs/core/dependencies.md:**Documentation**: [Migrations Guide](./migrations.md)
+docs/core/dependencies.md:- [PostgreSQL Extensions Guide](./postgresql-extensions.md) - Detailed extension docs
+docs/core/dependencies.md:- [Migrations Guide](./migrations.md) - confiture usage
+docs/core/dependencies.md:- [CASCADE Invalidation](../performance/cascade-invalidation.md) - pg_fraiseql_cache
+docs/core/dependencies.md:- [Explicit Sync](./explicit-sync.md) - jsonb_ivm integration
+docs/core/ddl-organization.md:FraiseQL uses **[CQRS (Command Query Responsibility Segregation)](concepts-glossary.md#cqrs-command-query-responsibility-segregation)** with explicit directory separation:
+docs/core/ddl-organization.md:- **[confiture: Organizing SQL Files](https://github.com/fraiseql/confiture/blob/main/docs/organizing-sql-files.md)** - Original documentation
+docs/core/ddl-organization.md:- **[FraiseQL Migrations](./migrations.md)** - Migration workflow
+docs/core/ddl-organization.md:- **[Database Patterns](../advanced/database-patterns.md)** - CQRS and other patterns
+docs/core/rust-pipeline-integration.md:See [Contributing Guide](../../CONTRIBUTING.md) for Rust development setup.
+docs/core/database-api.md:**📍 Navigation**: [← Queries & Mutations](queries-and-mutations.md) • [Performance →](../performance/index.md) • [Database Patterns →](../advanced/database-patterns.md)
+docs/core/database-api.md:**[📊 Detailed Query Flow](diagrams/request-flow.md)** - Complete request lifecycle
+docs/core/database-api.md:- [Queries & Mutations](queries-and-mutations.md) - Using repository methods in GraphQL resolvers
+docs/core/database-api.md:- [Database Patterns](../advanced/database-patterns.md) - View design and N+1 prevention
+docs/core/database-api.md:- [Performance](../performance/index.md) - Query optimization
+docs/core/database-api.md:- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation patterns
+docs/core/README.md:- [Quick Start](../quickstart.md)
+docs/core/concepts-glossary.md:- [Core Documentation](README.md)
+docs/core/queries-and-mutations.md:**📍 Navigation**: [← Types & Schema](types-and-schema.md) • [Database API →](database-api.md) • [Performance →](../performance/index.md)
+docs/core/queries-and-mutations.md:- [Types and Schema](./types-and-schema.md) - Define types for use in queries and mutations
+docs/core/queries-and-mutations.md:- [Decorators Reference](../reference/decorators.md) - Complete decorator API
+docs/core/queries-and-mutations.md:- [Database API](../reference/database.md) - Database operations for queries and mutations
+docs/INTERACTIVE_EXAMPLES.md:- [Quickstart Guide](quickstart.md) - Get running in 5 minutes
+docs/INTERACTIVE_EXAMPLES.md:- [Understanding FraiseQL](UNDERSTANDING.md) - Architecture deep dive
+docs/INTERACTIVE_EXAMPLES.md:- [Database API](core/database-api.md) - Repository patterns
+docs/TROUBLESHOOTING.md:**Prevention**: Check the [Style Guide](STYLE_GUIDE.md) for correct imports
+docs/TROUBLESHOOTING.md:- 📖 Check the [First Hour Guide](FIRST_HOUR.md) for step-by-step help
+docs/TROUBLESHOOTING.md:- [Quick Reference](QUICK_REFERENCE.md) - Copy-paste code patterns
+docs/TROUBLESHOOTING.md:- [Beginner Learning Path](tutorials/beginner-path.md) - Complete skill progression
+docs/README.md:- [Quick Start Guide](quickstart.md)
+docs/README.md:- [Performance Guide](../PERFORMANCE_GUIDE.md)
+docs/README.md:- [Contributing Guide](../CONTRIBUTING.md)
+docs/README.md:- [Security Policy](../SECURITY.md)
+docs/README.md:- [Roadmap](ROADMAP.md)
+docs/README.md:- [v0.x to v1.0](migration/v0-to-v1.md)
+docs/README.md:- [v1.0 to v2.0](migration/v1-to-v2.md) (future)
+docs/README.md:- [Contributing Guide](../CONTRIBUTING.md)
+docs/FIRST_HOUR.md:**[Complete the 5-minute quickstart first](quickstart.md)**
+docs/FIRST_HOUR.md:**[Read the Understanding Guide](UNDERSTANDING.md)**
+docs/FIRST_HOUR.md:- **[Beginner Learning Path](tutorials/beginner-path.md)** - Deep dive into all core concepts
+docs/FIRST_HOUR.md:- **[Blog API Tutorial](tutorials/blog-api.md)** - Build a complete application
+docs/FIRST_HOUR.md:- **[Performance Guide](../PERFORMANCE_GUIDE.md)** - Optimization techniques
+docs/FIRST_HOUR.md:- **[Multi-tenancy](advanced/multi-tenancy.md)** - Building SaaS applications
+docs/FIRST_HOUR.md:- **[Migration Guide](migration/v0-to-v1.md)** - Upgrading from older versions
+docs/FIRST_HOUR.md:- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
+docs/FIRST_HOUR.md:- **[Quick Reference](QUICK_REFERENCE.md)** - Copy-paste code patterns
+docs/FIRST_HOUR.md:**Ready for more?** The [Beginner Learning Path](tutorials/beginner-path.md) will take you from here to building production applications! 🚀
+docs/rust/README.md:- [Pipeline Architecture](RUST_FIRST_PIPELINE.md) - Technical details
+docs/rust/README.md:- [Usage Guide](RUST_PIPELINE_IMPLEMENTATION_GUIDE.md) - How to optimize queries
+docs/rust/README.md:- [Field Projection](RUST_FIELD_PROJECTION.md) - Performance optimization
+docs/rust/README.md:The Rust code lives in `fraiseql_rs/` directory. See [Contributing Guide](../../CONTRIBUTING.md) for development setup.
+docs/VISUAL_GLOSSARY.md:This visual glossary should help you understand FraiseQL's patterns at a glance. For deep dives into specific concepts, see the [Core Concepts](core/concepts-glossary.md) documentation.
+docs/diagrams/README.md:| [**Request Flow**](request-flow.md) | Complete request lifecycle from client to database | GraphQL → FastAPI → PostgreSQL → Response |
+docs/diagrams/README.md:| [**CQRS Pattern**](cqrs-pattern.md) | Read vs Write separation | Queries vs Mutations, v_* vs fn_* |
+docs/diagrams/README.md:| [**Database Schema Conventions**](database-schema-conventions.md) | Naming patterns and object roles | tb_*, v_*, tv_*, fn_* conventions |
+docs/diagrams/README.md:| [**Multi-Tenant Isolation**](multi-tenant-isolation.md) | Tenant data isolation mechanisms | RLS, Context passing, Security layers |
+docs/diagrams/README.md:| [**APQ Cache Flow**](apq-cache-flow.md) | Automatic Persisted Queries caching | Query hashing, Cache storage, Performance |
+docs/diagrams/README.md:| [**Rust Pipeline**](rust-pipeline.md) | High-performance data transformation | JSONB processing, Field projection, Memory optimization |
+docs/diagrams/README.md:1. Start with [Request Flow](request-flow.md) - understand the big picture
+docs/diagrams/README.md:2. Read [CQRS Pattern](cqrs-pattern.md) - learn read vs write separation
+docs/diagrams/README.md:3. Study [Database Schema Conventions](database-schema-conventions.md) - understand naming patterns
+docs/diagrams/README.md:1. [Multi-Tenant Isolation](multi-tenant-isolation.md) - implementing multi-tenant apps
+docs/diagrams/README.md:2. [APQ Cache Flow](apq-cache-flow.md) - optimizing query performance
+docs/diagrams/README.md:3. [Rust Pipeline](rust-pipeline.md) - advanced performance tuning
+docs/diagrams/README.md:1. **[Request Flow](request-flow.md)** - System overview
+docs/diagrams/README.md:2. **[CQRS Pattern](cqrs-pattern.md)** - Core architectural pattern
+docs/diagrams/README.md:3. **[Database Schema Conventions](database-schema-conventions.md)** - Naming system
+docs/diagrams/README.md:1. **[APQ Cache Flow](apq-cache-flow.md)** - Query optimization
+docs/diagrams/README.md:2. **[Rust Pipeline](rust-pipeline.md)** - High-performance processing
+docs/diagrams/README.md:3. **[Multi-Tenant Isolation](multi-tenant-isolation.md)** - Scaling considerations
+docs/diagrams/README.md:- Check [Request Flow](request-flow.md) for general issues
+docs/diagrams/README.md:- Review [CQRS Pattern](cqrs-pattern.md) for read/write problems
+docs/diagrams/README.md:- Consult [Multi-Tenant Isolation](multi-tenant-isolation.md) for data access issues
+docs/diagrams/README.md:- [Understanding FraiseQL](../UNDERSTANDING.md) - Conceptual overview
+docs/diagrams/README.md:- [Core Concepts](../core/concepts-glossary.md) - Terminology reference
+docs/diagrams/README.md:- [Performance Guide](../performance/index.md) - Optimization strategies
+docs/diagrams/README.md:- [Multi-Tenancy Guide](../advanced/multi-tenancy.md) - Tenant implementation
+docs/performance/rust-pipeline-optimization.md:For very specialized needs, you can extend fraiseql-rs. See [Contributing Guide](../../CONTRIBUTING.md).
+docs/performance/apq-optimization-guide.md:- [FraiseQL Performance Guide](./index.md)
+docs/performance/apq-optimization-guide.md:- [Caching Guide](./caching.md)
+docs/performance/index.md:**📍 Navigation**: [← Database API](../core/database-api.md) • [Caching →](caching.md) • [Production →](../production/deployment.md)
+docs/performance/index.md:| **Bonus** | **Result Caching** | [PostgreSQL Cache](caching.md) | **50-500x** | **Low** |
+docs/performance/index.md:**[⚡ Performance Details](caching.md)** - Caching strategies and benchmarks
+docs/performance/index.md:**[🚀 Rust Pipeline](diagrams/rust-pipeline.md)** - High-performance processing
+docs/performance/index.md:> **New**: Check out the [Result Caching Guide](caching.md) for PostgreSQL-based result caching with automatic tenant isolation and optional domain-based invalidation.
+docs/performance/index.md:- **Rust pipeline**: 7-10x faster than pure Python ([detailed results](../../benchmarks/BENCHMARK_RESULTS.md))
+docs/performance/index.md:**Benchmark Methodology**: See [comprehensive methodology](../benchmarks/README.md) for hardware, software, and testing procedures.
+docs/performance/PERFORMANCE_GUIDE.md:**📍 Navigation**: [← Main README](../README.md) • [Performance Docs →](./index.md) • [Benchmarks →](../benchmarks/)
+docs/performance/README.md:See the [Performance Guide](../PERFORMANCE_GUIDE.md) for detailed information.
+docs/performance/caching.md:- [Performance Optimization](index.md) - Full performance stack (Rust, APQ, TurboRouter)
+docs/performance/caching.md:- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant-aware caching patterns
+docs/performance/caching.md:- [Monitoring](../production/monitoring.md) - Production monitoring setup
+docs/performance/caching.md:- [Security](../production/security.md) - Cache security best practices
+docs/performance/cascade-invalidation.md:- [Complete CQRS Example](../../examples/complete_cqrs_blog/README.md) - See CASCADE in action
+docs/performance/cascade-invalidation.md:- [Caching Guide](./caching.md) - General caching documentation
+docs/performance/cascade-invalidation.md:- [Explicit Sync Guide](../core/explicit-sync.md) - How sync works with CASCADE
+docs/performance/cascade-invalidation.md:- [Performance Tuning](./index.md) - Optimize CASCADE performance
+docs/performance/caching-migration.md:If you're starting fresh, simply follow the [Result Caching Guide](caching.md).
+docs/performance/caching-migration.md:- [Full Caching Guide](caching.md) - Comprehensive caching documentation
+docs/performance/caching-migration.md:- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation patterns
+docs/performance/caching-migration.md:- [Monitoring](../production/monitoring.md) - Track cache performance
+docs/performance/caching-migration.md:- [Security](../production/security.md) - Cache security best practices
+docs/api-reference/database.md:- [Repository Pattern](../core/README.md)
+docs/tutorials/production-deployment.md:- Completed [Blog API Tutorial](./blog-api.md)
+docs/tutorials/production-deployment.md:- [Performance](../performance/index.md) - Optimization techniques
+docs/tutorials/production-deployment.md:- [Monitoring](../production/monitoring.md) - Observability setup
+docs/tutorials/production-deployment.md:- [Security](../production/security.md) - Security hardening
+docs/tutorials/production-deployment.md:- [Database Patterns](../advanced/database-patterns.md) - Production patterns
+docs/tutorials/blog-api.md:**Prerequisites**: Completed [quickstart](../quickstart.md), basic PostgreSQL knowledge
+docs/tutorials/blog-api.md:- [Database Patterns](../advanced/database-patterns.md) - tv_ pattern and production patterns
+docs/tutorials/blog-api.md:- [Performance](../performance/index.md) - Rust transformation, APQ, TurboRouter
+docs/tutorials/blog-api.md:- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation patterns
+docs/tutorials/blog-api.md:- [Quickstart](../quickstart.md) - 5-minute intro
+docs/tutorials/blog-api.md:- [Database API](../core/database-api.md) - Repository methods
+docs/tutorials/blog-api.md:- [Production Deployment](./production-deployment.md) - Deploy to production
+docs/tutorials/beginner-path.md:**📍 Navigation**: [← Quickstart](../quickstart.md) • [Core Concepts →](types-and-schema.md) • [Examples →](../../examples/)
+docs/tutorials/beginner-path.md:1. **[5-Minute Quickstart](../quickstart.md)**
+docs/tutorials/beginner-path.md:3. **[Database API](../core/database-api.md)** (Focus: select_from_json_view)
+docs/tutorials/beginner-path.md:4. **[Types and Schema](../core/types-and-schema.md)** (Focus: @type decorator)
+docs/tutorials/beginner-path.md:5. **[Database Patterns](../advanced/database-patterns.md)** (Focus: JSONB Composition)
+docs/tutorials/beginner-path.md:6. **[Blog API Tutorial](./blog-api.md)** (Focus: Mutations section)
+docs/tutorials/beginner-path.md:7. **[Blog API Tutorial](./blog-api.md)** (Complete walkthrough)
+docs/tutorials/beginner-path.md:- [Database Patterns](../advanced/database-patterns.md) - tv_ pattern, entity change log
+docs/tutorials/beginner-path.md:- [Performance](../performance/index.md) - Rust transformation, APQ caching
+docs/tutorials/beginner-path.md:- [Multi-Tenancy](../advanced/multi-tenancy.md) - Tenant isolation
+docs/tutorials/beginner-path.md:- [Production Deployment](./production-deployment.md) - Docker, monitoring, security
+docs/tutorials/beginner-path.md:- [Authentication](../advanced/authentication.md) - User auth patterns
+docs/tutorials/beginner-path.md:- [Monitoring](../production/monitoring.md) - Observability
+docs/tutorials/beginner-path.md:- Check [Database Patterns](../advanced/database-patterns.md)
+docs/tutorials/beginner-path.md:- [Blog API Tutorial](./blog-api.md) - Complete working example
+docs/tutorials/beginner-path.md:- [Database API](../core/database-api.md) - Repository reference
+docs/tutorials/beginner-path.md:- [Database Patterns](../advanced/database-patterns.md) - Production patterns
+docs/benchmarks/README.md:- [Performance Guide](../../PERFORMANCE_GUIDE.md)
+CHANGELOG.md:For detailed migration instructions, see [docs/migration/v0-to-v1.md](docs/migration/v0-to-v1.md).
+CHANGELOG.md:- **Getting Started**: [GETTING_STARTED.md](GETTING_STARTED.md)
+CHANGELOG.md:- **Installation**: [INSTALLATION.md](INSTALLATION.md)
+CHANGELOG.md:See [VERSION_STATUS.md](VERSION_STATUS.md) for the v1.1+ roadmap.
+DOCUMENTATION_CONSOLIDATION_PLAN.md:grep -r '\[.*\](.*\.md' docs/ > current_links.txt
+DOCUMENTATION_CONSOLIDATION_PLAN.md:grep -r '\[.*\](.*\.md' *.md >> current_links.txt
+DOCUMENTATION_CONSOLIDATION_PLAN.md:**[📚 First Hour Guide](docs/FIRST_HOUR.md)** - 60 minutes, hands-on
+DOCUMENTATION_CONSOLIDATION_PLAN.md:**[⚡ 5-Minute Quickstart](docs/quickstart.md)** - Copy, paste, run
+DOCUMENTATION_CONSOLIDATION_PLAN.md:**[🧠 Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10 minute read
+DOCUMENTATION_CONSOLIDATION_PLAN.md:**[📖 Quick Reference](docs/reference/quick-reference.md)** - Lookup syntax and patterns
+DOCUMENTATION_CONSOLIDATION_PLAN.md:find docs/ -name "*.md" -exec grep -H '\[.*\](.*\.md' {} \; > new_links.txt
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [5-Minute Quickstart](quickstart.md) - Fastest way to get running
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [First Hour Guide](FIRST_HOUR.md) - Progressive tutorial
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Understanding FraiseQL](UNDERSTANDING.md) - Conceptual overview
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Installation](../INSTALLATION.md) - Detailed setup instructions
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Concepts & Glossary](core/concepts-glossary.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Types and Schema](core/types-and-schema.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Database API](core/database-api.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Configuration](core/configuration.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Authentication](advanced/authentication.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Multi-Tenancy](advanced/multi-tenancy.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Field-Level Authorization](advanced/authorization.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Performance Guide](performance/index.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [APQ Optimization](performance/apq-optimization-guide.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Rust Pipeline](performance/rust-pipeline-optimization.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Quick Reference](reference/quick-reference.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Type Operators](reference/type-operators.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Configuration Reference](reference/config.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Contributing](../CONTRIBUTING.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Style Guide](development/style-guide.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [Common Issues](TROUBLESHOOTING.md)
+DOCUMENTATION_CONSOLIDATION_PLAN.md:- [FAQ](FAQ.md)
+fraiseql_docs_fix_plan.md:**[📚 First Hour Guide](docs/FIRST_HOUR.md)** - 60 minutes, hands-on
+fraiseql_docs_fix_plan.md:**[⚡ 5-Minute Quickstart](docs/quickstart.md)**
+fraiseql_docs_fix_plan.md:**[🧠 Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10 minute read
+fraiseql_docs_fix_plan.md:**New here?** → Start with [First Hour Guide](docs/FIRST_HOUR.md)
+fraiseql_docs_fix_plan.md:**Need help?** → See [Troubleshooting](docs/TROUBLESHOOTING.md)
+GETTING_STARTED.md:**New here?** Start with our progressive [First Hour Guide](docs/FIRST_HOUR.md) - from zero to production patterns in 60 minutes!
+GETTING_STARTED.md:├── 0-5 min: [5-Minute Quickstart](docs/quickstart.md)
+GETTING_STARTED.md:├── 5-15 min: [Understanding FraiseQL](docs/UNDERSTANDING.md)
+GETTING_STARTED.md:├── [Performance Optimization](docs/performance/index.md)
+GETTING_STARTED.md:├── [Database Patterns](docs/advanced/database-patterns.md)
+GETTING_STARTED.md:└── [Production Deployment](docs/tutorials/production-deployment.md)
+GETTING_STARTED.md:└── [Contributing Guide](CONTRIBUTING.md)
+GETTING_STARTED.md:**[📚 First Hour Guide](docs/FIRST_HOUR.md)** - Progressive 60-minute tutorial
+GETTING_STARTED.md:**[5-Minute Quickstart](docs/quickstart.md)** - Instant working API
+GETTING_STARTED.md:**[Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10-minute architecture overview
+GETTING_STARTED.md:**Next Steps** → [Beginner Learning Path](docs/tutorials/beginner-path.md)
+GETTING_STARTED.md:- [Performance Optimization](docs/performance/index.md) - 4-layer optimization stack
+GETTING_STARTED.md:- [Database Patterns](docs/advanced/database-patterns.md) - Production view design
+GETTING_STARTED.md:- [Production Deployment](docs/tutorials/production-deployment.md) - Docker + monitoring
+GETTING_STARTED.md:- [Contributing Guide](CONTRIBUTING.md) - Development setup
+GETTING_STARTED.md:- [Performance Comparison](README.md#performance-comparison) - Why FraiseQL is faster
+GETTING_STARTED.md:- [FraiseQL Philosophy](docs/core/fraiseql-philosophy.md) - Design principles
+GETTING_STARTED.md:- [Types & Schema](docs/core/types-and-schema.md) - GraphQL type system
+GETTING_STARTED.md:- [Queries & Mutations](docs/core/queries-and-mutations.md) - Resolver patterns
+GETTING_STARTED.md:- [Database API](docs/core/database-api.md) - Repository pattern
+GETTING_STARTED.md:- [Performance Stack](docs/performance/index.md) - 4-layer optimization
+GETTING_STARTED.md:- [Result Caching](docs/performance/caching.md) - PostgreSQL-based caching
+GETTING_STARTED.md:- [Deployment Guide](docs/production/deployment.md) - Docker + Kubernetes
+GETTING_STARTED.md:- [Monitoring](docs/production/monitoring.md) - PostgreSQL-native observability
+GETTING_STARTED.md:- [Security](docs/production/security.md) - Production hardening
+GETTING_STARTED.md:- [Multi-Tenancy](docs/advanced/multi-tenancy.md) - Tenant isolation
+GETTING_STARTED.md:- [Authentication](docs/advanced/authentication.md) - Auth patterns
+GETTING_STARTED.md:- [Database Patterns](docs/advanced/database-patterns.md) - View design
+GETTING_STARTED.md:- [Blog API Tutorial](docs/tutorials/blog-api.md) - Complete application
+GETTING_STARTED.md:- [Production Tutorial](docs/tutorials/production-deployment.md) - End-to-end deployment
+GETTING_STARTED.md:- [CLI Reference](docs/reference/cli.md) - Command-line tools
+GETTING_STARTED.md:- [Configuration](docs/reference/config.md) - FraiseQLConfig options
+GETTING_STARTED.md:- [Decorators](docs/reference/decorators.md) - @type, @query, @mutation
+GETTING_STARTED.md:1. Try the [First Hour Guide](docs/FIRST_HOUR.md) - complete progressive path
+GETTING_STARTED.md:2. Try the [5-Minute Quickstart](docs/quickstart.md) - instant working API
+GETTING_STARTED.md:- 🔧 [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
+GETTING_STARTED.md:- 📋 [Quick Reference](docs/QUICK_REFERENCE.md) - Copy-paste code patterns
+GETTING_STARTED.md:- 📖 [Full Documentation](docs/README.md) - Complete reference
+INSTALLATION.md:1. **[Quickstart Guide](../docs/quickstart.md)** - Build your first API
+INSTALLATION.md:2. **[Core Concepts](../docs/core/concepts-glossary.md)** - Understand FraiseQL patterns
+INSTALLATION.md:4. **[Configuration](../docs/core/configuration.md)** - Advanced setup options
+INSTALLATION.md:- **Framework questions**: See [Getting Started](../GETTING_STARTED.md)
+POST_V1_ENHANCEMENTS.md:See [ROADMAP.md](docs/ROADMAP.md) for detailed timeline.
+POST_V1_ENHANCEMENTS.md:Have ideas for post-v1.0 enhancements? See [CONTRIBUTING.md](CONTRIBUTING.md).
+QUERY_EXECUTION_PATH_ANALYSIS.md:- [Performance Guide](PERFORMANCE_GUIDE.md)
+README.md:[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](./VERSION_STATUS.md)
+README.md:> **Version Status**: See [VERSION_STATUS.md](./VERSION_STATUS.md) for complete version roadmap and recommendations
+README.md:**New to FraiseQL?** → **[Getting Started](GETTING_STARTED.md)** • [Project Structure](PROJECT_STRUCTURE.md) • [Documentation](docs/)
+README.md:**[📚 First Hour Guide](docs/FIRST_HOUR.md)** - 60 minutes, hands-on
+README.md:**[⚡ 5-Minute Quickstart](docs/quickstart.md)**
+README.md:**[🧠 Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10 minute read
+README.md:**New here?** → Start with [First Hour Guide](docs/FIRST_HOUR.md)
+README.md:**Need help?** → See [Troubleshooting](docs/TROUBLESHOOTING.md)
+README.md:**Learn more:** [Audiences Guide](AUDIENCES.md) • [Getting Started](GETTING_STARTED.md)
+README.md:**[📊 Performance Guide](PERFORMANCE_GUIDE.md)** - Methodology, realistic expectations, and benchmark details
+README.md:**[📊 Detailed Request Flow Diagram](docs/diagrams/request-flow.md)** - Complete lifecycle with examples
+README.md:**[Deep dive: Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10-minute visual guide to the architecture
+README.md:**[🔄 CQRS Pattern Details](docs/diagrams/cqrs-pattern.md)** - Read vs write separation explained
+README.md:**[📖 Detailed Installation Guide](INSTALLATION.md)** - Multiple installation options, troubleshooting, and platform-specific instructions
+README.md:**[Learn more about these concepts →](docs/core/concepts-glossary.md)**
+README.md:**[⚡ APQ Cache Flow Details](docs/diagrams/apq-cache-flow.md)** - How persisted queries work
+README.md:*Test conditions: PostgreSQL 15, 10k records, standard cloud instance. See [Performance Guide](PERFORMANCE_GUIDE.md) for methodology.*
+README.md:- [v1 to v2 Migration](./docs/migration/v1-to-v2.md) - Unified Rust-first architecture
+README.md:- [Monitoring Migration](./docs/production/monitoring.md) - From Redis and Sentry
+README.md:We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+V1_RELEASE_INDEX.md:👉 **[V1_QUICK_START_FOR_AGENT.md](V1_QUICK_START_FOR_AGENT.md)**
+V1_RELEASE_INDEX.md:👉 **[V1_RELEASE_SUMMARY.md](V1_RELEASE_SUMMARY.md)**
+V1_RELEASE_INDEX.md:👉 **[V1_RELEASE_PREPARATION_PLAN.md](V1_RELEASE_PREPARATION_PLAN.md)**
+V1_RELEASE_INDEX.md:- 🚀 [Quick Start](V1_QUICK_START_FOR_AGENT.md)
+V1_RELEASE_INDEX.md:- 📊 [Summary](V1_RELEASE_SUMMARY.md)
+V1_RELEASE_INDEX.md:- 📋 [Full Plan](V1_RELEASE_PREPARATION_PLAN.md)
+V1_RELEASE_INDEX.md:- 📍 [Index](V1_RELEASE_INDEX.md) ← You are here
+V1_RELEASE_PREPARATION_PLAN.md:See [MIGRATION_GUIDE.md](docs/migration/v0-to-v1.md) for upgrade instructions.
+V1_RELEASE_PREPARATION_PLAN.md:See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features in v1.1+.
+V1_RELEASE_PREPARATION_PLAN.md:1. Check [CHANGELOG.md](CHANGELOG.md) for known issues
+V1_RELEASE_PREPARATION_PLAN.md:For detailed migration instructions, see [docs/migration/v0-to-v1.md](docs/migration/v0-to-v1.md).
+V1_RELEASE_PREPARATION_PLAN.md:- **Getting Started**: [GETTING_STARTED.md](GETTING_STARTED.md)
+V1_RELEASE_PREPARATION_PLAN.md:- **Installation**: [INSTALLATION.md](INSTALLATION.md)
+V1_RELEASE_PREPARATION_PLAN.md:See [VERSION_STATUS.md](VERSION_STATUS.md) for the v1.1+ roadmap.
+V1_RELEASE_PREPARATION_PLAN.md:See the [Getting Started Guide](GETTING_STARTED.md) for more.
+V1_RELEASE_PREPARATION_PLAN.md:- [Release Notes](CHANGELOG.md#100---2025-10-22)
+VERSION_STATUS.md:See [MIGRATION_GUIDE.md](docs/migration/v0-to-v1.md) for upgrade instructions.
+VERSION_STATUS.md:See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features in v1.1+.
+VERSION_STATUS.md:1. Check [CHANGELOG.md](CHANGELOG.md) for known issues

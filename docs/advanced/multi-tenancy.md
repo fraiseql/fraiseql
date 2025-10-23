@@ -13,6 +13,36 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 - Shared database with tenant isolation
 - Hybrid approaches
 
+## Tenant Isolation Architecture
+
+### Multi-Tenant Data Flow
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Client    │───▶│  Auth       │───▶│ Repository  │───▶│ PostgreSQL  │
+│  Request    │    │ Middleware  │    │  Layer      │    │  Database   │
+│             │    │             │    │             │    │             │
+│ JWT Token   │    │ Extract     │    │ Tenant      │    │ RLS Policy  │
+│ X-Tenant-ID │    │ Tenant ID   │    │ Context     │    │ Filtering   │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                                                          │
+                                                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    TENANT DATA ONLY                         │
+│  • tenant_a.users can only see tenant_a data               │
+│  • tenant_b.users can only see tenant_b data               │
+│  • Complete isolation at database level                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Isolation Layers:**
+1. **Network**: API Gateway routes by subdomain/header
+2. **Application**: Middleware sets tenant context
+3. **Database**: RLS policies enforce row-level filtering
+4. **Caching**: Tenant-scoped cache invalidation
+
+**[🔒 Isolation Details](diagrams/multi-tenant-isolation.md)** - Complete tenant security architecture
+
 ## Table of Contents
 
 - [Architecture Patterns](#architecture-patterns)
@@ -220,12 +250,13 @@ FraiseQL automatically adds tenant_id filters when context is set:
 
 ```python
 from fraiseql import query, type_
+from uuid import UUID
 
 @type_
 class Order:
-    id: str
-    tenant_id: str  # Automatically filtered
-    user_id: str
+    id: UUID
+    tenant_id: UUID  # Automatically filtered
+    user_id: UUID
     total: float
     status: str
 
@@ -243,7 +274,7 @@ async def get_orders(info: GraphQLResolveInfo) -> list[Order]:
         return [Order(**row) for row in await result.fetchall()]
 
 @query
-async def get_order(info: GraphQLResolveInfo, order_id: str) -> Order | None:
+async def get_order(info: GraphQLResolveInfo, order_id: UUID) -> Order | None:
     """Get specific order - tenant isolation enforced."""
     tenant_id = info.context["tenant_id"]
 

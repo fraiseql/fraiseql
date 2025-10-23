@@ -813,4 +813,4 @@ Combine FraiseQL caching layers:
 
 ---
 
-*Last Updated: 2025-10-17 | FraiseQL v0.11.5*
+*Last Updated: 2025-10-23 | FraiseQL v1.0.0*

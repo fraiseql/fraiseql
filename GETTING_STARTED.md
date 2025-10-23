@@ -2,22 +2,58 @@
 
 Welcome! This guide helps you find the right path based on your goals and experience level.
 
+## 🏁 Quick Start Options
+
+**New here?** Start with our progressive [First Hour Guide](docs/FIRST_HOUR.md) - from zero to production patterns in 60 minutes!
+
+### Visual Learning Path
+```
+👶 ABSOLUTE BEGINNER (0-60 min)
+├── 0-5 min: [5-Minute Quickstart](docs/quickstart.md)
+├── 5-15 min: [Understanding FraiseQL](docs/UNDERSTANDING.md)
+├── 15-30 min: Extend your API (add features)
+├── 30-45 min: Add mutations (write operations)
+└── 45-60 min: Production patterns (timestamps, etc.)
+
+🏗️ PRODUCTION BUILDER (30-90 min)
+├── [Performance Optimization](docs/performance/index.md)
+├── [Database Patterns](docs/advanced/database-patterns.md)
+└── [Production Deployment](docs/tutorials/production-deployment.md)
+
+🤝 CONTRIBUTOR (varies)
+└── [Contributing Guide](CONTRIBUTING.md)
+```
+
 ## Who Are You?
 
 Choose your path below based on what you're trying to accomplish:
 
 ### 👶 **New to FraiseQL?**
-**Goal**: Build your first GraphQL API quickly
-**Time**: 5-15 minutes
+**Goal**: Build your first GraphQL API and learn progressively
+**Time**: 5 minutes to 1 hour
 **Experience**: Basic Python + SQL knowledge
 
-**Start Here** → [5-Minute Quickstart](docs/quickstart.md)
-- Simple todo app example
-- See results immediately
-- Understand the basics
+**🎯 Recommended: Complete Learning Path**
+**[📚 First Hour Guide](docs/FIRST_HOUR.md)** - Progressive 60-minute tutorial
+- Start with 5-minute quickstart
+- Learn core concepts as you build
+- Add features, mutations, and production patterns
+- Perfect for absolute beginners
+
+**⚡ Just Want to Try It?**
+**[5-Minute Quickstart](docs/quickstart.md)** - Instant working API
+- Copy-paste commands
+- Working GraphQL API in 5 minutes
+- No assumptions about your knowledge
+
+**📖 Want to Understand First?**
+**[Understanding FraiseQL](docs/UNDERSTANDING.md)** - 10-minute architecture overview
+- Visual diagrams of how it works
+- Why database-first GraphQL matters
+- CQRS pattern explanation
 
 **Next Steps** → [Beginner Learning Path](docs/tutorials/beginner-path.md)
-- Complete 2-3 hour journey
+- Complete 2-3 hour deep dive
 - Learn all core concepts
 - Build production-ready APIs
 
@@ -110,12 +146,16 @@ make test  # Run full test suite
 ## 🆘 Need Help?
 
 **Still not sure where to start?**
-1. Try the [5-Minute Quickstart](docs/quickstart.md) - it's designed to work for everyone
-2. Browse [Examples](examples/) for patterns similar to your use case
-3. Check the [Full Documentation](docs/README.md) for comprehensive guides
+1. Try the [First Hour Guide](docs/FIRST_HOUR.md) - complete progressive path
+2. Try the [5-Minute Quickstart](docs/quickstart.md) - instant working API
+3. Browse [Examples](examples/) for patterns similar to your use case
+
+**Having trouble?**
+- 🔧 [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- 📋 [Quick Reference](docs/QUICK_REFERENCE.md) - Copy-paste code patterns
+- 📖 [Full Documentation](docs/README.md) - Complete reference
 
 **Have questions?**
-- 📖 [Full Documentation](docs/README.md) - Complete reference
 - 💬 [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) - Ask questions
 - 📧 [Discussions](https://github.com/fraiseql/fraiseql/discussions) - Community help
 

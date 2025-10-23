@@ -4,13 +4,15 @@ Type system for GraphQL schema definition using Python decorators and dataclasse
 
 **📍 Navigation**: [← Beginner Path](../tutorials/beginner-path.md) • [Queries & Mutations →](queries-and-mutations.md) • [Database API →](database-api.md)
 
-## @fraise_type / @type
+## @type
 
 **Purpose**: Define GraphQL object types from Python classes
 
 **Signature**:
 ```python
-@fraise_type(
+from fraiseql import type
+
+@type(
     sql_source: str | None = None,
     jsonb_column: str | None = "data",
     implements: list[type] | None = None,
@@ -20,8 +22,6 @@ class TypeName:
     field1: str
     field2: int | None = None
 ```
-
-**Alias**: `@type` (recommended - more Pythonic, avoids shadowing builtin)
 
 **Parameters**:
 
@@ -48,6 +48,30 @@ class TypeName:
 | list[T] \| None | [T!] | Nullable list of non-null items |
 | list[T \| None] | [T]! | Non-null list of nullable items |
 | Decimal | Float! | High precision numbers |
+
+## Type Mapping Flow
+
+### Python Class to GraphQL Schema
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Python     │───▶│ Type        │───▶│ GraphQL     │───▶│  Client     │
+│  Class      │    │ Decorator   │    │  Schema     │    │  Query      │
+│             │    │             │    │             │    │             │
+│ @type       │    │ @type(      │    │ type User { │    │ { user {    │
+│ class User: │    │   sql_      │    │   id: ID!   │    │   id        │
+│   id: UUID  │    │   source=   │    │   name:     │    │   name      │
+│   name: str │    │   "v_user") │    │   String!   │    │ } }         │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+**Type Mapping Process:**
+1. **Python Class** with type hints and `@type` decorator
+2. **Type Decorator** processes annotations and metadata
+3. **GraphQL Schema** generated with proper types and nullability
+4. **Client Queries** validated against generated schema
+
+**[🔗 Type System Details](diagrams/database-schema-conventions.md)** - Database naming conventions
 
 **Examples**:
 
@@ -81,6 +105,9 @@ type User {
 
 Type with SQL source for automatic queries:
 ```python
+from fraiseql import type
+from uuid import UUID
+
 @type(sql_source="v_user")
 class User:
     id: UUID
@@ -90,6 +117,9 @@ class User:
 
 Type with regular table columns (no JSONB):
 ```python
+from fraiseql import type
+from uuid import UUID
+
 @type(sql_source="users", jsonb_column=None)
 class User:
     id: UUID
@@ -100,6 +130,9 @@ class User:
 
 Type with custom JSONB column:
 ```python
+from fraiseql import type
+from uuid import UUID
+
 @type(sql_source="tv_machine", jsonb_column="machine_data")
 class Machine:
     id: UUID
@@ -109,6 +142,13 @@ class Machine:
 
 **With Custom Fields** (using @field decorator):
 ```python
+from fraiseql import type, field
+from uuid import UUID
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .types import Post
+
 @type
 class User:
     id: UUID
@@ -158,138 +198,28 @@ class Employee:
     department: Department | None  # Uses embedded JSONB data
 ```
 
-## @fraise_input / @input
+## @input
 
 **Purpose**: Define GraphQL input types for mutations and queries
 
 **Signature**:
 ```python
-@fraise_input
+from fraiseql import input
+
+@input
 class InputName:
     field1: str
     field2: int | None = None
 ```
 
-**Alias**: `@input` (recommended)
-
 **Examples**:
 
 Basic input type:
 ```python
-from fraiseql import input
+from fraiseql import type
 from uuid import UUID
+from datetime import datetime
 
-@input
-class CreateUserInput:
-    email: str
-    name: str
-    password: str
-    tags: list[str] = []
-
-@input
-class UpdateUserInput:
-    id: UUID
-    name: str | None = None
-    email: str | None = None
-```
-
-**Generated GraphQL**:
-```graphql
-input CreateUserInput {
-  email: String!
-  name: String!
-  password: String!
-  tags: [String!]!
-}
-
-input UpdateUserInput {
-  id: ID!
-  name: String
-  email: String
-}
-```
-
-With field metadata:
-```python
-from fraiseql.fields import fraise_field
-
-@input
-class SearchInput:
-    query: str = fraise_field(description="Search query text")
-    limit: int = fraise_field(default=10, description="Maximum results")
-    offset: int = fraise_field(default=0, description="Skip results")
-```
-
-Nested input types:
-```python
-@input
-class AddressInput:
-    street: str
-    city: str
-    country: str
-
-@input
-class UserProfileInput:
-    bio: str | None = None
-    avatar_url: str | None = None
-    address: AddressInput | None = None
-```
-
-## @fraise_enum / @enum
-
-**Purpose**: Define GraphQL enum types from Python Enum classes
-
-**Signature**:
-```python
-from enum import Enum
-
-@fraise_enum
-class EnumName(Enum):
-    VALUE1 = "value1"
-    VALUE2 = "value2"
-```
-
-**Alias**: `@enum`
-
-**Examples**:
-
-Basic enum:
-```python
-from fraiseql import enum
-from enum import Enum
-
-@enum
-class UserRole(Enum):
-    ADMIN = "admin"
-    USER = "user"
-    GUEST = "guest"
-
-@enum
-class OrderStatus(Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    SHIPPED = "shipped"
-    DELIVERED = "delivered"
-```
-
-**Generated GraphQL**:
-```graphql
-enum UserRole {
-  ADMIN
-  USER
-  GUEST
-}
-
-enum OrderStatus {
-  PENDING
-  CONFIRMED
-  SHIPPED
-  DELIVERED
-}
-```
-
-Using enums in types:
-```python
 @type
 class User:
     id: UUID
@@ -313,19 +243,19 @@ class Priority(Enum):
     CRITICAL = 4
 ```
 
-## @fraise_interface / @interface
+## @interface
 
 **Purpose**: Define GraphQL interface types for polymorphism
 
 **Signature**:
 ```python
-@fraise_interface
+from fraiseql import interface
+
+@interface
 class InterfaceName:
     field1: str
     field2: int
 ```
-
-**Alias**: `@interface`
 
 **Examples**:
 

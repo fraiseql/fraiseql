@@ -4,7 +4,7 @@ This document describes FraiseQL's exclusive Rust pipeline architecture for opti
 
 ## Overview
 
-FraiseQL v0.11.5+ uses an **exclusive Rust pipeline** for all GraphQL query execution. There is no mode detection or conditional logic - every query flows through the same optimized Rust path:
+FraiseQL v1.0.0+ uses an **exclusive Rust pipeline** for all GraphQL query execution. There is no mode detection or conditional logic - every query flows through the same optimized Rust path:
 
 ```
 PostgreSQL JSONB (snake_case) → Rust Pipeline (0.5-5ms) → HTTP Response (camelCase + __typename)
@@ -170,7 +170,7 @@ PASSTHROUGH: Direct JSONB → HTTP
 TURBO: Cached templates → Python ops → HTTP
 ```
 
-**After (v0.11.5+):**
+**After (v1.0.0+):**
 ```
 ALL: PostgreSQL → Rust Pipeline → HTTP
 ```
@@ -702,7 +702,7 @@ Rust:     4000μs (DB) +   25μs (Rust)   + 200μs (HTTP) = 4225μs
 
 ✅ **Implemented and Production Ready**
 
-The Rust pipeline is the exclusive execution path for all FraiseQL queries in v0.11.5+. All repository methods automatically use the Rust pipeline for optimal performance.
+The Rust pipeline is the exclusive execution path for all FraiseQL queries in v1.0.0+. All repository methods automatically use the Rust pipeline for optimal performance.
 
 ### Files
 - `fraiseql_rs/` - Rust crate with GraphQL response building

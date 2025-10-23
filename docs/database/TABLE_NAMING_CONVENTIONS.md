@@ -338,7 +338,7 @@ SELECT * FROM mv_dashboard;
 
 ### Pattern A: Pure `tv_*` Architecture (Recommended for Most Cases)
 
-**Concept**: Only use base tables (`tb_*`) and transform tables (`tv_*`)
+**Concept**: Only use base tables (`tb_*`) and table views (`tv_*`)
 
 ```
 ┌─────────────────────────────────────┐
@@ -447,7 +447,7 @@ CREATE MATERIALIZED VIEW mv_user_stats AS ...;
 
 ### Pattern C: Minimal Architecture (Development/Small Apps)
 
-**Concept**: Skip transform tables, use base tables + Rust transformer
+**Concept**: Skip table views, use base tables + Rust transformer
 
 ```
 ┌─────────────────────────────────────┐
@@ -596,7 +596,7 @@ tb_* (base tables)
   ↓
 v_* (views) ← Slow, not used much
   ↓
-tv_* (transform tables) ← Optimal for GraphQL
+tv_* (table views) ← Optimal for GraphQL
   ↓
 mv_* (materialized views) ← For aggregations
 ```
@@ -606,7 +606,7 @@ mv_* (materialized views) ← For aggregations
 ```
 tb_* (base tables)
   ↓
-tv_* (transform tables) ← Main GraphQL data source
+tv_* (table views) ← Main GraphQL data source
   ↓
 mv_* (optional, for analytics)
 ```
