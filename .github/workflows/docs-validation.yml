@@ -100,6 +100,9 @@ jobs:
         postgresql user: 'fraiseql'
         postgresql password: 'fraiseql'
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+
     - name: Set up Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -110,11 +113,17 @@ jobs:
 
     - name: Install FraiseQL
       run: |
+        # Create virtual environment
+        python -m venv .venv
+        source .venv/bin/activate
+
         # Build Rust extension and install with all dependencies
-        pip install -e ".[dev,all]"
+        uv pip install -e ".[dev,all]" --no-cache
 
     - name: Test basic quickstart
       run: |
+        source .venv/bin/activate
+
         # Create a basic test project
         mkdir -p /tmp/fraiseql-test
         cd /tmp/fraiseql-test
@@ -129,6 +138,8 @@ jobs:
 
     - name: Test example structure
       run: |
+        source .venv/bin/activate
+
         # Check that examples directory exists and has content
         if [[ ! -d "examples" ]]; then
           echo "Examples directory missing"
@@ -165,6 +176,9 @@ jobs:
         postgresql user: 'fraiseql'
         postgresql password: 'fraiseql'
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+
     - name: Set up Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -175,11 +189,16 @@ jobs:
 
     - name: Install FraiseQL
       run: |
+        # Create virtual environment
+        python -m venv .venv
+        source .venv/bin/activate
+
         # Build Rust extension and install with all dependencies
-        pip install -e ".[dev,all]"
+        uv pip install -e ".[dev,all]" --no-cache
 
     - name: Test beginner onboarding (< 30 min target)
       run: |
+        source .venv/bin/activate
         start_time=$(date +%s)
 
         # Step 1: Check if user can find getting started info
