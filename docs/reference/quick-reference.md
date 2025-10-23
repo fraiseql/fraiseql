@@ -306,9 +306,11 @@ mutation {
 
 ### Table (Write Model)
 ```sql
--- tb_user - Write operations
+-- tb_user - Write operations (trinity pattern)
 CREATE TABLE tb_user (
-    pk_user UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pk_user SERIAL PRIMARY KEY,           -- Internal only
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),  -- Public API
+    identifier TEXT UNIQUE,                -- Optional human-readable
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     status TEXT DEFAULT 'active',
@@ -319,11 +321,11 @@ CREATE TABLE tb_user (
 
 ### View (Read Model)
 ```sql
--- v_user - Read operations
+-- v_user - Read operations (uses public id, not pk_user)
 CREATE VIEW v_user AS
 SELECT
     jsonb_build_object(
-        'id', pk_user,
+        'id', id,              -- Use public UUID, not internal pk_user
         'name', name,
         'email', email,
         'status', status,
@@ -336,7 +338,7 @@ WHERE status != 'deleted';
 
 ### Function (Business Logic)
 ```sql
--- fn_create_user - Write operations
+-- fn_create_user - Write operations (returns public UUID)
 CREATE OR REPLACE FUNCTION fn_create_user(user_data JSONB)
 RETURNS UUID AS $$
 DECLARE
@@ -344,7 +346,7 @@ DECLARE
 BEGIN
     INSERT INTO tb_user (name, email)
     VALUES (user_data->>'name', user_data->>'email')
-    RETURNING pk_user INTO new_id;
+    RETURNING id INTO new_id;  -- Return public UUID, not pk_user
 
     RETURN new_id;
 END;

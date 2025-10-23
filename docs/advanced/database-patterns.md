@@ -53,10 +53,12 @@ CREATE INDEX idx_tv_entity_data ON tv_entity_name USING GIN (data);
 
 ### Example: Orders
 
-**Normalized Write Tables** (OLTP, referential integrity):
+**Normalized Write Tables** (OLTP, referential integrity with trinity pattern):
 ```sql
 CREATE TABLE tb_order (
-    id UUID PRIMARY KEY,
+    pk_order SERIAL PRIMARY KEY,          -- Internal fast joins
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),  -- Public API
+    identifier TEXT UNIQUE,                -- Optional human-readable
     tenant_id UUID NOT NULL,
     user_id UUID NOT NULL,
     status TEXT NOT NULL,
@@ -65,11 +67,13 @@ CREATE TABLE tb_order (
 );
 
 CREATE TABLE tb_order_item (
-    id UUID PRIMARY KEY,
-    order_id UUID REFERENCES tb_order(id),
+    pk_order_item SERIAL PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL,                -- References tb_order(id), not pk_order
     product_id UUID NOT NULL,
     quantity INT NOT NULL,
-    price DECIMAL(10,2)
+    price DECIMAL(10,2),
+    FOREIGN KEY (order_id) REFERENCES tb_order(id)
 );
 ```
 
@@ -249,6 +253,7 @@ LIMIT 50;
 ```sql
 -- ✅ GOOD: Real column with index
 CREATE TABLE tv_order (
+    id UUID PRIMARY KEY,       -- Required for GraphQL
     status TEXT,
     created_at TIMESTAMPTZ,
     data JSONB

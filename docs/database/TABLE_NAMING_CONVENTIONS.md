@@ -28,9 +28,11 @@ mv_*  → Materialized Views (pre-computed aggregations)
 
 **Example**:
 ```sql
--- Base table: normalized schema
+-- Base table: normalized schema with trinity pattern
 CREATE TABLE tb_user (
-    id SERIAL PRIMARY KEY,
+    pk_user SERIAL PRIMARY KEY,        -- Internal fast joins
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),  -- Public API
+    identifier TEXT UNIQUE,             -- Human-readable (optional)
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
@@ -39,19 +41,24 @@ CREATE TABLE tb_user (
 );
 
 CREATE TABLE tb_post (
-    id SERIAL PRIMARY KEY,
-    user_id INT NOT NULL REFERENCES tb_user(id),
+    pk_post SERIAL PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,  -- References tb_user(id), not pk_user
     title TEXT NOT NULL,
     content TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES tb_user(id)
 );
 
 CREATE TABLE tb_comment (
-    id SERIAL PRIMARY KEY,
-    post_id INT NOT NULL REFERENCES tb_post(id),
-    user_id INT NOT NULL REFERENCES tb_user(id),
+    pk_comment SERIAL PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL,
+    user_id UUID NOT NULL,
     content TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (post_id) REFERENCES tb_post(id),
+    FOREIGN KEY (user_id) REFERENCES tb_user(id)
 );
 ```
 
@@ -155,7 +162,7 @@ class User:
 ```sql
 -- Transform "view" (actually a TABLE with generated column)
 CREATE TABLE tv_user (
-    id INT PRIMARY KEY,
+    id UUID PRIMARY KEY,  -- GraphQL uses UUID, not internal pk_user
 
     -- Generated JSONB column (auto-updates on write)
     data JSONB GENERATED ALWAYS AS (
@@ -374,12 +381,12 @@ CREATE TABLE tb_post (...);
 
 -- Transform tables (tv_*)
 CREATE TABLE tv_user (
-    id INT PRIMARY KEY,
+    id UUID PRIMARY KEY,  -- Exposed to GraphQL
     data JSONB GENERATED ALWAYS AS (...) STORED
 );
 
 CREATE TABLE tv_post (
-    id INT PRIMARY KEY,
+    id UUID PRIMARY KEY,  -- Exposed to GraphQL
     data JSONB GENERATED ALWAYS AS (...) STORED
 );
 
@@ -670,18 +677,27 @@ CREATE TABLE tv_user (  -- ← It's a TABLE!
 ### Production GraphQL API
 
 ```sql
--- Base tables (source of truth)
-CREATE TABLE tb_user (id SERIAL PRIMARY KEY, first_name TEXT, ...);
-CREATE TABLE tb_post (id SERIAL PRIMARY KEY, user_id INT, ...);
+-- Base tables (source of truth) with trinity pattern
+CREATE TABLE tb_user (
+    pk_user SERIAL PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    identifier TEXT UNIQUE,
+    first_name TEXT, ...
+);
+CREATE TABLE tb_post (
+    pk_post SERIAL PRIMARY KEY,
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    user_id UUID, ...
+);
 
 -- Transform tables (GraphQL queries)
 CREATE TABLE tv_user (
-    id INT PRIMARY KEY,
+    id UUID PRIMARY KEY,  -- Exposed to GraphQL
     data JSONB GENERATED ALWAYS AS (
         jsonb_build_object(
             'id', id,
-            'first_name', (SELECT first_name FROM tb_user WHERE tb_user.id = tv_user.id),
-            'user_posts', (SELECT jsonb_agg(...) FROM tb_post WHERE user_id = tv_user.id LIMIT 10)
+            'firstName', (SELECT first_name FROM tb_user WHERE tb_user.id = tv_user.id),
+            'userPosts', (SELECT jsonb_agg(...) FROM tb_post WHERE user_id = tv_user.id LIMIT 10)
         )
     ) STORED
 );

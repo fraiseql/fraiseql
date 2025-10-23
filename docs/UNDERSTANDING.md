@@ -69,12 +69,14 @@ Database Objects:
 ```
 
 ### tb_* - Write Tables
-Store your normalized data. These are regular PostgreSQL tables.
+Store your normalized data. These are regular PostgreSQL tables following the trinity identifier pattern.
 
 **Example:** `tb_user`
 ```sql
 CREATE TABLE tb_user (
-    id UUID PRIMARY KEY,
+    pk_user SERIAL PRIMARY KEY,        -- Internal fast joins
+    id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),  -- Public API
+    identifier TEXT UNIQUE,             -- Human-readable (optional)
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -84,16 +86,16 @@ CREATE TABLE tb_user (
 **When to use:** All data storage, relationships, constraints.
 
 ### v_* - Read Views
-Compose data into JSONB objects for GraphQL queries.
+Compose data into JSONB objects for GraphQL queries. Views always return JSONB with at least an `id` field.
 
 **Example:** `v_user`
 ```sql
 CREATE VIEW v_user AS
 SELECT jsonb_build_object(
-    'id', id,
+    'id', id,                    -- Required: every view must have id
     'name', name,
     'email', email,
-    'created_at', created_at
+    'createdAt', created_at
 ) as data
 FROM tb_user;
 ```
@@ -101,18 +103,20 @@ FROM tb_user;
 **When to use:** Simple queries, real-time data, no heavy aggregations.
 
 ### tv_* - Table Views
-Denormalized projection tables for complex data that can be efficiently updated and queried.
+Denormalized projection tables for complex data that can be efficiently updated and queried. Table views store JSONB in a `data` column but may include additional columns for efficient filtering. The `id` column (UUID) is exposed to GraphQL for filtering.
 
 **Example:** `tv_user_stats`
 ```sql
 CREATE TABLE tv_user_stats (
-    user_id INT PRIMARY KEY,
+    id UUID PRIMARY KEY,                -- Required: GraphQL filtering uses UUID
+    total_posts INT,                    -- For efficient filtering/sorting
+    last_post_date TIMESTAMPTZ,         -- For efficient filtering/sorting
     data JSONB GENERATED ALWAYS AS (
-        SELECT jsonb_build_object(
-            'total_posts', COUNT(p.*),
-            'last_post_date', MAX(p.created_at)
+        jsonb_build_object(
+            'id', id,                   -- Required: every table view must have id
+            'totalPosts', total_posts,
+            'lastPostDate', last_post_date
         )
-        FROM tb_post p WHERE p.author_id = tv_user_stats.user_id
     ) STORED
 );
 ```
