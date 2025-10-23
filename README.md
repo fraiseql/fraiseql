@@ -276,7 +276,7 @@ config = FraiseQLConfig(
 - **Row-level security**: PostgreSQL RLS integration for data isolation
 
 ### **Advanced Type System**
-Specialized operators for network types, hierarchical data, and ranges:
+Specialized operators for network types, hierarchical data, geographic coordinates, and ranges:
 
 ```graphql
 query {
@@ -288,6 +288,22 @@ query {
     dateRange: { overlaps: "[2024-01-01,2024-12-31)" }
   }) {
     id name ipAddress port
+  }
+}
+
+# Geographic coordinate queries with distance filtering
+query {
+  locations(where: {
+    coordinates: {
+      distance_within: {
+        center: [37.7749, -122.4194],  # San Francisco (lat, lng)
+        radius: 5000                    # 5km radius in meters
+      }
+    }
+  }) {
+    name
+    coordinates  # Returns: "37.7749,-122.4194"
+    address
   }
 }
 ```
@@ -305,6 +321,7 @@ PostgreSQL → Rust → HTTP (0.5-5ms response time)
 **Supported specialized types:**
 - **Network**: `IPv4`, `IPv6`, `CIDR`, `MACAddress` with subnet/range operations
 - **Hierarchical**: `LTree` with ancestor/descendant queries
+- **Geographic**: `Coordinate` (latitude/longitude) with distance-based filtering (PostGIS support)
 - **Temporal**: `DateRange` with overlap/containment operations
 - **Standard**: `EmailAddress`, `UUID`, `JSON` with validation
 
