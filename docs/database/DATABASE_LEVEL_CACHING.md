@@ -173,7 +173,9 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_dashboard_stats;  -- Manual/cron
 **Rust-First Integration**:
 
 ```python
-@fraiseql.type(sql_source="mv_dashboard_stats", jsonb_column="top_users")
+from fraiseql import type, query, mutation, input, field
+
+@type(sql_source="mv_dashboard_stats", jsonb_column="top_users")
 class DashboardStats:
     total_users: int
     total_posts: int
@@ -181,7 +183,7 @@ class DashboardStats:
     avg_post_length: float
     top_users: list[dict]
 
-@fraiseql.query
+@query
 async def dashboard(info) -> DashboardStats:
     """
     Query materialized view (0.5ms)
@@ -233,6 +235,8 @@ $$ LANGUAGE sql;
 **Usage Pattern**:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 async def cached_query(cache_key: str, ttl: int, query_fn):
     """Query with database-level caching"""
 
@@ -263,7 +267,7 @@ async def cached_query(cache_key: str, ttl: int, query_fn):
     return data
 
 # Usage
-@fraiseql.query
+@query
 async def expensive_query(info) -> DashboardStats:
     return await cached_query(
         cache_key="dashboard:main",
@@ -337,7 +341,9 @@ WHERE (data->>'subscription_tier') = 'premium';
 **Rust-First Integration**:
 
 ```python
-@fraiseql.query
+from fraiseql import type, query, mutation, input, field
+
+@query
 async def active_users(info, limit: int = 10) -> list[User]:
     """
     Uses partial index automatically
@@ -386,6 +392,8 @@ $$ LANGUAGE sql;
 **Usage Pattern**:
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 class DatabaseCache:
     """Database-level result cache with metrics"""
 
@@ -452,7 +460,7 @@ class DatabaseCache:
         return dict(stats)
 
 # Usage
-@fraiseql.query
+@query
 async def dashboard(info) -> Dashboard:
     cache = DatabaseCache(info.context["db"])
 
@@ -699,10 +707,10 @@ CREATE INDEX ON mv_dashboard ((1));  -- Needed for CONCURRENT refresh
 ### FraiseQL Integration
 
 ```python
-import fraiseql
+from fraiseql import type, query, mutation, input, field
 from fraiseql.repositories import Repository
 
-@fraiseql.type(sql_source="users", jsonb_column="data")
+@type(sql_source="users", jsonb_column="data")
 class User:
     id: int
     first_name: str
@@ -711,14 +719,14 @@ class User:
     active: bool
     user_posts: list[Post] | None = None
 
-@fraiseql.type(sql_source="mv_dashboard")
+@type(sql_source="mv_dashboard")
 class Dashboard:
     total_users: int
     new_users_week: int
     stats: dict
 
 # Simple query - uses generated column
-@fraiseql.query
+@query
 async def user(info, id: int) -> User:
     """
     Pipeline:
@@ -730,7 +738,7 @@ async def user(info, id: int) -> User:
     return await repo.find_one("users", id=id)
 
 # Dashboard - uses materialized view
-@fraiseql.query
+@query
 async def dashboard(info) -> Dashboard:
     """
     Pipeline:

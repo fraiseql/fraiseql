@@ -35,7 +35,9 @@ result = transform_json(data, transform_func)
 Read queries use PostgreSQL views for optimal performance:
 
 ```python
-@fraiseql.query
+from fraiseql import type, query, mutation, input, field
+
+@query
 def get_users(info: Info) -> List[User]:
     # Automatically uses optimized view
     return info.context.repo.find("users_view")
@@ -53,7 +55,7 @@ FraiseQL includes DataLoader integration:
 ```python
 from fraiseql import dataloader
 
-@fraiseql.field
+@field
 @dataloader
 async def posts(user: User, info: Info) -> List[Post]:
     # Automatically batched
@@ -136,7 +138,9 @@ query {
 Always paginate large result sets:
 
 ```python
-@fraiseql.connection
+from fraiseql import type, query, mutation, input, field
+
+@connection
 def users(
     info: Info,
     first: int = 100

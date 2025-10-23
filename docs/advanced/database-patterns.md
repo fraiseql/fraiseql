@@ -132,32 +132,33 @@ CREATE INDEX idx_tv_order_status
 
 ### Synchronization Pattern
 
-**Explicit Refresh in Mutation Functions** (not triggers):
+**Generated JSONB Columns** (not manual refresh):
 
-tv_ tables are refreshed explicitly at the end of each mutation, not automatically by triggers. This provides better control and atomicity.
+tv_ tables use PostgreSQL's generated columns to automatically maintain denormalized JSONB data. This provides real-time consistency without manual refresh calls.
 
-**Step 1: Create Refresh Function**
+**Step 1: Create tv_ Table with Generated Column**
 
 ```sql
--- Function to rebuild tv_order row(s)
-CREATE OR REPLACE FUNCTION refresh_tv_order(p_order_id UUID)
-RETURNS void AS $$
-BEGIN
-    -- Rebuild complete denormalized row
-    INSERT INTO tv_order (id, tenant_id, status, user_id, total, created_at, data)
-    SELECT
-        o.id,
-        o.tenant_id,
-        o.status,
-        o.user_id,
-        o.total,
-        o.created_at,
+-- tv_ table with generated JSONB column (auto-updates on write)
+CREATE TABLE tv_order (
+    -- GraphQL identifier (matches tb_order.id)
+    id UUID PRIMARY KEY,
+
+    -- Filter columns (indexed for fast WHERE clauses)
+    tenant_id UUID NOT NULL,
+    status TEXT,
+    user_id UUID,
+    total DECIMAL(10,2),
+    created_at TIMESTAMPTZ,
+
+    -- Complete denormalized payload (auto-generated)
+    data JSONB GENERATED ALWAYS AS (
         jsonb_build_object(
             '__typename', 'Order',
-            'id', o.id,
-            'status', o.status,
-            'total', o.total,
-            'createdAt', o.created_at,
+            'id', id,
+            'status', status,
+            'total', total,
+            'createdAt', created_at,
             'user', (
                 SELECT jsonb_build_object(
                     'id', u.id,
@@ -165,7 +166,7 @@ BEGIN
                     'name', u.name
                 )
                 FROM tb_user u
-                WHERE u.id = o.user_id
+                WHERE u.id = tv_order.user_id
             ),
             'items', COALESCE(
                 (
@@ -176,26 +177,94 @@ BEGIN
                         'price', i.price
                     ) ORDER BY i.created_at)
                     FROM tb_order_item i
-                    WHERE i.order_id = o.id
+                    WHERE i.order_id = tv_order.id
                 ),
                 '[]'::jsonb
             )
-        ) as data
-    FROM tb_order o
-    WHERE o.id = p_order_id
-    ON CONFLICT (id) DO UPDATE SET
-        status = EXCLUDED.status,
-        user_id = EXCLUDED.user_id,
-        total = EXCLUDED.total,
-        data = EXCLUDED.data,
-        updated_at = NOW();
-END;
-$$ LANGUAGE plpgsql;
+        )
+    ) STORED,
+
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Populate from existing tb_ data
+INSERT INTO tv_order (id, tenant_id, status, user_id, total, created_at)
+SELECT id, tenant_id, status, user_id, total, created_at
+FROM tb_order;
 ```
 
-**Step 2: Call in Mutation Functions**
+**Step 2: Automatic Synchronization via Triggers**
 
-See [Mutation Structure Pattern](#mutation-structure-pattern) below for complete integration.
+```sql
+-- Trigger function to sync tb_order changes to tv_order
+CREATE OR REPLACE FUNCTION sync_tv_order()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        -- Insert new row into tv_order
+        INSERT INTO tv_order (id, tenant_id, status, user_id, total, created_at)
+        VALUES (NEW.id, NEW.tenant_id, NEW.status, NEW.user_id, NEW.total, NEW.created_at);
+        RETURN NEW;
+
+    ELSIF TG_OP = 'UPDATE' THEN
+        -- Update tv_order (data column auto-regenerates)
+        UPDATE tv_order SET
+            tenant_id = NEW.tenant_id,
+            status = NEW.status,
+            user_id = NEW.user_id,
+            total = NEW.total,
+            created_at = NEW.created_at,
+            updated_at = NOW()
+        WHERE id = NEW.id;
+        RETURN NEW;
+
+    ELSIF TG_OP = 'DELETE' THEN
+        -- Remove from tv_order
+        DELETE FROM tv_order WHERE id = OLD.id;
+        RETURN OLD;
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Attach trigger to tb_order
+CREATE TRIGGER trg_sync_tv_order
+AFTER INSERT OR UPDATE OR DELETE ON tb_order
+FOR EACH ROW EXECUTE FUNCTION sync_tv_order();
+
+-- Also sync when related tables change (user info, order items)
+CREATE OR REPLACE FUNCTION sync_tv_order_on_related_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- When user changes, update all their orders
+    UPDATE tv_order SET updated_at = NOW()
+    WHERE user_id = COALESCE(NEW.id, OLD.id);
+
+    -- When order items change, update the order
+    IF TG_TABLE_NAME = 'tb_order_item' THEN
+        UPDATE tv_order SET updated_at = NOW()
+        WHERE id = COALESCE(NEW.order_id, OLD.order_id);
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sync_tv_order_on_user_change
+AFTER UPDATE ON tb_user
+FOR EACH ROW EXECUTE FUNCTION sync_tv_order_on_related_changes();
+
+CREATE TRIGGER trg_sync_tv_order_on_item_change
+AFTER INSERT OR UPDATE OR DELETE ON tb_order_item
+FOR EACH ROW EXECUTE FUNCTION sync_tv_order_on_related_changes();
+```
+
+**Benefits of Generated Columns:**
+- ✅ **Real-time consistency**: Data always up-to-date
+- ✅ **No manual refresh**: Automatic via triggers
+- ✅ **Performance**: No refresh function calls in mutations
+- ✅ **Reliability**: PostgreSQL manages the generation
 
 ### GraphQL Query Pattern
 
@@ -1633,6 +1702,8 @@ CREATE INDEX idx_entity_log_status ON core.tb_entity_change_log (change_status);
 
 **Usage in Mutations**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def update_order(info, id: UUID, name: str) -> MutationResult:
     db = info.context["db"]
@@ -1903,6 +1974,8 @@ class MutationLogResult:
 
 **Usage in Resolver**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def update_product(
     info,

@@ -49,15 +49,17 @@ FraiseQL's architecture separates responsibilities: Python handles GraphQL schem
 
 ### Python Side:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # 1. Define GraphQL type
-@fraiseql.type(sql_source="v_user")
+@type(sql_source="v_user")
 class User:
-    id: str
+    id: UUID
     first_name: str  # Python uses snake_case
     created_at: datetime
 
 # 2. Define query resolver
-@fraiseql.query
+@query
 async def users(info) -> list[User]:
     repo = info.context["repo"]
 

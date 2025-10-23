@@ -96,6 +96,8 @@ CREATE INDEX idx_errors_unresolved ON monitoring.errors(fingerprint, occurred_at
 ### Setup
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from fraiseql.monitoring import init_error_tracker
 
 # Initialize in application startup
@@ -115,6 +117,8 @@ async def startup():
 ### Capture Errors
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Automatic capture in middleware
 @app.middleware("http")
 async def error_tracking_middleware(request: Request, call_next):
@@ -667,6 +671,8 @@ tracer = setup_tracing(db_pool)
 ### Instrument Code
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from opentelemetry import trace
 
 tracer = trace.get_tracer(__name__)

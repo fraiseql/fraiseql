@@ -61,7 +61,8 @@ CREATE POLICY audit_events_insert_only ON audit_events
 
 -- Organizations table (multi-tenant root)
 CREATE TABLE tenant.tb_organization (
-    pk_organization UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pk_organization INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
     data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     created_by UUID,
@@ -78,8 +79,9 @@ CREATE TABLE tenant.tb_organization (
 
 -- Users table with full audit trail
 CREATE TABLE tenant.tb_user (
-    pk_user UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pk_organization UUID NOT NULL REFERENCES tenant.tb_organization(pk_organization),
+    pk_user INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    pk_organization INT NOT NULL REFERENCES tenant.tb_organization(pk_organization),
     data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     created_by UUID,
@@ -101,13 +103,14 @@ CREATE TABLE tenant.tb_user (
 
 -- Projects table with business logic
 CREATE TABLE tenant.tb_project (
-    pk_project UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pk_organization UUID NOT NULL REFERENCES tenant.tb_organization(pk_organization),
+    pk_project INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    pk_organization INT NOT NULL REFERENCES tenant.tb_organization(pk_organization),
     data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    created_by UUID REFERENCES tenant.tb_user(pk_user),
+    created_by INT REFERENCES tenant.tb_user(pk_user),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_by UUID REFERENCES tenant.tb_user(pk_user),
+    updated_by INT REFERENCES tenant.tb_user(pk_user),
     deleted_at TIMESTAMP WITH TIME ZONE,
     version INTEGER NOT NULL DEFAULT 1,
 
@@ -125,14 +128,15 @@ CREATE TABLE tenant.tb_project (
 
 -- Tasks table with complex relationships
 CREATE TABLE tenant.tb_task (
-    pk_task UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pk_organization UUID NOT NULL REFERENCES tenant.tb_organization(pk_organization),
-    pk_project UUID NOT NULL REFERENCES tenant.tb_project(pk_project),
+    pk_task INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    pk_organization INT NOT NULL REFERENCES tenant.tb_organization(pk_organization),
+    pk_project INT NOT NULL REFERENCES tenant.tb_project(pk_project),
     data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    created_by UUID REFERENCES tenant.tb_user(pk_user),
+    created_by INT REFERENCES tenant.tb_user(pk_user),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_by UUID REFERENCES tenant.tb_user(pk_user),
+    updated_by INT REFERENCES tenant.tb_user(pk_user),
     deleted_at TIMESTAMP WITH TIME ZONE,
     version INTEGER NOT NULL DEFAULT 1,
 
@@ -151,13 +155,14 @@ CREATE TABLE tenant.tb_task (
 
 -- Document versioning table (demonstrating file management patterns)
 CREATE TABLE tenant.tb_document (
-    pk_document UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pk_organization UUID NOT NULL REFERENCES tenant.tb_organization(pk_organization),
+    pk_document INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    pk_organization INT NOT NULL REFERENCES tenant.tb_organization(pk_organization),
     data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    created_by UUID REFERENCES tenant.tb_user(pk_user),
+    created_by INT REFERENCES tenant.tb_user(pk_user),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_by UUID REFERENCES tenant.tb_user(pk_user),
+    updated_by INT REFERENCES tenant.tb_user(pk_user),
     deleted_at TIMESTAMP WITH TIME ZONE,
     version INTEGER NOT NULL DEFAULT 1,
 
@@ -170,9 +175,10 @@ CREATE TABLE tenant.tb_document (
 
 -- Notifications table (event-driven patterns)
 CREATE TABLE tenant.tb_notification (
-    pk_notification UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pk_organization UUID NOT NULL REFERENCES tenant.tb_organization(pk_organization),
-    pk_user UUID NOT NULL REFERENCES tenant.tb_user(pk_user),
+    pk_notification INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    pk_organization INT NOT NULL REFERENCES tenant.tb_organization(pk_organization),
+    pk_user INT NOT NULL REFERENCES tenant.tb_user(pk_user),
     data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     read_at TIMESTAMP WITH TIME ZONE,

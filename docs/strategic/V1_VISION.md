@@ -123,6 +123,8 @@ $$ LANGUAGE plpgsql;
 
 **Python becomes trivial** (3 lines per mutation):
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def create_user(info, organisation: str, identifier: str, name: str, email: str) -> User:
     db = info.context["db"]
@@ -353,6 +355,8 @@ class QueryRepository:
 **Purpose**: Auto-register queries and mutations
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def user(info, id: UUID = None, identifier: str = None) -> User:
     """Get user by UUID or identifier"""

@@ -132,7 +132,7 @@ make test  # Run full test suite
 - [Database Patterns](advanced/database-patterns.md) - View design
 
 ### Examples & Tutorials
-- [Examples Directory](examples/) - 20+ working applications
+- [Examples Directory](../examples/) - 20+ working applications
 - [Blog API Tutorial](tutorials/blog-api.md) - Complete application
 - [Production Tutorial](tutorials/production-deployment.md) - End-to-end deployment
 
@@ -148,7 +148,7 @@ make test  # Run full test suite
 **Still not sure where to start?**
 1. Try the [First Hour Guide](FIRST_HOUR.md) - complete progressive path
 2. Try the [5-Minute Quickstart](quickstart.md) - instant working API
-3. Browse [Examples](examples/) for patterns similar to your use case
+3. Browse [Examples](../examples/) for patterns similar to your use case
 
 **Having trouble?**
 - 🔧 [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues and solutions

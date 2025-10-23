@@ -10,6 +10,8 @@ Decorators and patterns for defining GraphQL queries, mutations, and subscriptio
 
 **Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType:
     pass
@@ -40,6 +42,8 @@ async def get_user(info, id: UUID) -> User:
 
 Query with multiple parameters:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def search_users(
     info,
@@ -56,6 +60,8 @@ async def search_users(
 
 Query with authentication:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 from graphql import GraphQLError
 
 @query
@@ -71,6 +77,8 @@ async def get_my_profile(info) -> User:
 
 Query with error handling:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -88,6 +96,8 @@ async def get_post(info, id: UUID) -> Post | None:
 
 Query using custom repository methods:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @query
 async def get_user_stats(info, user_id: UUID) -> UserStats:
     repo = info.context["repo"]
@@ -115,6 +125,8 @@ async def get_user_stats(info, user_id: UUID) -> UserStats:
 
 **Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @field(
     resolver: Callable[..., Any] | None = None,
     description: str | None = None,
@@ -137,6 +149,8 @@ def method_name(self, info, ...params) -> ReturnType:
 
 Computed field with description:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type
 class User:
     first_name: str
@@ -149,6 +163,8 @@ class User:
 
 Async field with database access:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type
 class User:
     id: UUID
@@ -161,6 +177,8 @@ class User:
 
 Field with custom resolver function:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 async def fetch_user_posts_optimized(root, info):
     """Custom resolver with optimized batch loading."""
     db = info.context["db"]
@@ -183,6 +201,8 @@ class User:
 
 Field with parameters:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type
 class User:
     id: UUID
@@ -203,6 +223,8 @@ class User:
 
 Field with authentication/authorization:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type
 class User:
     id: UUID
@@ -219,6 +241,8 @@ class User:
 
 Field with caching:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type
 class Post:
     id: UUID
@@ -264,6 +288,8 @@ class Post:
 
 **Signature**:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @connection(
     node_type: type,
     view_name: str | None = None,
@@ -322,6 +348,8 @@ async def users_connection(info, first: int | None = None) -> Connection[User]:
 
 Connection with custom configuration:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @connection(
     node_type=Post,
     view_name="v_published_posts",
@@ -343,6 +371,8 @@ async def posts_connection(
 
 With filtering and ordering:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @connection(node_type=User, cursor_field="created_at")
 @query
 async def recent_users_connection(
@@ -394,6 +424,8 @@ query {
 
 Function-based mutation:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def mutation_name(info, input: InputType) -> ReturnType:
     pass
@@ -401,6 +433,8 @@ async def mutation_name(info, input: InputType) -> ReturnType:
 
 Class-based mutation:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation(
     function: str | None = None,
     schema: str | None = None,
@@ -426,6 +460,8 @@ class MutationName:
 
 Simple function-based mutation:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def create_user(info, input: CreateUserInput) -> User:
     db = info.context["db"]
@@ -473,6 +509,8 @@ class CreateUser:
 
 Mutation with custom PostgreSQL function:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation(function="register_new_user", schema="auth")
 class RegisterUser:
     input: RegistrationInput
@@ -484,6 +522,8 @@ class RegisterUser:
 
 Mutation with context parameters:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation(
     function="create_location",
     schema="app",
@@ -504,6 +544,8 @@ class CreateLocation:
 
 Mutation with validation:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @input
 class UpdateUserInput:
     id: UUID
@@ -538,6 +580,8 @@ async def update_user(info, input: UpdateUserInput) -> User:
 
 Multi-step mutation with transaction:
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @mutation
 async def transfer_funds(
     info,
@@ -591,6 +635,8 @@ async def transfer_funds(
 
 Mutation with input transformation (prepare_input hook):
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @input
 class NetworkConfigInput:
     ip_address: str

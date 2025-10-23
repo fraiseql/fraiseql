@@ -4,7 +4,7 @@
 
 FraiseQL is **database-first GraphQL**. Instead of starting with GraphQL types and then figuring out how to fetch data, you start with your database schema and let it drive your API design.
 
-**Why this matters:** Most GraphQL APIs suffer from N+1 query problems, ORM overhead, and complex caching. FraiseQL eliminates these by composing data in PostgreSQL views, then serving it directly as JSONB.
+**Why this matters:** Most GraphQL APIs suffer from N+1 query problems, ORM overhead, and complex caching. FraiseQL eliminates these by composing data in PostgreSQL read tables/views, then serving it directly as JSONB.
 
 ## How It Works: The Request Journey
 
@@ -28,7 +28,7 @@ Every GraphQL request follows this path:
 
 ## Core Pattern: JSONB Views
 
-The heart of FraiseQL is the **JSONB view pattern**:
+The heart of FraiseQL is the **JSONB read pattern**:
 
 ```
 ┌─────────────┐      ┌──────────────┐      ┌─────────────┐
@@ -41,7 +41,7 @@ The heart of FraiseQL is the **JSONB view pattern**:
 └─────────────┘      └──────────────┘      └─────────────┘
 ```
 
-Your database tables store normalized data, but your views compose it into ready-to-serve JSONB objects.
+Your database tables store normalized data, but your read tables/views compose it into ready-to-serve JSONB objects.
 
 ### Why JSONB Views?
 
@@ -179,7 +179,7 @@ FraiseQL implements **Command Query Responsibility Segregation**:
 └──────────────────┴──────────────────┘
 ```
 
-**Queries** (reads) use views for fast, fresh data.
+**Queries** (reads) use read-optimized tables/views for fast, fresh data.
 **Mutations** (writes) use functions for business logic and data integrity.
 
 ## Development Workflow
@@ -187,8 +187,8 @@ FraiseQL implements **Command Query Responsibility Segregation**:
 Here's how you build with FraiseQL:
 
 ```
-1. Design Domain          2. Create Tables          3. Create Views
-   What data?             (tb_* tables)             (v_* views)
+1. Design Domain          2. Create Tables          3. Create Read Tables/Views
+   What data?             (tb_* tables)             (tv_* tables or v_* views)
    What relationships?                              JSONB composition
 
 4. Define Types           5. Write Resolvers        6. Test API

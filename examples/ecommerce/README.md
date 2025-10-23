@@ -311,7 +311,7 @@ Deploy to Kubernetes:
 kubectl apply -f k8s/
 ```
 
-See the [deployment guide](../docs/deployment/) for detailed instructions.
+See the [deployment guide](../../docs/deployment/) for detailed instructions.
 
 ### Environment Variables
 

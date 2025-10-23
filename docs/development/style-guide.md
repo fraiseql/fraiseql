@@ -16,12 +16,12 @@ from fraiseql import type, query, mutation, input, field
 **NOT these patterns:**
 ```python
 # ❌ Too verbose
-@fraiseql.type
+@type
 class User:
     pass
 
 # ❌ Too specific imports
-from fraiseql.decorators import type
+from fraiseql import type, query, mutation, input, field
 from fraiseql.resolvers import query, mutation
 
 # ❌ Import everything
@@ -131,6 +131,8 @@ class UserRole:
 
 ### GraphQL Fields
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # Queries: camelCase
 @query
 def getUserById(id: UUID) -> User:
@@ -187,6 +189,8 @@ def create_user(input: CreateUserInput) -> Optional[User]:
 ## Code Comments (STANDARD)
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 @type(sql_source="v_user")
 class User:
     id: UUID  # Primary key, auto-generated
@@ -204,6 +208,8 @@ class User:
 ## Testing Examples (STANDARD)
 
 ```python
+from fraiseql import type, query, mutation, input, field
+
 # In documentation examples, show both the code and expected GraphQL usage
 @query
 def get_user(id: UUID) -> User:
@@ -231,11 +237,11 @@ def get_user(id: UUID) -> User:
 ### Old Pattern → New Pattern
 ```python
 # Old ❌
-from fraiseql.decorators import type as gql_type
+from fraiseql import type, query, mutation, input, field as gql_type
 
 @gql_type(sql_source="v_user")
 class User:
-    id: str  # Wrong type
+    id: UUID  # Wrong type
     name: str
 
 # New ✅
