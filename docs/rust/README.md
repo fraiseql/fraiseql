@@ -27,4 +27,4 @@ PostgreSQL → Rust (fraiseql-rs) → HTTP
 
 ## For Contributors
 
-The Rust code lives in `fraiseql_rs/` directory. See [Contributing Guide](../../CONTRIBUTING.md) for development setup.
+The Rust code lives in `fraiseql_rs/` directory. See [Contributing Guide](../development/CONTRIBUTING.md) for development setup.

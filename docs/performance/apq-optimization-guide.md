@@ -10,7 +10,7 @@
 2. [Understanding APQ](#understanding-apq)
 3. [When to Enable APQ](#when-to-enable-apq)
 4. [Configuration Guide](#configuration-guide)
-5. [Monitoring & Metrics](#monitoring--metrics)
+5. [Monitoring & Metrics](#monitoring-metrics)
 6. [Optimization Strategies](#optimization-strategies)
 7. [Troubleshooting](#troubleshooting)
 8. [Production Best Practices](#production-best-practices)

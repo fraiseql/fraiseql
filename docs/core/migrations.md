@@ -10,7 +10,7 @@ FraiseQL provides a robust migration management system through the `fraiseql mig
 - [Quick Start](#quick-start)
 - [Migration Commands](#migration-commands)
 - [Migration File Structure](#migration-file-structure)
-- [Best Practices](#best-practices)
+- [Best Practices](#migration-best-practices)
 - [CQRS Migrations](#cqrs-migrations)
 - [Production Deployment](#production-deployment)
 - [Troubleshooting](#troubleshooting)
@@ -592,7 +592,7 @@ async def setup_ivm():
 
 ## See Also
 
-- [Complete CQRS Example](../../examples/complete_cqrs_blog/README.md)
+- Complete CQRS Example (../../examples/complete_cqrs_blog/)
 - [CASCADE Invalidation Guide](../performance/cascade-invalidation.md)
 - [Explicit Sync Guide](./explicit-sync.md)
 - [Database Patterns](../advanced/database-patterns.md)

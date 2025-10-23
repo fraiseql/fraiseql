@@ -85,7 +85,7 @@ This document outlines the planned development roadmap for FraiseQL.
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Priority Areas
 - Performance benchmarks

@@ -33,7 +33,7 @@ FraiseQL provides a repository layer for database operations that:
 3. **PostgreSQL** executes view and returns JSONB results
 4. **Rust Pipeline** transforms JSONB to GraphQL response format
 
-**[📊 Detailed Query Flow](diagrams/request-flow.md)** - Complete request lifecycle
+**[📊 Detailed Query Flow](../diagrams/request-flow.md)** - Complete request lifecycle
 
 ## FraiseQLRepository
 

@@ -40,7 +40,7 @@
 1. [Feature 1: Immutable Audit Logging with Cryptographic Integrity](#feature-1-immutable-audit-logging-with-cryptographic-integrity)
 2. [Feature 2: Advanced RBAC (Role-Based Access Control)](#feature-2-advanced-rbac-role-based-access-control)
 3. [Feature 3: GDPR Compliance Suite](#feature-3-gdpr-compliance-suite)
-4. [Feature 4: Data Classification & Labeling](#feature-4-data-classification--labeling)
+4. [Feature 4: Data Classification & Labeling](#feature-4-data-classification-labeling)
 
 ---
 

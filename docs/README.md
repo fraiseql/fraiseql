@@ -5,7 +5,7 @@
 - [5-Minute Quickstart](quickstart.md) - Fastest way to get running
 - [First Hour Guide](FIRST_HOUR.md) - Progressive tutorial
 - [Understanding FraiseQL](UNDERSTANDING.md) - Conceptual overview
-- [Installation](../INSTALLATION.md) - Detailed setup instructions
+- [Installation](INSTALLATION.md) - Detailed setup instructions
 
 ## Core Concepts
 
@@ -34,9 +34,9 @@
 
 ## Development
 
-- [Contributing](../CONTRIBUTING.md)
+- [Contributing](CONTRIBUTING.md)
 - [Style Guide](development/style-guide.md)
-- [Architecture Decisions](architecture/)
+- [Architecture Decisions](architecture/README.md)
 
 ## Troubleshooting
 

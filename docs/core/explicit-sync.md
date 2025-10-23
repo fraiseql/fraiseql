@@ -6,7 +6,7 @@ FraiseQL's explicit sync pattern is a fundamental design decision that prioritiz
 
 ## Table of Contents
 
-- [Philosophy: Explicit > Implicit](#philosophy-explicit--implicit)
+- [Philosophy: Explicit > Implicit](#philosophy-explicit-implicit)
 - [How Explicit Sync Works](#how-explicit-sync-works)
 - [Implementing Sync Functions](#implementing-sync-functions)
 - [Usage Patterns](#usage-patterns)

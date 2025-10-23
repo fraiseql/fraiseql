@@ -11,6 +11,6 @@ Guides for developing with FraiseQL.
 
 ## Related
 
-- [Contributing Guide](../../CONTRIBUTING.md)
+- [Contributing Guide](CONTRIBUTING.md)
 - [Examples](../../examples/)
 - [Core Concepts](../core/)

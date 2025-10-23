@@ -308,7 +308,7 @@ Note: v0.11.x will continue to receive security updates for 6 months after v1.0 
 
 After migrating:
 
-1. Review the [Performance Guide](../../PERFORMANCE_GUIDE.md)
+1. Review the [Performance Guide](../performance/PERFORMANCE_GUIDE.md)
 2. Explore [Enterprise Features](../enterprise/ENTERPRISE.md)
 3. Check out [Advanced Patterns](../advanced/)
 

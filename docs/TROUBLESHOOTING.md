@@ -257,7 +257,7 @@ from fraiseql import type, query, mutation, input, field
 # import fraiseql as fq; fq.type
 ```
 
-**Prevention**: Check the [Style Guide](STYLE_GUIDE.md) for correct imports
+**Prevention**: Check the [Style Guide](development/style-guide.md) for correct imports
 
 ---
 
@@ -303,6 +303,6 @@ lsof -i :8000
 - 📧 File a [new issue](https://github.com/fraiseql/fraiseql/issues/new) with your error message
 
 ### Common Next Steps
-- [Quick Reference](QUICK_REFERENCE.md) - Copy-paste code patterns
-- [Examples](../examples/) - Working applications you can study
+- [Quick Reference](reference/quick-reference.md) - Copy-paste code patterns
+- Examples (../examples/) - Working applications you can study
 - [Beginner Learning Path](tutorials/beginner-path.md) - Complete skill progression

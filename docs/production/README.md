@@ -16,5 +16,5 @@ Detailed production deployment guides are being written.
 
 For now, see:
 - [Security Policy](../../SECURITY.md)
-- [Performance Guide](../../PERFORMANCE_GUIDE.md)
+- [Performance Guide](../performance/PERFORMANCE_GUIDE.md)
 - [Examples](../../examples/)

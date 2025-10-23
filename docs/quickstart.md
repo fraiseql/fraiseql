@@ -251,17 +251,17 @@ mutation {
 
 ## Next Steps
 
-- [Understanding FraiseQL](../docs/UNDERSTANDING.md) - Learn the architecture
-- [First Hour Guide](../docs/FIRST_HOUR.md) - Progressive tutorial
-- [Troubleshooting](../docs/TROUBLESHOOTING.md) - Common issues and solutions
-- [Examples](../examples/) - More complete examples
-- [Style Guide](../docs/STYLE_GUIDE.md) - Best practices
+- [Understanding FraiseQL](UNDERSTANDING.md) - Learn the architecture
+- [First Hour Guide](FIRST_HOUR.md) - Progressive tutorial
+- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
+- Examples (../examples/) - More complete examples
+- [Style Guide](development/style-guide.md) - Best practices
 
 ## Need Help?
 
 - [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
 - [Documentation](https://docs.fraiseql.com)
-- [Troubleshooting Guide](../docs/TROUBLESHOOTING.md)
+- [Troubleshooting Guide](TROUBLESHOOTING.md)
 
 ---
 

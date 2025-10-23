@@ -297,18 +297,18 @@ You've completed your first hour with FraiseQL! You now know how to:
 - **[Blog API Tutorial](tutorials/blog-api.md)** - Build a complete application
 
 ### Explore Examples (30 minutes each)
-- **[E-commerce API](../examples/ecommerce/)** - Shopping cart, products, orders
-- **[Real-time Chat](../examples/real_time_chat/)** - Subscriptions and real-time updates
-- **[Multi-tenant SaaS](../examples/apq_multi_tenant/)** - Enterprise patterns
+- **E-commerce API (../examples/ecommerce/)** - Shopping cart, products, orders
+- **Real-time Chat (../examples/real_time_chat/)** - Subscriptions and real-time updates
+- **Multi-tenant SaaS (../examples/apq_multi_tenant/)** - Enterprise patterns
 
 ### Advanced Topics
-- **[Performance Guide](../PERFORMANCE_GUIDE.md)** - Optimization techniques
+- **[Performance Guide](performance/PERFORMANCE_GUIDE.md)** - Optimization techniques
 - **[Multi-tenancy](advanced/multi-tenancy.md)** - Building SaaS applications
 - **[Migration Guide](migration/v0-to-v1.md)** - Upgrading from older versions
 
 ### Need Help?
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
-- **[Quick Reference](QUICK_REFERENCE.md)** - Copy-paste code patterns
+- **[Quick Reference](reference/quick-reference.md)** - Copy-paste code patterns
 - **[GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)** - Community support
 
 ---

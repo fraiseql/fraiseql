@@ -41,7 +41,7 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 3. **Database**: RLS policies enforce row-level filtering
 4. **Caching**: Tenant-scoped cache invalidation
 
-**[🔒 Isolation Details](diagrams/multi-tenant-isolation.md)** - Complete tenant security architecture
+**[🔒 Isolation Details](../diagrams/multi-tenant-isolation.md)** - Complete tenant security architecture
 
 ## Table of Contents
 
@@ -49,10 +49,10 @@ Multi-tenancy allows a single application instance to serve multiple organizatio
 - [Row-Level Security](#row-level-security)
 - [Tenant Context](#tenant-context)
 - [Database Pool Strategies](#database-pool-strategies)
-- [Tenant Resolution](#tenant-resolution)
+- [Tenant Resolution](#tenant-context)
 - [Cross-Tenant Queries](#cross-tenant-queries)
 - [Tenant-Aware Caching](#tenant-aware-caching)
-- [Data Export & Import](#data-export--import)
+- [Data Export & Import](#data-export-import)
 - [Tenant Provisioning](#tenant-provisioning)
 - [Performance Optimization](#performance-optimization)
 

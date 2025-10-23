@@ -210,7 +210,7 @@ def get_product(
 
 - [CQRS](../../examples/enterprise_patterns/cqrs/)
 - [Repository Pattern](../../examples/)
-- [Hybrid Tables](../../examples/hybrid_tables.py)
+- [Hybrid Tables](../../examples/hybrid_tables/)
 
 ## Further Reading
 

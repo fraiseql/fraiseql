@@ -13,7 +13,7 @@ FraiseQL uses a unified architecture with exclusive Rust pipeline execution for 
 |-----------|----------|--------|---------|
 | **FraiseQL Framework** | Root level | ✅ Production | Complete GraphQL framework with Rust pipeline |
 | **Rust Pipeline** | [`fraiseql_rs/`](../../fraiseql_rs/) | ✅ Core | Exclusive query execution engine (7-10x faster) |
-| **Examples** | [`examples/`](../../examples/) | ✅ Reference | Production-ready application patterns |
+| **Examples** | `examples/` | ✅ Reference | Production-ready application patterns |
 | **Documentation** | [`docs/`](../../docs/) | ✅ Current | Comprehensive guides and tutorials |
 
 ---
@@ -43,7 +43,7 @@ ls -la  # 20+ working examples with Rust pipeline
 ### **For Contributors**
 - Build on the unified Rust pipeline architecture
 - Add features, fix bugs, improve documentation
-- See [CONTRIBUTING.md](../../CONTRIBUTING.md)
+- See [Contributing Guide](../development/CONTRIBUTING.md)
 
 ---
 
@@ -140,9 +140,9 @@ FraiseQL maintains backward compatibility within the unified Rust pipeline archi
 ## 📞 Getting Help
 
 ### **Documentation & Examples**
-- [Installation Guide](../../INSTALLATION.md)
+- [Installation Guide](../INSTALLATION.md)
 - [Quickstart](../quickstart.md)
-- [Examples](../../examples/) - 20+ production patterns
+- Examples (../../examples/) - 20+ production patterns
 - [API Reference](../reference/)
 
 ### **Architecture Questions**

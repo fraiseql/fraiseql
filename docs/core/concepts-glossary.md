@@ -60,7 +60,7 @@ Tables with separate write and read paths:
 - Writes go to normalized tables
 - Reads come from denormalized views
 
-See [Hybrid Tables Example](../../examples/hybrid_tables.py)
+See [Hybrid Tables Example](../../examples/hybrid_tables/)
 
 ### DataLoader Pattern
 

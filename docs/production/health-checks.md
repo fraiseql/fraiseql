@@ -632,4 +632,4 @@ async def health_endpoint():
 
 - [Production Deployment](../production/deployment.md) - Kubernetes health probes
 - [Monitoring](../production/monitoring.md) - Metrics and observability
-- [Sentry Integration](../production/monitoring.md#sentry-integration) - Error tracking
+- [Sentry Integration](../production/monitoring.md#sentry-integration-legacyoptional) - Error tracking

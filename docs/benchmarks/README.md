@@ -22,5 +22,5 @@ See the individual benchmark directories for results and analysis.
 
 ## Related
 
-- [Performance Guide](../../PERFORMANCE_GUIDE.md)
+- [Performance Guide](../performance/PERFORMANCE_GUIDE.md)
 - [Benchmarks Directory](../../benchmarks/)
