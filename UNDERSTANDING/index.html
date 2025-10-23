@@ -1520,7 +1520,7 @@
 <h1 id="understanding-fraiseql-in-10-minutes">Understanding FraiseQL in 10 Minutes<a class="headerlink" href="#understanding-fraiseql-in-10-minutes" title="Permanent link">&para;</a></h1>
 <h2 id="the-big-idea">The Big Idea<a class="headerlink" href="#the-big-idea" title="Permanent link">&para;</a></h2>
 <p>FraiseQL is <strong>database-first GraphQL</strong>. Instead of starting with GraphQL types and then figuring out how to fetch data, you start with your database schema and let it drive your API design.</p>
-<p><strong>Why this matters:</strong> Most GraphQL APIs suffer from N+1 query problems, ORM overhead, and complex caching. FraiseQL eliminates these by composing data in PostgreSQL views, then serving it directly as JSONB.</p>
+<p><strong>Why this matters:</strong> Most GraphQL APIs suffer from N+1 query problems, ORM overhead, and complex caching. FraiseQL eliminates these by composing data in PostgreSQL read tables/views, then serving it directly as JSONB.</p>
 <h2 id="how-it-works-the-request-journey">How It Works: The Request Journey<a class="headerlink" href="#how-it-works-the-request-journey" title="Permanent link">&para;</a></h2>
 <p>Every GraphQL request follows this path:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
@@ -1539,7 +1539,7 @@
 <li><strong>Rust Pipeline</strong> transforms JSONB to GraphQL response</li>
 </ol>
 <h2 id="core-pattern-jsonb-views">Core Pattern: JSONB Views<a class="headerlink" href="#core-pattern-jsonb-views" title="Permanent link">&para;</a></h2>
-<p>The heart of FraiseQL is the <strong>JSONB view pattern</strong>:</p>
+<p>The heart of FraiseQL is the <strong>JSONB read pattern</strong>:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>┌─────────────┐      ┌──────────────┐      ┌─────────────┐
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>│  tb_user    │  →   │   v_user     │  →   │  GraphQL    │
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>│ (table)     │      │  (view)      │      │  Response   │
@@ -1549,7 +1549,7 @@
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>│ email: a@b  │      │   object     │      │   &quot;name&quot;:.. │
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>└─────────────┘      └──────────────┘      └─────────────┘
 </span></code></pre></div>
-<p>Your database tables store normalized data, but your views compose it into ready-to-serve JSONB objects.</p>
+<p>Your database tables store normalized data, but your read tables/views compose it into ready-to-serve JSONB objects.</p>
 <h3 id="why-jsonb-views">Why JSONB Views?<a class="headerlink" href="#why-jsonb-views" title="Permanent link">&para;</a></h3>
 <p><strong>The Problem:</strong> Traditional GraphQL APIs have performance issues:
 - N+1 queries when resolving nested relationships
@@ -1656,12 +1656,12 @@
 </span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>│  tv_* tables     │  tb_* tables     │
 </span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>└──────────────────┴──────────────────┘
 </span></code></pre></div>
-<p><strong>Queries</strong> (reads) use views for fast, fresh data.
+<p><strong>Queries</strong> (reads) use read-optimized tables/views for fast, fresh data.
 <strong>Mutations</strong> (writes) use functions for business logic and data integrity.</p>
 <h2 id="development-workflow">Development Workflow<a class="headerlink" href="#development-workflow" title="Permanent link">&para;</a></h2>
 <p>Here's how you build with FraiseQL:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>1. Design Domain          2. Create Tables          3. Create Views
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>   What data?             (tb_* tables)             (v_* views)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>1. Design Domain          2. Create Tables          3. Create Read Tables/Views
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>   What data?             (tb_* tables)             (tv_* tables or v_* views)
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>   What relationships?                              JSONB composition
 </span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
 </span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>4. Define Types           5. Write Resolvers        6. Test API
