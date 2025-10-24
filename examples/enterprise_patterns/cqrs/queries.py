@@ -4,7 +4,6 @@ All queries use optimized views (v_*) for fast data retrieval.
 No business logic here - views are pre-computed and denormalized.
 """
 
-from typing import Optional
 from types import (
     Customer,
     Product,
@@ -24,7 +23,7 @@ from types import (
 # ============================================================================
 
 
-async def customer(info, id: int) -> Optional[Customer]:
+async def customer(info, id: int) -> Customer | None:
     """Get a single customer by ID."""
     db = info.context["db"]
     return await db.find_one("v_customers", id=id)
@@ -34,7 +33,7 @@ async def customers(
     info,
     limit: int = 100,
     offset: int = 0,
-    country: Optional[str] = None,
+    country: str | None = None,
 ) -> list[Customer]:
     """Get a list of customers."""
     db = info.context["db"]
@@ -43,11 +42,7 @@ async def customers(
         filters["country"] = country
 
     return await db.find(
-        "v_customers",
-        limit=limit,
-        offset=offset,
-        order_by="created_at DESC",
-        **filters
+        "v_customers", limit=limit, offset=offset, order_by="created_at DESC", **filters
     )
 
 
@@ -56,7 +51,7 @@ async def customers(
 # ============================================================================
 
 
-async def product(info, id: int) -> Optional[Product]:
+async def product(info, id: int) -> Product | None:
     """Get a single product by ID."""
     db = info.context["db"]
     return await db.find_one("v_products", id=id)
@@ -66,8 +61,8 @@ async def products(
     info,
     limit: int = 100,
     offset: int = 0,
-    is_active: Optional[bool] = None,
-    stock_status: Optional[str] = None,
+    is_active: bool | None = None,
+    stock_status: str | None = None,
 ) -> list[Product]:
     """Get a list of products."""
     db = info.context["db"]
@@ -77,13 +72,7 @@ async def products(
     if stock_status is not None:
         filters["stock_status"] = stock_status
 
-    return await db.find(
-        "v_products",
-        limit=limit,
-        offset=offset,
-        order_by="name",
-        **filters
-    )
+    return await db.find("v_products", limit=limit, offset=offset, order_by="name", **filters)
 
 
 async def product_inventory(info) -> list[ProductInventory]:
@@ -97,13 +86,13 @@ async def product_inventory(info) -> list[ProductInventory]:
 # ============================================================================
 
 
-async def order(info, id: int) -> Optional[OrderSummary]:
+async def order(info, id: int) -> OrderSummary | None:
     """Get a single order by ID (denormalized summary)."""
     db = info.context["db"]
     return await db.find_one("v_orders_summary", id=id)
 
 
-async def order_by_number(info, order_number: str) -> Optional[OrderSummary]:
+async def order_by_number(info, order_number: str) -> OrderSummary | None:
     """Get a single order by order number."""
     db = info.context["db"]
     return await db.find_one("v_orders_summary", order_number=order_number)
@@ -113,8 +102,8 @@ async def orders_summary(
     info,
     limit: int = 100,
     offset: int = 0,
-    status: Optional[str] = None,
-    customer_id: Optional[int] = None,
+    status: str | None = None,
+    customer_id: int | None = None,
 ) -> list[OrderSummary]:
     """Get a list of orders (denormalized with customer info)."""
     db = info.context["db"]
@@ -125,22 +114,14 @@ async def orders_summary(
         filters["customer_id"] = customer_id
 
     return await db.find(
-        "v_orders_summary",
-        limit=limit,
-        offset=offset,
-        order_by="created_at DESC",
-        **filters
+        "v_orders_summary", limit=limit, offset=offset, order_by="created_at DESC", **filters
     )
 
 
 async def order_items_details(info, order_id: int) -> list[OrderItemDetails]:
     """Get order items with product details."""
     db = info.context["db"]
-    return await db.find(
-        "v_order_items_details",
-        order_id=order_id,
-        order_by="id"
-    )
+    return await db.find("v_order_items_details", order_id=order_id, order_by="id")
 
 
 # ============================================================================
@@ -148,7 +129,7 @@ async def order_items_details(info, order_id: int) -> list[OrderItemDetails]:
 # ============================================================================
 
 
-async def payment(info, id: int) -> Optional[Payment]:
+async def payment(info, id: int) -> Payment | None:
     """Get a single payment by ID."""
     db = info.context["db"]
     return await db.find_one("v_payments", id=id)
@@ -158,8 +139,8 @@ async def payments(
     info,
     limit: int = 100,
     offset: int = 0,
-    order_id: Optional[int] = None,
-    status: Optional[str] = None,
+    order_id: int | None = None,
+    status: str | None = None,
 ) -> list[Payment]:
     """Get a list of payments."""
     db = info.context["db"]
@@ -170,11 +151,7 @@ async def payments(
         filters["status"] = status
 
     return await db.find(
-        "v_payments",
-        limit=limit,
-        offset=offset,
-        order_by="created_at DESC",
-        **filters
+        "v_payments", limit=limit, offset=offset, order_by="created_at DESC", **filters
     )
 
 
@@ -186,10 +163,7 @@ async def payments(
 async def revenue_by_product(info) -> list[RevenueByProduct]:
     """Get revenue analytics by product."""
     db = info.context["db"]
-    return await db.find(
-        "v_revenue_by_product",
-        order_by="total_revenue DESC"
-    )
+    return await db.find("v_revenue_by_product", order_by="total_revenue DESC")
 
 
 async def customer_lifetime_value(
@@ -200,10 +174,7 @@ async def customer_lifetime_value(
     """Get customer lifetime value analytics."""
     db = info.context["db"]
     return await db.find(
-        "v_customer_lifetime_value",
-        limit=limit,
-        offset=offset,
-        order_by="lifetime_value DESC"
+        "v_customer_lifetime_value", limit=limit, offset=offset, order_by="lifetime_value DESC"
     )
 
 
@@ -216,8 +187,8 @@ async def audit_log(
     info,
     limit: int = 100,
     offset: int = 0,
-    entity_type: Optional[str] = None,
-    entity_id: Optional[int] = None,
+    entity_type: str | None = None,
+    entity_id: int | None = None,
 ) -> list[AuditLog]:
     """Get audit log entries."""
     db = info.context["db"]
@@ -228,15 +199,11 @@ async def audit_log(
         filters["entity_id"] = entity_id
 
     return await db.find(
-        "v_audit_log",
-        limit=limit,
-        offset=offset,
-        order_by="created_at DESC",
-        **filters
+        "v_audit_log", limit=limit, offset=offset, order_by="created_at DESC", **filters
     )
 
 
-async def order_status_timeline(info, order_id: int) -> Optional[OrderStatusTimeline]:
+async def order_status_timeline(info, order_id: int) -> OrderStatusTimeline | None:
     """Get order status timeline with time metrics."""
     db = info.context["db"]
     return await db.find_one("v_order_status_timeline", order_id=order_id)
@@ -250,14 +217,10 @@ async def order_status_timeline(info, order_id: int) -> Optional[OrderStatusTime
 async def Customer_orders(customer: Customer, info) -> list[OrderSummary]:
     """Get orders for a customer."""
     db = info.context["db"]
-    return await db.find(
-        "v_orders_summary",
-        customer_id=customer.id,
-        order_by="created_at DESC"
-    )
+    return await db.find("v_orders_summary", customer_id=customer.id, order_by="created_at DESC")
 
 
-async def OrderSummary_customer(order: OrderSummary, info) -> Optional[Customer]:
+async def OrderSummary_customer(order: OrderSummary, info) -> Customer | None:
     """Get customer for an order."""
     db = info.context["db"]
     return await db.find_one("v_customers", id=order.customer_id)
@@ -275,7 +238,7 @@ async def OrderSummary_payments(order: OrderSummary, info) -> list[Payment]:
     return await db.find("v_payments", order_id=order.id, order_by="created_at DESC")
 
 
-async def OrderItemDetails_product(item: OrderItemDetails, info) -> Optional[Product]:
+async def OrderItemDetails_product(item: OrderItemDetails, info) -> Product | None:
     """Get product for an order item."""
     db = info.context["db"]
     return await db.find_one("v_products", id=item.product_id)
