@@ -65,6 +65,7 @@ PostgreSQL → JSONB → Rust field selection → HTTP Response
 ### Why This Matters
 
 **No Python serialization overhead:**
+
 ```python
 # Traditional framework (Strawberry + SQLAlchemy)
 user = db.query(User).first()        # SQL query
@@ -77,12 +78,14 @@ SELECT data FROM v_user LIMIT 1       # Returns JSONB
 ```
 
 **Architectural benefits:**
+
 - **PostgreSQL composes JSONB once** - No N+1 query problems
 - **Rust selects fields** - Respects GraphQL query shape in compiled code
 - **Direct HTTP response** - Zero-copy path from database to client
 - **No ORM abstraction** - Database returns final data structure
 
 **Security benefits:**
+
 - **Explicit field exposure** - Only fields in JSONB view are accessible (no accidental leaks)
 - **Clear data contracts** - JSONB structure defines exactly what's exposed
 - **No ORM over-fetching** - Can't accidentally expose hidden columns
@@ -123,6 +126,7 @@ class UserType:
 ```
 
 **Common ORM vulnerabilities:**
+
 - ❌ **Accidental field exposure** - ORM loads all columns, easy to forget exclusions
 - ❌ **Mass assignment attacks** - ORM objects can be updated with any field
 - ❌ **Over-fetching** - Fetching entire rows increases attack surface
@@ -169,6 +173,7 @@ class User:
 ### Recursion Depth Attack Protection
 
 **Traditional GraphQL vulnerability:**
+
 ```graphql
 # Malicious query - can crash traditional servers
 query {
@@ -189,12 +194,14 @@ query {
 ```
 
 **Traditional framework response:**
+
 - Each resolver level executes database queries
 - N+1 problem multiplies exponentially with depth
 - Requires query complexity middleware (can be bypassed)
 - DataLoader reduces but doesn't eliminate the problem
 
 **FraiseQL's built-in protection:**
+
 ```sql
 -- View defines MAXIMUM recursion depth
 CREATE VIEW v_user AS
@@ -219,6 +226,7 @@ FROM tb_user;
 ```
 
 **What happens when attacker tries deep query:**
+
 ```graphql
 query {
   user {
@@ -233,6 +241,7 @@ query {
 ```
 
 **Protection layers:**
+
 1. **Schema validation** - GraphQL rejects queries for non-existent fields
 2. **View structure** - Database defines allowed nesting depth
 3. **Hard limits** - LIMIT clauses prevent array size attacks
@@ -389,16 +398,16 @@ class CreateUser:
 ### Complete CRUD API in 20 Lines
 
 ```python
+from uuid import UUID
 from fraiseql import type, query, mutation, input, success
 from fraiseql.fastapi import create_fraiseql_app
-from typing import Optional
 
 # Step 1: Map PostgreSQL view to GraphQL type
 @type(sql_source="v_note", jsonb_column="data")
 class Note:
-    id: int
+    id: UUID
     title: str
-    content: Optional[str]
+    content: str | None
 
 # Step 2: Define queries
 @query
@@ -406,14 +415,14 @@ def notes() -> list[Note]:
     pass  # FraiseQL handles it
 
 @query
-def note(id: int) -> Optional[Note]:
+def note(id: UUID) -> Note | None:
     pass  # FraiseQL handles it
 
 # Step 3: Define mutations
 @input
 class CreateNoteInput:
     title: str
-    content: Optional[str] = None
+    content: str | None = None
 
 @mutation
 class CreateNote:
@@ -604,6 +613,7 @@ Pre-built dashboards in `grafana/` query PostgreSQL directly:
 ```
 
 **Unified path for all queries:**
+
 1. **GraphQL query** arrives at FastAPI
 2. **Python resolver** calls PostgreSQL view/function
 3. **PostgreSQL** returns pre-composed JSONB
@@ -628,10 +638,12 @@ FraiseQL implements Command Query Responsibility Segregation:
 ```
 
 **Queries use views:**
+
 - `v_*` - Real-time views with JSONB computation
 - `tv_*` - Denormalized tables with generated JSONB columns (for complex queries)
 
 **Mutations use functions:**
+
 - `fn_*` - Business logic, validation, side effects
 - `tb_*` - Base tables for data storage
 
@@ -732,6 +744,7 @@ config = FraiseQLConfig(
 ```
 
 **How it works:**
+
 1. Client sends query hash instead of full query
 2. FraiseQL checks storage backend for cached query
 3. PostgreSQL → Rust → HTTP (same fast path)
@@ -771,9 +784,11 @@ query {
 ```
 
 **Supported specialized types:**
+
 - **Network:** IPv4, IPv6, CIDR, MACAddress with subnet operations
 - **Hierarchical:** LTree with ancestor/descendant queries
 - **Temporal:** DateRange with overlap/containment
+- **Geospatial:** Coordinate (latitude/longitude) with distance calculations
 - **Standard:** EmailAddress, UUID, JSON with validation
 - **Nested Arrays:** Complete AND/OR/NOT logical operators
 
@@ -990,6 +1005,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 **New to FraiseQL?** → **[First Hour Guide](docs/FIRST_HOUR.md)** • [Project Structure](docs/strategic/PROJECT_STRUCTURE.md)
 
 **Migration Guides:**
+
 - [v1 to v2 Migration](./docs/migration/v1-to-v2.md) - Unified Rust-first architecture
 - [Monitoring Migration](./docs/production/monitoring.md) - From Redis and Sentry
 
