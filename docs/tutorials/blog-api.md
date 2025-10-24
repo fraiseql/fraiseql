@@ -178,7 +178,6 @@ FROM tb_post p;
 from datetime import datetime
 from uuid import UUID
 from fraiseql import type
-from typing import List
 
 @type(sql_source="v_user")
 class User:
@@ -196,7 +195,7 @@ class Comment:
     created_at: datetime
     author: User
     post: "Post"
-    replies: List["Comment"]
+    replies: list["Comment"]
 
 @type(sql_source="v_post")
 class Post:
@@ -205,12 +204,12 @@ class Post:
     slug: str
     content: str
     excerpt: str | None
-    tags: List[str]
+    tags: list[str]
     is_published: bool
     published_at: datetime | None
     created_at: datetime
     author: User
-    comments: List[Comment]
+    comments: list[Comment]
 ```
 
 ## Queries
@@ -218,19 +217,18 @@ class Post:
 ```python
 from uuid import UUID
 from fraiseql import query
-from typing import List, Optional
 
 @query
-def get_post(id: UUID) -> Optional[Post]:
+def get_post(id: UUID) -> Post | None:
     """Get single post with all nested data."""
     pass  # Implementation handled by framework
 
 @query
 def get_posts(
-    is_published: Optional[bool] = None,
+    is_published: bool | None = None,
     limit: int = 20,
     offset: int = 0
-) -> List[Post]:
+) -> list[Post]:
     """List posts with filtering and pagination."""
     pass  # Implementation handled by framework
 ```
@@ -323,21 +321,20 @@ $$ LANGUAGE plpgsql;
 
 ```python
 from fraiseql import mutation, input
-from typing import List, Optional
 
 @input
 class CreatePostInput:
     title: str
     content: str
-    excerpt: Optional[str] = None
-    tags: Optional[List[str]] = None
+    excerpt: str | None = None
+    tags: list[str] | None = None
     is_published: bool = False
 
 @input
 class CreateCommentInput:
     post_id: UUID
     content: str
-    parent_id: Optional[UUID] = None
+    parent_id: UUID | None = None
 
 @mutation
 def create_post(input: CreatePostInput) -> Post:

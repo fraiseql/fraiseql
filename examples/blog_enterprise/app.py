@@ -12,7 +12,6 @@ An enterprise-grade blog application demonstrating:
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any, Dict
 from uuid import UUID
 
 import psycopg
@@ -78,7 +77,7 @@ def _create_base_app() -> FastAPI:
     """Create the base enterprise blog FastAPI application."""
 
     # Enterprise context getter with multi-tenancy
-    async def get_enterprise_context(request: Request) -> Dict[str, Any]:
+    async def get_enterprise_context(request: Request) -> dict[str, Any]:
         """Provide enterprise context for GraphQL operations."""
         # Import here to avoid circular imports
         from fraiseql.fastapi.dependencies import get_db

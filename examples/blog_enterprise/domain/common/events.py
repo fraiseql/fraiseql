@@ -6,7 +6,6 @@ for decoupling between bounded contexts.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from .base_classes import DomainEvent
@@ -41,7 +40,7 @@ class PostUnpublishedEvent(DomainEvent):
 
     post_id: UUID
     organization_id: UUID
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @dataclass
@@ -51,7 +50,7 @@ class PostDeletedEvent(DomainEvent):
     post_id: UUID
     organization_id: UUID
     deleted_by: UUID
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @dataclass
@@ -63,7 +62,7 @@ class CommentAddedEvent(DomainEvent):
     organization_id: UUID
     author_id: UUID
     content: str
-    parent_id: Optional[UUID] = None
+    parent_id: UUID | None = None
 
 
 @dataclass
@@ -84,7 +83,7 @@ class CommentRejectedEvent(DomainEvent):
     post_id: UUID
     organization_id: UUID
     rejected_by: UUID
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 # User Domain Events
@@ -105,7 +104,7 @@ class UserActivatedEvent(DomainEvent):
 
     user_id: UUID
     organization_id: UUID
-    activated_by: Optional[UUID] = None
+    activated_by: UUID | None = None
 
 
 @dataclass
@@ -115,7 +114,7 @@ class UserDeactivatedEvent(DomainEvent):
     user_id: UUID
     organization_id: UUID
     deactivated_by: UUID
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @dataclass
@@ -168,8 +167,8 @@ class CategoryCreatedEvent(DomainEvent):
     category_id: UUID
     organization_id: UUID
     name: str
-    parent_id: Optional[UUID] = None
-    created_by: Optional[UUID] = None
+    parent_id: UUID | None = None
+    created_by: UUID | None = None
 
 
 # Analytics Events
@@ -179,9 +178,9 @@ class PostViewedEvent(DomainEvent):
 
     post_id: UUID
     organization_id: UUID
-    viewer_id: Optional[UUID] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
+    viewer_id: UUID | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
 
 
 @dataclass
@@ -200,5 +199,5 @@ class PostSharedEvent(DomainEvent):
     post_id: UUID
     organization_id: UUID
     platform: str  # social media platform or method
-    user_id: Optional[UUID] = None
-    referrer: Optional[str] = None
+    user_id: UUID | None = None
+    referrer: str | None = None

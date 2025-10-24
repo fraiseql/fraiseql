@@ -2,6 +2,21 @@
 
 Welcome! You've just completed the 5-minute quickstart and have a working GraphQL API. Now let's spend the next 55 minutes building your skills progressively. By the end, you'll understand how to extend FraiseQL applications and implement production patterns.
 
+## Prerequisites
+
+Before starting, ensure you have the necessary imports in your `app.py`:
+
+```python
+from uuid import UUID
+from datetime import datetime
+
+import fraiseql
+from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.sql import create_graphql_where_input
+```
+
+**Note**: This tutorial uses Python 3.10+ type syntax (`list[str]`, `str | None`) instead of the older `typing` module imports.
+
 ## Minute 0-5: Quickstart Recap
 
 **[Complete the 5-minute quickstart first](quickstart.md)**
@@ -49,29 +64,37 @@ First, add a tags column to your note table:
 -- Add tags column to tb_note
 ALTER TABLE tb_note ADD COLUMN tags TEXT[] DEFAULT '{}';
 
--- Update sample data
+-- Update sample data with tags
 UPDATE tb_note SET tags = ARRAY['work', 'urgent'] WHERE title = 'First Note';
 UPDATE tb_note SET tags = ARRAY['personal', 'ideas'] WHERE title = 'Second Note';
+
+-- Add a note with 'work' in the title for filter examples
+INSERT INTO tb_note (title, content, tags)
+VALUES ('Work Meeting Notes', 'Discussed Q4 project timeline', ARRAY['work', 'meeting']);
 ```
 
 ### Step 2: Update the View
 
-Modify `v_note` to include tags:
+Modify `v_note` to include tags. **Important**: Views must include both an `id` column AND a `data` column containing the JSONB object:
 
 ```sql
 -- Drop and recreate view with tags
 DROP VIEW v_note;
 CREATE VIEW v_note AS
 SELECT
-    id,
+    id,  -- Required: FraiseQL queries filter by this column
     jsonb_build_object(
         'id', id,
         'title', title,
         'content', content,
         'tags', tags
-    ) as data
+    ) as data  -- Required: Contains the GraphQL response data
 FROM tb_note;
 ```
+
+**Why both columns?** The `id` column enables efficient WHERE clause filtering (`WHERE id = $1`), while the `data` column contains the complete JSONB object returned to GraphQL.
+
+**After making schema changes, restart your server** to pick up the new view definition.
 
 ### Step 3: Update Python Type
 
@@ -79,8 +102,6 @@ Add tags to your Note type:
 
 ```python
 # app.py
-import fraiseql
-
 @fraiseql.type
 class Note:
     id: UUID
@@ -95,9 +116,6 @@ FraiseQL provides automatic Where input type generation for powerful, type-safe 
 
 ```python
 # app.py
-import fraiseql
-from fraiseql.sql import create_graphql_where_input
-
 # Generate automatic Where input type for Note
 NoteWhereInput = create_graphql_where_input(Note)
 
@@ -109,9 +127,11 @@ async def notes(info, where: NoteWhereInput | None = None) -> list[Note]:
     return await db.find("v_note", where=where)
 ```
 
+**Restart your server** to register the updated query with where filtering.
+
 ### Step 5: Test Your Changes
 
-Restart your server and test the powerful filtering capabilities:
+Test the powerful filtering capabilities:
 
 ```graphql
 query {
@@ -165,35 +185,35 @@ and many more specialized operators for specific Postgresql types (CIDR, LTREE e
 
 **Challenge**: Add the ability to delete notes.
 
-### Step 1: Create Delete Function
+### Step 1: Create Delete Function (Basic Pattern)
 
-Create a PostgreSQL function for deletion:
+Create a PostgreSQL function for deletion that returns a simple boolean:
 
 ```sql
--- Create delete function
+-- Create basic delete function (returns boolean)
 CREATE OR REPLACE FUNCTION fn_delete_note(note_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
     DELETE FROM tb_note WHERE id = note_id;
-    RETURN FOUND;
+    RETURN FOUND;  -- Returns true if a row was deleted, false otherwise
 END;
 $$ LANGUAGE plpgsql;
 ```
 
-### Step 2: Add Python Mutation
+### Step 2: Add Python Mutation (Basic Pattern)
 
-Add the mutation to your app:
+Add a simple mutation to your app:
 
 ```python
 # app.py
-from fraiseql import mutation
-
-@mutation
+@fraiseql.mutation
 async def delete_note(info, id: UUID) -> bool:
-    """Delete a note by ID."""
+    """Delete a note by ID (returns true if deleted, false if not found)."""
     db = info.context["db"]
     return await db.fetchval("SELECT fn_delete_note($1)", id)
 ```
+
+**Restart your server** to register the new mutation.
 
 ### Step 3: Test the Mutation
 
@@ -205,12 +225,14 @@ mutation {
 }
 ```
 
-### Step 4: Handle Errors
+### Step 4: Improve Error Handling (Production Pattern)
 
-Add error handling for non-existent notes:
+The boolean return is simple but doesn't provide error details. Let's improve this with structured success/failure types.
+
+**First, update the database function** to return JSONB with error information:
 
 ```sql
--- Function that returns JSONB directly
+-- Improved function that returns JSONB with error details
 CREATE OR REPLACE FUNCTION fn_delete_note(note_id UUID)
 RETURNS JSONB AS $$
 DECLARE
@@ -220,33 +242,57 @@ BEGIN
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
 
     IF deleted_count = 0 THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Note not found');
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Note not found',
+            'code', 'NOT_FOUND'
+        );
     ELSE
-        RETURN jsonb_build_object('success', true);
+        RETURN jsonb_build_object(
+            'success', true,
+            'message', 'Note deleted successfully'
+        );
     END IF;
 END;
 $$ LANGUAGE plpgsql;
 ```
 
-Update your Python type:
+**Next, define success and failure types** using FraiseQL decorators:
 
 ```python
 # app.py
-from fraiseql import mutation
-from typing import Optional
+@fraiseql.success
+class DeleteNoteSuccess:
+    """Successful deletion response."""
+    message: str = "Note deleted successfully"
 
-class DeleteResult:
-    success: bool
-    error: str | None
+@fraiseql.failure
+class DeleteNoteError:
+    """Deletion error response."""
+    message: str
+    code: str = "NOT_FOUND"
 
-@mutation
-async def delete_note(info, id: UUID) -> DeleteResult:
-    """Delete a note by ID."""
+@fraiseql.mutation
+async def delete_note(info, id: UUID) -> DeleteNoteSuccess | DeleteNoteError:
+    """Delete a note by ID with detailed error handling."""
     db = info.context["db"]
     # Call function that returns JSONB directly from database
-    # FraiseQL automatically maps JSONB to DeleteResult type
-    return await db.fetchval("SELECT fn_delete_note($1)", id)
+    # FraiseQL automatically maps JSONB to the appropriate type
+    result = await db.fetchval("SELECT fn_delete_note($1)", id)
+
+    # Return the appropriate type based on success field
+    if result.get("success"):
+        return DeleteNoteSuccess(message=result["message"])
+    else:
+        return DeleteNoteError(
+            message=result["message"],
+            code=result.get("code", "UNKNOWN_ERROR")
+        )
 ```
+
+**Why this pattern?** Using `@fraiseql.success` and `@fraiseql.failure` decorators creates a proper GraphQL union type, allowing clients to handle success and error cases explicitly in their queries.
+
+**Restart your server** to register the updated mutation with new types.
 
 ✅ **Checkpoint**: Can you delete a note and handle the case where the note doesn't exist?
 
@@ -291,6 +337,7 @@ CREATE TRIGGER tr_note_updated_at
 DROP VIEW v_note;
 CREATE VIEW v_note AS
 SELECT
+    id,  -- Required: enables WHERE clause filtering
     jsonb_build_object(
         'id', id,
         'title', title,
@@ -298,17 +345,16 @@ SELECT
         'tags', tags,
         'createdAt', created_at,
         'updatedAt', updated_at
-    ) as data
+    ) as data  -- Required: contains GraphQL response
 FROM tb_note;
 ```
+
+**Restart your server** after updating the view.
 
 ### Step 4: Update Python Type
 
 ```python
 # app.py
-import fraiseql
-from datetime import datetime
-
 @fraiseql.type(sql_source="v_note")
 class Note:
     id: UUID
@@ -318,6 +364,15 @@ class Note:
     created_at: datetime  # Add this
     updated_at: datetime  # Add this
 ```
+
+**What is `sql_source`?** This parameter tells FraiseQL which database view to query. It's optional when the view name matches the class name (e.g., class `Note` → view `v_note`), but becomes required if:
+- The view name doesn't follow the `v_{lowercase_class_name}` pattern
+- You want to explicitly document the data source
+- You're using a table view (`tv_*`) instead of a regular view
+
+In this example, we could omit `sql_source` since FraiseQL automatically infers `v_note` from the class name `Note`. However, being explicit makes the code more readable and maintainable.
+
+**Restart your server** to register the updated Note type with timestamps.
 
 ### Step 5: Test Automatic Updates
 

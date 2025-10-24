@@ -118,11 +118,10 @@ users = await repo.find("users_view", is_active=True)
 Add proper type hints:
 
 ```python
-from typing import List
 from fraiseql import type, query, mutation, input, field, Info
 
 @query
-def get_users(info: Info, limit: int = 10) -> List[User]:
+def get_users(info: Info, limit: int = 10) -> list[User]:
     return info.context.repo.find("users_view", limit=limit)
 ```
 
@@ -187,7 +186,7 @@ from fraiseql import type, query, mutation, input, field, dataloader
 
 @field
 @dataloader
-async def posts(user: User, info: Info) -> List[Post]:
+async def posts(user: User, info: Info) -> list[Post]:
     return await info.context.repo.find("posts_view", user_id=user.id)
 ```
 
@@ -271,13 +270,12 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```python
 from fraiseql import type, query, mutation, input, field
 
-from typing import Optional
 from datetime import datetime
 
 @type
 class User:
     created_at: datetime  # Not 'date'
-    middle_name: Optional[str] = None  # Explicit optional
+    middle_name: str | None = None  # Explicit optional
 ```
 
 ### Issue: Query Performance

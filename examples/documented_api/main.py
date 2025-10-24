@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
 
 from fraiseql import FraiseQL
 
@@ -103,7 +102,7 @@ class Product:
     When this reaches 0, in_stock automatically becomes False.
     """
 
-    average_rating: Optional[float]
+    average_rating: float | None
     """Average customer rating (1.0 to 5.0 stars).
 
     Calculated from all customer reviews.
@@ -218,11 +217,11 @@ class Customer:
 @app.query
 async def products(
     info,
-    category: Optional[ProductCategory] = None,
+    category: ProductCategory | None = None,
     in_stock_only: bool = False,
-    min_price: Optional[Decimal] = None,
-    max_price: Optional[Decimal] = None,
-    min_rating: Optional[float] = None,
+    min_price: Decimal | None = None,
+    max_price: Decimal | None = None,
+    min_rating: float | None = None,
     limit: int = 20,
     offset: int = 0
 ) -> list[Product]:
@@ -280,7 +279,7 @@ async def products(
 
 
 @app.query
-async def product(info, id: int) -> Optional[Product]:
+async def product(info, id: int) -> Product | None:
     """Get a single product by ID.
 
     Returns detailed product information including all fields.
@@ -301,7 +300,7 @@ async def reviews(
     info,
     product_id: int,
     verified_only: bool = False,
-    min_rating: Optional[int] = None,
+    min_rating: int | None = None,
     limit: int = 10,
     offset: int = 0
 ) -> list[Review]:

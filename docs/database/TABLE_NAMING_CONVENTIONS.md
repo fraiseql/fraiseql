@@ -1,7 +1,6 @@
 # FraiseQL Table Naming Conventions: tb_, v_, tv_ Pattern
 
-**Date**: 2025-10-16
-**Context**: Understanding and optimizing the table/view naming pattern for Rust-first architecture
+Understanding and optimizing the table/view naming pattern for Rust-first architecture
 
 ---
 
@@ -12,7 +11,7 @@ FraiseQL uses a **prefix-based naming pattern** to indicate the type and purpose
 ```
 tb_*  → Base Tables (normalized, write-optimized)
 v_*   → Views (standard SQL views, read-optimized)
-tv_*  → Transform Views (actually TABLES with generated JSONB)
+tv_*  → Transform Tables (regular tables with explicit sync)
 mv_*  → Materialized Views (pre-computed aggregations)
 ```
 
@@ -166,25 +165,32 @@ class User:
 
 ---
 
-### Pattern 3: `tv_*` - Transform Views (Actually TABLES!)
+### Pattern 3: `tv_*` - Transform Tables (Regular Tables with Explicit Sync)
 
 **Purpose**: Pre-computed JSONB data for instant GraphQL responses
 
 **Example**:
 ```sql
--- Transform "view" (actually a TABLE with generated column)
+-- Transform table (regular table, NOT generated column)
 CREATE TABLE tv_user (
     id UUID PRIMARY KEY,  -- GraphQL uses UUID, not internal pk_user
+    data JSONB NOT NULL,  -- Regular column, manually maintained
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-    -- Generated JSONB column (auto-updates on write)
-    data JSONB GENERATED ALWAYS AS (
+-- Sync function (explicit - CRITICAL!)
+CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS $$
+BEGIN
+    INSERT INTO tv_user (id, data)
+    SELECT
+        u.id,
         jsonb_build_object(
-            'id', id,
-            'first_name', (SELECT first_name FROM tb_user WHERE tb_user.id = tv_user.id),
-            'last_name', (SELECT last_name FROM tb_user WHERE tb_user.id = tv_user.id),
-            'email', (SELECT email FROM tb_user WHERE tb_user.id = tv_user.id),
-            'created_at', (SELECT created_at FROM tb_user WHERE tb_user.id = tv_user.id),
-            'user_posts', (
+            'id', u.id,
+            'first_name', u.first_name,
+            'last_name', u.last_name,
+            'email', u.email,
+            'created_at', u.created_at,
+            'user_posts', COALESCE((
                 SELECT jsonb_agg(
                     jsonb_build_object(
                         'id', p.id,
@@ -195,26 +201,32 @@ CREATE TABLE tv_user (
                     ORDER BY p.created_at DESC
                 )
                 FROM tb_post p
-                WHERE p.user_id = tv_user.id
+                WHERE p.user_id = u.id
                 LIMIT 10
-            )
+            ), '[]'::jsonb)
         )
-    ) STORED
-);
+    FROM tb_user u
+    WHERE u.id = p_id
+    ON CONFLICT (id) DO UPDATE SET
+        data = EXCLUDED.data,
+        updated_at = NOW();
+END;
+$$ LANGUAGE plpgsql;
 
 -- Populate from base table
 INSERT INTO tv_user (id) SELECT id FROM tb_user;
+UPDATE tv_user SET data = (SELECT data FROM v_user WHERE v_user.id = tv_user.id);
 
--- Triggers to keep in sync
-CREATE OR REPLACE FUNCTION sync_tv_user()
+-- Triggers to keep in sync (call explicit sync function)
+CREATE OR REPLACE FUNCTION trg_sync_tv_user()
 RETURNS TRIGGER AS $$
 BEGIN
     -- On tb_user changes
     IF TG_OP = 'INSERT' THEN
         INSERT INTO tv_user (id) VALUES (NEW.id);
+        PERFORM fn_sync_tv_user(NEW.id);
     ELSIF TG_OP = 'UPDATE' THEN
-        -- Generated column auto-updates
-        UPDATE tv_user SET id = NEW.id WHERE id = NEW.id;
+        PERFORM fn_sync_tv_user(NEW.id);
     ELSIF TG_OP = 'DELETE' THEN
         DELETE FROM tv_user WHERE id = OLD.id;
     END IF;
@@ -224,32 +236,32 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_sync_tv_user
 AFTER INSERT OR UPDATE OR DELETE ON tb_user
-FOR EACH ROW EXECUTE FUNCTION sync_tv_user();
+FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user();
 
 -- Also sync when posts change
-CREATE OR REPLACE FUNCTION sync_tv_user_on_post()
+CREATE OR REPLACE FUNCTION trg_sync_tv_user_on_post()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Update user's tv_user when their posts change
-    UPDATE tv_user SET id = id WHERE id = COALESCE(NEW.user_id, OLD.user_id);
+    PERFORM fn_sync_tv_user(COALESCE(NEW.user_id, OLD.user_id));
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_sync_tv_user_on_post
 AFTER INSERT OR UPDATE OR DELETE ON tb_post
-FOR EACH ROW EXECUTE FUNCTION sync_tv_user_on_post();
+FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user_on_post();
 ```
 
 **Characteristics**:
 - ✅ **It's a TABLE** (not a view!)
-- ✅ Generated column (auto-updates)
-- ✅ STORED (pre-computed, instant reads)
+- ✅ Regular table with explicit sync (not generated column)
+- ✅ Pre-computed JSONB (instant reads)
 - ✅ JSONB format (ready for Rust transform)
 - ✅ Embedded relations (no JOINs needed)
 - ✅ Zero N+1 queries
 - ❌ Storage overhead (1.5-2x)
-- ❌ Write amplification (update on every change)
+- ❌ Write amplification (sync on every change)
 
 **Performance**:
 ```sql
@@ -263,11 +275,14 @@ SELECT * FROM v_user WHERE id = 1;
 -- Speedup: 100-200x!
 ```
 
+**Note**: tv_* tables require explicit sync via `fn_sync_tv_*()` functions in mutations. This is not automatic - it's a deliberate design choice for performance and control.
+
 **When to Use**:
 - ✅ Read-heavy workloads (10:1+ read:write)
 - ✅ GraphQL APIs (perfect fit!)
 - ✅ Predictable query patterns
 - ✅ Relations with limited cardinality (<100 items)
+- ✅ When you need explicit control over sync timing
 
 **GraphQL Mapping** (optimal):
 ```python
@@ -287,6 +302,18 @@ async def user(info, id: int) -> User:
     # 2. Rust transform (0.5ms)
     # Total: 0.55ms (vs 5-10ms with v_user!)
     repo = Repository(info.context["db"], info.context)
+    return await repo.find_one("tv_user", id=id)
+
+@mutation
+async def update_user(info, id: int, input: UpdateUserInput) -> User:
+    # Update base table
+    repo = Repository(info.context["db"], info.context)
+    await repo.update("tb_user", input, id=id)
+
+    # CRITICAL: Explicitly sync tv_user
+    await repo.call_function("fn_sync_tv_user", {"p_id": id})
+
+    # Return updated data
     return await repo.find_one("tv_user", id=id)
 ```
 
@@ -396,28 +423,34 @@ CREATE TABLE tb_post (...);
 -- Transform tables (tv_*)
 CREATE TABLE tv_user (
     id UUID PRIMARY KEY,  -- Exposed to GraphQL
-    data JSONB GENERATED ALWAYS AS (...) STORED
+    data JSONB NOT NULL   -- Regular column, explicitly synced
 );
 
 CREATE TABLE tv_post (
     id UUID PRIMARY KEY,  -- Exposed to GraphQL
-    data JSONB GENERATED ALWAYS AS (...) STORED
+    data JSONB NOT NULL   -- Regular column, explicitly synced
 );
 
+-- Sync functions (explicit)
+CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
+CREATE FUNCTION fn_sync_tv_post(p_id UUID) RETURNS VOID AS ...;
+
 -- Sync triggers
-CREATE TRIGGER trg_sync_tv_user ...;
-CREATE TRIGGER trg_sync_tv_post ...;
+CREATE TRIGGER trg_sync_tv_user AFTER INSERT OR UPDATE OR DELETE ON tb_user
+    FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user();
 ```
 
 **Benefits**:
 - ✅ Simple (only 2 layers)
-- ✅ Always up-to-date (triggers)
+- ✅ Always up-to-date (explicit sync in mutations)
 - ✅ Fast reads (0.05-0.5ms)
 - ✅ Works with Rust transformer
+- ✅ Explicit control over sync timing
 
 **Drawbacks**:
-- ❌ Write amplification (update tv_* on every change)
+- ❌ Must call sync functions in mutations (not automatic)
 - ❌ Storage overhead (1.5-2x)
+- ❌ Write amplification (sync on every change)
 
 **When to Use**: 90% of GraphQL APIs
 
@@ -452,7 +485,8 @@ CREATE TABLE tb_user (...);
 CREATE TABLE tb_post (...);
 
 -- Transform tables (real-time queries)
-CREATE TABLE tv_user (id INT PRIMARY KEY, data JSONB GENERATED ALWAYS AS (...) STORED);
+CREATE TABLE tv_user (id UUID PRIMARY KEY, data JSONB NOT NULL);
+CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 
 -- Materialized views (analytics)
 CREATE MATERIALIZED VIEW mv_dashboard AS ...;
@@ -565,8 +599,10 @@ CREATE TABLE tb_user (...);
 CREATE TABLE tb_post (...);
 
 -- Transform tables (GraphQL reads)
-CREATE TABLE tv_user (id INT PRIMARY KEY, data JSONB GENERATED ALWAYS AS (...) STORED);
-CREATE TABLE tv_post (id INT PRIMARY KEY, data JSONB GENERATED ALWAYS AS (...) STORED);
+CREATE TABLE tv_user (id UUID PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE tv_post (id UUID PRIMARY KEY, data JSONB NOT NULL);
+CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
+CREATE FUNCTION fn_sync_tv_post(p_id UUID) RETURNS VOID AS ...;
 
 -- Materialized views (analytics)
 CREATE MATERIALIZED VIEW mv_dashboard AS ...;
@@ -649,14 +685,17 @@ mv_* (optional, for analytics)
 
 ## 🎯 Key Takeaways
 
-### 1. `tv_*` Are Tables, Not Views!
+### 1. `tv_*` Are Tables with Explicit Sync!
 
-**Despite the name**, `tv_*` (transform views) are actually **TABLES** with generated JSONB columns:
+**Despite the name**, `tv_*` (transform tables) are **regular TABLES** that require explicit sync:
 ```sql
 CREATE TABLE tv_user (  -- ← It's a TABLE!
-    id INT PRIMARY KEY,
-    data JSONB GENERATED ALWAYS AS (...) STORED
+    id UUID PRIMARY KEY,
+    data JSONB NOT NULL  -- ← Regular column, NOT generated
 );
+
+-- CRITICAL: Must call sync function in mutations
+CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
 ```
 
 ### 2. `tv_*` Pattern is Optimal for GraphQL
@@ -665,7 +704,7 @@ CREATE TABLE tv_user (  -- ← It's a TABLE!
 - ✅ Pre-computed JSONB (instant reads)
 - ✅ Embedded relations (no JOINs)
 - ✅ Perfect for Rust transformer
-- ✅ Always up-to-date (generated column)
+- ✅ Always up-to-date (explicit sync in mutations)
 
 **Performance**: 0.05-0.5ms (100-200x faster than views/JOINs)
 
@@ -716,18 +755,17 @@ CREATE TABLE tb_post (
 -- Transform tables (GraphQL queries)
 CREATE TABLE tv_user (
     id UUID PRIMARY KEY,  -- Exposed to GraphQL
-    data JSONB GENERATED ALWAYS AS (
-        jsonb_build_object(
-            'id', id,
-            'firstName', (SELECT first_name FROM tb_user WHERE tb_user.id = tv_user.id),
-            'userPosts', (SELECT jsonb_agg(...) FROM tb_post WHERE user_id = tv_user.id LIMIT 10)
-        )
-    ) STORED
+    data JSONB NOT NULL   -- Regular column, explicitly synced
 );
 
--- Sync triggers
-CREATE TRIGGER trg_sync_tv_user AFTER INSERT OR UPDATE OR DELETE ON tb_user ...;
-CREATE TRIGGER trg_sync_tv_user_on_post AFTER INSERT OR UPDATE OR DELETE ON tb_post ...;
+-- Sync functions (CRITICAL - explicit sync)
+CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS ...;
+
+-- Sync triggers (call explicit sync functions)
+CREATE TRIGGER trg_sync_tv_user AFTER INSERT OR UPDATE OR DELETE ON tb_user
+    FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user();
+CREATE TRIGGER trg_sync_tv_user_on_post AFTER INSERT OR UPDATE OR DELETE ON tb_post
+    FOR EACH ROW EXECUTE FUNCTION trg_sync_tv_user_on_post();
 
 -- Optional: Materialized views for dashboards
 CREATE MATERIALIZED VIEW mv_dashboard AS ...;
@@ -747,9 +785,9 @@ CREATE MATERIALIZED VIEW mv_dashboard AS ...;
 | **Production API** | `tb_*` + `tv_*` | `tb_user` (writes) + `tv_user` (reads) |
 | **With analytics** | `tb_*` + `tv_*` + `mv_*` | Add `mv_dashboard` for aggregations |
 
-**Key Insight**: The `tv_*` pattern (tables with generated JSONB) is **ideal for Rust-first FraiseQL**:
+**Key Insight**: The `tv_*` pattern (tables with explicit sync) is **ideal for Rust-first FraiseQL**:
 - 0.05-0.5ms reads
-- Always up-to-date
+- Always up-to-date (via explicit sync)
 - Perfect for Rust transformer
 - 100-200x faster than JOINs
 

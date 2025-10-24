@@ -4,8 +4,8 @@ Get started with FraiseQL in 5 minutes! This guide will walk you through creatin
 
 ## Prerequisites
 
-- Python 3.8+
-- PostgreSQL database
+- **Python 3.10+** (for modern type syntax: `list[Type]`, `Type | None`)
+- **PostgreSQL 13+**
 
 ## Step 1: Install FraiseQL
 

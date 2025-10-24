@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
 
 from fraiseql import FraiseQL
 
@@ -48,7 +47,7 @@ class Book:
     genres: list[str]
     in_stock: bool
     language: str
-    rating: Optional[float]
+    rating: float | None
     created_at: datetime
 
 
@@ -109,8 +108,8 @@ async def books_by_title(info, search: str, case_sensitive: bool = False) -> lis
 @app.query
 async def books_by_price(
     info,
-    min_price: Optional[Decimal] = None,
-    max_price: Optional[Decimal] = None,
+    min_price: Decimal | None = None,
+    max_price: Decimal | None = None,
 ) -> list[Book]:
     """Filter books by price range using numeric operators.
 
@@ -291,14 +290,14 @@ async def members_by_tier(info, tier: MembershipTier) -> list[Member]:
 @app.query
 async def search_books(
     info,
-    title_search: Optional[str] = None,
-    author: Optional[str] = None,
-    min_price: Optional[Decimal] = None,
-    max_price: Optional[Decimal] = None,
-    genres: Optional[list[str]] = None,
-    min_rating: Optional[float] = None,
-    in_stock: Optional[bool] = None,
-    language: Optional[str] = None,
+    title_search: str | None = None,
+    author: str | None = None,
+    min_price: Decimal | None = None,
+    max_price: Decimal | None = None,
+    genres: list[str] | None = None,
+    min_rating: float | None = None,
+    in_stock: bool | None = None,
+    language: str | None = None,
 ) -> list[Book]:
     """Combined filtering with multiple criteria.
 

@@ -6,6 +6,11 @@ Comprehensive guide to implementing multi-tenant architectures in FraiseQL with 
 
 Multi-tenancy allows a single application instance to serve multiple organizations (tenants) with complete data isolation and customizable behavior per tenant.
 
+**Prerequisites**: Before implementing multi-tenancy, ensure you understand:
+- [CQRS Pattern](../core/concepts-glossary.md#cqrs-command-query-responsibility-segregation) - Foundation for tenant isolation
+- [Security Basics](../production/security.md) - RLS and access control fundamentals
+- [Context Propagation](../advanced/where_input_types.md) - Dynamic filtering patterns
+
 **Key Strategies:**
 - Row-level security (RLS) with tenant_id filtering
 - Database per tenant

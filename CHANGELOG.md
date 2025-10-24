@@ -9,6 +9,177 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No unreleased changes at this time._
 
+## [1.0.1] - 2025-10-24
+
+### 🚀 Documentation & Deployment Enhancement Release
+
+FraiseQL v1.0.1 builds on the rock-solid v1.0.0 foundation with comprehensive production deployment templates, enhanced documentation structure, and significant improvements to user experience.
+
+### 🎯 Release Highlights
+
+**Production-Ready Deployment Templates**
+- ✅ Complete Docker Compose production setup with 5 services
+- ✅ Kubernetes manifests with auto-scaling and health checks
+- ✅ Production checklist covering security, performance, and infrastructure
+- ✅ Environment configuration templates and best practices
+
+**Enhanced Documentation Discovery**
+- ✅ Feature matrix cataloging 40+ framework capabilities
+- ✅ Troubleshooting decision tree for faster issue resolution
+- ✅ Reproducible benchmark methodology with hardware specifications
+- ✅ 47% cleaner documentation structure (15 → 8 root files)
+
+**Professional Organization**
+- ✅ Historical documents properly archived with explanatory READMEs
+- ✅ Internal planning documents organized separately
+- ✅ Cross-referenced troubleshooting guides
+- ✅ Improved navigation and discoverability
+
+### 📦 What's New in v1.0.1
+
+#### Added
+
+**Production Deployment Infrastructure**
+- **Docker Compose Production Template** (`deployment/docker-compose.prod.yml`)
+  - FraiseQL application with 3 replicas and health checks
+  - PostgreSQL 16 with optimized configuration
+  - PgBouncer connection pooling (transaction mode, 20 connections)
+  - Grafana monitoring with pre-configured dashboards
+  - Nginx reverse proxy with SSL support
+  - Resource limits and restart policies
+  - Complete environment variable template (`.env.example`)
+
+- **Kubernetes Production Manifests** (`deployment/k8s/`)
+  - Application deployment with HPA (3-10 replicas based on CPU/memory)
+  - PostgreSQL StatefulSet with persistent storage (50GB)
+  - Service, Ingress with TLS (Let's Encrypt integration)
+  - Secrets and ConfigMap management
+  - Comprehensive health probes (liveness, readiness, startup)
+  - Production-grade resource requests and limits
+
+**Documentation Enhancements**
+- **Feature Discovery Index** (`docs/features/index.md`)
+  - Comprehensive matrix of 40+ FraiseQL capabilities
+  - Organized into 12 categories: Core, Database, Advanced Query, Performance, Security, Enterprise, Real-Time, Monitoring, Integration, Development Tools, Deployment
+  - Each feature includes status (Stable/Beta), documentation link, and working example
+  - Quick reference for discovering framework capabilities
+
+- **Troubleshooting Decision Tree** (`docs/TROUBLESHOOTING_DECISION_TREE.md`)
+  - 6 problem categories with diagnostic decision trees
+  - Installation & Setup, Database Connection, GraphQL Queries, Performance, Deployment, Authentication
+  - Step-by-step diagnosis and fixes for top 10 user issues
+  - Most common issues table with quick fixes
+
+- **Benchmark Methodology** (`docs/benchmarks/methodology.md`)
+  - Reproducible benchmarks with complete methodology
+  - JSON transformation speed: 7-10x faster (with reproduction steps)
+  - Full request latency: P95 8.5ms vs competitors (Strawberry 28.7ms, Hasura 14.2ms)
+  - N+1 query prevention: 1 query vs 101 (SQLAlchemy lazy loading)
+  - PostgreSQL vs Redis caching comparison
+  - Hardware specifications (AWS c6i.xlarge) and database configuration
+  - Benchmark limitations and fair comparison guidelines
+
+- **Archive & Internal Documentation READMEs**
+  - `docs/archive/README.md` - Explains historical documents with links to current docs
+  - `docs/internal/README.md` - Comprehensive guide to phase plans and audit reports
+
+#### Changed
+
+**Documentation Structure Improvements**
+- **Cleaner Root Directory**: Reduced root documentation files by 47% (15 → 8 files)
+  - Moved `nested-array-filtering.md` → `docs/advanced/nested-array-filtering.md` (better categorization)
+  - Moved `INTERACTIVE_EXAMPLES.md` → `docs/tutorials/INTERACTIVE_EXAMPLES.md` (proper location)
+  - Archived 5 historical/internal documents to `docs/archive/`:
+    - `fraiseql_enterprise_gap_analysis.md` (strategic analysis)
+    - `FAKE_DATA_GENERATOR_DESIGN.md` (design patterns)
+    - `TESTING_CHECKLIST.md` (internal QA)
+    - `ROADMAP.md` (historical roadmap)
+    - `GETTING_STARTED.md` (superseded by docs/README.md)
+
+- **Enhanced Cross-References**: Added navigation between troubleshooting guides
+  - `TROUBLESHOOTING.md` ↔ `TROUBLESHOOTING_DECISION_TREE.md`
+  - Clear separation: decision tree for diagnosis, detailed guide for solutions
+
+- **Updated Main Documentation**
+  - `README.md`: Added benchmark methodology links under Performance Guide
+  - `docs/README.md`: Added Feature Discovery section
+  - `docs/deployment/README.md`: Complete deployment template sections with production checklist
+
+#### Removed
+
+**Repository Cleanup**
+- Deleted 18 `.backup` files across `docs/` and `examples/` (cruft removal)
+- Removed `src/fraiseql/monitoring/schema_unpartitioned.sql.backup`
+- Cleaned up repository for professional appearance
+
+### 🎯 Impact
+
+**For Production Teams**
+- Complete deployment templates eliminate setup guesswork
+- Production checklist covers security, performance, infrastructure
+- Working Docker Compose and Kubernetes manifests tested and ready
+
+**For New Users**
+- Feature matrix enables quick capability discovery
+- Troubleshooting decision tree reduces time-to-resolution
+- Cleaner documentation structure improves first impression
+
+**For All Users**
+- Reproducible benchmarks build trust in performance claims
+- Better organized documentation improves findability
+- Professional repository structure
+
+### 📚 Documentation
+
+**Quick Start**
+- [5-Minute Quickstart](docs/quickstart.md)
+- [First Hour Guide](docs/FIRST_HOUR.md)
+- [Feature Matrix](docs/features/index.md)
+
+**Production Deployment**
+- [Deployment Guide](docs/deployment/README.md)
+- [Docker Compose Template](deployment/docker-compose.prod.yml)
+- [Kubernetes Manifests](deployment/k8s/)
+- [Production Checklist](docs/production/README.md#production-checklist)
+
+**Troubleshooting**
+- [Decision Tree](docs/TROUBLESHOOTING_DECISION_TREE.md) (diagnostic guide)
+- [Detailed Guide](docs/TROUBLESHOOTING.md) (error-specific solutions)
+
+**Performance**
+- [Benchmark Methodology](docs/benchmarks/methodology.md)
+- [Reproduction Guide](docs/benchmarks/methodology.md#reproduction-instructions)
+
+### 🔄 Upgrade from v1.0.0
+
+No code changes in v1.0.1 - this is a pure documentation and tooling release. No upgrade action required.
+
+```bash
+# Optional: Pull latest to get deployment templates
+git pull origin main
+
+# Or download templates directly
+curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.0.1/deployment/docker-compose.prod.yml
+```
+
+### 🏆 Why This Matters
+
+**v1.0.0** delivered a rock-solid, production-ready framework with 100% test pass rate and excellent performance.
+
+**v1.0.1** ensures teams can actually **deploy and operate** that framework in production with confidence:
+- No more "how do I deploy this?" questions
+- Clear troubleshooting paths
+- Discoverable features
+- Professional documentation structure
+
+This release completes the production readiness story: great code (v1.0.0) + great deployment experience (v1.0.1) = enterprise ready.
+
+### 🙏 Acknowledgments
+
+Documentation improvements benefit from community feedback. Thank you to early adopters who asked the questions that shaped these guides.
+
+---
+
 ## [1.0.0] - 2025-10-23
 
 ### 🎉 Major Release: FraiseQL v1.0.0

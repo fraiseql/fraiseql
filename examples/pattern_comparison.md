@@ -135,8 +135,8 @@ class CreateUserError:
     """Error response with clean patterns."""
     message: str
     errors: list[FraiseQLError] = []  # Native error arrays
-    field_errors: Optional[dict[str, str]] = None
-    validation_context: Optional[dict[str, Any]] = None
+    field_errors: dict[str, str] | None = None
+    validation_context: dict[str, Any] | None = None
 ```
 
 ### Validation Evolution
@@ -155,8 +155,8 @@ class CreateUserInput:
 class CreateUserInput:
     email: Annotated[str, Field(regex=r"^[^@]+@[^@]+\.[^@]+$")]
     name: Annotated[str, Field(min_length=2, max_length=100)]
-    _change_reason: Optional[str] = None
-    _expected_version: Optional[int] = None
+    _change_reason: str | None = None
+    _expected_version: int | None = None
 ```
 
 ### Database Function Evolution

@@ -38,7 +38,7 @@ Read queries use PostgreSQL views for optimal performance:
 from fraiseql import type, query, mutation, input, field
 
 @query
-def get_users(info: Info) -> List[User]:
+def get_users(info: Info) -> list[User]:
     # Automatically uses optimized view
     return info.context.repo.find("users_view")
 ```
@@ -57,7 +57,7 @@ from fraiseql import dataloader
 
 @field
 @dataloader
-async def posts(user: User, info: Info) -> List[Post]:
+async def posts(user: User, info: Info) -> list[Post]:
     # Automatically batched
     return await info.context.repo.find("posts_view", user_id=user.id)
 ```

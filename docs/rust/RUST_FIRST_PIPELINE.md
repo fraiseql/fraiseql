@@ -16,6 +16,10 @@ PostgreSQL JSONB (snake_case) → Rust Pipeline (0.5-5ms) → HTTP Response (cam
 - **Automatic** camelCase transformation and __typename injection
 - **Always active** - no configuration required
 
+**See Also:**
+- [Performance Benchmarks](../../benchmarks/) - Quantified performance improvements
+- [Blog API Example](../../examples/blog_api/) - Production Rust pipeline usage
+
 ---
 
 ## Architecture
@@ -259,7 +263,7 @@ The Rust pipeline handles all post-database operations:
 
 ## Python Integration: Minimal Glue Code
 
-### New: `src/fraiseql/core/rust_pipeline.py`
+### `src/fraiseql/core/rust_pipeline.py`
 
 ```python
 """Rust-first pipeline for PostgreSQL → HTTP response.
@@ -268,7 +272,6 @@ This module provides zero-copy path from database to HTTP by delegating
 ALL string operations to Rust after query execution.
 """
 
-from typing import Optional
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
@@ -302,7 +305,7 @@ async def execute_via_rust_pipeline(
     query: Composed | SQL,
     params: dict | None,
     field_name: str,
-    type_name: Optional[str],
+    type_name: str | None,
     is_list: bool = True,
 ) -> RustResponseBytes:
     """Execute query and build HTTP response entirely in Rust.

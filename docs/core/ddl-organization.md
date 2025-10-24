@@ -447,9 +447,9 @@ Initial (within 01_write/):
 
 Later add (within 01_write/):
 ├── 010_identity/
-├── 011_customer/                    # NEW: Added in the gap
+├── 011_customer/
 ├── 012_catalog/
-├── 013_pricing/                     # NEW: Added in the gap
+├── 013_pricing/
 └── 014_order/
 
 # Same numbering pattern in 02_read/ and 03_functions/

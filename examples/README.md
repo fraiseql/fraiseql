@@ -94,8 +94,8 @@ See **[INDEX.md](INDEX.md)** for complete details and setup instructions.
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.13+
-- PostgreSQL 14+
+- **Python 3.10+** (for modern type syntax: `list[Type]`, `Type | None`)
+- **PostgreSQL 13+**
 - Docker & Docker Compose (optional)
 
 ### Installation

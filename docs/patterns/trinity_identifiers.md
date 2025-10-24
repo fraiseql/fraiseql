@@ -14,7 +14,6 @@ Trinity Identifiers provide a consistent way to handle entity identification acr
 ```python
 from fraiseql import type, query, mutation, input, field
 from uuid import UUID
-from typing import Optional
 
 @type
 class Product:
@@ -26,7 +25,7 @@ class Product:
     public_id: str
 
     # External system ID (optional)
-    external_id: Optional[str] = None
+    external_id: str | None = None
 
     # Other fields
     name: str
@@ -85,7 +84,7 @@ from fraiseql import type, query, mutation, input, field
 def get_product_by_public_id(
     info: Info,
     public_id: str
-) -> Optional[Product]:
+) -> Product | None:
     """Get product by public ID (SKU)."""
     return info.context.repo.find_one(
         "products_view",
@@ -96,7 +95,7 @@ def get_product_by_public_id(
 def get_product_by_external_id(
     info: Info,
     external_id: str
-) -> Optional[Product]:
+) -> Product | None:
     """Get product by external system ID."""
     return info.context.repo.find_one(
         "products_view",
@@ -115,7 +114,7 @@ async def create_product(
     public_id: str,  # SKU or public identifier
     name: str,
     price: float,
-    external_id: Optional[str] = None
+    external_id: str | None = None
 ) -> Product:
     """Create product with Trinity identifiers."""
     product_data = {
@@ -194,9 +193,9 @@ from fraiseql import type, query, mutation, input, field
 @query
 def get_product(
     info: Info,
-    id: Optional[str] = None,
-    public_id: Optional[str] = None
-) -> Optional[Product]:
+    id: str | None = None,
+    public_id: str | None = None
+) -> Product | None:
     """Support both ID types during migration."""
     if public_id:
         return info.context.repo.find_one(
@@ -222,4 +221,5 @@ def get_product(
 
 - [Database Design](../architecture/)
 - [Security Best Practices](../../SECURITY.md)
+- [Blog Simple Example](../../examples/blog_simple/) - Complete trinity identifier implementation
 - [Examples](../../examples/)

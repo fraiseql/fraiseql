@@ -1,6 +1,12 @@
 # Troubleshooting Guide
 
-Common issues and solutions for FraiseQL beginners. Can't find your issue? Check the [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) or ask in [Discussions](https://github.com/fraiseql/fraiseql/discussions).
+Common issues and solutions for FraiseQL beginners.
+
+**💡 Quick Navigation:**
+- **[Troubleshooting Decision Tree](TROUBLESHOOTING_DECISION_TREE.md)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
+- **This guide** - Specific error messages and detailed solutions
+
+Can't find your issue? Check the [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) or ask in [Discussions](https://github.com/fraiseql/fraiseql/discussions).
 
 ## "View not found" error
 

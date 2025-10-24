@@ -7,7 +7,6 @@ for multi-tenant SaaS applications.
 """
 
 import hashlib
-from typing import Any, Dict, Optional
 
 from fraiseql import FraiseQLConfig, create_fraiseql_app
 from fraiseql.storage.backends.memory import MemoryAPQBackend
@@ -24,7 +23,7 @@ class APQBackendWithStats(MemoryAPQBackend):
             "total_requests": 0,
         }
 
-    def get_cached_response(self, hash_value: str, context: Optional[Dict[str, Any]] = None):
+    def get_cached_response(self, hash_value: str, context: dict[str, Any] | None = None):
         """Track cache hits/misses."""
         self._stats["total_requests"] += 1
         tenant_id = self.extract_tenant_id(context) if context else "global"
@@ -40,7 +39,7 @@ class APQBackendWithStats(MemoryAPQBackend):
 
         return response
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics per tenant."""
         return self._stats
 

@@ -26,7 +26,7 @@ class User:
     email: str
     age: int
     is_active: bool
-    tags: List[str]
+    tags: list[str]
     created_at: datetime
 ```
 
@@ -43,7 +43,7 @@ UserWhereInput = create_graphql_where_input(User)
 
 ```python
 @fraiseql.query
-async def users(info, where: UserWhereInput | None = None) -> List[User]:
+async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]
     return await db.find("users", where=where)
 ```
@@ -339,7 +339,7 @@ You can also create Where filters programmatically in your resolvers:
 
 ```python
 @fraiseql.query
-async def active_users_in_department(info, department: str) -> List[User]:
+async def active_users_in_department(info, department: str) -> list[User]:
     db = info.context["db"]
 
     # Create filter programmatically
@@ -351,7 +351,7 @@ async def active_users_in_department(info, department: str) -> List[User]:
     return await db.find("users", where=where_filter)
 
 @fraiseql.query
-async def users_by_age_range(info, min_age: int, max_age: int) -> List[User]:
+async def users_by_age_range(info, min_age: int, max_age: int) -> list[User]:
     db = info.context["db"]
 
     # Complex programmatic filter
@@ -372,7 +372,7 @@ Where input types can also be used for field resolvers to filter nested collecti
 
 ```python
 @fraiseql.field
-async def posts(user: User, info, where: PostWhereInput | None = None) -> List[Post]:
+async def posts(user: User, info, where: PostWhereInput | None = None) -> list[Post]:
     """Get posts for a user with optional filtering."""
     db = info.context["db"]
 
@@ -429,7 +429,7 @@ If you're migrating from manual query implementations:
 ```python
 # Before: Manual filtering
 @fraiseql.query
-async def users_by_status(info, status: str) -> List[User]:
+async def users_by_status(info, status: str) -> list[User]:
     db = info.context["db"]
     query = "SELECT * FROM users WHERE status = %s"
     result = await db.run(DatabaseQuery(query, [status]))
@@ -437,7 +437,7 @@ async def users_by_status(info, status: str) -> List[User]:
 
 # After: Where input filtering
 @fraiseql.query
-async def users(info, where: Optional[UserWhereInput] = None) -> List[User]:
+async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]
     return await db.find("users", where=where)
 

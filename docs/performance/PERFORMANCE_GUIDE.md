@@ -387,6 +387,13 @@ FraiseQL provides **excellent performance** for typical GraphQL applications wit
 
 **Focus on developer productivity first** - FraiseQL's Rust pipeline performance advantages compound with good application design.
 
+## Related Documentation
+
+- [Benchmarks](../benchmarks/) - Detailed performance benchmarks and methodology
+- [Rust Pipeline Architecture](../rust/RUST_FIRST_PIPELINE.md) - Technical details of the performance optimizations
+- [APQ Caching Guide](./apq-optimization-guide.md) - Automatic Persisted Queries optimization
+- [Caching Guide](./caching.md) - Application-level caching strategies
+
 ---
 
 *Performance Guide - Exclusive Rust Pipeline Architecture*

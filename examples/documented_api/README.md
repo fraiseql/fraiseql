@@ -174,10 +174,10 @@ type Product {
 @app.query
 async def products(
     info,
-    category: Optional[ProductCategory] = None,
+    category: ProductCategory | None = None,
     in_stock_only: bool = False,
-    min_price: Optional[Decimal] = None,
-    max_price: Optional[Decimal] = None,
+    min_price: Decimal | None = None,
+    max_price: Decimal | None = None,
     limit: int = 20
 ) -> list[Product]:
     """Query products with flexible filtering.
@@ -464,7 +464,7 @@ Must be between 1 and 5 inclusive.
 ### 4. Explain Null Behavior
 
 ```python
-average_rating: Optional[float]
+average_rating: float | None
 """Average customer rating (1.0 to 5.0 stars).
 
 Calculated from all customer reviews.
@@ -532,7 +532,7 @@ class Product:
 @app.query
 async def products(
     info,
-    category: Optional[ProductCategory] = None,
+    category: ProductCategory | None = None,
     in_stock_only: bool = False,
     limit: int = 20
 ) -> list[Product]:
@@ -623,7 +623,7 @@ query ProductDetails {
 @app.type
 @dataclass
 class Product:
-    old_price: Optional[Decimal]
+    old_price: Decimal | None
     """[DEPRECATED] Use 'price' field instead.
 
     This field will be removed in v2.0.

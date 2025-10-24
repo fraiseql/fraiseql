@@ -3,7 +3,7 @@
 Complete pathway from zero to building production GraphQL APIs with FraiseQL.
 
 **Time**: 2-3 hours
-**Prerequisites**: Python 3.11+, PostgreSQL 14+, basic SQL knowledge
+**Prerequisites**: Python 3.10+, PostgreSQL 13+, basic SQL knowledge
 
 **📍 Navigation**: [← Quickstart](../quickstart.md) • [Core Concepts →](../core/types-and-schema.md) • Examples (../../examples/)
 
@@ -47,7 +47,6 @@ python app.py
 **Practice Exercise**:
 ```python
 from fraiseql import type, query
-from typing import List
 
 # Create a simple Note API
 @type(sql_source="v_note")
@@ -58,7 +57,7 @@ class Note:
     created_at: datetime
 
 @query
-def notes() -> List[Note]:
+def notes() -> list[Note]:
     """Get all notes."""
     pass  # Implementation handled by framework
 ```
@@ -228,7 +227,6 @@ class User:
 ### Essential Pattern
 ```python
 from fraiseql import type, query
-from typing import List
 
 # 1. Define type
 @type(sql_source="v_item")
@@ -249,7 +247,7 @@ FROM tb_item;
 
 # 3. Query
 @query
-def items() -> List[Item]:
+def items() -> list[Item]:
     """Get all items."""
     pass  # Implementation handled by framework
 ```

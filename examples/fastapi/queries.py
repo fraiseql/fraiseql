@@ -1,10 +1,9 @@
 """GraphQL Query Resolvers."""
 
-from typing import Optional
 from types import User, Project, Task
 
 
-async def user(info, id: int) -> Optional[User]:
+async def user(info, id: int) -> User | None:
     """Get a single user by ID.
 
     Args:
@@ -33,7 +32,7 @@ async def users(info, limit: int = 100, offset: int = 0) -> list[User]:
     return await db.find("v_users", limit=limit, offset=offset, order_by="name")
 
 
-async def project(info, id: int) -> Optional[Project]:
+async def project(info, id: int) -> Project | None:
     """Get a single project by ID.
 
     Args:
@@ -51,8 +50,8 @@ async def projects(
     info,
     limit: int = 100,
     offset: int = 0,
-    status: Optional[str] = None,
-    owner_id: Optional[int] = None,
+    status: str | None = None,
+    owner_id: int | None = None,
 ) -> list[Project]:
     """Get a list of projects.
 
@@ -78,7 +77,7 @@ async def projects(
     )
 
 
-async def task(info, id: int) -> Optional[Task]:
+async def task(info, id: int) -> Task | None:
     """Get a single task by ID.
 
     Args:
@@ -96,10 +95,10 @@ async def tasks(
     info,
     limit: int = 100,
     offset: int = 0,
-    project_id: Optional[int] = None,
-    assignee_id: Optional[int] = None,
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
+    project_id: int | None = None,
+    assignee_id: int | None = None,
+    status: str | None = None,
+    priority: str | None = None,
 ) -> list[Task]:
     """Get a list of tasks.
 
@@ -162,7 +161,7 @@ async def User_assigned_tasks(user: User, info) -> list[Task]:
     return await db.find("v_tasks", assignee_id=user.id, order_by="due_date ASC")
 
 
-async def Project_owner(project: Project, info) -> Optional[User]:
+async def Project_owner(project: Project, info) -> User | None:
     """Get the owner of a project.
 
     Args:
@@ -190,7 +189,7 @@ async def Project_tasks(project: Project, info) -> list[Task]:
     return await db.find("v_tasks", project_id=project.id, order_by="priority DESC, created_at DESC")
 
 
-async def Task_project(task: Task, info) -> Optional[Project]:
+async def Task_project(task: Task, info) -> Project | None:
     """Get the project a task belongs to.
 
     Args:
@@ -204,7 +203,7 @@ async def Task_project(task: Task, info) -> Optional[Project]:
     return await db.find_one("v_projects", id=task.project_id)
 
 
-async def Task_assignee(task: Task, info) -> Optional[User]:
+async def Task_assignee(task: Task, info) -> User | None:
     """Get the user assigned to a task.
 
     Args:

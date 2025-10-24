@@ -177,7 +177,7 @@ class User:
     profile_data: dict
 
     @fraiseql.field
-    async def posts(self, info: GraphQLResolveInfo) -> List[Post]:
+    async def posts(self, info: GraphQLResolveInfo) -> list[Post]:
         db = info.context["db"]
         return await db.find("v_posts", author_id=self.id)
 
@@ -189,10 +189,10 @@ class Post:
     content: str
     excerpt: str
     status: str
-    published_at: Optional[datetime]
+    published_at: datetime | None
     created_at: datetime
     author: User
-    tags: List[Tag]
+    tags: list[Tag]
     comment_count: int
 
 @fraiseql.type(sql_source="comments")
@@ -201,7 +201,7 @@ class Comment:
     content: str
     created_at: datetime
     author: User
-    parent_id: Optional[str]
+    parent_id: str | None
 
 @fraiseql.type(sql_source="tags")
 class Tag:
@@ -209,7 +209,7 @@ class Tag:
     name: str
     slug: str
     color: str
-    description: Optional[str]
+    description: str | None
 ```
 
 ### Queries
@@ -218,17 +218,17 @@ class Tag:
 @fraiseql.query
 async def posts(
     info: GraphQLResolveInfo,
-    where: Optional[PostWhereInput] = None,
-    order_by: Optional[List[PostOrderByInput]] = None,
+    where: PostWhereInput | None = None,
+    order_by: list[PostOrderByInput] | None = None,
     limit: int = 20,
     offset: int = 0
-) -> List[Post]:
+) -> list[Post]:
     """Query posts with filtering and pagination."""
     db = info.context["db"]
     return await db.find("v_posts", where=where, order_by=order_by, limit=limit, offset=offset)
 
 @fraiseql.query
-async def post(info: GraphQLResolveInfo, id: Optional[str] = None, slug: Optional[str] = None) -> Optional[Post]:
+async def post(info: GraphQLResolveInfo, id: str | None = None, slug: str | None = None) -> Post | None:
     """Get single post by ID or slug."""
     db = info.context["db"]
     if id:
@@ -245,8 +245,8 @@ async def post(info: GraphQLResolveInfo, id: Optional[str] = None, slug: Optiona
 class CreatePostInput:
     title: str
     content: str
-    excerpt: Optional[str] = None
-    tag_ids: Optional[List[str]] = None
+    excerpt: str | None = None
+    tag_ids: list[str] | None = None
 
 @fraiseql.success
 class CreatePostSuccess:

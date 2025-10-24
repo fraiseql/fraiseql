@@ -3,7 +3,6 @@
 Demonstrates FraiseQL's mutation system with real-time features
 """
 
-from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fraiseql import mutation
@@ -26,10 +25,10 @@ async def create_room(
     name: str,
     slug: str,
     owner_id: UUID,
-    description: Optional[str] = None,
+    description: str | None = None,
     type: str = "public",
     max_members: int = 1000,
-    settings: Optional[Dict[str, Any]] = None,
+    settings: dict[str, Any] | None = None,
 ) -> RoomMutationResult:
     """Create a new chat room"""
 
@@ -54,8 +53,8 @@ async def send_message(
     user_id: UUID,
     content: str,
     message_type: str = "text",
-    parent_message_id: Optional[UUID] = None,
-    metadata: Optional[Dict[str, Any]] = None,
+    parent_message_id: UUID | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> MessageMutationResult:
     """Send a message to a chat room"""
 
@@ -122,8 +121,8 @@ async def remove_message_reaction(
 async def update_user_presence(
     user_id: UUID,
     status: str = "online",
-    room_id: Optional[UUID] = None,
-    session_id: Optional[str] = None,
+    room_id: UUID | None = None,
+    session_id: str | None = None,
 ) -> MutationResult:
     """Update user online presence"""
 
@@ -150,7 +149,7 @@ async def set_typing_indicator(
 async def mark_messages_read(
     room_id: UUID,
     user_id: UUID,
-    up_to_message_id: Optional[UUID] = None,
+    up_to_message_id: UUID | None = None,
 ) -> MutationResult:
     """Mark messages as read in a room"""
 

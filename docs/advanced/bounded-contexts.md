@@ -84,7 +84,6 @@ FraiseQL repositories encapsulate database access per bounded context:
 
 ```python
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar, List
 from uuid import UUID
 from fraiseql.db import DatabasePool
 
@@ -113,7 +112,7 @@ class Repository(ABC, Generic[T]):
             row = await result.fetchone()
             return self._map_to_entity(row) if row else None
 
-    async def get_all(self, limit: int = 100) -> List[T]:
+    async def get_all(self, limit: int = 100) -> list[T]:
         """Get all entities."""
         async with self.db.connection() as conn:
             result = await conn.execute(

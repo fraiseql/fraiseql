@@ -1,18 +1,42 @@
 # FraiseQL Version Status
 
-**Last Updated**: 2025-10-22
+**Last Updated**: 2025-10-24
 
-## Current Production Version: v1.0.0
+## Current Production Version: v1.0.1
 
-FraiseQL v1.0.0 is the stable, production-ready release suitable for all users.
+FraiseQL v1.0.1 is the stable, production-ready release suitable for all users. This release adds comprehensive deployment templates and enhanced documentation to the solid v1.0.0 foundation.
 
 ## Version Overview
 
 | Version | Status | Recommended For | Stability |
 |---------|--------|----------------|-----------|
-| **v1.0.0** | Production Stable | All users | ✅ Stable |
-| v0.11.5 | Superseded | Legacy projects | ⚠️ Use v1.0.0 |
+| **v1.0.1** | Production Stable | All users | ✅ Stable |
+| v1.0.0 | Stable | All users | ✅ Stable |
+| v0.11.5 | Superseded | Legacy projects | ⚠️ Use v1.0.1 |
 | Rust Pipeline | Integrated | Included in v1.0+ | ✅ Stable |
+
+## What's New in v1.0.1
+
+### Production Deployment Templates
+- ✅ Complete Docker Compose production setup (app, PostgreSQL, PgBouncer, Grafana, Nginx)
+- ✅ Kubernetes manifests with auto-scaling (HPA 3-10 replicas)
+- ✅ PostgreSQL StatefulSet with persistent storage
+- ✅ Production checklist (security, performance, infrastructure)
+- ✅ Environment configuration templates
+
+### Documentation Enhancements
+- ✅ Feature discovery index (40+ capabilities cataloged)
+- ✅ Troubleshooting decision tree (6 diagnostic categories)
+- ✅ Reproducible benchmark methodology
+- ✅ 47% cleaner documentation structure (15 → 8 root files)
+- ✅ Archive and internal docs properly organized
+
+### Professional Polish
+- ✅ Cross-referenced troubleshooting guides
+- ✅ Improved navigation and discoverability
+- ✅ Repository cleanup (18 backup files removed)
+
+**See [CHANGELOG.md](CHANGELOG.md#101---2025-10-24) for complete details.**
 
 ## What's in v1.0.0
 
@@ -41,12 +65,23 @@ FraiseQL v1.0.0 is the stable, production-ready release suitable for all users.
 
 ### For New Projects (Recommended)
 ```bash
-pip install fraiseql>=1.0.0
+pip install fraiseql>=1.0.1
 ```
 
 ### For Existing Projects
 ```bash
 pip install --upgrade fraiseql
+```
+
+### Get Deployment Templates
+```bash
+# Clone repository for deployment templates
+git clone https://github.com/fraiseql/fraiseql
+cd fraiseql
+
+# Or download specific templates
+curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.0.1/deployment/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.0.1/deployment/.env.example
 ```
 
 See [MIGRATION_GUIDE.md](docs/migration/v0-to-v1.md) for upgrade instructions.

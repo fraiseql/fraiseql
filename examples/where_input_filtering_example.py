@@ -8,7 +8,6 @@ Run with: python where_input_filtering_example.py
 """
 
 from datetime import datetime
-from typing import List, Optional
 
 import uvicorn
 
@@ -24,10 +23,10 @@ class Note:
 
     id: int
     title: str
-    content: Optional[str]
+    content: str | None
     created_at: datetime
     priority: str = "normal"  # low, normal, high
-    tags: List[str] = []
+    tags: list[str] = []
 
 
 # Generate Where input types automatically
@@ -36,14 +35,14 @@ NoteWhereInput = create_graphql_where_input(Note)
 
 # Queries demonstrating different filtering approaches
 @fraiseql.query
-async def notes(info, where=None) -> List[Note]:  # where: NoteWhereInput | None = None
+async def notes(info, where=None) -> list[Note]:  # where: NoteWhereInput | None = None
     """Get notes with automatic Where input filtering."""
     db = info.context["db"]
     return await db.find("v_note", where=where)
 
 
 @fraiseql.query
-async def notes_by_priority(info, priority: str) -> List[Note]:
+async def notes_by_priority(info, priority: str) -> list[Note]:
     """Get notes by priority (simple parameter approach)."""
     db = info.context["db"]
     from fraiseql.db import DatabaseQuery
@@ -57,7 +56,7 @@ async def notes_by_priority(info, priority: str) -> List[Note]:
 
 
 @fraiseql.query
-async def high_priority_notes(info) -> List[Note]:
+async def high_priority_notes(info) -> list[Note]:
     """Get high priority notes using Where input programmatically."""
     db = info.context["db"]
 
@@ -72,19 +71,19 @@ class CreateNoteInput:
     """Input for creating a new note."""
 
     title: str
-    content: Optional[str] = None
+    content: str | None = None
     priority: str = "normal"
-    tags: List[str] = []
+    tags: list[str] = []
 
 
 @fraiseql.input
 class UpdateNoteInput:
     """Input for updating a note."""
 
-    title: Optional[str] = None
-    content: Optional[str] = None
-    priority: Optional[str] = None
-    tags: Optional[List[str]] = None
+    title: str | None = None
+    content: str | None = None
+    priority: str | None = None
+    tags: list[str] | None = None
 
 
 # Success/Failure types

@@ -389,7 +389,7 @@ class MutationResult:
 class ErrorType:
     message: str
     code: str
-    suggestions: Optional[List[str]] = None
+    suggestions: list[str] | None = None
 ```
 
 ## Contributing

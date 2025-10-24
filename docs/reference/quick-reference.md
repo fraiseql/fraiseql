@@ -26,7 +26,6 @@ make test                                       # Run tests
 ### Define a Type
 ```python
 from fraiseql import type
-from typing import List
 from uuid import UUID
 
 @type(sql_source="v_user")
@@ -34,16 +33,15 @@ class User:
     id: UUID
     name: str
     email: str
-    posts: List['Post']  # Forward reference for relationships
+    posts: list['Post']  # Forward reference for relationships
 ```
 
 ### Query - Get All Items
 ```python
 from fraiseql import query
-from typing import List
 
 @query
-async def users(info) -> List[User]:
+async def users(info) -> list[User]:
     """Get all users."""
     db = info.context["db"]
     return await db.find("users")
@@ -65,13 +63,12 @@ async def user(info, id: UUID) -> User | None:
 ```python
 from fraiseql import query
 from fraiseql.sql import create_graphql_where_input
-from typing import List
 
 # Generate automatic Where input type
 UserWhereInput = create_graphql_where_input(User)
 
 @query
-async def users(info, where: UserWhereInput | None = None) -> List[User]:
+async def users(info, where: UserWhereInput | None = None) -> list[User]:
     """Get users with optional filtering."""
     db = info.context["db"]
     return await db.find("users", where=where)
@@ -80,7 +77,6 @@ async def users(info, where: UserWhereInput | None = None) -> List[User]:
 ### Mutation - Create
 ```python
 from fraiseql import mutation, input
-from typing import Optional
 
 @input
 class CreateUserInput:
@@ -100,8 +96,8 @@ from uuid import UUID
 
 @input
 class UpdateUserInput:
-    name: Optional[str] = None
-    email: Optional[str] = None
+    name: str | None = None
+    email: str | None = None
 
 @mutation
 def update_user(id: UUID, input: UpdateUserInput) -> User:
@@ -116,7 +112,7 @@ from uuid import UUID
 
 class DeleteResult:
     success: bool
-    error: Optional[str]
+    error: str | None
 
 @mutation
 def delete_user(id: UUID) -> DeleteResult:
@@ -137,7 +133,7 @@ UserWhereInput = create_graphql_where_input(User)
 PostWhereInput = create_graphql_where_input(Post)
 
 @query
-async def users(info, where: UserWhereInput | None = None) -> List[User]:
+async def users(info, where: UserWhereInput | None = None) -> list[User]:
     db = info.context["db"]
     return await db.find("users", where=where)
 ```
@@ -541,7 +537,6 @@ from fraiseql.db import FraiseQLRepository
 from fraiseql.fastapi import FraiseQLRouter
 
 # Types
-from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 ```

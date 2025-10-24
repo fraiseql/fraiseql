@@ -3,11 +3,11 @@
 [![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
-[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](./VERSION_STATUS.md)
 
-**📍 You are here: Main FraiseQL Framework (v1.0.0) - Production Stable**
+**📍 You are here: Main FraiseQL Framework (v1.0.1) - Production Stable**
 
 ---
 
@@ -366,6 +366,24 @@ class CreateUser:
 
 ---
 
+## 📖 Core Concepts
+
+**New to FraiseQL?** Understanding these core concepts will help you make the most of the framework:
+
+**[📚 Concepts & Glossary](docs/core/concepts-glossary.md)** - Essential terminology and mental models:
+- **CQRS Pattern** - Separate read models (views) from write models (functions)
+- **Trinity Identifiers** - Three-tier ID system (`pk_*`, `id`, `identifier`) for performance and UX
+- **JSONB Views** - PostgreSQL composes data once, eliminating N+1 queries
+- **Database-First Architecture** - Start with PostgreSQL, GraphQL follows
+- **Explicit Sync Pattern** - Table views (`tv_*`) for complex queries
+
+**Quick links:**
+- [Understanding FraiseQL](docs/UNDERSTANDING.md) - 10-minute architecture overview
+- [Database API](docs/core/database-api.md) - Connection pooling and query execution
+- [Types and Schema](docs/core/types-and-schema.md) - Complete type system guide
+
+---
+
 ## ✨ See How Simple It Is
 
 ### Complete CRUD API in 20 Lines
@@ -633,19 +651,35 @@ FraiseQL implements Command Query Responsibility Segregation:
 
 **3. Table Views (tv_*)**
 ```sql
--- Denormalized JSONB table with generated column
+-- Denormalized JSONB table with explicit sync
 CREATE TABLE tv_user (
     id INT PRIMARY KEY,
-    data JSONB GENERATED ALWAYS AS (
-        jsonb_build_object(
-            'id', id,
-            'name', (SELECT name FROM tb_user WHERE tb_user.id = tv_user.id),
-            'posts', (SELECT jsonb_agg(...) FROM tb_post WHERE user_id = tv_user.id)
-        )
-    ) STORED
+    data JSONB NOT NULL,  -- Regular column, not generated
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Sync function populates tv_* from v_* view
+CREATE FUNCTION fn_sync_tv_user(p_user_id INT) RETURNS VOID AS $$
+BEGIN
+    INSERT INTO tv_user (id, data)
+    SELECT id, data FROM v_user WHERE id = p_user_id
+    ON CONFLICT (id) DO UPDATE SET
+        data = EXCLUDED.data,
+        updated_at = NOW();
+END;
+$$ LANGUAGE plpgsql;
+
+-- Mutations call sync explicitly
+CREATE FUNCTION fn_create_user(p_name TEXT) RETURNS JSONB AS $$
+DECLARE v_user_id INT;
+BEGIN
+    INSERT INTO tb_user (name) VALUES (p_name) RETURNING id INTO v_user_id;
+    PERFORM fn_sync_tv_user(v_user_id);  -- ← Explicit sync call
+    RETURN (SELECT data FROM tv_user WHERE id = v_user_id);
+END;
+$$ LANGUAGE plpgsql;
 ```
-Benefits: Instant lookups, embedded relations, always up-to-date
+Benefits: Instant lookups, embedded relations, explicitly synchronized
 
 **4. Zero-Copy Response**
 - Direct RustResponseBytes to FastAPI
@@ -814,7 +848,7 @@ fraiseql dev
 
 ### Prerequisites
 
-- **Python 3.13+**
+- **Python 3.10+** (for modern type syntax: `list[Type]`, `Type | None`)
 - **PostgreSQL 13+**
 
 **[📖 Detailed Installation Guide](INSTALLATION.md)** - Platform-specific instructions, troubleshooting
@@ -867,6 +901,8 @@ fraiseql sql explain <query>   # Show PostgreSQL execution plan
 - **[Examples](./examples/)** - Real-world applications and patterns
 - **[Architecture](./docs/architecture/)** - Design decisions and trade-offs
 - **[Performance Guide](docs/performance/index.md)** - Optimization strategies
+  - **[Benchmark Methodology](docs/benchmarks/methodology.md)** - Reproducible performance benchmarks
+  - **[Reproduction Guide](docs/benchmarks/methodology.md#reproduction-instructions)** - Run benchmarks yourself
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
 ---
@@ -947,9 +983,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 | Version | Location | Status | Purpose | For Users? |
 |---------|----------|--------|---------|------------|
-| **v1.0.0** | Root level | Production Stable | Stable release | ✅ Recommended |
+| **v1.0.1** | Root level | Production Stable | Latest stable release | ✅ Recommended |
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
-| **v0.11.5** | Superseded | Legacy | Use v1.0.0 | ⚠️ Migrate |
+| **v0.11.5** | Superseded | Legacy | Use v1.0.1 | ⚠️ Migrate |
 
 **New to FraiseQL?** → **[First Hour Guide](docs/FIRST_HOUR.md)** • [Project Structure](docs/strategic/PROJECT_STRUCTURE.md)
 

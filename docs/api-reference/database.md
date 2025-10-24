@@ -30,12 +30,12 @@ Find multiple records:
 async def find(
     self,
     view_name: str,
-    limit: Optional[int] = None,
-    offset: Optional[int] = None,
-    order_by: Optional[dict] = None,
-    where: Optional[dict] = None,
+    limit: int | None = None,
+    offset: int | None = None,
+    order_by: dict | None = None,
+    where: dict | None = None,
     **kwargs
-) -> List[dict]:
+) -> list[dict]:
     """Find records from a view."""
 ```
 
@@ -58,7 +58,7 @@ async def find_one(
     self,
     view_name: str,
     **kwargs
-) -> Optional[dict]:
+) -> dict | None:
     """Find one record from a view."""
 ```
 

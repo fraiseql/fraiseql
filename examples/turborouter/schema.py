@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass
@@ -13,7 +12,7 @@ class User:
     name: str
     email: str
     created_at: datetime
-    posts: Optional[list["Post"]] = None
+    posts: list["Post"] | None = None
 
 
 @dataclass
@@ -26,4 +25,4 @@ class Post:
     content: str
     published: bool
     created_at: datetime
-    author: Optional[User] = None
+    author: User | None = None

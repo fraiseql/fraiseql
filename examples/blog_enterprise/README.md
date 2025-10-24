@@ -279,7 +279,7 @@ CREATE TABLE domain_events (
 ```python
 # Automatic tenant isolation
 @fraiseql.query
-async def posts(info: GraphQLResolveInfo) -> List[Post]:
+async def posts(info: GraphQLResolveInfo) -> list[Post]:
     db = info.context["db"]
     org_id = info.context["organization_id"]
 
@@ -289,7 +289,7 @@ async def posts(info: GraphQLResolveInfo) -> List[Post]:
 # Tenant-aware caching
 @fraiseql.field
 @cache_per_tenant(ttl=300)
-async def popular_posts(self, info: GraphQLResolveInfo) -> List[Post]:
+async def popular_posts(self, info: GraphQLResolveInfo) -> list[Post]:
     # Cached per organization
     pass
 ```
@@ -308,7 +308,7 @@ class CreatePost:
 # Field-level authorization
 @fraiseql.field
 @authorize_field("admin", "content_manager")
-async def draft_posts(self, info: GraphQLResolveInfo) -> List[Post]:
+async def draft_posts(self, info: GraphQLResolveInfo) -> list[Post]:
     # Only admins and content managers can see drafts
     pass
 ```
@@ -352,7 +352,7 @@ async def update_analytics(event: PostPublishedEvent):
     memory_ttl=60,           # In-memory cache for 1 minute
     tags=["posts", "content"] # Cache invalidation tags
 )
-async def trending_posts(info: GraphQLResolveInfo) -> List[Post]:
+async def trending_posts(info: GraphQLResolveInfo) -> list[Post]:
     # Expensive query cached at multiple layers
     pass
 
@@ -369,7 +369,7 @@ class UpdatePost:
 # Query performance tracking
 @fraiseql.query
 @track_performance("posts_query")
-async def posts(info: GraphQLResolveInfo) -> List[Post]:
+async def posts(info: GraphQLResolveInfo) -> list[Post]:
     # Automatically tracked performance metrics
     pass
 

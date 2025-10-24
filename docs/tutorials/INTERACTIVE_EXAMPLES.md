@@ -79,7 +79,7 @@ query GetUsers {
 from fraiseql import query
 
 @query
-async def users(self, info, email_filter: str | None = None) -> List[User]:
+async def users(self, info, email_filter: str | None = None) -> list[User]:
     filters = {}
     if email_filter:
         filters['email__icontains'] = email_filter

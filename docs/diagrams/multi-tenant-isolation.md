@@ -227,7 +227,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 from fraiseql import type, query, mutation, input, field
 
 @query
-async def users(self, info) -> List[User]:
+async def users(self, info) -> list[User]:
     tenant_id = tenant_context.get()
     return await db.execute(
         "SELECT * FROM v_user WHERE tenant_id = $1",

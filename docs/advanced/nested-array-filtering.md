@@ -27,7 +27,6 @@ from fraiseql.nested_array_filters import (
     register_nested_array_filter,
 )
 from fraiseql.types import fraise_type
-from typing import List
 
 @fraise_type
 class PrintServer:
@@ -43,7 +42,7 @@ class PrintServer:
 class NetworkConfiguration:
     id: UUID
     name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 # Option 2: Selective fields
 @nested_array_filterable("print_servers", "dns_servers")
@@ -51,15 +50,15 @@ class NetworkConfiguration:
 class NetworkConfiguration:
     id: UUID
     name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
-    dns_servers: List[DnsServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
+    dns_servers: list[DnsServer] = fraise_field(default_factory=list)
 
 # Option 3: Manual registration (maximum control)
 @fraise_type
 class NetworkConfiguration:
     id: UUID
     name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 register_nested_array_filter(NetworkConfiguration, "print_servers", PrintServer)
 ```
@@ -373,13 +372,12 @@ from fraiseql import type, query, mutation, input, field
 
 from fraiseql.core.nested_field_resolver import create_nested_array_field_resolver_with_where
 from fraiseql.sql.graphql_where_generator import create_graphql_where_input
-from typing import List
 
 # Create WhereInput type
 PrintServerWhereInput = create_graphql_where_input(PrintServer)
 
 # Create resolver with where filtering support
-resolver = create_nested_array_field_resolver_with_where("print_servers", List[PrintServer])
+resolver = create_nested_array_field_resolver_with_where("print_servers", list[PrintServer])
 
 # Use in GraphQL resolvers
 @query
@@ -387,7 +385,7 @@ async def network_configuration_print_servers(
     parent: NetworkConfiguration,
     info: GraphQLResolveInfo,
     where: PrintServerWhereInput | None = None
-) -> List[PrintServer]:
+) -> list[PrintServer]:
     return await resolver(parent, info, where=where)
 ```
 
@@ -478,7 +476,7 @@ print("Available fields:", dir(where_input))
 
 **Before (Verbose):**
 ```python
-print_servers: List[PrintServer] = fraise_field(
+print_servers: list[PrintServer] = fraise_field(
     default_factory=list,
     supports_where_filtering=True,
     nested_where_type=PrintServer
@@ -490,7 +488,7 @@ print_servers: List[PrintServer] = fraise_field(
 @auto_nested_array_filters  # Just add this decorator
 @fraise_type
 class NetworkConfiguration:
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 ```
 
 ### Backward Compatibility
@@ -514,7 +512,7 @@ register_nested_array_filter(parent_type: Type, field_name: str, element_type: T
 # Query functions
 get_nested_array_filter(parent_type: Type, field_name: str) -> Type | None
 is_nested_array_filterable(parent_type: Type, field_name: str) -> bool
-list_registered_filters() -> Dict[str, Dict[str, str]]
+list_registered_filters() -> dict[str, dict[str, str]]
 
 # Utility
 clear_registry() -> None  # For testing
@@ -523,7 +521,7 @@ clear_registry() -> None  # For testing
 ### Decorators
 
 ```python
-# Automatic detection for all List[FraiseQLType] fields
+# Automatic detection for all list[FraiseQLType] fields
 @auto_nested_array_filters
 class MyType: ...
 

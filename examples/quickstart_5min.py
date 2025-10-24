@@ -69,7 +69,6 @@ INSERT INTO tb_note (title, content) VALUES
 """
 
 from datetime import datetime
-from typing import List, Optional
 
 import uvicorn
 
@@ -84,7 +83,7 @@ class Note:
 
     id: int
     title: str
-    content: Optional[str]
+    content: str | None
     created_at: datetime
 
 
@@ -94,7 +93,7 @@ class CreateNoteInput:
     """Input for creating a new note."""
 
     title: str
-    content: Optional[str] = None
+    content: str | None = None
 
 
 # Define success/failure types
@@ -116,7 +115,7 @@ class ValidationError:
 
 # Queries
 @fraiseql.query
-async def notes(info) -> List[Note]:
+async def notes(info) -> list[Note]:
     """Get all notes."""
     db = info.context["db"]
     from fraiseql.db import DatabaseQuery
@@ -129,7 +128,7 @@ async def notes(info) -> List[Note]:
 
 
 @fraiseql.query
-async def notes_filtered(info, title_contains: Optional[str] = None) -> List[Note]:
+async def notes_filtered(info, title_contains: str | None = None) -> list[Note]:
     """Get notes with optional title filtering."""
     db = info.context["db"]
     from fraiseql.db import DatabaseQuery
@@ -149,7 +148,7 @@ async def notes_filtered(info, title_contains: Optional[str] = None) -> List[Not
 
 
 @fraiseql.query
-async def note(info, id: int) -> Optional[Note]:
+async def note(info, id: int) -> Note | None:
     """Get a single note by ID."""
     db = info.context["db"]
     from fraiseql.db import DatabaseQuery

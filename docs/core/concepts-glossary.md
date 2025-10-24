@@ -29,6 +29,10 @@ Same code path                          Separate optimized paths
 **Benefits**:
 - Optimized read paths with PostgreSQL views
 - ACID transactions for writes
+
+**See Also**:
+- [CQRS Implementation](../examples/complete_cqrs_blog/) - Complete CQRS blog example
+- [Enterprise Patterns](../examples/blog_api/) - Production CQRS with audit trails
 - Independent scaling of reads and writes
 
 ### JSONB View Pattern
@@ -243,28 +247,216 @@ CREATE UNIQUE INDEX idx_post_id ON tb_post(id);      -- API lookups
 CREATE UNIQUE INDEX idx_post_identifier ON tb_post(identifier);  -- URL lookups
 ```
 
-### Hybrid Tables
+### Projection Tables (tv_*)
 
-Tables with separate write and read paths:
-- Writes go to normalized tables
-- Reads come from denormalized views
+**Pattern:** Manually-synced tables that cache pre-composed JSONB for instant GraphQL queries.
 
-See [Hybrid Tables Example](../../examples/hybrid_tables/)
+Projection tables (`tv_*`) are regular tables (NOT views!) that store materialized JSONB data:
 
-### DataLoader Pattern
+**When to use:**
+- Read-heavy workloads (10:1+ read:write ratio)
+- Large datasets (>100k rows) where view JOINs are too slow
+- GraphQL APIs needing sub-millisecond response times
+- Acceptable write complexity for massive read performance gains
 
-Automatic batching to prevent N+1 queries:
+**Architecture (3-layer CQRS):**
 
-```python
-from fraiseql import field
+```sql
+-- Layer 1: Base tables (normalized, for writes)
+CREATE TABLE tb_user (
+    pk_user INT PRIMARY KEY,
+    id UUID UNIQUE NOT NULL,
+    name TEXT,
+    email TEXT
+);
 
-@field
-def posts(user: User) -> List[Post]:
-    """Get posts for user."""
-    pass  # Implementation handled by framework
+CREATE TABLE tb_post (
+    pk_post INT PRIMARY KEY,
+    user_id INT REFERENCES tb_user(pk_user),
+    title TEXT,
+    content TEXT
+);
+
+-- Layer 2: Views (compose JSONB from base tables)
+CREATE VIEW v_user AS
+SELECT
+    u.id,
+    jsonb_build_object(
+        'id', u.id,
+        'name', u.name,
+        'posts', (
+            SELECT jsonb_agg(jsonb_build_object('id', p.id, 'title', p.title))
+            FROM tb_post p
+            WHERE p.user_id = u.pk_user
+        )
+    ) AS data
+FROM tb_user u;
+
+-- Layer 3: Projection tables (cache JSONB for fast reads)
+CREATE TABLE tv_user (
+    id UUID PRIMARY KEY,
+    data JSONB NOT NULL,  -- Regular column (NOT GENERATED!)
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Sync function: copies v_user → tv_user
+CREATE FUNCTION fn_sync_tv_user(p_id UUID) RETURNS VOID AS $$
+BEGIN
+    INSERT INTO tv_user (id, data)
+    SELECT id, data FROM v_user WHERE id = p_id
+    ON CONFLICT (id) DO UPDATE SET
+        data = EXCLUDED.data,
+        updated_at = NOW();
+END;
+$$ LANGUAGE plpgsql;
+
+-- Mutation explicitly calls sync (CRITICAL!)
+CREATE FUNCTION fn_create_user(p_name TEXT, p_email TEXT)
+RETURNS JSONB AS $$
+DECLARE v_user_id UUID;
+BEGIN
+    INSERT INTO tb_user (name, email)
+    VALUES (p_name, p_email)
+    RETURNING id INTO v_user_id;
+
+    -- Explicitly sync to projection table
+    PERFORM fn_sync_tv_user(v_user_id);
+
+    RETURN (SELECT data FROM tv_user WHERE id = v_user_id);
+END;
+$$ LANGUAGE plpgsql;
 ```
 
+**⚠️ CRITICAL: Explicit Sync Required**
+
+Projection tables do **NOT** auto-update. Every mutation must call sync functions:
+
+```sql
+-- ✅ CORRECT
+CREATE FUNCTION fn_update_user(...) RETURNS JSONB AS $$
+BEGIN
+    UPDATE tb_user SET name = p_name WHERE id = p_id;
+    PERFORM fn_sync_tv_user(p_id);  -- Must call!
+    RETURN (SELECT data FROM tv_user WHERE id = p_id);
+END;
+$$;
+
+-- ❌ WRONG - Missing sync!
+CREATE FUNCTION fn_update_user_broken(...) RETURNS JSONB AS $$
+BEGIN
+    UPDATE tb_user SET name = p_name WHERE id = p_id;
+    -- tv_user will have stale data!
+    RETURN (SELECT data FROM tv_user WHERE id = p_id);
+END;
+$$;
+```
+
+**Benefits:**
+- ✅ **100-200x faster reads** - 0.05-0.5ms (vs 5-10ms for views)
+- ✅ **Embedded relations** - Nested data pre-composed
+- ✅ **Works with Rust pipeline** - JSONB → Rust → HTTP
+- ✅ **No N+1 queries** - Everything in one lookup
+
+**Trade-offs:**
+- ❌ **Write complexity** - Mutations must call sync functions
+- ❌ **Storage overhead** - Duplicates data (1.5-2x)
+- ❌ **Manual sync** - Developer must remember
+- ⚠️ **Not for high-write tables** - Sync overhead
+
+**Python mapping:**
+```python
+@fraiseql.type(sql_source="tv_user", jsonb_column="data")
+class User:
+    id: UUID
+    name: str
+    posts: list[Post]  # Pre-composed!
+```
+
+**Common misconception:**
+```sql
+-- ❌ WRONG - PostgreSQL can't do this!
+CREATE TABLE tv_user (
+    id UUID PRIMARY KEY,
+    data JSONB GENERATED ALWAYS AS (
+        SELECT ... FROM tb_user ...  -- Can't reference other tables!
+    ) STORED
+);
+```
+
+**Where GENERATED ALWAYS works:**
+```sql
+-- ✅ Same-row scalar extraction (for indexing)
+CREATE TABLE tb_user (
+    data JSONB,
+    email TEXT GENERATED ALWAYS AS (lower(data->>'email')) STORED
+);
+```
+
+See [Projection Tables Example](../../examples/hybrid_tables/)
+
 ## GraphQL Concepts
+
+### Auto-Documentation
+
+FraiseQL automatically extracts field descriptions from your Python code for GraphQL schema documentation.
+
+**Supported sources (priority order):**
+
+1. **Inline comments** (highest priority)
+2. **Annotated types** with string metadata
+3. **Docstring Fields sections** (lowest priority)
+
+**Example:**
+```python
+import fraiseql
+from typing import Annotated
+from uuid import UUID
+
+@fraiseql.type(sql_source="v_user")
+class User:
+    """User account model.
+
+    Fields:
+        created_at: Account creation timestamp
+    """
+    id: UUID  # Public API identifier (inline comment - highest priority)
+    identifier: str  # Human-readable username
+    name: Annotated[str, "User's full name"]  # Annotated type
+    email: str
+    created_at: datetime  # Uses docstring description
+```
+
+**Generated GraphQL schema:**
+```graphql
+type User {
+  "Public API identifier"
+  id: UUID!
+
+  "Human-readable username"
+  identifier: String!
+
+  "User's full name"
+  name: String!
+
+  email: String!
+
+  "Account creation timestamp"
+  createdAt: DateTime!
+}
+```
+
+**Auto-applied to:**
+- ✅ Type fields (visible in Apollo Studio)
+- ✅ Where clause filter operators (`eq`, `gt`, `contains`, etc.)
+- ✅ Input type fields
+- ✅ Mutation parameters
+- ✅ Specialized type operators (network, LTree, coordinates)
+
+**Benefits:**
+- No separate documentation files to maintain
+- Descriptions live next to type definitions
+- AI tools (Claude, Copilot) can see context
+- Apollo Studio shows helpful field hints
 
 ### Type
 
@@ -400,6 +592,225 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
+### Where Input Types
+
+FraiseQL automatically generates strongly-typed `WhereInput` types for filtering with field-specific operators.
+
+**Basic operators (all types):**
+- `eq` / `neq` - Equality checks
+- `in` / `nin` - List membership (NOT IN)
+- `isnull` - Null checks (true = IS NULL, false = IS NOT NULL)
+
+**Numeric operators (Int, Float, Decimal):**
+- `gt` / `gte` - Greater than (or equal)
+- `lt` / `lte` - Less than (or equal)
+
+**String operators:**
+- `contains` - Substring search (case-sensitive)
+- `startswith` - Prefix match
+- `endswith` - Suffix match
+
+**Date/DateTime operators:**
+- All numeric operators (`gt`, `gte`, `lt`, `lte`)
+- `in` / `nin` for specific dates
+- `isnull` for optional date fields
+
+**Example - basic filtering:**
+```graphql
+query {
+  users(where: {
+    status: { eq: "active" }
+    age: { gte: 18 }
+    email: { endswith: "@company.com" }
+    deletedAt: { isnull: true }
+  }) {
+    name
+    email
+  }
+}
+```
+
+**Specialized Type Operators:**
+
+**1. Coordinates (Geographic Filtering)**
+```graphql
+query {
+  stores(where: {
+    location: {
+      distance_within: {
+        center: [37.7749, -122.4194]  # San Francisco
+        radius: 5000  # meters
+      }
+    }
+  }) {
+    name
+    address
+    location
+  }
+}
+```
+
+**2. Network Addresses (IP/CIDR Filtering)**
+```graphql
+query {
+  servers(where: {
+    ipAddress: {
+      inSubnet: "192.168.1.0/24"    # CIDR subnet matching
+      isPrivate: true                # RFC 1918 private addresses
+      isIPv4: true                   # IPv4 vs IPv6
+    }
+  }) {
+    hostname
+    ipAddress
+  }
+}
+
+query {
+  publicServers(where: {
+    ipAddress: {
+      inRange: { from: "10.0.0.1", to: "10.0.0.254" }
+      isPublic: true
+      NOT: { isLoopback: true }
+    }
+  }) {
+    hostname
+  }
+}
+```
+
+**Network classification operators:**
+- `inSubnet` - IP within CIDR range
+- `inRange` - IP between from/to addresses
+- `isPrivate` / `isPublic` - RFC 1918 detection
+- `isIPv4` / `isIPv6` - IP version
+- `isLoopback` - 127.0.0.1 or ::1
+- `isMulticast` - Multicast addresses
+- `isBroadcast` - 255.255.255.255
+- `isLinkLocal` - 169.254.0.0/16 or fe80::/10
+- `isDocumentation` - RFC 3849/5737 ranges
+- `isReserved` - Reserved/unspecified (0.0.0.0, ::)
+- `isCarrierGrade` - CGN range (100.64.0.0/10)
+- `isSiteLocal` - Site-local IPv6 (deprecated)
+- `isUniqueLocal` - Unique local IPv6 (fc00::/7)
+- `isGlobalUnicast` - Global unicast addresses
+
+**3. LTree (Hierarchical Paths)**
+```graphql
+query {
+  categories(where: {
+    path: {
+      ancestor_of: "Electronics.Computers.Laptops"  # All ancestor categories
+      nlevel_gte: 2                                  # At least 2 levels deep
+    }
+  }) {
+    name
+    path
+  }
+}
+
+query {
+  subcategories(where: {
+    path: {
+      descendant_of: "Electronics"       # All subcategories
+      matches_lquery: "Electronics.*"    # Pattern matching
+    }
+  }) {
+    name
+  }
+}
+```
+
+**LTree hierarchical operators:**
+- `ancestor_of` - Path is ancestor of target
+- `descendant_of` - Path is descendant of target
+- `matches_lquery` - Pattern match with wildcards
+- `matches_ltxtquery` - Text search (AND/OR/NOT)
+- `nlevel_eq` / `nlevel_gt` / `nlevel_gte` / `nlevel_lt` / `nlevel_lte` - Path depth filtering
+
+**Logical Operators (All WhereInput Types)**
+
+Combine filters with AND, OR, NOT for complex queries:
+
+```graphql
+query {
+  users(where: {
+    AND: [
+      { status: { eq: "active" } }
+      { OR: [
+          { role: { eq: "admin" } }
+          { AND: [
+              { role: { eq: "editor" } }
+              { verified: { eq: true } }
+            ]
+          }
+        ]
+      }
+    ]
+  }) {
+    name
+    role
+  }
+}
+```
+
+**Nested array filtering:**
+```graphql
+query {
+  users(where: {
+    posts: {  # Filter parent by nested array properties
+      AND: [
+        { status: { eq: "published" } }
+        { views: { gte: 1000 } }
+      ]
+    }
+  }) {
+    name
+    posts {
+      title
+      views
+    }
+  }
+}
+```
+
+**How it works:**
+1. FraiseQL inspects your type fields
+2. Generates appropriate filter class per field type
+3. Creates `TypeWhereInput` with logical operators
+4. Converts GraphQL input to SQL WHERE clauses
+5. PostgreSQL executes with proper type casting
+
+**Example generated type:**
+```python
+# Your type definition
+@fraiseql.type(sql_source="v_server")
+class Server:
+    id: UUID
+    hostname: str
+    ip_address: NetworkAddress  # Special type
+    port: int
+    location: Coordinate        # Special type
+
+# FraiseQL auto-generates:
+class ServerWhereInput:
+    id: UUIDFilter | None
+    hostname: StringFilter | None
+    ip_address: NetworkAddressFilter | None  # Rich operators!
+    port: IntFilter | None
+    location: CoordinateFilter | None         # Distance queries!
+    AND: list[ServerWhereInput] | None
+    OR: list[ServerWhereInput] | None
+    NOT: ServerWhereInput | None
+```
+
+**Benefits:**
+- ✅ **Type-safe filtering** - No runtime query errors
+- ✅ **Field-specific operators** - `contains` for strings, `gt` for numbers
+- ✅ **Specialized types** - Network, geographic, hierarchical queries
+- ✅ **Logical operators** - Complex AND/OR/NOT combinations
+- ✅ **Apollo autocomplete** - All operators visible in IDE
+- ✅ **SQL injection safe** - Parameterized queries always
+
 ### Connection
 
 Relay-style cursor-based pagination (built-in):
@@ -529,25 +940,115 @@ config = ComplexityConfig(
 
 ### APQ (Automatic Persisted Queries)
 
-Caching GraphQL queries by hash to reduce bandwidth:
+Cache GraphQL queries by SHA-256 hash to reduce bandwidth and improve performance.
 
+**How it works:**
+
+1. **First request:** Client sends full query + SHA-256 hash
+2. **Server:** Stores query in cache, returns result
+3. **Subsequent requests:** Client sends only hash
+4. **Server:** Retrieves query from cache, executes, returns result
+
+**Benefits:**
+- ✅ **Bandwidth reduction** - 90%+ for large queries (send 64-char hash vs full query)
+- ✅ **Faster uploads** - Especially on mobile networks
+- ✅ **Query optimization** - Server can optimize cached queries
+- ✅ **Works with Rust pipeline** - PostgreSQL → JSONB → Rust → HTTP (no slowdown)
+
+**See Also**:
+- [APQ Multi-tenant Example](../../examples/apq_multi_tenant/) - APQ with tenant isolation
+
+**Configuration:**
+
+**Memory backend (single instance):**
 ```python
 from fraiseql import FraiseQLConfig
 
-# Memory backend (default)
-config = FraiseQLConfig(apq_storage_backend="memory")
-
-# PostgreSQL backend (multi-instance coordination)
 config = FraiseQLConfig(
-    apq_storage_backend="postgresql",
-    apq_storage_schema="apq_cache"
+    apq_storage_backend="memory",  # Default - LRU cache
+    apq_cache_size=1000             # Max cached queries
 )
 ```
 
-**Benefits:**
-- Client sends query hash instead of full query text
-- Bandwidth reduction for large queries
-- Works with FraiseQL's Rust pipeline for optimal performance
+**PostgreSQL backend (multi-instance):**
+```python
+config = FraiseQLConfig(
+    apq_storage_backend="postgresql",
+    apq_storage_schema="apq_cache",     # Schema for cache table
+    apq_cache_ttl=3600                   # TTL in seconds (optional)
+)
+
+# Creates table:
+# CREATE TABLE apq_cache.persisted_queries (
+#     query_hash TEXT PRIMARY KEY,
+#     query_text TEXT NOT NULL,
+#     created_at TIMESTAMPTZ DEFAULT NOW(),
+#     last_used TIMESTAMPTZ DEFAULT NOW()
+# );
+```
+
+**Client usage (Apollo Client):**
+
+```typescript
+import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
+import { createPersistedQueryLink } from '@apollo/client/link/persisted-queries';
+import { sha256 } from 'crypto-hash';
+
+const link = createPersistedQueryLink({ sha256 }).concat(
+  new HttpLink({ uri: 'http://localhost:8000/graphql' })
+);
+
+const client = new ApolloClient({
+  cache: new InMemoryCache(),
+  link,
+});
+
+// First query: sends full query + hash
+// Subsequent queries: sends only hash
+const { data } = await client.query({
+  query: GET_USERS,
+  // Apollo automatically handles APQ protocol
+});
+```
+
+**Server logs:**
+```
+[APQ] Cache miss - storing query hash: 5d41402abc4b2a76b9719d911017c592
+[APQ] Cache hit - executing query from hash: 5d41402abc4b2a76b9719d911017c592
+```
+
+**When to use:**
+- Large, complex queries (>1KB)
+- Mobile applications (limited bandwidth)
+- Multi-instance deployments (use PostgreSQL backend)
+- Production APIs with repeated queries
+
+**Storage backend comparison:**
+
+| Feature | Memory Backend | PostgreSQL Backend |
+|---------|---------------|-------------------|
+| **Multi-instance** | ❌ No | ✅ Yes (shared cache) |
+| **Persistence** | ❌ Lost on restart | ✅ Survives restarts |
+| **Performance** | ✅ Fastest | ⚠️ Network overhead |
+| **Setup** | ✅ Zero config | ⚠️ Requires migration |
+| **Use case** | Single instance | Multi-instance/production |
+
+**Monitoring:**
+
+```python
+from fraiseql.monitoring import apq_metrics
+
+# Check APQ cache statistics
+stats = await apq_metrics.get_stats()
+print(f"Cache hits: {stats.hits}")
+print(f"Cache misses: {stats.misses}")
+print(f"Hit rate: {stats.hit_rate:.2%}")
+print(f"Cached queries: {stats.total_queries}")
+```
+
+**See also:**
+- [APQ Cache Flow Diagram](../diagrams/apq-cache-flow.md)
+- [Multi-tenant APQ Setup](../../examples/apq_multi_tenant/)
 
 ### Rust JSON Pipeline
 
