@@ -210,7 +210,7 @@ mutation {
 Add error handling for non-existent notes:
 
 ```sql
--- Improved delete function with error handling
+-- Function that returns JSONB directly
 CREATE OR REPLACE FUNCTION fn_delete_note(note_id UUID)
 RETURNS JSONB AS $$
 DECLARE
@@ -243,6 +243,8 @@ class DeleteResult:
 async def delete_note(info, id: UUID) -> DeleteResult:
     """Delete a note by ID."""
     db = info.context["db"]
+    # Call function that returns JSONB directly from database
+    # FraiseQL automatically maps JSONB to DeleteResult type
     return await db.fetchval("SELECT fn_delete_note($1)", id)
 ```
 
