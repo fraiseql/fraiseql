@@ -1,7 +1,7 @@
 """Blog API models demonstrating audit patterns."""
 
 from datetime import datetime
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import Field
@@ -104,12 +104,12 @@ class AuditTrail:
     """Comprehensive audit information."""
 
     created_at: datetime
-    created_by_name: Optional[str] = None
-    updated_at: Optional[datetime] = None
-    updated_by_name: Optional[str] = None
+    created_by_name: str | None = None
+    updated_at: datetime | None = None
+    updated_by_name: str | None = None
     version: int
-    change_reason: Optional[str] = None
-    updated_fields: Optional[list[str]] = None
+    change_reason: str | None = None
+    updated_fields: list[str | None] = None
 
 
 # Enhanced types with audit trails (enterprise pattern examples)
@@ -126,7 +126,7 @@ class PostEnterprise:
 
     # Enterprise features
     audit_trail: AuditTrail
-    identifier: Optional[str] = None  # Business identifier
+    identifier: str | None = None  # Business identifier
     slug: str
     excerpt: str | None = None
     author_id: UUID
@@ -149,7 +149,7 @@ class UserEnterprise:
 
     # Enterprise audit features
     audit_trail: AuditTrail
-    identifier: Optional[str] = None  # Business identifier
+    identifier: str | None = None  # Business identifier
 
 
 # Input types for mutations
@@ -181,12 +181,12 @@ class CreateUserInputEnterprise:
     email: Annotated[str, Field(pattern=r"^[^@]+@[^@]+\.[^@]+$")]
     name: Annotated[str, Field(min_length=2, max_length=100)]
     password: Annotated[str, Field(min_length=8)]
-    bio: Annotated[Optional[str], Field(max_length=500)] = None
-    avatar_url: Optional[str] = None
+    bio: Annotated[str | None, Field(max_length=500)] = None
+    avatar_url: str | None = None
 
     # Audit metadata
-    _change_reason: Optional[str] = None
-    _expected_version: Optional[int] = None
+    _change_reason: str | None = None
+    _expected_version: int | None = None
 
 
 @fraiseql.input
@@ -232,12 +232,12 @@ class CreatePostInputEnterprise:
     title: Annotated[str, Field(min_length=3, max_length=200)]
     content: Annotated[str, Field(min_length=50)]
     is_published: bool = False
-    excerpt: Annotated[Optional[str], Field(max_length=300)] = None
-    tags: Optional[list[str]] = None
+    excerpt: Annotated[str | None, Field(max_length=300)] = None
+    tags: list[str | None] = None
 
     # Audit metadata
-    _change_reason: Optional[str] = None
-    _expected_version: Optional[int] = None
+    _change_reason: str | None = None
+    _expected_version: int | None = None
 
 
 @fraiseql.input
@@ -405,7 +405,7 @@ class CreateUserSuccessEnterprise:
     user: UserEnterprise
     message: str = "User created successfully"
     was_noop: bool = False
-    audit_metadata: Optional[dict[str, Any]] = None
+    audit_metadata: dict[str, Any | None] = None
 
 
 @fraiseql.success
@@ -415,8 +415,8 @@ class CreatePostSuccessEnterprise:
     post: PostEnterprise
     message: str = "Post created successfully"
     was_noop: bool = False
-    generated_slug: Optional[str] = None
-    audit_metadata: Optional[dict[str, Any]] = None
+    generated_slug: str | None = None
+    audit_metadata: dict[str, Any | None] = None
 
 
 @fraiseql.success
@@ -428,7 +428,7 @@ class UpdatePostSuccessEnterprise:
     updated_fields: list[str]
     previous_version: int
     new_version: int
-    audit_metadata: Optional[dict[str, Any]] = None
+    audit_metadata: dict[str, Any | None] = None
 
 
 # Enhanced Error Types with Validation Context
@@ -440,9 +440,9 @@ class CreateUserErrorEnterprise:
 
     message: str
     error_code: str
-    field_errors: Optional[dict[str, str]] = None
-    validation_context: Optional[dict[str, Any]] = None
-    conflicting_user: Optional[User] = None
+    field_errors: dict[str, str | None] = None
+    validation_context: dict[str, Any | None] = None
+    conflicting_user: User | None = None
 
 
 @fraiseql.failure
@@ -451,6 +451,6 @@ class CreatePostErrorEnterprise:
 
     message: str
     error_code: str
-    field_errors: Optional[dict[str, str]] = None
-    validation_context: Optional[dict[str, Any]] = None
-    conflicting_post: Optional[Post] = None
+    field_errors: dict[str, str | None] = None
+    validation_context: dict[str, Any | None] = None
+    conflicting_post: Post | None = None
