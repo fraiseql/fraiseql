@@ -79,15 +79,14 @@ Add tags to your Note type:
 
 ```python
 # app.py
-from fraiseql import type, query
-from typing import List
+import fraiseql
 
-@type(sql_source="v_note")
+@fraiseql.type
 class Note:
     id: UUID
     title: str
     content: str
-    tags: List[str]  # Add this line
+    tags: list[str]  # Add this line
 ```
 
 ### Step 4: Add Filtering with Where Input Types
@@ -96,14 +95,14 @@ FraiseQL provides automatic Where input type generation for powerful, type-safe 
 
 ```python
 # app.py
-from fraiseql import query
+import fraiseql
 from fraiseql.sql import create_graphql_where_input
 
 # Generate automatic Where input type for Note
 NoteWhereInput = create_graphql_where_input(Note)
 
-@query
-async def notes(info, where: NoteWhereInput | None = None) -> List[Note]:
+@fraiseql.query
+async def notes(info, where: NoteWhereInput | None = None) -> list[Note]:
     """Get notes with optional filtering."""
     db = info.context["db"]
     # Use repository's find method with where parameter
@@ -150,12 +149,15 @@ query {
 ```
 
 **Available Filter Operators:**
+
 - `eq`, `neq` - equals, not equals
 - `contains`, `startswith`, `endswith` - string matching
 - `gt`, `gte`, `lt`, `lte` - comparisons
 - `in`, `nin` - list membership
 - `isnull` - null checking
 - `AND`, `OR`, `NOT` - logical operators
+
+and many more specialized operators for specific Postgresql types (CIDR, LTREE etc.)
 
 ✅ **Checkpoint**: Can you create a note with tags and use the various filtering operators?
 
@@ -187,9 +189,10 @@ Add the mutation to your app:
 from fraiseql import mutation
 
 @mutation
-def delete_note(id: UUID) -> bool:
+async def delete_note(info, id: UUID) -> bool:
     """Delete a note by ID."""
-    pass  # Framework calls fn_delete_note
+    db = info.context["db"]
+    return await db.fetchval("SELECT fn_delete_note($1)", id)
 ```
 
 ### Step 3: Test the Mutation
@@ -237,9 +240,10 @@ class DeleteResult:
     error: str | None
 
 @mutation
-def delete_note(id: UUID) -> DeleteResult:
+async def delete_note(info, id: UUID) -> DeleteResult:
     """Delete a note by ID."""
-    pass
+    db = info.context["db"]
+    return await db.fetchval("SELECT fn_delete_note($1)", id)
 ```
 
 ✅ **Checkpoint**: Can you delete a note and handle the case where the note doesn't exist?
@@ -300,15 +304,15 @@ FROM tb_note;
 
 ```python
 # app.py
-from fraiseql import type
+import fraiseql
 from datetime import datetime
 
-@type(sql_source="v_note")
+@fraiseql.type(sql_source="v_note")
 class Note:
     id: UUID
     title: str
     content: str
-    tags: List[str]
+    tags: list[str]
     created_at: datetime  # Add this
     updated_at: datetime  # Add this
 ```
