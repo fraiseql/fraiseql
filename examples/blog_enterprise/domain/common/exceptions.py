@@ -3,6 +3,7 @@
 These exceptions represent business rule violations and domain-specific errors.
 """
 
+from typing import Any
 from uuid import UUID
 
 from .base_classes import DomainException
