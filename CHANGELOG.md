@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No unreleased changes at this time._
 
+## [1.0.2] - 2025-10-25
+
+### 📝 PyPI Documentation Fix Release
+
+FraiseQL v1.0.2 is a patch release that fixes README rendering and documentation links on the PyPI package page.
+
+### Fixed
+
+**README Formatting for PyPI**
+- Fixed Markdown rendering issues where content displayed without proper spacing
+- Added blank lines after 15+ bold headers for correct PyPI Markdown rendering
+- Content now renders with proper spacing between sections, lists, and code blocks
+
+**Documentation Links**
+- Converted 20+ relative documentation links to absolute GitHub URLs
+- All links now work correctly on PyPI package page (previously 404'd)
+- Examples: docs/UNDERSTANDING.md → https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md
+
+**Code Examples**
+- Fixed query implementations to demonstrate Rust pipeline advantage correctly
+- Replaced manual Python object instantiation with direct database calls
+- Changed from `[Note(**row["data"]) for row in result]` to `await db.find("v_note")`
+- Fixed `db.call_function` to use dict parameter instead of positional arguments
+- Shows zero-overhead transformation: PostgreSQL JSONB → Rust → HTTP
+
+**Type Hints**
+- Modernized to Python 3.10+ syntax throughout README
+- Replaced `Optional[T]` with `T | None`
+- Replaced `id: int` with `id: UUID` in examples
+
+**Content Updates**
+- Added Coordinate geospatial type to specialized types list
+
+### Technical Details
+
+This release contains only documentation improvements. No code changes were made to the FraiseQL framework itself. All 3,590 tests continue to pass.
+
 ## [1.0.1] - 2025-10-24
 
 ### 🚀 Documentation & Deployment Enhancement Release

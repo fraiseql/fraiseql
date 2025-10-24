@@ -1,19 +1,31 @@
 # FraiseQL Version Status
 
-**Last Updated**: 2025-10-24
+**Last Updated**: 2025-10-25
 
-## Current Production Version: v1.0.1
+## Current Production Version: v1.0.2
 
-FraiseQL v1.0.1 is the stable, production-ready release suitable for all users. This release adds comprehensive deployment templates and enhanced documentation to the solid v1.0.0 foundation.
+FraiseQL v1.0.2 is the stable, production-ready release suitable for all users. This patch release fixes README rendering and documentation links on PyPI.
 
 ## Version Overview
 
 | Version | Status | Recommended For | Stability |
 |---------|--------|----------------|-----------|
-| **v1.0.1** | Production Stable | All users | ✅ Stable |
+| **v1.0.2** | Production Stable | All users | ✅ Stable |
+| v1.0.1 | Stable | All users | ✅ Stable |
 | v1.0.0 | Stable | All users | ✅ Stable |
-| v0.11.5 | Superseded | Legacy projects | ⚠️ Use v1.0.1 |
+| v0.11.5 | Superseded | Legacy projects | ⚠️ Use v1.0.2 |
 | Rust Pipeline | Integrated | Included in v1.0+ | ✅ Stable |
+
+## What's New in v1.0.2
+
+### PyPI README Improvements
+- ✅ Fixed Markdown rendering issues (proper spacing after headers)
+- ✅ All documentation links now work on PyPI (20+ links converted to absolute URLs)
+- ✅ Code examples show correct Rust pipeline usage (no manual Python instantiation)
+- ✅ Modernized type hints (Python 3.10+ syntax: `T | None`, `UUID`)
+- ✅ Added Coordinate geospatial type to specialized types list
+
+**See [CHANGELOG.md](CHANGELOG.md#102---2025-10-25) for complete details.**
 
 ## What's New in v1.0.1
 
