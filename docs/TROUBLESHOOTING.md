@@ -187,7 +187,7 @@ psql your_db -c "ALTER TABLE tb_note ADD COLUMN tags TEXT[] DEFAULT '{}';"
 
 # Update the view
 psql your_db -c "DROP VIEW v_note;"
-psql your_db -c "CREATE VIEW v_note AS SELECT jsonb_build_object('id', pk_note, 'title', title, 'content', content, 'tags', tags) as data FROM tb_note;"
+psql your_db -c "CREATE VIEW v_note AS SELECT jsonb_build_object('id', id, 'title', title, 'content', content, 'tags', tags) as data FROM tb_note;"
 
 # Restart your Python app
 ```

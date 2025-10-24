@@ -213,7 +213,7 @@ RETURNS JSONB AS $$
 DECLARE
     deleted_count INTEGER;
 BEGIN
-    DELETE FROM tb_note WHERE pk_note = note_id;
+    DELETE FROM tb_note WHERE id = note_id;
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
 
     IF deleted_count = 0 THEN
@@ -286,7 +286,7 @@ DROP VIEW v_note;
 CREATE VIEW v_note AS
 SELECT
     jsonb_build_object(
-        'id', pk_note,
+        'id', id,
         'title', title,
         'content', content,
         'tags', tags,

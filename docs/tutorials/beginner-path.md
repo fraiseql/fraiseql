@@ -79,14 +79,14 @@ CREATE VIEW v_user_with_posts AS
 SELECT
     u.id,
     jsonb_build_object(
-        'id', u.pk_user,
+        'id', u.id,
         'name', u.name,
         'posts', COALESCE(
             (SELECT jsonb_agg(jsonb_build_object(
-                'id', p.pk_post,
+                'id', p.id,
                 'title', p.title
             ) ORDER BY p.created_at DESC)
-            FROM tb_post p WHERE p.fk_author = u.id),
+            FROM tb_post p WHERE p.fk_author = u.pk_user),
             '[]'::jsonb
         )
     ) AS data
@@ -113,14 +113,17 @@ CREATE FUNCTION fn_create_note(
     p_content TEXT
 ) RETURNS UUID AS $$
 DECLARE
-    v_note_pk UUID;
+    v_note_id UUID;
+    v_user_pk INT;
 BEGIN
-    INSERT INTO tb_note (fk_user, title, content)
-    SELECT id, p_title, p_content
-    FROM tb_user WHERE pk_user = p_user_id
-    RETURNING pk_note INTO v_note_pk;
+    -- Get user's internal pk
+    SELECT pk_user INTO v_user_pk FROM tb_user WHERE id = p_user_id;
 
-    RETURN v_note_pk;
+    INSERT INTO tb_note (fk_user, title, content)
+    VALUES (v_user_pk, p_title, p_content)
+    RETURNING id INTO v_note_id;
+
+    RETURN v_note_id;
 END;
 $$ LANGUAGE plpgsql;
 ```
@@ -239,7 +242,7 @@ SELECT
     id,
     jsonb_build_object(
         '__typename', 'Item',
-        'id', pk_item,
+        'id', id,
         'name', name
     ) AS data
 FROM tb_item;
