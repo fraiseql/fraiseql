@@ -68,7 +68,6 @@ Create a file called `app.py` with this complete code:
 ```python
 import uuid
 from datetime import datetime
-from typing import List, Optional
 import uvicorn
 from fraiseql import type, query, mutation, input, success, failure
 from fraiseql.fastapi import create_fraiseql_app
@@ -79,7 +78,7 @@ class Note:
     """A simple note with title and content."""
     id: uuid.UUID
     title: str
-    content: Optional[str]
+    content: str | None
     created_at: datetime
 
 # Define input types
@@ -87,7 +86,7 @@ class Note:
 class CreateNoteInput:
     """Input for creating a new note."""
     title: str
-    content: Optional[str] = None
+    content: str | None = None
 
 # Define success/failure types
 @success
@@ -104,7 +103,7 @@ class ValidationError:
 
 # Queries
 @query
-async def notes(info) -> List[Note]:
+async def notes(info) -> list[Note]:
     """Get all notes."""
     db = info.context["db"]
     from fraiseql.db import DatabaseQuery
@@ -116,7 +115,7 @@ async def notes(info) -> List[Note]:
     return [Note(**row["data"]) for row in result]
 
 @query
-async def note(info, id: uuid.UUID) -> Optional[Note]:
+async def note(info, id: uuid.UUID) -> Note | None:
     """Get a single note by ID."""
     db = info.context["db"]
     from fraiseql.db import DatabaseQuery
