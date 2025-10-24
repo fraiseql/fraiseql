@@ -129,6 +129,26 @@ async def notes(info) -> List[Note]:
 
 
 @fraiseql.query
+async def notes_filtered(info, title_contains: Optional[str] = None) -> List[Note]:
+    """Get notes with optional title filtering."""
+    db = info.context["db"]
+    from fraiseql.db import DatabaseQuery
+
+    if title_contains:
+        query = DatabaseQuery(
+            "SELECT data FROM v_note WHERE data->>'title' ILIKE %s ORDER BY (data->>'created_at')::timestamp DESC",
+            [f"%{title_contains}%"],
+        )
+    else:
+        query = DatabaseQuery(
+            "SELECT data FROM v_note ORDER BY (data->>'created_at')::timestamp DESC", []
+        )
+
+    result = await db.run(query)
+    return [Note(**row["data"]) for row in result]
+
+
+@fraiseql.query
 async def note(info, id: int) -> Optional[Note]:
     """Get a single note by ID."""
     db = info.context["db"]
@@ -179,7 +199,7 @@ class CreateNote:
 
 # Collect types, queries, and mutations for app creation
 QUICKSTART_TYPES = [Note]
-QUICKSTART_QUERIES = [notes, note]
+QUICKSTART_QUERIES = [notes, notes_filtered, note]
 QUICKSTART_MUTATIONS = [CreateNote]
 
 

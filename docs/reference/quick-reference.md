@@ -43,9 +43,10 @@ from fraiseql import query
 from typing import List
 
 @query
-def users() -> List[User]:
+async def users(info) -> List[User]:
     """Get all users."""
-    pass  # Framework handles this
+    db = info.context["db"]
+    return await db.find("users")
 ```
 
 ### Query - Get by ID
@@ -54,20 +55,26 @@ from fraiseql import query
 from uuid import UUID
 
 @query
-def user(id: UUID) -> User:
+async def user(info, id: UUID) -> User | None:
     """Get user by ID."""
-    pass  # Framework handles this
+    db = info.context["db"]
+    return await db.get_by_id("users", id)
 ```
 
-### Query - Filter by Field
+### Query - Filter with Where Input Types
 ```python
 from fraiseql import query
+from fraiseql.sql import create_graphql_where_input
 from typing import List
 
+# Generate automatic Where input type
+UserWhereInput = create_graphql_where_input(User)
+
 @query
-def users_by_status(status: str) -> List[User]:
-    """Get users by status."""
-    pass  # Framework handles this
+async def users(info, where: UserWhereInput | None = None) -> List[User]:
+    """Get users with optional filtering."""
+    db = info.context["db"]
+    return await db.find("users", where=where)
 ```
 
 ### Mutation - Create
@@ -115,6 +122,113 @@ class DeleteResult:
 def delete_user(id: UUID) -> DeleteResult:
     """Delete user."""
     pass  # Framework calls fn_delete_user
+```
+
+## Where Input Types & Filtering
+
+FraiseQL automatically generates powerful Where input types for type-safe filtering:
+
+### Automatic Where Input Generation
+```python
+from fraiseql.sql import create_graphql_where_input
+
+# Generate Where input type for any @type decorated class
+UserWhereInput = create_graphql_where_input(User)
+PostWhereInput = create_graphql_where_input(Post)
+
+@query
+async def users(info, where: UserWhereInput | None = None) -> List[User]:
+    db = info.context["db"]
+    return await db.find("users", where=where)
+```
+
+### Filter Operators by Type
+
+**String Fields:**
+```graphql
+where: {
+  name: { eq: "John", contains: "Jo", startswith: "J" }
+  email: { endswith: "@example.com", in: ["a@example.com", "b@example.com"] }
+}
+```
+
+**Numeric Fields:**
+```graphql
+where: {
+  age: { gt: 18, lte: 65, in: [25, 30, 35] }
+  score: { gte: 85.5, lt: 100 }
+}
+```
+
+**Boolean Fields:**
+```graphql
+where: {
+  isActive: { eq: true }
+  isDeleted: { neq: true, isnull: false }
+}
+```
+
+**Array/List Fields:**
+```graphql
+where: {
+  tags: { contains: "urgent" }  # Array contains this value
+  categories: { in: ["work", "personal"] }  # Array intersects with this list
+}
+```
+
+### Logical Operators
+```graphql
+# AND - all conditions must be true
+where: {
+  AND: [
+    { age: { gte: 18 } },
+    { status: { eq: "active" } }
+  ]
+}
+
+# OR - any condition must be true
+where: {
+  OR: [
+    { role: { eq: "admin" } },
+    { department: { eq: "engineering" } }
+  ]
+}
+
+# NOT - negate a condition
+where: {
+  NOT: { isDeleted: { eq: true } }
+}
+
+# Complex nested logic
+where: {
+  AND: [
+    { age: { gte: 18 } },
+    {
+      OR: [
+        { role: { eq: "admin" } },
+        { department: { eq: "engineering" } }
+      ]
+    }
+  ]
+}
+```
+
+### Usage in GraphQL
+```graphql
+query GetFilteredUsers {
+  users(where: {
+    AND: [
+      { age: { gte: 21 } },
+      { isActive: { eq: true } },
+      { name: { contains: "Smith" } }
+    ]
+  }) {
+    id
+    name
+    email
+    age
+  }
+}
 ```
 
 ## Type System & Custom Types

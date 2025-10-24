@@ -3,14 +3,17 @@
 Welcome! You've just completed the 5-minute quickstart and have a working GraphQL API. Now let's spend the next 55 minutes building your skills progressively. By the end, you'll understand how to extend FraiseQL applications and implement production patterns.
 
 ## Minute 0-5: Quickstart Recap
+
 **[Complete the 5-minute quickstart first](quickstart.md)**
 
 You should now have:
+
 - A working GraphQL API at `http://localhost:8000/graphql`
 - A PostgreSQL database with a `v_note` view
 - A basic note-taking app
 
 ✅ **Checkpoint**: Can you run this query and get results?
+
 ```graphql
 query {
   notes {
@@ -26,6 +29,7 @@ query {
 **[Read the Understanding Guide](UNDERSTANDING.md)**
 
 Key concepts you should now understand:
+
 - **Database-first GraphQL**: Start with PostgreSQL, not GraphQL types
 - **JSONB Views**: `tb_*` tables → `v_*` views → GraphQL responses
 - **CQRS Pattern**: Reads (views) vs Writes (functions)
@@ -59,8 +63,9 @@ Modify `v_note` to include tags:
 DROP VIEW v_note;
 CREATE VIEW v_note AS
 SELECT
+    id,
     jsonb_build_object(
-        'id', pk_note,
+        'id', id,
         'title', title,
         'content', content,
         'tags', tags
@@ -85,40 +90,74 @@ class Note:
     tags: List[str]  # Add this line
 ```
 
-### Step 4: Add Filter Query
+### Step 4: Add Filtering with Where Input Types
 
-Add a query to filter notes by tag:
+FraiseQL provides automatic Where input type generation for powerful, type-safe filtering:
 
 ```python
 # app.py
 from fraiseql import query
+from fraiseql.sql import create_graphql_where_input
+
+# Generate automatic Where input type for Note
+NoteWhereInput = create_graphql_where_input(Note)
 
 @query
-def notes_by_tag(tag: str) -> List[Note]:
-    """Get notes with a specific tag."""
-    pass  # Framework handles this
+async def notes(info, where: NoteWhereInput | None = None) -> List[Note]:
+    """Get notes with optional filtering."""
+    db = info.context["db"]
+    # Use repository's find method with where parameter
+    return await db.find("v_note", where=where)
 ```
 
 ### Step 5: Test Your Changes
 
-Restart your server and test:
+Restart your server and test the powerful filtering capabilities:
 
 ```graphql
 query {
+  # Get all notes
   notes {
     id
     title
     tags
   }
 
-  notesByTag(tag: "work") {
+  # Filter notes by title containing "work"
+  workNotes: notes(where: { title: { contains: "work" } }) {
     title
     content
+  }
+
+  # Filter notes with specific tag using array contains
+  urgentNotes: notes(where: { tags: { contains: "urgent" } }) {
+    title
+    tags
+  }
+
+  # Combine multiple conditions
+  complexFilter: notes(where: {
+    AND: [
+      { title: { contains: "meeting" } },
+      { tags: { contains: "work" } }
+    ]
+  }) {
+    title
+    content
+    tags
   }
 }
 ```
 
-✅ **Checkpoint**: Can you create a note with tags and filter by tag?
+**Available Filter Operators:**
+- `eq`, `neq` - equals, not equals
+- `contains`, `startswith`, `endswith` - string matching
+- `gt`, `gte`, `lt`, `lte` - comparisons
+- `in`, `nin` - list membership
+- `isnull` - null checking
+- `AND`, `OR`, `NOT` - logical operators
+
+✅ **Checkpoint**: Can you create a note with tags and use the various filtering operators?
 
 ## Minute 30-45: Add a Mutation - Delete Notes
 
@@ -133,7 +172,7 @@ Create a PostgreSQL function for deletion:
 CREATE OR REPLACE FUNCTION fn_delete_note(note_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
-    DELETE FROM tb_note WHERE pk_note = note_id;
+    DELETE FROM tb_note WHERE id = note_id;
     RETURN FOUND;
 END;
 $$ LANGUAGE plpgsql;
@@ -195,7 +234,7 @@ from typing import Optional
 
 class DeleteResult:
     success: bool
-    error: Optional[str]
+    error: str | None
 
 @mutation
 def delete_note(id: UUID) -> DeleteResult:
@@ -280,7 +319,7 @@ Create a note, then update it and verify `updated_at` changes but `created_at` s
 
 ✅ **Checkpoint**: Do timestamps update automatically when you modify notes?
 
-## 🎉 Congratulations!
+## 🎉 Congratulations
 
 You've completed your first hour with FraiseQL! You now know how to:
 
@@ -293,20 +332,24 @@ You've completed your first hour with FraiseQL! You now know how to:
 ## What's Next?
 
 ### Immediate Next Steps (2-3 hours)
+
 - **[Beginner Learning Path](tutorials/beginner-path.md)** - Deep dive into all core concepts
 - **[Blog API Tutorial](tutorials/blog-api.md)** - Build a complete application
 
 ### Explore Examples (30 minutes each)
+
 - **E-commerce API (../examples/ecommerce/)** - Shopping cart, products, orders
 - **Real-time Chat (../examples/real_time_chat/)** - Subscriptions and real-time updates
 - **Multi-tenant SaaS (../examples/apq_multi_tenant/)** - Enterprise patterns
 
 ### Advanced Topics
+
 - **[Performance Guide](performance/PERFORMANCE_GUIDE.md)** - Optimization techniques
 - **[Multi-tenancy](advanced/multi-tenancy.md)** - Building SaaS applications
 - **[Migration Guide](migration/v0-to-v1.md)** - Upgrading from older versions
 
 ### Need Help?
+
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
 - **[Quick Reference](reference/quick-reference.md)** - Copy-paste code patterns
 - **[GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)** - Community support

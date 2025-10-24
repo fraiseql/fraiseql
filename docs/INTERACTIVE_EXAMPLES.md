@@ -5,19 +5,23 @@ Side-by-side examples showing how SQL database patterns translate to Python type
 ## Basic User Query
 
 ### SQL: Database View
+
 ```sql
 -- v_user view returns JSONB for GraphQL
 CREATE VIEW v_user AS
-SELECT jsonb_build_object(
-    'id', u.id,
-    'email', u.email,
-    'name', u.name,
-    'created_at', u.created_at
-) as data
+SELECT
+  id,
+  jsonb_build_object(
+      'id', u.id,
+      'email', u.email,
+      'name', u.name,
+      'created_at', u.created_at
+  ) as data
 FROM tb_user u;
 ```
 
 ### Python: Type Definition
+
 ```python
 from fraiseql import type
 from uuid import UUID
@@ -32,6 +36,7 @@ class User:
 ```
 
 ### GraphQL: Query Operation
+
 ```graphql
 query GetUsers {
   users {
@@ -43,6 +48,7 @@ query GetUsers {
 }
 
 # Response:
+
 {
   "data": {
     "users": [
@@ -60,12 +66,15 @@ query GetUsers {
 ## Filtered Query with Arguments
 
 ### SQL: View with Filtering
+
 ```sql
+
 -- Same v_user view, filtering happens in repository
 -- Repository adds: WHERE data->>'email' LIKE '%@example.com'
 ```
 
 ### Python: Repository Method
+
 ```python
 from fraiseql import query
 
@@ -79,6 +88,7 @@ async def users(self, info, email_filter: str | None = None) -> List[User]:
 ```
 
 ### GraphQL: Query with Arguments
+
 ```graphql
 query GetFilteredUsers($emailFilter: String) {
   users(emailFilter: $emailFilter) {
@@ -110,6 +120,7 @@ query GetFilteredUsers($emailFilter: String) {
 ## Nested Object Query
 
 ### SQL: Joined View
+
 ```sql
 -- v_post_with_author view with nested user data
 CREATE VIEW v_post_with_author AS
@@ -129,6 +140,7 @@ JOIN tb_user u ON p.author_id = u.id;
 ```
 
 ### Python: Nested Types
+
 ```python
 from fraiseql import type
 
@@ -149,6 +161,7 @@ class User:
 ```
 
 ### GraphQL: Nested Query
+
 ```graphql
 query GetPostsWithAuthors {
   posts {
@@ -187,6 +200,7 @@ query GetPostsWithAuthors {
 ## Mutation: Create Operation
 
 ### SQL: Business Logic Function
+
 ```sql
 -- fn_create_post handles validation and insertion
 CREATE FUNCTION fn_create_post(
@@ -214,6 +228,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 ### Python: Mutation Resolver
+
 ```python
 from fraiseql import mutation, input
 
@@ -236,6 +251,7 @@ async def create_post(self, info, input: CreatePostInput) -> Post:
 ```
 
 ### GraphQL: Mutation Operation
+
 ```graphql
 mutation CreateNewPost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -279,6 +295,7 @@ mutation CreateNewPost($input: CreatePostInput!) {
 ## Advanced: Aggregation Query
 
 ### SQL: Table View (Projection)
+
 ```sql
 -- tv_post_stats provides denormalized table view for efficient analytics queries
 CREATE TABLE tv_post_stats AS
@@ -303,6 +320,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 ### Python: Stats Type
+
 ```python
 from fraiseql import type
 
@@ -316,6 +334,7 @@ class PostStats:
 ```
 
 ### GraphQL: Analytics Query
+
 ```graphql
 query GetPostAnalytics {
   postStats {
@@ -346,18 +365,21 @@ query GetPostAnalytics {
 ## Try It Yourself
 
 ### Setup Instructions
+
 1. **Database**: Create tables and views as shown above
 2. **Python**: Define types with `@type` decorators
 3. **GraphQL**: Use the query/mutation examples
 4. **Test**: Execute queries in GraphQL playground
 
 ### Common Patterns
+
 - **Views (v_*)**: For real-time queries with joins
 - **Functions (fn_*)**: For mutations with business logic
 - **Table Views (tv_*)**: For denormalized data and aggregations
 - **Nested Types**: Automatic resolution from JSONB
 
 ### Next Steps
+
 - [Quickstart Guide](quickstart.md) - Get running in 5 minutes
 - [Understanding FraiseQL](UNDERSTANDING.md) - Architecture deep dive
 - [Database API](core/database-api.md) - Repository patterns
