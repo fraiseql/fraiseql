@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](./VERSION_STATUS.md)
+[![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/VERSION_STATUS.md)
 
 **📍 You are here: Main FraiseQL Framework (v1.0.1) - Production Stable**
 
@@ -16,8 +16,8 @@
 PostgreSQL returns JSONB. Rust transforms it. Zero Python overhead.
 
 ```python
-# Complete GraphQL API in 15 lines
-from fraiseql import type, query, mutation, input, success, failure
+# Complete GraphQL API in ~15 lines
+from fraiseql import type, query
 from fraiseql.fastapi import create_fraiseql_app
 
 @type(sql_source="v_user", jsonb_column="data")
@@ -27,8 +27,9 @@ class User:
     email: str
 
 @query
-def users() -> list[User]:
-    pass  # PostgreSQL → Rust → HTTP
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user")
 
 app = create_fraiseql_app(
     database_url="postgresql://localhost/mydb",
@@ -379,7 +380,7 @@ class CreateUser:
 
 **New to FraiseQL?** Understanding these core concepts will help you make the most of the framework:
 
-**[📚 Concepts & Glossary](docs/core/concepts-glossary.md)** - Essential terminology and mental models:
+**[📚 Concepts & Glossary](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary.md)** - Essential terminology and mental models:
 - **CQRS Pattern** - Separate read models (views) from write models (functions)
 - **Trinity Identifiers** - Three-tier ID system (`pk_*`, `id`, `identifier`) for performance and UX
 - **JSONB Views** - PostgreSQL composes data once, eliminating N+1 queries
@@ -387,9 +388,9 @@ class CreateUser:
 - **Explicit Sync Pattern** - Table views (`tv_*`) for complex queries
 
 **Quick links:**
-- [Understanding FraiseQL](docs/UNDERSTANDING.md) - 10-minute architecture overview
-- [Database API](docs/core/database-api.md) - Connection pooling and query execution
-- [Types and Schema](docs/core/types-and-schema.md) - Complete type system guide
+- [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md) - 10-minute architecture overview
+- [Database API](https://github.com/fraiseql/fraiseql/blob/main/docs/core/database-api.md) - Connection pooling and query execution
+- [Types and Schema](https://github.com/fraiseql/fraiseql/blob/main/docs/core/types-and-schema.md) - Complete type system guide
 
 ---
 
@@ -411,12 +412,16 @@ class Note:
 
 # Step 2: Define queries
 @query
-def notes() -> list[Note]:
-    pass  # FraiseQL handles it
+async def notes(info) -> list[Note]:
+    """Get all notes."""
+    db = info.context["db"]
+    return await db.find("v_note")
 
 @query
-def note(id: UUID) -> Note | None:
-    pass  # FraiseQL handles it
+async def note(info, id: UUID) -> Note | None:
+    """Get a note by ID."""
+    db = info.context["db"]
+    return await db.find_one("v_note", id=id)
 
 # Step 3: Define mutations
 @input
@@ -477,8 +482,9 @@ class User:
 
 # Step 3: Query it
 @query
-def users() -> list[User]:
-    pass  # PostgreSQL → Rust → HTTP
+async def users(info) -> list[User]:
+    db = info.context["db"]
+    return await db.find("v_user")
 ```
 
 **No ORM. No complex resolvers. PostgreSQL composes data, Rust transforms it.**
@@ -647,7 +653,7 @@ FraiseQL implements Command Query Responsibility Segregation:
 - `fn_*` - Business logic, validation, side effects
 - `tb_*` - Base tables for data storage
 
-**[📊 Detailed Architecture Diagrams](docs/UNDERSTANDING.md)**
+**[📊 Detailed Architecture Diagrams](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md)**
 
 ### Key Innovations
 
@@ -750,7 +756,7 @@ config = FraiseQLConfig(
 3. PostgreSQL → Rust → HTTP (same fast path)
 4. Bandwidth reduction with large queries
 
-**[⚡ APQ Details](docs/diagrams/apq-cache-flow.md)**
+**[⚡ APQ Details](https://github.com/fraiseql/fraiseql/blob/main/docs/diagrams/apq-cache-flow.md)**
 
 ### Specialized Type System
 
@@ -792,7 +798,7 @@ query {
 - **Standard:** EmailAddress, UUID, JSON with validation
 - **Nested Arrays:** Complete AND/OR/NOT logical operators
 
-**[📖 Nested Array Filtering Guide](docs/nested-array-filtering.md)**
+**[📖 Nested Array Filtering Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/nested-array-filtering.md)**
 
 ### Enterprise Security
 
@@ -856,10 +862,10 @@ fraiseql dev
 
 ### Next Steps
 
-**📚 [First Hour Guide](docs/FIRST_HOUR.md)** - Build a complete blog API (60 minutes, hands-on)
-**🧠 [Understanding FraiseQL](docs/UNDERSTANDING.md)** - Architecture deep dive (10 minute read)
-**⚡ [5-Minute Quickstart](docs/quickstart.md)** - Copy, paste, run
-**📖 [Full Documentation](docs/)** - Complete guides and references
+**📚 [First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/FIRST_HOUR.md)** - Build a complete blog API (60 minutes, hands-on)
+**🧠 [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md)** - Architecture deep dive (10 minute read)
+**⚡ [5-Minute Quickstart](https://github.com/fraiseql/fraiseql/blob/main/docs/quickstart.md)** - Copy, paste, run
+**📖 [Full Documentation](https://github.com/fraiseql/fraiseql/tree/main/docs)** - Complete guides and references
 
 ### Prerequisites
 
@@ -913,12 +919,12 @@ fraiseql sql explain <query>   # Show PostgreSQL execution plan
 ## 📚 Learn More
 
 - **[Documentation](https://fraiseql.dev)** - Complete guides and API reference
-- **[Examples](./examples/)** - Real-world applications and patterns
-- **[Architecture](./docs/architecture/)** - Design decisions and trade-offs
-- **[Performance Guide](docs/performance/index.md)** - Optimization strategies
-  - **[Benchmark Methodology](docs/benchmarks/methodology.md)** - Reproducible performance benchmarks
-  - **[Reproduction Guide](docs/benchmarks/methodology.md#reproduction-instructions)** - Run benchmarks yourself
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Examples](https://github.com/fraiseql/fraiseql/tree/main/examples)** - Real-world applications and patterns
+- **[Architecture](https://github.com/fraiseql/fraiseql/tree/main/docs/architecture)** - Design decisions and trade-offs
+- **[Performance Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/performance/index.md)** - Optimization strategies
+  - **[Benchmark Methodology](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md)** - Reproducible performance benchmarks
+  - **[Reproduction Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/benchmarks/methodology.md#reproduction-instructions)** - Run benchmarks yourself
+- **[Troubleshooting](https://github.com/fraiseql/fraiseql/blob/main/docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
 ---
 
@@ -1002,14 +1008,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 | **Rust Pipeline** | [`fraiseql_rs/`](fraiseql_rs/) | Integrated | Included in v1.0+ | ✅ Stable |
 | **v0.11.5** | Superseded | Legacy | Use v1.0.1 | ⚠️ Migrate |
 
-**New to FraiseQL?** → **[First Hour Guide](docs/FIRST_HOUR.md)** • [Project Structure](docs/strategic/PROJECT_STRUCTURE.md)
+**New to FraiseQL?** → **[First Hour Guide](https://github.com/fraiseql/fraiseql/blob/main/docs/FIRST_HOUR.md)** • [Project Structure](https://github.com/fraiseql/fraiseql/blob/main/docs/strategic/PROJECT_STRUCTURE.md)
 
 **Migration Guides:**
 
-- [v1 to v2 Migration](./docs/migration/v1-to-v2.md) - Unified Rust-first architecture
-- [Monitoring Migration](./docs/production/monitoring.md) - From Redis and Sentry
+- [v1 to v2 Migration](https://github.com/fraiseql/fraiseql/blob/main/docs/migration/v1-to-v2.md) - Unified Rust-first architecture
+- [Monitoring Migration](https://github.com/fraiseql/fraiseql/blob/main/docs/production/monitoring.md) - From Redis and Sentry
 
-**[📖 Complete Version Roadmap](./VERSION_STATUS.md)**
+**[📖 Complete Version Roadmap](https://github.com/fraiseql/fraiseql/blob/main/VERSION_STATUS.md)**
 
 ---
 
