@@ -230,7 +230,7 @@ class ShardConfig:
     shard_key: str
     shard_count: int
     routing_strategy: RoutingStrategy
-    replica_configs: List[ReplicaConfig]
+    replica_configs: list[ReplicaConfig]
 ```
 
 ### 4. 🛠️ Operational Excellence

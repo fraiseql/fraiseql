@@ -126,7 +126,7 @@ async def execute_function_raw_json(
     self,
     function_name: str,
     input_data: dict[str, object],
-    type_name: Optional[str] = None,
+    type_name: str | None = None,
 ) -> RawJSONResult:
     """Execute a PostgreSQL function and return raw JSON (no parsing).
 

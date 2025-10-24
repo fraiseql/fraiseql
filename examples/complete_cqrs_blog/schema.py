@@ -7,7 +7,6 @@ Demonstrates FraiseQL's CQRS pattern:
 """
 
 import strawberry
-from typing import List, Optional
 from datetime import datetime
 
 
@@ -19,7 +18,7 @@ class User:
     email: str
     username: str
     full_name: str = strawberry.field(name="fullName")
-    bio: Optional[str]
+    bio: str | None
     published_post_count: int = strawberry.field(name="publishedPostCount")
     comment_count: int = strawberry.field(name="commentCount")
     created_at: datetime = strawberry.field(name="createdAt")
@@ -55,7 +54,7 @@ class Post:
     published: bool
     author: Author
     comment_count: int = strawberry.field(name="commentCount")
-    comments: List[Comment]
+    comments: list[Comment]
     created_at: datetime = strawberry.field(name="createdAt")
     updated_at: datetime = strawberry.field(name="updatedAt")
 
@@ -76,7 +75,7 @@ class Query:
     """GraphQL queries - all read from tv_* tables (query side)."""
 
     @strawberry.field
-    async def users(self, info, limit: Optional[int] = 10) -> List[User]:
+    async def users(self, info, limit: int | None = 10) -> list[User]:
         """Get users with their post/comment counts."""
         pool = info.context["db_pool"]
 
@@ -93,7 +92,7 @@ class Query:
         return [User(**row["data"]) for row in rows]
 
     @strawberry.field
-    async def user(self, info, id: str) -> Optional[User]:
+    async def user(self, info, id: str) -> User | None:
         """Get a specific user by ID."""
         pool = info.context["db_pool"]
 
@@ -104,8 +103,8 @@ class Query:
 
     @strawberry.field
     async def posts(
-        self, info, published_only: bool = True, limit: Optional[int] = 10
-    ) -> List[Post]:
+        self, info, published_only: bool = True, limit: int | None = 10
+    ) -> list[Post]:
         """Get posts with embedded author and comments."""
         pool = info.context["db_pool"]
 
@@ -133,7 +132,7 @@ class Query:
         return [Post(**row["data"]) for row in rows]
 
     @strawberry.field
-    async def post(self, info, id: str) -> Optional[Post]:
+    async def post(self, info, id: str) -> Post | None:
         """Get a specific post by ID."""
         pool = info.context["db_pool"]
 
@@ -177,7 +176,7 @@ class Mutation:
 
     @strawberry.mutation
     async def create_user(
-        self, info, email: str, username: str, full_name: str, bio: Optional[str] = None
+        self, info, email: str, username: str, full_name: str, bio: str | None = None
     ) -> User:
         """
         Create a new user.

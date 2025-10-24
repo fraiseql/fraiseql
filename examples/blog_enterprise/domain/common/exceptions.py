@@ -3,7 +3,6 @@
 These exceptions represent business rule violations and domain-specific errors.
 """
 
-from typing import Any, Dict, Optional
 from uuid import UUID
 
 from .base_classes import DomainException
@@ -81,7 +80,7 @@ class CommentModerationError(DomainException):
 class UserRegistrationError(DomainException):
     """Exception raised when user registration fails."""
 
-    def __init__(self, reason: str, details: Optional[Dict[str, Any]] = None):
+    def __init__(self, reason: str, details: dict[str, Any] | None = None):
         super().__init__(f"User registration failed: {reason}", details)
 
 
@@ -156,5 +155,5 @@ class ValidationError(DomainException):
 class BusinessRuleViolationError(DomainException):
     """Exception raised when business rules are violated."""
 
-    def __init__(self, rule_name: str, details: Dict[str, Any]):
+    def __init__(self, rule_name: str, details: dict[str, Any]):
         super().__init__(f"Business rule violation: {rule_name}", {"rule": rule_name, **details})

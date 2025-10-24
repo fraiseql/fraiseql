@@ -1,6 +1,5 @@
 """E-commerce queries for FraiseQL example."""
 
-from typing import Optional
 from uuid import UUID
 
 import fraiseql
@@ -98,24 +97,24 @@ class Query:
 
     # User queries
     @fraiseql.field
-    async def me(self, info: Info) -> Optional[User]:
+    async def me(self, info: Info) -> User | None:
         """Get current authenticated user."""
         # Requires authentication
         return None  # Placeholder
 
     @fraiseql.field
-    async def user(self, info: Info, id: UUID) -> Optional[User]:
+    async def user(self, info: Info, id: UUID) -> User | None:
         """Get user by ID (admin only)."""
         return None  # Placeholder
 
     # Product queries
     @fraiseql.field
-    async def product(self, info: Info, id: UUID) -> Optional[Product]:
+    async def product(self, info: Info, id: UUID) -> Product | None:
         """Get product by ID."""
         return None  # Placeholder
 
     @fraiseql.field
-    async def product_by_sku(self, info: Info, sku: str) -> Optional[Product]:
+    async def product_by_sku(self, info: Info, sku: str) -> Product | None:
         """Get product by SKU."""
         return None  # Placeholder
 
@@ -123,7 +122,7 @@ class Query:
     async def products(
         self,
         info: Info,
-        filters: Optional[ProductFilterInput] = None,
+        filters: ProductFilterInput | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
         limit: int = 20,
@@ -159,18 +158,18 @@ class Query:
         id: UUID,
         review_limit: int = 10,
         review_offset: int = 0,
-    ) -> Optional[ProductWithReviews]:
+    ) -> ProductWithReviews | None:
         """Get product with reviews and related products."""
         return None  # Placeholder
 
     # Cart queries
     @fraiseql.field
-    async def my_cart(self, info: Info) -> Optional[CartWithItems]:
+    async def my_cart(self, info: Info) -> CartWithItems | None:
         """Get current user's cart with items."""
         return None  # Placeholder
 
     @fraiseql.field
-    async def cart(self, info: Info, id: UUID) -> Optional[Cart]:
+    async def cart(self, info: Info, id: UUID) -> Cart | None:
         """Get cart by ID."""
         return None  # Placeholder
 
@@ -179,7 +178,7 @@ class Query:
     async def my_orders(
         self,
         info: Info,
-        status: Optional[OrderStatus] = None,
+        status: OrderStatus | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> OrderConnection:
@@ -192,12 +191,12 @@ class Query:
         )
 
     @fraiseql.field
-    async def order(self, info: Info, id: UUID) -> Optional[OrderWithDetails]:
+    async def order(self, info: Info, id: UUID) -> OrderWithDetails | None:
         """Get order by ID with full details."""
         return None  # Placeholder
 
     @fraiseql.field
-    async def order_by_number(self, info: Info, order_number: str) -> Optional[OrderWithDetails]:
+    async def order_by_number(self, info: Info, order_number: str) -> OrderWithDetails | None:
         """Get order by order number."""
         return None  # Placeholder
 
@@ -208,7 +207,7 @@ class Query:
         return []
 
     @fraiseql.field
-    async def address(self, info: Info, id: UUID) -> Optional[Address]:
+    async def address(self, info: Info, id: UUID) -> Address | None:
         """Get address by ID."""
         return None  # Placeholder
 

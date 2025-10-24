@@ -15,7 +15,6 @@ Features demonstrated:
 
 import asyncio
 import uuid
-from typing import List, Optional
 
 from fraiseql.fields import fraise_field
 from fraiseql.nested_array_filters import (
@@ -33,13 +32,13 @@ class PrintServer:
 
     id: uuid.UUID
     hostname: str
-    ip_address: Optional[str] = None
+    ip_address: str | None = None
     operating_system: str
     n_total_allocations: int = 0
 
 
 # Step 2a: Clean approach - automatic detection
-@auto_nested_array_filters  # Automatically enables filtering for all List[T] fields
+@auto_nested_array_filters  # Automatically enables filtering for all list[T] fields
 @fraise_type(sql_source="tv_network_configuration", jsonb_column="data")
 class NetworkConfiguration:
     """Network configuration with automatically filterable nested arrays."""
@@ -48,7 +47,7 @@ class NetworkConfiguration:
     identifier: str
     name: str
     # Simple, clean field definition - filtering enabled automatically!
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 
 # Step 2b: Selective approach - decorator for specific fields
@@ -59,9 +58,9 @@ class OtherNetworkConfig:
 
     id: uuid.UUID
     name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
     # This field won't have filtering unless explicitly registered
-    other_servers: List[PrintServer] = fraise_field(default_factory=list)
+    other_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 
 # Step 2c: Manual registration approach (maximum control)
@@ -71,7 +70,7 @@ class ManualNetworkConfig:
 
     id: uuid.UUID
     name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 
 # Manual registration (can be done anywhere - in filters.py, etc.)
@@ -138,7 +137,7 @@ async def main():
     from fraiseql.sql.graphql_where_generator import create_graphql_where_input
 
     PrintServerWhereInput = create_graphql_where_input(PrintServer)
-    resolver = create_nested_array_field_resolver_with_where("print_servers", List[PrintServer])
+    resolver = create_nested_array_field_resolver_with_where("print_servers", list[PrintServer])
 
     # Example 1: Simple implicit AND (multiple fields = implicit AND)
     print("📋 Example 1: Production servers with IP addresses (implicit AND)")

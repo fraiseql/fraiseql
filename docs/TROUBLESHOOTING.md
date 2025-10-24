@@ -1,6 +1,12 @@
 # Troubleshooting Guide
 
-Common issues and solutions for FraiseQL beginners. Can't find your issue? Check the [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) or ask in [Discussions](https://github.com/fraiseql/fraiseql/discussions).
+Common issues and solutions for FraiseQL beginners.
+
+**💡 Quick Navigation:**
+- **[Troubleshooting Decision Tree](TROUBLESHOOTING_DECISION_TREE.md)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
+- **This guide** - Specific error messages and detailed solutions
+
+Can't find your issue? Check the [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) or ask in [Discussions](https://github.com/fraiseql/fraiseql/discussions).
 
 ## "View not found" error
 
@@ -187,7 +193,7 @@ psql your_db -c "ALTER TABLE tb_note ADD COLUMN tags TEXT[] DEFAULT '{}';"
 
 # Update the view
 psql your_db -c "DROP VIEW v_note;"
-psql your_db -c "CREATE VIEW v_note AS SELECT jsonb_build_object('id', pk_note, 'title', title, 'content', content, 'tags', tags) as data FROM tb_note;"
+psql your_db -c "CREATE VIEW v_note AS SELECT jsonb_build_object('id', id, 'title', title, 'content', content, 'tags', tags) as data FROM tb_note;"
 
 # Restart your Python app
 ```

@@ -1,21 +1,19 @@
 """Example blog API queries using FraiseQL with CQRS."""
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from dataloaders import CommentsByPostDataLoader, PostDataLoader, UserDataLoader
 from models import Comment, Post, PostFilters, PostOrderBy, User
 
 import fraiseql
 from fraiseql.auth import requires_auth
-from fraiseql.optimization.registry import get_loader
 
 if TYPE_CHECKING:
     from db import BlogRepository
 
 
 @fraiseql.query
-async def user(info, id: UUID) -> Optional[User]:
+async def user(info, id: UUID) -> User | None:
     """Get a user by ID."""
     db: BlogRepository = info.context["db"]
     user_data = await db.get_user_by_id(id)
@@ -24,7 +22,7 @@ async def user(info, id: UUID) -> Optional[User]:
 
 @fraiseql.query
 @requires_auth
-async def me(info) -> Optional[User]:
+async def me(info) -> User | None:
     """Get the current authenticated user."""
     db: BlogRepository = info.context["db"]
     user_context = info.context["user"]
@@ -33,7 +31,7 @@ async def me(info) -> Optional[User]:
 
 
 @fraiseql.query
-async def post(info, id: UUID) -> Optional[Post]:
+async def post(info, id: UUID) -> Post | None:
     """Get a post by ID."""
     db: BlogRepository = info.context["db"]
 
@@ -51,8 +49,8 @@ async def post(info, id: UUID) -> Optional[Post]:
 @fraiseql.query
 async def posts(
     info,
-    filters: Optional[PostFilters] = None,
-    order_by: Optional[PostOrderBy] = None,
+    filters: PostFilters | None = None,
+    order_by: PostOrderBy | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> list[Post]:
@@ -96,44 +94,40 @@ async def comments(info, post_id: UUID) -> list[Comment]:
 # Field resolvers for related data
 
 
-async def resolve_post_author(post: Post, info) -> Optional[User]:
-    """Resolve the author field for a post using DataLoader to prevent N+1 queries."""
+async def resolve_post_author(post: Post, info) -> User | None:
+    """Resolve the author field for a post."""
     if not post.author_id:
         return None
 
-    # Use DataLoader for efficient batching
-    user_loader = get_loader(UserDataLoader)
-    user_data = await user_loader.load(UUID(post.author_id))
+    db: BlogRepository = info.context["db"]
+    user_data = await db.get_user_by_id(UUID(post.author_id))
     return User.from_dict(user_data) if user_data else None
 
 
-async def resolve_comment_author(comment: Comment, info) -> Optional[User]:
-    """Resolve the author field for a comment using DataLoader to prevent N+1 queries."""
+async def resolve_comment_author(comment: Comment, info) -> User | None:
+    """Resolve the author field for a comment."""
     if not comment.author_id:
         return None
 
-    # Use DataLoader for efficient batching
-    user_loader = get_loader(UserDataLoader)
-    user_data = await user_loader.load(UUID(comment.author_id))
+    db: BlogRepository = info.context["db"]
+    user_data = await db.get_user_by_id(UUID(comment.author_id))
     return User.from_dict(user_data) if user_data else None
 
 
-async def resolve_comment_post(comment: Comment, info) -> Optional[Post]:
-    """Resolve the post field for a comment using DataLoader to prevent N+1 queries."""
+async def resolve_comment_post(comment: Comment, info) -> Post | None:
+    """Resolve the post field for a comment."""
     if not comment.post_id:
         return None
 
-    # Use DataLoader for efficient batching
-    post_loader = get_loader(PostDataLoader)
-    post_data = await post_loader.load(UUID(comment.post_id))
+    db: BlogRepository = info.context["db"]
+    post_data = await db.get_post_by_id(UUID(comment.post_id))
     return Post.from_dict(post_data) if post_data else None
 
 
 async def resolve_comment_replies(comment: Comment, info) -> list[Comment]:
-    """Resolve replies for a comment using DataLoader to prevent N+1 queries."""
-    # Use DataLoader for efficient batching of comments
-    comments_loader = get_loader(CommentsByPostDataLoader)
-    all_comments = await comments_loader.load(UUID(comment.post_id))
+    """Resolve replies for a comment."""
+    db: BlogRepository = info.context["db"]
+    all_comments = await db.get_comments_by_post(UUID(comment.post_id))
 
     # Filter for replies to this comment
     if not all_comments:

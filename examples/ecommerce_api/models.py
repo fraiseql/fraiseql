@@ -5,7 +5,7 @@ Demonstrates FraiseQL's type system with complex e-commerce entities
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -18,9 +18,9 @@ class Category(BaseModel):
     id: UUID
     name: str
     slug: str
-    description: Optional[str] = None
-    parent_id: Optional[UUID] = None
-    image_url: Optional[str] = None
+    description: str | None = None
+    parent_id: UUID | None = None
+    image_url: str | None = None
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
@@ -29,7 +29,7 @@ class Category(BaseModel):
 class ProductImage(BaseModel):
     id: UUID
     url: str
-    alt_text: Optional[str] = None
+    alt_text: str | None = None
     position: int = 0
     is_primary: bool = False
 
@@ -39,9 +39,9 @@ class ProductVariant(BaseModel):
     sku: str
     name: str
     price: Decimal
-    compare_at_price: Optional[Decimal] = None
-    attributes: Dict[str, Any] = Field(default_factory=dict)
-    inventory: Optional[Dict[str, int]] = None
+    compare_at_price: Decimal | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    inventory: dict[str, int] | None = None
 
 
 class Product(BaseModel):
@@ -49,11 +49,11 @@ class Product(BaseModel):
     sku: str
     name: str
     slug: str
-    description: Optional[str] = None
-    short_description: Optional[str] = None
-    category_id: Optional[UUID] = None
-    brand: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
+    description: str | None = None
+    short_description: str | None = None
+    category_id: UUID | None = None
+    brand: str | None = None
+    tags: list[str] = Field(default_factory=list)
     is_active: bool = True
     is_featured: bool = False
     created_at: datetime
@@ -62,44 +62,44 @@ class Product(BaseModel):
 
 # Enhanced Product Views
 class ProductSearch(Product):
-    category_name: Optional[str] = None
-    category_slug: Optional[str] = None
-    min_price: Optional[Decimal] = None
-    max_price: Optional[Decimal] = None
+    category_name: str | None = None
+    category_slug: str | None = None
+    min_price: Decimal | None = None
+    max_price: Decimal | None = None
     in_stock: bool = False
     total_inventory: int = 0
     review_count: int = 0
-    average_rating: Optional[Decimal] = None
-    primary_image_url: Optional[str] = None
+    average_rating: Decimal | None = None
+    primary_image_url: str | None = None
 
 
 class ProductDetail(Product):
-    category: Optional[Dict[str, Any]] = None
-    images: List[Dict[str, Any]] = Field(default_factory=list)
-    variants: List[Dict[str, Any]] = Field(default_factory=list)
-    review_summary: Dict[str, Any] = Field(default_factory=dict)
+    category: dict[str, Any] | None = None
+    images: list[dict[str, Any]] = Field(default_factory=list)
+    variants: list[dict[str, Any]] = Field(default_factory=list)
+    review_summary: dict[str, Any] = Field(default_factory=dict)
 
 
 # Category Views
 class CategoryTree(Category):
     level: int = 0
-    path: List[UUID] = Field(default_factory=list)
+    path: list[UUID] = Field(default_factory=list)
     full_path: str = ""
     product_count: int = 0
-    subcategories: List[Dict[str, Any]] = Field(default_factory=list)
+    subcategories: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # Customer Types
 class Customer(BaseModel):
     id: UUID
     email: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    phone: Optional[str] = None
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
     is_verified: bool = False
     is_active: bool = True
-    tags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -110,14 +110,14 @@ class Address(BaseModel):
     type: str  # billing, shipping, both
     first_name: str
     last_name: str
-    company: Optional[str] = None
+    company: str | None = None
     address_line1: str
-    address_line2: Optional[str] = None
+    address_line2: str | None = None
     city: str
-    state_province: Optional[str] = None
-    postal_code: Optional[str] = None
+    state_province: str | None = None
+    postal_code: str | None = None
     country_code: str
-    phone: Optional[str] = None
+    phone: str | None = None
     is_default: bool = False
     created_at: datetime
     updated_at: datetime
@@ -126,11 +126,11 @@ class Address(BaseModel):
 # Cart Types
 class Cart(BaseModel):
     id: UUID
-    customer_id: Optional[UUID] = None
-    session_id: Optional[str] = None
+    customer_id: UUID | None = None
+    session_id: str | None = None
     status: str = "active"
     expires_at: datetime
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -147,8 +147,8 @@ class CartItem(BaseModel):
 
 # Shopping Cart View
 class ShoppingCart(Cart):
-    customer: Optional[Dict[str, Any]] = None
-    items: List[Dict[str, Any]] = Field(default_factory=list)
+    customer: dict[str, Any] | None = None
+    items: list[dict[str, Any]] = Field(default_factory=list)
     item_count: int = 0
     total_quantity: int = 0
     subtotal: Decimal = Decimal("0.00")
@@ -169,10 +169,10 @@ class Order(BaseModel):
     currency_code: str = "USD"
     payment_status: str = "pending"
     fulfillment_status: str = "unfulfilled"
-    shipping_address_id: Optional[UUID] = None
-    billing_address_id: Optional[UUID] = None
-    notes: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    shipping_address_id: UUID | None = None
+    billing_address_id: UUID | None = None
+    notes: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -191,10 +191,10 @@ class OrderItem(BaseModel):
 
 # Order Detail View
 class OrderDetail(Order):
-    customer: Dict[str, Any]
-    shipping_address: Optional[Dict[str, Any]] = None
-    billing_address: Optional[Dict[str, Any]] = None
-    items: List[Dict[str, Any]] = Field(default_factory=list)
+    customer: dict[str, Any]
+    shipping_address: dict[str, Any] | None = None
+    billing_address: dict[str, Any] | None = None
+    items: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # Review Types
@@ -202,10 +202,10 @@ class Review(BaseModel):
     id: UUID
     product_id: UUID
     customer_id: UUID
-    order_id: Optional[UUID] = None
+    order_id: UUID | None = None
     rating: int
-    title: Optional[str] = None
-    comment: Optional[str] = None
+    title: str | None = None
+    comment: str | None = None
     is_verified_purchase: bool = False
     is_featured: bool = False
     helpful_count: int = 0
@@ -216,9 +216,9 @@ class Review(BaseModel):
 
 
 class ProductReview(Review):
-    customer: Dict[str, Any]
-    product: Dict[str, Any]
-    helpfulness_ratio: Optional[float] = None
+    customer: dict[str, Any]
+    product: dict[str, Any]
+    helpfulness_ratio: float | None = None
 
 
 # Wishlist Types
@@ -235,15 +235,15 @@ class WishlistItem(BaseModel):
     id: UUID
     wishlist_id: UUID
     product_id: UUID
-    variant_id: Optional[UUID] = None
+    variant_id: UUID | None = None
     priority: int = 0
-    notes: Optional[str] = None
+    notes: str | None = None
     created_at: datetime
 
 
 class CustomerWishlist(Wishlist):
     item_count: int = 0
-    items: List[Dict[str, Any]] = Field(default_factory=list)
+    items: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # Analytics Types
@@ -268,7 +268,7 @@ class InventoryAlert(BaseModel):
     variant_id: UUID
     quantity: int
     reserved_quantity: int
-    warehouse_location: Optional[str] = None
+    warehouse_location: str | None = None
     low_stock_threshold: int = 10
     updated_at: datetime
     variant_sku: str
@@ -284,17 +284,17 @@ class InventoryAlert(BaseModel):
 class Coupon(BaseModel):
     id: UUID
     code: str
-    description: Optional[str] = None
+    description: str | None = None
     discount_type: str  # percentage, fixed_amount
     discount_value: Decimal
-    minimum_purchase_amount: Optional[Decimal] = None
-    usage_limit: Optional[int] = None
+    minimum_purchase_amount: Decimal | None = None
+    usage_limit: int | None = None
     usage_count: int = 0
     customer_usage_limit: int = 1
     valid_from: datetime
-    valid_until: Optional[datetime] = None
+    valid_until: datetime | None = None
     is_active: bool = True
-    applies_to: Dict[str, Any] = Field(default_factory=dict)
+    applies_to: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -304,84 +304,84 @@ class CustomerProfile(Customer):
     total_orders: int = 0
     completed_orders: int = 0
     lifetime_value: Decimal = Decimal("0.00")
-    last_order_date: Optional[datetime] = None
+    last_order_date: datetime | None = None
     address_count: int = 0
     wishlist_count: int = 0
     wishlist_items_count: int = 0
     review_count: int = 0
-    average_rating_given: Optional[Decimal] = None
+    average_rating_given: Decimal | None = None
     has_active_cart: bool = False
 
 
 # Mutation Result Types
 class MutationResult(BaseModel):
     success: bool
-    message: Optional[str] = None
-    error: Optional[str] = None
+    message: str | None = None
+    error: str | None = None
 
 
 class CartMutationResult(MutationResult):
-    cart_id: Optional[UUID] = None
-    cart_item_id: Optional[UUID] = None
-    cart: Optional[Dict[str, Any]] = None
+    cart_id: UUID | None = None
+    cart_item_id: UUID | None = None
+    cart: dict[str, Any] | None = None
 
 
 class OrderMutationResult(MutationResult):
-    order_id: Optional[UUID] = None
-    order_number: Optional[str] = None
-    total_amount: Optional[Decimal] = None
-    order: Optional[Dict[str, Any]] = None
+    order_id: UUID | None = None
+    order_number: str | None = None
+    total_amount: Decimal | None = None
+    order: dict[str, Any] | None = None
 
 
 class CustomerMutationResult(MutationResult):
-    customer_id: Optional[UUID] = None
-    customer: Optional[Dict[str, Any]] = None
+    customer_id: UUID | None = None
+    customer: dict[str, Any] | None = None
 
 
 class AddressMutationResult(MutationResult):
-    address_id: Optional[UUID] = None
+    address_id: UUID | None = None
 
 
 class ReviewMutationResult(MutationResult):
-    review_id: Optional[UUID] = None
-    is_verified_purchase: Optional[bool] = None
+    review_id: UUID | None = None
+    is_verified_purchase: bool | None = None
 
 
 # Register all types with FraiseQL
 @register_type
 class EcommerceQuery(QueryType):
     # Product queries
-    products: List[Product]
-    product_search: List[ProductSearch]
-    product_detail: List[ProductDetail]
-    featured_products: List[Product]
-    best_sellers: List[Product]
-    related_products: List[Product]
+    products: list[Product]
+    product_search: list[ProductSearch]
+    product_detail: list[ProductDetail]
+    featured_products: list[Product]
+    best_sellers: list[Product]
+    related_products: list[Product]
 
     # Category queries
-    categories: List[Category]
-    category_tree: List[CategoryTree]
+    categories: list[Category]
+    category_tree: list[CategoryTree]
 
     # Customer queries
-    customers: List[Customer]
-    customer_profile: List[CustomerProfile]
-    customer_addresses: List[Address]
-    customer_orders: List[Order]
-    customer_wishlists: List[CustomerWishlist]
+    customers: list[Customer]
+    customer_profile: list[CustomerProfile]
+    customer_addresses: list[Address]
+    customer_orders: list[Order]
+    customer_wishlists: list[CustomerWishlist]
 
     # Cart queries
-    shopping_cart: List[ShoppingCart]
+    shopping_cart: list[ShoppingCart]
 
     # Order queries
-    orders: List[Order]
-    order_detail: List[OrderDetail]
-    order_analytics: List[OrderAnalytics]
+    orders: list[Order]
+    order_detail: list[OrderDetail]
+    order_analytics: list[OrderAnalytics]
 
     # Review queries
-    product_reviews: List[ProductReview]
+    product_reviews: list[ProductReview]
 
     # Inventory queries
-    inventory_alerts: List[InventoryAlert]
+    inventory_alerts: list[InventoryAlert]
 
     # Coupon queries
-    coupons: List[Coupon]
+    coupons: list[Coupon]

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import Field
@@ -20,14 +20,14 @@ class AuditTrail:
     created_at: datetime
     created_by_id: UUID
     created_by_name: str
-    updated_at: Optional[datetime] = None
-    updated_by_id: Optional[UUID] = None
-    updated_by_name: Optional[str] = None
+    updated_at: datetime | None = None
+    updated_by_id: UUID | None = None
+    updated_by_name: str | None = None
     version: int
-    change_reason: Optional[str] = None
-    updated_fields: Optional[list[str]] = None
+    change_reason: str | None = None
+    updated_fields: list[str | None] = None
     source_system: str = "api"
-    correlation_id: Optional[str] = None
+    correlation_id: str | None = None
 
 
 # Core Entity Types with Enterprise Features
@@ -43,10 +43,10 @@ class Organization:
 
     # Business fields
     legal_name: str
-    tax_id: Optional[str] = None
-    industry: Optional[str] = None
-    employee_count: Optional[int] = None
-    annual_revenue: Optional[Decimal] = None
+    tax_id: str | None = None
+    industry: str | None = None
+    employee_count: int | None = None
+    annual_revenue: Decimal | None = None
 
     # Enterprise features
     audit_trail: AuditTrail
@@ -66,9 +66,9 @@ class User:
     # Profile information
     first_name: str
     last_name: str
-    avatar_url: Optional[str] = None
-    bio: Optional[str] = None
-    phone: Optional[str] = None
+    avatar_url: str | None = None
+    bio: str | None = None
+    phone: str | None = None
 
     # Authentication and authorization
     is_active: bool = True
@@ -79,12 +79,12 @@ class User:
     # Enterprise features
     audit_trail: AuditTrail
     organization_id: UUID
-    department: Optional[str] = None
-    job_title: Optional[str] = None
-    manager_id: Optional[UUID] = None
+    department: str | None = None
+    job_title: str | None = None
+    manager_id: UUID | None = None
 
     # Usage tracking
-    last_login_at: Optional[datetime] = None
+    last_login_at: datetime | None = None
     login_count: int = 0
     failed_login_attempts: int = 0
 
@@ -103,7 +103,7 @@ class Project:
     identifier: str  # PROJ-2024-Q1-WEBSITE
 
     # Project details
-    description: Optional[str] = None
+    description: str | None = None
     status: str  # draft, active, on_hold, completed, cancelled
     priority: str = "medium"  # low, medium, high, critical
 
@@ -113,14 +113,14 @@ class Project:
     team_member_ids: list[UUID] = fraise_field(default_factory=list)
 
     # Timeline
-    start_date: Optional[datetime] = None
-    due_date: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    start_date: datetime | None = None
+    due_date: datetime | None = None
+    completed_at: datetime | None = None
 
     # Budget and tracking
-    budget: Optional[Decimal] = None
+    budget: Decimal | None = None
     spent: Decimal = Decimal("0.00")
-    estimated_hours: Optional[int] = None
+    estimated_hours: int | None = None
     actual_hours: int = 0
 
     # Enterprise features
@@ -129,9 +129,9 @@ class Project:
     custom_fields: dict[str, Any] = fraise_field(default_factory=dict)
 
     # Calculated fields (populated by views)
-    task_count: Optional[int] = None
-    completed_task_count: Optional[int] = None
-    progress_percentage: Optional[float] = None
+    task_count: int | None = None
+    completed_task_count: int | None = None
+    progress_percentage: float | None = None
 
 
 @fraiseql.type
@@ -143,23 +143,23 @@ class Task:
     identifier: str  # TASK-PROJ-001-SETUP
 
     # Task details
-    description: Optional[str] = None
+    description: str | None = None
     status: str  # TODO, in_progress, review, done, cancelled
     priority: str = "medium"
 
     # Relationships
     project_id: UUID
-    assignee_id: Optional[UUID] = None
+    assignee_id: UUID | None = None
     reporter_id: UUID
-    parent_task_id: Optional[UUID] = None
+    parent_task_id: UUID | None = None
 
     # Timeline
-    due_date: Optional[datetime] = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    due_date: datetime | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
     # Effort tracking
-    estimated_hours: Optional[float] = None
+    estimated_hours: float | None = None
     actual_hours: float = 0.0
 
     # Enterprise features
@@ -167,9 +167,9 @@ class Task:
     labels: list[str] = fraise_field(default_factory=list)
 
     # Calculated fields
-    subtask_count: Optional[int] = None
-    blocked_by_count: Optional[int] = None
-    is_overdue: Optional[bool] = None
+    subtask_count: int | None = None
+    blocked_by_count: int | None = None
+    is_overdue: bool | None = None
 
 
 # Input Types with Enterprise Validation
@@ -181,15 +181,15 @@ class CreateOrganizationInput:
 
     name: Annotated[str, Field(min_length=2, max_length=200)]
     legal_name: Annotated[str, Field(min_length=2, max_length=500)]
-    industry: Optional[Annotated[str, Field(max_length=100)]] = None
+    industry: Annotated[str, Field(max_length=100) | None] = None
 
     # Optional business information
-    tax_id: Optional[Annotated[str, Field(pattern=r"^[0-9-]+$")]] = None
-    employee_count: Optional[Annotated[int, Field(gt=0, le=1000000)]] = None
-    annual_revenue: Optional[Annotated[Decimal, Field(gt=0)]] = None
+    tax_id: Annotated[str, Field(pattern=r"^[0-9-]+$")] | None = None
+    employee_count: Annotated[int, Field(gt=0, le=1000000) | None] = None
+    annual_revenue: Annotated[Decimal, Field(gt=0) | None] = None
 
     # Enterprise metadata
-    _change_reason: Optional[str] = None
+    _change_reason: str | None = None
     _source_system: str = "api"
 
 
@@ -202,20 +202,20 @@ class CreateUserInput:
     last_name: Annotated[str, Field(min_length=1, max_length=50)]
 
     # Optional profile fields
-    bio: Optional[Annotated[str, Field(max_length=1000)]] = None
-    phone: Optional[Annotated[str, Field(pattern=r"^\+?[1-9]\d{1,14}$")]] = None
+    bio: Annotated[str, Field(max_length=1000) | None] = None
+    phone: Annotated[str, Field(pattern=r"^\+?[1-9]\d{1,14}$")] | None = None
 
     # Organizational assignment
     organization_id: UUID
-    department: Optional[str] = None
-    job_title: Optional[str] = None
-    manager_id: Optional[UUID] = None
+    department: str | None = None
+    job_title: str | None = None
+    manager_id: UUID | None = None
 
     # Initial roles and permissions
     roles: list[str] = fraise_field(default_factory=lambda: ["user"])
 
     # Enterprise metadata
-    _change_reason: Optional[str] = None
+    _change_reason: str | None = None
     _send_welcome_email: bool = True
 
 
@@ -224,7 +224,7 @@ class CreateProjectInput:
     """Project creation with business rule validation."""
 
     name: Annotated[str, Field(min_length=3, max_length=200)]
-    description: Optional[Annotated[str, Field(max_length=2000)]] = None
+    description: Annotated[str, Field(max_length=2000) | None] = None
 
     # Project setup
     organization_id: UUID
@@ -233,20 +233,20 @@ class CreateProjectInput:
     priority: str = "medium"
 
     # Timeline
-    start_date: Optional[datetime] = None
-    due_date: Optional[datetime] = None
+    start_date: datetime | None = None
+    due_date: datetime | None = None
 
     # Budget
-    budget: Optional[Annotated[Decimal, Field(gt=0)]] = None
-    estimated_hours: Optional[Annotated[int, Field(gt=0, le=10000)]] = None
+    budget: Annotated[Decimal, Field(gt=0) | None] = None
+    estimated_hours: Annotated[int, Field(gt=0, le=10000) | None] = None
 
     # Team assignment
     team_member_ids: list[UUID] = fraise_field(default_factory=list)
     tags: list[str] = fraise_field(default_factory=list)
 
     # Enterprise metadata
-    _change_reason: Optional[str] = None
-    _template_id: Optional[UUID] = None  # For project templates
+    _change_reason: str | None = None
+    _template_id: UUID | None = None  # For project templates
 
 
 @fraiseql.input
@@ -254,24 +254,24 @@ class CreateTaskInput:
     """Task creation with complex validation."""
 
     title: Annotated[str, Field(min_length=3, max_length=200)]
-    description: Optional[Annotated[str, Field(max_length=2000)]] = None
+    description: Annotated[str, Field(max_length=2000) | None] = None
 
     # Task assignment
     project_id: UUID
-    assignee_id: Optional[UUID] = None
-    parent_task_id: Optional[UUID] = None
+    assignee_id: UUID | None = None
+    parent_task_id: UUID | None = None
 
     # Planning
     priority: str = "medium"
-    due_date: Optional[datetime] = None
-    estimated_hours: Optional[Annotated[float, Field(gt=0, le=1000)]] = None
+    due_date: datetime | None = None
+    estimated_hours: Annotated[float, Field(gt=0, le=1000) | None] = None
 
     # Categorization
     labels: list[str] = fraise_field(default_factory=list)
 
     # Enterprise metadata
-    _change_reason: Optional[str] = None
-    _copy_from_task_id: Optional[UUID] = None
+    _change_reason: str | None = None
+    _copy_from_task_id: UUID | None = None
 
 
 # Success Types with Rich Metadata
@@ -316,7 +316,7 @@ class CreateProjectSuccess:
     # Project setup results
     generated_identifier: str
     team_notifications_sent: int = 0
-    template_applied: Optional[str] = None
+    template_applied: str | None = None
     initial_tasks_created: int = 0
     audit_metadata: dict[str, Any]
 
@@ -350,8 +350,8 @@ class CreateOrganizationNoop:
     # NOOP context
     conflict_field: str  # name, legal_name, tax_id
     attempted_value: str
-    business_rule_violated: Optional[str] = None
-    suggested_action: Optional[str] = None
+    business_rule_violated: str | None = None
+    suggested_action: str | None = None
 
 
 @fraiseql.success
@@ -364,7 +364,7 @@ class CreateUserNoop:
 
     # User-specific NOOP context
     conflict_field: str  # email, identifier
-    attempted_email: Optional[str] = None
+    attempted_email: str | None = None
     organization_mismatch: bool = False
     invitation_already_sent: bool = False
 
@@ -388,7 +388,7 @@ class CreateProjectNoop:
 class CreateTaskNoop:
     """Task creation was a no-op."""
 
-    existing_task: Optional[Task] = None
+    existing_task: Task | None = None
     message: str
     noop_reason: str
 
@@ -408,7 +408,7 @@ class CreateOrganizationError:
 
     message: str
     error_code: str
-    field_errors: Optional[dict[str, str]] = None
+    field_errors: dict[str, str | None] = None
 
     # Enterprise error context
     validation_failures: list[dict[str, str]]
@@ -423,7 +423,7 @@ class CreateUserError:
 
     message: str
     error_code: str
-    field_errors: Optional[dict[str, str]] = None
+    field_errors: dict[str, str | None] = None
 
     # User-specific error context
     email_validation_failed: bool = False
@@ -442,7 +442,7 @@ class CreateProjectError:
 
     message: str
     error_code: str
-    field_errors: Optional[dict[str, str]] = None
+    field_errors: dict[str, str | None] = None
 
     # Project-specific errors
     budget_validation_failed: bool = False
@@ -461,7 +461,7 @@ class CreateTaskError:
 
     message: str
     error_code: str
-    field_errors: Optional[dict[str, str]] = None
+    field_errors: dict[str, str | None] = None
 
     # Task-specific errors
     project_validation_failed: bool = False
@@ -481,25 +481,25 @@ class CreateTaskError:
 class UpdateProjectInput:
     """Project update with optimistic locking."""
 
-    name: Optional[Annotated[str, Field(min_length=3, max_length=200)]] = None
-    description: Optional[Annotated[str, Field(max_length=2000)]] = None
-    status: Optional[str] = None
-    priority: Optional[str] = None
+    name: Annotated[str, Field(min_length=3, max_length=200) | None] = None
+    description: Annotated[str, Field(max_length=2000) | None] = None
+    status: str | None = None
+    priority: str | None = None
 
     # Timeline updates
-    start_date: Optional[datetime] = None
-    due_date: Optional[datetime] = None
+    start_date: datetime | None = None
+    due_date: datetime | None = None
 
     # Budget updates
-    budget: Optional[Annotated[Decimal, Field(gt=0)]] = None
+    budget: Annotated[Decimal, Field(gt=0) | None] = None
 
     # Team updates
     add_team_members: list[UUID] = fraise_field(default_factory=list)
     remove_team_members: list[UUID] = fraise_field(default_factory=list)
 
     # Enterprise features
-    _expected_version: Optional[int] = None  # Optimistic locking
-    _change_reason: Optional[str] = None
+    _expected_version: int | None = None  # Optimistic locking
+    _change_reason: str | None = None
     _notify_team: bool = True
 
 
@@ -549,7 +549,7 @@ class UpdateProjectError:
 
     message: str
     error_code: str
-    field_errors: Optional[dict[str, str]] = None
+    field_errors: dict[str, str | None] = None
 
     # Update-specific errors
     version_conflict: bool = False
@@ -558,7 +558,7 @@ class UpdateProjectError:
     timeline_validation_failed: bool = False
 
     # Current state context
-    current_version: Optional[int] = None
-    expected_version: Optional[int] = None
-    last_modified_by: Optional[str] = None
-    last_modified_at: Optional[datetime] = None
+    current_version: int | None = None
+    expected_version: int | None = None
+    last_modified_by: str | None = None
+    last_modified_at: datetime | None = None

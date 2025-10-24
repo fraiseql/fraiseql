@@ -3,7 +3,6 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
 from uuid import UUID
 
 import fraiseql
@@ -54,7 +53,7 @@ class User:
     id: UUID
     email: str = fraise_field(description="User's email address")
     name: str = fraise_field(description="Full name")
-    phone: Optional[str] = fraise_field(description="Phone number")
+    phone: str | None = fraise_field(description="Phone number")
     is_active: bool = fraise_field(default=True, description="Account active status")
     is_verified: bool = fraise_field(default=False, description="Email verified")
     created_at: datetime = fraise_field(description="Account creation timestamp")
@@ -69,7 +68,7 @@ class Address:
     user_id: UUID = fraise_field(description="User who owns this address")
     label: str = fraise_field(description="Address label (Home, Work, etc)")
     street1: str = fraise_field(description="Street address line 1")
-    street2: Optional[str] = fraise_field(description="Street address line 2")
+    street2: str | None = fraise_field(description="Street address line 2")
     city: str = fraise_field(description="City")
     state: str = fraise_field(description="State/Province")
     postal_code: str = fraise_field(description="ZIP/Postal code")
@@ -88,11 +87,11 @@ class Product:
     description: str = fraise_field(description="Product description")
     category: ProductCategory = fraise_field(description="Product category")
     price: Decimal = fraise_field(description="Current price")
-    compare_at_price: Optional[Decimal] = fraise_field(description="Original price")
-    cost: Optional[Decimal] = fraise_field(description="Cost to business")
+    compare_at_price: Decimal | None = fraise_field(description="Original price")
+    cost: Decimal | None = fraise_field(description="Cost to business")
     inventory_count: int = fraise_field(default=0, description="Available inventory")
     is_active: bool = fraise_field(default=True, description="Available for purchase")
-    weight_grams: Optional[int] = fraise_field(description="Weight in grams")
+    weight_grams: int | None = fraise_field(description="Weight in grams")
     images: list[str] = fraise_field(default_factory=list, description="Product image URLs")
     tags: list[str] = fraise_field(default_factory=list, description="Product tags")
     created_at: datetime
@@ -104,8 +103,8 @@ class Cart:
     """Shopping cart."""
 
     id: UUID
-    user_id: Optional[UUID] = fraise_field(description="User ID if logged in")
-    session_id: Optional[str] = fraise_field(description="Session ID for guests")
+    user_id: UUID | None = fraise_field(description="User ID if logged in")
+    session_id: str | None = fraise_field(description="Session ID for guests")
     items_count: int = fraise_field(default=0, description="Number of items")
     subtotal: Decimal = fraise_field(description="Subtotal before tax/shipping")
     expires_at: datetime = fraise_field(description="Cart expiration time")
@@ -148,14 +147,14 @@ class Order:
     total: Decimal = fraise_field(description="Total amount")
 
     # Tracking
-    tracking_number: Optional[str] = fraise_field(description="Shipping tracking number")
-    notes: Optional[str] = fraise_field(description="Order notes")
+    tracking_number: str | None = fraise_field(description="Shipping tracking number")
+    notes: str | None = fraise_field(description="Order notes")
 
     # Timestamps
     placed_at: datetime = fraise_field(description="When order was placed")
-    shipped_at: Optional[datetime] = fraise_field(description="When order shipped")
-    delivered_at: Optional[datetime] = fraise_field(description="When order delivered")
-    cancelled_at: Optional[datetime] = fraise_field(description="When order cancelled")
+    shipped_at: datetime | None = fraise_field(description="When order shipped")
+    delivered_at: datetime | None = fraise_field(description="When order delivered")
+    cancelled_at: datetime | None = fraise_field(description="When order cancelled")
 
 
 @fraiseql.type
@@ -178,7 +177,7 @@ class Review:
     id: UUID
     product_id: UUID = fraise_field(description="Product being reviewed")
     user_id: UUID = fraise_field(description="User who wrote review")
-    order_id: Optional[UUID] = fraise_field(description="Associated order")
+    order_id: UUID | None = fraise_field(description="Associated order")
     rating: int = fraise_field(description="Rating 1-5")
     title: str = fraise_field(description="Review title")
     comment: str = fraise_field(description="Review text")
@@ -197,12 +196,12 @@ class Coupon:
     description: str = fraise_field(description="Coupon description")
     discount_type: str = fraise_field(description="percentage or fixed")
     discount_value: Decimal = fraise_field(description="Discount amount or percentage")
-    minimum_amount: Optional[Decimal] = fraise_field(description="Minimum order amount")
-    usage_limit: Optional[int] = fraise_field(description="Total usage limit")
+    minimum_amount: Decimal | None = fraise_field(description="Minimum order amount")
+    usage_limit: int | None = fraise_field(description="Total usage limit")
     usage_count: int = fraise_field(default=0, description="Times used")
     is_active: bool = fraise_field(default=True, description="Currently active")
     valid_from: datetime = fraise_field(description="Valid from date")
-    valid_until: Optional[datetime] = fraise_field(description="Expiration date")
+    valid_until: datetime | None = fraise_field(description="Expiration date")
     created_at: datetime
 
 
@@ -226,7 +225,7 @@ class RegisterInput:
     email: str
     password: str
     name: str
-    phone: Optional[str] = None
+    phone: str | None = None
 
 
 @fraiseql.input
@@ -258,9 +257,9 @@ class CheckoutInput:
     """Checkout input."""
 
     shipping_address_id: UUID
-    billing_address_id: Optional[UUID] = None  # Use shipping if not provided
-    coupon_code: Optional[str] = None
-    notes: Optional[str] = None
+    billing_address_id: UUID | None = None  # Use shipping if not provided
+    coupon_code: str | None = None
+    notes: str | None = None
 
 
 @fraiseql.input
@@ -269,7 +268,7 @@ class CreateAddressInput:
 
     label: str
     street1: str
-    street2: Optional[str] = None
+    street2: str | None = None
     city: str
     state: str
     postal_code: str
@@ -291,12 +290,12 @@ class CreateReviewInput:
 class ProductFilterInput:
     """Product search filters."""
 
-    category: Optional[ProductCategory] = None
-    min_price: Optional[Decimal] = None
-    max_price: Optional[Decimal] = None
-    in_stock: Optional[bool] = None
-    search_term: Optional[str] = None
-    tags: Optional[list[str]] = None
+    category: ProductCategory | None = None
+    min_price: Decimal | None = None
+    max_price: Decimal | None = None
+    in_stock: bool | None = None
+    search_term: str | None = None
+    tags: list[str | None] = None
 
 
 # Success/Error types for mutations

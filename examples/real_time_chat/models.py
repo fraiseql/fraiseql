@@ -4,7 +4,7 @@ Demonstrates FraiseQL's real-time capabilities with WebSocket subscriptions
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -17,12 +17,12 @@ class User(BaseModel):
     id: UUID
     username: str
     email: str
-    display_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    display_name: str | None = None
+    avatar_url: str | None = None
     status: str = "offline"  # online, away, busy, offline
     last_seen: datetime
     is_active: bool = True
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -31,12 +31,12 @@ class Room(BaseModel):
     id: UUID
     name: str
     slug: str
-    description: Optional[str] = None
+    description: str | None = None
     type: str  # public, private, direct
     owner_id: UUID
     max_members: int = 1000
     is_active: bool = True
-    settings: Dict[str, Any] = Field(default_factory=dict)
+    settings: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -50,7 +50,7 @@ class RoomMember(BaseModel):
     last_read_at: datetime
     is_muted: bool = False
     is_banned: bool = False
-    ban_expires_at: Optional[datetime] = None
+    ban_expires_at: datetime | None = None
 
 
 class Message(BaseModel):
@@ -59,10 +59,10 @@ class Message(BaseModel):
     user_id: UUID
     content: str
     message_type: str = "text"  # text, image, file, system
-    parent_message_id: Optional[UUID] = None
-    edited_at: Optional[datetime] = None
+    parent_message_id: UUID | None = None
+    edited_at: datetime | None = None
     is_deleted: bool = False
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
 
@@ -74,10 +74,10 @@ class MessageAttachment(BaseModel):
     file_size: int
     mime_type: str
     url: str
-    thumbnail_url: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
-    duration: Optional[int] = None  # For audio/video
+    thumbnail_url: str | None = None
+    width: int | None = None
+    height: int | None = None
+    duration: int | None = None  # For audio/video
     created_at: datetime
 
 
@@ -92,11 +92,11 @@ class MessageReaction(BaseModel):
 class UserPresence(BaseModel):
     id: UUID
     user_id: UUID
-    room_id: Optional[UUID] = None
+    room_id: UUID | None = None
     status: str  # online, away, typing
     last_activity: datetime
-    session_id: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    session_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TypingIndicator(BaseModel):
@@ -117,24 +117,24 @@ class DirectConversation(BaseModel):
 
 # Enhanced Views
 class RoomList(Room):
-    owner: Dict[str, Any]
+    owner: dict[str, Any]
     member_count: int = 0
     online_count: int = 0
-    latest_message: Optional[Dict[str, Any]] = None
+    latest_message: dict[str, Any | None] = None
 
 
 class RoomDetail(Room):
-    owner: Dict[str, Any]
-    members: List[Dict[str, Any]] = Field(default_factory=list)
+    owner: dict[str, Any]
+    members: list[dict[str, Any]] = Field(default_factory=list)
     member_count: int = 0
     message_count: int = 0
     online_count: int = 0
 
 
 class MessageThread(Message):
-    author: Dict[str, Any]
-    attachments: List[Dict[str, Any]] = Field(default_factory=list)
-    reactions: List[Dict[str, Any]] = Field(default_factory=list)
+    author: dict[str, Any]
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
+    reactions: list[dict[str, Any]] = Field(default_factory=list)
     reply_count: int = 0
     read_count: int = 0
 
@@ -145,29 +145,29 @@ class UserConversation(BaseModel):
     name: str
     slug: str
     type: str
-    description: Optional[str] = None
+    description: str | None = None
     role: str
     joined_at: datetime
     last_read_at: datetime
     is_muted: bool
     unread_count: int = 0
-    latest_message: Optional[Dict[str, Any]] = None
-    direct_user: Optional[Dict[str, Any]] = None  # For direct conversations
+    latest_message: dict[str, Any | None] = None
+    direct_user: dict[str, Any | None] = None  # For direct conversations
 
 
 class OnlineUser(User):
-    active_rooms: List[Dict[str, Any]] = Field(default_factory=list)
+    active_rooms: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ActiveTyping(BaseModel):
     room_id: UUID
-    typing_users: List[Dict[str, Any]] = Field(default_factory=list)
+    typing_users: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MessageSearch(Message):
-    room: Dict[str, Any]
-    author: Dict[str, Any]
-    search_rank: Optional[float] = None
+    room: dict[str, Any]
+    author: dict[str, Any]
+    search_rank: float | None = None
 
 
 class RoomAnalytics(BaseModel):
@@ -181,28 +181,28 @@ class RoomAnalytics(BaseModel):
     total_members: int = 0
     active_users_7_days: int = 0
     active_users_30_days: int = 0
-    avg_daily_messages: Optional[float] = None
-    peak_daily_messages: Optional[int] = None
+    avg_daily_messages: float | None = None
+    peak_daily_messages: int | None = None
 
 
 # Mutation Result Types
 class MutationResult(BaseModel):
     success: bool
-    message: Optional[str] = None
-    error: Optional[str] = None
+    message: str | None = None
+    error: str | None = None
 
 
 class RoomMutationResult(MutationResult):
-    room_id: Optional[UUID] = None
+    room_id: UUID | None = None
 
 
 class MessageMutationResult(MutationResult):
-    message_id: Optional[UUID] = None
+    message_id: UUID | None = None
 
 
 class ConversationMutationResult(MutationResult):
-    room_id: Optional[UUID] = None
-    conversation_id: Optional[UUID] = None
+    room_id: UUID | None = None
+    conversation_id: UUID | None = None
 
 
 # Subscription Event Types
@@ -212,7 +212,7 @@ class MessageEvent(BaseModel):
     message_id: UUID
     user_id: UUID
     timestamp: datetime
-    message: Optional[MessageThread] = None
+    message: MessageThread | None = None
 
 
 class TypingEvent(BaseModel):
@@ -220,22 +220,22 @@ class TypingEvent(BaseModel):
     room_id: UUID
     user_id: UUID
     timestamp: datetime
-    user: Optional[Dict[str, Any]] = None
+    user: dict[str, Any | None] = None
 
 
 class PresenceEvent(BaseModel):
     event: str  # INSERT, UPDATE, DELETE
     user_id: UUID
-    room_id: Optional[UUID] = None
+    room_id: UUID | None = None
     status: str
     timestamp: datetime
-    user: Optional[Dict[str, Any]] = None
+    user: dict[str, Any | None] = None
 
 
 # WebSocket Message Types
 class WebSocketMessage(BaseModel):
     type: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
@@ -249,8 +249,8 @@ class PushSubscription(BaseModel):
     id: UUID
     user_id: UUID
     endpoint: str
-    keys: Dict[str, str]
-    user_agent: Optional[str] = None
+    keys: dict[str, str]
+    user_agent: str | None = None
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
@@ -260,12 +260,12 @@ class ModerationLog(BaseModel):
     id: UUID
     room_id: UUID
     moderator_id: UUID
-    target_user_id: Optional[UUID] = None
-    target_message_id: Optional[UUID] = None
+    target_user_id: UUID | None = None
+    target_message_id: UUID | None = None
     action: str  # ban, unban, kick, delete_message, etc.
-    reason: Optional[str] = None
-    duration: Optional[str] = None  # For temporary actions
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    reason: str | None = None
+    duration: str | None = None  # For temporary actions
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
 
@@ -273,29 +273,29 @@ class ModerationLog(BaseModel):
 @register_type
 class ChatQuery(QueryType):
     # User queries
-    users: List[User]
-    online_users: List[OnlineUser]
-    user_presence: List[UserPresence]
+    users: list[User]
+    online_users: list[OnlineUser]
+    user_presence: list[UserPresence]
 
     # Room queries
-    rooms: List[Room]
-    room_list: List[RoomList]
-    room_detail: List[RoomDetail]
-    user_conversations: List[UserConversation]
+    rooms: list[Room]
+    room_list: list[RoomList]
+    room_detail: list[RoomDetail]
+    user_conversations: list[UserConversation]
 
     # Message queries
-    messages: List[Message]
-    message_thread: List[MessageThread]
-    message_search: List[MessageSearch]
+    messages: list[Message]
+    message_thread: list[MessageThread]
+    message_search: list[MessageSearch]
 
     # Real-time queries
-    active_typing: List[ActiveTyping]
+    active_typing: list[ActiveTyping]
 
     # Analytics
-    room_analytics: List[RoomAnalytics]
+    room_analytics: list[RoomAnalytics]
 
     # Direct messages
-    direct_conversations: List[DirectConversation]
+    direct_conversations: list[DirectConversation]
 
     # Moderation
-    moderation_logs: List[ModerationLog]
+    moderation_logs: list[ModerationLog]

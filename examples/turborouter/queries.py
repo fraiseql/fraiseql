@@ -1,10 +1,9 @@
 """GraphQL Query Resolvers."""
 
-from typing import Optional
 from schema import User, Post
 
 
-async def user(info, id: int) -> Optional[User]:
+async def user(info, id: int) -> User | None:
     """Get a single user by ID.
 
     This query is registered with TurboRouter for fast execution.
@@ -22,7 +21,7 @@ async def users(info, limit: int = 10, offset: int = 0) -> list[User]:
     return await db.find("v_users", limit=limit, offset=offset)
 
 
-async def post(info, id: int) -> Optional[Post]:
+async def post(info, id: int) -> Post | None:
     """Get a single post by ID.
 
     This query is registered with TurboRouter.
@@ -31,7 +30,7 @@ async def post(info, id: int) -> Optional[Post]:
     return await db.find_one("v_posts", id=id)
 
 
-async def posts(info, limit: int = 10, offset: int = 0, user_id: Optional[int] = None) -> list[Post]:
+async def posts(info, limit: int = 10, offset: int = 0, user_id: int | None = None) -> list[Post]:
     """Get a list of posts.
 
     This query is registered with TurboRouter.

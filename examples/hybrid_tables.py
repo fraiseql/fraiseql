@@ -8,7 +8,6 @@ where writes go to one table and reads come from an optimized view.
 import fraiseql
 from fraiseql import Info
 from fraiseql.db import FraiseQLRepository
-from typing import List, Optional
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -71,7 +70,7 @@ def get_products(
     info: Info,
     limit: int = 100,
     in_stock_only: bool = False
-) -> List[Product]:
+) -> list[Product]:
     """
     Get products from the read-optimized view.
 
@@ -94,7 +93,7 @@ def get_products(
 def get_product(
     info: Info,
     id: UUID
-) -> Optional[Product]:
+) -> Product | None:
     """Get a single product by ID from the read view."""
     return info.context.repo.find_one("products_view", id=id)
 

@@ -95,7 +95,7 @@ GET /health          # Health check endpoint
 The **heart of the example** - shows how to manually sync from tb_* to tv_*:
 
 ```python
-async def sync_post(self, post_ids: List[UUID], mode: str = "incremental"):
+async def sync_post(self, post_ids: list[UUID], mode: str = "incremental"):
     """Sync posts from tb_post to tv_post with denormalized author and comments."""
     for post_id in post_ids:
         # 1. Fetch from command side (tb_post + joins)

@@ -6,7 +6,6 @@ Multi-tenant SaaS models with organization, user, subscription, and billing supp
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 import fraiseql
@@ -38,8 +37,8 @@ class User:
     name: str = fraise_field(description="User full name")
     role: str = fraise_field(description="User role in organization")
     status: str = fraise_field(description="User status")
-    avatar_url: Optional[str] = fraise_field(description="Avatar URL")
-    last_active: Optional[datetime] = fraise_field(description="Last activity timestamp")
+    avatar_url: str | None = fraise_field(description="Avatar URL")
+    last_active: datetime | None = fraise_field(description="Last activity timestamp")
     created_at: datetime = fraise_field(description="Account creation date")
 
 
@@ -57,7 +56,7 @@ class Subscription:
     current_period_start: datetime = fraise_field(description="Current period start")
     current_period_end: datetime = fraise_field(description="Current period end")
     cancel_at_period_end: bool = fraise_field(description="Whether subscription will cancel")
-    stripe_subscription_id: Optional[str] = fraise_field(description="Stripe subscription ID")
+    stripe_subscription_id: str | None = fraise_field(description="Stripe subscription ID")
     features: dict = fraise_field(description="Plan features (JSONB)")
 
 
@@ -108,10 +107,10 @@ class ActivityLogEntry:
     user_id: UUID = fraise_field(description="User who performed action")
     action: str = fraise_field(description="Action type")
     resource: str = fraise_field(description="Resource type")
-    resource_id: Optional[UUID] = fraise_field(description="Resource ID")
+    resource_id: UUID | None = fraise_field(description="Resource ID")
     details: dict = fraise_field(description="Action details (JSONB)")
-    ip_address: Optional[str] = fraise_field(description="User IP address")
-    user_agent: Optional[str] = fraise_field(description="User agent string")
+    ip_address: str | None = fraise_field(description="User IP address")
+    user_agent: str | None = fraise_field(description="User agent string")
     created_at: datetime = fraise_field(description="Action timestamp")
 
 
@@ -122,7 +121,7 @@ class Project:
     id: UUID = fraise_field(description="Project unique identifier")
     organization_id: UUID = fraise_field(description="Parent organization")
     name: str = fraise_field(description="Project name")
-    description: Optional[str] = fraise_field(description="Project description")
+    description: str | None = fraise_field(description="Project description")
     owner_id: UUID = fraise_field(description="Project owner")
     status: str = fraise_field(description="Project status")
     settings: dict = fraise_field(description="Project settings (JSONB)")
@@ -153,8 +152,8 @@ class LoginInput:
 class OrganizationUpdateInput:
     """Input for updating organization."""
 
-    name: Optional[str] = fraise_field(description="New organization name")
-    settings: Optional[dict] = fraise_field(description="Updated settings")
+    name: str | None = fraise_field(description="New organization name")
+    settings: dict | None = fraise_field(description="Updated settings")
 
 
 @fraiseql.input
@@ -179,16 +178,16 @@ class ProjectCreateInput:
     """Input for creating project."""
 
     name: str = fraise_field(description="Project name")
-    description: Optional[str] = fraise_field(description="Project description")
+    description: str | None = fraise_field(description="Project description")
 
 
 @fraiseql.input
 class ProjectUpdateInput:
     """Input for updating project."""
 
-    name: Optional[str] = fraise_field(description="Updated name")
-    description: Optional[str] = fraise_field(description="Updated description")
-    status: Optional[str] = fraise_field(description="Updated status")
+    name: str | None = fraise_field(description="Updated name")
+    description: str | None = fraise_field(description="Updated description")
+    status: str | None = fraise_field(description="Updated status")
 
 
 # Result types for mutations

@@ -4,7 +4,6 @@ This shows the absolute minimum code needed to get FraiseQL working
 """
 
 from datetime import UTC, datetime
-from typing import List
 
 import fraiseql
 
@@ -20,7 +19,7 @@ class Commit:
 
 # 2. Create a query
 @fraiseql.query
-async def commits(info) -> List[Commit]:
+async def commits(info) -> list[Commit]:
     """Get all commits"""
     return [
         Commit(

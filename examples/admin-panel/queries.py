@@ -3,7 +3,6 @@
 Query resolvers for customer support, operations, and sales dashboards.
 """
 
-from typing import Optional
 from uuid import UUID
 
 import fraiseql
@@ -24,7 +23,7 @@ from .models import (
 @fraiseql.query
 @requires_role("customer_support", "admin")
 async def customer_search(
-    info: Info, query: str, status: Optional[str] = None, limit: int = 50
+    info: Info, query: str, status: str | None = None, limit: int = 50
 ) -> list[CustomerInfo]:
     """Search customers by email, name, or ID.
 
@@ -40,14 +39,12 @@ async def customer_search(
     if status:
         filters["subscription_status"] = status
 
-    return await info.context.repo.find(
-        "customer_admin_view", where=filters, limit=limit
-    )
+    return await info.context.repo.find("customer_admin_view", where=filters, limit=limit)
 
 
 @fraiseql.query
 @requires_role("customer_support", "admin")
-async def customer_by_id(info: Info, customer_id: UUID) -> Optional[CustomerInfo]:
+async def customer_by_id(info: Info, customer_id: UUID) -> CustomerInfo | None:
     """Get customer by ID.
 
     Args:
@@ -63,9 +60,9 @@ async def customer_by_id(info: Info, customer_id: UUID) -> Optional[CustomerInfo
 @requires_role("customer_support", "admin")
 async def support_tickets(
     info: Info,
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
-    assigned_to: Optional[UUID] = None,
+    status: str | None = None,
+    priority: str | None = None,
+    assigned_to: UUID | None = None,
     limit: int = 50,
 ) -> list[SupportTicket]:
     """Get support tickets with optional filters.
@@ -131,8 +128,8 @@ async def operations_metrics(info: Info) -> OperationsMetrics:
 @requires_role("operations", "admin")
 async def orders(
     info: Info,
-    status: Optional[str] = None,
-    customer_id: Optional[UUID] = None,
+    status: str | None = None,
+    customer_id: UUID | None = None,
     limit: int = 50,
 ) -> list[Order]:
     """Get orders with optional filters.
@@ -158,7 +155,7 @@ async def orders(
 
 @fraiseql.query
 @requires_role("operations", "admin")
-async def order_by_id(info: Info, order_id: UUID) -> Optional[Order]:
+async def order_by_id(info: Info, order_id: UUID) -> Order | None:
     """Get order by ID with full details.
 
     Args:
@@ -188,9 +185,7 @@ async def orders_needing_attention(info: Info, limit: int = 100) -> list[Order]:
 
 @fraiseql.query
 @requires_role("sales", "admin")
-async def sales_metrics(
-    info: Info, rep_id: Optional[UUID] = None
-) -> list[SalesMetrics]:
+async def sales_metrics(info: Info, rep_id: UUID | None = None) -> list[SalesMetrics]:
     """Get sales team or individual rep metrics.
 
     Args:
@@ -210,8 +205,8 @@ async def sales_metrics(
 @requires_role("sales", "admin")
 async def deals(
     info: Info,
-    stage: Optional[str] = None,
-    assigned_to: Optional[UUID] = None,
+    stage: str | None = None,
+    assigned_to: UUID | None = None,
     limit: int = 100,
 ) -> list[Deal]:
     """Get deals/opportunities in pipeline.
@@ -258,9 +253,9 @@ async def my_pipeline(info: Info) -> list[Deal]:
 @requires_role("admin")
 async def audit_log(
     info: Info,
-    admin_user_id: Optional[UUID] = None,
-    action: Optional[str] = None,
-    target_type: Optional[str] = None,
+    admin_user_id: UUID | None = None,
+    action: str | None = None,
+    target_type: str | None = None,
     limit: int = 100,
 ) -> list[AuditLogEntry]:
     """Get admin action audit log.

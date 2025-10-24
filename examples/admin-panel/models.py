@@ -6,7 +6,6 @@ Defines GraphQL types for customer support, operations, and sales dashboards.
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 import fraiseql
@@ -35,7 +34,7 @@ class SupportTicket:
     subject: str = fraise_field(description="Ticket subject")
     status: str = fraise_field(description="Ticket status")
     priority: str = fraise_field(description="Ticket priority")
-    assigned_to_id: Optional[UUID] = fraise_field(description="Assigned support agent")
+    assigned_to_id: UUID | None = fraise_field(description="Assigned support agent")
     created_at: datetime = fraise_field(description="Ticket creation date")
     updated_at: datetime = fraise_field(description="Last update timestamp")
 
@@ -50,8 +49,8 @@ class Order:
     total: Decimal = fraise_field(description="Order total amount")
     status: str = fraise_field(description="Order fulfillment status")
     created_at: datetime = fraise_field(description="Order creation date")
-    shipped_at: Optional[datetime] = fraise_field(description="Shipping date")
-    delivered_at: Optional[datetime] = fraise_field(description="Delivery date")
+    shipped_at: datetime | None = fraise_field(description="Shipping date")
+    delivered_at: datetime | None = fraise_field(description="Delivery date")
 
 
 @fraiseql.type
@@ -74,9 +73,7 @@ class OperationsMetrics:
     pending_orders: int = fraise_field(description="Orders pending processing")
     processing_orders: int = fraise_field(description="Orders currently processing")
     shipped_today: int = fraise_field(description="Orders shipped today")
-    average_fulfillment_time: float = fraise_field(
-        description="Average fulfillment time in hours"
-    )
+    average_fulfillment_time: float = fraise_field(description="Average fulfillment time in hours")
     low_stock_items: int = fraise_field(description="Products with low stock")
     out_of_stock_items: int = fraise_field(description="Products out of stock")
     today_revenue: Decimal = fraise_field(description="Today's revenue")
@@ -113,7 +110,7 @@ class Deal:
     assigned_to_id: UUID = fraise_field(description="Sales rep ID")
     created_at: datetime = fraise_field(description="Deal creation date")
     updated_at: datetime = fraise_field(description="Last update timestamp")
-    notes: Optional[str] = fraise_field(description="Deal notes")
+    notes: str | None = fraise_field(description="Deal notes")
 
 
 @fraiseql.type
@@ -135,10 +132,10 @@ class AuditLogEntry:
     id: UUID = fraise_field(description="Log entry unique identifier")
     admin_user_id: UUID = fraise_field(description="Admin who performed action")
     action: str = fraise_field(description="Action type")
-    target_type: Optional[str] = fraise_field(description="Target entity type")
-    target_id: Optional[UUID] = fraise_field(description="Target entity ID")
+    target_type: str | None = fraise_field(description="Target entity type")
+    target_id: UUID | None = fraise_field(description="Target entity ID")
     details: dict = fraise_field(description="Action details")
-    ip_address: Optional[str] = fraise_field(description="Admin IP address")
+    ip_address: str | None = fraise_field(description="Admin IP address")
     created_at: datetime = fraise_field(description="Action timestamp")
 
 
@@ -147,10 +144,8 @@ class AuditLogEntry:
 class CustomerUpdateInput:
     """Input for updating customer information."""
 
-    subscription_status: Optional[str] = fraise_field(
-        description="New subscription status"
-    )
-    notes: Optional[str] = fraise_field(description="Admin notes")
+    subscription_status: str | None = fraise_field(description="New subscription status")
+    notes: str | None = fraise_field(description="Admin notes")
 
 
 @fraiseql.input
@@ -159,7 +154,7 @@ class OrderStatusUpdateInput:
 
     order_id: UUID = fraise_field(description="Order to update")
     new_status: str = fraise_field(description="New order status")
-    notes: Optional[str] = fraise_field(description="Status change notes")
+    notes: str | None = fraise_field(description="Status change notes")
 
 
 @fraiseql.input
@@ -167,8 +162,8 @@ class DealUpdateInput:
     """Input for updating deal information."""
 
     deal_id: UUID = fraise_field(description="Deal to update")
-    stage: Optional[str] = fraise_field(description="New deal stage")
-    amount: Optional[Decimal] = fraise_field(description="Updated deal value")
-    probability: Optional[int] = fraise_field(description="Win probability (0-100)")
-    expected_close_date: Optional[datetime] = fraise_field(description="Expected close")
-    notes: Optional[str] = fraise_field(description="Update notes")
+    stage: str | None = fraise_field(description="New deal stage")
+    amount: Decimal | None = fraise_field(description="Updated deal value")
+    probability: int | None = fraise_field(description="Win probability (0-100)")
+    expected_close_date: datetime | None = fraise_field(description="Expected close")
+    notes: str | None = fraise_field(description="Update notes")

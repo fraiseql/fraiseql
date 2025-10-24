@@ -14,7 +14,6 @@ Usage:
 
 import os
 from datetime import UTC, datetime
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi import FastAPI, Request
@@ -81,9 +80,9 @@ class CreatePostInput:
 @fraiseql.type
 class UpdatePostInput:
     id: UUID
-    title: Optional[str] = None
-    content: Optional[str] = None
-    published: Optional[bool] = None
+    title: str | None = None
+    content: str | None = None
+    published: bool | None = None
 
 
 @fraiseql.type
@@ -120,23 +119,23 @@ class Query:
         info: fraiseql.Info,
         limit: int = 20,
         offset: int = 0,
-    ) -> List[Post]:
+    ) -> list[Post]:
         """Get all published posts."""
         # In a real application, this would query the database
         return []
 
     @fraiseql.field
-    async def post(self, info: fraiseql.Info, id: UUID) -> Optional[Post]:
+    async def post(self, info: fraiseql.Info, id: UUID) -> Post | None:
         """Get a specific post by ID."""
         return None
 
     @fraiseql.field
-    async def user(self, info: fraiseql.Info, id: UUID) -> Optional[User]:
+    async def user(self, info: fraiseql.Info, id: UUID) -> User | None:
         """Get user by ID."""
         return None
 
     @fraiseql.field
-    async def me(self, info: fraiseql.Info) -> Optional[User]:
+    async def me(self, info: fraiseql.Info) -> User | None:
         """Get current authenticated user."""
         # Check authentication from request context
         user_id = getattr(info.context.get("request", {}).state, "user_id", None)
