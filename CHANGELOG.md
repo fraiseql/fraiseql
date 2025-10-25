@@ -31,7 +31,9 @@ FraiseQL v1.0.2 is a patch release that fixes README rendering and documentation
 - Fixed query implementations to demonstrate Rust pipeline advantage correctly
 - Replaced manual Python object instantiation with direct database calls
 - Changed from `[Note(**row["data"]) for row in result]` to `await db.find("v_note")`
-- Fixed `db.call_function` to use dict parameter instead of positional arguments
+- Fixed mutation example to show automatic PostgreSQL function integration
+- Removed manual `db.call_function()` and result parsing code
+- Shows FraiseQL automatically handles function calls and success/failure parsing
 - Shows zero-overhead transformation: PostgreSQL JSONB → Rust → HTTP
 
 **Type Hints**

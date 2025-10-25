@@ -345,25 +345,15 @@ class ValidationError:
     error: str    # AI sees failure cases
     code: str = "VALIDATION_ERROR"
 
-@mutation
+@mutation(function="fn_create_user", schema="public")
 class CreateUser:
     input: CreateUserInput
     success: UserCreated
     failure: ValidationError
 
-    async def resolve(self, info):
-        db = info.context["db"]
-        result = await db.call_function(
-            "fn_create_user",
-            {
-                "email": self.input.email,
-                "name": self.input.name
-            }
-        )
-        # JSONB contract makes success/failure obvious
-        if result["success"]:
-            return UserCreated(user_id=result["user_id"])
-        return ValidationError(error=result["error"])
+# That's it! FraiseQL automatically:
+# 1. Calls public.fn_create_user(input) with input as dict
+# 2. Parses JSONB result into UserCreated or ValidationError
 ```
 
 ### Why AI Loves This
