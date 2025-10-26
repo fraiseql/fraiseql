@@ -297,7 +297,7 @@ This release represents months of development, testing, and refinement. Special 
 
 ### 📚 Documentation
 
-- **Getting Started**: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+- **Quick Start**: [docs/quickstart.md](docs/quickstart.md)
 - **Installation**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
 - **Contributing**: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
 - **First Hour Guide**: [docs/FIRST_HOUR.md](docs/FIRST_HOUR.md)

@@ -44,9 +44,9 @@ test-core: ## Run core tests only (excluding examples)
 	pytest tests/ -xvs -m "not blog_simple and not blog_enterprise"
 
 .PHONY: test-fast
-test-fast: ## Run tests in parallel (faster)
-	@echo -e "$(GREEN)Running tests in parallel...$(NC)"
-	pytest -n auto
+test-fast: ## Run tests quickly (subset)
+	@echo -e "$(GREEN)Running fast test subset...$(NC)"
+	pytest tests/unit/ -x
 
 .PHONY: test-unit
 test-unit: ## Run only unit tests (no database)
