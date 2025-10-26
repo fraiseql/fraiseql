@@ -39,7 +39,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "connect-src 'self';"
         )
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next) -> Response:
         """Process request and add security headers to response.
 
         Args:
@@ -170,7 +170,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         return False  # Allow request
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next) -> Response:
         """Apply rate limiting to incoming requests.
 
         Args:
@@ -298,7 +298,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
         return True
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next) -> Response:
         """Validate CSRF tokens for state-changing requests.
 
         Args:

@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ class SubscriptionCache:
                 logger.exception("Cache cleanup error")
 
 
-def cache(ttl: float = 5.0):
+def cache(ttl: float = 5.0) -> Callable:
     """Decorator to cache subscription results.
 
     Usage:
@@ -113,11 +113,11 @@ def cache(ttl: float = 5.0):
             ...
     """
 
-    def decorator(func):
+    def decorator(func) -> Callable:
         func._cache_ttl = ttl
 
         @wraps(func)
-        async def wrapper(info, **kwargs):
+        async def wrapper(info, **kwargs) -> Any:
             # Get cache from context
             sub_cache = None
             if hasattr(info, "context") and info.context:

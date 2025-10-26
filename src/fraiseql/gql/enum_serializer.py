@@ -1,7 +1,7 @@
 """Enum serialization helpers for GraphQL resolvers."""
 
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 
 def serialize_enum_value(value: Any) -> Any:
@@ -29,20 +29,20 @@ def serialize_enum_value(value: Any) -> Any:
     return value
 
 
-def wrap_resolver_with_enum_serialization(resolver):
+def wrap_resolver_with_enum_serialization(resolver) -> Callable:
     """Wrap a resolver to automatically serialize enum values."""
     import asyncio
     import inspect
 
     if asyncio.iscoroutinefunction(resolver) or inspect.iscoroutinefunction(resolver):
 
-        async def wrapped_resolver(*args, **kwargs):
+        async def wrapped_resolver(*args, **kwargs) -> Any:
             result = await resolver(*args, **kwargs)
             return serialize_enum_value(result)
 
         return wrapped_resolver
 
-    def sync_wrapped_resolver(*args, **kwargs):
+    def sync_wrapped_resolver(*args, **kwargs) -> Any:
         result = resolver(*args, **kwargs)
         return serialize_enum_value(result)
 

@@ -12,7 +12,7 @@ from fraiseql.turbo.registration import TurboRegistration
 
 
 @click.group()
-def turbo():
+def turbo() -> None:
     """TurboRouter management commands."""
 
 
@@ -26,7 +26,9 @@ def turbo():
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file for registration results")
 @click.option("--dry-run", is_flag=True, help="Validate without registering")
-def register(query_file: str, view_mapping: Optional[str], output: Optional[str], dry_run: bool):
+def register(
+    query_file: str, view_mapping: Optional[str], output: Optional[str], dry_run: bool
+) -> None:
     """Register GraphQL queries for TurboRouter optimization.
 
     QUERY_FILE: Path to file containing GraphQL queries
@@ -93,7 +95,7 @@ def register(query_file: str, view_mapping: Optional[str], output: Optional[str]
 @click.option(
     "--format", "-f", type=click.Choice(["json", "sql"]), default="json", help="Output format"
 )
-def list_queries(format: str):
+def list_queries(format: str) -> None:
     """List registered TurboRouter queries."""
     # This would connect to the database and list queries
     click.echo("Registered queries:")
@@ -102,7 +104,7 @@ def list_queries(format: str):
 
 @turbo.command()
 @click.argument("query_hash")
-def inspect(query_hash: str):
+def inspect(query_hash: str) -> None:
     """Inspect a registered query by hash."""
     click.echo(f"Query details for hash: {query_hash}")
     # Implementation would fetch and display query details

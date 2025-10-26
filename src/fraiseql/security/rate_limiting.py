@@ -323,7 +323,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.graphql_path = graphql_path
         self.graphql_limiter = GraphQLRateLimiter(self.store)
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next) -> Response:
         """Apply rate limiting to requests."""
         # Check if request should be exempt
         if await self._is_exempt(request):

@@ -45,7 +45,7 @@ This enables sophisticated GraphQL queries like:
 """
 
 import logging
-from typing import Any, Type, get_args, get_origin
+from typing import Any, Callable, Type, get_args, get_origin
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ def _is_fraiseql_type(type_class: Type) -> bool:
 # Convenience decorators for cleaner registration
 
 
-def nested_array_filterable(*field_names: str):
+def nested_array_filterable(*field_names: str) -> Callable:
     """Decorator to mark specific fields as filterable.
 
     Usage:

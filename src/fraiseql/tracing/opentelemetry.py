@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from functools import wraps
-from typing import Any, Optional
+from typing import Any, Callable, Generator, Optional
 
 from fastapi import FastAPI, Request, Response
 
@@ -51,7 +51,7 @@ except ImportError:
     ZipkinExporter = None  # type: ignore[assignment]
     PsycopgInstrumentor = None  # type: ignore[assignment]
 
-    def extract(*args, **kwargs):  # type: ignore[misc]
+    def extract(*args, **kwargs) -> dict[str, Any]:  # type: ignore[misc]
         """Placeholder for extract when opentelemetry is not available."""
         return {}
 
@@ -237,7 +237,9 @@ class FraiseQLTracer:
         return None
 
     @contextmanager
-    def trace_graphql_query(self, operation_name: str, query: str, variables: dict | None = None):
+    def trace_graphql_query(
+        self, operation_name: str, query: str, variables: dict | None = None
+    ) -> Generator[Any]:
         """Trace a GraphQL query operation."""
         if not self.tracer:
             # No-op context manager when tracer is not available
@@ -275,7 +277,7 @@ class FraiseQLTracer:
         operation_name: str,
         query: str,
         variables: dict | None = None,
-    ):
+    ) -> Generator[Any]:
         """Trace a GraphQL mutation operation."""
         if not self.tracer:
             # No-op context manager when tracer is not available
@@ -306,7 +308,7 @@ class FraiseQLTracer:
                 raise
 
     @contextmanager
-    def trace_database_query(self, query_type: str, table: str, sql: str):
+    def trace_database_query(self, query_type: str, table: str, sql: str) -> Generator[Any]:
         """Trace a database query."""
         if not self.tracer:
             # No-op context manager when tracer is not available
@@ -331,7 +333,7 @@ class FraiseQLTracer:
                 raise
 
     @contextmanager
-    def trace_cache_operation(self, operation: str, cache_type: str, key: str):
+    def trace_cache_operation(self, operation: str, cache_type: str, key: str) -> Generator[Any]:
         """Trace a cache operation."""
         if not self.tracer:
             # No-op context manager when tracer is not available
@@ -465,7 +467,7 @@ def setup_tracing(app: FastAPI, config: TracingConfig | None = None) -> FraiseQL
     return tracer
 
 
-def trace_graphql_operation(operation_type: str, operation_name: str):
+def trace_graphql_operation(operation_type: str, operation_name: str) -> Callable:
     """Decorator to trace GraphQL operations.
 
     Args:
@@ -473,9 +475,9 @@ def trace_graphql_operation(operation_type: str, operation_name: str):
         operation_name: Name of the operation
     """
 
-    def decorator(func):
+    def decorator(func) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args, **kwargs) -> Any:
             tracer = get_tracer()
 
             # Extract query from args/kwargs
@@ -490,7 +492,7 @@ def trace_graphql_operation(operation_type: str, operation_name: str):
                     return await func(*args, **kwargs)
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args, **kwargs) -> Any:
             tracer = get_tracer()
 
             query = kwargs.get("query", "")
@@ -513,7 +515,7 @@ def trace_graphql_operation(operation_type: str, operation_name: str):
     return decorator
 
 
-def trace_database_query(query_type: str, table: str):
+def trace_database_query(query_type: str, table: str) -> Callable:
     """Decorator to trace database queries.
 
     Args:
@@ -521,9 +523,9 @@ def trace_database_query(query_type: str, table: str):
         table: Table name
     """
 
-    def decorator(func):
+    def decorator(func) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args, **kwargs) -> Any:
             tracer = get_tracer()
 
             # Extract SQL from args/kwargs
@@ -533,7 +535,7 @@ def trace_database_query(query_type: str, table: str):
                 return await func(*args, **kwargs)
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args, **kwargs) -> Any:
             tracer = get_tracer()
 
             sql = args[0] if args else kwargs.get("sql", "")

@@ -34,7 +34,7 @@ except ImportError:
             if hasattr(metric, "_name"):
                 self._metrics[metric._name] = metric
 
-        def collect(self):
+        def collect(self) -> list:
             """Collect metrics for iteration."""
             return []
 
@@ -53,7 +53,7 @@ except ImportError:
             """Increment placeholder counter."""
             self._value += amount
 
-        def labels(self, *args, **kwargs):
+        def labels(self, *args, **kwargs) -> "Counter":
             """Return labeled placeholder counter."""
             # Create label key from args and kwargs
             label_key = tuple(args) + tuple(sorted(kwargs.items()))
@@ -89,7 +89,7 @@ except ImportError:
             """Decrement placeholder gauge."""
             self._value -= amount
 
-        def labels(self, *args, **kwargs):
+        def labels(self, *args, **kwargs) -> "Gauge":
             """Return labeled placeholder gauge."""
             label_key = tuple(args) + tuple(sorted(kwargs.items()))
             if label_key not in self._labeled_instances:
@@ -120,7 +120,7 @@ except ImportError:
             self._sum += amount
             self._count += 1
 
-        def labels(self, *args, **kwargs):
+        def labels(self, *args, **kwargs) -> "Histogram":
             """Return labeled placeholder histogram."""
             label_key = tuple(args) + tuple(sorted(kwargs.items()))
             if label_key not in self._labeled_instances:

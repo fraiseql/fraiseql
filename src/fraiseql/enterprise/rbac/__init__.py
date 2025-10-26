@@ -21,7 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def setup_rbac_cache(db_pool):
+async def setup_rbac_cache(db_pool) -> None:
     """Initialize RBAC cache domains and CASCADE rules.
 
     This should be called during application startup with a database pool.

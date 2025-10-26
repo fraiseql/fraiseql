@@ -4,7 +4,7 @@ These directives integrate with the PostgreSQL-cached PermissionResolver
 to provide field-level authorization in GraphQL schemas.
 """
 
-from typing import Any
+from typing import Any, Callable
 
 import strawberry
 from strawberry.types import Info
@@ -16,7 +16,7 @@ from .resolver import PermissionResolver
     locations=[strawberry.directive_location.FIELD_DEFINITION],
     description="Require specific permission to access field",
 )
-def requires_permission(resource: str, action: str, check_constraints: bool = True):
+def requires_permission(resource: str, action: str, check_constraints: bool = True) -> Callable:
     """Directive to enforce permission requirements on fields.
 
     Args:
@@ -34,8 +34,8 @@ def requires_permission(resource: str, action: str, check_constraints: bool = Tr
                 return await get_user_by_id(id)
     """
 
-    def directive_resolver(resolver):
-        async def wrapper(*args, **kwargs):
+    def directive_resolver(resolver) -> Callable:
+        async def wrapper(*args, **kwargs) -> Any:
             info: Info = args[1]  # GraphQL Info is second arg
             context = info.context
 
@@ -93,7 +93,7 @@ def requires_permission(resource: str, action: str, check_constraints: bool = Tr
     locations=[strawberry.directive_location.FIELD_DEFINITION],
     description="Require specific role to access field",
 )
-def requires_role(role_name: str):
+def requires_role(role_name: str) -> Callable:
     """Directive to enforce role requirements on fields.
 
     Args:
@@ -109,8 +109,8 @@ def requires_role(role_name: str):
                 return await delete_user_by_id(id)
     """
 
-    def directive_resolver(resolver):
-        async def wrapper(*args, **kwargs):
+    def directive_resolver(resolver) -> Callable:
+        async def wrapper(*args, **kwargs) -> Any:
             info: Info = args[1]
             context = info.context
 

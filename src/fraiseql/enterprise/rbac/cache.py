@@ -110,7 +110,9 @@ class PermissionCache:
         logger.debug("Permission cache HIT (PostgreSQL): %s", key)
         return permissions
 
-    async def set(self, user_id: UUID, tenant_id: Optional[UUID], permissions: list[Permission]):
+    async def set(
+        self, user_id: UUID, tenant_id: Optional[UUID], permissions: list[Permission]
+    ) -> None:
         """Cache permissions with domain version metadata.
 
         Stores in both request-level and PostgreSQL cache.
@@ -152,11 +154,11 @@ class PermissionCache:
 
         logger.debug("Cached permissions for user %s (versions: %s)", user_id, versions)
 
-    def clear_request_cache(self):
+    def clear_request_cache(self) -> None:
         """Clear request-level cache (called at end of request)."""
         self._request_cache.clear()
 
-    async def invalidate_user(self, user_id: UUID, tenant_id: Optional[UUID] = None):
+    async def invalidate_user(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> None:
         """Manually invalidate cache for user.
 
         Note: With domain versioning, manual invalidation is rarely needed
@@ -171,7 +173,7 @@ class PermissionCache:
         await self.pg_cache.delete(key)
         logger.debug("Invalidated permissions cache for user %s", user_id)
 
-    async def invalidate_all(self):
+    async def invalidate_all(self) -> None:
         """Invalidate all cached permissions.
 
         Useful for testing or emergency cache clearing.

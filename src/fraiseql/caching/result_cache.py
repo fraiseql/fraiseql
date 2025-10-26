@@ -216,7 +216,7 @@ def cached_query(
 
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs) -> Any:
             # Check for skip_cache parameter
             skip_cache = kwargs.pop("skip_cache", False)
             if skip_cache:

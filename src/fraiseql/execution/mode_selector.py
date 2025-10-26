@@ -37,7 +37,7 @@ class ModeSelector:
             getattr(config, "mode_hint_pattern", r"#\s*@mode:\s*(\w+)")
         )
 
-    def set_turbo_registry(self, registry: TurboRegistry):
+    def set_turbo_registry(self, registry: TurboRegistry) -> None:
         """Set TurboRouter registry.
 
         Args:
@@ -45,7 +45,7 @@ class ModeSelector:
         """
         self.turbo_registry = registry
 
-    def set_query_analyzer(self, analyzer: QueryAnalyzer):
+    def set_query_analyzer(self, analyzer: QueryAnalyzer) -> None:
         """Set query analyzer.
 
         Args:
@@ -53,7 +53,7 @@ class ModeSelector:
         """
         self.query_analyzer = analyzer
 
-    def set_query_router(self, router: "QueryRouter"):
+    def set_query_router(self, router: "QueryRouter") -> None:
         """Set query router for entity-aware routing.
 
         Args:

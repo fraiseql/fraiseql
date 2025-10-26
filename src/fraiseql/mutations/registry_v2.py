@@ -6,7 +6,7 @@ global state and import order dependencies.
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Generator, Protocol
 
 
 class ResultRegistry(Protocol):
@@ -65,7 +65,7 @@ class ScopedResultRegistry:
 
 
 @contextmanager
-def isolated_registry():
+def isolated_registry() -> Generator[ScopedResultRegistry]:
     """Create an isolated registry scope.
 
     Usage:
@@ -92,7 +92,7 @@ class RegistryManager:
         return self._current_registry
 
     @contextmanager
-    def scoped_registry(self, inherit: bool = True):
+    def scoped_registry(self, inherit: bool = True) -> Generator[ScopedResultRegistry]:
         """Create a scoped registry context.
 
         Args:
@@ -124,7 +124,7 @@ def get_registry() -> ResultRegistry:
     return _registry_manager.current
 
 
-def scoped_registry(inherit: bool = True):
+def scoped_registry(inherit: bool = True) -> Generator[ScopedResultRegistry]:
     """Create a scoped registry context.
 
     Args:

@@ -142,7 +142,9 @@ class EnhancedTurboRegistry(TurboRegistry):
 
         return query_hash
 
-    def update_metrics(self, query_hash: str, execution_time: float, cache_hit: bool = True):
+    def update_metrics(
+        self, query_hash: str, execution_time: float, cache_hit: bool = True
+    ) -> None:
         """Update query metrics after execution.
 
         Args:

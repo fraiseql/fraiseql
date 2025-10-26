@@ -241,11 +241,11 @@ class ViewMetadataCache:
 
         return None
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear the cache."""
         self.cache.clear()
 
-    def invalidate(self, view_name: str):
+    def invalidate(self, view_name: str) -> None:
         """Invalidate cache for specific view.
 
         Args:

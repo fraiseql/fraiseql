@@ -238,7 +238,7 @@ class PermissionResolver:
 
         return [Permission(**row) for row in permissions_data]
 
-    async def invalidate_user_cache(self, user_id: UUID, tenant_id: Optional[UUID] = None):
+    async def invalidate_user_cache(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> None:
         """Manually invalidate permission cache for user.
 
         Note: With domain versioning, manual invalidation is rarely needed

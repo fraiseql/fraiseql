@@ -216,7 +216,7 @@ async def register(
     request: RegisterRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
     schema: Annotated[str, Depends(get_schema)],
-):
+) -> AuthResponse:
     """Register a new user."""
     # Check if email already exists
     async with db.cursor() as cursor:
@@ -285,7 +285,7 @@ async def login(
     request: LoginRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
     schema: Annotated[str, Depends(get_schema)],
-):
+) -> AuthResponse:
     """Login with email and password."""
     # Get user by email
     async with db.cursor() as cursor:
@@ -347,7 +347,7 @@ async def refresh_token(
     db: Annotated[AsyncConnection, Depends(get_db)],
     schema: Annotated[str, Depends(get_schema)],
     token_manager: Annotated[TokenManager, Depends(get_token_manager)],
-):
+) -> TokenResponse:
     """Refresh access token using refresh token."""
     try:
         # Verify the refresh token
@@ -405,7 +405,9 @@ async def refresh_token(
 
 
 @auth_router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: Annotated[User, Depends(get_current_user)]):
+async def get_current_user_info(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserResponse:
     """Get current user information."""
     return UserResponse(
         id=current_user.id,
@@ -427,7 +429,7 @@ async def logout(
     db: Annotated[AsyncConnection, Depends(get_db)],
     schema: Annotated[str, Depends(get_schema)],
     token_manager: Annotated[TokenManager, Depends(get_token_manager)],
-):
+) -> MessageResponse:
     """Logout and invalidate refresh token."""
     # Invalidate the refresh token family
     try:
@@ -456,7 +458,7 @@ async def forgot_password(
     request: ForgotPasswordRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
     schema: Annotated[str, Depends(get_schema)],
-):
+) -> MessageResponse:
     """Request password reset email."""
     # Always return success to prevent email enumeration
     async with db.cursor() as cursor:
@@ -489,7 +491,7 @@ async def reset_password(
     request: ResetPasswordRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
     schema: Annotated[str, Depends(get_schema)],
-):
+) -> MessageResponse:
     """Reset password using reset token."""
     # Hash the incoming token to compare with stored hash
     token_hash = hashlib.sha256(request.token.encode()).hexdigest()
@@ -549,7 +551,7 @@ async def list_sessions(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncConnection, Depends(get_db)],
     schema: Annotated[str, Depends(get_schema)],
-):
+) -> list[SessionResponse]:
     """List all active sessions for current user."""
     async with db.cursor() as cursor:
         await cursor.execute(
@@ -586,7 +588,7 @@ async def revoke_session(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncConnection, Depends(get_db)],
     schema: Annotated[str, Depends(get_schema)],
-):
+) -> MessageResponse:
     """Revoke a specific session."""
     # Verify session belongs to user
     async with db.cursor() as cursor:

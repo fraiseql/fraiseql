@@ -58,13 +58,13 @@ class AuditLogger:
             await self.flush_batch()
         return event["id"]
 
-    async def flush_batch(self):
+    async def flush_batch(self) -> None:
         """Write all batched events to database."""
         if not self._batch:
             return
 
         # Write events in transaction
-        async def write_batch(conn):
+        async def write_batch(conn) -> None:
             for event in self._batch:
                 await self._write_event(event, conn)
 

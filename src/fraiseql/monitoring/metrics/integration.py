@@ -6,7 +6,7 @@ for metrics collection.
 
 import time
 from functools import wraps
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -133,7 +133,7 @@ def setup_metrics(app: FastAPI, config: MetricsConfig | None = None) -> FraiseQL
 
     # Add metrics endpoint
     @app.get(config.metrics_path, include_in_schema=False)
-    async def metrics_endpoint():
+    async def metrics_endpoint() -> Response:
         """Prometheus metrics endpoint."""
         return Response(
             content=metrics.generate_metrics(),
@@ -143,7 +143,7 @@ def setup_metrics(app: FastAPI, config: MetricsConfig | None = None) -> FraiseQL
     return metrics
 
 
-def with_metrics(operation_type: str = "operation"):
+def with_metrics(operation_type: str = "operation") -> Callable:
     """Decorator to automatically record metrics for a function.
 
     This decorator tracks:
@@ -163,9 +163,9 @@ def with_metrics(operation_type: str = "operation"):
         ```
     """
 
-    def decorator(func):
+    def decorator(func) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args, **kwargs) -> Any:
             metrics = get_metrics()
             start_time = time.time()
             success = False
@@ -194,7 +194,7 @@ def with_metrics(operation_type: str = "operation"):
                         )
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args, **kwargs) -> Any:
             metrics = get_metrics()
             start_time = time.time()
             success = False

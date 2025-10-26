@@ -441,7 +441,7 @@ def field(
 
         if is_async:
 
-            async def async_wrapped_resolver(root, info, *args, **kwargs):
+            async def async_wrapped_resolver(root, info, *args, **kwargs) -> Any:
                 # Check if N+1 detector is available in context
                 detector = None
                 if track_n1 and info and hasattr(info, "context") and info.context:
@@ -502,7 +502,7 @@ def field(
 
         else:
 
-            def sync_wrapped_resolver(root, info, *args, **kwargs):
+            def sync_wrapped_resolver(root, info, *args, **kwargs) -> Any:
                 # Check if N+1 detector is available in context
                 detector = None
                 if track_n1 and info and hasattr(info, "context") and info.context:
@@ -696,7 +696,7 @@ def turbo_query(
                 registry.mark_for_turbo_registration(func)
 
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs) -> Any:
             # Check if we're in turbo mode
             info = args[0] if args else None
             if info and hasattr(info, "context"):
@@ -869,7 +869,7 @@ def connection(
             before: str | None = None,
             where: dict[str, Any] | None = None,
             **kwargs,
-        ):
+        ) -> Any:
             # Validate runtime pagination parameters
             _validate_pagination_params(first, last, max_page_size)
 

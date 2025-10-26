@@ -8,6 +8,7 @@ import secrets
 import time
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -286,7 +287,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 "/redoc",
             }
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next) -> Response:
         """Apply CSRF protection to requests."""
         # Skip exempt paths
         if request.url.path in self.config.exempt_paths:
@@ -498,7 +499,7 @@ def setup_csrf_protection(
     csrf_endpoint = CSRFTokenEndpoint(config)
 
     @app.get("/csrf-token")
-    async def get_csrf_token(request: Request):
+    async def get_csrf_token(request: Request) -> Dict[str, Any]:
         """Get CSRF token for SPA applications."""
         return await csrf_endpoint.get_csrf_token(request)
 

@@ -213,7 +213,7 @@ FILTER_CLASS_NAMES = [
 ]
 
 
-def enhance_all_filter_types():
+def enhance_all_filter_types() -> None:
     """Enhance all existing filter types with automatic descriptions.
 
     This function can be called to retroactively enhance filter types that

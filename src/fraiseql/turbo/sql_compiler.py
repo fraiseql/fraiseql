@@ -394,7 +394,7 @@ class ResolverAnalyzer(ast.NodeVisitor):
     def __init__(self):
         self.db_calls = []
 
-    def visit_Call(self, node: ast.Call):
+    def visit_Call(self, node: ast.Call) -> None:
         """Visit function calls to find db operations."""
         # Check if it's a db.find or db.find_one call
         if (

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any
+from typing import Any, Callable
 
 from fraiseql.core.exceptions import ComplexityLimitExceededError
 
@@ -98,7 +98,7 @@ class SubscriptionComplexityAnalyzer:
         return total_cost
 
 
-def complexity(score: int | None = None, max_depth: int | None = None):
+def complexity(score: int | None = None, max_depth: int | None = None) -> Callable:
     """Decorator to set complexity limits for subscriptions.
 
     Usage:
@@ -108,13 +108,13 @@ def complexity(score: int | None = None, max_depth: int | None = None):
             ...
     """
 
-    def decorator(func):
+    def decorator(func) -> Callable:
         # Store complexity metadata
         func._complexity_score = score
         func._max_depth = max_depth
 
         @wraps(func)
-        async def wrapper(info: Any, **kwargs):
+        async def wrapper(info: Any, **kwargs) -> Any:
             # Get analyzer from context
             analyzer = info.context.get("complexity_analyzer") if hasattr(info, "context") else None
             if not analyzer:

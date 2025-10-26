@@ -257,7 +257,7 @@ async def delete_{type_name.lower()}(
     click.echo("3. Run migrations to create the database table")
 
 
-async def get_timestamp():
+async def get_timestamp() -> str:
     """Get current timestamp for migration filenames."""
     from datetime import datetime
 

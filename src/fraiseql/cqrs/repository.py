@@ -590,7 +590,7 @@ class CQRSRepository:
 
     # Transaction support
 
-    def transaction(self):
+    def transaction(self) -> Any:
         """Create a transaction context manager.
 
         Returns:

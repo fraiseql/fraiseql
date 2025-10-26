@@ -7,7 +7,7 @@ by directly executing pre-validated SQL templates.
 import hashlib
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, List
 
 
 @dataclass
@@ -316,7 +316,7 @@ class TurboRouter:
             sql_template = sql_template.replace(f":{param_name}", f"%({param_name})s")
 
         # Define transaction function to set session variables and execute query
-        async def execute_with_session_vars(conn):
+        async def execute_with_session_vars(conn) -> List[dict[str, Any]]:
             """Execute turbo query with session variables set."""
             async with conn.cursor() as cursor:
                 # Set session variables from context if available

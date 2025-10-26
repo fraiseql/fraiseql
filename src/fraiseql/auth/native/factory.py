@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from fastapi import APIRouter
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.auth.native.provider import NativeAuthProvider
@@ -86,7 +87,7 @@ async def apply_native_auth_schema(
         await conn.commit()
 
 
-def get_native_auth_router():
+def get_native_auth_router() -> APIRouter:
     """Get the FastAPI router for native auth endpoints.
 
     This is a convenience function that returns the pre-configured
@@ -109,7 +110,7 @@ def add_security_middleware(
     rate_limit_requests_per_minute: int = 60,
     rate_limit_auth_requests_per_minute: int = 5,
     csp_policy: Optional[str] = None,
-):
+) -> None:
     """Add security middleware to a FastAPI application.
 
     Args:

@@ -11,14 +11,14 @@ well with PostgreSQL views that pre-join related data into JSONB columns.
 """
 
 import logging
-from typing import Any, get_args, get_origin
+from typing import Any, Callable, get_args, get_origin
 
 from graphql import GraphQLResolveInfo
 
 logger = logging.getLogger(__name__)
 
 
-def create_smart_nested_field_resolver(field_name: str, field_type: Any):
+def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Callable:
     """Create a field resolver that handles nested objects based on resolve_nested setting.
 
     This resolver is only used when resolve_nested=True is set on the field type.
@@ -183,7 +183,7 @@ def should_use_nested_resolver(field_type: Any) -> bool:
 
 def create_nested_array_field_resolver_with_where(
     field_name: str, field_type: Any, field_metadata: Any = None
-):
+) -> Callable:
     """Create a field resolver for nested arrays with comprehensive logical operator filtering.
 
     This resolver provides complete AND/OR/NOT logical operator support for filtering

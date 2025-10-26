@@ -82,7 +82,7 @@ def dataloader_field(
             )
 
         # Create the auto-implemented resolver
-        async def auto_resolver(self, info):
+        async def auto_resolver(self, info) -> Any:
             """Auto-generated DataLoader resolver."""
             # SECURITY: Validate self object to prevent attribute injection attacks
             if not hasattr(self, key_field):
