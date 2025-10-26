@@ -24,25 +24,28 @@ from typing import Optional, Any
 
 class Environment(Enum):
     """Detected environments."""
-    LOCAL = "local"           # Developer machine
-    CI = "ci"                 # Continuous Integration (GitHub Actions, etc.)
-    DEV = "dev"               # Development server
-    STAGING = "staging"       # Staging environment
-    PRODUCTION = "production" # Production environment
-    UNKNOWN = "unknown"       # Could not determine
+
+    LOCAL = "local"  # Developer machine
+    CI = "ci"  # Continuous Integration (GitHub Actions, etc.)
+    DEV = "dev"  # Development server
+    STAGING = "staging"  # Staging environment
+    PRODUCTION = "production"  # Production environment
+    UNKNOWN = "unknown"  # Could not determine
 
 
 class PerformanceProfile(Enum):
     """Performance profiles for different environments."""
-    HIGH = "high"           # Fast machines, parallel processing
-    MEDIUM = "medium"       # Standard capabilities
-    LOW = "low"            # Constrained resources
+
+    HIGH = "high"  # Fast machines, parallel processing
+    MEDIUM = "medium"  # Standard capabilities
+    LOW = "low"  # Constrained resources
     CONSTRAINED = "constrained"  # Very limited resources
 
 
 @dataclass
 class EnvironmentConfig:
     """Configuration for a specific environment."""
+
     environment: Environment
     performance_profile: PerformanceProfile
     auto_install_dependencies: bool
@@ -74,7 +77,7 @@ class EnvironmentDetector:
             return self._cached_environment
 
         # Check for explicit environment variable
-        env_var = os.getenv('FRAISEQL_ENVIRONMENT', '').lower()
+        env_var = os.getenv("FRAISEQL_ENVIRONMENT", "").lower()
         if env_var:
             try:
                 self._cached_environment = Environment(env_var)
@@ -100,18 +103,18 @@ class EnvironmentDetector:
     def _is_ci_environment(self) -> bool:
         """Check if running in CI environment."""
         ci_indicators = [
-            'CI',
-            'CONTINUOUS_INTEGRATION',
-            'GITHUB_ACTIONS',
-            'TRAVIS',
-            'CIRCLECI',
-            'JENKINS_URL',
-            'BUILDKITE',
-            'GITLAB_CI',
-            'AZURE_HTTP_USER_AGENT',
-            'TF_BUILD',  # Azure DevOps
-            'APPVEYOR',
-            'DRONE'
+            "CI",
+            "CONTINUOUS_INTEGRATION",
+            "GITHUB_ACTIONS",
+            "TRAVIS",
+            "CIRCLECI",
+            "JENKINS_URL",
+            "BUILDKITE",
+            "GITLAB_CI",
+            "AZURE_HTTP_USER_AGENT",
+            "TF_BUILD",  # Azure DevOps
+            "APPVEYOR",
+            "DRONE",
         ]
 
         return any(indicator in os.environ for indicator in ci_indicators)
@@ -121,23 +124,23 @@ class EnvironmentDetector:
         # Check hostname patterns
         hostname = socket.gethostname().lower()
 
-        if any(pattern in hostname for pattern in ['dev', 'development']):
+        if any(pattern in hostname for pattern in ["dev", "development"]):
             return Environment.DEV
-        elif any(pattern in hostname for pattern in ['staging', 'stage']):
+        elif any(pattern in hostname for pattern in ["staging", "stage"]):
             return Environment.STAGING
-        elif any(pattern in hostname for pattern in ['prod', 'production']):
+        elif any(pattern in hostname for pattern in ["prod", "production"]):
             return Environment.PRODUCTION
 
         # Check for environment-specific files or paths
-        if Path('/app').exists() and Path('/app/docker-compose.yml').exists():
+        if Path("/app").exists() and Path("/app/docker-compose.yml").exists():
             # Likely containerized environment
-            compose_content = ''
+            compose_content = ""
             try:
-                with open('/app/docker-compose.yml') as f:
+                with open("/app/docker-compose.yml") as f:
                     compose_content = f.read().lower()
-                if 'staging' in compose_content:
+                if "staging" in compose_content:
                     return Environment.STAGING
-                elif 'production' in compose_content:
+                elif "production" in compose_content:
                     return Environment.PRODUCTION
                 else:
                     return Environment.DEV
@@ -145,13 +148,13 @@ class EnvironmentDetector:
                 pass
 
         # Check environment variables for deployment indicators
-        if os.getenv('DEPLOYMENT_ENVIRONMENT'):
-            env_name = os.getenv('DEPLOYMENT_ENVIRONMENT').lower()
-            if 'staging' in env_name:
+        if os.getenv("DEPLOYMENT_ENVIRONMENT"):
+            env_name = os.getenv("DEPLOYMENT_ENVIRONMENT").lower()
+            if "staging" in env_name:
                 return Environment.STAGING
-            elif 'production' in env_name:
+            elif "production" in env_name:
                 return Environment.PRODUCTION
-            elif 'dev' in env_name:
+            elif "dev" in env_name:
                 return Environment.DEV
 
         return Environment.UNKNOWN
@@ -182,17 +185,16 @@ class EnvironmentDetector:
         """Get available memory in GB (approximate)."""
         try:
             if platform.system() == "Linux":
-                with open('/proc/meminfo') as f:
+                with open("/proc/meminfo") as f:
                     for line in f:
-                        if line.startswith('MemAvailable:'):
+                        if line.startswith("MemAvailable:"):
                             kb = int(line.split()[1])
                             return kb / 1024 / 1024  # Convert to GB
-                        elif line.startswith('MemTotal:'):
+                        elif line.startswith("MemTotal:"):
                             kb = int(line.split()[1])
                             return kb / 1024 / 1024 * 0.8  # Assume 80% available
             elif platform.system() == "Darwin":  # macOS
-                result = subprocess.run(['sysctl', 'hw.memsize'],
-                                      capture_output=True, text=True)
+                result = subprocess.run(["sysctl", "hw.memsize"], capture_output=True, text=True)
                 if result.returncode == 0:
                     bytes_mem = int(result.stdout.split()[1])
                     return bytes_mem / 1024 / 1024 / 1024
@@ -217,12 +219,13 @@ class EnvironmentDetector:
                 performance_profile=performance,
                 auto_install_dependencies=True,
                 use_database_templates=True,
-                parallel_execution=performance in [PerformanceProfile.HIGH, PerformanceProfile.MEDIUM],
+                parallel_execution=performance
+                in [PerformanceProfile.HIGH, PerformanceProfile.MEDIUM],
                 timeout_multiplier=2.0,  # More lenient for first-time setups
                 cache_duration=3600,  # 1 hour
                 max_parallel_installs=min(4, os.cpu_count() or 2),
                 database_strategy="template_clone",
-                logging_level="INFO"
+                logging_level="INFO",
             ),
             Environment.CI: EnvironmentConfig(
                 environment=Environment.CI,
@@ -234,7 +237,7 @@ class EnvironmentDetector:
                 cache_duration=1800,  # 30 minutes
                 max_parallel_installs=6,
                 database_strategy="template_clone",
-                logging_level="INFO"
+                logging_level="INFO",
             ),
             Environment.DEV: EnvironmentConfig(
                 environment=Environment.DEV,
@@ -246,7 +249,7 @@ class EnvironmentDetector:
                 cache_duration=1800,
                 max_parallel_installs=3,
                 database_strategy="reuse_existing",
-                logging_level="DEBUG"
+                logging_level="DEBUG",
             ),
             Environment.STAGING: EnvironmentConfig(
                 environment=Environment.STAGING,
@@ -258,7 +261,7 @@ class EnvironmentDetector:
                 cache_duration=900,  # 15 minutes
                 max_parallel_installs=2,
                 database_strategy="direct_setup",
-                logging_level="WARNING"
+                logging_level="WARNING",
             ),
             Environment.PRODUCTION: EnvironmentConfig(
                 environment=Environment.PRODUCTION,
@@ -270,8 +273,8 @@ class EnvironmentDetector:
                 cache_duration=300,  # 5 minutes
                 max_parallel_installs=1,
                 database_strategy="skip",
-                logging_level="ERROR"
-            )
+                logging_level="ERROR",
+            ),
         }
 
         base_config = configs.get(environment, configs[Environment.LOCAL])
@@ -293,27 +296,35 @@ class EnvironmentDetector:
     def _apply_env_overrides(self, config: EnvironmentConfig) -> EnvironmentConfig:
         """Apply environment variable overrides to configuration."""
         # Auto-install override
-        if os.getenv('FRAISEQL_AUTO_INSTALL'):
-            config.auto_install_dependencies = os.getenv('FRAISEQL_AUTO_INSTALL').lower() in ['true', '1', 'yes']
+        if os.getenv("FRAISEQL_AUTO_INSTALL"):
+            config.auto_install_dependencies = os.getenv("FRAISEQL_AUTO_INSTALL").lower() in [
+                "true",
+                "1",
+                "yes",
+            ]
 
         # Database strategy override
-        if os.getenv('FRAISEQL_DATABASE_STRATEGY'):
-            config.database_strategy = os.getenv('FRAISEQL_DATABASE_STRATEGY')
+        if os.getenv("FRAISEQL_DATABASE_STRATEGY"):
+            config.database_strategy = os.getenv("FRAISEQL_DATABASE_STRATEGY")
 
         # Timeout multiplier override
-        if os.getenv('FRAISEQL_TIMEOUT_MULTIPLIER'):
+        if os.getenv("FRAISEQL_TIMEOUT_MULTIPLIER"):
             try:
-                config.timeout_multiplier = float(os.getenv('FRAISEQL_TIMEOUT_MULTIPLIER'))
+                config.timeout_multiplier = float(os.getenv("FRAISEQL_TIMEOUT_MULTIPLIER"))
             except ValueError:
                 pass
 
         # Parallel execution override
-        if os.getenv('FRAISEQL_PARALLEL_EXECUTION'):
-            config.parallel_execution = os.getenv('FRAISEQL_PARALLEL_EXECUTION').lower() in ['true', '1', 'yes']
+        if os.getenv("FRAISEQL_PARALLEL_EXECUTION"):
+            config.parallel_execution = os.getenv("FRAISEQL_PARALLEL_EXECUTION").lower() in [
+                "true",
+                "1",
+                "yes",
+            ]
 
         # Logging level override
-        if os.getenv('FRAISEQL_LOG_LEVEL'):
-            config.logging_level = os.getenv('FRAISEQL_LOG_LEVEL').upper()
+        if os.getenv("FRAISEQL_LOG_LEVEL"):
+            config.logging_level = os.getenv("FRAISEQL_LOG_LEVEL").upper()
 
         return config
 
@@ -331,9 +342,9 @@ class EnvironmentDetector:
         multiplier = config.timeout_multiplier
 
         return {
-            'dependency_install': int(config.dependency_install_timeout * multiplier),
-            'database_setup': int(config.database_setup_timeout * multiplier),
-            'test_execution': int(config.test_execution_timeout * multiplier)
+            "dependency_install": int(config.dependency_install_timeout * multiplier),
+            "database_setup": int(config.database_setup_timeout * multiplier),
+            "test_execution": int(config.test_execution_timeout * multiplier),
         }
 
     def get_resource_limits(self) -> dict[str, int]:
@@ -341,9 +352,9 @@ class EnvironmentDetector:
         config = self.get_environment_config()
 
         return {
-            'max_parallel_installs': config.max_parallel_installs,
-            'max_parallel_tests': config.max_parallel_installs,  # Same as installs for now
-            'cache_duration': config.cache_duration
+            "max_parallel_installs": config.max_parallel_installs,
+            "max_parallel_tests": config.max_parallel_installs,  # Same as installs for now
+            "cache_duration": config.cache_duration,
         }
 
     def is_development_environment(self) -> bool:
@@ -361,28 +372,29 @@ class EnvironmentDetector:
         config = self.get_environment_config()
 
         return {
-            'detected_environment': self.detect_environment().value,
-            'performance_profile': self.detect_performance_profile().value,
-            'hostname': socket.gethostname(),
-            'platform': platform.system(),
-            'python_version': sys.version,
-            'cpu_count': os.cpu_count(),
-            'available_memory_gb': self._get_available_memory_gb(),
-            'is_ci': self._is_ci_environment(),
-            'config': {
-                'auto_install_dependencies': config.auto_install_dependencies,
-                'use_database_templates': config.use_database_templates,
-                'parallel_execution': config.parallel_execution,
-                'timeout_multiplier': config.timeout_multiplier,
-                'max_parallel_installs': config.max_parallel_installs,
-                'database_strategy': config.database_strategy,
-                'logging_level': config.logging_level
-            }
+            "detected_environment": self.detect_environment().value,
+            "performance_profile": self.detect_performance_profile().value,
+            "hostname": socket.gethostname(),
+            "platform": platform.system(),
+            "python_version": sys.version,
+            "cpu_count": os.cpu_count(),
+            "available_memory_gb": self._get_available_memory_gb(),
+            "is_ci": self._is_ci_environment(),
+            "config": {
+                "auto_install_dependencies": config.auto_install_dependencies,
+                "use_database_templates": config.use_database_templates,
+                "parallel_execution": config.parallel_execution,
+                "timeout_multiplier": config.timeout_multiplier,
+                "max_parallel_installs": config.max_parallel_installs,
+                "database_strategy": config.database_strategy,
+                "logging_level": config.logging_level,
+            },
         }
 
 
 # Global instance for easy access
 _environment_detector = None
+
 
 def get_environment_detector() -> EnvironmentDetector:
     """Get global environment detector instance."""

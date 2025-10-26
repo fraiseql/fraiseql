@@ -318,26 +318,32 @@ class PostgreSQLRateLimiter:
 
         async with self.pool.connection() as conn, conn.cursor() as cur:
             # Create rate limit table
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE TABLE IF NOT EXISTS {self.table_name} (
                     client_key TEXT NOT NULL,
                     request_time TIMESTAMPTZ NOT NULL,
                     window_type TEXT NOT NULL,
                     PRIMARY KEY (client_key, request_time, window_type)
                 )
-            """)
+            """
+            )
 
             # Create index for time-based queries
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_time_idx
                 ON {self.table_name} (request_time)
-            """)
+            """
+            )
 
             # Create index for client queries
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_client_idx
                 ON {self.table_name} (client_key, window_type, request_time)
-            """)
+            """
+            )
 
             await conn.commit()
             self._initialized = True

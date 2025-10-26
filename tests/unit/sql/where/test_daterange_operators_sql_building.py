@@ -217,12 +217,12 @@ class TestDateRangeValidation:
 
         # Test all valid PostgreSQL daterange formats
         valid_ranges = [
-            "[2023-01-01,2023-12-31]",     # Both inclusive
-            "[2023-01-01,2023-12-31)",     # Start inclusive, end exclusive
-            "(2023-01-01,2023-12-31]",     # Start exclusive, end inclusive
-            "(2023-01-01,2023-12-31)",     # Both exclusive
-            "[2023-01-01,)",               # Unbounded end
-            "(,2023-12-31]",               # Unbounded start
+            "[2023-01-01,2023-12-31]",  # Both inclusive
+            "[2023-01-01,2023-12-31)",  # Start inclusive, end exclusive
+            "(2023-01-01,2023-12-31]",  # Start exclusive, end inclusive
+            "(2023-01-01,2023-12-31)",  # Both exclusive
+            "[2023-01-01,)",  # Unbounded end
+            "(,2023-12-31]",  # Unbounded start
         ]
 
         for date_range in valid_ranges:

@@ -46,7 +46,6 @@ class TestNetworkFilteringFix:
         subnet_sql = registry.build_sql(field_path, "inSubnet", "192.168.1.0/24", IpAddress)
         subnet_str = str(subnet_sql)
 
-
         # Should contain proper casting
         assert "::inet" in subnet_str
         assert "<<=" in subnet_str  # PostgreSQL subnet operator
@@ -55,7 +54,6 @@ class TestNetworkFilteringFix:
         # Test isPrivate generates proper SQL
         private_sql = registry.build_sql(field_path, "isPrivate", True, IpAddress)
         private_str = str(private_sql)
-
 
         # Should contain RFC 1918 ranges
         assert "192.168.0.0/16" in private_str
@@ -74,7 +72,6 @@ class TestNetworkFilteringFix:
 
         eq_str = str(eq_sql)
         subnet_str = str(subnet_sql)
-
 
         # Both should work with PostgreSQL
         # eq uses host() to handle CIDR notation properly
@@ -102,7 +99,6 @@ class TestNetworkFilteringFix:
         # This would be None initially, but the type should support network operations
         # We can't easily test this without creating a full instance, but we can check
         # that the type was created correctly by the GraphQL where generator
-
 
     def test_network_operators_reject_non_ip_fields(self):
         """Test that network operators properly reject non-IP field types."""
@@ -132,7 +128,6 @@ class TestNetworkFilteringFix:
         subnet_sql = registry.build_sql(field_path, "inSubnet", "192.168.0.0/16", IpAddress)
         subnet_str = str(subnet_sql)
 
-
         # Should generate: (data->>'ip_address')::inet <<= '192.168.0.0/16'::inet
         # This SQL should correctly filter only IPs in the 192.168.x.x range
 
@@ -145,16 +140,14 @@ class TestNetworkFilteringFix:
         eq_sql = registry.build_sql(field_path, "eq", "1.1.1.1", IpAddress)
         eq_str = str(eq_sql)
 
-
         # Should generate proper equality check
         # The host() function is actually correct for handling CIDR notation
         assert "1.1.1.1" in eq_str
-        assert ("=" in eq_str or "host(" in eq_str)
+        assert "=" in eq_str or "host(" in eq_str
 
         # Issue #3: isPrivate filter returns empty
         private_sql = registry.build_sql(field_path, "isPrivate", True, IpAddress)
         private_str = str(private_sql)
-
 
         # Should check all RFC 1918 ranges
         rfc1918_ranges = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]

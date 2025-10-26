@@ -71,9 +71,7 @@ class TestRoleManagement:
         """Test deleting a role."""
         from fraiseql.enterprise.rbac.mutations import DeleteRole, DeleteRoleInput
 
-        input_data = DeleteRoleInput(
-            role_id=uuid4()  # Would be actual role ID
-        )
+        input_data = DeleteRoleInput(role_id=uuid4())  # Would be actual role ID
 
         result = DeleteRole.resolve(input_data)
 
@@ -134,9 +132,7 @@ class TestPermissionManagement:
         """Test deleting a permission."""
         from fraiseql.enterprise.rbac.mutations import DeletePermission, DeletePermissionInput
 
-        input_data = DeletePermissionInput(
-            permission_id=uuid4()  # Would be actual permission ID
-        )
+        input_data = DeletePermissionInput(permission_id=uuid4())  # Would be actual permission ID
 
         result = DeletePermission.resolve(input_data)
 

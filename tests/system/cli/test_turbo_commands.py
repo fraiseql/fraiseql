@@ -10,7 +10,7 @@ from fraiseql.cli.main import cli
 @pytest.fixture
 def sample_graphql_query(tmp_path):
     """Create a sample GraphQL query file."""
-    query_content = '''
+    query_content = """
 query GetUser($id: ID!) {
   user(id: $id) {
     id
@@ -18,7 +18,7 @@ query GetUser($id: ID!) {
     email
   }
 }
-'''
+"""
     query_file = tmp_path / "query.graphql"
     query_file.write_text(query_content)
     return query_file
@@ -31,12 +31,9 @@ def sample_graphql_queries_json(tmp_path):
         "queries": [
             {
                 "operationName": "GetUser",
-                "query": "query GetUser($id: ID!) { user(id: $id) { id name } }"
+                "query": "query GetUser($id: ID!) { user(id: $id) { id name } }",
             },
-            {
-                "operationName": "GetPosts",
-                "query": "query GetPosts { posts { id title } }"
-            }
+            {"operationName": "GetPosts", "query": "query GetPosts { posts { id title } }"},
         ]
     }
     json_file = tmp_path / "queries.json"
@@ -47,10 +44,7 @@ def sample_graphql_queries_json(tmp_path):
 @pytest.fixture
 def sample_single_query_json(tmp_path):
     """Create a JSON file with a single query."""
-    query = {
-        "operationName": "GetUser",
-        "query": "query GetUser { user { id name } }"
-    }
+    query = {"operationName": "GetUser", "query": "query GetUser { user { id name } }"}
     json_file = tmp_path / "single_query.json"
     json_file.write_text(json.dumps(query))
     return json_file
@@ -60,14 +54,8 @@ def sample_single_query_json(tmp_path):
 def sample_query_list_json(tmp_path):
     """Create a JSON file with query list (no 'queries' key)."""
     queries = [
-        {
-            "operationName": "Query1",
-            "query": "query Query1 { field1 }"
-        },
-        {
-            "operationName": "Query2",
-            "query": "query Query2 { field2 }"
-        }
+        {"operationName": "Query1", "query": "query Query1 { field1 }"},
+        {"operationName": "Query2", "query": "query Query2 { field2 }"},
     ]
     json_file = tmp_path / "query_list.json"
     json_file.write_text(json.dumps(queries))
@@ -77,11 +65,7 @@ def sample_query_list_json(tmp_path):
 @pytest.fixture
 def sample_view_mapping(tmp_path):
     """Create a sample view mapping file."""
-    mapping = {
-        "User": "v_users",
-        "Post": "v_posts",
-        "Comment": "v_comments"
-    }
+    mapping = {"User": "v_users", "Post": "v_posts", "Comment": "v_comments"}
     mapping_file = tmp_path / "mapping.json"
     mapping_file.write_text(json.dumps(mapping))
     return mapping_file
@@ -109,19 +93,13 @@ class TestTurboRegister:
 
     def test_register_with_nonexistent_file(self, cli_runner):
         """Test register with nonexistent file."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "register", "nonexistent.graphql"]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "register", "nonexistent.graphql"])
 
         assert result.exit_code != 0
 
     def test_register_graphql_file(self, cli_runner, sample_graphql_query):
         """Test registering queries from .graphql file."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "register", str(sample_graphql_query)]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "register", str(sample_graphql_query)])
 
         # Should execute (may fail on actual registration if dependencies missing)
         # We're testing the CLI command structure, not the full registration
@@ -129,40 +107,35 @@ class TestTurboRegister:
 
     def test_register_json_file_with_queries_key(self, cli_runner, sample_graphql_queries_json):
         """Test registering queries from JSON file with 'queries' key."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "register", str(sample_graphql_queries_json)]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "register", str(sample_graphql_queries_json)])
 
         assert "Registering query" in result.output or "Error" in result.output
 
     def test_register_json_file_single_query(self, cli_runner, sample_single_query_json):
         """Test registering single query from JSON file."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "register", str(sample_single_query_json)]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "register", str(sample_single_query_json)])
 
         assert "Registering query" in result.output or "Error" in result.output
 
     def test_register_json_file_query_list(self, cli_runner, sample_query_list_json):
         """Test registering query list from JSON file."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "register", str(sample_query_list_json)]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "register", str(sample_query_list_json)])
 
         assert "Registering query" in result.output or "Error" in result.output
 
-    def test_register_with_view_mapping(self, cli_runner, sample_graphql_query, sample_view_mapping):
+    def test_register_with_view_mapping(
+        self, cli_runner, sample_graphql_query, sample_view_mapping
+    ):
         """Test register with view mapping file."""
         result = cli_runner.invoke(
             cli,
             [
-                "turbo", "register",
+                "turbo",
+                "register",
                 str(sample_graphql_query),
-                "--view-mapping", str(sample_view_mapping)
-            ]
+                "--view-mapping",
+                str(sample_view_mapping),
+            ],
         )
 
         assert "Registering query" in result.output or "Error" in result.output
@@ -172,12 +145,7 @@ class TestTurboRegister:
         output_file = tmp_path / "results.json"
 
         result = cli_runner.invoke(
-            cli,
-            [
-                "turbo", "register",
-                str(sample_graphql_query),
-                "--output", str(output_file)
-            ]
+            cli, ["turbo", "register", str(sample_graphql_query), "--output", str(output_file)]
         )
 
         # Command should execute
@@ -186,12 +154,7 @@ class TestTurboRegister:
     def test_register_dry_run_valid_query(self, cli_runner, sample_graphql_query):
         """Test dry-run mode with valid query."""
         result = cli_runner.invoke(
-            cli,
-            [
-                "turbo", "register",
-                str(sample_graphql_query),
-                "--dry-run"
-            ]
+            cli, ["turbo", "register", str(sample_graphql_query), "--dry-run"]
         )
 
         # Should validate without registering
@@ -203,31 +166,31 @@ class TestTurboRegister:
     def test_register_dry_run_invalid_query(self, cli_runner, invalid_graphql_query):
         """Test dry-run mode with invalid query."""
         result = cli_runner.invoke(
-            cli,
-            [
-                "turbo", "register",
-                str(invalid_graphql_query),
-                "--dry-run"
-            ]
+            cli, ["turbo", "register", str(invalid_graphql_query), "--dry-run"]
         )
 
         assert result.exit_code == 0
         # Should show validation error
         assert "Invalid GraphQL" in result.output
 
-    def test_register_all_options(self, cli_runner, sample_graphql_queries_json, sample_view_mapping, tmp_path):
+    def test_register_all_options(
+        self, cli_runner, sample_graphql_queries_json, sample_view_mapping, tmp_path
+    ):
         """Test register with all options combined."""
         output_file = tmp_path / "results.json"
 
         result = cli_runner.invoke(
             cli,
             [
-                "turbo", "register",
+                "turbo",
+                "register",
                 str(sample_graphql_queries_json),
-                "--view-mapping", str(sample_view_mapping),
-                "--output", str(output_file),
-                "--dry-run"
-            ]
+                "--view-mapping",
+                str(sample_view_mapping),
+                "--output",
+                str(output_file),
+                "--dry-run",
+            ],
         )
 
         assert result.exit_code == 0
@@ -235,10 +198,7 @@ class TestTurboRegister:
 
     def test_register_summary_output(self, cli_runner, sample_graphql_queries_json):
         """Test that register shows summary of results."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "register", str(sample_graphql_queries_json)]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "register", str(sample_graphql_queries_json)])
 
         # Should show summary like "X/Y successful"
         assert "successful" in result.output.lower() or "Error" in result.output
@@ -257,30 +217,21 @@ class TestTurboList:
 
     def test_list_json_format(self, cli_runner):
         """Test list command with JSON format."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "list", "--format", "json"]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "list", "--format", "json"])
 
         assert result.exit_code == 0
         assert "Registered queries" in result.output
 
     def test_list_sql_format(self, cli_runner):
         """Test list command with SQL format."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "list", "--format", "sql"]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "list", "--format", "sql"])
 
         assert result.exit_code == 0
         assert "Registered queries" in result.output
 
     def test_list_invalid_format(self, cli_runner):
         """Test list command with invalid format."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "list", "--format", "invalid"]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "list", "--format", "invalid"])
 
         # Should fail with format validation error
         assert result.exit_code != 0
@@ -299,10 +250,7 @@ class TestTurboInspect:
 
     def test_inspect_with_hash(self, cli_runner):
         """Test inspect with a query hash."""
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "inspect", "abc123def456"]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "inspect", "abc123def456"])
 
         assert result.exit_code == 0
         assert "Query details" in result.output
@@ -311,10 +259,7 @@ class TestTurboInspect:
     def test_inspect_with_sha256_hash(self, cli_runner):
         """Test inspect with SHA-256 hash format."""
         sha_hash = "a" * 64  # 64 character hex string
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "inspect", sha_hash]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "inspect", sha_hash])
 
         assert result.exit_code == 0
         assert "Query details" in result.output
@@ -424,10 +369,7 @@ class TestTurboEdgeCases:
         empty_file = tmp_path / "empty.graphql"
         empty_file.write_text("")
 
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "register", str(empty_file), "--dry-run"]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "register", str(empty_file), "--dry-run"])
 
         # Should handle gracefully
         assert result.exit_code == 0
@@ -437,10 +379,7 @@ class TestTurboEdgeCases:
         malformed_json = tmp_path / "malformed.json"
         malformed_json.write_text("{invalid json")
 
-        result = cli_runner.invoke(
-            cli,
-            ["turbo", "register", str(malformed_json)]
-        )
+        result = cli_runner.invoke(cli, ["turbo", "register", str(malformed_json)])
 
         # Should show error
         assert result.exit_code != 0
@@ -449,11 +388,7 @@ class TestTurboEdgeCases:
         """Test register with nonexistent view mapping file."""
         result = cli_runner.invoke(
             cli,
-            [
-                "turbo", "register",
-                str(sample_graphql_query),
-                "--view-mapping", "nonexistent.json"
-            ]
+            ["turbo", "register", str(sample_graphql_query), "--view-mapping", "nonexistent.json"],
         )
 
         # Should fail with file not found error

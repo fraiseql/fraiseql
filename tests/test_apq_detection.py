@@ -9,7 +9,9 @@ def test_detect_apq_request():
     # This test will fail until we implement is_apq_request function
     from fraiseql.middleware.apq import is_apq_request
 
-    apq_request = GraphQLRequest(extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}})
+    apq_request = GraphQLRequest(
+        extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}}
+    )
     normal_request = GraphQLRequest(query="{ hello }")
 
     assert is_apq_request(apq_request) == True
@@ -21,8 +23,7 @@ def test_detect_apq_request_with_both_query_and_hash():
     from fraiseql.middleware.apq import is_apq_request
 
     apq_request = GraphQLRequest(
-        query="{ hello }",
-        extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}}
+        query="{ hello }", extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}}
     )
 
     assert is_apq_request(apq_request) == True
@@ -32,10 +33,7 @@ def test_detect_apq_request_with_non_apq_extensions():
     """Test APQ detection with non-APQ extensions."""
     from fraiseql.middleware.apq import is_apq_request
 
-    request = GraphQLRequest(
-        query="{ hello }",
-        extensions={"tracing": {"version": 1}}
-    )
+    request = GraphQLRequest(query="{ hello }", extensions={"tracing": {"version": 1}})
 
     assert is_apq_request(request) == False
 
@@ -62,7 +60,9 @@ def test_get_apq_hash():
     """Test extracting APQ hash from request."""
     from fraiseql.middleware.apq import get_apq_hash
 
-    apq_request = GraphQLRequest(extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}})
+    apq_request = GraphQLRequest(
+        extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}}
+    )
     normal_request = GraphQLRequest(query="{ hello }")
 
     assert get_apq_hash(apq_request) == "abc123"
@@ -73,10 +73,11 @@ def test_is_apq_hash_only_request():
     """Test detecting hash-only APQ requests."""
     from fraiseql.middleware.apq import is_apq_hash_only_request
 
-    hash_only = GraphQLRequest(extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}})
-    with_query = GraphQLRequest(
-        query="{ hello }",
+    hash_only = GraphQLRequest(
         extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}}
+    )
+    with_query = GraphQLRequest(
+        query="{ hello }", extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}}
     )
     normal = GraphQLRequest(query="{ hello }")
 
@@ -89,10 +90,11 @@ def test_is_apq_with_query_request():
     """Test detecting APQ requests that include query."""
     from fraiseql.middleware.apq import is_apq_with_query_request
 
-    hash_only = GraphQLRequest(extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}})
-    with_query = GraphQLRequest(
-        query="{ hello }",
+    hash_only = GraphQLRequest(
         extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}}
+    )
+    with_query = GraphQLRequest(
+        query="{ hello }", extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123"}}
     )
     normal = GraphQLRequest(query="{ hello }")
 

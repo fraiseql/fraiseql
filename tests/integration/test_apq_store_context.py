@@ -12,12 +12,7 @@ def test_store_response_passes_context():
     config = Mock()
     config.apq_cache_responses = True
 
-    test_context = {
-        "user": {
-            "user_id": "test-123",
-            "metadata": {"tenant_id": "tenant-abc"}
-        }
-    }
+    test_context = {"user": {"user_id": "test-123", "metadata": {"tenant_id": "tenant-abc"}}}
 
     test_response = {"data": {"result": "test"}}
 

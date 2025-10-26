@@ -39,15 +39,15 @@ class MockCursor:
 
     async def execute(self, query, params=None):
         # Simulate slow information_schema query
-        if 'information_schema' in query:
+        if "information_schema" in query:
             time.sleep(0.01)  # Simulate 10ms DB query
 
     async def fetchall(self):
         # Return mock column data
         return [
-            {'column_name': 'id', 'data_type': 'uuid', 'udt_name': 'uuid'},
-            {'column_name': 'is_current', 'data_type': 'boolean', 'udt_name': 'bool'},
-            {'column_name': 'data', 'data_type': 'jsonb', 'udt_name': 'jsonb'},
+            {"column_name": "id", "data_type": "uuid", "udt_name": "uuid"},
+            {"column_name": "is_current", "data_type": "boolean", "udt_name": "bool"},
+            {"column_name": "data", "data_type": "jsonb", "udt_name": "jsonb"},
         ]
 
 
@@ -60,8 +60,8 @@ class TestHybridPerformance:
         register_type_for_view(
             "products",
             type,
-            table_columns={'id', 'status', 'is_active', 'created_at', 'data'},
-            has_jsonb_data=True
+            table_columns={"id", "status", "is_active", "created_at", "data"},
+            has_jsonb_data=True,
         )
 
         pool = MockPool()
@@ -86,7 +86,7 @@ class TestHybridPerformance:
         # Should be very fast with metadata
         assert elapsed_ms < 10, f"WHERE clause generation took {elapsed_ms:.2f}ms for 2000 checks"
         print(f"\n✅ Performance with metadata: {elapsed_ms:.2f}ms for 2000 field checks")
-        print(f"   Average: {elapsed_ms/2000:.4f}ms per field check")
+        print(f"   Average: {elapsed_ms / 2000:.4f}ms per field check")
 
     def test_where_clause_generation_without_metadata(self):
         """Test WHERE clause generation speed without pre-registered metadata."""
@@ -98,7 +98,7 @@ class TestHybridPerformance:
         repo = FraiseQLRepository(pool, context={})
 
         # Clear caches to simulate cold start
-        if hasattr(repo, '_field_path_cache'):
+        if hasattr(repo, "_field_path_cache"):
             repo._field_path_cache.clear()
 
         # Measure WHERE clause generation time without metadata
@@ -117,7 +117,7 @@ class TestHybridPerformance:
         # Still fast with heuristics, but less accurate
         assert elapsed_ms < 20, f"WHERE clause generation took {elapsed_ms:.2f}ms for 2000 checks"
         print(f"\n⚠️  Performance without metadata: {elapsed_ms:.2f}ms for 2000 field checks")
-        print(f"   Average: {elapsed_ms/2000:.4f}ms per field check")
+        print(f"   Average: {elapsed_ms / 2000:.4f}ms per field check")
         print(f"   Note: Falls back to heuristics which may be less accurate")
 
     def test_metadata_memory_overhead(self):
@@ -126,9 +126,18 @@ class TestHybridPerformance:
 
         # Measure size of metadata for a typical hybrid table
         metadata = {
-            'columns': {'id', 'tenant_id', 'name', 'status', 'is_active',
-                       'is_featured', 'category_id', 'created_date', 'data'},
-            'has_jsonb_data': True
+            "columns": {
+                "id",
+                "tenant_id",
+                "name",
+                "status",
+                "is_active",
+                "is_featured",
+                "category_id",
+                "created_date",
+                "data",
+            },
+            "has_jsonb_data": True,
         }
 
         size_bytes = sys.getsizeof(metadata) + sum(sys.getsizeof(v) for v in metadata.values())

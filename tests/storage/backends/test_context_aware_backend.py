@@ -14,12 +14,7 @@ class TestContextAwareAPQBackend:
 
         test_hash = "abc123"
         test_response = {"data": {"user": {"id": "1", "name": "Test"}}}
-        test_context = {
-            "user": {
-                "user_id": "user-123",
-                "metadata": {"tenant_id": "tenant-456"}
-            }
-        }
+        test_context = {"user": {"user_id": "user-123", "metadata": {"tenant_id": "tenant-456"}}}
 
         # Store with context
         backend.store_cached_response(test_hash, test_response, context=test_context)
@@ -34,12 +29,7 @@ class TestContextAwareAPQBackend:
 
         test_hash = "def456"
         test_response = {"data": {"orders": [{"id": "1"}]}}
-        test_context = {
-            "user": {
-                "user_id": "user-789",
-                "metadata": {"tenant_id": "tenant-012"}
-            }
-        }
+        test_context = {"user": {"user_id": "user-789", "metadata": {"tenant_id": "tenant-012"}}}
 
         # Store without context (global cache)
         backend.store_cached_response(test_hash, test_response)

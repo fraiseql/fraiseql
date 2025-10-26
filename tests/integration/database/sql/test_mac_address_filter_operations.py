@@ -24,16 +24,13 @@ class TestMacAddressFilterOperations:
         test_cases = [
             "00:11:22:33:44:55",  # Colon (canonical)
             "00-11-22-33-44-55",  # Hyphen (Windows)
-            "0011.2233.4455",     # Dot (Cisco)
-            "001122334455",       # Bare
+            "0011.2233.4455",  # Dot (Cisco)
+            "001122334455",  # Bare
         ]
 
         for mac_format in test_cases:
             sql = registry.build_sql(
-                path_sql=path_sql,
-                op="eq",
-                val=mac_format,
-                field_type=MacAddress
+                path_sql=path_sql, op="eq", val=mac_format, field_type=MacAddress
             )
 
             # Should cast both sides to macaddr for proper comparison
@@ -55,10 +52,7 @@ class TestMacAddressFilterOperations:
 
         for mac_case in test_cases:
             sql = registry.build_sql(
-                path_sql=path_sql,
-                op="eq",
-                val=mac_case,
-                field_type=MacAddress
+                path_sql=path_sql, op="eq", val=mac_case, field_type=MacAddress
             )
 
             sql_str = str(sql)
@@ -74,16 +68,11 @@ class TestMacAddressFilterOperations:
         mixed_macs = [
             "00:11:22:33:44:55",  # Colon
             "66-77-88-99-AA-BB",  # Hyphen
-            "ccdd.eeff.0011",     # Dot
-            "223344556677",       # Bare
+            "ccdd.eeff.0011",  # Dot
+            "223344556677",  # Bare
         ]
 
-        sql = registry.build_sql(
-            path_sql=path_sql,
-            op="in",
-            val=mixed_macs,
-            field_type=MacAddress
-        )
+        sql = registry.build_sql(path_sql=path_sql, op="in", val=mixed_macs, field_type=MacAddress)
 
         sql_str = str(sql)
         # Should cast the field to macaddr
@@ -98,10 +87,7 @@ class TestMacAddressFilterOperations:
         path_sql = SQL("data->>'mac_address'")
 
         sql = registry.build_sql(
-            path_sql=path_sql,
-            op="neq",
-            val="00:11:22:33:44:55",
-            field_type=MacAddress
+            path_sql=path_sql, op="neq", val="00:11:22:33:44:55", field_type=MacAddress
         )
 
         sql_str = str(sql)
@@ -114,16 +100,10 @@ class TestMacAddressFilterOperations:
         registry = get_operator_registry()
         path_sql = SQL("data->>'mac_address'")
 
-        excluded_macs = [
-            "00:11:22:33:44:55",
-            "66-77-88-99-AA-BB"
-        ]
+        excluded_macs = ["00:11:22:33:44:55", "66-77-88-99-AA-BB"]
 
         sql = registry.build_sql(
-            path_sql=path_sql,
-            op="notin",
-            val=excluded_macs,
-            field_type=MacAddress
+            path_sql=path_sql, op="notin", val=excluded_macs, field_type=MacAddress
         )
 
         sql_str = str(sql)
@@ -139,19 +119,13 @@ class TestMacAddressFilterOperations:
 
         # Test IS NULL
         sql_null = registry.build_sql(
-            path_sql=path_sql,
-            op="isnull",
-            val=True,
-            field_type=MacAddress
+            path_sql=path_sql, op="isnull", val=True, field_type=MacAddress
         )
         assert "IS NULL" in str(sql_null)
 
         # Test IS NOT NULL
         sql_not_null = registry.build_sql(
-            path_sql=path_sql,
-            op="isnull",
-            val=False,
-            field_type=MacAddress
+            path_sql=path_sql, op="isnull", val=False, field_type=MacAddress
         )
         assert "IS NOT NULL" in str(sql_not_null)
 
@@ -164,13 +138,10 @@ class TestMacAddressFilterOperations:
         problematic_ops = ["contains", "startswith", "endswith"]
 
         for op in problematic_ops:
-            with pytest.raises(ValueError, match=f"Pattern operator '{op}' is not supported for MAC address fields"):
-                registry.build_sql(
-                    path_sql=path_sql,
-                    op=op,
-                    val="00:11",
-                    field_type=MacAddress
-                )
+            with pytest.raises(
+                ValueError, match=f"Pattern operator '{op}' is not supported for MAC address fields"
+            ):
+                registry.build_sql(path_sql=path_sql, op=op, val="00:11", field_type=MacAddress)
 
     def test_mac_address_vs_string_field_behavior(self):
         """Test that MAC address fields get different treatment than string fields."""
@@ -179,20 +150,14 @@ class TestMacAddressFilterOperations:
 
         # For MAC address fields, should use macaddr casting
         mac_sql = registry.build_sql(
-            path_sql=path_sql,
-            op="eq",
-            val="00:11:22:33:44:55",
-            field_type=MacAddress
+            path_sql=path_sql, op="eq", val="00:11:22:33:44:55", field_type=MacAddress
         )
         mac_sql_str = str(mac_sql)
         assert "::macaddr" in mac_sql_str
 
         # For regular string fields, should NOT use macaddr casting
         string_sql = registry.build_sql(
-            path_sql=path_sql,
-            op="eq",
-            val="00:11:22:33:44:55",
-            field_type=str
+            path_sql=path_sql, op="eq", val="00:11:22:33:44:55", field_type=str
         )
         string_sql_str = str(string_sql)
         assert "::macaddr" not in string_sql_str
@@ -211,17 +176,11 @@ class TestMacAddressFilterOperations:
         formats = [
             "00:11:22:33:44:55",  # Canonical
             "00-11-22-33-44-55",  # Hyphen
-            "0011.2233.4455",     # Cisco dot
+            "0011.2233.4455",  # Cisco dot
         ]
 
-
         for fmt in formats:
-            sql = registry.build_sql(
-                path_sql=path_sql,
-                op="eq",
-                val=fmt,
-                field_type=MacAddress
-            )
+            sql = registry.build_sql(path_sql=path_sql, op="eq", val=fmt, field_type=MacAddress)
 
             sql_str = str(sql)
 

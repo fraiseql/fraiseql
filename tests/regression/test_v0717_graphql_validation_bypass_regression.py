@@ -23,6 +23,7 @@ from uuid import UUID
 @fraiseql.input
 class TestValidationInput:
     """Test input class with validation that should be enforced in GraphQL."""
+
     name: str  # Non-optional string that should reject empty values
     email: str
     test_id: Optional[UUID] = None
@@ -31,6 +32,7 @@ class TestValidationInput:
 @fraiseql.input
 class CreateUserInput:
     """Input for creating a user - mirrors the bug reproduction case."""
+
     name: str
     email: str
     password: str
@@ -40,6 +42,7 @@ class CreateUserInput:
 @fraiseql.success
 class CreateUserSuccess:
     """Success response for user creation."""
+
     message: str = "User created successfully"
     name: str
 
@@ -47,6 +50,7 @@ class CreateUserSuccess:
 @fraiseql.failure
 class CreateUserError:
     """Error response for user creation."""
+
     message: str
     code: str = "VALIDATION_ERROR"
 
@@ -54,6 +58,7 @@ class CreateUserError:
 @fraiseql.mutation(function="create_user")
 class CreateUserMutation:
     """Test mutation to verify GraphQL validation."""
+
     input: CreateUserInput
     success: CreateUserSuccess
     failure: CreateUserError
@@ -69,26 +74,17 @@ class TestV0717GraphQLValidationBypassRegression:
         when creating input objects directly (not through GraphQL).
         """
         # Valid input should work
-        valid_input = TestValidationInput(
-            name="John Doe",
-            email="john@example.com"
-        )
+        valid_input = TestValidationInput(name="John Doe", email="john@example.com")
         assert valid_input.name == "John Doe"
         assert valid_input.email == "john@example.com"
 
         # Empty string should be rejected
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-            TestValidationInput(
-                name="",  # Empty string should fail
-                email="john@example.com"
-            )
+            TestValidationInput(name="", email="john@example.com")  # Empty string should fail
 
         # Whitespace-only string should be rejected
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-            TestValidationInput(
-                name="   ",  # Whitespace-only should fail
-                email="john@example.com"
-            )
+            TestValidationInput(name="   ", email="john@example.com")  # Whitespace-only should fail
 
     def test_coerce_input_function_calls_constructor(self):
         """Test that coerce_input() now calls the class constructor for validation.
@@ -97,27 +93,21 @@ class TestV0717GraphQLValidationBypassRegression:
         using object.__new__() to bypass validation.
         """
         # Valid data should work
-        valid_data = {
-            "name": "John Doe",
-            "email": "john@example.com"
-        }
+        valid_data = {"name": "John Doe", "email": "john@example.com"}
         result = coerce_input(TestValidationInput, valid_data)
         assert isinstance(result, TestValidationInput)
         assert result.name == "John Doe"
         assert result.email == "john@example.com"
 
         # Invalid data should now raise validation errors (this was the bug)
-        invalid_data = {
-            "name": "",  # Empty string should be rejected
-            "email": "john@example.com"
-        }
+        invalid_data = {"name": "", "email": "john@example.com"}  # Empty string should be rejected
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
             coerce_input(TestValidationInput, invalid_data)
 
         # Whitespace-only data should also be rejected
         whitespace_data = {
             "name": "   ",  # Whitespace-only should be rejected
-            "email": "john@example.com"
+            "email": "john@example.com",
         }
         with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
             coerce_input(TestValidationInput, whitespace_data)
@@ -125,7 +115,7 @@ class TestV0717GraphQLValidationBypassRegression:
         # None data should also be rejected for required fields (v0.7.18 specific regression)
         none_data = {
             "name": None,  # None should be rejected for required string field
-            "email": "john@example.com"
+            "email": "john@example.com",
         }
         with pytest.raises(ValueError, match="Field 'name' is required and cannot be None"):
             coerce_input(TestValidationInput, none_data)
@@ -145,7 +135,7 @@ class TestV0717GraphQLValidationBypassRegression:
         # Optional fields should work when omitted
         data_without_optional = {
             "name": "John Doe",
-            "email": "john@example.com"
+            "email": "john@example.com",
             # test_id is optional and omitted
         }
         result = coerce_input(TestValidationInput, data_without_optional)
@@ -157,7 +147,7 @@ class TestV0717GraphQLValidationBypassRegression:
         data_with_optional = {
             "name": "Jane Doe",
             "email": "jane@example.com",
-            "test_id": "12345678-1234-1234-1234-123456789012"
+            "test_id": "12345678-1234-1234-1234-123456789012",
         }
         result = coerce_input(TestValidationInput, data_with_optional)
         assert result.name == "Jane Doe"
@@ -176,12 +166,7 @@ class TestV0717GraphQLValidationBypassRegression:
             nested: NestedInput
 
         # Valid nested data should work
-        valid_nested_data = {
-            "parent_name": "Parent",
-            "nested": {
-                "nested_name": "Child"
-            }
-        }
+        valid_nested_data = {"parent_name": "Parent", "nested": {"nested_name": "Child"}}
         result = coerce_input(ParentInput, valid_nested_data)
         assert result.parent_name == "Parent"
         assert result.nested.nested_name == "Child"
@@ -189,9 +174,7 @@ class TestV0717GraphQLValidationBypassRegression:
         # Invalid nested data should be rejected
         invalid_nested_data = {
             "parent_name": "Parent",
-            "nested": {
-                "nested_name": ""  # Empty string in nested object should fail
-            }
+            "nested": {"nested_name": ""},  # Empty string in nested object should fail
         }
         with pytest.raises(ValueError, match="Field 'nested_name' cannot be empty"):
             coerce_input(ParentInput, invalid_nested_data)
@@ -213,11 +196,7 @@ class TestV0717GraphQLValidationBypassRegression:
 
         # Test 1: Valid GraphQL arguments should work
         valid_raw_args = {
-            "input": {
-                "name": "John Doe",
-                "email": "john@example.com",
-                "password": "secretpass"
-            }
+            "input": {"name": "John Doe", "email": "john@example.com", "password": "secretpass"}
         }
 
         coerced_args = coerce_input_arguments(mock_create_user_resolver, valid_raw_args)
@@ -233,7 +212,7 @@ class TestV0717GraphQLValidationBypassRegression:
             "input": {
                 "name": "",  # Empty string should be rejected
                 "email": "john@example.com",
-                "password": "secretpass"
+                "password": "secretpass",
             }
         }
 
@@ -245,7 +224,7 @@ class TestV0717GraphQLValidationBypassRegression:
             "input": {
                 "name": "   ",  # Whitespace-only should be rejected
                 "email": "john@example.com",
-                "password": "secretpass"
+                "password": "secretpass",
             }
         }
 
@@ -257,7 +236,7 @@ class TestV0717GraphQLValidationBypassRegression:
             "input": {
                 "name": None,  # None should be rejected for required field
                 "email": "john@example.com",
-                "password": "secretpass"
+                "password": "secretpass",
             }
         }
 
@@ -271,11 +250,7 @@ class TestV0717GraphQLValidationBypassRegression:
         where empty strings were making it through GraphQL validation.
         """
         # This reproduces the exact failing coerce_input call from the bug
-        bug_reproduction_data = {
-            "name": "",
-            "email": "test@example.com",
-            "password": "secretpass"
-        }
+        bug_reproduction_data = {"name": "", "email": "test@example.com", "password": "secretpass"}
 
         # Before the fix, this would succeed and create an object with empty name
         # After the fix, this should raise a validation error
@@ -283,11 +258,7 @@ class TestV0717GraphQLValidationBypassRegression:
             coerce_input(CreateUserInput, bug_reproduction_data)
 
         # Verify valid data still works
-        valid_data = {
-            "name": "Valid Name",
-            "email": "test@example.com",
-            "password": "secretpass"
-        }
+        valid_data = {"name": "Valid Name", "email": "test@example.com", "password": "secretpass"}
         result = coerce_input(CreateUserInput, valid_data)
         assert result.name == "Valid Name"
         assert result.email == "test@example.com"

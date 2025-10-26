@@ -16,6 +16,7 @@ import fraiseql
 @fraiseql.type
 class PrintServer:
     """A print server device."""
+
     id: uuid.UUID
     identifier: str
     hostname: str
@@ -25,6 +26,7 @@ class PrintServer:
 @fraiseql.type
 class DnsServer:
     """A DNS server configuration."""
+
     id: uuid.UUID
     identifier: str
     ip_address: str
@@ -33,6 +35,7 @@ class DnsServer:
 @fraiseql.type
 class NetworkConfiguration:
     """Network configuration with nested objects and arrays."""
+
     id: uuid.UUID
     identifier: str
 
@@ -56,22 +59,22 @@ class TestNestedArrayFieldResolution:
             "dns1": {
                 "id": "01431121-0000-0000-0000-000000000001",
                 "identifier": "primary-dns-server",
-                "ipAddress": "120.0.0.1"
+                "ipAddress": "120.0.0.1",
             },
             "printServers": [
                 {
                     "id": "01433121-0000-0000-0000-000000000002",
                     "identifier": "PrintServer-002",
                     "hostname": "printserver02.local",
-                    "operatingSystem": "Windows Server 2016"
+                    "operatingSystem": "Windows Server 2016",
                 },
                 {
                     "id": "01433121-0000-0000-0000-000000000003",
                     "identifier": "PrintServer-003",
                     "hostname": "printserver03.local",
-                    "operatingSystem": "Windows Server 2019"
-                }
-            ]
+                    "operatingSystem": "Windows Server 2019",
+                },
+            ],
         }
 
         # Create instance using from_dict (this should work)
@@ -95,6 +98,7 @@ class TestNestedArrayFieldResolution:
         the field resolver fails to convert them to typed objects if the
         field_type doesn't have __args__ properly accessible.
         """
+
         # Create a mock object that simulates what comes from database
         # with raw dictionaries in the array (not converted yet)
         class MockNetworkConfig:
@@ -104,7 +108,7 @@ class TestNestedArrayFieldResolution:
                 self.dns1 = DnsServer(
                     id=uuid.UUID("01431121-0000-0000-0000-000000000001"),
                     identifier="primary-dns-server",
-                    ip_address="120.0.0.1"
+                    ip_address="120.0.0.1",
                 )
                 # This is the key issue: raw dict array from JSONB
                 self.print_servers = [
@@ -112,7 +116,7 @@ class TestNestedArrayFieldResolution:
                         "id": "01433121-0000-0000-0000-000000000002",
                         "identifier": "PrintServer-002",
                         "hostname": "printserver02.local",
-                        "operatingSystem": "Windows Server 2016"
+                        "operatingSystem": "Windows Server 2016",
                     }
                 ]
 
@@ -151,7 +155,7 @@ class TestNestedArrayFieldResolution:
         data = {
             "id": "01436121-0000-0000-0000-000000000010",
             "identifier": "network-config-002",
-            "printServers": []  # Empty array
+            "printServers": [],  # Empty array
         }
 
         config = NetworkConfiguration.from_dict(data)
@@ -161,6 +165,7 @@ class TestNestedArrayFieldResolution:
 
         # Field resolver should also handle empty arrays
         from fraiseql.core.graphql_type import convert_type_to_graphql_output
+
         gql_type = convert_type_to_graphql_output(NetworkConfiguration)
         print_servers_field = gql_type.fields["printServers"]
         resolver = print_servers_field.resolve
@@ -176,7 +181,7 @@ class TestNestedArrayFieldResolution:
         data = {
             "id": "01436121-0000-0000-0000-000000000010",
             "identifier": "network-config-003",
-            "printServers": None  # Null array
+            "printServers": None,  # Null array
         }
 
         config = NetworkConfiguration.from_dict(data)
@@ -186,6 +191,7 @@ class TestNestedArrayFieldResolution:
 
         # Field resolver should also handle None
         from fraiseql.core.graphql_type import convert_type_to_graphql_output
+
         gql_type = convert_type_to_graphql_output(NetworkConfiguration)
         print_servers_field = gql_type.fields["printServers"]
         resolver = print_servers_field.resolve
@@ -225,16 +231,17 @@ class TestNestedArrayFieldResolution:
                     "name": "Engineering",
                     "printers": [
                         {"id": "01436121-0000-0000-0000-000000000012", "name": "Printer 1"},
-                        {"id": "01436121-0000-0000-0000-000000000013", "name": "Printer 2"}
-                    ]
+                        {"id": "01436121-0000-0000-0000-000000000013", "name": "Printer 2"},
+                    ],
                 }
-            ]
+            ],
         }
 
         org = Organization.from_dict(data)
 
         # Test field resolution for deeply nested arrays
         from fraiseql.core.graphql_type import convert_type_to_graphql_output
+
         gql_type = convert_type_to_graphql_output(Organization)
 
         departments_field = gql_type.fields["departments"]
@@ -250,8 +257,8 @@ class TestNestedArrayFieldResolution:
                         "name": "Engineering",
                         "printers": [
                             {"id": "01436121-0000-0000-0000-000000000012", "name": "Printer 1"},
-                            {"id": "01436121-0000-0000-0000-000000000013", "name": "Printer 2"}
-                        ]
+                            {"id": "01436121-0000-0000-0000-000000000013", "name": "Printer 2"},
+                        ],
                     }
                 ]
 
@@ -296,12 +303,13 @@ class TestNestedArrayFieldResolution:
                     # Raw dict that needs conversion
                     {"id": "01436121-0000-0000-0000-000000000012", "name": "Device 2"},
                     # Another raw dict
-                    {"id": "01436121-0000-0000-0000-000000000013", "name": "Device 3"}
+                    {"id": "01436121-0000-0000-0000-000000000013", "name": "Device 3"},
                 ]
 
         mock_container = MockContainer()
 
         from fraiseql.core.graphql_type import convert_type_to_graphql_output
+
         gql_type = convert_type_to_graphql_output(Container)
 
         devices_field = gql_type.fields["devices"]
@@ -341,12 +349,13 @@ class TestNestedArrayFieldResolution:
         mock_container = MockContainer()
 
         from fraiseql.core.graphql_type import convert_type_to_graphql_output
+
         gql_type = convert_type_to_graphql_output(SimpleContainer)
 
         # Test strings (should remain unchanged)
         strings_field = gql_type.fields["strings"]
         strings_resolver = strings_field.resolve
-        strings_result = strings_resolver(mock_container, type('MockInfo', (), {})())
+        strings_result = strings_resolver(mock_container, type("MockInfo", (), {})())
 
         assert strings_result == ["hello", "world"]
         assert all(isinstance(s, str) for s in strings_result)
@@ -354,7 +363,7 @@ class TestNestedArrayFieldResolution:
         # Test numbers (should remain unchanged)
         numbers_field = gql_type.fields["numbers"]
         numbers_resolver = numbers_field.resolve
-        numbers_result = numbers_resolver(mock_container, type('MockInfo', (), {})())
+        numbers_result = numbers_resolver(mock_container, type("MockInfo", (), {})())
 
         assert numbers_result == [1, 2, 3]
         assert all(isinstance(n, int) for n in numbers_result)
@@ -362,7 +371,7 @@ class TestNestedArrayFieldResolution:
         # Test raw dicts (should remain as dicts since not FraiseQL types)
         raw_data_field = gql_type.fields["rawData"]
         raw_data_resolver = raw_data_field.resolve
-        raw_data_result = raw_data_resolver(mock_container, type('MockInfo', (), {})())
+        raw_data_result = raw_data_resolver(mock_container, type("MockInfo", (), {})())
 
         assert raw_data_result == [{"key": "value"}, {"another": "dict"}]
         assert all(isinstance(d, dict) for d in raw_data_result)

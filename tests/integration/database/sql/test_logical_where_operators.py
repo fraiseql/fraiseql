@@ -75,9 +75,7 @@ class TestLogicalOperators:
         ProductWhereInput = create_graphql_where_input(Product)
 
         # Should be able to create with NOT operator
-        where_input = ProductWhereInput(
-            NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))
-        )
+        where_input = ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False)))
 
         assert where_input.NOT is not None
         assert where_input.NOT.is_active.eq is False
@@ -92,7 +90,7 @@ class TestLogicalOperators:
             OR=[  # Logical operator
                 ProductWhereInput(price=DecimalFilter(lt=Decimal(50))),
                 ProductWhereInput(stock=IntFilter(gt=100)),
-            ]
+            ],
         )
 
         assert where_input.category.eq == "Electronics"
@@ -165,9 +163,7 @@ class TestLogicalOperators:
         """Test conversion from GraphQL NOT input to SQL where type."""
         ProductWhereInput = create_graphql_where_input(Product)
 
-        where_input = ProductWhereInput(
-            NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))
-        )
+        where_input = ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False)))
 
         # Convert to SQL where type
         sql_where = where_input._to_sql_where()
@@ -223,9 +219,7 @@ class TestLogicalOperatorsSQLGeneration:
         """Test that NOT operators generate correct SQL with parentheses."""
         ProductWhereInput = create_graphql_where_input(Product)
 
-        where_input = ProductWhereInput(
-            NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))
-        )
+        where_input = ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False)))
 
         sql_where = where_input._to_sql_where()
         sql = sql_where.to_sql()
@@ -248,9 +242,7 @@ class TestLogicalOperatorsSQLGeneration:
                         ProductWhereInput(stock=IntFilter(gt=50)),
                     ]
                 ),
-                ProductWhereInput(
-                    NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))
-                ),
+                ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))),
             ]
         )
 
@@ -301,7 +293,7 @@ class TestBackwardCompatibility:
             OR=[
                 ProductWhereInput(price=DecimalFilter(lt=Decimal(50))),
                 ProductWhereInput(stock=IntFilter(gt=100)),
-            ]
+            ],
         )
 
         sql_where = where_input._to_sql_where()

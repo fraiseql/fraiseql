@@ -57,7 +57,7 @@ class TestIntrospectionPolicyEnum:
             introspection_policy=IntrospectionPolicy.AUTHENTICATED,
         )
 
-        assert hasattr(config, 'introspection_policy')
+        assert hasattr(config, "introspection_policy")
         assert config.introspection_policy == IntrospectionPolicy.AUTHENTICATED
 
     def test_introspection_policy_default_public(self):
@@ -208,7 +208,7 @@ class TestIntrospectionPolicyBehavior:
             response = client.post(
                 "/graphql",
                 json={"query": "{ __schema { queryType { name } } }"},
-                headers={"Authorization": "Bearer valid-token"}
+                headers={"Authorization": "Bearer valid-token"},
             )
 
             assert response.status_code == 200
@@ -237,7 +237,7 @@ class TestIntrospectionPolicyBehavior:
             response = client.post(
                 "/graphql",
                 json={"query": "{ __schema { queryType { name } } }"},
-                headers={"Authorization": "Bearer invalid-token"}
+                headers={"Authorization": "Bearer invalid-token"},
             )
 
             assert response.status_code == 200

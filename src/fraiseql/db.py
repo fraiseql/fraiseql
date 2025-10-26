@@ -834,12 +834,9 @@ class FraiseQLRepository:
                     # 1. A single "id" key (or very few keys like "id" + metadata)
                     # 2. The "id" value is a dict with operator keys
                     # 3. The field name suggests a relationship (not a scalar field)
-                    looks_like_nested = (
-                        len(field_filter) == 1  # Only contains "id" key
-                        or (
-                            len(field_filter) <= 2
-                            and all(k in ("id", "__typename") for k in field_filter)
-                        )
+                    looks_like_nested = len(field_filter) == 1 or (  # Only contains "id" key
+                        len(field_filter) <= 2
+                        and all(k in ("id", "__typename") for k in field_filter)
                     )
 
                     if table_columns and potential_fk_column in table_columns:

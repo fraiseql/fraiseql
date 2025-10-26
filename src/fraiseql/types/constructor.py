@@ -53,9 +53,11 @@ def _serialize_field_value(field_value: Any) -> Any:
     # Handle lists of FraiseQL objects or primitives
     if isinstance(field_value, list):
         return [
-            item.to_dict()
-            if (hasattr(item, "to_dict") and callable(item.to_dict))
-            else _serialize_basic(item)
+            (
+                item.to_dict()
+                if (hasattr(item, "to_dict") and callable(item.to_dict))
+                else _serialize_basic(item)
+            )
             for item in field_value
         ]
 

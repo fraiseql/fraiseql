@@ -33,7 +33,7 @@ class Network:
         default_factory=list,
         supports_where_filtering=True,
         nested_where_type=Device,
-        description="Network devices with optional filtering"
+        description="Network devices with optional filtering",
     )
 
 
@@ -122,70 +122,79 @@ class TestEndToEndNestedArrayWhere:
                     hostname="server-01",
                     ip_address="192.168.1.10",
                     status="active",
-                    priority=1
+                    priority=1,
                 ),
                 Device(
                     id=uuid.uuid4(),
                     hostname="server-02",
                     ip_address="192.168.1.20",
                     status="maintenance",
-                    priority=2
+                    priority=2,
                 ),
                 Device(
                     id=uuid.uuid4(),
                     hostname="server-03",
                     ip_address=None,
                     status="active",
-                    priority=3
-                )
-            ]
+                    priority=3,
+                ),
+            ],
         )
 
         # Verify the network has all devices initially
         assert len(network.devices) == 3
 
         # Test that we can access the field metadata
-        network_fields = getattr(Network, '__gql_fields__', {})
-        devices_field = network_fields.get('devices')
+        network_fields = getattr(Network, "__gql_fields__", {})
+        devices_field = network_fields.get("devices")
 
         if devices_field:
-            assert hasattr(devices_field, 'supports_where_filtering')
+            assert hasattr(devices_field, "supports_where_filtering")
             assert devices_field.supports_where_filtering is True
-            assert hasattr(devices_field, 'nested_where_type')
+            assert hasattr(devices_field, "nested_where_type")
             assert devices_field.nested_where_type == Device
 
     def test_where_filter_creation_and_usage(self):
         """Test creating and using where filters directly."""
         from fraiseql.sql.graphql_where_generator import create_graphql_where_input
-        from fraiseql.core.nested_field_resolver import create_nested_array_field_resolver_with_where
+        from fraiseql.core.nested_field_resolver import (
+            create_nested_array_field_resolver_with_where,
+        )
 
         # Create DeviceWhereInput type
         DeviceWhereInput = create_graphql_where_input(Device)
 
         # Create where filter for active devices
         where_filter = DeviceWhereInput()
-        where_filter.status = {'eq': 'active'}
-        where_filter.ip_address = {'isnull': False}
+        where_filter.status = {"eq": "active"}
+        where_filter.ip_address = {"isnull": False}
 
         # Create test data
         network = Network(
             id=uuid.uuid4(),
             name="Filtered Network",
             devices=[
-                Device(id=uuid.uuid4(), hostname="active-1", status="active", ip_address="192.168.1.1"),
-                Device(id=uuid.uuid4(), hostname="active-2", status="active", ip_address=None),  # No IP
-                Device(id=uuid.uuid4(), hostname="maintenance-1", status="maintenance", ip_address="192.168.1.2"),
-            ]
+                Device(
+                    id=uuid.uuid4(), hostname="active-1", status="active", ip_address="192.168.1.1"
+                ),
+                Device(
+                    id=uuid.uuid4(), hostname="active-2", status="active", ip_address=None
+                ),  # No IP
+                Device(
+                    id=uuid.uuid4(),
+                    hostname="maintenance-1",
+                    status="maintenance",
+                    ip_address="192.168.1.2",
+                ),
+            ],
         )
 
         # Create resolver
-        resolver = create_nested_array_field_resolver_with_where(
-            'devices',
-            list[Device]
-        )
+        resolver = create_nested_array_field_resolver_with_where("devices", list[Device])
 
         # Test the resolver with where filter
         import asyncio
+
         result = asyncio.run(resolver(network, None, where=where_filter))
 
         # Should return only active devices with IP addresses
@@ -197,10 +206,7 @@ class TestEndToEndNestedArrayWhere:
     def test_automatic_where_input_generation(self):
         """Test that where input types are generated automatically from nested_where_type."""
         # Create a field with nested_where_type instead of explicit where_input_type
-        test_field = fraise_field(
-            supports_where_filtering=True,
-            nested_where_type=Device
-        )
+        test_field = fraise_field(supports_where_filtering=True, nested_where_type=Device)
 
         # Verify the metadata is set correctly
         assert test_field.supports_where_filtering is True
@@ -210,30 +216,46 @@ class TestEndToEndNestedArrayWhere:
     def test_complex_where_filtering_scenarios(self):
         """Test complex where filtering scenarios with multiple conditions."""
         from fraiseql.sql.graphql_where_generator import create_graphql_where_input
-        from fraiseql.core.nested_field_resolver import create_nested_array_field_resolver_with_where
+        from fraiseql.core.nested_field_resolver import (
+            create_nested_array_field_resolver_with_where,
+        )
 
         DeviceWhereInput = create_graphql_where_input(Device)
 
         # Create complex test data
         devices = [
-            Device(id=uuid.uuid4(), hostname="web-01", status="active", priority=1, ip_address="192.168.1.10"),
-            Device(id=uuid.uuid4(), hostname="web-02", status="active", priority=2, ip_address="192.168.1.11"),
-            Device(id=uuid.uuid4(), hostname="db-01", status="maintenance", priority=1, ip_address="192.168.1.20"),
+            Device(
+                id=uuid.uuid4(),
+                hostname="web-01",
+                status="active",
+                priority=1,
+                ip_address="192.168.1.10",
+            ),
+            Device(
+                id=uuid.uuid4(),
+                hostname="web-02",
+                status="active",
+                priority=2,
+                ip_address="192.168.1.11",
+            ),
+            Device(
+                id=uuid.uuid4(),
+                hostname="db-01",
+                status="maintenance",
+                priority=1,
+                ip_address="192.168.1.20",
+            ),
             Device(id=uuid.uuid4(), hostname="db-02", status="active", priority=3, ip_address=None),
         ]
 
-        network = Network(
-            id=uuid.uuid4(),
-            name="Complex Network",
-            devices=devices
-        )
+        network = Network(id=uuid.uuid4(), name="Complex Network", devices=devices)
 
-        resolver = create_nested_array_field_resolver_with_where('devices', list[Device])
+        resolver = create_nested_array_field_resolver_with_where("devices", list[Device])
 
         # Test 1: Active devices with priority <= 2
         where1 = DeviceWhereInput()
-        where1.status = {'eq': 'active'}
-        where1.priority = {'lte': 2}
+        where1.status = {"eq": "active"}
+        where1.priority = {"lte": 2}
 
         result1 = asyncio.run(resolver(network, None, where=where1))
         assert len(result1) == 2  # web-01, web-02
@@ -243,14 +265,14 @@ class TestEndToEndNestedArrayWhere:
 
         # Test 2: Devices with hostnames starting with "web"
         where2 = DeviceWhereInput()
-        where2.hostname = {'startswith': 'web'}
+        where2.hostname = {"startswith": "web"}
 
         result2 = asyncio.run(resolver(network, None, where=where2))
         assert len(result2) == 2  # web-01, web-02
 
         # Test 3: High priority devices (priority >= 3)
         where3 = DeviceWhereInput()
-        where3.priority = {'gte': 3}
+        where3.priority = {"gte": 3}
 
         result3 = asyncio.run(resolver(network, None, where=where3))
         assert len(result3) == 1  # db-02

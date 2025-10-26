@@ -18,10 +18,10 @@ def test_apq_storage_backend_interface():
     # Check that all required methods are abstract
     abstract_methods = APQStorageBackend.__abstractmethods__
     expected_methods = {
-        'get_persisted_query',
-        'store_persisted_query',
-        'get_cached_response',
-        'store_cached_response'
+        "get_persisted_query",
+        "store_persisted_query",
+        "get_cached_response",
+        "store_cached_response",
     }
     assert abstract_methods == expected_methods
 
@@ -31,6 +31,7 @@ def test_concrete_implementation_must_implement_all_methods():
 
     class IncompleteBackend(APQStorageBackend):
         """Incomplete implementation missing required methods."""
+
         def get_persisted_query(self, hash_value: str):
             return None
 

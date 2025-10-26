@@ -135,11 +135,13 @@ class IVMAnalyzer:
         """
         try:
             async with self.pool.connection() as conn, conn.cursor() as cur:
-                await cur.execute("""
+                await cur.execute(
+                    """
                     SELECT extversion
                     FROM pg_extension
                     WHERE extname = 'jsonb_ivm'
-                """)
+                """
+                )
                 result = await cur.fetchone()
 
                 if result:
@@ -163,13 +165,15 @@ class IVMAnalyzer:
         """
         try:
             async with self.pool.connection() as conn, conn.cursor() as cur:
-                await cur.execute("""
+                await cur.execute(
+                    """
                     SELECT tablename
                     FROM pg_tables
                     WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
                       AND tablename LIKE 'tv_%'
                     ORDER BY tablename
-                """)
+                """
+                )
 
                 rows = await cur.fetchall()
                 tables = [row[0] for row in rows]

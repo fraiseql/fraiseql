@@ -41,12 +41,14 @@ class TestLogicalOperatorsDatabaseIntegration:
     async def test_or_operator_database_query(self, db_connection):
         """Test OR operator generates working SQL and returns correct results."""
         # Create test table and data
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS test_products (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
         # Insert test data
         test_products = [
@@ -56,8 +58,8 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "name": "Widget A",
                     "price": 50,
                     "category": "electronics",
-                    "is_active": True
-                }
+                    "is_active": True,
+                },
             },
             {
                 "id": str(uuid.uuid4()),
@@ -65,24 +67,19 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "name": "Widget B",
                     "price": 75,
                     "category": "electronics",
-                    "is_active": True
-                }
+                    "is_active": True,
+                },
             },
             {
                 "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Gadget C",
-                    "price": 100,
-                    "category": "toys",
-                    "is_active": True
-                }
-            }
+                "data": {"name": "Gadget C", "price": 100, "category": "toys", "is_active": True},
+            },
         ]
 
         for product in test_products:
             await db_connection.execute(
                 "INSERT INTO test_products (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"]))
+                (product["id"], json.dumps(product["data"])),
             )
 
         # Create GraphQL where input with OR condition
@@ -101,6 +98,7 @@ class TestLogicalOperatorsDatabaseIntegration:
 
         # Execute the query using psycopg's SQL composition
         from psycopg.sql import SQL, Composed
+
         query = Composed([SQL("SELECT id, data FROM test_products WHERE "), sql])
         cursor = await db_connection.execute(query)
         results = await cursor.fetchall()
@@ -116,12 +114,14 @@ class TestLogicalOperatorsDatabaseIntegration:
     async def test_and_operator_database_query(self, db_connection):
         """Test AND operator generates working SQL and returns correct results."""
         # Use existing table from previous test or create new one
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS test_products_and (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
         # Insert test data with different categories and active states
         test_products = [
@@ -131,8 +131,8 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "name": "Active Electronics",
                     "category": "electronics",
                     "is_active": True,
-                    "price": 50
-                }
+                    "price": 50,
+                },
             },
             {
                 "id": str(uuid.uuid4()),
@@ -140,24 +140,19 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "name": "Inactive Electronics",
                     "category": "electronics",
                     "is_active": False,
-                    "price": 60
-                }
+                    "price": 60,
+                },
             },
             {
                 "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Active Toys",
-                    "category": "toys",
-                    "is_active": True,
-                    "price": 40
-                }
-            }
+                "data": {"name": "Active Toys", "category": "toys", "is_active": True, "price": 40},
+            },
         ]
 
         for product in test_products:
             await db_connection.execute(
                 "INSERT INTO test_products_and (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"]))
+                (product["id"], json.dumps(product["data"])),
             )
 
         # Create GraphQL where input with AND condition
@@ -175,6 +170,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         sql = sql_where.to_sql()
 
         from psycopg.sql import SQL, Composed
+
         query = Composed([SQL("SELECT id, data FROM test_products_and WHERE "), sql])
         cursor = await db_connection.execute(query)
         results = await cursor.fetchall()
@@ -185,59 +181,48 @@ class TestLogicalOperatorsDatabaseIntegration:
 
     async def test_not_operator_database_query(self, db_connection):
         """Test NOT operator generates working SQL and returns correct results."""
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS test_products_not (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
         # Insert test data
         test_products = [
             {
                 "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Active Product",
-                    "is_active": True,
-                    "price": 50
-                }
+                "data": {"name": "Active Product", "is_active": True, "price": 50},
             },
             {
                 "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Inactive Product 1",
-                    "is_active": False,
-                    "price": 60
-                }
+                "data": {"name": "Inactive Product 1", "is_active": False, "price": 60},
             },
             {
                 "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Inactive Product 2",
-                    "is_active": False,
-                    "price": 70
-                }
-            }
+                "data": {"name": "Inactive Product 2", "is_active": False, "price": 70},
+            },
         ]
 
         for product in test_products:
             await db_connection.execute(
                 "INSERT INTO test_products_not (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"]))
+                (product["id"], json.dumps(product["data"])),
             )
 
         # Create GraphQL where input with NOT condition
         ProductWhereInput = create_graphql_where_input(Product)
 
-        where_input = ProductWhereInput(
-            NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))
-        )
+        where_input = ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False)))
 
         # Convert to SQL and execute
         sql_where = where_input._to_sql_where()
         sql = sql_where.to_sql()
 
         from psycopg.sql import SQL, Composed
+
         query = Composed([SQL("SELECT id, data FROM test_products_not WHERE "), sql])
         cursor = await db_connection.execute(query)
         results = await cursor.fetchall()
@@ -248,12 +233,14 @@ class TestLogicalOperatorsDatabaseIntegration:
 
     async def test_complex_nested_logical_operators_database_query(self, db_connection):
         """Test complex nested logical operators with database."""
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS test_products_complex (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
         # Insert comprehensive test data
         test_products = [
@@ -265,8 +252,8 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "category": "electronics",
                     "price": 25,
                     "stock": 10,
-                    "is_active": True
-                }
+                    "is_active": True,
+                },
             },
             # Should match: electronics AND (cheap OR high_stock) AND NOT inactive
             {
@@ -276,8 +263,8 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "category": "electronics",
                     "price": 150,
                     "stock": 200,
-                    "is_active": True
-                }
+                    "is_active": True,
+                },
             },
             # Should NOT match: not electronics
             {
@@ -287,8 +274,8 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "category": "toys",
                     "price": 25,
                     "stock": 10,
-                    "is_active": True
-                }
+                    "is_active": True,
+                },
             },
             # Should NOT match: electronics but expensive AND low stock
             {
@@ -298,8 +285,8 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "category": "electronics",
                     "price": 150,
                     "stock": 5,
-                    "is_active": True
-                }
+                    "is_active": True,
+                },
             },
             # Should NOT match: inactive
             {
@@ -309,15 +296,15 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "category": "electronics",
                     "price": 25,
                     "stock": 10,
-                    "is_active": False
-                }
-            }
+                    "is_active": False,
+                },
+            },
         ]
 
         for product in test_products:
             await db_connection.execute(
                 "INSERT INTO test_products_complex (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"]))
+                (product["id"], json.dumps(product["data"])),
             )
 
         # Create complex nested logical condition:
@@ -333,9 +320,7 @@ class TestLogicalOperatorsDatabaseIntegration:
                         ProductWhereInput(stock=IntFilter(gt=100)),
                     ]
                 ),
-                ProductWhereInput(
-                    NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))
-                ),
+                ProductWhereInput(NOT=ProductWhereInput(is_active=BooleanFilter(eq=False))),
             ]
         )
 
@@ -344,6 +329,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         sql = sql_where.to_sql()
 
         from psycopg.sql import SQL, Composed
+
         query = Composed([SQL("SELECT id, data FROM test_products_complex WHERE "), sql])
         cursor = await db_connection.execute(query)
         results = await cursor.fetchall()
@@ -362,12 +348,14 @@ class TestLogicalOperatorsDatabaseIntegration:
 
     async def test_mixed_field_and_logical_operators_database_query(self, db_connection):
         """Test mixing direct field operators with logical operators."""
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS test_products_mixed (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
         # Insert test data
         test_products = [
@@ -378,8 +366,8 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "name": "Pro Widget",
                     "category": "electronics",
                     "price": 100,
-                    "is_active": True
-                }
+                    "is_active": True,
+                },
             },
             # Should match: electronics AND is_active=true AND (name contains "pro" OR price < 60)
             {
@@ -388,18 +376,13 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "name": "Cheap Electronics",
                     "category": "electronics",
                     "price": 50,
-                    "is_active": True
-                }
+                    "is_active": True,
+                },
             },
             # Should NOT match: not electronics
             {
                 "id": str(uuid.uuid4()),
-                "data": {
-                    "name": "Pro Toy",
-                    "category": "toys",
-                    "price": 40,
-                    "is_active": True
-                }
+                "data": {"name": "Pro Toy", "category": "toys", "price": 40, "is_active": True},
             },
             # Should NOT match: not active
             {
@@ -408,15 +391,15 @@ class TestLogicalOperatorsDatabaseIntegration:
                     "name": "Pro Electronics Inactive",
                     "category": "electronics",
                     "price": 80,
-                    "is_active": False
-                }
-            }
+                    "is_active": False,
+                },
+            },
         ]
 
         for product in test_products:
             await db_connection.execute(
                 "INSERT INTO test_products_mixed (id, data) VALUES (%s, %s::jsonb)",
-                (product["id"], json.dumps(product["data"]))
+                (product["id"], json.dumps(product["data"])),
             )
 
         # Mix field operators with logical operators
@@ -430,7 +413,7 @@ class TestLogicalOperatorsDatabaseIntegration:
             OR=[
                 ProductWhereInput(name=StringFilter(contains="Pro")),
                 ProductWhereInput(price=DecimalFilter(lt=Decimal(60))),
-            ]
+            ],
         )
 
         # Convert to SQL and execute
@@ -438,6 +421,7 @@ class TestLogicalOperatorsDatabaseIntegration:
         sql = sql_where.to_sql()
 
         from psycopg.sql import SQL, Composed
+
         query = Composed([SQL("SELECT id, data FROM test_products_mixed WHERE "), sql])
         cursor = await db_connection.execute(query)
         results = await cursor.fetchall()

@@ -47,7 +47,7 @@ class TestNestedObjectFilterIntegration:
             machine=MachineWhereInput(
                 id=UUIDFilter(eq=test_machine_id),
                 is_current=BooleanFilter(eq=True),
-                name=StringFilter(contains="Server")
+                name=StringFilter(contains="Server"),
             ),
             status=StringFilter(eq="active"),
         )
@@ -73,16 +73,19 @@ class TestNestedObjectFilterIntegration:
 
         # The SQL object should contain the nested path for machine fields
         # Looking for SQL("data -> 'machine'") in the representation
-        assert 'SQL("data -> \'machine\'")' in sql_str, \
+        assert "SQL(\"data -> 'machine'\")" in sql_str, (
             f"Expected nested JSONB path for machine fields, but got: {sql_str}"
+        )
 
         # Root level status filter should just use 'data'
         # Count occurrences - should have both nested and root level paths
-        assert sql_str.count('SQL("data -> \'machine\'")') == 3, \
+        assert sql_str.count("SQL(\"data -> 'machine'\")") == 3, (
             f"Expected 3 nested machine paths (for id, name, is_current), but got: {sql_str}"
+        )
 
-        assert 'SQL(\'data\')' in sql_str, \
+        assert "SQL('data')" in sql_str, (
             f"Expected root-level data access for status field, but got: {sql_str}"
+        )
 
     def test_nested_filter_with_none_values(self):
         """Test that None values in nested filters are handled correctly."""
@@ -145,12 +148,14 @@ class TestNestedObjectFilterIntegration:
 
         # Check that deeply nested paths are correctly generated
         # Machine name should be at: data -> 'machine' ->> 'name'
-        assert 'SQL("data -> \'machine\'")' in sql_str, \
+        assert "SQL(\"data -> 'machine'\")" in sql_str, (
             f"Expected nested path for machine.name, but got: {sql_str}"
+        )
 
         # Location city should be at: data -> 'machine' -> 'location' ->> 'city'
-        assert 'SQL("data -> \'machine\' -> \'location\'")' in sql_str, \
+        assert "SQL(\"data -> 'machine' -> 'location'\")" in sql_str, (
             f"Expected deeply nested path for machine.location.city, but got: {sql_str}"
+        )
 
     def test_mixed_scalar_and_nested_filters(self):
         """Test mixing scalar and nested object filters."""

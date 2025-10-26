@@ -11,7 +11,7 @@ pytestmark = [
     pytest.mark.blog_enterprise,
     pytest.mark.integration,
     pytest.mark.enterprise,
-    pytest.mark.examples
+    pytest.mark.examples,
 ]
 
 
@@ -86,7 +86,7 @@ async def test_blog_enterprise_admin_endpoint(blog_enterprise_client):
         "Organization management",
         "User administration",
         "Content moderation",
-        "Analytics dashboard"
+        "Analytics dashboard",
     ]
 
     for feature in expected_features:
@@ -98,8 +98,7 @@ async def test_blog_enterprise_graphql_endpoint_exists(blog_enterprise_client):
     """Test that GraphQL endpoint exists (even if no schema is implemented yet)."""
     # Try a simple introspection query
     response = await blog_enterprise_client.post(
-        "/graphql",
-        json={"query": "{ __schema { types { name } } }"}
+        "/graphql", json={"query": "{ __schema { types { name } } }"}
     )
 
     # Should respond (even if with errors due to no types)
@@ -155,7 +154,9 @@ async def test_blog_enterprise_domain_structure_exists():
     from pathlib import Path
 
     # Add blog_enterprise to path temporarily
-    blog_enterprise_path = Path(__file__).parent.parent.parent.parent / "examples" / "blog_enterprise"
+    blog_enterprise_path = (
+        Path(__file__).parent.parent.parent.parent / "examples" / "blog_enterprise"
+    )
     sys.path.insert(0, str(blog_enterprise_path))
 
     try:
@@ -163,18 +164,18 @@ async def test_blog_enterprise_domain_structure_exists():
         from domain.common import base_classes, events, exceptions
 
         # Check key domain classes exist
-        assert hasattr(base_classes, 'AggregateRoot')
-        assert hasattr(base_classes, 'Entity')
-        assert hasattr(base_classes, 'ValueObject')
-        assert hasattr(base_classes, 'DomainEvent')
+        assert hasattr(base_classes, "AggregateRoot")
+        assert hasattr(base_classes, "Entity")
+        assert hasattr(base_classes, "ValueObject")
+        assert hasattr(base_classes, "DomainEvent")
 
         # Check events exist
-        assert hasattr(events, 'PostCreatedEvent')
-        assert hasattr(events, 'UserRegisteredEvent')
+        assert hasattr(events, "PostCreatedEvent")
+        assert hasattr(events, "UserRegisteredEvent")
 
         # Check exceptions exist
-        assert hasattr(exceptions, 'DomainException')
-        assert hasattr(exceptions, 'EntityNotFoundError')
+        assert hasattr(exceptions, "DomainException")
+        assert hasattr(exceptions, "EntityNotFoundError")
 
     except (ImportError, ModuleNotFoundError) as e:
         pytest.skip(f"Domain structure not implemented yet or dependencies missing: {e}")
@@ -204,9 +205,10 @@ async def test_blog_enterprise_vs_simple_distinction(blog_enterprise_client, blo
 
     # Enterprise should mention advanced concepts
     enterprise_text = " ".join(enterprise_features).lower()
-    assert any(keyword in enterprise_text for keyword in [
-        "domain-driven", "multi-tenant", "enterprise", "event sourcing", "cqrs"
-    ])
+    assert any(
+        keyword in enterprise_text
+        for keyword in ["domain-driven", "multi-tenant", "enterprise", "event sourcing", "cqrs"]
+    )
 
     # Enterprise should have additional endpoints
     enterprise_endpoints = enterprise_data.get("endpoints", {})

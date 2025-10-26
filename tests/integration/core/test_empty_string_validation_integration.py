@@ -40,11 +40,7 @@ def test_nested_input_validation():
 
     # Test that valid nested input works
     address = AddressInput(street_name="123 Main St", city="Valid City")
-    customer = CreateCustomerInput(
-        name="John Doe",
-        email="john@example.com",
-        address=address
-    )
+    customer = CreateCustomerInput(name="John Doe", email="john@example.com", address=address)
     assert customer.address.street_name == "123 Main St"
 
 
@@ -73,11 +69,7 @@ def test_list_of_inputs_validation():
         TagInput(name="graphql", description="GraphQL API"),
     ]
 
-    post = CreatePostInput(
-        title="My Post",
-        content="Post content",
-        tags=tags
-    )
+    post = CreatePostInput(title="My Post", content="Post content", tags=tags)
     assert len(post.tags) == 2
     assert post.tags[0].name == "python"
 
@@ -92,16 +84,10 @@ async def test_async_context_validation():
 
     # Empty string should fail even in async context
     with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
-        await create_user_async({
-            "name": "",
-            "email": "valid@example.com"
-        })
+        await create_user_async({"name": "", "email": "valid@example.com"})
 
     # Valid data should work in async context
-    user_input = await create_user_async({
-        "name": "Valid Name",
-        "email": "valid@example.com"
-    })
+    user_input = await create_user_async({"name": "Valid Name", "email": "valid@example.com"})
     assert user_input.name == "Valid Name"
 
 
@@ -117,21 +103,18 @@ def test_empty_string_validation_matches_issue_requirements():
     # Test case from the issue: empty string should be rejected
     with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
         CreateOrganizationalUnitInput(
-            name="",
-            organizational_unit_level_id="bbd74f0c-911f-48a9-94f6-af46f8ae75de"
+            name="", organizational_unit_level_id="bbd74f0c-911f-48a9-94f6-af46f8ae75de"
         )
 
     # Test case: whitespace should be rejected
     with pytest.raises(ValueError, match="Field 'name' cannot be empty"):
         CreateOrganizationalUnitInput(
-            name="   ",
-            organizational_unit_level_id="bbd74f0c-911f-48a9-94f6-af46f8ae75de"
+            name="   ", organizational_unit_level_id="bbd74f0c-911f-48a9-94f6-af46f8ae75de"
         )
 
     # Test case: valid string should work
     instance = CreateOrganizationalUnitInput(
-        name="valid",
-        organizational_unit_level_id="bbd74f0c-911f-48a9-94f6-af46f8ae75de"
+        name="valid", organizational_unit_level_id="bbd74f0c-911f-48a9-94f6-af46f8ae75de"
     )
     assert instance.name == "valid"
 

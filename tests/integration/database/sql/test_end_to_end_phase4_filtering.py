@@ -154,8 +154,9 @@ class TestPhase4IntegratedScenarios:
         """Test integrated server configuration filtering."""
         # Hostname filter
         hostname_func = get_operator_function(FieldType.HOSTNAME, "in")
-        hostname_result = hostname_func(SQL("data->>'hostname'"),
-                                      ["api.company.com", "web.company.com"])
+        hostname_result = hostname_func(
+            SQL("data->>'hostname'"), ["api.company.com", "web.company.com"]
+        )
         hostname_expected = "data->>'hostname' IN ('api.company.com', 'web.company.com')"
         assert hostname_result.as_string(None) == hostname_expected
 

@@ -17,6 +17,7 @@ from graphql import GraphQLResolveInfo
 @fraiseql.enum
 class TaskStatus(Enum):
     """Example enum for task status."""
+
     TODO = "TODO"
     IN_PROGRESS = "IN_PROGRESS"
     DONE = "DONE"
@@ -25,6 +26,7 @@ class TaskStatus(Enum):
 @fraiseql.enum
 class Priority(Enum):
     """Example enum with integer values."""
+
     LOW = 1
     MEDIUM = 2
     HIGH = 3

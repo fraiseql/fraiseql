@@ -32,9 +32,7 @@ class TestSQLStructureValidation:
 
             # Validate structural components instead of exact patterns
             # Should contain numeric casting
-            assert "::numeric" in sql_str, (
-                f"Missing numeric casting for {op}. Got: {sql_str}"
-            )
+            assert "::numeric" in sql_str, f"Missing numeric casting for {op}. Got: {sql_str}"
 
             # Should contain the JSONB field extraction
             assert "data ->> 'port'" in sql_str, (
@@ -42,14 +40,14 @@ class TestSQLStructureValidation:
             )
 
             # Should contain the literal value
-            assert "Literal(443)" in sql_str, (
-                f"Missing literal value for {op}. Got: {sql_str}"
-            )
+            assert "Literal(443)" in sql_str, f"Missing literal value for {op}. Got: {sql_str}"
 
             # Should contain the SQL operator structure
             op_map = {"eq": "=", "neq": "!=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
             expected_op = op_map[op]
-            assert f"SQL(' {expected_op} ')" in sql_str, f"Missing SQL operator {expected_op} for {op} in {sql_str}"
+            assert f"SQL(' {expected_op} ')" in sql_str, (
+                f"Missing SQL operator {expected_op} for {op} in {sql_str}"
+            )
 
     def test_boolean_text_comparison_structure(self):
         """Test that boolean comparison has correct structural components."""
@@ -63,27 +61,26 @@ class TestSQLStructureValidation:
         print(f"Boolean equality: {sql_str}")
 
         # Should contain JSONB field extraction
-        assert "data ->> 'is_active'" in sql_str, (
-            f"Missing JSONB field extraction. Got: {sql_str}"
-        )
+        assert "data ->> 'is_active'" in sql_str, f"Missing JSONB field extraction. Got: {sql_str}"
 
         # Should contain text literal for boolean
-        assert "Literal('true')" in sql_str, (
-            f"Missing text literal for boolean. Got: {sql_str}"
-        )
+        assert "Literal('true')" in sql_str, f"Missing text literal for boolean. Got: {sql_str}"
 
         # Should contain equals operator
-        assert "SQL(' = ')" in sql_str, (
-            f"Missing equals operator. Got: {sql_str}"
-        )
+        assert "SQL(' = ')" in sql_str, f"Missing equals operator. Got: {sql_str}"
 
         # Should NOT have any casting
-        assert "::boolean" not in sql_str, f"Boolean comparison should not use ::boolean casting: {sql_str}"
-        assert "::numeric" not in sql_str, f"Boolean comparison should not use ::numeric casting: {sql_str}"
+        assert "::boolean" not in sql_str, (
+            f"Boolean comparison should not use ::boolean casting: {sql_str}"
+        )
+        assert "::numeric" not in sql_str, (
+            f"Boolean comparison should not use ::numeric casting: {sql_str}"
+        )
 
     def test_hostname_text_structure(self):
         """Test that hostname comparison has correct text structure."""
         from fraiseql.types import Hostname
+
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'hostname')")
 
@@ -95,7 +92,9 @@ class TestSQLStructureValidation:
 
         # Should contain proper hostname components
         assert "data ->> 'hostname'" in sql_str, f"Missing JSONB field extraction. Got: {sql_str}"
-        assert "Literal('printserver01.local')" in sql_str, f"Missing hostname value. Got: {sql_str}"
+        assert "Literal('printserver01.local')" in sql_str, (
+            f"Missing hostname value. Got: {sql_str}"
+        )
         assert "SQL(' = ')" in sql_str, f"Missing equals operator. Got: {sql_str}"
 
         # Should NOT have ltree casting (the bug we fixed)
@@ -134,10 +133,10 @@ class TestSQLStructureValidation:
 
         # Should have text-based structure without casting
         patterns = [
-            r"\(data ->> 'is_active'\)",    # Field extraction without casting
-            r" IN \(",                      # IN operator
-            r"Literal\('true'\)",          # Text literal for True
-            r"Literal\('false'\)",         # Text literal for False
+            r"\(data ->> 'is_active'\)",  # Field extraction without casting
+            r" IN \(",  # IN operator
+            r"Literal\('true'\)",  # Text literal for True
+            r"Literal\('false'\)",  # Text literal for False
         ]
 
         for pattern in patterns:
@@ -174,7 +173,9 @@ class TestSQLStructureValidation:
                 assert "::numeric" in sql_str, f"Missing numeric casting: {sql_str}"
             elif expected_strategy == "text" and value_type == bool:
                 # Special case for boolean
-                assert ("'true'" in sql_str or "'false'" in sql_str), f"Missing text boolean value: {sql_str}"
+                assert "'true'" in sql_str or "'false'" in sql_str, (
+                    f"Missing text boolean value: {sql_str}"
+                )
 
     def test_parentheses_balancing(self):
         """Test that all parentheses are properly balanced."""

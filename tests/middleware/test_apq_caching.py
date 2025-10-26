@@ -10,6 +10,7 @@ from fraiseql.storage.backends.factory import create_apq_backend
 
 class MockGraphQLSchema:
     """Mock GraphQL schema for testing."""
+
     pass
 
 
@@ -20,7 +21,7 @@ def mock_config():
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
         apq_cache_responses=True,
-        apq_response_cache_ttl=600
+        apq_response_cache_ttl=600,
     )
 
 
@@ -37,12 +38,7 @@ def mock_request():
         query=None,
         variables={"userId": 123},
         operationName="GetUser",
-        extensions={
-            "persistedQuery": {
-                "version": 1,
-                "sha256Hash": "abc123hash"
-            }
-        }
+        extensions={"persistedQuery": {"version": 1, "sha256Hash": "abc123hash"}},
     )
 
 
@@ -58,19 +54,15 @@ def mock_context():
     return {"user": {"id": 1}, "authenticated": True}
 
 
-def test_apq_cache_hit_returns_cached_response(mock_config, mock_backend, mock_request, mock_http_request, mock_context):
+def test_apq_cache_hit_returns_cached_response(
+    mock_config, mock_backend, mock_request, mock_http_request, mock_context
+):
     """Test that cached responses are returned on cache hit."""
     # Setup: Store both query and cached response
     hash_value = "abc123hash"
     query = "{ user(id: $userId) { id name email } }"
     cached_response = {
-        "data": {
-            "user": {
-                "id": 123,
-                "name": "John Doe",
-                "email": "john@example.com"
-            }
-        }
+        "data": {"user": {"id": 123, "name": "John Doe", "email": "john@example.com"}}
     }
 
     mock_backend.store_persisted_query(hash_value, query)
@@ -79,9 +71,7 @@ def test_apq_cache_hit_returns_cached_response(mock_config, mock_backend, mock_r
     # Test: Should return cached response directly
     from fraiseql.middleware.apq_caching import handle_apq_request_with_cache
 
-    result = handle_apq_request_with_cache(
-        mock_request, mock_backend, mock_config
-    )
+    result = handle_apq_request_with_cache(mock_request, mock_backend, mock_config)
 
     assert result == cached_response
 
@@ -98,9 +88,7 @@ def test_apq_cache_miss_falls_back_to_query_execution(mock_config, mock_backend,
     # Test: Should return None to indicate cache miss
     from fraiseql.middleware.apq_caching import handle_apq_request_with_cache
 
-    result = handle_apq_request_with_cache(
-        mock_request, mock_backend, mock_config
-    )
+    result = handle_apq_request_with_cache(mock_request, mock_backend, mock_config)
 
     assert result is None  # Cache miss, should fall back to normal execution
 
@@ -121,9 +109,7 @@ def test_apq_cache_disabled_returns_none(mock_config, mock_backend, mock_request
     # Test: Should return None (cache disabled)
     from fraiseql.middleware.apq_caching import handle_apq_request_with_cache
 
-    result = handle_apq_request_with_cache(
-        mock_request, mock_backend, mock_config
-    )
+    result = handle_apq_request_with_cache(mock_request, mock_backend, mock_config)
 
     assert result is None
 
@@ -131,20 +117,11 @@ def test_apq_cache_disabled_returns_none(mock_config, mock_backend, mock_request
 def test_apq_cache_response_storage(mock_config, mock_backend):
     """Test storing responses in cache after execution."""
     hash_value = "abc123hash"
-    response = {
-        "data": {
-            "user": {
-                "id": 123,
-                "name": "John Doe"
-            }
-        }
-    }
+    response = {"data": {"user": {"id": 123, "name": "John Doe"}}}
 
     from fraiseql.middleware.apq_caching import store_response_in_cache
 
-    store_response_in_cache(
-        hash_value, response, mock_backend, mock_config
-    )
+    store_response_in_cache(hash_value, response, mock_backend, mock_config)
 
     # Verify response was stored
     cached_response = mock_backend.get_cached_response(hash_value)
@@ -161,9 +138,7 @@ def test_apq_cache_response_storage_disabled(mock_config, mock_backend):
 
     from fraiseql.middleware.apq_caching import store_response_in_cache
 
-    store_response_in_cache(
-        hash_value, response, mock_backend, mock_config
-    )
+    store_response_in_cache(hash_value, response, mock_backend, mock_config)
 
     # Verify response was NOT stored
     cached_response = mock_backend.get_cached_response(hash_value)
@@ -174,16 +149,12 @@ def test_apq_cache_error_responses_not_cached(mock_config, mock_backend):
     """Test that error responses are not cached."""
     hash_value = "abc123hash"
     error_response = {
-        "errors": [
-            {"message": "User not found", "extensions": {"code": "NOT_FOUND"}}
-        ]
+        "errors": [{"message": "User not found", "extensions": {"code": "NOT_FOUND"}}]
     }
 
     from fraiseql.middleware.apq_caching import store_response_in_cache
 
-    store_response_in_cache(
-        hash_value, error_response, mock_backend, mock_config
-    )
+    store_response_in_cache(hash_value, error_response, mock_backend, mock_config)
 
     # Verify error response was NOT stored
     cached_response = mock_backend.get_cached_response(hash_value)
@@ -195,14 +166,12 @@ def test_apq_cache_partial_responses_not_cached(mock_config, mock_backend):
     hash_value = "abc123hash"
     partial_response = {
         "data": {"user": {"id": 123, "name": "John"}},
-        "errors": [{"message": "Email field access denied"}]
+        "errors": [{"message": "Email field access denied"}],
     }
 
     from fraiseql.middleware.apq_caching import store_response_in_cache
 
-    store_response_in_cache(
-        hash_value, partial_response, mock_backend, mock_config
-    )
+    store_response_in_cache(hash_value, partial_response, mock_backend, mock_config)
 
     # Verify partial response was NOT stored
     cached_response = mock_backend.get_cached_response(hash_value)
@@ -236,8 +205,7 @@ def test_apq_cache_with_variables_affects_caching():
     # Future versions might include variables in cache key
 
     config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        apq_cache_responses=True
+        database_url="postgresql://test@localhost/test", apq_cache_responses=True
     )
     backend = MemoryAPQBackend()
 

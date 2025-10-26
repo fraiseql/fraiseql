@@ -29,6 +29,7 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 @fraiseql.input
 class CreateDnsServerInput:
     """Input type with IpAddress field to test scalar mapping."""
+
     identifier: str
     ip_address: IpAddress  # Should map to ipAddress: IpAddressString in GraphQL
 
@@ -36,12 +37,14 @@ class CreateDnsServerInput:
 @fraiseql.success
 class CreateDnsServerSuccess:
     """Success response for DNS server creation."""
+
     message: str = "DNS server created successfully"
 
 
 @fraiseql.failure
 class CreateDnsServerError:
     """Error response for DNS server creation."""
+
     message: str
 
 
@@ -52,6 +55,7 @@ class CreateDnsServerError:
 )
 class CreateDnsServer:
     """Mutation to test IpAddress scalar mapping in GraphQL schema."""
+
     input: CreateDnsServerInput
     success: CreateDnsServerSuccess
     failure: CreateDnsServerError
@@ -71,7 +75,7 @@ def test_ip_address_scalar_mapping():
             CreateDnsServerInput,
             CreateDnsServerSuccess,
             CreateDnsServerError,
-            health_check
+            health_check,
         ],
         mutation_resolvers=[CreateDnsServer],
         camel_case_fields=True,
@@ -87,7 +91,7 @@ def test_ip_address_scalar_mapping():
     assert "input CreateDnsServerInput" in schema_sdl, "CreateDnsServerInput missing from schema"
 
     # Extract CreateDnsServerInput definition
-    lines = schema_sdl.split('\n')
+    lines = schema_sdl.split("\n")
     input_definition = []
     in_input = False
 
@@ -101,7 +105,7 @@ def test_ip_address_scalar_mapping():
         elif in_input:
             input_definition.append(line)
 
-    input_text = '\n'.join(input_definition)
+    input_text = "\n".join(input_definition)
 
     # Test field name conversion: ip_address → ipAddress
     assert "ipAddress:" in input_text, "Field name not converted to camelCase"
@@ -120,7 +124,7 @@ def test_graphql_validation_with_ip_address_scalar():
             CreateDnsServerInput,
             CreateDnsServerSuccess,
             CreateDnsServerError,
-            health_check
+            health_check,
         ],
         mutation_resolvers=[CreateDnsServer],
         camel_case_fields=True,
@@ -187,6 +191,7 @@ def test_multiple_ip_address_field_name_conversions():
     @fraiseql.input
     class ServerConfigInput:
         """Test input with multiple IP address fields."""
+
         ip_address: IpAddress
         server_ip_address: IpAddress
         dns_server_ip: IpAddress
@@ -206,6 +211,7 @@ def test_multiple_ip_address_field_name_conversions():
     )
     class ConfigureServer:
         """Mutation to test multiple IP address field name conversions."""
+
         input: ServerConfigInput
         success: ServerConfigSuccess
         failure: ServerConfigError
@@ -232,14 +238,16 @@ def test_multiple_ip_address_field_name_conversions():
 
     for snake_case, camel_case in test_cases:
         # Check that the expected GraphQL field name is present
-        assert f"{camel_case}: IpAddressString" in schema_sdl, \
-               f"Field {snake_case} not converted to {camel_case}"
+        assert f"{camel_case}: IpAddressString" in schema_sdl, (
+            f"Field {snake_case} not converted to {camel_case}"
+        )
 
         # Check that the original snake_case name is not present (except in comments)
-        schema_lines = [line for line in schema_sdl.split('\n') if not line.strip().startswith('#')]
-        schema_without_comments = '\n'.join(schema_lines)
-        assert f"{snake_case}:" not in schema_without_comments, \
-               f"Original snake_case field {snake_case} still present in schema"
+        schema_lines = [line for line in schema_sdl.split("\n") if not line.strip().startswith("#")]
+        schema_without_comments = "\n".join(schema_lines)
+        assert f"{snake_case}:" not in schema_without_comments, (
+            f"Original snake_case field {snake_case} still present in schema"
+        )
 
 
 if __name__ == "__main__":

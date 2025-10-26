@@ -54,12 +54,9 @@ class TestAPQContextPropagation:
         # Create test context with user/tenant
         test_context = {
             "db": Mock(),
-            "user": {
-                "user_id": "test-user",
-                "metadata": {"tenant_id": "tenant-123"}
-            },
+            "user": {"user_id": "test-user", "metadata": {"tenant_id": "tenant-123"}},
             "authenticated": True,
-            "config": config
+            "config": config,
         }
 
         test_query = "query GetUser { user { id name } }"
@@ -93,21 +90,11 @@ class TestAPQContextPropagation:
             query=None,  # Hash-only request
             variables=None,
             operationName=None,
-            extensions={
-                "persistedQuery": {
-                    "version": 1,
-                    "sha256Hash": query_hash
-                }
-            }
+            extensions={"persistedQuery": {"version": 1, "sha256Hash": query_hash}},
         )
 
         # Create test context
-        test_context = {
-            "user": {
-                "user_id": "test-user",
-                "metadata": {"tenant_id": "tenant-456"}
-            }
-        }
+        test_context = {"user": {"user_id": "test-user", "metadata": {"tenant_id": "tenant-456"}}}
 
         config = Mock(spec=FraiseQLConfig)
         config.apq_cache_responses = True
@@ -136,8 +123,13 @@ class TestContextExtraction:
             call_order.append("apq_processing")
             return None
 
-        with patch('fraiseql.fastapi.dependencies.build_graphql_context', side_effect=mock_build_context):
-            with patch('fraiseql.middleware.apq_caching.handle_apq_request_with_cache', side_effect=mock_apq_processing):
+        with patch(
+            "fraiseql.fastapi.dependencies.build_graphql_context", side_effect=mock_build_context
+        ):
+            with patch(
+                "fraiseql.middleware.apq_caching.handle_apq_request_with_cache",
+                side_effect=mock_apq_processing,
+            ):
                 # Simulate the call sequence
                 mock_build_context()
                 mock_apq_processing()
@@ -156,16 +148,11 @@ class TestContextExtraction:
             name="Test User",
             roles=["user"],
             permissions=[],
-            metadata={"tenant_id": "tenant-789", "org": "TestOrg"}
+            metadata={"tenant_id": "tenant-789", "org": "TestOrg"},
         )
 
         # Create context as the router would
-        context = {
-            "db": Mock(),
-            "user": user,
-            "authenticated": True,
-            "config": Mock()
-        }
+        context = {"db": Mock(), "user": user, "authenticated": True, "config": Mock()}
 
         # Verify tenant_id is available in context
         assert context["user"].metadata["tenant_id"] == "tenant-789"

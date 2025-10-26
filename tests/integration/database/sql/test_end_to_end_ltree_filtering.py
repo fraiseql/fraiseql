@@ -105,11 +105,7 @@ class TestEndToEndLTreeFiltering:
 
     def test_field_name_conversion_snake_to_camel_ltree(self):
         """Test that field names are correctly converted from camelCase to snake_case."""
-        graphql_where = {
-            "categoryTreePath": {  # camelCase
-                "neq": "top.science.biology"
-            }
-        }
+        graphql_where = {"categoryTreePath": {"neq": "top.science.biology"}}  # camelCase
 
         where_clause = build_where_clause(graphql_where)
         sql_string = where_clause.as_string(None)

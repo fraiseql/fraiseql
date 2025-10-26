@@ -35,7 +35,7 @@ class TestUser:
 @pytest.fixture
 def sample_sql_file(tmp_path):
     """Create a sample SQL file."""
-    sql_content = '''
+    sql_content = """
 CREATE VIEW v_users AS
 SELECT
     id,
@@ -45,7 +45,7 @@ SELECT
         'email', email
     ) AS data
 FROM tb_users;
-'''
+"""
     sql_file = tmp_path / "test_view.sql"
     sql_file.write_text(sql_content)
     return sql_file
@@ -65,8 +65,7 @@ class TestSQLGenerateView:
     def test_generate_view_with_invalid_module(self, cli_runner):
         """Test generate-view with invalid module path."""
         result = cli_runner.invoke(
-            cli,
-            ["sql", "generate-view", "User", "--module", "invalid.module"]
+            cli, ["sql", "generate-view", "User", "--module", "invalid.module"]
         )
 
         assert result.exit_code != 0
@@ -77,8 +76,7 @@ class TestSQLGenerateView:
         monkeypatch.chdir(sample_type_file.parent.parent)
 
         result = cli_runner.invoke(
-            cli,
-            ["sql", "generate-view", "TestUser", "--module", "src.types.test_types"]
+            cli, ["sql", "generate-view", "TestUser", "--module", "src.types.test_types"]
         )
 
         # Should succeed (or fail gracefully if dependencies missing)
@@ -92,11 +90,16 @@ class TestSQLGenerateView:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-view", "TestUser",
-                "--module", "src.types.test_types",
-                "--exclude", "email",
-                "--exclude", "is_active"
-            ]
+                "sql",
+                "generate-view",
+                "TestUser",
+                "--module",
+                "src.types.test_types",
+                "--exclude",
+                "email",
+                "--exclude",
+                "is_active",
+            ],
         )
 
         # Command should execute (success or handled error)
@@ -109,11 +112,16 @@ class TestSQLGenerateView:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-view", "TestUser",
-                "--module", "src.types.test_types",
-                "--table", "tb_custom_users",
-                "--view", "v_custom_users"
-            ]
+                "sql",
+                "generate-view",
+                "TestUser",
+                "--module",
+                "src.types.test_types",
+                "--table",
+                "tb_custom_users",
+                "--view",
+                "v_custom_users",
+            ],
         )
 
         assert result.exit_code == 0 or "Error" in result.output
@@ -125,10 +133,13 @@ class TestSQLGenerateView:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-view", "TestUser",
-                "--module", "src.types.test_types",
-                "--no-comments"
-            ]
+                "sql",
+                "generate-view",
+                "TestUser",
+                "--module",
+                "src.types.test_types",
+                "--no-comments",
+            ],
         )
 
         assert result.exit_code == 0 or "Error" in result.output
@@ -143,8 +154,7 @@ class TestSQLGenerateSetup:
         monkeypatch.chdir(sample_type_file.parent.parent)
 
         result = cli_runner.invoke(
-            cli,
-            ["sql", "generate-setup", "TestUser", "--module", "src.types.test_types"]
+            cli, ["sql", "generate-setup", "TestUser", "--module", "src.types.test_types"]
         )
 
         assert result.exit_code == 0 or "Error" in result.output
@@ -156,10 +166,13 @@ class TestSQLGenerateSetup:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-setup", "TestUser",
-                "--module", "src.types.test_types",
-                "--with-table"
-            ]
+                "sql",
+                "generate-setup",
+                "TestUser",
+                "--module",
+                "src.types.test_types",
+                "--with-table",
+            ],
         )
 
         assert result.exit_code == 0 or "Error" in result.output
@@ -171,12 +184,15 @@ class TestSQLGenerateSetup:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-setup", "TestUser",
-                "--module", "src.types.test_types",
+                "sql",
+                "generate-setup",
+                "TestUser",
+                "--module",
+                "src.types.test_types",
                 "--with-table",
                 "--with-indexes",
-                "--with-data"
-            ]
+                "--with-data",
+            ],
         )
 
         assert result.exit_code == 0 or "Error" in result.output
@@ -190,7 +206,7 @@ class TestSQLGeneratePattern:
         """Test pagination pattern generation."""
         result = cli_runner.invoke(
             cli,
-            ["sql", "generate-pattern", "pagination", "users", "--limit", "10", "--offset", "20"]
+            ["sql", "generate-pattern", "pagination", "users", "--limit", "10", "--offset", "20"],
         )
 
         assert result.exit_code == 0
@@ -202,10 +218,15 @@ class TestSQLGeneratePattern:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-pattern", "filtering", "users",
-                "-w", "email=test@example.com",
-                "-w", "is_active=true"
-            ]
+                "sql",
+                "generate-pattern",
+                "filtering",
+                "users",
+                "-w",
+                "email=test@example.com",
+                "-w",
+                "is_active=true",
+            ],
         )
 
         assert result.exit_code == 0
@@ -216,11 +237,17 @@ class TestSQLGeneratePattern:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-pattern", "filtering", "products",
-                "-w", "price=100",
-                "-w", "in_stock=true",
-                "-w", "category=electronics"
-            ]
+                "sql",
+                "generate-pattern",
+                "filtering",
+                "products",
+                "-w",
+                "price=100",
+                "-w",
+                "in_stock=true",
+                "-w",
+                "category=electronics",
+            ],
         )
 
         assert result.exit_code == 0
@@ -231,10 +258,15 @@ class TestSQLGeneratePattern:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-pattern", "sorting", "users",
-                "-o", "name:ASC",
-                "-o", "created_at:DESC"
-            ]
+                "sql",
+                "generate-pattern",
+                "sorting",
+                "users",
+                "-o",
+                "name:ASC",
+                "-o",
+                "created_at:DESC",
+            ],
         )
 
         assert result.exit_code == 0
@@ -244,8 +276,7 @@ class TestSQLGeneratePattern:
     def test_sorting_pattern_default_direction(self, cli_runner):
         """Test sorting pattern with default direction."""
         result = cli_runner.invoke(
-            cli,
-            ["sql", "generate-pattern", "sorting", "users", "-o", "name"]
+            cli, ["sql", "generate-pattern", "sorting", "users", "-o", "name"]
         )
 
         assert result.exit_code == 0
@@ -256,10 +287,15 @@ class TestSQLGeneratePattern:
         result = cli_runner.invoke(
             cli,
             [
-                "sql", "generate-pattern", "relationship", "users",
-                "--child-table", "posts",
-                "--foreign-key", "user_id"
-            ]
+                "sql",
+                "generate-pattern",
+                "relationship",
+                "users",
+                "--child-table",
+                "posts",
+                "--foreign-key",
+                "user_id",
+            ],
         )
 
         assert result.exit_code == 0
@@ -267,10 +303,7 @@ class TestSQLGeneratePattern:
 
     def test_relationship_pattern_missing_options(self, cli_runner):
         """Test relationship pattern without required options."""
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "generate-pattern", "relationship", "users"]
-        )
+        result = cli_runner.invoke(cli, ["sql", "generate-pattern", "relationship", "users"])
 
         # Should show error about missing options
         assert "Error" in result.output or "required" in result.output.lower()
@@ -278,11 +311,7 @@ class TestSQLGeneratePattern:
     def test_aggregation_pattern(self, cli_runner):
         """Test aggregation pattern generation."""
         result = cli_runner.invoke(
-            cli,
-            [
-                "sql", "generate-pattern", "aggregation", "orders",
-                "--group-by", "customer_id"
-            ]
+            cli, ["sql", "generate-pattern", "aggregation", "orders", "--group-by", "customer_id"]
         )
 
         assert result.exit_code == 0
@@ -290,10 +319,7 @@ class TestSQLGeneratePattern:
 
     def test_aggregation_pattern_missing_group_by(self, cli_runner):
         """Test aggregation pattern without group-by."""
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "generate-pattern", "aggregation", "orders"]
-        )
+        result = cli_runner.invoke(cli, ["sql", "generate-pattern", "aggregation", "orders"])
 
         # Should show error about missing group-by
         assert "Error" in result.output or "required" in result.output.lower()
@@ -305,10 +331,7 @@ class TestSQLValidate:
 
     def test_validate_valid_sql(self, cli_runner, sample_sql_file):
         """Test validation of valid SQL."""
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "validate", str(sample_sql_file)]
-        )
+        result = cli_runner.invoke(cli, ["sql", "validate", str(sample_sql_file)])
 
         assert result.exit_code == 0
         # Output should indicate validation result
@@ -316,10 +339,7 @@ class TestSQLValidate:
 
     def test_validate_missing_file(self, cli_runner):
         """Test validation with missing file."""
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "validate", "nonexistent.sql"]
-        )
+        result = cli_runner.invoke(cli, ["sql", "validate", "nonexistent.sql"])
 
         assert result.exit_code != 0
 
@@ -328,10 +348,7 @@ class TestSQLValidate:
         invalid_sql = tmp_path / "invalid.sql"
         invalid_sql.write_text("SELECT * FROM table_without_data_column;")
 
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "validate", str(invalid_sql)]
-        )
+        result = cli_runner.invoke(cli, ["sql", "validate", str(invalid_sql)])
 
         # Should complete (may show warnings/errors about SQL)
         assert result.exit_code == 0
@@ -343,35 +360,28 @@ class TestSQLExplain:
 
     def test_explain_valid_sql(self, cli_runner, sample_sql_file):
         """Test explaining valid SQL."""
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "explain", str(sample_sql_file)]
-        )
+        result = cli_runner.invoke(cli, ["sql", "explain", str(sample_sql_file)])
 
         assert result.exit_code == 0
         assert "Explanation" in result.output or "explain" in result.output.lower()
 
     def test_explain_missing_file(self, cli_runner):
         """Test explaining missing file."""
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "explain", "nonexistent.sql"]
-        )
+        result = cli_runner.invoke(cli, ["sql", "explain", "nonexistent.sql"])
 
         assert result.exit_code != 0
 
     def test_explain_with_issues_detection(self, cli_runner, tmp_path):
         """Test explaining SQL with potential issues."""
         sql_with_issues = tmp_path / "issues.sql"
-        sql_with_issues.write_text("""
+        sql_with_issues.write_text(
+            """
             CREATE VIEW v_test AS
             SELECT * FROM users;
-        """)
-
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "explain", str(sql_with_issues)]
+        """
         )
+
+        result = cli_runner.invoke(cli, ["sql", "explain", str(sql_with_issues)])
 
         assert result.exit_code == 0
         # Should provide explanation (and possibly warnings)
@@ -384,10 +394,7 @@ class TestSQLLoadType:
     def test_load_type_without_module(self, cli_runner):
         """Test loading type without specifying module."""
         # This will fail to find the type, but tests the search logic
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "generate-view", "NonexistentType"]
-        )
+        result = cli_runner.invoke(cli, ["sql", "generate-view", "NonexistentType"])
 
         # Should fail with helpful error
         assert result.exit_code != 0
@@ -399,27 +406,26 @@ class TestSQLLoadType:
         types_dir = tmp_path / "types"
         types_dir.mkdir()
 
-        type_content = '''
+        type_content = """
 import fraiseql
 
 @fraiseql.type
 class CommonType:
     id: int
     name: str
-'''
+"""
         (types_dir / "common.py").write_text(type_content)
         (types_dir / "__init__.py").write_text("from .common import CommonType")
 
         monkeypatch.chdir(tmp_path)
 
-        result = cli_runner.invoke(
-            cli,
-            ["sql", "generate-view", "CommonType"]
-        )
+        result = cli_runner.invoke(cli, ["sql", "generate-view", "CommonType"])
 
         # Should attempt to find the type
         # May fail due to import issues in test environment, but tests the logic
-        assert result.exit_code == 0 or "Could not find" in result.output or "Error" in result.output
+        assert (
+            result.exit_code == 0 or "Could not find" in result.output or "Error" in result.output
+        )
 
 
 @pytest.mark.unit

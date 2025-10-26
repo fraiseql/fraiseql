@@ -220,9 +220,15 @@ class TestErrorArraysV050:
             assert isinstance(error.message, str), f"Error {i} 'message' should be string"
 
             # Code should be valid HTTP status code
-            assert error.code in [400, 401, 403, 404, 409, 422, 500], (
-                f"Error {i} has invalid code: {error.code}"
-            )
+            assert error.code in [
+                400,
+                401,
+                403,
+                404,
+                409,
+                422,
+                500,
+            ], f"Error {i} has invalid code: {error.code}"
 
             # Message should be non-empty
             assert len(error.message) > 0, f"Error {i} has empty message"

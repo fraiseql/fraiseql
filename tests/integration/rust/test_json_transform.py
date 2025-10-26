@@ -3,6 +3,7 @@
 Phase 3, TDD Cycle 3.1 - RED: Test direct JSON → transformed JSON
 These tests should FAIL initially because the function doesn't exist yet.
 """
+
 import json
 import pytest
 
@@ -30,17 +31,19 @@ def test_transform_json_nested():
     """Test nested JSON object transformation."""
     import fraiseql_rs
 
-    input_json = json.dumps({
-        "user_id": 1,
-        "user_profile": {
-            "first_name": "John",
-            "last_name": "Doe",
-            "billing_address": {
-                "street_name": "Main St",
-                "postal_code": "12345",
+    input_json = json.dumps(
+        {
+            "user_id": 1,
+            "user_profile": {
+                "first_name": "John",
+                "last_name": "Doe",
+                "billing_address": {
+                    "street_name": "Main St",
+                    "postal_code": "12345",
+                },
             },
-        },
-    })
+        }
+    )
 
     result_json = fraiseql_rs.transform_json(input_json)
     result = json.loads(result_json)
@@ -62,13 +65,15 @@ def test_transform_json_with_array():
     """Test JSON with arrays of objects."""
     import fraiseql_rs
 
-    input_json = json.dumps({
-        "user_id": 1,
-        "user_posts": [
-            {"post_id": 1, "post_title": "First Post", "created_at": "2025-01-01"},
-            {"post_id": 2, "post_title": "Second Post", "created_at": "2025-01-02"},
-        ],
-    })
+    input_json = json.dumps(
+        {
+            "user_id": 1,
+            "user_posts": [
+                {"post_id": 1, "post_title": "First Post", "created_at": "2025-01-01"},
+                {"post_id": 2, "post_title": "Second Post", "created_at": "2025-01-02"},
+            ],
+        }
+    )
 
     result_json = fraiseql_rs.transform_json(input_json)
     result = json.loads(result_json)
@@ -87,28 +92,30 @@ def test_transform_json_complex():
     import fraiseql_rs
 
     # Simulate FraiseQL query result from database
-    input_json = json.dumps({
-        "id": 1,
-        "name": "James Rodriguez",
-        "email": "james.rodriguez@example.com",
-        "created_at": "2025-04-03T09:10:28.71191",
-        "posts": [
-            {
-                "id": 3361,
-                "user_id": 1,
-                "title": "Python vs Alternatives",
-                "content": "This is a comprehensive guide...",
-                "created_at": "2025-02-02T09:10:29.55859",
-            },
-            {
-                "id": 4647,
-                "user_id": 1,
-                "title": "React Tutorial for Beginners",
-                "content": "This is a comprehensive guide...",
-                "created_at": "2025-03-11T09:10:29.566722",
-            },
-        ],
-    })
+    input_json = json.dumps(
+        {
+            "id": 1,
+            "name": "James Rodriguez",
+            "email": "james.rodriguez@example.com",
+            "created_at": "2025-04-03T09:10:28.71191",
+            "posts": [
+                {
+                    "id": 3361,
+                    "user_id": 1,
+                    "title": "Python vs Alternatives",
+                    "content": "This is a comprehensive guide...",
+                    "created_at": "2025-02-02T09:10:29.55859",
+                },
+                {
+                    "id": 4647,
+                    "user_id": 1,
+                    "title": "React Tutorial for Beginners",
+                    "content": "This is a comprehensive guide...",
+                    "created_at": "2025-03-11T09:10:29.566722",
+                },
+            ],
+        }
+    )
 
     result_json = fraiseql_rs.transform_json(input_json)
     result = json.loads(result_json)
@@ -131,14 +138,16 @@ def test_transform_json_preserves_types():
     """Test that JSON types are preserved (int, str, bool, null)."""
     import fraiseql_rs
 
-    input_json = json.dumps({
-        "user_id": 123,
-        "user_name": "John",
-        "is_active": True,
-        "is_deleted": False,
-        "deleted_at": None,
-        "post_count": 0,
-    })
+    input_json = json.dumps(
+        {
+            "user_id": 123,
+            "user_name": "John",
+            "is_active": True,
+            "is_deleted": False,
+            "deleted_at": None,
+            "post_count": 0,
+        }
+    )
 
     result_json = fraiseql_rs.transform_json(input_json)
     result = json.loads(result_json)
@@ -174,10 +183,12 @@ def test_transform_json_array_root():
     """Test transformation when root is an array."""
     import fraiseql_rs
 
-    input_json = json.dumps([
-        {"user_id": 1, "user_name": "John"},
-        {"user_id": 2, "user_name": "Jane"},
-    ])
+    input_json = json.dumps(
+        [
+            {"user_id": 1, "user_name": "John"},
+            {"user_id": 2, "user_name": "Jane"},
+        ]
+    )
 
     result_json = fraiseql_rs.transform_json(input_json)
     result = json.loads(result_json)

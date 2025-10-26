@@ -3,6 +3,7 @@
 Phase 1, TDD Cycle 1.1 - RED: Test basic module import
 This test should FAIL initially because the module doesn't exist yet.
 """
+
 import pytest
 
 
@@ -14,6 +15,7 @@ def test_fraiseql_rs_module_exists():
     """
     try:
         import fraiseql_rs
+
         assert fraiseql_rs is not None
     except ModuleNotFoundError as e:
         pytest.fail(f"fraiseql_rs module not found: {e}")

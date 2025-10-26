@@ -44,7 +44,9 @@ class TestJSONBNetworkFilteringBug:
         # Check that network operators are available
         assert hasattr(filter_instance, "eq"), "Basic eq operator should be available"
         assert hasattr(filter_instance, "inSubnet"), "Network inSubnet operator should be available"
-        assert hasattr(filter_instance, "isPrivate"), "Network isPrivate operator should be available"
+        assert hasattr(filter_instance, "isPrivate"), (
+            "Network isPrivate operator should be available"
+        )
         assert hasattr(filter_instance, "isPublic"), "Network isPublic operator should be available"
 
 

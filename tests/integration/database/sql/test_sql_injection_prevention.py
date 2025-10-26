@@ -40,8 +40,11 @@ class TestSQLInjectionPrevention:
         assert "(data ->> 'name') = 'Alice'" in sql_str
         # Validate numeric casting structure - should be well-formed
         import re
+
         numeric_pattern = r"\(\(data ->> 'age'\)\)::numeric > 21|\(data ->> 'age'\)::numeric > 21"
-        assert re.search(numeric_pattern, sql_str), f"Expected valid numeric casting pattern, got: {sql_str}"
+        assert re.search(numeric_pattern, sql_str), (
+            f"Expected valid numeric casting pattern, got: {sql_str}"
+        )
 
     def test_string_injection_attempts(self) -> None:
         """Test that SQL injection in string values is prevented."""

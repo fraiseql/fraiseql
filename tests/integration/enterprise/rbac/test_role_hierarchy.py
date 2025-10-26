@@ -16,12 +16,14 @@ async def ensure_rbac_schema(db_pool):
     # Check if roles table exists
     async with db_pool.connection() as conn:
         async with conn.cursor() as cur:
-            await cur.execute("""
+            await cur.execute(
+                """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'roles'
                 )
-            """)
+            """
+            )
             exists = (await cur.fetchone())[0]
 
             if not exists:

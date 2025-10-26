@@ -20,6 +20,7 @@ from fraiseql.types import fraise_type
 @fraise_type
 class TestPrintServer:
     """Test print server type."""
+
     hostname: str
     ip_address: str | None = None
     status: str = "active"
@@ -28,6 +29,7 @@ class TestPrintServer:
 @fraise_type
 class TestNetworkDevice:
     """Test network device type."""
+
     name: str
     model: str
 

@@ -26,24 +26,26 @@ class TestImportScriptStructure:
 
     def test_import_script_is_executable(self):
         """Import script should have executable permissions."""
-        assert IMPORT_SCRIPT.stat().st_mode & 0o111, \
+        assert IMPORT_SCRIPT.stat().st_mode & 0o111, (
             "Import script is not executable (run: chmod +x import_dashboards.sh)"
+        )
 
     def test_import_script_has_shebang(self):
         """Import script should start with proper shebang."""
         with open(IMPORT_SCRIPT) as f:
             first_line = f.readline().strip()
 
-        assert first_line in ["#!/bin/bash", "#!/usr/bin/env bash"], \
-            f"Import script has invalid shebang: {first_line}"
+        assert first_line in [
+            "#!/bin/bash",
+            "#!/usr/bin/env bash",
+        ], f"Import script has invalid shebang: {first_line}"
 
     def test_import_script_has_error_handling(self):
         """Import script should have error handling (set -e)."""
         with open(IMPORT_SCRIPT) as f:
             content = f.read()
 
-        assert "set -e" in content, \
-            "Import script missing 'set -e' for error handling"
+        assert "set -e" in content, "Import script missing 'set -e' for error handling"
 
 
 class TestImportScriptContent:
@@ -62,8 +64,7 @@ class TestImportScriptContent:
         ]
 
         for var in required_vars:
-            assert var in content, \
-                f"Import script missing configuration variable: {var}"
+            assert var in content, f"Import script missing configuration variable: {var}"
 
     def test_script_checks_grafana_connectivity(self):
         """Script should check Grafana connectivity before importing."""
@@ -71,8 +72,9 @@ class TestImportScriptContent:
             content = f.read()
 
         # Should have connectivity check using curl or similar
-        assert "curl" in content and "/api/health" in content, \
+        assert "curl" in content and "/api/health" in content, (
             "Import script should check Grafana connectivity"
+        )
 
     def test_script_has_import_function(self):
         """Script should have function to import dashboards."""
@@ -80,8 +82,9 @@ class TestImportScriptContent:
             content = f.read()
 
         # Should define import_dashboard function
-        assert "import_dashboard()" in content or "import_dashboard ()" in content, \
+        assert "import_dashboard()" in content or "import_dashboard ()" in content, (
             "Import script missing import_dashboard function"
+        )
 
     def test_script_lists_dashboard_files(self):
         """Script should list all dashboard files to import."""
@@ -97,8 +100,7 @@ class TestImportScriptContent:
         ]
 
         for dashboard in expected_dashboards:
-            assert dashboard in content, \
-                f"Import script missing dashboard: {dashboard}"
+            assert dashboard in content, f"Import script missing dashboard: {dashboard}"
 
     def test_script_has_error_messages(self):
         """Script should have user-friendly error messages."""
@@ -106,12 +108,12 @@ class TestImportScriptContent:
             content = f.read()
 
         # Should have error messages
-        assert "ERROR:" in content or "Error:" in content, \
+        assert "ERROR:" in content or "Error:" in content, (
             "Import script should have error messages"
+        )
 
         # Should have success messages
-        assert "Success" in content or "✓" in content, \
-            "Import script should have success messages"
+        assert "Success" in content or "✓" in content, "Import script should have success messages"
 
 
 class TestImportScriptSafety:
@@ -142,8 +144,7 @@ class TestImportScriptSafety:
             content = f.read()
 
         # Should use exit codes
-        assert "exit" in content, \
-            "Import script should use exit codes for error handling"
+        assert "exit" in content, "Import script should use exit codes for error handling"
 
     def test_script_validates_file_paths(self):
         """Script should validate file paths before using them."""
@@ -151,8 +152,9 @@ class TestImportScriptSafety:
             content = f.read()
 
         # Should check if files exist
-        assert "-f" in content or "test -f" in content or "[ -f" in content, \
+        assert "-f" in content or "test -f" in content or "[ -f" in content, (
             "Import script should validate file existence"
+        )
 
 
 class TestImportScriptHelp:
@@ -168,11 +170,11 @@ class TestImportScriptHelp:
         header_lines = lines[:20]  # Check first 20 lines
         header_text = "\n".join(header_lines)
 
-        assert "#" in header_text, \
-            "Import script should have header comments"
+        assert "#" in header_text, "Import script should have header comments"
 
-        assert "FraiseQL" in header_text or "Grafana" in header_text, \
+        assert "FraiseQL" in header_text or "Grafana" in header_text, (
             "Import script should mention FraiseQL/Grafana in header"
+        )
 
     def test_script_shows_usage_information(self):
         """Script should display usage information."""
@@ -180,8 +182,9 @@ class TestImportScriptHelp:
             content = f.read()
 
         # Should explain configuration
-        assert "GRAFANA_URL" in content and "localhost:3000" in content, \
+        assert "GRAFANA_URL" in content and "localhost:3000" in content, (
             "Import script should document GRAFANA_URL configuration"
+        )
 
 
 class TestImportScriptDependencies:
@@ -196,8 +199,7 @@ class TestImportScriptDependencies:
         required_tools = ["curl"]
 
         for tool in required_tools:
-            assert tool in content, \
-                f"Import script should use standard tool: {tool}"
+            assert tool in content, f"Import script should use standard tool: {tool}"
 
     def test_script_uses_jq_for_json(self):
         """Script should use jq for JSON manipulation."""
@@ -206,13 +208,12 @@ class TestImportScriptDependencies:
 
         # Should use jq for JSON processing
         if ".json" in content and "api/dashboards" in content:
-            assert "jq" in content, \
-                "Import script should use 'jq' for JSON manipulation"
+            assert "jq" in content, "Import script should use 'jq' for JSON manipulation"
 
 
 @pytest.mark.skipif(
     not Path("/usr/bin/shellcheck").exists() and not Path("/usr/local/bin/shellcheck").exists(),
-    reason="shellcheck not installed"
+    reason="shellcheck not installed",
 )
 class TestImportScriptLinting:
     """Test import script with shellcheck linter."""
@@ -220,19 +221,20 @@ class TestImportScriptLinting:
     def test_script_passes_shellcheck(self):
         """Import script should pass shellcheck linting."""
         result = subprocess.run(
-            ["shellcheck", "-x", str(IMPORT_SCRIPT)],
-            capture_output=True,
-            text=True
+            ["shellcheck", "-x", str(IMPORT_SCRIPT)], capture_output=True, text=True
         )
 
         # ShellCheck should pass (exit code 0) or have only minor warnings
-        assert result.returncode in [0, 1], \
-            f"ShellCheck failed:\n{result.stdout}\n{result.stderr}"
+        assert result.returncode in [0, 1], f"ShellCheck failed:\n{result.stdout}\n{result.stderr}"
 
         # If there are errors, they should not be critical
         if result.returncode == 1:
             # Allow only specific warning codes (not errors)
-            allowed_warnings = ["SC2034", "SC2086", "SC2181"]  # Unused variables, unquoted variables, etc.
+            allowed_warnings = [
+                "SC2034",
+                "SC2086",
+                "SC2181",
+            ]  # Unused variables, unquoted variables, etc.
             for line in result.stdout.split("\n"):
                 if "error:" in line.lower():
                     # Check if it's an allowed warning

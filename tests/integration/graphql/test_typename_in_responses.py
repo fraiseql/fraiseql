@@ -107,22 +107,27 @@ async def setup_typename_test_data(db_connection):
     """Set up real database with JSONB for typename tests."""
     async with db_connection.cursor() as cur:
         # Create tables with JSONB
-        await cur.execute("""
+        await cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS v_user (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
-        await cur.execute("""
+        await cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS v_post (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
         # Insert test data
-        await cur.execute("""
+        await cur.execute(
+            """
             INSERT INTO v_user (id, data) VALUES
             (
                 '11111111-1111-1111-1111-111111111111',
@@ -133,9 +138,11 @@ async def setup_typename_test_data(db_connection):
                 '{"id": "22222222-2222-2222-2222-222222222222", "name": "Bob", "email": "bob@example.com"}'
             )
             ON CONFLICT (id) DO NOTHING
-        """)
+        """
+        )
 
-        await cur.execute("""
+        await cur.execute(
+            """
             INSERT INTO v_post (id, data) VALUES
             (
                 '33333333-3333-3333-3333-333333333333',
@@ -146,7 +153,8 @@ async def setup_typename_test_data(db_connection):
                 '{"id": "44444444-4444-4444-4444-444444444444", "title": "Second Post", "content": "Content of second post"}'
             )
             ON CONFLICT (id) DO NOTHING
-        """)
+        """
+        )
 
         await db_connection.commit()
 

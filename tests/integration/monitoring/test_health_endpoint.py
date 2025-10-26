@@ -32,11 +32,8 @@ def app_with_health():
             return result
         # Return 503 Service Unavailable if not ready
         from fastapi import Response
-        return Response(
-            content=result,
-            status_code=503,
-            media_type="application/json"
-        )
+
+        return Response(content=result, status_code=503, media_type="application/json")
 
     return app
 

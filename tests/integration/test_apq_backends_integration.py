@@ -10,12 +10,13 @@ from fraiseql.middleware.apq_caching import (
     get_apq_backend,
     handle_apq_request_with_cache,
     store_response_in_cache,
-    clear_backend_cache
+    clear_backend_cache,
 )
 
 
 class MockRequest:
     """Mock GraphQL request for testing."""
+
     def __init__(self, extensions=None):
         self.extensions = extensions or {}
 
@@ -26,7 +27,7 @@ def test_end_to_end_memory_backend():
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
         apq_cache_responses=True,
-        apq_response_cache_ttl=600
+        apq_response_cache_ttl=600,
     )
 
     # Get backend through factory
@@ -43,12 +44,7 @@ def test_end_to_end_memory_backend():
     assert retrieved_query == query
 
     # Create a mock request
-    request = MockRequest({
-        "persistedQuery": {
-            "version": 1,
-            "sha256Hash": hash_value
-        }
-    })
+    request = MockRequest({"persistedQuery": {"version": 1, "sha256Hash": hash_value}})
 
     # Test cache miss (no cached response yet)
     cached_response = handle_apq_request_with_cache(request, backend, config)
@@ -59,7 +55,7 @@ def test_end_to_end_memory_backend():
         "data": {
             "users": [
                 {"id": 1, "name": "John", "email": "john@example.com"},
-                {"id": 2, "name": "Jane", "email": "jane@example.com"}
+                {"id": 2, "name": "Jane", "email": "jane@example.com"},
             ]
         }
     }
@@ -78,8 +74,8 @@ def test_end_to_end_postgresql_backend():
         apq_cache_responses=True,
         apq_backend_config={
             "table_prefix": "test_apq_",
-            "auto_create_tables": False  # Disable for mock testing
-        }
+            "auto_create_tables": False,  # Disable for mock testing
+        },
     )
 
     # Get backend through factory
@@ -95,8 +91,7 @@ def test_backend_singleton_behavior():
     clear_backend_cache()  # Clear any existing cache
 
     config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        apq_storage_backend="memory"
+        database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
     )
 
     # Get backend twice
@@ -112,8 +107,7 @@ def test_config_driven_backend_selection():
 
     # Memory backend
     memory_config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        apq_storage_backend="memory"
+        database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
     )
     memory_backend = create_apq_backend(memory_config)
     assert isinstance(memory_backend, MemoryAPQBackend)
@@ -122,7 +116,7 @@ def test_config_driven_backend_selection():
     pg_config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="postgresql",
-        apq_backend_config={"auto_create_tables": False}
+        apq_backend_config={"auto_create_tables": False},
     )
     pg_backend = create_apq_backend(pg_config)
     assert isinstance(pg_backend, PostgreSQLAPQBackend)
@@ -133,13 +127,13 @@ def test_caching_behavior_with_config():
     config_disabled = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
-        apq_cache_responses=False  # Disabled
+        apq_cache_responses=False,  # Disabled
     )
 
     config_enabled = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
-        apq_cache_responses=True  # Enabled
+        apq_cache_responses=True,  # Enabled
     )
 
     backend = MemoryAPQBackend()
@@ -150,12 +144,7 @@ def test_caching_behavior_with_config():
     backend.store_cached_response(hash_value, response)
 
     # Create mock request
-    request = MockRequest({
-        "persistedQuery": {
-            "version": 1,
-            "sha256Hash": hash_value
-        }
-    })
+    request = MockRequest({"persistedQuery": {"version": 1, "sha256Hash": hash_value}})
 
     # With caching disabled, should return None
     result_disabled = handle_apq_request_with_cache(request, backend, config_disabled)
@@ -171,18 +160,15 @@ def test_error_handling_integration():
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
-        apq_cache_responses=True
+        apq_cache_responses=True,
     )
 
     backend = MemoryAPQBackend()
 
     # Test with invalid hash
-    request_invalid = MockRequest({
-        "persistedQuery": {
-            "version": 1,
-            "sha256Hash": ""  # Empty hash
-        }
-    })
+    request_invalid = MockRequest(
+        {"persistedQuery": {"version": 1, "sha256Hash": ""}}  # Empty hash
+    )
 
     result = handle_apq_request_with_cache(request_invalid, backend, config)
     assert result is None
@@ -203,31 +189,24 @@ def test_response_storage_conditions():
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
-        apq_cache_responses=True
+        apq_cache_responses=True,
     )
 
     backend = MemoryAPQBackend()
     hash_value = "test_storage_conditions"
 
     # Test that error responses are not cached
-    error_response = {
-        "errors": [{"message": "Something went wrong"}]
-    }
+    error_response = {"errors": [{"message": "Something went wrong"}]}
     store_response_in_cache(hash_value, error_response, backend, config)
     assert backend.get_cached_response(hash_value) is None
 
     # Test that partial responses with errors are not cached
-    partial_response = {
-        "data": {"users": []},
-        "errors": [{"message": "Access denied"}]
-    }
+    partial_response = {"data": {"users": []}, "errors": [{"message": "Access denied"}]}
     store_response_in_cache(hash_value, partial_response, backend, config)
     assert backend.get_cached_response(hash_value) is None
 
     # Test that successful responses are cached
-    success_response = {
-        "data": {"users": [{"id": 1, "name": "John"}]}
-    }
+    success_response = {"data": {"users": [{"id": 1, "name": "John"}]}}
     store_response_in_cache(hash_value, success_response, backend, config)
     assert backend.get_cached_response(hash_value) == success_response
 
@@ -237,13 +216,13 @@ def test_custom_backend_config():
     custom_config = {
         "table_prefix": "custom_apq_",
         "connection_timeout": 60,
-        "auto_create_tables": True
+        "auto_create_tables": True,
     }
 
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="postgresql",
-        apq_backend_config=custom_config
+        apq_backend_config=custom_config,
     )
 
     backend = create_apq_backend(config)
@@ -259,7 +238,7 @@ def test_backward_compatibility():
         store_persisted_query,
         get_persisted_query,
         clear_storage,
-        get_storage_stats
+        get_storage_stats,
     )
 
     # Clear any existing data
@@ -289,7 +268,7 @@ def test_comprehensive_flow():
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
         apq_cache_responses=True,
-        apq_response_cache_ttl=300
+        apq_response_cache_ttl=300,
     )
 
     # Step 1: Get backend
@@ -302,12 +281,7 @@ def test_comprehensive_flow():
     backend.store_persisted_query(hash_value, query)
 
     # Step 3: Create APQ request
-    request = MockRequest({
-        "persistedQuery": {
-            "version": 1,
-            "sha256Hash": hash_value
-        }
-    })
+    request = MockRequest({"persistedQuery": {"version": 1, "sha256Hash": hash_value}})
 
     # Step 4: First request - cache miss
     cached_response = handle_apq_request_with_cache(request, backend, config)
@@ -318,7 +292,7 @@ def test_comprehensive_flow():
         "data": {
             "users": [
                 {"id": 1, "name": "John", "email": "john@example.com", "roles": ["user"]},
-                {"id": 2, "name": "Jane", "email": "jane@example.com", "roles": ["admin"]}
+                {"id": 2, "name": "Jane", "email": "jane@example.com", "roles": ["admin"]},
             ]
         }
     }

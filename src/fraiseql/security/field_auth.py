@@ -154,7 +154,7 @@ def authorize_field(
                     if loop.is_running():
                         # We're in an async context, create a task
                         # Store reference to avoid RUF006
-                        _ = asyncio.ensure_future(permission_check(info, *args, **kwargs))  # noqa: RUF006
+                        asyncio.ensure_future(permission_check(info, *args, **kwargs))  # noqa: RUF006
                         # This is not ideal but necessary for sync resolvers
                         authorized = asyncio.run_coroutine_threadsafe(
                             permission_check(info, *args, **kwargs),

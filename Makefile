@@ -136,14 +136,14 @@ lint-fix: ## Fix linting issues automatically
 	ruff check src/ --fix
 
 .PHONY: format
-format: ## Format code with black
-	@echo -e "$(GREEN)Formatting code with black...$(NC)"
-	black src/ tests/
+format: ## Format code with ruff
+	@echo -e "$(GREEN)Formatting code with ruff...$(NC)"
+	ruff format src/ tests/
 
 .PHONY: format-check
 format-check: ## Check code formatting without changes
 	@echo -e "$(GREEN)Checking code format...$(NC)"
-	black --check src/ tests/
+	ruff format --check src/ tests/
 
 .PHONY: type-check
 type-check: ## Run type checking with ruff

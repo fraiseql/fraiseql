@@ -70,15 +70,15 @@ async def test_unified_table_has_all_features(db_repo):
                 "operation_subtype": "new",
                 "changed_fields": ["title", "content", "slug"],
                 "old_data": None,
-                "new_data": psycopg.types.json.Jsonb({
-                    "title": "Test Post",
-                    "content": "Test content",
-                    "slug": "test-post"
-                }),
-                "metadata": psycopg.types.json.Jsonb({
-                    "business_actions": ["slug_generated", "stats_initialized"],
-                    "generated_slug": "test-post"
-                }),
+                "new_data": psycopg.types.json.Jsonb(
+                    {"title": "Test Post", "content": "Test content", "slug": "test-post"}
+                ),
+                "metadata": psycopg.types.json.Jsonb(
+                    {
+                        "business_actions": ["slug_generated", "stats_initialized"],
+                        "generated_slug": "test-post",
+                    }
+                ),
             },
             fetch_result=False,
         )
@@ -145,14 +145,12 @@ async def test_log_and_return_mutation_function(db_repo):
                 "tenant_id": tenant_id,
                 "user_id": user_id,
                 "post_id": post_id,
-                "new_data": psycopg.types.json.Jsonb({
-                    "title": "My Post",
-                    "content": "Post content"
-                }),
-                "metadata": psycopg.types.json.Jsonb({
-                    "business_actions": ["created"],
-                    "word_count": 2
-                }),
+                "new_data": psycopg.types.json.Jsonb(
+                    {"title": "My Post", "content": "Post content"}
+                ),
+                "metadata": psycopg.types.json.Jsonb(
+                    {"business_actions": ["created"], "word_count": 2}
+                ),
             },
             fetch_result=True,
         )
@@ -359,14 +357,12 @@ async def test_noop_operations(db_repo):
                 "tenant_id": tenant_id,
                 "user_id": user_id,
                 "existing_post_id": existing_post_id,
-                "existing_data": psycopg.types.json.Jsonb({
-                    "title": "Existing Post",
-                    "slug": "existing-post"
-                }),
-                "metadata": psycopg.types.json.Jsonb({
-                    "business_rule": "unique_slug",
-                    "attempted_title": "Existing Post"
-                }),
+                "existing_data": psycopg.types.json.Jsonb(
+                    {"title": "Existing Post", "slug": "existing-post"}
+                ),
+                "metadata": psycopg.types.json.Jsonb(
+                    {"business_rule": "unique_slug", "attempted_title": "Existing Post"}
+                ),
             },
             fetch_result=True,
         )

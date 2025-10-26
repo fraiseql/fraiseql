@@ -45,12 +45,7 @@ class Post(TrinityMixin):
 
 def test_trinity_mixin_auto_entity_name():
     """Test that entity name is auto-detected from class name."""
-    user = User(
-        id=uuid4(),
-        identifier="johndoe",
-        username="johndoe",
-        email="john@example.com"
-    )
+    user = User(id=uuid4(), identifier="johndoe", username="johndoe", email="john@example.com")
 
     assert user.__trinity_entity_name__ == "user"
     assert user._pk_name == "pk_user"
@@ -58,12 +53,7 @@ def test_trinity_mixin_auto_entity_name():
 
 def test_trinity_mixin_explicit_entity_name():
     """Test that explicit entity name override works."""
-    post = Post(
-        id=uuid4(),
-        identifier="my-post-slug",
-        title="Test Post",
-        content="Content"
-    )
+    post = Post(id=uuid4(), identifier="my-post-slug", title="Test Post", content="Content")
 
     assert post.__trinity_entity_name__ == "post"
     assert post._pk_name == "pk_post"
@@ -71,12 +61,7 @@ def test_trinity_mixin_explicit_entity_name():
 
 def test_trinity_get_internal_pk():
     """Test getting internal pk value."""
-    user = User(
-        id=uuid4(),
-        identifier="johndoe",
-        username="johndoe",
-        email="john@example.com"
-    )
+    user = User(id=uuid4(), identifier="johndoe", username="johndoe", email="john@example.com")
 
     # Initially None
     assert user.get_internal_pk() is None
@@ -88,12 +73,7 @@ def test_trinity_get_internal_pk():
 
 def test_trinity_set_internal_pk():
     """Test setting internal pk value."""
-    user = User(
-        id=uuid4(),
-        identifier="johndoe",
-        username="johndoe",
-        email="john@example.com"
-    )
+    user = User(id=uuid4(), identifier="johndoe", username="johndoe", email="john@example.com")
 
     user.set_internal_pk(456)
     assert getattr(user, "pk_user") == 456
@@ -148,12 +128,7 @@ def test_get_identifier_from_slug_whitespace():
 def test_trinity_type_has_required_fields():
     """Test that Trinity types have required fields."""
     user_id = uuid4()
-    user = User(
-        id=user_id,
-        identifier="johndoe",
-        username="johndoe",
-        email="john@example.com"
-    )
+    user = User(id=user_id, identifier="johndoe", username="johndoe", email="john@example.com")
 
     # Public fields
     assert user.id == user_id
@@ -168,7 +143,7 @@ def test_trinity_identifier_optional():
         id=uuid4(),
         identifier=None,  # Some users might not have a slug
         username="johndoe",
-        email="john@example.com"
+        email="john@example.com",
     )
 
     assert user.identifier is None
@@ -176,20 +151,10 @@ def test_trinity_identifier_optional():
 
 def test_trinity_multiple_instances():
     """Test that Trinity works with multiple instances."""
-    user1 = User(
-        id=uuid4(),
-        identifier="user1",
-        username="user1",
-        email="user1@example.com"
-    )
+    user1 = User(id=uuid4(), identifier="user1", username="user1", email="user1@example.com")
     user1.set_internal_pk(1)
 
-    user2 = User(
-        id=uuid4(),
-        identifier="user2",
-        username="user2",
-        email="user2@example.com"
-    )
+    user2 = User(id=uuid4(), identifier="user2", username="user2", email="user2@example.com")
     user2.set_internal_pk(2)
 
     # Each instance has independent pk values

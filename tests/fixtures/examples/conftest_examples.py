@@ -21,17 +21,10 @@ from .dependency_manager import (
     SmartDependencyManager,
     get_dependency_manager,
     get_example_dependencies,
-    InstallResult
+    InstallResult,
 )
-from .database_manager import (
-    ExampleDatabaseManager,
-    get_database_manager
-)
-from .environment_detector import (
-    get_environment_detector,
-    get_environment_config,
-    Environment
-)
+from .database_manager import ExampleDatabaseManager, get_database_manager
+from .environment_detector import get_environment_detector, get_environment_config, Environment
 
 # Setup logging for smart fixtures
 logger = logging.getLogger(__name__)
@@ -46,6 +39,7 @@ try:
     import psycopg
     from fraiseql.cqrs import CQRSRepository
     from httpx import AsyncClient
+
     DEPENDENCIES_AVAILABLE = True
 except ImportError:
     # Will be installed by smart_dependencies fixture
@@ -62,9 +56,14 @@ def smart_dependencies():
     # This assumes the tests are being run in the proper environment
     logger.info("Assuming example dependencies are available")
     return {
-        'dependency_results': {'fraiseql': 'available', 'httpx': 'available', 'psycopg': 'available', 'fastapi': 'available'},
-        'environment': 'local',
-        'performance_profile': 'development'
+        "dependency_results": {
+            "fraiseql": "available",
+            "httpx": "available",
+            "psycopg": "available",
+            "fastapi": "available",
+        },
+        "environment": "local",
+        "performance_profile": "development",
     }
 
 
@@ -105,6 +104,7 @@ async def blog_simple_db_connection(blog_simple_db_url):
     """Provide database connection for blog_simple tests."""
     try:
         import psycopg
+
         conn = await psycopg.AsyncConnection.connect(blog_simple_db_url)
         yield conn
         await conn.close()
@@ -116,6 +116,7 @@ async def blog_simple_db_connection(blog_simple_db_url):
 async def blog_simple_repository(blog_simple_db_connection):
     """Provide CQRS repository for blog_simple tests."""
     from fraiseql.cqrs import CQRSRepository
+
     repo = CQRSRepository(blog_simple_db_connection)
     yield repo
 
@@ -147,14 +148,18 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url):
         # Clear the FraiseQL registry completely to prevent schema conflicts
         try:
             from fraiseql.gql.builders.registry import SchemaRegistry
+
             SchemaRegistry.get_instance().clear()
             logger.info("Successfully cleared SchemaRegistry before creating blog_simple app")
         except ImportError:
             logger.warning("Could not import SchemaRegistry - continuing without clearing")
 
         # Clear any fraiseql modules from sys.modules to prevent contamination
-        modules_to_remove = [name for name in sys.modules.keys()
-                           if name.startswith('fraiseql.') and 'registry' in name.lower()]
+        modules_to_remove = [
+            name
+            for name in sys.modules.keys()
+            if name.startswith("fraiseql.") and "registry" in name.lower()
+        ]
         original_sys_modules = {name: sys.modules.pop(name) for name in modules_to_remove}
 
         # Import blog_simple app - dependencies guaranteed by smart_dependencies fixture
@@ -169,7 +174,10 @@ async def blog_simple_app(smart_dependencies, blog_simple_db_url):
 
         # Import the app module and create app
         import importlib.util
-        spec = importlib.util.spec_from_file_location("blog_simple_app", blog_simple_path / "app.py")
+
+        spec = importlib.util.spec_from_file_location(
+            "blog_simple_app", blog_simple_path / "app.py"
+        )
         app_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(app_module)
 
@@ -223,11 +231,7 @@ async def blog_simple_graphql_client(blog_simple_client):
         async def execute(self, query: str, variables: dict[str, Any] = None) -> dict[str, Any]:
             """Execute GraphQL query/mutation."""
             response = await self.client.post(
-                "/graphql",
-                json={
-                    "query": query,
-                    "variables": variables or {}
-                }
+                "/graphql", json={"query": query, "variables": variables or {}}
             )
             return response.json()
 
@@ -274,14 +278,18 @@ async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
         # Clear the FraiseQL registry completely to prevent schema conflicts
         try:
             from fraiseql.gql.builders.registry import SchemaRegistry
+
             SchemaRegistry.get_instance().clear()
             logger.info("Successfully cleared SchemaRegistry before creating blog_enterprise app")
         except ImportError:
             logger.warning("Could not import SchemaRegistry - continuing without clearing")
 
         # Clear any fraiseql modules from sys.modules to prevent contamination
-        modules_to_remove = [name for name in sys.modules.keys()
-                           if name.startswith('fraiseql.') and 'registry' in name.lower()]
+        modules_to_remove = [
+            name
+            for name in sys.modules.keys()
+            if name.startswith("fraiseql.") and "registry" in name.lower()
+        ]
         original_sys_modules = {name: sys.modules.pop(name) for name in modules_to_remove}
 
         # Import blog_enterprise app - dependencies guaranteed by smart_dependencies fixture
@@ -296,7 +304,10 @@ async def blog_enterprise_app(smart_dependencies, blog_enterprise_db_url):
 
         # Import the app module and create app
         import importlib.util
-        spec = importlib.util.spec_from_file_location("blog_enterprise_app", blog_enterprise_path / "app.py")
+
+        spec = importlib.util.spec_from_file_location(
+            "blog_enterprise_app", blog_enterprise_path / "app.py"
+        )
         app_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(app_module)
 
@@ -351,8 +362,8 @@ def sample_user_data():
         "profile_data": {
             "first_name": "Test",
             "last_name": "User",
-            "bio": "Test user for integration testing"
-        }
+            "bio": "Test user for integration testing",
+        },
     }
 
 
@@ -363,7 +374,7 @@ def sample_post_data():
         "title": f"Test Post {uuid4().hex[:8]}",
         "content": "This is a test post with some content for integration testing purposes.",
         "excerpt": "This is a test excerpt for integration testing.",
-        "status": "draft"
+        "status": "draft",
     }
 
 
@@ -373,7 +384,7 @@ def sample_tag_data():
     return {
         "name": f"Test Tag {uuid4().hex[:8]}",
         "color": "#ff0000",
-        "description": "A tag for integration testing purposes"
+        "description": "A tag for integration testing purposes",
     }
 
 

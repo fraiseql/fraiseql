@@ -63,27 +63,33 @@ class PostgresCache:
         async with self.pool.connection() as conn, conn.cursor() as cur:
             # Create UNLOGGED table for cache
             # UNLOGGED = no WAL = faster writes, but data lost on crash (acceptable for cache)
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE UNLOGGED TABLE IF NOT EXISTS {self.table_name} (
                     cache_key TEXT PRIMARY KEY,
                     cache_value JSONB NOT NULL,
                     expires_at TIMESTAMPTZ NOT NULL
                 )
-            """)
+            """
+            )
 
             # Index on expiry for efficient cleanup
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_expires_idx
                 ON {self.table_name} (expires_at)
-            """)
+            """
+            )
 
             # Detect pg_fraiseql_cache extension
             try:
-                await cur.execute("""
+                await cur.execute(
+                    """
                     SELECT extversion
                     FROM pg_extension
                     WHERE extname = 'pg_fraiseql_cache'
-                """)
+                """
+                )
                 result = await cur.fetchone()
 
                 if result:

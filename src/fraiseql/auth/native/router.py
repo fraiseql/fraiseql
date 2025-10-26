@@ -211,7 +211,7 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
 
-@auth_router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@auth_router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(
     request: RegisterRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
@@ -280,7 +280,7 @@ async def register(
     )
 
 
-@auth_router.post("/login", response_model=AuthResponse)
+@auth_router.post("/login")
 async def login(
     request: LoginRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
@@ -341,7 +341,7 @@ async def login(
     )
 
 
-@auth_router.post("/refresh", response_model=TokenResponse)
+@auth_router.post("/refresh")
 async def refresh_token(
     request: RefreshRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
@@ -404,7 +404,7 @@ async def refresh_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
 
-@auth_router.get("/me", response_model=UserResponse)
+@auth_router.get("/me")
 async def get_current_user_info(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> UserResponse:
@@ -422,7 +422,7 @@ async def get_current_user_info(
     )
 
 
-@auth_router.post("/logout", response_model=MessageResponse)
+@auth_router.post("/logout")
 async def logout(
     request: LogoutRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -453,7 +453,7 @@ async def logout(
         return MessageResponse(message="Successfully logged out")
 
 
-@auth_router.post("/forgot-password", response_model=MessageResponse)
+@auth_router.post("/forgot-password")
 async def forgot_password(
     request: ForgotPasswordRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
@@ -486,7 +486,7 @@ async def forgot_password(
     return MessageResponse(message="If the email exists, a reset link has been sent")
 
 
-@auth_router.post("/reset-password", response_model=MessageResponse)
+@auth_router.post("/reset-password")
 async def reset_password(
     request: ResetPasswordRequest,
     db: Annotated[AsyncConnection, Depends(get_db)],
@@ -546,7 +546,7 @@ async def reset_password(
     return MessageResponse(message="Password reset successfully")
 
 
-@auth_router.get("/sessions", response_model=list[SessionResponse])
+@auth_router.get("/sessions")
 async def list_sessions(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncConnection, Depends(get_db)],
@@ -582,7 +582,7 @@ async def list_sessions(
     ]
 
 
-@auth_router.delete("/sessions/{session_id}", response_model=MessageResponse)
+@auth_router.delete("/sessions/{session_id}")
 async def revoke_session(
     session_id: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
