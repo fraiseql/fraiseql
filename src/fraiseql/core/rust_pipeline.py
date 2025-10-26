@@ -42,6 +42,11 @@ class RustResponseBytes:
         self.content_type = "application/json"
         self._fixed = False
 
+    @property
+    def bytes(self) -> bytes:
+        """Backward compatibility property for accessing the data."""
+        return self._data
+
     def __bytes__(self) -> bytes:
         # Workaround for Rust bug: Check if JSON is missing closing brace
         if not self._fixed:
