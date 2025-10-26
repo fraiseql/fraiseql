@@ -47,7 +47,9 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
         data is embedded in the parent's JSONB column.
     """
 
-    async def resolve_nested_field(parent: Any, info: GraphQLResolveInfo, **kwargs: Any) -> Any:
+    async def resolve_nested_field(
+        parent: dict[str, Any], info: GraphQLResolveInfo, **kwargs: Any
+    ) -> Any:
         """Resolve a nested field, preferring embedded data over separate queries."""
         # First, check if the data is already present in the parent object
         value = getattr(parent, field_name, None)
@@ -111,11 +113,10 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
             fk_value = getattr(parent, fk_field, None)
 
             if fk_value:
+                # Attempt to query the related entity
+                db = info.context["db"]
+                table = actual_field_type.__gql_table__
                 try:
-                    # Attempt to query the related entity
-                    db = info.context["db"]
-                    table = actual_field_type.__gql_table__
-
                     # Build query parameters based on what's available in context
                     query_params = {"id": fk_value}
 
@@ -138,7 +139,7 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
 
                 except Exception as e:
                     logger.warning(
-                        f"Failed to query {table} for field '{field_name}': {e}. "
+                        f"Failed to query {table} for field '{field_name}': {e}. "  # type: ignore[possibly-unbound]
                         f"This may be expected if the data should be embedded."
                     )
 
@@ -148,7 +149,7 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
     return resolve_nested_field
 
 
-def should_use_nested_resolver(field_type: Any) -> bool:
+def should_use_nested_resolver(field_type: type) -> bool:
     """Check if a field type should use a nested resolver.
 
     This now checks the resolve_nested flag. By default (False),
@@ -182,7 +183,7 @@ def should_use_nested_resolver(field_type: Any) -> bool:
 
 
 def create_nested_array_field_resolver_with_where(
-    field_name: str, field_type: Any, field_metadata: Any = None
+    field_name: str, field_type: type, field_metadata: Any = None
 ) -> Callable:
     """Create a field resolver for nested arrays with comprehensive logical operator filtering.
 

@@ -163,7 +163,9 @@ class QueryTypeBuilder:
 
         if asyncio.iscoroutinefunction(coerced_fn):
 
-            async def async_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any) -> Any:
+            async def async_resolver(
+                root: dict[str, Any], info: GraphQLResolveInfo, **kwargs: Any
+            ) -> Any:
                 # Store GraphQL info and field name in context for repository
                 if hasattr(info, "context"):
                     info.context["graphql_info"] = info
@@ -186,7 +188,7 @@ class QueryTypeBuilder:
 
             return async_resolver
 
-        def sync_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any) -> Any:
+        def sync_resolver(root: dict[str, Any], info: GraphQLResolveInfo, **kwargs: Any) -> Any:
             # Store GraphQL info and field name in context for repository
             if hasattr(info, "context"):
                 info.context["graphql_info"] = info
