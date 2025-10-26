@@ -4,8 +4,6 @@ This module provides utilities to automatically generate comprehensive field des
 for all filter types used in GraphQL where clauses, making Apollo Studio more helpful.
 """
 
-from typing import Dict
-
 from fraiseql.fields import FraiseQLField
 
 # Standard operator descriptions for different field types
@@ -132,7 +130,7 @@ FILTER_TYPE_DESCRIPTIONS = {
 }
 
 
-def generate_filter_docstring(filter_class_name: str, fields: Dict[str, FraiseQLField]) -> str:
+def generate_filter_docstring(filter_class_name: str, fields: dict[str, FraiseQLField]) -> str:
     """Generate a comprehensive docstring for a filter class.
 
     Args:

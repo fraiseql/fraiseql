@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Optional
 
 from graphql import (
     DocumentNode,
@@ -34,8 +34,8 @@ class PassthroughAnalysis:
     eligibility: PassthroughEligibility
     reason: Optional[str] = None
     view_name: Optional[str] = None
-    field_paths: Optional[Dict[str, str]] = None  # GraphQL -> JSONB path
-    where_conditions: Optional[Dict[str, any]] = None
+    field_paths: Optional[dict[str, str]] = None  # GraphQL -> JSONB path
+    where_conditions: Optional[dict[str, any]] = None
     complexity_score: int = 0
     has_custom_resolvers: bool = False
     has_computed_fields: bool = False
@@ -57,7 +57,7 @@ class QueryAnalyzer:
         self._init_resolver_analysis()
 
     def analyze_for_passthrough(
-        self, query: str, variables: Optional[Dict[str, any]] = None
+        self, query: str, variables: Optional[dict[str, any]] = None
     ) -> PassthroughAnalysis:
         """Analyze query for JSON passthrough eligibility.
 
@@ -305,7 +305,7 @@ class QueryAnalyzer:
 
     def _build_field_paths(
         self, selection_set: SelectionSetNode, prefix: str = ""
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Build mapping of GraphQL fields to JSONB paths."""
         field_paths = {}
 
@@ -330,8 +330,8 @@ class QueryAnalyzer:
         return field_paths
 
     def _extract_where_conditions(
-        self, operation: OperationDefinitionNode, variables: Optional[Dict[str, any]]
-    ) -> Dict[str, any]:
+        self, operation: OperationDefinitionNode, variables: Optional[dict[str, any]]
+    ) -> dict[str, any]:
         """Extract WHERE conditions from query arguments."""
         conditions = {}
 
@@ -353,7 +353,7 @@ class QueryAnalyzer:
 
         return conditions
 
-    def _find_custom_resolver_fields(self, selection_set: SelectionSetNode) -> List[str]:
+    def _find_custom_resolver_fields(self, selection_set: SelectionSetNode) -> list[str]:
         """Find fields with custom resolvers in selection set."""
         custom_fields = []
 

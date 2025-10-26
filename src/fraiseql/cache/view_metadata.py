@@ -3,7 +3,7 @@
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Optional
 
 from fraiseql.cqrs.repository import CQRSRepository
 
@@ -16,7 +16,7 @@ class ColumnInfo:
     data_type: str
     is_nullable: bool
     is_jsonb: bool
-    jsonb_structure: Optional[Dict[str, any]] = None
+    jsonb_structure: Optional[dict[str, any]] = None
 
 
 @dataclass
@@ -24,9 +24,9 @@ class ViewInfo:
     """Database view information."""
 
     view_name: str
-    columns: Dict[str, ColumnInfo]
+    columns: dict[str, ColumnInfo]
     primary_key: Optional[str] = None
-    indexes: List[str] = None
+    indexes: list[str] = None
     last_analyzed: float = 0
 
 
@@ -40,7 +40,7 @@ class ViewMetadataCache:
             ttl: Time-to-live for cached metadata in seconds
         """
         self.ttl = ttl
-        self.cache: Dict[str, ViewInfo] = {}
+        self.cache: dict[str, ViewInfo] = {}
         self._lock = asyncio.Lock()
 
     async def get_view_structure(self, view_name: str, db: CQRSRepository) -> Optional[ViewInfo]:
@@ -166,7 +166,7 @@ class ViewMetadataCache:
 
     async def _analyze_jsonb_column(
         self, table_name: str, column_name: str, db: CQRSRepository
-    ) -> Optional[Dict[str, any]]:
+    ) -> Optional[dict[str, any]]:
         """Analyze JSONB column structure.
 
         Args:

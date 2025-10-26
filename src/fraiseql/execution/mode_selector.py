@@ -2,7 +2,7 @@
 
 import re
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.fastapi.config import FraiseQLConfig
@@ -62,7 +62,7 @@ class ModeSelector:
         self.query_router = router
 
     def select_mode(
-        self, query: str, variables: Dict[str, Any], context: Dict[str, Any]
+        self, query: str, variables: dict[str, Any], context: dict[str, Any]
     ) -> ExecutionMode:
         """Select optimal execution mode for query.
 
@@ -144,7 +144,7 @@ class ModeSelector:
         turbo_query = self.turbo_registry.get(query)
         return turbo_query is not None
 
-    def _can_use_passthrough(self, query: str, variables: Dict[str, Any]) -> bool:
+    def _can_use_passthrough(self, query: str, variables: dict[str, Any]) -> bool:
         """Check if query can use raw JSON passthrough.
 
         JSON passthrough is always enabled for maximum performance.
@@ -173,7 +173,7 @@ class ModeSelector:
 
         return analysis.eligible
 
-    def get_mode_metrics(self) -> Dict[str, Any]:
+    def get_mode_metrics(self) -> dict[str, Any]:
         """Get metrics for mode selection.
 
         Returns:

@@ -17,7 +17,6 @@ from types import UnionType
 from typing import (
     Annotated,
     Any,
-    List,
     TypeVar,
     Union,
     cast,
@@ -240,7 +239,7 @@ def convert_type_to_graphql_input(
         _graphql_type_cache[cache_key] = gql_type
         return gql_type
 
-    # Handle list types like List[str]
+    # Handle list types like list[str]
     origin = get_origin(typ)
     if origin is list:
         inner = get_args(typ)[0]
@@ -551,7 +550,7 @@ def convert_type_to_graphql_output(
                                         if isinstance(item, Enum):
                                             # Check if list contains enum types
                                             list_origin = get_origin(field_type)
-                                            if list_origin in (list, List):
+                                            if list_origin is list:
                                                 list_args = get_args(field_type)
                                                 if list_args:
                                                     item_type = list_args[0]

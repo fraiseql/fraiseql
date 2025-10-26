@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class APQMetricsSnapshot:
         total_requests = self.total_requests
         return total_hits / total_requests if total_requests > 0 else 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert metrics to dictionary format."""
         return {
             "timestamp": self.timestamp.isoformat(),
@@ -156,11 +156,11 @@ class APQMetrics:
         self._parse_time_samples = 0
 
         # Query patterns (top N queries)
-        self._query_patterns: Dict[str, QueryPattern] = {}
+        self._query_patterns: dict[str, QueryPattern] = {}
         self._max_tracked_queries = 100
 
         # Historical snapshots (last 100)
-        self._snapshots: List[APQMetricsSnapshot] = []
+        self._snapshots: list[APQMetricsSnapshot] = []
         self._max_snapshots = 100
 
         logger.info("APQ metrics tracker initialized")
@@ -270,7 +270,7 @@ class APQMetrics:
         if parse_time_ms is not None:
             pattern.total_parse_time_ms += parse_time_ms
 
-    def get_top_queries(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_top_queries(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get top N queries by usage frequency.
 
         Args:
@@ -336,7 +336,7 @@ class APQMetrics:
 
             return snapshot
 
-    def get_historical_snapshots(self, limit: int = 10) -> List[APQMetricsSnapshot]:
+    def get_historical_snapshots(self, limit: int = 10) -> list[APQMetricsSnapshot]:
         """Get recent historical snapshots.
 
         Args:
@@ -370,7 +370,7 @@ class APQMetrics:
 
         logger.info("APQ metrics reset")
 
-    def export_metrics(self) -> Dict[str, Any]:
+    def export_metrics(self) -> dict[str, Any]:
         """Export comprehensive metrics for monitoring/alerting.
 
         Returns:
@@ -414,7 +414,7 @@ class APQMetrics:
 
         return "healthy"
 
-    def _get_warnings(self, snapshot: APQMetricsSnapshot) -> List[str]:
+    def _get_warnings(self, snapshot: APQMetricsSnapshot) -> list[str]:
         """Get list of current warnings.
 
         Args:

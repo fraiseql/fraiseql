@@ -4,7 +4,7 @@ import asyncio
 import time
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, Dict, Optional, TypeVar, overload
+from typing import Any, Optional, TypeVar, overload
 
 from fraiseql.gql.schema_builder import SchemaRegistry
 
@@ -607,7 +607,7 @@ def field(
 def turbo_query(
     cache_ttl: int = 300,
     auto_register: bool = True,
-    param_mapping: Optional[Dict[str, str]] = None,
+    param_mapping: Optional[dict[str, str]] = None,
     operation_name: Optional[str] = None,
 ) -> Callable[[F], F]:
     """Decorator to mark a query for TurboRouter optimization.

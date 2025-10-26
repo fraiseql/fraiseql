@@ -3,7 +3,7 @@
 import ast
 import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Optional
 
 from graphql import (
     DocumentNode,
@@ -22,9 +22,9 @@ class SQLCompilationResult:
     """Result of SQL compilation."""
 
     sql_template: str
-    param_mapping: Dict[str, str]
-    used_views: Set[str]
-    required_fields: Set[str]
+    param_mapping: dict[str, str]
+    used_views: set[str]
+    required_fields: set[str]
 
 
 @dataclass
@@ -32,7 +32,7 @@ class ResolverSQLInfo:
     """SQL information extracted from resolver."""
 
     sql_template: str
-    param_mapping: Dict[str, str]
+    param_mapping: dict[str, str]
     view_name: str
     is_find_one: bool
 
@@ -41,7 +41,7 @@ class SQLCompiler:
     """Compiles GraphQL queries into optimized SQL templates."""
 
     def compile_from_graphql(
-        self, document: DocumentNode, view_mapping: Dict[str, str]
+        self, document: DocumentNode, view_mapping: dict[str, str]
     ) -> SQLCompilationResult:
         """Generate SQL template from GraphQL AST.
 
@@ -125,7 +125,7 @@ class SQLCompiler:
         except Exception:
             return None
 
-    def _extract_param_mapping(self, operation: OperationDefinitionNode) -> Dict[str, str]:
+    def _extract_param_mapping(self, operation: OperationDefinitionNode) -> dict[str, str]:
         """Extract parameter mapping from operation."""
         param_mapping = {}
 
@@ -161,7 +161,7 @@ class SQLCompiler:
             {{limit_clause}}
             """
 
-    def _extract_params_from_call(self, db_call: "DBCall") -> Dict[str, str]:
+    def _extract_params_from_call(self, db_call: "DBCall") -> dict[str, str]:
         """Extract parameters from database call."""
         # This is simplified - would need proper AST analysis
         params = {}
@@ -175,10 +175,10 @@ class QueryStructure:
     """Analyzed query structure."""
 
     root_field: str
-    selections: List[str]
-    filters: Dict[str, Any]
-    used_views: Set[str]
-    required_fields: Set[str]
+    selections: list[str]
+    filters: dict[str, Any]
+    used_views: set[str]
+    required_fields: set[str]
     has_pagination: bool
     has_ordering: bool
     max_depth: int
@@ -187,7 +187,7 @@ class QueryStructure:
 class QueryStructureAnalyzer:
     """Analyzes GraphQL query structure."""
 
-    def __init__(self, fragments: Dict[str, FragmentDefinitionNode], view_mapping: Dict[str, str]):
+    def __init__(self, fragments: dict[str, FragmentDefinitionNode], view_mapping: dict[str, str]):
         self.fragments = fragments
         self.view_mapping = view_mapping
         self.used_views = set()
@@ -230,7 +230,7 @@ class QueryStructureAnalyzer:
 
     def _extract_selections(
         self, selection_set: Optional[SelectionSetNode], path: str = ""
-    ) -> List[str]:
+    ) -> list[str]:
         """Extract all field selections."""
         if not selection_set:
             return []
@@ -266,7 +266,7 @@ class QueryStructureAnalyzer:
 
         return selections
 
-    def _extract_filters(self, arguments: List) -> Dict[str, Any]:
+    def _extract_filters(self, arguments: list) -> dict[str, Any]:
         """Extract filter arguments."""
         filters = {}
 
@@ -298,7 +298,7 @@ class QueryStructureAnalyzer:
 class SQLTemplateGenerator:
     """Generates SQL templates from query structure."""
 
-    def __init__(self, view_mapping: Dict[str, str]):
+    def __init__(self, view_mapping: dict[str, str]):
         self.view_mapping = view_mapping
 
     def generate(self, structure: QueryStructure) -> str:
@@ -330,7 +330,7 @@ class SQLTemplateGenerator:
 
         return "\n".join(sql_parts)
 
-    def _build_field_selection(self, selections: List[str]) -> str:
+    def _build_field_selection(self, selections: list[str]) -> str:
         """Build JSONB field selection."""
         # Group selections by depth
         root_fields = []
@@ -361,13 +361,13 @@ class SQLTemplateGenerator:
 
         return f"jsonb_build_object({', '.join(json_parts)})::text as result"
 
-    def _build_nested_json(self, field: str, nested_selections: List[str]) -> str:
+    def _build_nested_json(self, field: str, nested_selections: list[str]) -> str:
         """Build nested JSONB selection."""
         # This is simplified - would need recursive building
         snake_field = to_snake_case(field)
         return f"jsonb_build_object('id', {snake_field}->>'id')"
 
-    def _build_where_clause(self, filters: Dict[str, str]) -> str:
+    def _build_where_clause(self, filters: dict[str, str]) -> str:
         """Build WHERE clause from filters."""
         conditions = []
 
@@ -384,8 +384,8 @@ class DBCall:
 
     view_name: str
     is_find_one: bool
-    filters: Dict[str, Any]
-    selections: List[str]
+    filters: dict[str, Any]
+    selections: list[str]
 
 
 class ResolverAnalyzer(ast.NodeVisitor):

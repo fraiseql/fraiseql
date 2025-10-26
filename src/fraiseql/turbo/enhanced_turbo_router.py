@@ -3,7 +3,7 @@
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry, TurboRouter
 
@@ -176,7 +176,7 @@ class EnhancedTurboRegistry(TurboRegistry):
             # Move to end for LRU
             self._queries.move_to_end(query_hash)
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get registry metrics.
 
         Returns:
@@ -220,9 +220,9 @@ class EnhancedTurboRouter(TurboRouter):
     async def execute(
         self,
         query: str,
-        variables: Dict[str, Any],
-        context: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+        variables: dict[str, Any],
+        context: dict[str, Any],
+    ) -> Optional[dict[str, Any]]:
         """Execute query with enhanced metrics tracking.
 
         Args:
@@ -325,7 +325,7 @@ class EnhancedTurboRouter(TurboRouter):
 
         return {"data": None}
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get router metrics.
 
         Returns:

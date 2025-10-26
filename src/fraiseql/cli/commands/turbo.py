@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import click
 from graphql import parse
@@ -108,7 +108,7 @@ def inspect(query_hash: str):
     # Implementation would fetch and display query details
 
 
-def load_queries(file_path: str) -> List[dict]:
+def load_queries(file_path: str) -> list[dict]:
     """Load queries from file."""
     path = Path(file_path)
 

@@ -4,7 +4,7 @@ These directives integrate with the PostgreSQL-cached PermissionResolver
 to provide field-level authorization in GraphQL schemas.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import strawberry
 from strawberry.types import Info
@@ -148,7 +148,7 @@ def requires_role(role_name: str):
 
 
 async def _evaluate_constraints(
-    constraints: Dict[str, Any], context: Dict[str, Any], field_args: Dict[str, Any]
+    constraints: dict[str, Any], context: dict[str, Any], field_args: dict[str, Any]
 ) -> bool:
     """Evaluate permission constraints against context and field arguments.
 

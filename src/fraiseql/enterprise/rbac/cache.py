@@ -10,7 +10,7 @@ extension is available.
 
 import logging
 from datetime import timedelta
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from fraiseql.caching import PostgresCache
@@ -36,7 +36,7 @@ class PermissionCache:
             db_pool: PostgreSQL connection pool
         """
         self.pg_cache = PostgresCache(db_pool, table_name="fraiseql_cache")
-        self._request_cache: dict[str, List[Permission]] = {}
+        self._request_cache: dict[str, list[Permission]] = {}
         self._cache_ttl = timedelta(minutes=5)  # 5 minute TTL
 
         # RBAC domains for version checking
@@ -50,7 +50,7 @@ class PermissionCache:
         tenant_str = str(tenant_id) if tenant_id else "global"
         return f"rbac:permissions:{user_id}:{tenant_str}"
 
-    async def get(self, user_id: UUID, tenant_id: Optional[UUID]) -> Optional[List[Permission]]:
+    async def get(self, user_id: UUID, tenant_id: Optional[UUID]) -> Optional[list[Permission]]:
         """Get cached permissions with version checking.
 
         Flow:
@@ -110,7 +110,7 @@ class PermissionCache:
         logger.debug("Permission cache HIT (PostgreSQL): %s", key)
         return permissions
 
-    async def set(self, user_id: UUID, tenant_id: Optional[UUID], permissions: List[Permission]):
+    async def set(self, user_id: UUID, tenant_id: Optional[UUID], permissions: list[Permission]):
         """Cache permissions with domain version metadata.
 
         Stores in both request-level and PostgreSQL cache.

@@ -1,13 +1,13 @@
 """Decorator for hybrid table types with both regular columns and JSONB data."""
 
-from typing import Optional, Set
+from typing import Optional
 
 from fraiseql.db import register_type_for_view
 
 
 def hybrid_type(
     sql_source: str,
-    regular_columns: Optional[Set[str]] = None,
+    regular_columns: Optional[set[str]] = None,
     has_jsonb_data: bool = True,
 ):
     """Decorator for types backed by hybrid tables.

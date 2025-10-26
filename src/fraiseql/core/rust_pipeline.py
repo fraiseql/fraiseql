@@ -9,7 +9,7 @@ instead of deprecated build_*_response() functions.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
@@ -92,11 +92,11 @@ class RustResponseBytes:
 async def execute_via_rust_pipeline(
     conn: AsyncConnection,
     query: Composed | SQL,
-    params: Optional[Dict[str, Any]],
+    params: Optional[dict[str, Any]],
     field_name: str,
     type_name: Optional[str],
     is_list: bool = True,
-    field_paths: Optional[List[List[str]]] = None,
+    field_paths: Optional[list[list[str]]] = None,
 ) -> RustResponseBytes:
     """Execute query and build HTTP response entirely in Rust.
 

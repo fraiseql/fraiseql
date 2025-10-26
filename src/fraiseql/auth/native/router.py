@@ -3,7 +3,7 @@
 import hashlib
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, AsyncGenerator, List, Optional
+from typing import Annotated, AsyncGenerator, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -96,8 +96,8 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     name: str
-    roles: List[str]
-    permissions: List[str]
+    roles: list[str]
+    permissions: list[str]
     is_active: bool
     email_verified: bool
     created_at: datetime
@@ -544,7 +544,7 @@ async def reset_password(
     return MessageResponse(message="Password reset successfully")
 
 
-@auth_router.get("/sessions", response_model=List[SessionResponse])
+@auth_router.get("/sessions", response_model=list[SessionResponse])
 async def list_sessions(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncConnection, Depends(get_db)],

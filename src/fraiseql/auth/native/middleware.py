@@ -3,7 +3,7 @@
 import hashlib
 import time
 from collections import defaultdict
-from typing import Dict, Optional
+from typing import Optional
 
 from fastapi import Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -90,7 +90,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.cleanup_interval = cleanup_interval
 
         # In-memory storage: {client_ip: [(timestamp, endpoint_type), ...]}
-        self.request_counts: Dict[str, list] = defaultdict(list)
+        self.request_counts: dict[str, list] = defaultdict(list)
         self.last_cleanup = time.time()
 
     def _get_client_ip(self, request: Request) -> str:

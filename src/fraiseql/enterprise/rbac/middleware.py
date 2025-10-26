@@ -5,7 +5,7 @@ execution, providing context-aware permission checking and automatic cache manag
 """
 
 import logging
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Optional
 from uuid import UUID
 
 from .cache import PermissionCache
@@ -83,7 +83,7 @@ class RbacMiddleware:
             self._clear_request_cache(context)
             raise
 
-    def _extract_context(self, info: Any) -> Dict[str, Any]:
+    def _extract_context(self, info: Any) -> dict[str, Any]:
         """Extract authorization context from GraphQL info.
 
         Args:
@@ -106,7 +106,7 @@ class RbacMiddleware:
 
         return context
 
-    def _extract_user_id(self, context: Dict[str, Any]) -> Optional[UUID]:
+    def _extract_user_id(self, context: dict[str, Any]) -> Optional[UUID]:
         """Extract user ID from GraphQL context.
 
         Customize this method based on your authentication system.
@@ -140,7 +140,7 @@ class RbacMiddleware:
         user_id = context.get("user_id")
         return UUID(user_id) if user_id else None
 
-    def _extract_tenant_id(self, context: Dict[str, Any]) -> Optional[UUID]:
+    def _extract_tenant_id(self, context: dict[str, Any]) -> Optional[UUID]:
         """Extract tenant ID from GraphQL context.
 
         Args:
@@ -176,7 +176,7 @@ class RbacMiddleware:
         tenant_id = context.get("tenant_id")
         return UUID(tenant_id) if tenant_id else None
 
-    def _get_permission_resolver(self, context: Dict[str, Any]) -> Optional[PermissionResolver]:
+    def _get_permission_resolver(self, context: dict[str, Any]) -> Optional[PermissionResolver]:
         """Get or create PermissionResolver for the request.
 
         Args:
@@ -204,7 +204,7 @@ class RbacMiddleware:
             logger.error(f"Failed to create PermissionResolver: {e}")
             return None
 
-    def _clear_request_cache(self, context: Dict[str, Any]):
+    def _clear_request_cache(self, context: dict[str, Any]):
         """Clear request-level permission cache.
 
         This should be called at the end of each GraphQL request

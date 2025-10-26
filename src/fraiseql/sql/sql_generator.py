@@ -87,7 +87,7 @@ def _determine_jsonb_operator(alias: str, field_name: str, typename: str | None 
         if field_type is str:
             return "->>"  # Extract strings as text
         if hasattr(field_type, "__origin__"):
-            # Handle generic types like List[str], Optional[int], etc.
+            # Handle generic types like list[str], Optional[int], etc.
             origin = getattr(field_type, "__origin__", None)
             args = getattr(field_type, "__args__", ())
 

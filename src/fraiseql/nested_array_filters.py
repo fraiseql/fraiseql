@@ -12,23 +12,23 @@ Features:
 - Full type safety with generated WhereInput types
 
 Instead of:
-    print_servers: List[PrintServer] = fraise_field(
+    print_servers: list[PrintServer] = fraise_field(
         default_factory=list,
         supports_where_filtering=True,
         nested_where_type=PrintServer
     )
 
 You can simply:
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
     # Then register the filter separately
     register_nested_array_filter(NetworkConfiguration, 'print_servers', PrintServer)
 
 Or even better, use automatic detection:
-    @auto_nested_array_filters  # Enables all List[SomeType] fields automatically
+    @auto_nested_array_filters  # Enables all list[SomeType] fields automatically
     @fraise_type
     class NetworkConfiguration:
-        print_servers: List[PrintServer] = fraise_field(default_factory=list)
+        print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 This enables sophisticated GraphQL queries like:
     printServers(where: {
@@ -45,12 +45,12 @@ This enables sophisticated GraphQL queries like:
 """
 
 import logging
-from typing import Any, Dict, List, Type, get_args, get_origin
+from typing import Any, Type, get_args, get_origin
 
 logger = logging.getLogger(__name__)
 
 # Global registry for nested array filters
-_nested_array_filters: Dict[str, Dict[str, Type]] = {}
+_nested_array_filters: dict[str, dict[str, Type]] = {}
 
 
 def register_nested_array_filter(parent_type: Type, field_name: str, element_type: Type) -> None:
@@ -76,17 +76,17 @@ def register_nested_array_filter(parent_type: Type, field_name: str, element_typ
 
 
 def enable_nested_array_filtering(parent_type: Type) -> None:
-    """Automatically enable where filtering for all List[SomeType] fields in a type.
+    """Automatically enable where filtering for all list[SomeType] fields in a type.
 
     This scans the type annotations and automatically registers filters for any
-    fields that are List[SomeType] where SomeType has FraiseQL metadata.
+    fields that are list[SomeType] where SomeType has FraiseQL metadata.
 
     Args:
         parent_type: The parent type to scan and enable filtering for
 
     Example:
         enable_nested_array_filtering(NetworkConfiguration)
-        # Automatically enables filtering for all List[T] fields where T is a FraiseQL type
+        # Automatically enables filtering for all list[T] fields where T is a FraiseQL type
     """
     from typing import get_type_hints
 
@@ -130,7 +130,7 @@ def is_nested_array_filterable(parent_type: Type, field_name: str) -> bool:
     return get_nested_array_filter(parent_type, field_name) is not None
 
 
-def list_registered_filters() -> Dict[str, Dict[str, str]]:
+def list_registered_filters() -> dict[str, dict[str, str]]:
     """List all registered nested array filters.
 
     Returns:
@@ -151,16 +151,16 @@ def clear_registry() -> None:
 
 
 def _extract_list_element_type(field_type: Any) -> Type | None:
-    """Extract the element type from List[T] annotations."""
+    """Extract the element type from list[T] annotations."""
     origin = get_origin(field_type)
 
-    # Handle List[T] and list[T]
-    if origin in (list, List):
+    # Handle list[T]
+    if origin is list:
         args = get_args(field_type)
         if args:
             return args[0]
 
-    # Handle Optional[List[T]] -> Union[List[T], None]
+    # Handle Optional[list[T]] -> Union[list[T], None]
     if origin is type(None) or (hasattr(origin, "__name__") and origin.__name__ == "UnionType"):
         args = get_args(field_type)
         for arg in args:
@@ -185,8 +185,8 @@ def nested_array_filterable(*field_names: str):
         @nested_array_filterable('print_servers', 'dns_servers')
         @fraise_type
         class NetworkConfiguration:
-            print_servers: List[PrintServer] = fraise_field(default_factory=list)
-            dns_servers: List[DnsServer] = fraise_field(default_factory=list)
+            print_servers: list[PrintServer] = fraise_field(default_factory=list)
+            dns_servers: list[DnsServer] = fraise_field(default_factory=list)
     """
 
     def decorator(cls: Type) -> Type:
@@ -208,14 +208,14 @@ def nested_array_filterable(*field_names: str):
 
 
 def auto_nested_array_filters(cls: Type) -> Type:
-    """Decorator to automatically enable filtering for all List[T] fields.
+    """Decorator to automatically enable filtering for all list[T] fields.
 
     Usage:
         @auto_nested_array_filters
         @fraise_type
         class NetworkConfiguration:
-            print_servers: List[PrintServer] = fraise_field(default_factory=list)
-            dns_servers: List[DnsServer] = fraise_field(default_factory=list)
+            print_servers: list[PrintServer] = fraise_field(default_factory=list)
+            dns_servers: list[DnsServer] = fraise_field(default_factory=list)
             # Both fields automatically get where filtering enabled
     """
     enable_nested_array_filtering(cls)

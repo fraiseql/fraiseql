@@ -1,7 +1,7 @@
 """Memory-based APQ storage backend for FraiseQL."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from .base import APQStorageBackend
 
@@ -20,10 +20,10 @@ class MemoryAPQBackend(APQStorageBackend):
 
     def __init__(self) -> None:
         """Initialize the memory backend with empty storage."""
-        self._query_storage: Dict[str, str] = {}
-        self._response_storage: Dict[str, Dict[str, Any]] = {}
+        self._query_storage: dict[str, str] = {}
+        self._response_storage: dict[str, dict[str, Any]] = {}
 
-    def _get_cache_key(self, hash_value: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def _get_cache_key(self, hash_value: str, context: Optional[dict[str, Any]] = None) -> str:
         """Generate cache key with tenant isolation.
 
         Args:
@@ -70,8 +70,8 @@ class MemoryAPQBackend(APQStorageBackend):
         logger.debug(f"Stored APQ query with hash {hash_value[:8]}...")
 
     def get_cached_response(
-        self, hash_value: str, context: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, hash_value: str, context: Optional[dict[str, Any]] = None
+    ) -> Optional[dict[str, Any]]:
         """Get cached JSON response for APQ hash.
 
         Args:
@@ -97,7 +97,7 @@ class MemoryAPQBackend(APQStorageBackend):
         return response
 
     def store_cached_response(
-        self, hash_value: str, response: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+        self, hash_value: str, response: dict[str, Any], context: Optional[dict[str, Any]] = None
     ) -> None:
         """Store pre-computed JSON response for APQ hash.
 
@@ -130,7 +130,7 @@ class MemoryAPQBackend(APQStorageBackend):
             f"{response_count} cached responses from memory storage"
         )
 
-    def get_storage_stats(self) -> Dict[str, Any]:
+    def get_storage_stats(self) -> dict[str, Any]:
         """Get storage statistics.
 
         Returns:

@@ -1,6 +1,6 @@
 """CQRS Repository base class for FraiseQL."""
 
-from typing import Any, List, TypeVar
+from typing import Any, TypeVar
 from uuid import UUID
 
 from psycopg import AsyncConnection
@@ -42,7 +42,7 @@ class CQRSRepository:
             })
 
             # Query users with filtering
-            users = await repo.list(
+            users = await repo.list_entities(
                 User,
                 where={"status": {"eq": "active"}},
                 order_by=[("created_at", "DESC")],
@@ -695,15 +695,15 @@ class CQRSRepository:
         view_name = self._get_view_name(entity_class)
         return await self.get_by_id(view_name, entity_id)
 
-    async def list(
+    async def list_entities(
         self,
         entity_class: type[T],
         *,
         where: dict[str, Any] | None = None,
-        order_by: List[tuple[str, str]] | None = None,
+        order_by: list[tuple[str, str]] | None = None,
         limit: int | None = None,
         offset: int = 0,
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """List entities with optional filtering and ordering.
 
         Args:
@@ -744,7 +744,7 @@ class CQRSRepository:
         where: dict[str, Any] | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Find entities by view name with optional filtering.
 
         Args:

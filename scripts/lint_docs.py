@@ -19,7 +19,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Tuple, Dict, Set
 
 
 class DocLinter:
@@ -27,13 +26,13 @@ class DocLinter:
 
     def __init__(self, docs_dir: str = "docs"):
         self.docs_dir = Path(docs_dir)
-        self.violations: List[str] = []
+        self.violations: list[str] = []
 
-    def find_markdown_files(self) -> List[Path]:
+    def find_markdown_files(self) -> list[Path]:
         """Find all .md files in docs directory."""
         return list(self.docs_dir.rglob("*.md"))
 
-    def extract_code_blocks(self, content: str) -> List[str]:
+    def extract_code_blocks(self, content: str) -> list[str]:
         """Extract Python code blocks from markdown content."""
         # Match ```python ... ``` blocks
         pattern = r"```python\s*\n(.*?)\n```"
@@ -118,7 +117,7 @@ class DocLinter:
 
         # Check for Dict instead of dict
         for i, line in enumerate(lines, 1):
-            if "Dict[" in line and "from typing import" in code:
+            if "[" in line and "from typing import" in code:
                 self.violations.append(
                     f"{file_path}: Line {i}: Use dict instead of Dict for Python 3.9+: {line.strip()}"
                 )

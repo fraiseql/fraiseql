@@ -11,7 +11,7 @@ well with PostgreSQL views that pre-join related data into JSONB columns.
 """
 
 import logging
-from typing import Any, List, get_args, get_origin
+from typing import Any, get_args, get_origin
 
 from graphql import GraphQLResolveInfo
 
@@ -222,7 +222,7 @@ def create_nested_array_field_resolver_with_where(
 
     Args:
         field_name: The name of the field being resolved
-        field_type: The type of the field (typically List[SomeType])
+        field_type: The type of the field (typically list[SomeType])
         field_metadata: FraiseQLField metadata with where configuration
 
     Returns:
@@ -246,7 +246,7 @@ def create_nested_array_field_resolver_with_where(
         if value is None:
             # Check if this is a list type - return empty list
             origin = get_origin(field_type)
-            if origin in (list, List):
+            if origin is list:
                 return []
             return None
 

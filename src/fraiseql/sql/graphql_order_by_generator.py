@@ -7,7 +7,7 @@ automatically converted to SQL ORDER BY clauses.
 
 from dataclasses import make_dataclass
 from enum import Enum
-from typing import Any, List, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from fraiseql import fraise_enum, fraise_input
 from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
@@ -56,7 +56,7 @@ def _is_fraiseql_type(field_type: type) -> bool:
             origin = get_origin(field_type)
 
     # Don't consider list types as FraiseQL types
-    if origin in (list, List):
+    if origin is list:
         return False
 
     return hasattr(field_type, "__fraiseql_definition__")

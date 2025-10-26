@@ -8,7 +8,7 @@ import asyncio
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Protocol, Set
+from typing import TYPE_CHECKING, Callable, Optional, Protocol
 
 from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -75,10 +75,10 @@ class RateLimitConfig:
     key_func: Optional[Callable[[Request], str]] = None
 
     # IP whitelist (never rate limited)
-    whitelist: List[str] = field(default_factory=list)
+    whitelist: list[str] = field(default_factory=list)
 
     # IP blacklist (always blocked)
-    blacklist: List[str] = field(default_factory=list)
+    blacklist: list[str] = field(default_factory=list)
 
 
 class RateLimiter(Protocol):
@@ -103,8 +103,8 @@ class InMemoryRateLimiter:
     def __init__(self, config: RateLimitConfig):
         """Initialize in-memory rate limiter."""
         self.config = config
-        self._minute_windows: Dict[str, deque] = defaultdict(deque)
-        self._hour_windows: Dict[str, deque] = defaultdict(deque)
+        self._minute_windows: dict[str, deque] = defaultdict(deque)
+        self._hour_windows: dict[str, deque] = defaultdict(deque)
         self._lock = asyncio.Lock()
 
     async def check_rate_limit(self, key: str) -> RateLimitInfo:
@@ -274,7 +274,7 @@ class InMemoryRateLimiter:
 
             return cleaned
 
-    async def get_limited_keys(self) -> Set[str]:
+    async def get_limited_keys(self) -> set[str]:
         """Get all currently rate-limited keys."""
         async with self._lock:
             return set(self._minute_windows.keys()) | set(self._hour_windows.keys())

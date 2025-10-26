@@ -1,7 +1,7 @@
 """TurboRouter query registration system."""
 
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional
 
 from graphql import DocumentNode, OperationDefinitionNode, parse
 
@@ -17,7 +17,7 @@ class RegistrationResult:
     query_hash: Optional[str] = None
     error: Optional[str] = None
     sql_template: Optional[str] = None
-    param_mapping: Optional[Dict[str, str]] = None
+    param_mapping: Optional[dict[str, str]] = None
 
 
 class TurboRegistration:
@@ -97,7 +97,7 @@ class TurboRegistration:
             return RegistrationResult(success=False, error=f"Registration failed: {e!s}")
 
     def register_from_graphql(
-        self, query: str, view_mapping: Dict[str, str], operation_name: Optional[str] = None
+        self, query: str, view_mapping: dict[str, str], operation_name: Optional[str] = None
     ) -> RegistrationResult:
         """Register a query from GraphQL string.
 

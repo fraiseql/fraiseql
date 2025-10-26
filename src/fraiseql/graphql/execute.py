@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from graphql import (
     ExecutionResult,
@@ -58,7 +58,7 @@ async def execute_graphql(
     source: str,
     root_value: Any = None,
     context_value: Any = None,
-    variable_values: Optional[Dict[str, Any]] = None,
+    variable_values: Optional[dict[str, Any]] = None,
     operation_name: Optional[str] = None,
     enable_introspection: bool = True,
 ) -> ExecutionResult:

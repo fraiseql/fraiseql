@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from fraiseql.execution.mode_selector import ExecutionMode
 
@@ -37,7 +37,7 @@ class QueryRouter:
             return ExecutionMode.NORMAL
 
     def _determine_mode_from_classification(
-        self, classification: Dict[str, List[str]]
+        self, classification: dict[str, list[str]]
     ) -> ExecutionMode:
         """Determine execution mode from entity classification."""
         has_turbo_entities = bool(classification["turbo_entities"])
@@ -50,12 +50,12 @@ class QueryRouter:
             return ExecutionMode.NORMAL
         return self._handle_mixed_entities(classification)
 
-    def extract_query_entities(self, query: str) -> List[str]:
+    def extract_query_entities(self, query: str) -> list[str]:
         """Extract entities from a GraphQL query."""
         analysis = self.entity_extractor.extract_entities(query)
         return analysis.entities
 
-    def classify_entities(self, entities: List[str]) -> Dict[str, List[str]]:
+    def classify_entities(self, entities: list[str]) -> dict[str, list[str]]:
         """Classify entities into turbo, normal, and unknown categories."""
         classification = {
             "turbo_entities": [],
@@ -73,7 +73,7 @@ class QueryRouter:
 
         return classification
 
-    def _handle_mixed_entities(self, classification: Dict[str, List[str]]) -> ExecutionMode:
+    def _handle_mixed_entities(self, classification: dict[str, list[str]]) -> ExecutionMode:
         """Handle queries with mixed entity types."""
         strategy = self.config.mixed_query_strategy
 
@@ -85,7 +85,7 @@ class QueryRouter:
             return ExecutionMode.NORMAL
         return ExecutionMode.NORMAL
 
-    def get_routing_metrics(self) -> Dict[str, Any]:
+    def get_routing_metrics(self) -> dict[str, Any]:
         """Get metrics about the routing configuration."""
         return {
             "auto_routing_enabled": self.config.auto_routing_enabled,

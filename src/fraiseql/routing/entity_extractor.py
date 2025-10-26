@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Optional
 
 from graphql import (
     DocumentNode,
@@ -22,13 +22,13 @@ from fraiseql.utils.casing import to_snake_case
 class EntityAnalysisResult:
     """Result of entity analysis for a GraphQL query."""
 
-    entities: List[str]
+    entities: list[str]
     """List of entity names found in the query."""
 
-    root_entities: List[str]
+    root_entities: list[str]
     """List of root-level entity names."""
 
-    nested_entities: List[str]
+    nested_entities: list[str]
     """List of nested entity names."""
 
     operation_type: str
@@ -40,7 +40,7 @@ class EntityAnalysisResult:
     max_depth: int = 0
     """Maximum nesting depth of the query."""
 
-    analysis_errors: List[str] = None
+    analysis_errors: list[str] = None
     """Any errors encountered during analysis."""
 
     def __post_init__(self):
@@ -55,7 +55,7 @@ class EntityExtractor:
     def __init__(self, schema: GraphQLSchema):
         """Initialize the entity extractor."""
         self.schema = schema
-        self._type_to_entity_cache: Dict[str, str] = {}
+        self._type_to_entity_cache: dict[str, str] = {}
         self._build_type_mapping()
 
     def _build_type_mapping(self):
@@ -144,7 +144,7 @@ class EntityExtractor:
 
     def _extract_entities_from_operation(
         self, operation: OperationDefinitionNode
-    ) -> Dict[str, List[str]]:
+    ) -> dict[str, list[str]]:
         """Extract entities from an operation definition."""
         root_entities = []
         all_entities = set()
@@ -169,7 +169,7 @@ class EntityExtractor:
             "nested_entities": nested_entities,
         }
 
-    def _extract_nested_entities(self, selection_set: SelectionSetNode) -> List[str]:
+    def _extract_nested_entities(self, selection_set: SelectionSetNode) -> list[str]:
         """Extract entities from nested selections."""
         entities = []
 

@@ -11,7 +11,6 @@ Key Features:
 """
 
 import logging
-from typing import List
 from uuid import UUID
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
@@ -36,7 +35,7 @@ class RoleHierarchy:
         """
         self.repo = repo
 
-    async def get_inherited_roles(self, role_id: UUID) -> List[Role]:
+    async def get_inherited_roles(self, role_id: UUID) -> list[Role]:
         """Get all roles in inheritance chain (including self).
 
         Uses PostgreSQL recursive CTE for efficient computation.
@@ -83,7 +82,7 @@ class RoleHierarchy:
         logger.debug("Found %d inherited roles for role %s", len(roles), role_id)
         return roles
 
-    async def get_role_ancestors(self, role_id: UUID) -> List[Role]:
+    async def get_role_ancestors(self, role_id: UUID) -> list[Role]:
         """Get all ancestor roles (excluding self).
 
         Args:
@@ -96,7 +95,7 @@ class RoleHierarchy:
         # Exclude the role itself (depth 0)
         return [r for r in all_roles if r.id != role_id]
 
-    async def get_role_descendants(self, role_id: UUID) -> List[Role]:
+    async def get_role_descendants(self, role_id: UUID) -> list[Role]:
         """Get all descendant roles (roles that inherit from this role).
 
         This is more expensive as it requires scanning the entire roles table.
