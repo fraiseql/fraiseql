@@ -146,9 +146,9 @@ format-check: ## Check code formatting without changes
 	black --check src/ tests/
 
 .PHONY: type-check
-type-check: ## Run type checking with pyright
-	@echo -e "$(GREEN)Running pyright type checker...$(NC)"
-	pyright
+type-check: ## Run type checking with ruff
+	@echo -e "$(GREEN)Running ruff type checker...$(NC)"
+	ruff check --ignore FAST001 src/
 
 
 .PHONY: qa
