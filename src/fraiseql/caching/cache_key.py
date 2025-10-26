@@ -106,7 +106,7 @@ class CacheKeyBuilder:
         # Simple equality
         return f"{field}:{self._serialize_value(value)}"
 
-    def _convert_order_by_to_tuples(self, order_by: Any):
+    def _convert_order_by_to_tuples(self, order_by: Any) -> list[tuple[str, str]] | None:
         """Convert any OrderBy format to list of tuples.
 
         Args:

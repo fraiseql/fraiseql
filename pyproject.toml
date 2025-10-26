@@ -212,14 +212,14 @@ ignore = [
   "D107",    # Missing docstring in __init__
   "D415",    # First line should end with a period
 
-  # Type annotations - too many to fix
-  "ANN001",  # Missing type annotation for function argument
-  "ANN002",  # Missing type annotation for *args
-  "ANN003",  # Missing type annotation for **kwargs
-  "ANN201",  # Missing return type annotation for public function
-  "ANN202",  # Missing return type annotation for private function
-  "ANN204",  # Missing return type annotation for special method
-  "ANN401",  # Dynamically typed expressions (Any) are disallowed
+  # Type annotations - strict checking enabled (except ANN401 which is too restrictive)
+  # "ANN001",  # Missing type annotation for function argument - ENABLED
+  # "ANN002",  # Missing type annotation for *args - ENABLED
+  # "ANN003",  # Missing type annotation for **kwargs - ENABLED
+  # "ANN201",  # Missing return type annotation for public function - ENABLED
+  # "ANN202",  # Missing return type annotation for private function - ENABLED
+  # "ANN204",  # Missing return type annotation for special method - ENABLED
+  "ANN401",   # Dynamically typed expressions (Any) are allowed for flexible APIs
 
   # Too strict or pedantic
   "INP001",  # Implicit namespace package

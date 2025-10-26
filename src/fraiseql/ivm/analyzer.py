@@ -110,7 +110,7 @@ class IVMAnalyzer:
         min_rows_threshold: int = 1000,
         min_jsonb_fields: int = 5,
         incremental_score_threshold: float = 5.0,
-    ):
+    ) -> None:
         """Initialize IVM analyzer.
 
         Args:
