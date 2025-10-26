@@ -5,8 +5,9 @@ automatically caches query results and invalidates cache on mutations.
 """
 
 import logging
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
+from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository
 
 from .cache_key import CacheKeyBuilder
@@ -43,8 +44,8 @@ class CachedRepository(FraiseQLRepository):
         view_name: str,
         skip_cache: bool = False,
         cache_ttl: Optional[int] = None,
-        **kwargs,
-    ) -> list[Union[dict[str, Any], Any]]:
+        **kwargs: Any,
+    ) -> RustResponseBytes:
         """Find records with caching support.
 
         Args:
@@ -54,7 +55,7 @@ class CachedRepository(FraiseQLRepository):
             **kwargs: Query filters and options
 
         Returns:
-            List of records
+            RustResponseBytes ready for HTTP response
         """
         if skip_cache:
             return await self._base.find(view_name, **kwargs)
@@ -70,7 +71,7 @@ class CachedRepository(FraiseQLRepository):
         )
 
         # Use cache
-        async def fetch() -> list[Union[dict[str, Any], Any]]:
+        async def fetch() -> RustResponseBytes:
             return await self._base.find(view_name, **kwargs)
 
         return await self._cache.get_or_set(
@@ -84,8 +85,8 @@ class CachedRepository(FraiseQLRepository):
         view_name: str,
         skip_cache: bool = False,
         cache_ttl: Optional[int] = None,
-        **kwargs,
-    ) -> Optional[Union[dict[str, Any], Any]]:
+        **kwargs: Any,
+    ) -> RustResponseBytes:
         """Find single record with caching support.
 
         Args:
@@ -95,7 +96,7 @@ class CachedRepository(FraiseQLRepository):
             **kwargs: Query filters
 
         Returns:
-            Single record or None
+            RustResponseBytes ready for HTTP response
         """
         if skip_cache:
             return await self._base.find_one(view_name, **kwargs)
@@ -111,7 +112,7 @@ class CachedRepository(FraiseQLRepository):
         )
 
         # Use cache
-        async def fetch() -> Optional[Union[dict[str, Any], Any]]:
+        async def fetch() -> RustResponseBytes:
             return await self._base.find_one(view_name, **kwargs)
 
         return await self._cache.get_or_set(

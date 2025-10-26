@@ -1,7 +1,7 @@
 """Integration test focusing on the where field functionality."""
 
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 import pytest
 
@@ -21,7 +21,7 @@ class TestDevice:
 class TestNetwork:
     id: uuid.UUID
     name: str
-    devices: List[TestDevice] = fraise_field(
+    devices: list[TestDevice] = fraise_field(
         default_factory=list,
         supports_where_filtering=True,
         nested_where_type=TestDevice
@@ -107,7 +107,7 @@ class TestWhereFieldIntegration:
         # Create the enhanced resolver
         resolver = create_nested_array_field_resolver_with_where(
             'devices',
-            List[TestDevice],
+            list[TestDevice],
             devices_field
         )
 
@@ -148,7 +148,7 @@ class TestWhereFieldIntegration:
         class NormalNetwork:
             id: uuid.UUID
             name: str
-            devices: List[TestDevice] = fraise_field(default_factory=list)
+            devices: list[TestDevice] = fraise_field(default_factory=list)
 
         # This should work without where filtering
         normal_network = NormalNetwork(
@@ -181,12 +181,12 @@ class TestWhereFieldIntegration:
         class ComplexNetwork:
             id: uuid.UUID
             name: str
-            devices: List[TestDevice] = fraise_field(
+            devices: list[TestDevice] = fraise_field(
                 default_factory=list,
                 supports_where_filtering=True,
                 nested_where_type=TestDevice
             )
-            servers: List[TestServer] = fraise_field(
+            servers: list[TestServer] = fraise_field(
                 default_factory=list,
                 supports_where_filtering=True,
                 nested_where_type=TestServer

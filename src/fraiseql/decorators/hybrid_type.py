@@ -38,7 +38,7 @@ def hybrid_type(
         much faster.
     """
 
-    def decorator(cls) -> Type:
+    def decorator(cls: Type) -> Type:
         # Store metadata on the class for introspection
         cls.__hybrid_metadata__ = {
             "sql_source": sql_source,

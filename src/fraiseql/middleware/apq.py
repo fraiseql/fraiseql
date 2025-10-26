@@ -13,6 +13,8 @@ https://github.com/apollographql/apollo-link-persisted-queries
 import logging
 from typing import Any, Optional
 
+from graphql import GraphQLSchema
+
 from fraiseql.fastapi.routers import GraphQLRequest
 from fraiseql.storage.apq_store import get_persisted_query
 
@@ -110,7 +112,7 @@ def create_apq_error_response(
 
 async def execute_persisted_query(
     query: str,
-    schema,
+    schema: GraphQLSchema,
     context_value: Optional[dict[str, Any]] = None,
     variables: Optional[dict[str, Any]] = None,
     operation_name: Optional[str] = None,

@@ -33,7 +33,7 @@ class RbacMiddleware:
         )
     """
 
-    def __init__(self, permission_resolver: Optional[PermissionResolver] = None):
+    def __init__(self, permission_resolver: Optional[PermissionResolver] = None) -> None:
         """Initialize RBAC middleware.
 
         Args:
@@ -204,7 +204,7 @@ class RbacMiddleware:
             logger.error(f"Failed to create PermissionResolver: {e}")
             return None
 
-    def _clear_request_cache(self, context: dict[str, Any]):
+    def _clear_request_cache(self, context: dict[str, Any]) -> None:
         """Clear request-level permission cache.
 
         This should be called at the end of each GraphQL request

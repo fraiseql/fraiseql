@@ -7,12 +7,10 @@ import functools
 import warnings
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, Union
 
-from graphql import GraphQLError
+from graphql import GraphQLError, GraphQLResolveInfo
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
-
-    from graphql import GraphQLResolveInfo
 
 
 T = TypeVar("T")
@@ -99,7 +97,9 @@ def authorize_field(
         if is_async:
 
             @functools.wraps(func)
-            async def async_auth_wrapper(root, info, *args: Any, **kwargs: Any) -> Any:
+            async def async_auth_wrapper(
+                root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+            ) -> Any:
                 # Check permission first
                 if asyncio.iscoroutinefunction(permission_check):
                     if expects_root:

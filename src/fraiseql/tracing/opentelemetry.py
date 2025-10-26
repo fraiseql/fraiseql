@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from functools import wraps
-from typing import Any, Callable, Generator, Optional
+from typing import Any, Awaitable, Callable, Generator, Optional
 
 from fastapi import FastAPI, Request, Response
 
@@ -133,7 +133,7 @@ class TracingConfig:
     # Custom attributes to add to all spans
     attributes: dict[str, Any] = dataclass_field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration."""
         if not 0.0 <= self.sample_rate <= 1.0:
             msg = "sample_rate must be between 0.0 and 1.0"
@@ -160,7 +160,7 @@ class FraiseQLTracer:
                 # Already instrumented, ignore
                 pass
 
-    def _setup_tracer(self):
+    def _setup_tracer(self) -> Any | None:
         """Set up OpenTelemetry tracer with configured exporter."""
         if not self.config.enabled or not OPENTELEMETRY_AVAILABLE:
             # Return no-op tracer when disabled or not available
@@ -205,7 +205,7 @@ class FraiseQLTracer:
             tracer_provider=provider,
         )
 
-    def _create_exporter(self):
+    def _create_exporter(self) -> Any | None:
         """Create appropriate span exporter based on configuration."""
         if not OPENTELEMETRY_AVAILABLE:
             return None
@@ -380,11 +380,15 @@ class TracingMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.tracer = tracer
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request with tracing."""
         return await self.process_request(request, call_next)
 
-    async def process_request(self, request: Request, call_next) -> Response:
+    async def process_request(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request and create trace span."""
         # Skip excluded paths
         if request.url.path in self.tracer.config.exclude_paths:
@@ -477,7 +481,7 @@ def trace_graphql_operation(operation_type: str, operation_name: str) -> Callabl
 
     def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs) -> Any:
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
 
             # Extract query from args/kwargs
@@ -525,7 +529,7 @@ def trace_database_query(query_type: str, table: str) -> Callable:
 
     def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs) -> Any:
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
 
             # Extract SQL from args/kwargs

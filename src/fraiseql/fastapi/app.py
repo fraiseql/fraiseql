@@ -8,6 +8,7 @@ from typing import Any
 import psycopg_pool
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from psycopg import AsyncConnection
 
 from fraiseql.auth.auth0 import Auth0Config
 from fraiseql.auth.base import AuthProvider
@@ -33,7 +34,7 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
     """Create async database connection pool with custom type handling."""
 
     # Configure how psycopg3 handles PostgreSQL types for each connection
-    async def configure_types(conn) -> None:
+    async def configure_types(conn: AsyncConnection) -> None:
         """Configure type adapters to keep dates as strings."""
         # Import here to avoid circular imports
         from psycopg.adapt import Loader
@@ -52,7 +53,7 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
         conn.adapters.register_loader("time", TextLoader)
         conn.adapters.register_loader("timetz", TextLoader)
 
-    async def check_connection(conn) -> None:
+    async def check_connection(conn: AsyncConnection) -> None:
         """Validate connection is alive before reuse.
 
         This prevents using connections that were terminated externally

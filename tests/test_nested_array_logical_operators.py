@@ -6,7 +6,6 @@ used with nested array where filtering, ensuring all combinations work correctly
 """
 
 import pytest
-from typing import List
 import uuid
 
 from fraiseql.fields import fraise_field
@@ -40,7 +39,7 @@ class DataCenter:
     id: uuid.UUID
     name: str
     region: str
-    servers: List[Server] = fraise_field(default_factory=list)
+    servers: list[Server] = fraise_field(default_factory=list)
 
 
 class TestNestedArrayLogicalOperators:
@@ -136,7 +135,7 @@ class TestNestedArrayLogicalOperators:
     async def test_simple_and_conditions_implicit(self):
         """Test implicit AND behavior (multiple fields at same level)."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # Multiple conditions at same level = implicit AND
         where_filter = ServerWhereInput()
@@ -156,7 +155,7 @@ class TestNestedArrayLogicalOperators:
     async def test_explicit_and_conditions(self):
         """Test explicit AND logical operator."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # Explicit AND conditions
         condition1 = ServerWhereInput()
@@ -182,7 +181,7 @@ class TestNestedArrayLogicalOperators:
     async def test_or_conditions(self):
         """Test OR logical operator."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # OR conditions - high-spec OR development servers
         condition1 = ServerWhereInput()
@@ -207,7 +206,7 @@ class TestNestedArrayLogicalOperators:
     async def test_not_conditions(self):
         """Test NOT logical operator."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # NOT condition - not production environment
         not_condition = ServerWhereInput()
@@ -229,7 +228,7 @@ class TestNestedArrayLogicalOperators:
     async def test_complex_and_or_combination(self):
         """Test complex combination of AND + OR operators."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # Complex: (production OR staging) AND (active OR maintenance) AND has_ip
         env_condition = ServerWhereInput()
@@ -264,7 +263,7 @@ class TestNestedArrayLogicalOperators:
     async def test_nested_not_with_and_or(self):
         """Test NOT combined with AND/OR operators."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # NOT ((environment = development) OR (status = error))
         # = Servers that are NOT (development OR error status)
@@ -291,7 +290,7 @@ class TestNestedArrayLogicalOperators:
     async def test_deeply_nested_logical_operators(self):
         """Test deeply nested logical operator combinations."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # Complex query:
         # (production AND (>=8 cores OR >=32GB memory)) OR (staging AND active AND virtual)
@@ -332,7 +331,7 @@ class TestNestedArrayLogicalOperators:
     async def test_multiple_field_operators_with_logical_operators(self):
         """Test combining field operators (contains, gte, etc.) with logical operators."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # Complex field + logical operator combination:
         # (hostname contains "web" AND memory >= 16) OR (hostname contains "db" AND cpu >= 8)
@@ -367,7 +366,7 @@ class TestNestedArrayLogicalOperators:
     async def test_empty_logical_operator_arrays(self):
         """Test behavior with empty AND/OR arrays."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # Empty AND array should return all items
         where_filter = ServerWhereInput()
@@ -386,7 +385,7 @@ class TestNestedArrayLogicalOperators:
     async def test_logical_operators_with_null_values(self):
         """Test logical operators with null value filtering."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # (has IP address) OR (environment = development)
         has_ip_condition = ServerWhereInput()
@@ -414,7 +413,7 @@ class TestNestedArrayLogicalOperators:
     async def test_performance_with_complex_nested_conditions(self):
         """Test that complex nested conditions don't cause performance issues."""
         ServerWhereInput = create_graphql_where_input(Server)
-        resolver = create_nested_array_field_resolver_with_where("servers", List[Server])
+        resolver = create_nested_array_field_resolver_with_where("servers", list[Server])
 
         # Very complex nested condition for performance testing
         complex_condition = ServerWhereInput()

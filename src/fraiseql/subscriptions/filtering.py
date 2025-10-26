@@ -4,6 +4,8 @@ import ast
 from functools import wraps
 from typing import Any, Callable, ClassVar
 
+from graphql import GraphQLResolveInfo
+
 from fraiseql.core.exceptions import FilterError
 
 
@@ -116,7 +118,7 @@ def filter(expression: str) -> Callable:  # noqa: A001
         func._filter_expression = expression
 
         @wraps(func)
-        async def wrapper(info, **kwargs) -> Any:
+        async def wrapper(info: GraphQLResolveInfo, **kwargs: Any) -> Any:
             # Build filter context
             context = {
                 "info": info,

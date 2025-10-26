@@ -10,7 +10,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -121,7 +121,7 @@ async def blog_simple_repository(blog_simple_db_connection):
 
 
 @pytest_asyncio.fixture
-async def blog_simple_context(blog_simple_repository) -> Dict[str, Any]:
+async def blog_simple_context(blog_simple_repository) -> dict[str, Any]:
     """Provide test context for blog_simple."""
     return {
         "db": blog_simple_repository,
@@ -220,7 +220,7 @@ async def blog_simple_graphql_client(blog_simple_client):
         def __init__(self, http_client: AsyncClient):
             self.client = http_client
 
-        async def execute(self, query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
+        async def execute(self, query: str, variables: dict[str, Any] = None) -> dict[str, Any]:
             """Execute GraphQL query/mutation."""
             response = await self.client.post(
                 "/graphql",

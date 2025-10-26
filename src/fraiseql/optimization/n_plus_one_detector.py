@@ -269,7 +269,7 @@ def track_resolver_execution(func: Callable[..., Any]) -> Callable:
     to track their execution patterns.
     """
 
-    async def wrapper(self, info: GraphQLResolveInfo, *args, **kwargs) -> Any:
+    async def wrapper(self: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any) -> Any:
         detector = get_detector()
 
         if not detector.enabled:
@@ -297,7 +297,7 @@ def track_resolver_execution(func: Callable[..., Any]) -> Callable:
     # Handle sync functions
     if not asyncio.iscoroutinefunction(func):
 
-        def sync_wrapper(self, info: GraphQLResolveInfo, *args: Any, **kwargs: Any) -> Any:
+        def sync_wrapper(self: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any) -> Any:
             detector = get_detector()
 
             if not detector.enabled:

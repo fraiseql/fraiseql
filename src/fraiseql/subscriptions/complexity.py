@@ -17,7 +17,7 @@ class ComplexityConfig:
     max_depth: int = 10
     field_costs: dict[str, int] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize field costs with defaults if not provided."""
         if self.field_costs is None:
             self.field_costs = {
@@ -65,7 +65,9 @@ class SubscriptionComplexityAnalyzer:
 
         return cost
 
-    def _calculate_depth(self, selection_set: SelectionSetNode | None, current_depth: int = 0):
+    def _calculate_depth(
+        self, selection_set: SelectionSetNode | None, current_depth: int = 0
+    ) -> int:
         """Calculate maximum depth of selection set."""
         if not selection_set:
             return current_depth
@@ -80,7 +82,7 @@ class SubscriptionComplexityAnalyzer:
 
     def _calculate_selection_cost(
         self, selection_set: SelectionSetNode | None, fragments: dict[str, Any]
-    ):
+    ) -> int:
         """Calculate cost of selection set."""
         if not selection_set:
             return 0
@@ -118,7 +120,7 @@ def complexity(score: int | None = None, max_depth: int | None = None) -> Callab
         func._max_depth = max_depth
 
         @wraps(func)
-        async def wrapper(info: Any, **kwargs) -> Any:
+        async def wrapper(info: Any, **kwargs: Any) -> Any:
             # Get analyzer from context
             analyzer = info.context.get("complexity_analyzer") if hasattr(info, "context") else None
             if not analyzer:

@@ -687,7 +687,9 @@ def convert_type_to_graphql_output(
 
                                 if asyncio.iscoroutinefunction(method):
 
-                                    async def async_resolver(obj, info, **kwargs) -> Any:
+                                    async def async_resolver(
+                                        obj: Any, info: GraphQLResolveInfo, **kwargs: Any
+                                    ) -> Any:
                                         # Call the method with the object instance and info
                                         return await method(obj, info, **kwargs)
 

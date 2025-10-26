@@ -23,7 +23,7 @@ class RegistrationResult:
 class TurboRegistration:
     """Handles registration of queries for TurboRouter optimization."""
 
-    def __init__(self, registry: TurboRegistry):
+    def __init__(self, registry: TurboRegistry) -> None:
         """Initialize registration system.
 
         Args:

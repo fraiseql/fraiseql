@@ -3,7 +3,7 @@
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any, Dict
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -178,7 +178,7 @@ def create_graphql_router(
         request: GraphQLRequest,
         http_request: Request,
         context: dict[str, Any] = context_dependency,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute GraphQL query with adaptive behavior."""
         # Check authentication first (before APQ processing to ensure security)
         # For APQ requests, we need to check auth regardless of query availability
@@ -474,7 +474,7 @@ def create_graphql_router(
     if hasattr(unified_executor, "get_metrics") and not is_production_env:
 
         @router.get("/graphql/metrics")
-        async def metrics_endpoint() -> Dict[str, Any]:
+        async def metrics_endpoint() -> dict[str, Any]:
             """Get execution metrics."""
             return unified_executor.get_metrics()
 

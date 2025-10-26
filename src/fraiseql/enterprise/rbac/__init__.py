@@ -18,10 +18,12 @@ Architecture:
 
 import logging
 
+from psycopg_pool import AsyncConnectionPool
+
 logger = logging.getLogger(__name__)
 
 
-async def setup_rbac_cache(db_pool) -> None:
+async def setup_rbac_cache(db_pool: AsyncConnectionPool) -> None:
     """Initialize RBAC cache domains and CASCADE rules.
 
     This should be called during application startup with a database pool.

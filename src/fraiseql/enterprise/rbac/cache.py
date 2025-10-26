@@ -31,7 +31,7 @@ class PermissionCache:
     - Automatic invalidation via domain versioning (requires pg_fraiseql_cache)
     """
 
-    def __init__(self, db_pool: AsyncConnectionPool):
+    def __init__(self, db_pool: AsyncConnectionPool) -> None:
         """Initialize permission cache.
 
         Args:

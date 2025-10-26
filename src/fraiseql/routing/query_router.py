@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class QueryRouter:
     """Routes queries to optimal execution mode based on entity classification."""
 
-    def __init__(self, config: EntityRoutingConfig, entity_extractor: EntityExtractor):
+    def __init__(self, config: EntityRoutingConfig, entity_extractor: EntityExtractor) -> None:
         """Initialize the query router."""
         self.config = config
         self.entity_extractor = entity_extractor

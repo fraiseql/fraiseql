@@ -217,8 +217,8 @@ ignore = [
   # "ANN002",  # Missing type annotation for *args - ENABLED
   # "ANN003",  # Missing type annotation for **kwargs - ENABLED
   # "ANN201",  # Missing return type annotation for public function - ENABLED
-  # "ANN202",  # Missing return type annotation for private function - ENABLED
-  # "ANN204",  # Missing return type annotation for special method - ENABLED
+  "ANN202",  # Missing return type annotation for private function - ENABLED
+  "ANN204",  # Missing return type annotation for special method - ENABLED
   "ANN401",   # Dynamically typed expressions (Any) are allowed for flexible APIs
 
   # Too strict or pedantic
@@ -432,6 +432,7 @@ dev = [
     "docker>=7.1.0",
     "maturin>=1.9.6",
     "pre-commit>=4.2.0",
+    "pyright>=1.1.405",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=7.0.0",

@@ -7,7 +7,9 @@ by directly executing pre-validated SQL templates.
 import hashlib
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any
+
+from psycopg import AsyncConnection
 
 
 @dataclass
@@ -316,7 +318,7 @@ class TurboRouter:
             sql_template = sql_template.replace(f":{param_name}", f"%({param_name})s")
 
         # Define transaction function to set session variables and execute query
-        async def execute_with_session_vars(conn) -> List[dict[str, Any]]:
+        async def execute_with_session_vars(conn: AsyncConnection) -> list[dict[str, Any]]:
             """Execute turbo query with session variables set."""
             async with conn.cursor() as cursor:
                 # Set session variables from context if available
@@ -345,7 +347,7 @@ class TurboRouter:
 
                 cursor.row_factory = dict_row
                 await cursor.execute(sql_template, sql_params)
-                return await cursor.fetchall()
+                return await cursor.fetchall()  # type: ignore[return-value]
 
         # Execute in transaction
         result = await db.run_in_transaction(execute_with_session_vars)

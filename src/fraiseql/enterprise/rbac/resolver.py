@@ -34,7 +34,7 @@ class PermissionResolver:
     - Multi-tenant support with tenant-scoped permissions
     """
 
-    def __init__(self, repo: FraiseQLRepository, cache: Optional[PermissionCache] = None):
+    def __init__(self, repo: FraiseQLRepository, cache: Optional[PermissionCache] = None) -> None:
         """Initialize permission resolver.
 
         Args:

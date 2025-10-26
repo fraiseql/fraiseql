@@ -204,7 +204,7 @@ class MetricsConfig:
     )
     labels: dict[str, str] = dataclass_field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration."""
         if not self.namespace:
             msg = "Namespace cannot be empty"

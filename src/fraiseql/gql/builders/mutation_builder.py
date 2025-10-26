@@ -113,7 +113,7 @@ class MutationTypeBuilder:
 
     def _wrap_mutation_resolver(
         self, fn: Callable[..., Any], arg_name_mapping: dict[str, str] | None = None
-    ):
+    ) -> Callable[..., Any]:
         """Wrap a mutation function with argument mapping and input coercion.
 
         Args:
@@ -131,7 +131,7 @@ class MutationTypeBuilder:
 
         if asyncio.iscoroutinefunction(coerced_fn):
 
-            async def async_resolver(root, info, **kwargs):
+            async def async_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any) -> Any:
                 # Map GraphQL argument names to Python parameter names
                 if arg_name_mapping:
                     mapped_kwargs = {}
@@ -144,7 +144,7 @@ class MutationTypeBuilder:
 
             return async_resolver
 
-        def sync_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any):
+        def sync_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any) -> Any:
             # Map GraphQL argument names to Python parameter names
             if arg_name_mapping:
                 mapped_kwargs = {}

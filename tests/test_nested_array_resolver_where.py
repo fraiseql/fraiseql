@@ -1,7 +1,7 @@
 """Test suite for the new nested array resolver with where filtering support."""
 
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 import pytest
 
@@ -25,7 +25,7 @@ class MockNetworkConfiguration:
     id: uuid.UUID
     identifier: str
     name: str
-    print_servers: List[MockPrintServer] = fraise_field(
+    print_servers: list[MockPrintServer] = fraise_field(
         default_factory=list,
         supports_where_filtering=True,
         nested_where_type=MockPrintServer
@@ -72,7 +72,7 @@ class TestNestedArrayResolverWithWhere:
         """Test that resolver returns all items when no where filter is provided."""
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(sample_network_config, None)
@@ -89,7 +89,7 @@ class TestNestedArrayResolverWithWhere:
 
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(sample_network_config, None, where=where_filter)
@@ -110,7 +110,7 @@ class TestNestedArrayResolverWithWhere:
 
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(sample_network_config, None, where=where_filter)
@@ -128,7 +128,7 @@ class TestNestedArrayResolverWithWhere:
 
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(sample_network_config, None, where=where_filter)
@@ -146,7 +146,7 @@ class TestNestedArrayResolverWithWhere:
 
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(sample_network_config, None, where=where_filter)
@@ -166,7 +166,7 @@ class TestNestedArrayResolverWithWhere:
 
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(sample_network_config, None, where=where_filter)
@@ -186,7 +186,7 @@ class TestNestedArrayResolverWithWhere:
 
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(sample_network_config, None, where=where_filter)
@@ -208,7 +208,7 @@ class TestNestedArrayResolverWithWhere:
 
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(empty_config, None, where=where_filter)
@@ -226,7 +226,7 @@ class TestNestedArrayResolverWithWhere:
 
         resolver = create_nested_array_field_resolver_with_where(
             'print_servers',
-            List[MockPrintServer]
+            list[MockPrintServer]
         )
 
         result = await resolver(config_with_none, None)

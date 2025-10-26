@@ -36,7 +36,7 @@ def wrap_resolver_with_enum_serialization(resolver: Callable[..., Any]) -> Calla
 
     if asyncio.iscoroutinefunction(resolver) or inspect.iscoroutinefunction(resolver):
 
-        async def wrapped_resolver(*args, **kwargs) -> Any:
+        async def wrapped_resolver(*args: Any, **kwargs: Any) -> Any:
             result = await resolver(*args, **kwargs)
             return serialize_enum_value(result)
 

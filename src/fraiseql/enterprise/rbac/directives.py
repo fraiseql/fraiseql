@@ -6,8 +6,12 @@ to provide field-level authorization in GraphQL schemas.
 
 from typing import Any, Callable
 
-import strawberry
-from strawberry.types import Info
+try:
+    import strawberry  # type: ignore[import]
+    from strawberry.types import Info  # type: ignore[import]
+except ImportError:
+    # Strawberry not available - enterprise features disabled
+    raise ImportError("strawberry is required for enterprise RBAC features")
 
 from .resolver import PermissionResolver
 
@@ -35,7 +39,7 @@ def requires_permission(resource: str, action: str, check_constraints: bool = Tr
     """
 
     def directive_resolver(resolver: Callable[..., Any]) -> Callable:
-        async def wrapper(*args, **kwargs) -> Any:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             info: Info = args[1]  # GraphQL Info is second arg
             context = info.context
 
@@ -110,7 +114,7 @@ def requires_role(role_name: str) -> Callable:
     """
 
     def directive_resolver(resolver: Callable[..., Any]) -> Callable:
-        async def wrapper(*args, **kwargs) -> Any:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             info: Info = args[1]
             context = info.context
 

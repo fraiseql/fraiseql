@@ -6,7 +6,7 @@ Demonstrates FraiseQL's CQRS pattern:
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 import strawberry
 
@@ -55,7 +55,7 @@ class Post:
     published: bool
     author: Author
     comment_count: int = strawberry.field(name="commentCount")
-    comments: List[Comment]
+    comments: list[Comment]
     created_at: datetime = strawberry.field(name="createdAt")
     updated_at: datetime = strawberry.field(name="updatedAt")
 
@@ -76,7 +76,7 @@ class Query:
     """GraphQL queries - all read from tv_* tables (query side)."""
 
     @strawberry.field
-    async def users(self, info, limit: Optional[int] = 10) -> List[User]:
+    async def users(self, info, limit: Optional[int] = 10) -> list[User]:
         """Get users with their post/comment counts."""
         pool = info.context["db_pool"]
 
@@ -105,7 +105,7 @@ class Query:
     @strawberry.field
     async def posts(
         self, info, published_only: bool = True, limit: Optional[int] = 10
-    ) -> List[Post]:
+    ) -> list[Post]:
         """Get posts with embedded author and comments."""
         pool = info.context["db_pool"]
 

@@ -29,7 +29,7 @@ class TokenManager:
         access_token_ttl: timedelta = timedelta(minutes=15),
         refresh_token_ttl: timedelta = timedelta(days=30),
         algorithm: str = "HS256",
-    ):
+    ) -> None:
         """Initialize TokenManager.
 
         Args:

@@ -9,7 +9,6 @@ Usage:
 import ast
 import sys
 from pathlib import Path
-from typing import List, Set
 
 
 class ReturnTypeChecker(ast.NodeVisitor):
@@ -43,7 +42,7 @@ class ReturnTypeChecker(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def analyze_file(file_path: Path) -> List[tuple[str, int]]:
+def analyze_file(file_path: Path) -> list[tuple[str, int]]:
     """Analyze a Python file for missing return type annotations."""
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -60,7 +59,7 @@ def analyze_file(file_path: Path) -> List[tuple[str, int]]:
         return []
 
 
-def find_python_files(paths: List[Path]) -> Set[Path]:
+def find_python_files(paths: list[Path]) -> set[Path]:
     """Find all Python files in the given paths."""
     python_files = set()
 

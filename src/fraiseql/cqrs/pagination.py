@@ -10,6 +10,8 @@ from typing import Any, TypeVar
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Identifier, Literal
 
+from .repository import CQRSRepository
+
 T = TypeVar("T")
 
 
@@ -246,7 +248,7 @@ class CursorPaginator:
 
 # Extension to CQRSRepository
 async def paginate_query(
-    repository,
+    repository: CQRSRepository,
     view_name: str,
     *,
     first: int | None = None,

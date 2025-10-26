@@ -5,7 +5,7 @@ in real GraphQL query resolution scenarios.
 """
 
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 import pytest
 
@@ -32,7 +32,7 @@ class NetworkConfiguration:
     identifier: str
     name: str
     # This is the critical test - can we add where parameter to this field?
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 
 @pytest.mark.integration
@@ -52,7 +52,7 @@ class TestNestedArrayWhereIntegration:
             identifier: str
             name: str
             # This syntax should now work
-            print_servers: List[PrintServer] = fraise_field(
+            print_servers: list[PrintServer] = fraise_field(
                 default_factory=list,
                 where_input_type=PrintServerWhereInput
             )
@@ -91,7 +91,7 @@ class TestNestedArrayWhereIntegration:
         from fraiseql.core.nested_field_resolver import create_smart_nested_field_resolver
 
         # Current resolvers should not accept where parameters
-        resolver = create_smart_nested_field_resolver('print_servers', List[PrintServer])
+        resolver = create_smart_nested_field_resolver('print_servers', list[PrintServer])
 
         # Check resolver signature - should not have where parameter
         import inspect

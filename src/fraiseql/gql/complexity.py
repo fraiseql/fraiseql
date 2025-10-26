@@ -30,7 +30,7 @@ class ComplexityError(GraphQLError):
         complexity: Optional[int] = None,
         depth: Optional[int] = None,
         limit: Optional[int] = None,
-    ):
+    ) -> None:
         """Initialize complexity error."""
         super().__init__(message)
         self.complexity = complexity
@@ -231,7 +231,7 @@ def calculate_query_complexity(
 class QueryComplexityAnalyzer:
     """Analyzer for GraphQL query complexity."""
 
-    def __init__(self, config: ComplexityConfig):
+    def __init__(self, config: ComplexityConfig) -> None:
         """Initialize analyzer with configuration."""
         self.config = config
 

@@ -27,7 +27,7 @@ class RoleHierarchy:
     Supports multiple inheritance paths and diamond problem resolution.
     """
 
-    def __init__(self, repo: FraiseQLRepository):
+    def __init__(self, repo: FraiseQLRepository) -> None:
         """Initialize role hierarchy engine.
 
         Args:

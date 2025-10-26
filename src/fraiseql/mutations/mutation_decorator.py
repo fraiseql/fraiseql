@@ -4,6 +4,8 @@ import re
 from collections.abc import Callable
 from typing import Any, TypeVar, get_type_hints
 
+from graphql import GraphQLResolveInfo
+
 from fraiseql.mutations.error_config import MutationErrorConfig
 from fraiseql.mutations.parser import parse_mutation_result
 from fraiseql.types.definitions import UNSET
@@ -99,7 +101,7 @@ class MutationDefinition:
     def create_resolver(self) -> Callable:
         """Create the GraphQL resolver function."""
 
-        async def resolver(info, input) -> Any:
+        async def resolver(info: GraphQLResolveInfo, input: dict[str, Any]) -> Any:
             """Auto-generated resolver for PostgreSQL mutation."""
             # Get database connection
             db = info.context.get("db")

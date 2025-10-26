@@ -78,7 +78,7 @@ class SchemaAnalyzer:
         *,
         type_to_domain_fn: Callable[[str], str] | None = None,
         exclude_types: set[str] | None = None,
-    ):
+    ) -> None:
         """Initialize schema analyzer.
 
         Args:

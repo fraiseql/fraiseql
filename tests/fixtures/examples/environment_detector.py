@@ -19,7 +19,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Optional, Any
 
 
 class Environment(Enum):
@@ -325,7 +325,7 @@ class EnvironmentDetector:
         """Determine if database templates should be used."""
         return self.get_environment_config().use_database_templates
 
-    def get_timeout_config(self) -> Dict[str, int]:
+    def get_timeout_config(self) -> dict[str, int]:
         """Get timeout configuration for current environment."""
         config = self.get_environment_config()
         multiplier = config.timeout_multiplier
@@ -336,7 +336,7 @@ class EnvironmentDetector:
             'test_execution': int(config.test_execution_timeout * multiplier)
         }
 
-    def get_resource_limits(self) -> Dict[str, int]:
+    def get_resource_limits(self) -> dict[str, int]:
         """Get resource limits for current environment."""
         config = self.get_environment_config()
 
@@ -356,7 +356,7 @@ class EnvironmentDetector:
         env = self.detect_environment()
         return env in [Environment.STAGING, Environment.PRODUCTION]
 
-    def get_debug_info(self) -> Dict[str, Any]:
+    def get_debug_info(self) -> dict[str, Any]:
         """Get debugging information about environment detection."""
         config = self.get_environment_config()
 

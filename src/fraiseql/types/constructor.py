@@ -209,7 +209,7 @@ def define_fraiseql_type(
     # Add JSON serialization methods for input types
     if kind == "input":
 
-        def to_dict(self) -> dict[str, Any]:
+        def to_dict(self: Any) -> dict[str, Any]:
             """Convert FraiseQL input object to dictionary for JSON serialization.
 
             Excludes UNSET values and handles nested FraiseQL objects recursively.
@@ -224,7 +224,7 @@ def define_fraiseql_type(
                         result[field_name] = _serialize_field_value(field_value)
             return result
 
-        def __json__(self) -> dict[str, Any]:  # noqa: N807
+        def __json__(self: Any) -> dict[str, Any]:  # noqa: N807
             """JSON serialization method for FraiseQL input objects."""
             return self.to_dict()
 

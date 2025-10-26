@@ -427,7 +427,7 @@ def _determine_jsonb_operator(alias: str, field_name: str, typename: str | None 
     return "->>"
 
 
-def _convert_order_by_to_tuples(order_by: Any):
+def _convert_order_by_to_tuples(order_by: Any) -> list[tuple[str, str]] | None:
     """Convert any OrderBy format to list of tuples.
 
     Args:

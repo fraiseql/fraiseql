@@ -2,7 +2,6 @@
 """Tests for the nested array registry system and decorators."""
 
 import pytest
-from typing import List
 
 from fraiseql.fields import fraise_field
 from fraiseql.nested_array_filters import (
@@ -45,7 +44,7 @@ class TestNestedArrayRegistry:
 
         @fraise_type
         class NetworkConfig:
-            servers: List[TestPrintServer] = fraise_field(default_factory=list)
+            servers: list[TestPrintServer] = fraise_field(default_factory=list)
 
         # Register manually
         register_nested_array_filter(NetworkConfig, "servers", TestPrintServer)
@@ -62,14 +61,14 @@ class TestNestedArrayRegistry:
         @auto_nested_array_filters
         @fraise_type
         class AutoNetworkConfig:
-            servers: List[TestPrintServer] = fraise_field(default_factory=list)
-            devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
+            servers: list[TestPrintServer] = fraise_field(default_factory=list)
+            devices: list[TestNetworkDevice] = fraise_field(default_factory=list)
             # This won't be registered as it's not a List type
             hostname: str = "default"
             # This won't be registered as it's not a FraiseQL type
-            tags: List[str] = fraise_field(default_factory=list)
+            tags: list[str] = fraise_field(default_factory=list)
 
-        # Both List[FraiseQLType] fields should be registered
+        # Both list[FraiseQLType] fields should be registered
         assert is_nested_array_filterable(AutoNetworkConfig, "servers")
         assert is_nested_array_filterable(AutoNetworkConfig, "devices")
         assert get_nested_array_filter(AutoNetworkConfig, "servers") == TestPrintServer
@@ -85,8 +84,8 @@ class TestNestedArrayRegistry:
         @nested_array_filterable("servers")  # Only register servers, not devices
         @fraise_type
         class SelectiveNetworkConfig:
-            servers: List[TestPrintServer] = fraise_field(default_factory=list)
-            devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
+            servers: list[TestPrintServer] = fraise_field(default_factory=list)
+            devices: list[TestNetworkDevice] = fraise_field(default_factory=list)
 
         # Only servers should be registered
         assert is_nested_array_filterable(SelectiveNetworkConfig, "servers")
@@ -100,9 +99,9 @@ class TestNestedArrayRegistry:
         @nested_array_filterable("servers", "devices")
         @fraise_type
         class MultiSelectiveConfig:
-            servers: List[TestPrintServer] = fraise_field(default_factory=list)
-            devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
-            other_stuff: List[TestPrintServer] = fraise_field(default_factory=list)
+            servers: list[TestPrintServer] = fraise_field(default_factory=list)
+            devices: list[TestNetworkDevice] = fraise_field(default_factory=list)
+            other_stuff: list[TestPrintServer] = fraise_field(default_factory=list)
 
         # Both specified fields should be registered
         assert is_nested_array_filterable(MultiSelectiveConfig, "servers")
@@ -114,8 +113,8 @@ class TestNestedArrayRegistry:
 
         @fraise_type
         class ManualEnableConfig:
-            servers: List[TestPrintServer] = fraise_field(default_factory=list)
-            devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
+            servers: list[TestPrintServer] = fraise_field(default_factory=list)
+            devices: list[TestNetworkDevice] = fraise_field(default_factory=list)
 
         # Enable filtering after class definition
         enable_nested_array_filtering(ManualEnableConfig)
@@ -129,12 +128,12 @@ class TestNestedArrayRegistry:
         @auto_nested_array_filters
         @fraise_type
         class ConfigA:
-            servers: List[TestPrintServer] = fraise_field(default_factory=list)
+            servers: list[TestPrintServer] = fraise_field(default_factory=list)
 
         @nested_array_filterable("devices")
         @fraise_type
         class ConfigB:
-            devices: List[TestNetworkDevice] = fraise_field(default_factory=list)
+            devices: list[TestNetworkDevice] = fraise_field(default_factory=list)
 
         filters = list_registered_filters()
 
@@ -152,11 +151,11 @@ class TestNestedArrayRegistry:
 
         @fraise_type
         class ConfigA:
-            items: List[TestPrintServer] = fraise_field(default_factory=list)
+            items: list[TestPrintServer] = fraise_field(default_factory=list)
 
         @fraise_type
         class ConfigB:
-            items: List[TestNetworkDevice] = fraise_field(default_factory=list)
+            items: list[TestNetworkDevice] = fraise_field(default_factory=list)
 
         register_nested_array_filter(ConfigA, "items", TestPrintServer)
         register_nested_array_filter(ConfigB, "items", TestNetworkDevice)
@@ -171,7 +170,7 @@ class TestNestedArrayRegistry:
         @auto_nested_array_filters
         @fraise_type
         class TestConfig:
-            servers: List[TestPrintServer] = fraise_field(default_factory=list)
+            servers: list[TestPrintServer] = fraise_field(default_factory=list)
 
         # Verify registration exists
         assert is_nested_array_filterable(TestConfig, "servers")

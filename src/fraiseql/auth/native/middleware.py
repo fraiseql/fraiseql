@@ -3,7 +3,8 @@
 import hashlib
 import time
 from collections import defaultdict
-from typing import Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 from fastapi import FastAPI, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -26,7 +27,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         hsts_max_age: int = 31536000,  # 1 year
         include_subdomains: bool = True,
         csp_policy: Optional[str] = None,
-    ):
+        frame_options: str = "DENY",
+        content_type_options: str = "nosniff",
+        referrer_policy: str = "strict-origin-when-cross-origin",
+        permissions_policy: Optional[str] = None,
+    ) -> None:
         super().__init__(app)
         self.hsts_max_age = hsts_max_age
         self.include_subdomains = include_subdomains
@@ -39,7 +44,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "connect-src 'self';"
         )
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Response]
+    ) -> Response:
         """Process request and add security headers to response.
 
         Args:
@@ -81,13 +88,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         requests_per_minute: int = 60,
         burst_requests: int = 10,
         auth_requests_per_minute: int = 5,  # Stricter limit for auth endpoints
-        cleanup_interval: int = 300,  # Clean up old entries every 5 minutes
-    ):
+        burst_auth_requests: int = 2,
+        redis_client: Any = None,
+        redis_url: Optional[str] = None,
+        redis_ttl: int = 3600,
+    ) -> None:
         super().__init__(app)
         self.requests_per_minute = requests_per_minute
         self.burst_requests = burst_requests
         self.auth_requests_per_minute = auth_requests_per_minute
-        self.cleanup_interval = cleanup_interval
+        self.cleanup_interval = 60  # Clean up every minute
 
         # In-memory storage: {client_ip: [(timestamp, endpoint_type), ...]}
         self.request_counts: dict[str, list] = defaultdict(list)
@@ -117,7 +127,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         ]
         return any(path.startswith(auth_path) for auth_path in auth_paths)
 
-    def _cleanup_old_entries(self):
+    def _cleanup_old_entries(self) -> None:
         """Remove entries older than the rate limit window."""
         if time.time() - self.last_cleanup < self.cleanup_interval:
             return
@@ -170,7 +180,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         return False  # Allow request
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Response]
+    ) -> Response:
         """Apply rate limiting to incoming requests.
 
         Args:
@@ -242,8 +254,8 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         secret_key: str,
         cookie_name: str = "csrf_token",
         header_name: str = "X-CSRF-Token",
-        exempt_paths: Optional[list] = None,
-    ):
+        exempt_paths: list[str] | None = None,
+    ) -> None:
         super().__init__(app)
         self.secret_key = secret_key.encode()
         self.cookie_name = cookie_name
@@ -298,7 +310,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
         return True
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Response]
+    ) -> Response:
         """Validate CSRF tokens for state-changing requests.
 
         Args:

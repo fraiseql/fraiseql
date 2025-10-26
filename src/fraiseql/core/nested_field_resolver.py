@@ -47,7 +47,7 @@ def create_smart_nested_field_resolver(field_name: str, field_type: Any) -> Call
         data is embedded in the parent's JSONB column.
     """
 
-    async def resolve_nested_field(parent: Any, info: GraphQLResolveInfo, **kwargs) -> Any:
+    async def resolve_nested_field(parent: Any, info: GraphQLResolveInfo, **kwargs: Any) -> Any:
         """Resolve a nested field, preferring embedded data over separate queries."""
         # First, check if the data is already present in the parent object
         value = getattr(parent, field_name, None)
@@ -231,7 +231,7 @@ def create_nested_array_field_resolver_with_where(
     """
 
     async def resolve_nested_array_with_where(
-        parent: Any, info: GraphQLResolveInfo, where: Any = None, **kwargs
+        parent: Any, info: GraphQLResolveInfo, where: Any = None, **kwargs: Any
     ) -> Any:
         """Resolve nested array field with optional where filtering."""
         # First, get the raw data using existing logic

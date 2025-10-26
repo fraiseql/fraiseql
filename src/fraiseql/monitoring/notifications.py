@@ -87,7 +87,7 @@ class EmailChannel:
         smtp_password: str | None = None,
         use_tls: bool = True,
         from_address: str = "noreply@fraiseql.app",
-    ):
+    ) -> None:
         """Initialize email channel.
 
         Args:
@@ -501,7 +501,7 @@ class WebhookChannel:
 class NotificationManager:
     """Manages error notifications with rate limiting and delivery tracking."""
 
-    def __init__(self, db_pool: AsyncConnectionPool):
+    def __init__(self, db_pool: AsyncConnectionPool) -> None:
         """Initialize notification manager.
 
         Args:
@@ -696,7 +696,7 @@ class NotificationManager:
             )
 
             result = await cur.fetchone()
-            return result[0] == 0
+            return result[0] == 0 if result else False
 
     async def _log_notification(
         self,

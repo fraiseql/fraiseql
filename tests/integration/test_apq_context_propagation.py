@@ -1,7 +1,7 @@
 """Tests for APQ context propagation from router to backend."""
 
 import hashlib
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -20,15 +20,15 @@ class ContextCapturingBackend(MemoryAPQBackend):
         self.captured_get_context = None
 
     def store_cached_response(
-        self, hash_value: str, response: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+        self, hash_value: str, response: dict[str, Any], context: Optional[dict[str, Any]] = None
     ) -> None:
         """Capture context when storing responses."""
         self.captured_store_context = context
         super().store_cached_response(hash_value, response, context)
 
     def get_cached_response(
-        self, hash_value: str, context: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, hash_value: str, context: Optional[dict[str, Any]] = None
+    ) -> Optional[dict[str, Any]]:
         """Capture context when getting responses."""
         self.captured_get_context = context
         return super().get_cached_response(hash_value, context)

@@ -187,7 +187,9 @@ class QueryStructure:
 class QueryStructureAnalyzer:
     """Analyzes GraphQL query structure."""
 
-    def __init__(self, fragments: dict[str, FragmentDefinitionNode], view_mapping: dict[str, str]):
+    def __init__(
+        self, fragments: dict[str, FragmentDefinitionNode], view_mapping: dict[str, str]
+    ) -> None:
         self.fragments = fragments
         self.view_mapping = view_mapping
         self.used_views = set()
@@ -298,7 +300,7 @@ class QueryStructureAnalyzer:
 class SQLTemplateGenerator:
     """Generates SQL templates from query structure."""
 
-    def __init__(self, view_mapping: dict[str, str]):
+    def __init__(self, view_mapping: dict[str, str]) -> None:
         self.view_mapping = view_mapping
 
     def generate(self, structure: QueryStructure) -> str:
@@ -391,7 +393,7 @@ class DBCall:
 class ResolverAnalyzer(ast.NodeVisitor):
     """Analyzes resolver AST to find database calls."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.db_calls = []
 
     def visit_Call(self, node: ast.Call) -> None:

@@ -43,7 +43,7 @@ class EntityAnalysisResult:
     analysis_errors: list[str] = None
     """Any errors encountered during analysis."""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize analysis_errors if not provided."""
         if self.analysis_errors is None:
             self.analysis_errors = []
@@ -52,13 +52,13 @@ class EntityAnalysisResult:
 class EntityExtractor:
     """Extracts entity information from GraphQL queries."""
 
-    def __init__(self, schema: GraphQLSchema):
+    def __init__(self, schema: GraphQLSchema) -> None:
         """Initialize the entity extractor."""
         self.schema = schema
         self._type_to_entity_cache: dict[str, str] = {}
         self._build_type_mapping()
 
-    def _build_type_mapping(self):
+    def _build_type_mapping(self) -> None:
         """Build a mapping from GraphQL types to entity names."""
         for type_name in self.schema.type_map:
             if not type_name.startswith("__"):

@@ -13,7 +13,7 @@ Key Features Tested:
 """
 
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 import pytest
 
@@ -39,7 +39,7 @@ class NetworkConfiguration:
     id: uuid.UUID
     identifier: str
     name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 
 @pytest.mark.regression

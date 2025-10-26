@@ -112,7 +112,7 @@ class FraiseQLRepository:
         self._type_name_cache[view_name] = type_name
         return type_name
 
-    async def _set_session_variables(self, cursor_or_conn) -> None:
+    async def _set_session_variables(self, cursor_or_conn: Any) -> None:
         """Set PostgreSQL session variables from context.
 
         Sets app.tenant_id, app.contact_id, app.user_id, and app.is_super_admin
@@ -494,7 +494,7 @@ class FraiseQLRepository:
             self._introspection_in_progress.discard(view_name)
 
     async def find(
-        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs
+        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs: Any
     ) -> RustResponseBytes:
         """Find records using unified Rust-first pipeline.
 
@@ -552,7 +552,7 @@ class FraiseQLRepository:
             )
 
     async def find_one(
-        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs
+        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs: Any
     ) -> RustResponseBytes:
         """Find single record using unified Rust-first pipeline.
 

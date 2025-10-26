@@ -35,7 +35,7 @@ class PostgreSQLErrorTracker:
         environment: str = "production",
         release_version: str | None = None,
         enable_notifications: bool = True,
-    ):
+    ) -> None:
         """Initialize PostgreSQL error tracker.
 
         Args:
@@ -153,8 +153,8 @@ class PostgreSQLErrorTracker:
                 )
 
                 result = await cur.fetchone()
-                error_id = result[0]
-                is_new = result[1]
+                error_id = str(result[0]) if result and result[0] else ""
+                is_new = bool(result[1]) if result else False
 
                 # Log individual occurrence for detailed analysis
                 await cur.execute(
@@ -201,7 +201,7 @@ class PostgreSQLErrorTracker:
                     is_new,
                 )
 
-                return error_id
+                return error_id or ""
 
         except psycopg.Error:
             logger.exception("Failed to capture error in PostgreSQL")
@@ -493,11 +493,18 @@ class PostgreSQLErrorTracker:
                 )
 
                 row = await cur.fetchone()
+                if row:
+                    return {
+                        "total_errors": row[0],
+                        "unresolved_errors": row[1],
+                        "unique_error_types": row[2],
+                        "avg_resolution_time_hours": float(row[3]) if row[3] else None,
+                    }
                 return {
-                    "total_errors": row[0],
-                    "unresolved_errors": row[1],
-                    "unique_error_types": row[2],
-                    "avg_resolution_time_hours": float(row[3]) if row[3] else None,
+                    "total_errors": 0,
+                    "unresolved_errors": 0,
+                    "unique_error_types": 0,
+                    "avg_resolution_time_hours": None,
                 }
 
         except psycopg.Error:

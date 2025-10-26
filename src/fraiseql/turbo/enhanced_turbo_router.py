@@ -28,7 +28,7 @@ class EnhancedTurboRegistry(TurboRegistry):
         max_size: int = 1000,
         max_total_weight: float = 2000.0,
         enable_adaptive_caching: bool = True,
-    ):
+    ) -> None:
         """Initialize enhanced registry.
 
         Args:
@@ -209,7 +209,7 @@ class EnhancedTurboRegistry(TurboRegistry):
 class EnhancedTurboRouter(TurboRouter):
     """TurboRouter with enhanced metrics and adaptive behavior."""
 
-    def __init__(self, registry: EnhancedTurboRegistry):
+    def __init__(self, registry: EnhancedTurboRegistry) -> None:
         """Initialize enhanced router.
 
         Args:

@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, NoReturn, Optional
 
 from .base import APQStorageBackend
 
@@ -214,7 +214,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
                 ON {self._responses_table} (tenant_id) WHERE tenant_id IS NOT NULL;
         """
 
-    def _get_connection(self):
+    def _get_connection(self) -> NoReturn:
         """Get database connection.
 
         This is a placeholder that would integrate with FraiseQL's

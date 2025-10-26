@@ -1,7 +1,7 @@
 """Tests for tenant-specific APQ response caching."""
 
 import hashlib
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import pytest
 

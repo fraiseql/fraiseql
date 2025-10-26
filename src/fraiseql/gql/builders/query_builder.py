@@ -144,7 +144,7 @@ class QueryTypeBuilder:
         fn: Callable[..., Any],
         arg_name_mapping: dict[str, str] | None = None,
         field_name: str | None = None,
-    ):
+    ) -> Callable[..., Any]:
         """Create a GraphQL resolver from a function.
 
         Args:
@@ -163,7 +163,7 @@ class QueryTypeBuilder:
 
         if asyncio.iscoroutinefunction(coerced_fn):
 
-            async def async_resolver(root, info, **kwargs):
+            async def async_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any) -> Any:
                 # Store GraphQL info and field name in context for repository
                 if hasattr(info, "context"):
                     info.context["graphql_info"] = info
@@ -186,7 +186,7 @@ class QueryTypeBuilder:
 
             return async_resolver
 
-        def sync_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any):
+        def sync_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any) -> Any:
             # Store GraphQL info and field name in context for repository
             if hasattr(info, "context"):
                 info.context["graphql_info"] = info

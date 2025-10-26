@@ -8,7 +8,7 @@ import asyncio
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Optional, Protocol
+from typing import TYPE_CHECKING, Awaitable, Callable, Optional, Protocol
 
 from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -31,7 +31,7 @@ except ImportError:
 class RateLimitExceeded(HTTPException):
     """Raised when rate limit is exceeded."""
 
-    def __init__(self, retry_after: int, detail: str = "Rate limit exceeded"):
+    def __init__(self, retry_after: int, detail: str = "Rate limit exceeded") -> None:
         """Initialize rate limit exception."""
         super().__init__(
             status_code=429,
@@ -100,7 +100,7 @@ class RateLimiter(Protocol):
 class InMemoryRateLimiter:
     """In-memory rate limiter for development/single instance."""
 
-    def __init__(self, config: RateLimitConfig):
+    def __init__(self, config: RateLimitConfig) -> None:
         """Initialize in-memory rate limiter."""
         self.config = config
         self._minute_windows: dict[str, deque] = defaultdict(deque)
@@ -300,7 +300,7 @@ class PostgreSQLRateLimiter:
         config: RateLimitConfig,
         pool: "AsyncConnectionPool",
         table_name: str = "tb_rate_limit",
-    ):
+    ) -> None:
         """Initialize PostgreSQL rate limiter."""
         if not PSYCOPG_AVAILABLE:
             msg = "psycopg and psycopg_pool required for PostgreSQL rate limiter"
@@ -609,12 +609,14 @@ class PostgreSQLRateLimiter:
 class RateLimiterMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for rate limiting."""
 
-    def __init__(self, app: ASGIApp, rate_limiter: RateLimiter):
+    def __init__(self, app: ASGIApp, rate_limiter: RateLimiter) -> None:
         """Initialize rate limiter middleware."""
         super().__init__(app)
         self.rate_limiter = rate_limiter
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request with rate limiting."""
         # Skip rate limiting for certain paths
         if request.url.path in ["/health", "/metrics", "/"]:

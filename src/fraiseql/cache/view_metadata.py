@@ -33,7 +33,7 @@ class ViewInfo:
 class ViewMetadataCache:
     """Caches database view metadata for query optimization."""
 
-    def __init__(self, ttl: int = 3600):
+    def __init__(self, ttl: int = 3600) -> None:
         """Initialize cache.
 
         Args:

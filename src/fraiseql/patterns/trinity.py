@@ -41,7 +41,7 @@ class TrinityMixin:
     # Class-level configuration
     __trinity_entity_name__: ClassVar[str | None] = None
 
-    def __init_subclass__(cls, **kwargs: Any):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         """Set up Trinity pattern when class is defined."""
         super().__init_subclass__(**kwargs)
 

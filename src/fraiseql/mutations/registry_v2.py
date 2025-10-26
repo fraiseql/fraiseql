@@ -6,7 +6,7 @@ global state and import order dependencies.
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Generator, Protocol
+from typing import Any, Generator, Protocol
 
 
 class ResultRegistry(Protocol):
@@ -124,7 +124,7 @@ def get_registry() -> ResultRegistry:
     return _registry_manager.current
 
 
-def scoped_registry(inherit: bool = True) -> Generator[ScopedResultRegistry]:
+def scoped_registry(inherit: bool = True) -> Any:
     """Create a scoped registry context.
 
     Args:
@@ -135,7 +135,7 @@ def scoped_registry(inherit: bool = True) -> Generator[ScopedResultRegistry]:
             registry.register(MySuccess, MyError)
             # Use registry
     """
-    return _registry_manager.scoped_registry(inherit)
+    return _registry_manager.scoped_registry(inherit)  # type: ignore[return-value]
 
 
 def reset_registry() -> None:

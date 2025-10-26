@@ -6,7 +6,7 @@ through GraphQL schema generation to query execution.
 
 import asyncio
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 import pytest
 
@@ -29,7 +29,7 @@ class Network:
     id: uuid.UUID
     name: str
     # This field should support where filtering
-    devices: List[Device] = fraise_field(
+    devices: list[Device] = fraise_field(
         default_factory=list,
         supports_where_filtering=True,
         nested_where_type=Device,
@@ -53,7 +53,7 @@ class TestEndToEndNestedArrayWhere:
                 return Network(id=id, name="Test Network", devices=[])
 
             @query
-            async def networks() -> List[Network]:
+            async def networks() -> list[Network]:
                 """Get all networks."""
                 return []
 
@@ -91,7 +91,7 @@ class TestEndToEndNestedArrayWhere:
                 return Network(id=id, name="Test Network", devices=[])
 
             @query
-            async def networks() -> List[Network]:
+            async def networks() -> list[Network]:
                 """Get all networks."""
                 return []
 
@@ -181,7 +181,7 @@ class TestEndToEndNestedArrayWhere:
         # Create resolver
         resolver = create_nested_array_field_resolver_with_where(
             'devices',
-            List[Device]
+            list[Device]
         )
 
         # Test the resolver with where filter
@@ -228,7 +228,7 @@ class TestEndToEndNestedArrayWhere:
             devices=devices
         )
 
-        resolver = create_nested_array_field_resolver_with_where('devices', List[Device])
+        resolver = create_nested_array_field_resolver_with_where('devices', list[Device])
 
         # Test 1: Active devices with priority <= 2
         where1 = DeviceWhereInput()

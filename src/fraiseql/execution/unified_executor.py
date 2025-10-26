@@ -21,7 +21,7 @@ class UnifiedExecutor:
         mode_selector: ModeSelector,
         turbo_router: Optional[TurboRouter] = None,
         query_analyzer: Optional[QueryAnalyzer] = None,
-    ):
+    ) -> None:
         """Initialize unified executor.
 
         Args:
@@ -157,7 +157,7 @@ class UnifiedExecutor:
 
         return formatted
 
-    def _track_execution(self, mode: ExecutionMode, execution_time: float):
+    def _track_execution(self, mode: ExecutionMode, execution_time: float) -> None:
         """Track execution metrics.
 
         Args:

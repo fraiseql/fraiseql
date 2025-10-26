@@ -23,7 +23,7 @@ class ExecutionMode(Enum):
 class ModeSelector:
     """Selects optimal execution mode for queries."""
 
-    def __init__(self, config: FraiseQLConfig):
+    def __init__(self, config: FraiseQLConfig) -> None:
         """Initialize mode selector.
 
         Args:

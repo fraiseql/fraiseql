@@ -79,7 +79,7 @@ class MutationBuilder:
             self.mutations[func.__name__] = metadata
 
             @wraps(func)
-            async def wrapper(*args, **kwargs) -> Any:
+            async def wrapper(*args: Any, **kwargs: Any) -> Any:
                 return await func(*args, **kwargs)
 
             # Attach metadata for introspection

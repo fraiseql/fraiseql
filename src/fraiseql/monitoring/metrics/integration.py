@@ -6,7 +6,7 @@ for metrics collection.
 
 import time
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -35,11 +35,15 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         self.metrics = metrics
         self.config = config or MetricsConfig()
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request and record metrics."""
         return await self.process_request(request, call_next)
 
-    async def process_request(self, request: Request, call_next) -> Response:
+    async def process_request(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request with metrics collection."""
         # Skip excluded paths
         if request.url.path in self.config.exclude_paths:
@@ -167,7 +171,7 @@ def with_metrics(operation_type: str = "operation") -> Callable:
 
     def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs) -> Any:
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             metrics = get_metrics()
             start_time = time.time()
             success = False

@@ -9,7 +9,6 @@ from psycopg.sql import SQL, Composed
 from fraiseql.sql.where_generator import _make_filter_field_composed
 
 from .executor import CQRSExecutor
-from .pagination import paginate_query as _paginate_query
 
 T = TypeVar("T")
 
@@ -513,6 +512,8 @@ class CQRSRepository:
             from fraiseql import Connection
             posts_connection = Connection[Post].from_dict(result)
         """
+        from .pagination import paginate_query as _paginate_query
+
         return await _paginate_query(
             self,
             view_name,
@@ -600,7 +601,7 @@ class CQRSRepository:
 
     # Utility methods
 
-    def _convert_order_by_to_tuples(self, order_by: Any):
+    def _convert_order_by_to_tuples(self, order_by: Any) -> list[tuple[str, str]] | None:
         """Convert any OrderBy format to list of tuples.
 
         Args:

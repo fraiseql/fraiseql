@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable
 
+from graphql import GraphQLResolveInfo
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,7 +119,7 @@ def cache(ttl: float = 5.0) -> Callable:
         func._cache_ttl = ttl
 
         @wraps(func)
-        async def wrapper(info, **kwargs) -> Any:
+        async def wrapper(info: GraphQLResolveInfo, **kwargs: Any) -> Any:
             # Get cache from context
             sub_cache = None
             if hasattr(info, "context") and info.context:
