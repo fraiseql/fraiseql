@@ -3,7 +3,7 @@
 [![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
 [![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
 [![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version Status](https://img.shields.io/badge/Status-Production%20Stable-green.svg)](https://github.com/fraiseql/fraiseql/blob/main/VERSION_STATUS.md)
 
@@ -373,6 +373,7 @@ class CreateUser:
 **New to FraiseQL?** Understanding these core concepts will help you make the most of the framework:
 
 **[📚 Concepts & Glossary](https://github.com/fraiseql/fraiseql/blob/main/docs/core/concepts-glossary.md)** - Essential terminology and mental models:
+
 - **CQRS Pattern** - Separate read models (views) from write models (functions)
 - **Trinity Identifiers** - Three-tier ID system (`pk_*`, `id`, `identifier`) for performance and UX
 - **JSONB Views** - PostgreSQL composes data once, eliminating N+1 queries
@@ -380,6 +381,7 @@ class CreateUser:
 - **Explicit Sync Pattern** - Table views (`tv_*`) for complex queries
 
 **Quick links:**
+
 - [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md) - 10-minute architecture overview
 - [Database API](https://github.com/fraiseql/fraiseql/blob/main/docs/core/database-api.md) - Connection pooling and query execution
 - [Types and Schema](https://github.com/fraiseql/fraiseql/blob/main/docs/core/types-and-schema.md) - Complete type system guide
@@ -541,6 +543,7 @@ Replace 4 services with 1 database.
 ### How It Works
 
 **Caching (Replaces Redis)**
+
 ```python
 from fraiseql.caching import PostgresCache
 
@@ -555,6 +558,7 @@ await cache.set("user:123", user_data, ttl=3600)
 ```
 
 **Error Tracking (Replaces Sentry)**
+
 ```python
 from fraiseql.monitoring import init_error_tracker
 
@@ -569,6 +573,7 @@ await tracker.capture_exception(error, context={...})
 ```
 
 **Observability (Replaces APM)**
+
 ```sql
 -- All traces and metrics stored in PostgreSQL
 SELECT * FROM monitoring.traces
@@ -578,6 +583,7 @@ WHERE error_id = 'error-123'
 
 **Grafana Dashboards**
 Pre-built dashboards in `grafana/` query PostgreSQL directly:
+
 - Error monitoring dashboard
 - Performance metrics dashboard
 - OpenTelemetry traces dashboard
@@ -650,16 +656,19 @@ FraiseQL implements Command Query Responsibility Segregation:
 ### Key Innovations
 
 **1. Exclusive Rust Pipeline**
+
 - PostgreSQL → Rust → HTTP (no Python JSON processing)
 - 7-10x faster JSON transformation vs Python
 - No GIL contention, compiled performance
 
 **2. JSONB Views**
+
 - Database composes data once
 - Rust selects fields based on GraphQL query
 - No N+1 query problems
 
 **3. Table Views (tv_*)**
+
 ```sql
 -- Denormalized JSONB table with explicit sync
 CREATE TABLE tv_user (
@@ -689,9 +698,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```
+
 Benefits: Instant lookups, embedded relations, explicitly synchronized
 
 **4. Zero-Copy Response**
+
 - Direct RustResponseBytes to FastAPI
 - No Python serialization overhead
 - Optimal for high-throughput APIs
@@ -826,6 +837,7 @@ class Post:
 ```
 
 **Why three?**
+
 - **pk_*:** Fast integer joins (PostgreSQL performance)
 - **id:** Public API stability (UUID, never changes)
 - **identifier:** Human-friendly URLs (SEO, readability)
@@ -850,7 +862,7 @@ psql my_api < schema.sql
 fraiseql dev
 ```
 
-**Your GraphQL API is live at http://localhost:8000/graphql** 🎉
+**Your GraphQL API is live at <http://localhost:8000/graphql>** 🎉
 
 ### Next Steps
 
@@ -963,6 +975,7 @@ After years moving through Django, Flask, FastAPI, and Strawberry GraphQL with S
 But I also wanted something designed for the **LLM era**. SQL and Python are two of the most massively trained languages—LLMs understand them natively. Why not make a framework where AI can easily get context and generate correct code?
 
 FraiseQL is the result:
+
 - **Database-first CQRS** where PostgreSQL does what it does best
 - **Rust pipeline** for compiled performance (7-10x faster than Python JSON)
 - **Python stays minimal** - just decorators and type hints
