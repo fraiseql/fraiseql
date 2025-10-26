@@ -29,7 +29,7 @@ def serialize_enum_value(value: Any) -> Any:
     return value
 
 
-def wrap_resolver_with_enum_serialization(resolver) -> Callable:
+def wrap_resolver_with_enum_serialization(resolver: Callable[..., Any]) -> Callable:
     """Wrap a resolver to automatically serialize enum values."""
     import asyncio
     import inspect
@@ -42,7 +42,7 @@ def wrap_resolver_with_enum_serialization(resolver) -> Callable:
 
         return wrapped_resolver
 
-    def sync_wrapped_resolver(*args, **kwargs) -> Any:
+    def sync_wrapped_resolver(*args: Any, **kwargs: Any) -> Any:
         result = resolver(*args, **kwargs)
         return serialize_enum_value(result)
 

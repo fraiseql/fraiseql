@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from types import MappingProxyType
-from typing import TYPE_CHECKING, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, Callable, cast, get_type_hints
 
 from graphql import (
     GraphQLArgument,
@@ -12,6 +12,7 @@ from graphql import (
     GraphQLNonNull,
     GraphQLObjectType,
     GraphQLOutputType,
+    GraphQLResolveInfo,
 )
 
 from fraiseql.config.schema_config import SchemaConfig
@@ -110,7 +111,9 @@ class MutationTypeBuilder:
 
         return GraphQLObjectType(name="Mutation", fields=MappingProxyType(fields))
 
-    def _wrap_mutation_resolver(self, fn, arg_name_mapping: dict[str, str] | None = None):
+    def _wrap_mutation_resolver(
+        self, fn: Callable[..., Any], arg_name_mapping: dict[str, str] | None = None
+    ):
         """Wrap a mutation function with argument mapping and input coercion.
 
         Args:
@@ -141,7 +144,7 @@ class MutationTypeBuilder:
 
             return async_resolver
 
-        def sync_resolver(root, info, **kwargs):
+        def sync_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any):
             # Map GraphQL argument names to Python parameter names
             if arg_name_mapping:
                 mapped_kwargs = {}

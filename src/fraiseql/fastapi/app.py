@@ -40,7 +40,7 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
 
         # Create a custom loader that returns the raw text value
         class TextLoader(Loader):
-            def load(self, data) -> Any:
+            def load(self, data: Any) -> Any:
                 # Return the raw text representation from PostgreSQL
                 return data.decode("utf-8") if isinstance(data, bytes) else data
 

@@ -35,6 +35,7 @@ from graphql import (
     GraphQLList,
     GraphQLObjectType,
     GraphQLOutputType,
+    GraphQLResolveInfo,
     GraphQLScalarType,
     GraphQLType,
     GraphQLUnionType,
@@ -681,7 +682,7 @@ def convert_type_to_graphql_output(
                             gql_return_type = convert_type_to_graphql_output(return_type)
 
                             # Create a wrapper that adapts the method signature for GraphQL
-                            def make_custom_resolver(method) -> Callable:
+                            def make_custom_resolver(method: Callable[..., Any]) -> Callable:
                                 import asyncio
 
                                 if asyncio.iscoroutinefunction(method):
@@ -692,7 +693,9 @@ def convert_type_to_graphql_output(
 
                                     return async_resolver
 
-                                def sync_resolver(obj, info, **kwargs) -> Any:
+                                def sync_resolver(
+                                    obj: Any, info: GraphQLResolveInfo, **kwargs: Any
+                                ) -> Any:
                                     # Call the method with the object instance and info
                                     return method(obj, info, **kwargs)
 
@@ -743,7 +746,7 @@ def convert_type_to_graphql_output(
                             interfaces.append(interface_gql)
 
                 # Add is_type_of function to help with interface resolution
-                def is_type_of(obj, info) -> bool:
+                def is_type_of(obj: Any, info: GraphQLResolveInfo) -> bool:
                     """Check if an object is of this type."""
                     return (
                         obj.__class__.__name__ == typ.__name__
@@ -785,7 +788,9 @@ def convert_type_to_graphql_output(
                         )
 
                 # Create interface type with type resolver
-                def resolve_type(obj, info, type_) -> str | None:
+                def resolve_type(
+                    obj: Any, info: GraphQLResolveInfo, type_: GraphQLType
+                ) -> str | None:
                     """Resolve the concrete type for an interface."""
                     if hasattr(obj, "__class__") and hasattr(obj.__class__, "__name__"):
                         return obj.__class__.__name__

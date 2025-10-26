@@ -4,9 +4,11 @@ from typing import Annotated, Any, Callable
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.auth.base import AuthProvider, UserContext
 from fraiseql.db import FraiseQLRepository
+from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.optimization.registry import LoaderRegistry
 
 # Global instances (will be set by create_app)
@@ -23,7 +25,7 @@ def get_db_pool() -> Any:
     return _db_pool
 
 
-def set_db_pool(pool) -> None:
+def set_db_pool(pool: AsyncConnectionPool) -> None:
     """Set the database connection pool (called by create_app)."""
     global _db_pool
     _db_pool = pool
@@ -45,7 +47,7 @@ def get_fraiseql_config() -> Any:
     return _fraiseql_config
 
 
-def set_fraiseql_config(config) -> None:
+def set_fraiseql_config(config: FraiseQLConfig) -> None:
     """Set the FraiseQL configuration (called by create_app)."""
     global _fraiseql_config
     _fraiseql_config = config

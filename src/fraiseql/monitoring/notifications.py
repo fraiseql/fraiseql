@@ -25,6 +25,7 @@ from typing import Any, Protocol
 
 import httpx
 import psycopg
+from psycopg_pool import AsyncConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -500,7 +501,7 @@ class WebhookChannel:
 class NotificationManager:
     """Manages error notifications with rate limiting and delivery tracking."""
 
-    def __init__(self, db_pool):
+    def __init__(self, db_pool: AsyncConnectionPool):
         """Initialize notification manager.
 
         Args:

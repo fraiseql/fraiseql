@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, Callable, cast, get_type_hints
 
 from graphql import (
     GraphQLArgument,
@@ -140,7 +140,10 @@ class QueryTypeBuilder:
             )
 
     def _create_gql_resolver(
-        self, fn, arg_name_mapping: dict[str, str] | None = None, field_name: str | None = None
+        self,
+        fn: Callable[..., Any],
+        arg_name_mapping: dict[str, str] | None = None,
+        field_name: str | None = None,
     ):
         """Create a GraphQL resolver from a function.
 
@@ -183,7 +186,7 @@ class QueryTypeBuilder:
 
             return async_resolver
 
-        def sync_resolver(root, info, **kwargs):
+        def sync_resolver(root: Any, info: GraphQLResolveInfo, **kwargs: Any):
             # Store GraphQL info and field name in context for repository
             if hasattr(info, "context"):
                 info.context["graphql_info"] = info

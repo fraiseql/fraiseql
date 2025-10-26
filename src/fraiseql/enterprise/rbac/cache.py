@@ -13,6 +13,8 @@ from datetime import timedelta
 from typing import Optional
 from uuid import UUID
 
+from psycopg_pool import AsyncConnectionPool
+
 from fraiseql.caching import PostgresCache
 
 from .models import Permission
@@ -29,7 +31,7 @@ class PermissionCache:
     - Automatic invalidation via domain versioning (requires pg_fraiseql_cache)
     """
 
-    def __init__(self, db_pool):
+    def __init__(self, db_pool: AsyncConnectionPool):
         """Initialize permission cache.
 
         Args:

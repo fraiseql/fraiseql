@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
 
 @dataclass
@@ -23,7 +23,7 @@ class SchemaConfig:
         return cls._instance
 
     @classmethod
-    def set_config(cls, **kwargs) -> None:
+    def set_config(cls, **kwargs: Any) -> None:
         """Update the configuration."""
         instance = cls.get_instance()
         for key, value in kwargs.items():

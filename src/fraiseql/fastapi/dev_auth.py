@@ -8,7 +8,7 @@ import logging
 import secrets
 from collections.abc import Callable
 
-from fastapi import Request, Response, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -25,7 +25,7 @@ class DevAuthMiddleware(BaseHTTPMiddleware):
     only be used in non-production environments.
     """
 
-    def __init__(self, app, username: str, password: str) -> None:
+    def __init__(self, app: FastAPI, username: str, password: str) -> None:
         """Initialize the development auth middleware.
 
         Args:
@@ -195,7 +195,7 @@ def is_dev_auth_enabled() -> bool:
 
 
 def create_dev_auth_middleware(
-    app,
+    app: FastAPI,
     username: str | None = None,
     password: str | None = None,
 ) -> DevAuthMiddleware | None:

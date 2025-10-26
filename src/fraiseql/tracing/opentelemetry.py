@@ -51,11 +51,11 @@ except ImportError:
     ZipkinExporter = None  # type: ignore[assignment]
     PsycopgInstrumentor = None  # type: ignore[assignment]
 
-    def extract(*args, **kwargs) -> dict[str, Any]:  # type: ignore[misc]
+    def extract(*args: Any, **kwargs: Any) -> dict[str, Any]:  # type: ignore[misc]
         """Placeholder for extract when opentelemetry is not available."""
         return {}
 
-    def inject(*args, **kwargs) -> None:  # type: ignore[misc]
+    def inject(*args: Any, **kwargs: Any) -> None:  # type: ignore[misc]
         """Placeholder for inject when opentelemetry is not available."""
         return
 
@@ -87,7 +87,7 @@ except ImportError:
     class Status:  # type: ignore[misc]
         """Placeholder status when OpenTelemetry is not available."""
 
-        def __init__(self, code, description="") -> None:
+        def __init__(self, code: str, description: str = "") -> None:
             """Initialize placeholder status."""
             self.code = code
             self.description = description
@@ -375,7 +375,7 @@ class FraiseQLTracer:
 class TracingMiddleware(BaseHTTPMiddleware):
     """Middleware to trace HTTP requests."""
 
-    def __init__(self, app, tracer: FraiseQLTracer) -> None:
+    def __init__(self, app: FastAPI, tracer: FraiseQLTracer) -> None:
         """Initialize tracing middleware."""
         super().__init__(app)
         self.tracer = tracer
@@ -475,7 +475,7 @@ def trace_graphql_operation(operation_type: str, operation_name: str) -> Callabl
         operation_name: Name of the operation
     """
 
-    def decorator(func) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
         async def async_wrapper(*args, **kwargs) -> Any:
             tracer = get_tracer()
@@ -492,7 +492,7 @@ def trace_graphql_operation(operation_type: str, operation_name: str) -> Callabl
                     return await func(*args, **kwargs)
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs) -> Any:
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
 
             query = kwargs.get("query", "")
@@ -523,7 +523,7 @@ def trace_database_query(query_type: str, table: str) -> Callable:
         table: Table name
     """
 
-    def decorator(func) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
         async def async_wrapper(*args, **kwargs) -> Any:
             tracer = get_tracer()
@@ -535,7 +535,7 @@ def trace_database_query(query_type: str, table: str) -> Callable:
                 return await func(*args, **kwargs)
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs) -> Any:
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
 
             sql = args[0] if args else kwargs.get("sql", "")
