@@ -262,7 +262,7 @@ async def n1_detection_context(request_id: str) -> AsyncGenerator[N1QueryDetecto
         detector.end_request()
 
 
-def track_resolver_execution(func) -> Callable:
+def track_resolver_execution(func: Callable[..., Any]) -> Callable:
     """Decorator to track resolver execution for N+1 detection.
 
     This decorator should be applied to GraphQL field resolvers
@@ -297,7 +297,7 @@ def track_resolver_execution(func) -> Callable:
     # Handle sync functions
     if not asyncio.iscoroutinefunction(func):
 
-        def sync_wrapper(self, info: GraphQLResolveInfo, *args, **kwargs) -> Any:
+        def sync_wrapper(self, info: GraphQLResolveInfo, *args: Any, **kwargs: Any) -> Any:
             detector = get_detector()
 
             if not detector.enabled:

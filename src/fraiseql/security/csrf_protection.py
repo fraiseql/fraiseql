@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict
 
-from fastapi import Request, Response
+from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -263,7 +263,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: FastAPI,
         config: CSRFConfig,
         graphql_path: str = "/graphql",
     ) -> None:
@@ -474,7 +474,7 @@ class CSRFTokenEndpoint:
 
 
 def setup_csrf_protection(
-    app,
+    app: FastAPI,
     secret_key: str,
     config: CSRFConfig | None = None,
     graphql_path: str = "/graphql",

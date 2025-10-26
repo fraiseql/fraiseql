@@ -104,7 +104,7 @@ def with_lifecycle(
             ...
     """
 
-    def decorator(func) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
         async def wrapper(info, **kwargs) -> Any:
             # Call on_start

@@ -4,7 +4,7 @@ import logging
 from enum import Enum
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, PostgresDsn, field_validator
+from pydantic import Field, PostgresDsn, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -284,7 +284,7 @@ class FraiseQLConfig(BaseSettings):
     @field_validator("introspection_policy")
     @classmethod
     def set_production_introspection_default(
-        cls, v: IntrospectionPolicy, info
+        cls, v: IntrospectionPolicy, info: ValidationInfo
     ) -> IntrospectionPolicy:
         """Set introspection policy to DISABLED in production unless explicitly set."""
         if info.data.get("environment") == "production" and v == IntrospectionPolicy.PUBLIC:
@@ -293,7 +293,7 @@ class FraiseQLConfig(BaseSettings):
 
     @field_validator("enable_playground")
     @classmethod
-    def playground_for_dev_only(cls, v: bool, info) -> bool:
+    def playground_for_dev_only(cls, v: bool, info: ValidationInfo) -> bool:
         """Disable playground in production unless explicitly enabled."""
         if info.data.get("environment") == "production" and v is True:
             return False
@@ -301,7 +301,7 @@ class FraiseQLConfig(BaseSettings):
 
     @field_validator("auth0_domain")
     @classmethod
-    def validate_auth0_config(cls, v: str | None, info) -> str | None:
+    def validate_auth0_config(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate Auth0 configuration when Auth0 is selected."""
         if info.data.get("auth_provider") == "auth0" and not v:
             msg = "auth0_domain is required when using Auth0 provider"
@@ -310,7 +310,7 @@ class FraiseQLConfig(BaseSettings):
 
     @field_validator("cors_origins")
     @classmethod
-    def validate_cors_for_production(cls, v: list[str], info) -> list[str]:
+    def validate_cors_for_production(cls, v: list[str], info: ValidationInfo) -> list[str]:
         """Warn about insecure CORS configurations in production."""
         environment = info.data.get("environment", "development")
         cors_enabled = info.data.get("cors_enabled", False)

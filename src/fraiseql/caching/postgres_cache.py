@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psycopg
+from psycopg_pool import AsyncConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class PostgresCache:
 
     def __init__(
         self,
-        connection_pool,
+        connection_pool: AsyncConnectionPool,
         table_name: str = "fraiseql_cache",
         auto_initialize: bool = True,
     ) -> None:
@@ -504,13 +505,15 @@ class PostgresCache:
                 await cur.execute(
                     f"SELECT COUNT(*) FROM {self.table_name}",
                 )
-                total = (await cur.fetchone())[0]
+                result = await cur.fetchone()
+                total = result[0] if result else 0
 
                 # Get expired entries (not yet cleaned)
                 await cur.execute(
                     f"SELECT COUNT(*) FROM {self.table_name} WHERE expires_at <= NOW()",
                 )
-                expired = (await cur.fetchone())[0]
+                result = await cur.fetchone()
+                expired = result[0] if result else 0
 
                 # Get table size
                 await cur.execute(
@@ -519,7 +522,8 @@ class PostgresCache:
                     """,
                     (self.table_name,),
                 )
-                size_bytes = (await cur.fetchone())[0]
+                result = await cur.fetchone()
+                size_bytes = result[0] if result else 0
 
                 return {
                     "total_entries": total,

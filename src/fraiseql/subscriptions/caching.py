@@ -113,7 +113,7 @@ def cache(ttl: float = 5.0) -> Callable:
             ...
     """
 
-    def decorator(func) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable:
         func._cache_ttl = ttl
 
         @wraps(func)

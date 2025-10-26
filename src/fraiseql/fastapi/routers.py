@@ -485,7 +485,7 @@ def create_graphql_router(
     return router
 
 
-def _format_error(error, is_production: bool) -> dict[str, Any]:
+def _format_error(error: Any, is_production: bool) -> dict[str, Any]:
     """Format GraphQL error based on environment."""
     if is_production:
         # Minimal info in production

@@ -600,7 +600,7 @@ class CQRSRepository:
 
     # Utility methods
 
-    def _convert_order_by_to_tuples(self, order_by):
+    def _convert_order_by_to_tuples(self, order_by: Any):
         """Convert any OrderBy format to list of tuples.
 
         Args:

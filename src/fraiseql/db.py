@@ -643,7 +643,7 @@ class FraiseQLRepository:
         field_paths: list[Any] | None = None,
         info: Any = None,
         jsonb_column: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> DatabaseQuery:
         """Build a SELECT query for finding multiple records.
 
@@ -755,7 +755,7 @@ class FraiseQLRepository:
         field_paths: list[Any] | None = None,
         info: Any = None,
         jsonb_column: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> DatabaseQuery:
         """Build a SELECT query for finding a single record."""
         # Force limit=1 for find_one

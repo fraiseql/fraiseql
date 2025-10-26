@@ -23,7 +23,7 @@ Usage:
         # It's stored as pk_{entity} and hidden from GraphQL
 """
 
-from typing import ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 
 class TrinityMixin:
@@ -41,7 +41,7 @@ class TrinityMixin:
     # Class-level configuration
     __trinity_entity_name__: ClassVar[str | None] = None
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any):
         """Set up Trinity pattern when class is defined."""
         super().__init_subclass__(**kwargs)
 
@@ -71,7 +71,7 @@ class TrinityMixin:
         setattr(self, self._pk_name, pk)
 
 
-def trinity_field(**kwargs) -> dict:
+def trinity_field(**kwargs: Any) -> dict:
     """Create field metadata for Trinity identifiers.
 
     This returns metadata that can be used with Strawberry or other GraphQL

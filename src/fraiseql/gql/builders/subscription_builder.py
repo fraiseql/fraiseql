@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, Callable, cast, get_type_hints
 
 from graphql import (
     GraphQLArgument,
@@ -96,7 +96,9 @@ class SubscriptionTypeBuilder:
 
         return GraphQLObjectType(name="Subscription", fields=MappingProxyType(fields))
 
-    def _make_subscription(self, fn, arg_name_mapping: dict[str, str] | None = None):
+    def _make_subscription(
+        self, fn: Callable[..., Any], arg_name_mapping: dict[str, str] | None = None
+    ):
         """Create a GraphQL subscription from an async generator function.
 
         Args:

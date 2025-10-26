@@ -112,7 +112,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
     # Handle object with field-specific order directions
     if hasattr(order_by_input, "__gql_fields__"):
 
-        def process_order_by(obj, prefix=""):
+        def process_order_by(obj: Any, prefix: str = ""):
             """Recursively process order by object."""
             for field_name in obj.__gql_fields__:
                 value = getattr(obj, field_name)
@@ -130,7 +130,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
     # Handle plain dict (common from GraphQL frameworks)
     elif isinstance(order_by_input, dict):
 
-        def process_dict_order_by(obj_dict, prefix=""):
+        def process_dict_order_by(obj_dict: dict[str, Any], prefix: str = ""):
             """Process dictionary-style order by input."""
             for field_name, value in obj_dict.items():
                 if value is not None:

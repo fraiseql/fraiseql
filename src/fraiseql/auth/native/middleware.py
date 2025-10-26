@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from typing import Optional
 
-from fastapi import Request, Response, status
+from fastapi import FastAPI, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
@@ -22,7 +22,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: FastAPI,
         hsts_max_age: int = 31536000,  # 1 year
         include_subdomains: bool = True,
         csp_policy: Optional[str] = None,
@@ -77,7 +77,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: FastAPI,
         requests_per_minute: int = 60,
         burst_requests: int = 10,
         auth_requests_per_minute: int = 5,  # Stricter limit for auth endpoints
@@ -238,7 +238,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: FastAPI,
         secret_key: str,
         cookie_name: str = "csrf_token",
         header_name: str = "X-CSRF-Token",

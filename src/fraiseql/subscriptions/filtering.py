@@ -62,7 +62,7 @@ class FilterExpressionEvaluator:
             msg = f"Invalid filter expression: {e}"
             raise FilterError(msg) from e
 
-    def _validate_ast(self, node) -> None:
+    def _validate_ast(self, node: ast.AST) -> None:
         """Validate AST nodes for safety."""
         for child in ast.walk(node):
             # Only allow specific node types
@@ -112,7 +112,7 @@ def filter(expression: str) -> Callable:  # noqa: A001
             ...
     """
 
-    def decorator(func) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable:
         func._filter_expression = expression
 
         @wraps(func)

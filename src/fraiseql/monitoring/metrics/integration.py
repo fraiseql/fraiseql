@@ -27,7 +27,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     - Error rates
     """
 
-    def __init__(self, app, metrics: FraiseQLMetrics, config: MetricsConfig | None = None) -> None:
+    def __init__(
+        self, app: FastAPI, metrics: FraiseQLMetrics, config: MetricsConfig | None = None
+    ) -> None:
         """Initialize metrics middleware."""
         super().__init__(app)
         self.metrics = metrics
@@ -163,7 +165,7 @@ def with_metrics(operation_type: str = "operation") -> Callable:
         ```
     """
 
-    def decorator(func) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
         async def async_wrapper(*args, **kwargs) -> Any:
             metrics = get_metrics()
@@ -194,7 +196,7 @@ def with_metrics(operation_type: str = "operation") -> Callable:
                         )
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs) -> Any:
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             metrics = get_metrics()
             start_time = time.time()
             success = False

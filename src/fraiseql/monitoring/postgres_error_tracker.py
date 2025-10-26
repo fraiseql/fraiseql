@@ -21,6 +21,7 @@ from typing import Any
 from uuid import uuid4
 
 import psycopg
+from psycopg_pool import AsyncConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class PostgreSQLErrorTracker:
 
     def __init__(
         self,
-        db_pool,
+        db_pool: AsyncConnectionPool,
         environment: str = "production",
         release_version: str | None = None,
         enable_notifications: bool = True,
@@ -549,7 +550,7 @@ def get_error_tracker() -> PostgreSQLErrorTracker | None:
 
 
 def init_error_tracker(
-    db_pool,
+    db_pool: AsyncConnectionPool,
     environment: str = "production",
     release_version: str | None = None,
     enable_notifications: bool = True,

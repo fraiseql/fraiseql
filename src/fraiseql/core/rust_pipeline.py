@@ -37,7 +37,7 @@ class RustResponseBytes:
 
     __slots__ = ("_fixed", "bytes", "content_type")
 
-    def __init__(self, data):
+    def __init__(self, data: bytes):
         self.bytes = data
         self.content_type = "application/json"
         self._fixed = False

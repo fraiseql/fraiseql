@@ -135,7 +135,9 @@ def authorize_field(
             return async_auth_wrapper  # type: ignore[return-value]
 
         @functools.wraps(func)
-        def sync_auth_wrapper(root, info, *args: Any, **kwargs: Any) -> Any:
+        def sync_auth_wrapper(
+            root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+        ) -> Any:
             # Check permission first
             if asyncio.iscoroutinefunction(permission_check):
                 # Warn about using async permission check with sync resolver

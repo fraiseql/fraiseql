@@ -6,8 +6,9 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
-from fastapi import Request, Response
+from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -84,7 +85,7 @@ class RateLimitStore:
 class RedisRateLimitStore:
     """Redis-backed rate limit store."""
 
-    def __init__(self, redis_client) -> None:
+    def __init__(self, redis_client: Any) -> None:
         self.redis = redis_client
 
     async def get(self, key: str) -> tuple[float, int]:
@@ -310,7 +311,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: FastAPI,
         store: RateLimitStore | RedisRateLimitStore | None = None,
         rules: list[RateLimitRule] | None = None,
         default_limit: RateLimit | None = None,
@@ -524,8 +525,8 @@ def create_default_rate_limit_rules() -> list[RateLimitRule]:
 
 
 def setup_rate_limiting(
-    app,
-    redis_client=None,
+    app: FastAPI,
+    redis_client: Any = None,
     custom_rules: list[RateLimitRule] | None = None,
     default_limit: RateLimit | None = None,
 ) -> RateLimitMiddleware:

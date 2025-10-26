@@ -131,7 +131,7 @@ class UnifiedExecutor:
                 ]
             }
 
-    def _format_error(self, error) -> dict[str, Any]:
+    def _format_error(self, error: Any) -> dict[str, Any]:
         """Format GraphQL error for response.
 
         Args:

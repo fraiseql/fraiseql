@@ -6,6 +6,8 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any, Optional, TypeVar, overload
 
+from graphql import GraphQLResolveInfo
+
 from fraiseql.gql.schema_builder import SchemaRegistry
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -502,7 +504,9 @@ def field(
 
         else:
 
-            def sync_wrapped_resolver(root, info, *args, **kwargs) -> Any:
+            def sync_wrapped_resolver(
+                root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+            ) -> Any:
                 # Check if N+1 detector is available in context
                 detector = None
                 if track_n1 and info and hasattr(info, "context") and info.context:

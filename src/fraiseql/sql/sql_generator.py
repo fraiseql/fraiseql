@@ -6,6 +6,7 @@ optimized PostgreSQL queries using `jsonb_build_object` for minimal post-process
 """
 
 from collections.abc import Sequence
+from typing import Any
 
 from psycopg import sql
 from psycopg.sql import SQL, Composed, Identifier
@@ -426,7 +427,7 @@ def _determine_jsonb_operator(alias: str, field_name: str, typename: str | None 
     return "->>"
 
 
-def _convert_order_by_to_tuples(order_by):
+def _convert_order_by_to_tuples(order_by: Any):
     """Convert any OrderBy format to list of tuples.
 
     Args:

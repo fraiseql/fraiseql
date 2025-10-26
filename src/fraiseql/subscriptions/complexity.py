@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable
 
+from graphql import SelectionSetNode
+
 from fraiseql.core.exceptions import ComplexityLimitExceededError
 
 
@@ -63,7 +65,7 @@ class SubscriptionComplexityAnalyzer:
 
         return cost
 
-    def _calculate_depth(self, selection_set, current_depth=0):
+    def _calculate_depth(self, selection_set: SelectionSetNode | None, current_depth: int = 0):
         """Calculate maximum depth of selection set."""
         if not selection_set:
             return current_depth
@@ -76,7 +78,9 @@ class SubscriptionComplexityAnalyzer:
 
         return max_depth
 
-    def _calculate_selection_cost(self, selection_set, fragments):
+    def _calculate_selection_cost(
+        self, selection_set: SelectionSetNode | None, fragments: dict[str, Any]
+    ):
         """Calculate cost of selection set."""
         if not selection_set:
             return 0
@@ -108,7 +112,7 @@ def complexity(score: int | None = None, max_depth: int | None = None) -> Callab
             ...
     """
 
-    def decorator(func) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable:
         # Store complexity metadata
         func._complexity_score = score
         func._max_depth = max_depth

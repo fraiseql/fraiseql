@@ -22,7 +22,7 @@ class StrawberryCompatibility:
     """Compatibility layer that mimics Strawberry's API using FraiseQL."""
 
     @staticmethod
-    def type(cls_arg: Any = None, **kwargs) -> Any:
+    def type(cls_arg: Any = None, **kwargs: Any) -> Any:
         """Strawberry @strawberry.type compatibility."""
         if cls_arg is None:
             # Called with arguments: @strawberry.type(name="CustomName")
@@ -34,7 +34,7 @@ class StrawberryCompatibility:
         return fraiseql.type(cls_arg)
 
     @staticmethod
-    def input(cls_arg: builtins.type[Any] | None = None, **kwargs) -> Any:
+    def input(cls_arg: builtins.type[Any] | None = None, **kwargs: Any) -> Any:
         """Strawberry @strawberry.input compatibility."""
         if cls_arg is None:
 
@@ -45,7 +45,7 @@ class StrawberryCompatibility:
         return fraiseql.input(cls_arg)
 
     @staticmethod
-    def enum(cls_arg: builtins.type[Any] | None = None, **kwargs) -> Any:
+    def enum(cls_arg: builtins.type[Any] | None = None, **kwargs: Any) -> Any:
         """Strawberry @strawberry.enum compatibility."""
         if cls_arg is None:
 
@@ -56,7 +56,7 @@ class StrawberryCompatibility:
         return fraiseql.enum(cls_arg)
 
     @staticmethod
-    def interface(cls_arg: builtins.type[Any] | None = None, **kwargs) -> Any:
+    def interface(cls_arg: builtins.type[Any] | None = None, **kwargs: Any) -> Any:
         """Strawberry @strawberry.interface compatibility."""
         if cls_arg is None:
 
@@ -72,7 +72,7 @@ class StrawberryCompatibility:
         *,
         resolver: Callable[..., Any] | None = None,
         description: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Strawberry @strawberry.field compatibility."""
         if fn is None:
@@ -84,7 +84,7 @@ class StrawberryCompatibility:
         return fraiseql.field(fn, resolver=resolver, description=description)
 
     @staticmethod
-    def mutation(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
+    def mutation(fn: Callable[..., Any] | None = None, **kwargs: Any) -> Any:
         """Strawberry @strawberry.mutation compatibility."""
         if fn is None:
 
@@ -95,7 +95,7 @@ class StrawberryCompatibility:
         return fraiseql.mutation(fn)
 
     @staticmethod
-    def query(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
+    def query(fn: Callable[..., Any] | None = None, **kwargs: Any) -> Any:
         """Strawberry @strawberry.query compatibility."""
         if fn is None:
 
@@ -106,7 +106,7 @@ class StrawberryCompatibility:
         return fraiseql.query(fn)
 
     @staticmethod
-    def subscription(fn: Callable[..., Any] | None = None, **kwargs) -> Any:
+    def subscription(fn: Callable[..., Any] | None = None, **kwargs: Any) -> Any:
         """Strawberry @strawberry.subscription compatibility."""
         if fn is None:
 

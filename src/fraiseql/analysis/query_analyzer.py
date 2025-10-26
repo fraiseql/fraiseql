@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from graphql import (
     DocumentNode,
@@ -143,7 +143,7 @@ class QueryAnalyzer:
                 # Check if it's a simple resolver
                 self._resolver_cache[field_name] = self._is_simple_resolver(field.resolve)
 
-    def _is_simple_resolver(self, resolver) -> bool:
+    def _is_simple_resolver(self, resolver: Any) -> bool:
         """Check if a resolver is simple enough for passthrough."""
         # Get the original function
         original = resolver

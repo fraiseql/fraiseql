@@ -34,7 +34,7 @@ def requires_permission(resource: str, action: str, check_constraints: bool = Tr
                 return await get_user_by_id(id)
     """
 
-    def directive_resolver(resolver) -> Callable:
+    def directive_resolver(resolver: Callable[..., Any]) -> Callable:
         async def wrapper(*args, **kwargs) -> Any:
             info: Info = args[1]  # GraphQL Info is second arg
             context = info.context
@@ -109,7 +109,7 @@ def requires_role(role_name: str) -> Callable:
                 return await delete_user_by_id(id)
     """
 
-    def directive_resolver(resolver) -> Callable:
+    def directive_resolver(resolver: Callable[..., Any]) -> Callable:
         async def wrapper(*args, **kwargs) -> Any:
             info: Info = args[1]
             context = info.context
