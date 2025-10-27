@@ -41,16 +41,16 @@ class TestProductionFixValidation:
         strategy = registry.get_strategy("eq", field_type=None)
 
         test_ips = [
-            "192.168.1.1",     # Private IPv4
-            "10.0.0.1",        # Private IPv4
-            "172.16.0.1",      # Private IPv4
-            "8.8.8.8",         # Public IPv4
-            "127.0.0.1",       # Localhost
-            "0.0.0.0",         # All zeros
-            "255.255.255.255", # Broadcast
-            "2001:db8::1",     # IPv6
-            "::1",             # IPv6 localhost
-            "fe80::1",         # IPv6 link-local
+            "192.168.1.1",  # Private IPv4
+            "10.0.0.1",  # Private IPv4
+            "172.16.0.1",  # Private IPv4
+            "8.8.8.8",  # Public IPv4
+            "127.0.0.1",  # Localhost
+            "0.0.0.0",  # All zeros
+            "255.255.255.255",  # Broadcast
+            "2001:db8::1",  # IPv6
+            "::1",  # IPv6 localhost
+            "fe80::1",  # IPv6 link-local
         ]
 
         jsonb_path_sql = SQL("(data ->> 'ip_address')")
@@ -74,8 +74,8 @@ class TestProductionFixValidation:
             "hello world",
             "Primary DNS Google",
             "server-01",
-            "192.168.1",      # Incomplete IP
-            "256.1.1.1",      # Invalid IP (octet too large)
+            "192.168.1",  # Incomplete IP
+            "256.1.1.1",  # Invalid IP (octet too large)
             "not.an.ip.address",
             "",
             "192.168.1.1.1",  # Too many octets
@@ -202,7 +202,7 @@ class TestIPDetectionLogic:
             "8.8.8.8",
             "127.0.0.1",
             "0.0.0.0",
-            "255.255.255.255"
+            "255.255.255.255",
         ]
 
         for ip in valid_ipv4:
@@ -214,12 +214,7 @@ class TestIPDetectionLogic:
 
         strategy = ComparisonOperatorStrategy()
 
-        valid_ipv6 = [
-            "2001:db8::1",
-            "::1",
-            "fe80::1",
-            "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
-        ]
+        valid_ipv6 = ["2001:db8::1", "::1", "fe80::1", "2001:0db8:85a3:0000:0000:8a2e:0370:7334"]
 
         for ip in valid_ipv6:
             assert strategy._looks_like_ip_address_value(ip, "eq"), f"Should detect {ip} as IPv6"
@@ -233,8 +228,8 @@ class TestIPDetectionLogic:
         not_ips = [
             "hello world",
             "server.example.com",
-            "192.168.1",      # Incomplete
-            "256.1.1.1",      # Invalid octet
+            "192.168.1",  # Incomplete
+            "256.1.1.1",  # Invalid octet
             "not.an.ip.address",
             "",
             "192.168.1.1.1",  # Too many octets
@@ -242,12 +237,13 @@ class TestIPDetectionLogic:
             "12345",
             True,
             None,
-            []
+            [],
         ]
 
         for not_ip in not_ips:
-            assert not strategy._looks_like_ip_address_value(not_ip, "eq"), \
+            assert not strategy._looks_like_ip_address_value(not_ip, "eq"), (
                 f"Should NOT detect {not_ip} as IP"
+            )
 
 
 if __name__ == "__main__":
@@ -264,4 +260,6 @@ if __name__ == "__main__":
     print("\n3. Testing non-IP strings...")
     test_instance.test_non_ip_strings_not_affected()
 
-    print("\nRun full tests with: pytest tests/core/test_production_fix_validation.py -m core -v -s")
+    print(
+        "\nRun full tests with: pytest tests/core/test_production_fix_validation.py -m core -v -s"
+    )

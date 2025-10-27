@@ -160,7 +160,7 @@ class TestCQRSRepositoryQueries:
             id: str
             name: str
 
-        _ = await repository.list(User, limit=10, offset=0)
+        _ = await repository.list_entities(User, limit=10, offset=0)
 
         # Check cursor was called
         cursor = mock_connection.cursor.return_value.__aenter__.return_value
@@ -188,7 +188,7 @@ class TestCQRSRepositoryQueries:
             name: str
             status: str
 
-        _ = await repository.list(User, where={"status": {"eq": "active"}}, limit=10)
+        _ = await repository.list_entities(User, where={"status": {"eq": "active"}}, limit=10)
 
         # Check cursor was called
         cursor = mock_connection.cursor.return_value.__aenter__.return_value
@@ -204,7 +204,7 @@ class TestCQRSRepositoryQueries:
             id: str
             created_at: str
 
-        _ = await repository.list(User, order_by=[("created_at", "DESC")], limit=10)
+        _ = await repository.list_entities(User, order_by=[("created_at", "DESC")], limit=10)
 
         # Check cursor was called
         cursor = mock_connection.cursor.return_value.__aenter__.return_value
@@ -421,4 +421,4 @@ class TestCQRSRepositoryErrorHandling:
             id: str
 
         with pytest.raises(Exception, match="relation does not exist"):
-            await repository.list(User)
+            await repository.list_entities(User)

@@ -223,14 +223,16 @@ class TestREDPhaseProductionScenarios:
         """Create realistic network device data that triggers all the bugs."""
         async with db_pool.connection() as conn:
             # Create production-like hybrid table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS network_devices (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     name TEXT NOT NULL,
                     device_type TEXT NOT NULL,
                     data JSONB
                 )
-            """)
+            """
+            )
 
             await conn.execute("DELETE FROM network_devices")
 

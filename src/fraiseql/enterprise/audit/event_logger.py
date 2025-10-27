@@ -11,6 +11,7 @@ from typing import Any, Optional
 from uuid import UUID, uuid4
 
 import psycopg
+from psycopg import AsyncConnection
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
 
@@ -22,7 +23,7 @@ class AuditLogger:
     by PostgreSQL triggers. This Python layer only captures and batches events.
     """
 
-    def __init__(self, repo: FraiseQLRepository, batch_size: int = 100):
+    def __init__(self, repo: FraiseQLRepository, batch_size: int = 100) -> None:
         self.repo = repo
         self.batch_size = batch_size
         self._batch: list[dict] = []
@@ -58,13 +59,13 @@ class AuditLogger:
             await self.flush_batch()
         return event["id"]
 
-    async def flush_batch(self):
+    async def flush_batch(self) -> None:
         """Write all batched events to database."""
         if not self._batch:
             return
 
         # Write events in transaction
-        async def write_batch(conn):
+        async def write_batch(conn: AsyncConnection) -> None:
             for event in self._batch:
                 await self._write_event(event, conn)
 
@@ -105,7 +106,9 @@ class AuditLogger:
             "ip_address": ip_address,
         }
 
-    async def _write_event(self, event: dict[str, Any], conn=None) -> UUID:
+    async def _write_event(
+        self, event: dict[str, Any], conn: AsyncConnection | None = None
+    ) -> UUID:
         """Write a single event to database.
 
         PostgreSQL trigger (populate_crypto_trigger) automatically:

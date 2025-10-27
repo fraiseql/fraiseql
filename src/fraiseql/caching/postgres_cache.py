@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psycopg
+from psycopg_pool import AsyncConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class PostgresCache:
 
     def __init__(
         self,
-        connection_pool,
+        connection_pool: AsyncConnectionPool,
         table_name: str = "fraiseql_cache",
         auto_initialize: bool = True,
     ) -> None:
@@ -62,27 +63,33 @@ class PostgresCache:
         async with self.pool.connection() as conn, conn.cursor() as cur:
             # Create UNLOGGED table for cache
             # UNLOGGED = no WAL = faster writes, but data lost on crash (acceptable for cache)
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE UNLOGGED TABLE IF NOT EXISTS {self.table_name} (
                     cache_key TEXT PRIMARY KEY,
                     cache_value JSONB NOT NULL,
                     expires_at TIMESTAMPTZ NOT NULL
                 )
-            """)
+            """
+            )
 
             # Index on expiry for efficient cleanup
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_expires_idx
                 ON {self.table_name} (expires_at)
-            """)
+            """
+            )
 
             # Detect pg_fraiseql_cache extension
             try:
-                await cur.execute("""
+                await cur.execute(
+                    """
                     SELECT extversion
                     FROM pg_extension
                     WHERE extname = 'pg_fraiseql_cache'
-                """)
+                """
+                )
                 result = await cur.fetchone()
 
                 if result:
@@ -504,13 +511,15 @@ class PostgresCache:
                 await cur.execute(
                     f"SELECT COUNT(*) FROM {self.table_name}",
                 )
-                total = (await cur.fetchone())[0]
+                result = await cur.fetchone()
+                total = result[0] if result else 0
 
                 # Get expired entries (not yet cleaned)
                 await cur.execute(
                     f"SELECT COUNT(*) FROM {self.table_name} WHERE expires_at <= NOW()",
                 )
-                expired = (await cur.fetchone())[0]
+                result = await cur.fetchone()
+                expired = result[0] if result else 0
 
                 # Get table size
                 await cur.execute(
@@ -519,7 +528,8 @@ class PostgresCache:
                     """,
                     (self.table_name,),
                 )
-                size_bytes = (await cur.fetchone())[0]
+                result = await cur.fetchone()
+                size_bytes = result[0] if result else 0
 
                 return {
                     "total_entries": total,

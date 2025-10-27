@@ -16,6 +16,7 @@ from fraiseql.types.definitions import UNSET
 @fraiseql.input
 class AddressInput:
     """Test address input with snake_case field names."""
+
     street_number: str
     street_name: str
     postal_code: str
@@ -25,6 +26,7 @@ class AddressInput:
 @fraiseql.input
 class LocationInput:
     """Test location input with nested address."""
+
     name: str
     description: str | None = UNSET
     address: AddressInput | None = UNSET  # Nested input object
@@ -33,6 +35,7 @@ class LocationInput:
 @fraiseql.input
 class CompanyInput:
     """Test company input with nested location."""
+
     company_name: str
     registration_number: str | None = UNSET
     location: LocationInput | None = UNSET  # Nested nested input object
@@ -42,10 +45,7 @@ def test_direct_input_field_names():
     """Test that direct input object has correct field names."""
     # Simulate how GraphQL would pass arguments
     address = AddressInput(
-        street_number="123",
-        street_name="Main Street",
-        postal_code="12345",
-        country_code="US"
+        street_number="123", street_name="Main Street", postal_code="12345", country_code="US"
     )
 
     # Verify the object has snake_case field names
@@ -66,10 +66,7 @@ def test_sql_generator_serialization():
 
     # Create address input object (simulating direct mutation input)
     address = AddressInput(
-        street_number="123",
-        street_name="Main Street",
-        postal_code="12345",
-        country_code="US"
+        street_number="123", street_name="Main Street", postal_code="12345", country_code="US"
     )
 
     # Serialize the address object
@@ -95,16 +92,11 @@ def test_nested_input_serialization():
 
     # Create nested input structure
     address = AddressInput(
-        street_number="456",
-        street_name="Oak Avenue",
-        postal_code="67890",
-        country_code="CA"
+        street_number="456", street_name="Oak Avenue", postal_code="67890", country_code="CA"
     )
 
     location = LocationInput(
-        name="Main Office",
-        description="Primary business location",
-        address=address
+        name="Main Office", description="Primary business location", address=address
     )
 
     # Serialize the location (which contains nested address)
@@ -137,22 +129,15 @@ def test_deeply_nested_input_serialization():
 
     # Create deeply nested structure
     address = AddressInput(
-        street_number="789",
-        street_name="Pine Street",
-        postal_code="11111",
-        country_code="UK"
+        street_number="789", street_name="Pine Street", postal_code="11111", country_code="UK"
     )
 
     location = LocationInput(
-        name="Branch Office",
-        description="Secondary location",
-        address=address
+        name="Branch Office", description="Secondary location", address=address
     )
 
     company = CompanyInput(
-        company_name="Tech Corp",
-        registration_number="12345678",
-        location=location
+        company_name="Tech Corp", registration_number="12345678", location=location
     )
 
     # Serialize the company (deeply nested structure)
@@ -193,7 +178,7 @@ def test_raw_dict_conversion():
         "streetNumber": "999",
         "streetName": "Elm Street",
         "postalCode": "99999",
-        "countryCode": "DE"
+        "countryCode": "DE",
     }
 
     # This should convert camelCase keys to snake_case
@@ -226,8 +211,8 @@ def test_mixed_nested_dict_conversion():
             "streetNumber": "111",
             "streetName": "Maple Street",
             "postalCode": "22222",
-            "countryCode": "FR"
-        }
+            "countryCode": "FR",
+        },
     }
 
     serialized = _serialize_value(raw_nested_data)
@@ -257,7 +242,7 @@ def test_coercion_from_camel_case():
         "streetNumber": "777",
         "streetName": "Cedar Avenue",
         "postalCode": "77777",
-        "countryCode": "JP"
+        "countryCode": "JP",
     }
 
     # This should create a proper AddressInput object with snake_case fields
@@ -286,9 +271,9 @@ def test_end_to_end_pipeline():
                 "streetNumber": "555",
                 "streetName": "Test Boulevard",
                 "postalCode": "55555",
-                "countryCode": "NL"
-            }
-        }
+                "countryCode": "NL",
+            },
+        },
     }
 
     # Step 2: Coerce into FraiseQL objects (simulating GraphQL coercion)

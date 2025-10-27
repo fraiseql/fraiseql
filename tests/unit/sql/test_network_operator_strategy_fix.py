@@ -27,46 +27,95 @@ class TestNetworkOperatorStrategy:
         """Test that all expected operators are now supported."""
         expected_operators = [
             # Basic comparison operators (newly added)
-            "eq", "neq", "in", "notin", "nin",
+            "eq",
+            "neq",
+            "in",
+            "notin",
+            "nin",
             # Network-specific operators (existing)
-            "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6",
+            "inSubnet",
+            "inRange",
+            "isPrivate",
+            "isPublic",
+            "isIPv4",
+            "isIPv6",
             # Enhanced network-specific operators (added)
-            "isLoopback", "isLinkLocal", "isMulticast", "isDocumentation", "isCarrierGrade"
+            "isLoopback",
+            "isLinkLocal",
+            "isMulticast",
+            "isDocumentation",
+            "isCarrierGrade",
         ]
 
         assert self.strategy.operators == expected_operators
 
     def test_can_handle_network_specific_without_field_type(self):
         """Test that network-specific operators work without field_type."""
-        network_ops = ["inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6", "isLoopback", "isLinkLocal", "isMulticast", "isDocumentation", "isCarrierGrade"]
+        network_ops = [
+            "inSubnet",
+            "inRange",
+            "isPrivate",
+            "isPublic",
+            "isIPv4",
+            "isIPv6",
+            "isLoopback",
+            "isLinkLocal",
+            "isMulticast",
+            "isDocumentation",
+            "isCarrierGrade",
+        ]
 
         for op in network_ops:
-            assert self.strategy.can_handle(op, field_type=None), f"Should handle {op} without field_type"
+            assert self.strategy.can_handle(op, field_type=None), (
+                f"Should handle {op} without field_type"
+            )
 
     def test_cannot_handle_basic_operators_without_field_type(self):
         """Test that basic operators require field_type (delegated to generic strategies)."""
         basic_ops = ["eq", "neq", "in", "notin"]
 
         for op in basic_ops:
-            assert not self.strategy.can_handle(op, field_type=None), f"Should NOT handle {op} without field_type"
+            assert not self.strategy.can_handle(op, field_type=None), (
+                f"Should NOT handle {op} without field_type"
+            )
 
     def test_can_handle_all_operators_with_ip_field_type(self):
         """Test that all operators work with IP address field type."""
-        all_ops = ["eq", "neq", "in", "notin", "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6", "isLoopback", "isLinkLocal", "isMulticast", "isDocumentation", "isCarrierGrade"]
+        all_ops = [
+            "eq",
+            "neq",
+            "in",
+            "notin",
+            "inSubnet",
+            "inRange",
+            "isPrivate",
+            "isPublic",
+            "isIPv4",
+            "isIPv6",
+            "isLoopback",
+            "isLinkLocal",
+            "isMulticast",
+            "isDocumentation",
+            "isCarrierGrade",
+        ]
 
         for op in all_ops:
-            assert self.strategy.can_handle(op, field_type=IpAddress), f"Should handle {op} with IpAddress field_type"
+            assert self.strategy.can_handle(op, field_type=IpAddress), (
+                f"Should handle {op} with IpAddress field_type"
+            )
 
     def test_eq_operator_sql_generation(self):
         """Test SQL generation for eq operator."""
         result = self.strategy.build_sql(self.field_path, "eq", "8.8.8.8", IpAddress)
 
-        expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
-            SQL(" = "),
-            Literal("8.8.8.8"),
-            SQL("::inet")
-        ])
+        expected = Composed(
+            [
+                Composed([SQL("("), self.field_path, SQL(")::inet")]),
+                SQL(" = "),
+                Literal("8.8.8.8"),
+                SQL("::inet"),
+            ]
+        )
 
         assert str(result) == str(expected)
 
@@ -74,12 +123,14 @@ class TestNetworkOperatorStrategy:
         """Test SQL generation for neq operator."""
         result = self.strategy.build_sql(self.field_path, "neq", "8.8.8.8", IpAddress)
 
-        expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
-            SQL(" != "),
-            Literal("8.8.8.8"),
-            SQL("::inet")
-        ])
+        expected = Composed(
+            [
+                Composed([SQL("("), self.field_path, SQL(")::inet")]),
+                SQL(" != "),
+                Literal("8.8.8.8"),
+                SQL("::inet"),
+            ]
+        )
 
         assert str(result) == str(expected)
 
@@ -88,16 +139,21 @@ class TestNetworkOperatorStrategy:
         ip_list = ["8.8.8.8", "1.1.1.1", "9.9.9.9"]
         result = self.strategy.build_sql(self.field_path, "in", ip_list, IpAddress)
 
-        expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
-            SQL(" IN ("),
-            Literal("8.8.8.8"), SQL("::inet"),
-            SQL(", "),
-            Literal("1.1.1.1"), SQL("::inet"),
-            SQL(", "),
-            Literal("9.9.9.9"), SQL("::inet"),
-            SQL(")")
-        ])
+        expected = Composed(
+            [
+                Composed([SQL("("), self.field_path, SQL(")::inet")]),
+                SQL(" IN ("),
+                Literal("8.8.8.8"),
+                SQL("::inet"),
+                SQL(", "),
+                Literal("1.1.1.1"),
+                SQL("::inet"),
+                SQL(", "),
+                Literal("9.9.9.9"),
+                SQL("::inet"),
+                SQL(")"),
+            ]
+        )
 
         assert str(result) == str(expected)
 
@@ -106,14 +162,18 @@ class TestNetworkOperatorStrategy:
         ip_list = ["192.168.1.1", "10.0.0.1"]
         result = self.strategy.build_sql(self.field_path, "notin", ip_list, IpAddress)
 
-        expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
-            SQL(" NOT IN ("),
-            Literal("192.168.1.1"), SQL("::inet"),
-            SQL(", "),
-            Literal("10.0.0.1"), SQL("::inet"),
-            SQL(")")
-        ])
+        expected = Composed(
+            [
+                Composed([SQL("("), self.field_path, SQL(")::inet")]),
+                SQL(" NOT IN ("),
+                Literal("192.168.1.1"),
+                SQL("::inet"),
+                SQL(", "),
+                Literal("10.0.0.1"),
+                SQL("::inet"),
+                SQL(")"),
+            ]
+        )
 
         assert str(result) == str(expected)
 
@@ -131,12 +191,14 @@ class TestNetworkOperatorStrategy:
         """Test that existing network operators continue to work."""
         # Test inSubnet
         result = self.strategy.build_sql(self.field_path, "inSubnet", "192.168.0.0/16", IpAddress)
-        expected_subnet = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
-            SQL(" <<= "),
-            Literal("192.168.0.0/16"),
-            SQL("::inet")
-        ])
+        expected_subnet = Composed(
+            [
+                Composed([SQL("("), self.field_path, SQL(")::inet")]),
+                SQL(" <<= "),
+                Literal("192.168.0.0/16"),
+                SQL("::inet"),
+            ]
+        )
         assert str(result) == str(expected_subnet)
 
         # Test isPrivate
@@ -148,7 +210,9 @@ class TestNetworkOperatorStrategy:
 
     def test_validates_field_type_for_non_ip_fields(self):
         """Test that operator fails with non-IP field types."""
-        with pytest.raises(ValueError, match="Network operator 'eq' can only be used with IP address fields"):
+        with pytest.raises(
+            ValueError, match="Network operator 'eq' can only be used with IP address fields"
+        ):
             self.strategy.build_sql(self.field_path, "eq", "8.8.8.8", str)
 
     def test_unsupported_operator_still_fails(self):
@@ -169,22 +233,23 @@ class TestNetworkOperatorStrategyEdgeCases:
     def test_empty_list_for_in_operator(self):
         """Test in operator with empty list."""
         result = self.strategy.build_sql(self.field_path, "in", [], IpAddress)
-        expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
-            SQL(" IN ("),
-            SQL(")")
-        ])
+        expected = Composed(
+            [Composed([SQL("("), self.field_path, SQL(")::inet")]), SQL(" IN ("), SQL(")")]
+        )
         assert str(result) == str(expected)
 
     def test_single_item_list_for_in_operator(self):
         """Test in operator with single item list."""
         result = self.strategy.build_sql(self.field_path, "in", ["8.8.8.8"], IpAddress)
-        expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
-            SQL(" IN ("),
-            Literal("8.8.8.8"), SQL("::inet"),
-            SQL(")")
-        ])
+        expected = Composed(
+            [
+                Composed([SQL("("), self.field_path, SQL(")::inet")]),
+                SQL(" IN ("),
+                Literal("8.8.8.8"),
+                SQL("::inet"),
+                SQL(")"),
+            ]
+        )
         assert str(result) == str(expected)
 
     def test_ipv6_addresses(self):
@@ -192,12 +257,14 @@ class TestNetworkOperatorStrategyEdgeCases:
         ipv6_addr = "2001:db8::1"
         result = self.strategy.build_sql(self.field_path, "eq", ipv6_addr, IpAddress)
 
-        expected = Composed([
-            Composed([SQL("("), self.field_path, SQL(")::inet")]),
-            SQL(" = "),
-            Literal("2001:db8::1"),
-            SQL("::inet")
-        ])
+        expected = Composed(
+            [
+                Composed([SQL("("), self.field_path, SQL(")::inet")]),
+                SQL(" = "),
+                Literal("2001:db8::1"),
+                SQL("::inet"),
+            ]
+        )
 
         assert str(result) == str(expected)
 
@@ -221,7 +288,9 @@ class TestBackwardCompatibility:
         original_ops = ["inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6"]
 
         for op in original_ops:
-            assert op in self.strategy.operators, f"Original operator {op} should still be supported"
+            assert op in self.strategy.operators, (
+                f"Original operator {op} should still be supported"
+            )
             assert self.strategy.can_handle(op, IpAddress), f"Should handle {op} with IP field type"
             assert self.strategy.can_handle(op, None), f"Should handle {op} without field type"
 

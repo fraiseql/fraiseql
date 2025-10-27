@@ -161,26 +161,32 @@ class PostgreSQLRevocationStore:
 
         async with self.pool.connection() as conn, conn.cursor() as cur:
             # Create revocation table
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE TABLE IF NOT EXISTS {self.table_name} (
                     token_id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     revoked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     expires_at TIMESTAMPTZ NOT NULL
                 )
-            """)
+            """
+            )
 
             # Create index on user_id for batch revocations
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_user_idx
                 ON {self.table_name} (user_id)
-            """)
+            """
+            )
 
             # Create index on expires_at for efficient cleanup
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_expires_idx
                 ON {self.table_name} (expires_at)
-            """)
+            """
+            )
 
             await conn.commit()
             self._initialized = True

@@ -7,6 +7,7 @@ from collections.abc import Callable, Hashable
 from contextlib import asynccontextmanager
 from typing import (
     Any,
+    AsyncGenerator,
     Generic,
     TypeVar,
 )
@@ -176,7 +177,7 @@ class DataLoader(ABC, Generic[K, V]):
 
 
 @asynccontextmanager
-async def dataloader_context():
+async def dataloader_context() -> AsyncGenerator[dict[str, Any]]:
     """Context manager for DataLoader usage.
 
     Example:

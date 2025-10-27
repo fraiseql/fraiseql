@@ -4,8 +4,9 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Awaitable
 
-from fastapi import Request, Response
+from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
@@ -155,11 +156,13 @@ class SecurityHeadersConfig:
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for adding security headers."""
 
-    def __init__(self, app, config: SecurityHeadersConfig) -> None:
+    def __init__(self, app: FastAPI, config: SecurityHeadersConfig) -> None:
         super().__init__(app)
         self.config = config
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Add security headers to responses."""
         response = await call_next(request)
 
@@ -485,7 +488,7 @@ def create_graphql_security_config(
 
 
 def setup_security_headers(
-    app,
+    app: FastAPI,
     config: SecurityHeadersConfig | None = None,
     environment: str = "production",
 ) -> SecurityHeadersMiddleware:
@@ -506,10 +509,10 @@ def setup_security_headers(
 # CSP Reporting (for monitoring CSP violations)
 
 
-def create_csp_report_handler(webhook_url: str | None = None):
+def create_csp_report_handler(webhook_url: str | None = None) -> Callable:
     """Create a CSP violation report handler."""
 
-    async def csp_report_endpoint(request: Request):
+    async def csp_report_endpoint(request: Request) -> dict[str, str]:
         """Handle CSP violation reports."""
         try:
             report = await request.json()
@@ -539,7 +542,7 @@ def create_csp_report_handler(webhook_url: str | None = None):
     return csp_report_endpoint
 
 
-def add_csp_reporting(app, report_uri: str, webhook_url: str | None = None):
+def add_csp_reporting(app: FastAPI, report_uri: str, webhook_url: str | None = None) -> Callable:
     """Add CSP violation reporting to the application."""
     # Add report endpoint
     report_handler = create_csp_report_handler(webhook_url)

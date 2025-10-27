@@ -14,11 +14,7 @@ from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
 @pytest.fixture
 def mock_config():
     """Create a mock PostgreSQL backend config."""
-    return {
-        "table_prefix": "test_apq_",
-        "auto_create_tables": True,
-        "connection_timeout": 30
-    }
+    return {"table_prefix": "test_apq_", "auto_create_tables": True, "connection_timeout": 30}
 
 
 @pytest.fixture
@@ -56,7 +52,7 @@ def test_postgresql_backend_table_creation():
     assert "PRIMARY KEY (hash, COALESCE(tenant_id, ''))" in create_responses_sql
 
 
-@patch('fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._execute_query')
+@patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._execute_query")
 def test_postgresql_backend_store_persisted_query(mock_execute, mock_config):
     """Test storing persisted queries in PostgreSQL."""
     # Disable auto table creation for this test
@@ -75,7 +71,7 @@ def test_postgresql_backend_store_persisted_query(mock_execute, mock_config):
     assert args[1] == (hash_value, query)
 
 
-@patch('fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one')
+@patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one")
 def test_postgresql_backend_get_persisted_query(mock_fetch, mock_config):
     """Test retrieving persisted queries from PostgreSQL."""
     # Disable auto table creation for this test
@@ -97,7 +93,7 @@ def test_postgresql_backend_get_persisted_query(mock_fetch, mock_config):
     assert args[1] == (hash_value,)
 
 
-@patch('fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one')
+@patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one")
 def test_postgresql_backend_get_persisted_query_not_found(mock_fetch, mock_config):
     """Test retrieving non-existent persisted query."""
     backend = PostgreSQLAPQBackend(mock_config)
@@ -113,7 +109,7 @@ def test_postgresql_backend_get_persisted_query_not_found(mock_fetch, mock_confi
     mock_fetch.assert_called_once()
 
 
-@patch('fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._execute_query')
+@patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._execute_query")
 def test_postgresql_backend_store_cached_response(mock_execute, mock_config):
     """Test storing cached responses in PostgreSQL."""
     # Disable auto table creation for this test
@@ -134,7 +130,7 @@ def test_postgresql_backend_store_cached_response(mock_execute, mock_config):
     assert '"data"' in args[1][2]  # JSON response
 
 
-@patch('fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one')
+@patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one")
 def test_postgresql_backend_get_cached_response(mock_fetch, mock_config):
     """Test retrieving cached responses from PostgreSQL."""
     backend = PostgreSQLAPQBackend(mock_config)
@@ -144,6 +140,7 @@ def test_postgresql_backend_get_cached_response(mock_fetch, mock_config):
 
     # Mock database response
     import json
+
     mock_fetch.return_value = (json.dumps(expected_response),)
 
     result = backend.get_cached_response(hash_value)
@@ -155,7 +152,7 @@ def test_postgresql_backend_get_cached_response(mock_fetch, mock_config):
     assert args[1] == (hash_value,)
 
 
-@patch('fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one')
+@patch("fraiseql.storage.backends.postgresql.PostgreSQLAPQBackend._fetch_one")
 def test_postgresql_backend_get_cached_response_not_found(mock_fetch, mock_config):
     """Test retrieving non-existent cached response."""
     backend = PostgreSQLAPQBackend(mock_config)
@@ -177,7 +174,7 @@ def test_postgresql_backend_connection_handling(mock_config):
 
     # Test that the backend knows how to get connections
     # This would integrate with FraiseQL's existing database patterns
-    assert hasattr(backend, '_get_connection')
+    assert hasattr(backend, "_get_connection")
     assert callable(backend._get_connection)
 
 
@@ -186,12 +183,12 @@ def test_postgresql_backend_error_handling(mock_config):
     backend = PostgreSQLAPQBackend(mock_config)
 
     # Test that database errors are handled gracefully
-    with patch.object(backend, '_execute_query', side_effect=Exception("DB Error")):
+    with patch.object(backend, "_execute_query", side_effect=Exception("DB Error")):
         # Should not raise - should handle gracefully
         backend.store_persisted_query("hash", "query")
         backend.store_cached_response("hash", {"data": {}})
 
-    with patch.object(backend, '_fetch_one', side_effect=Exception("DB Error")):
+    with patch.object(backend, "_fetch_one", side_effect=Exception("DB Error")):
         # Should return None on errors
         assert backend.get_persisted_query("hash") is None
         assert backend.get_cached_response("hash") is None
@@ -206,24 +203,22 @@ def test_postgresql_backend_json_serialization(mock_config):
         "data": {
             "users": [
                 {"id": 1, "name": "John", "metadata": {"last_login": "2023-01-01"}},
-                {"id": 2, "name": "Jane", "metadata": {"last_login": "2023-01-02"}}
+                {"id": 2, "name": "Jane", "metadata": {"last_login": "2023-01-02"}},
             ]
         },
-        "extensions": {
-            "timing": {"total": 150},
-            "complexity": {"score": 45}
-        }
+        "extensions": {"timing": {"total": 150}, "complexity": {"score": 45}},
     }
 
     # Should be able to serialize and deserialize
     import json
+
     serialized = json.dumps(complex_response)
     deserialized = json.loads(serialized)
 
     assert deserialized == complex_response
 
     # Backend should handle this correctly
-    with patch.object(backend, '_execute_query') as mock_execute:
+    with patch.object(backend, "_execute_query") as mock_execute:
         backend.store_cached_response("hash", complex_response)
         # Should have called with JSON string
         args = mock_execute.call_args[0]

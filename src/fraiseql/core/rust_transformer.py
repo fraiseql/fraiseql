@@ -26,7 +26,7 @@ class RustTransformer:
     Note: SchemaRegistry removed in v0.2.0 - transformation is now automatic.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Rust transformer."""
         # SchemaRegistry removed in v0.2.0 - transformation now automatic!
         self._type_names: set[str] = set()  # Track registered types for validation

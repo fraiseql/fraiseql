@@ -31,7 +31,6 @@ class TestCheckCommand:
             """
 import fraiseql
 from fraiseql import fraise_field
-from typing import List
 
 @fraiseql.type
 class User:
@@ -40,7 +39,7 @@ class User:
 
 @fraiseql.type
 class QueryRoot:
-    users: List[User] = fraise_field(default_factory=list, description="All users")
+    users: list[User] = fraise_field(default_factory=list, description="All users")
 
     async def resolve_users(self, info):
         return []

@@ -6,7 +6,7 @@ SQL generation for network operators.
 """
 
 import ipaddress
-from typing import Any, Tuple
+from typing import Any
 
 from psycopg.sql import SQL, Composed
 
@@ -155,7 +155,7 @@ def validate_ip_range(start_ip: str, end_ip: str) -> bool:
         return False
 
 
-def generate_subnet_sql(field_path: str, subnet: str) -> Tuple[str, list]:
+def generate_subnet_sql(field_path: str, subnet: str) -> tuple[str, list]:
     """Generate SQL for subnet matching using PostgreSQL inet operators.
 
     Args:
@@ -170,7 +170,7 @@ def generate_subnet_sql(field_path: str, subnet: str) -> Tuple[str, list]:
     return sql_template, [subnet]
 
 
-def generate_range_sql(field_path: str, start_ip: str, end_ip: str) -> Tuple[str, list]:
+def generate_range_sql(field_path: str, start_ip: str, end_ip: str) -> tuple[str, list]:
     """Generate SQL for IP range matching.
 
     Args:
@@ -186,7 +186,7 @@ def generate_range_sql(field_path: str, start_ip: str, end_ip: str) -> Tuple[str
     return sql_template, [start_ip, end_ip]
 
 
-def generate_private_ip_sql(field_path: str, is_private: bool) -> Tuple[str, list]:
+def generate_private_ip_sql(field_path: str, is_private: bool) -> tuple[str, list]:
     """Generate SQL for private IP detection.
 
     Args:
@@ -218,7 +218,7 @@ def generate_private_ip_sql(field_path: str, is_private: bool) -> Tuple[str, lis
     return sql_template, []
 
 
-def generate_ipv4_sql(field_path: str, is_ipv4: bool) -> Tuple[str, list]:
+def generate_ipv4_sql(field_path: str, is_ipv4: bool) -> tuple[str, list]:
     """Generate SQL for IPv4/IPv6 detection.
 
     Args:
@@ -238,7 +238,7 @@ def generate_ipv4_sql(field_path: str, is_ipv4: bool) -> Tuple[str, list]:
     return sql_template, []
 
 
-def generate_network_filter_sql(field_path: str, operator: str, value: Any) -> Tuple[str, list]:
+def generate_network_filter_sql(field_path: str, operator: str, value: Any) -> tuple[str, list]:
     """Generate SQL for network filtering operations.
 
     Args:

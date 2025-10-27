@@ -9,6 +9,7 @@ from fraiseql.types.definitions import UNSET
 @fraiseql.input
 class CreateOrderInput:
     """Input with date field for testing serialization."""
+
     client_order_id: str
     order_date: datetime.date
     delivery_date: datetime.date | None = UNSET
@@ -20,8 +21,7 @@ class TestDateSerializationInToDict:
     def test_date_field_serialized_to_iso_string(self):
         """Date fields should be serialized to ISO strings in to_dict method."""
         order_input = CreateOrderInput(
-            client_order_id="ORDER2025",
-            order_date=datetime.date(2025, 2, 15)
+            client_order_id="ORDER2025", order_date=datetime.date(2025, 2, 15)
         )
 
         result = order_input.to_dict()
@@ -35,7 +35,7 @@ class TestDateSerializationInToDict:
         order_input = CreateOrderInput(
             client_order_id="ORDER2025",
             order_date=datetime.date(2025, 2, 15),
-            delivery_date=datetime.date(2025, 3, 1)
+            delivery_date=datetime.date(2025, 3, 1),
         )
 
         result = order_input.to_dict()
@@ -47,8 +47,7 @@ class TestDateSerializationInToDict:
     def test_json_method_also_serializes_dates(self):
         """__json__ method should also serialize dates correctly."""
         order_input = CreateOrderInput(
-            client_order_id="ORDER2025",
-            order_date=datetime.date(2025, 2, 15)
+            client_order_id="ORDER2025", order_date=datetime.date(2025, 2, 15)
         )
 
         result = order_input.__json__()

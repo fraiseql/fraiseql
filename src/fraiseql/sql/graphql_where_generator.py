@@ -8,7 +8,7 @@ GraphQL resolvers and are automatically converted to SQL where types.
 from dataclasses import make_dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, List, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
 
 from fraiseql import fraise_input
@@ -269,7 +269,7 @@ def _get_filter_type_for_field(field_type: type, parent_class: type | None = Non
             origin = get_origin(field_type)
 
     # Check if it's a List type
-    if origin in (list, List):
+    if origin is list:
         # For now, treat lists as StringFilter
         # Known limitation: List relationship filtering not yet implemented
         # GitHub issue: Implement list relationship filtering

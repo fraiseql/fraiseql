@@ -2,7 +2,7 @@
 
 import importlib
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fraiseql.fastapi.config import FraiseQLConfig
 
@@ -44,7 +44,7 @@ def create_apq_backend(config: FraiseQLConfig) -> APQStorageBackend:
     raise ValueError(f"Unknown APQ backend: {backend_type}")
 
 
-def _create_custom_backend(backend_config: Dict[str, Any]) -> APQStorageBackend:
+def _create_custom_backend(backend_config: dict[str, Any]) -> APQStorageBackend:
     """Create a custom APQ backend from configuration.
 
     Args:
@@ -93,7 +93,7 @@ def _create_custom_backend(backend_config: Dict[str, Any]) -> APQStorageBackend:
         raise ValueError(f"Failed to instantiate custom backend '{backend_class_path}': {e}") from e
 
 
-def get_backend_info(backend: APQStorageBackend) -> Dict[str, Any]:
+def get_backend_info(backend: APQStorageBackend) -> dict[str, Any]:
     """Get information about a backend instance.
 
     Args:

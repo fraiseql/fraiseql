@@ -117,11 +117,11 @@ def date_range_validator(cls: type) -> type:
     original_init = getattr(cls, "__init__", None)  # noqa: F841
 
     # Add validation methods
-    def validate_dates(self) -> tuple[bool, str | None]:
+    def validate_dates(self: Any) -> tuple[bool, str | None]:
         """Validate the date range in this input object."""
         return validate_date_range(self)
 
-    def get_validation_errors(self) -> list[dict[str, Any]]:
+    def get_validation_errors(self: Any) -> list[dict[str, Any]]:
         """Get validation errors in FraiseQL format."""
         return get_date_range_validation_errors(self)
 

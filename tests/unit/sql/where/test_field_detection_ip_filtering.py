@@ -104,6 +104,7 @@ class TestIPAddressFieldDetection:
         # Red cycle - this will fail initially
         try:
             from fraiseql.types.scalars.ip_address import IpAddressField
+
             result = detect_field_type("field", "192.168.1.1", IpAddressField)
             assert result == FieldType.IP_ADDRESS
         except ImportError:

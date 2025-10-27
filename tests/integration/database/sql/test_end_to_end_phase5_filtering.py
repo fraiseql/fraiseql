@@ -50,10 +50,22 @@ class TestDateTimeEndToEndIntegration:
 
         # Test different timezone formats
         test_cases = [
-            ("2023-07-15T14:30:00Z", "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00Z'::timestamptz"),
-            ("2023-07-15T14:30:00+02:00", "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00+02:00'::timestamptz"),
-            ("2023-07-15T14:30:00-05:00", "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00-05:00'::timestamptz"),
-            ("2023-07-15T14:30:00.123Z", "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00.123Z'::timestamptz"),
+            (
+                "2023-07-15T14:30:00Z",
+                "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00Z'::timestamptz",
+            ),
+            (
+                "2023-07-15T14:30:00+02:00",
+                "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00+02:00'::timestamptz",
+            ),
+            (
+                "2023-07-15T14:30:00-05:00",
+                "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00-05:00'::timestamptz",
+            ),
+            (
+                "2023-07-15T14:30:00.123Z",
+                "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00.123Z'::timestamptz",
+            ),
         ]
 
         for datetime_str, expected in test_cases:
@@ -66,17 +78,27 @@ class TestDateTimeEndToEndIntegration:
 
         # Test all comparison operators
         comparisons = [
-            ("gte", "2023-07-15T00:00:00Z", "(data->>'event_time')::timestamptz >= '2023-07-15T00:00:00Z'::timestamptz"),
-            ("lt", "2023-07-16T00:00:00Z", "(data->>'event_time')::timestamptz < '2023-07-16T00:00:00Z'::timestamptz"),
-            ("lte", "2023-07-15T23:59:59Z", "(data->>'event_time')::timestamptz <= '2023-07-15T23:59:59Z'::timestamptz"),
+            (
+                "gte",
+                "2023-07-15T00:00:00Z",
+                "(data->>'event_time')::timestamptz >= '2023-07-15T00:00:00Z'::timestamptz",
+            ),
+            (
+                "lt",
+                "2023-07-16T00:00:00Z",
+                "(data->>'event_time')::timestamptz < '2023-07-16T00:00:00Z'::timestamptz",
+            ),
+            (
+                "lte",
+                "2023-07-15T23:59:59Z",
+                "(data->>'event_time')::timestamptz <= '2023-07-15T23:59:59Z'::timestamptz",
+            ),
         ]
 
         for op, datetime_str, expected in comparisons:
             func = get_operator_function(FieldType.DATETIME, op)
             result = func(path_sql, datetime_str)
             assert result.as_string(None) == expected
-
-
 
 
 class TestDateEndToEndIntegration:
@@ -146,8 +168,6 @@ class TestDateEndToEndIntegration:
             assert result.as_string(None) == expected
 
 
-
-
 class TestDateTimeVsDateOperators:
     """Test that DateTime and Date operators are properly differentiated."""
 
@@ -178,9 +198,8 @@ class TestDateTimeVsDateOperators:
         from fraiseql.sql.where.operators import OPERATOR_MAP
 
         datetime_operators = [
-            (FieldType.DATETIME, op) for op in [
-                "eq", "neq", "in_", "in", "notin", "gt", "gte", "lt", "lte"
-            ]
+            (FieldType.DATETIME, op)
+            for op in ["eq", "neq", "in_", "in", "notin", "gt", "gte", "lt", "lte"]
         ]
 
         for key in datetime_operators:
@@ -191,9 +210,8 @@ class TestDateTimeVsDateOperators:
         from fraiseql.sql.where.operators import OPERATOR_MAP
 
         date_operators = [
-            (FieldType.DATE, op) for op in [
-                "eq", "neq", "in_", "in", "notin", "gt", "gte", "lt", "lte"
-            ]
+            (FieldType.DATE, op)
+            for op in ["eq", "neq", "in_", "in", "notin", "gt", "gte", "lt", "lte"]
         ]
 
         for key in date_operators:

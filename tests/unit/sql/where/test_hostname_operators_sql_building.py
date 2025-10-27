@@ -45,7 +45,9 @@ class TestHostnameBasicOperators:
         value = ["api.example.com", "web.example.com", "db.example.com"]
 
         result = build_hostname_in_sql(path_sql, value)
-        expected = "data->>'server_hostname' IN ('api.example.com', 'web.example.com', 'db.example.com')"
+        expected = (
+            "data->>'server_hostname' IN ('api.example.com', 'web.example.com', 'db.example.com')"
+        )
 
         assert result.as_string(None) == expected
 
@@ -138,12 +140,12 @@ class TestHostnameValidation:
 
         # Test valid hostname formats (per RFC 1123)
         valid_hostnames = [
-            "server",                           # Single label
-            "api.example.com",                  # Standard FQDN
-            "web-01.east-1.example.com",        # With hyphens and numbers
-            "long-subdomain-name.example.co.uk", # Multiple levels
-            "db1.internal",                     # Short TLD
-            "service.123test.net",              # Numbers in domain
+            "server",  # Single label
+            "api.example.com",  # Standard FQDN
+            "web-01.east-1.example.com",  # With hyphens and numbers
+            "long-subdomain-name.example.co.uk",  # Multiple levels
+            "db1.internal",  # Short TLD
+            "service.123test.net",  # Numbers in domain
         ]
 
         for hostname in valid_hostnames:

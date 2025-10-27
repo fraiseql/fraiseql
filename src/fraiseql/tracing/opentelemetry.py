@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from functools import wraps
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Generator, Optional
 
 from fastapi import FastAPI, Request, Response
 
@@ -51,11 +51,11 @@ except ImportError:
     ZipkinExporter = None  # type: ignore[assignment]
     PsycopgInstrumentor = None  # type: ignore[assignment]
 
-    def extract(*args, **kwargs):  # type: ignore[misc]
+    def extract(*args: Any, **kwargs: Any) -> dict[str, Any]:  # type: ignore[misc]
         """Placeholder for extract when opentelemetry is not available."""
         return {}
 
-    def inject(*args, **kwargs) -> None:  # type: ignore[misc]
+    def inject(*args: Any, **kwargs: Any) -> None:  # type: ignore[misc]
         """Placeholder for inject when opentelemetry is not available."""
         return
 
@@ -87,7 +87,7 @@ except ImportError:
     class Status:  # type: ignore[misc]
         """Placeholder status when OpenTelemetry is not available."""
 
-        def __init__(self, code, description="") -> None:
+        def __init__(self, code: str, description: str = "") -> None:
             """Initialize placeholder status."""
             self.code = code
             self.description = description
@@ -133,7 +133,7 @@ class TracingConfig:
     # Custom attributes to add to all spans
     attributes: dict[str, Any] = dataclass_field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration."""
         if not 0.0 <= self.sample_rate <= 1.0:
             msg = "sample_rate must be between 0.0 and 1.0"
@@ -160,7 +160,7 @@ class FraiseQLTracer:
                 # Already instrumented, ignore
                 pass
 
-    def _setup_tracer(self):
+    def _setup_tracer(self) -> Any | None:
         """Set up OpenTelemetry tracer with configured exporter."""
         if not self.config.enabled or not OPENTELEMETRY_AVAILABLE:
             # Return no-op tracer when disabled or not available
@@ -205,7 +205,7 @@ class FraiseQLTracer:
             tracer_provider=provider,
         )
 
-    def _create_exporter(self):
+    def _create_exporter(self) -> Any | None:
         """Create appropriate span exporter based on configuration."""
         if not OPENTELEMETRY_AVAILABLE:
             return None
@@ -237,7 +237,9 @@ class FraiseQLTracer:
         return None
 
     @contextmanager
-    def trace_graphql_query(self, operation_name: str, query: str, variables: dict | None = None):
+    def trace_graphql_query(
+        self, operation_name: str, query: str, variables: dict | None = None
+    ) -> Generator[Any]:
         """Trace a GraphQL query operation."""
         if not self.tracer:
             # No-op context manager when tracer is not available
@@ -275,7 +277,7 @@ class FraiseQLTracer:
         operation_name: str,
         query: str,
         variables: dict | None = None,
-    ):
+    ) -> Generator[Any]:
         """Trace a GraphQL mutation operation."""
         if not self.tracer:
             # No-op context manager when tracer is not available
@@ -306,7 +308,7 @@ class FraiseQLTracer:
                 raise
 
     @contextmanager
-    def trace_database_query(self, query_type: str, table: str, sql: str):
+    def trace_database_query(self, query_type: str, table: str, sql: str) -> Generator[Any]:
         """Trace a database query."""
         if not self.tracer:
             # No-op context manager when tracer is not available
@@ -331,7 +333,7 @@ class FraiseQLTracer:
                 raise
 
     @contextmanager
-    def trace_cache_operation(self, operation: str, cache_type: str, key: str):
+    def trace_cache_operation(self, operation: str, cache_type: str, key: str) -> Generator[Any]:
         """Trace a cache operation."""
         if not self.tracer:
             # No-op context manager when tracer is not available
@@ -373,16 +375,20 @@ class FraiseQLTracer:
 class TracingMiddleware(BaseHTTPMiddleware):
     """Middleware to trace HTTP requests."""
 
-    def __init__(self, app, tracer: FraiseQLTracer) -> None:
+    def __init__(self, app: FastAPI, tracer: FraiseQLTracer) -> None:
         """Initialize tracing middleware."""
         super().__init__(app)
         self.tracer = tracer
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request with tracing."""
         return await self.process_request(request, call_next)
 
-    async def process_request(self, request: Request, call_next) -> Response:
+    async def process_request(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request and create trace span."""
         # Skip excluded paths
         if request.url.path in self.tracer.config.exclude_paths:
@@ -465,7 +471,7 @@ def setup_tracing(app: FastAPI, config: TracingConfig | None = None) -> FraiseQL
     return tracer
 
 
-def trace_graphql_operation(operation_type: str, operation_name: str):
+def trace_graphql_operation(operation_type: str, operation_name: str) -> Callable:
     """Decorator to trace GraphQL operations.
 
     Args:
@@ -473,9 +479,9 @@ def trace_graphql_operation(operation_type: str, operation_name: str):
         operation_name: Name of the operation
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
 
             # Extract query from args/kwargs
@@ -490,7 +496,7 @@ def trace_graphql_operation(operation_type: str, operation_name: str):
                     return await func(*args, **kwargs)
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
 
             query = kwargs.get("query", "")
@@ -513,7 +519,7 @@ def trace_graphql_operation(operation_type: str, operation_name: str):
     return decorator
 
 
-def trace_database_query(query_type: str, table: str):
+def trace_database_query(query_type: str, table: str) -> Callable:
     """Decorator to trace database queries.
 
     Args:
@@ -521,9 +527,9 @@ def trace_database_query(query_type: str, table: str):
         table: Table name
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
 
             # Extract SQL from args/kwargs
@@ -533,7 +539,7 @@ def trace_database_query(query_type: str, table: str):
                 return await func(*args, **kwargs)
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
 
             sql = args[0] if args else kwargs.get("sql", "")

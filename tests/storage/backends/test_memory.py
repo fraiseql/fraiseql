@@ -55,7 +55,7 @@ def test_memory_backend_multiple_queries():
     queries = {
         "hash1": "{ users { id } }",
         "hash2": "{ posts { title } }",
-        "hash3": "{ comments { content } }"
+        "hash3": "{ comments { content } }",
     }
 
     # Store all queries
@@ -75,7 +75,7 @@ def test_memory_backend_multiple_responses():
     responses = {
         "hash1": {"data": {"users": []}},
         "hash2": {"data": {"posts": [{"title": "Test"}]}},
-        "hash3": {"errors": [{"message": "Not found"}]}
+        "hash3": {"errors": [{"message": "Not found"}]},
     }
 
     # Store all responses

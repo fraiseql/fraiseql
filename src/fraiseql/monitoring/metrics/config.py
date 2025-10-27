@@ -6,6 +6,7 @@ configuration for metrics collection.
 
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
+from typing import Any
 
 try:
     from prometheus_client import (  # type: ignore[import-untyped]
@@ -29,19 +30,21 @@ except ImportError:
             """Initialize placeholder registry."""
             self._metrics: dict[str, object] = {}
 
-        def register(self, metric) -> None:
+        def register(self, metric: Any) -> None:
             """Register a metric."""
             if hasattr(metric, "_name"):
                 self._metrics[metric._name] = metric
 
-        def collect(self):
+        def collect(self) -> list:
             """Collect metrics for iteration."""
             return []
 
     class Counter:  # type: ignore[misc]
         """Placeholder counter when prometheus_client is not available."""
 
-        def __init__(self, name: str, documentation: str, labelnames=None, registry=None) -> None:
+        def __init__(
+            self, name: str, documentation: str, labelnames: Any = None, registry: Any = None
+        ) -> None:
             """Initialize placeholder counter."""
             self._name = name
             self._value = 0.0
@@ -53,7 +56,7 @@ except ImportError:
             """Increment placeholder counter."""
             self._value += amount
 
-        def labels(self, *args, **kwargs):
+        def labels(self, *args: Any, **kwargs: Any) -> "Counter":
             """Return labeled placeholder counter."""
             # Create label key from args and kwargs
             label_key = tuple(args) + tuple(sorted(kwargs.items()))
@@ -69,7 +72,9 @@ except ImportError:
     class Gauge:  # type: ignore[misc]
         """Placeholder gauge when prometheus_client is not available."""
 
-        def __init__(self, name: str, documentation: str, labelnames=None, registry=None) -> None:
+        def __init__(
+            self, name: str, documentation: str, labelnames: Any = None, registry: Any = None
+        ) -> None:
             """Initialize placeholder gauge."""
             self._name = name
             self._value = 0.0
@@ -89,7 +94,7 @@ except ImportError:
             """Decrement placeholder gauge."""
             self._value -= amount
 
-        def labels(self, *args, **kwargs):
+        def labels(self, *args: Any, **kwargs: Any) -> "Gauge":
             """Return labeled placeholder gauge."""
             label_key = tuple(args) + tuple(sorted(kwargs.items()))
             if label_key not in self._labeled_instances:
@@ -105,7 +110,12 @@ except ImportError:
         """Placeholder histogram when prometheus_client is not available."""
 
         def __init__(
-            self, name: str, documentation: str, labelnames=None, buckets=None, registry=None
+            self,
+            name: str,
+            documentation: str,
+            labelnames: Any = None,
+            buckets: Any = None,
+            registry: Any = None,
         ) -> None:
             """Initialize placeholder histogram."""
             self._name = name
@@ -120,7 +130,7 @@ except ImportError:
             self._sum += amount
             self._count += 1
 
-        def labels(self, *args, **kwargs):
+        def labels(self, *args: Any, **kwargs: Any) -> "Histogram":
             """Return labeled placeholder histogram."""
             label_key = tuple(args) + tuple(sorted(kwargs.items()))
             if label_key not in self._labeled_instances:
@@ -140,7 +150,7 @@ except ImportError:
 
     CONTENT_TYPE_LATEST = "text/plain"
 
-    def generate_latest(*args, **kwargs) -> bytes:
+    def generate_latest(*args: Any, **kwargs: Any) -> bytes:
         """Placeholder for generate_latest when prometheus_client is not available."""
         # Return mock metrics data
         return b"""# HELP fraiseql_graphql_queries_total Total GraphQL queries
@@ -194,7 +204,7 @@ class MetricsConfig:
     )
     labels: dict[str, str] = dataclass_field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration."""
         if not self.namespace:
             msg = "Namespace cannot be empty"

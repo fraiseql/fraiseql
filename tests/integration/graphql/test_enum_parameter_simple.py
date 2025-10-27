@@ -11,6 +11,7 @@ from graphql import GraphQLResolveInfo
 @fraiseql.enum
 class Status(Enum):
     """Test enum."""
+
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
 

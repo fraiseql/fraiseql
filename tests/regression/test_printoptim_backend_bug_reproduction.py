@@ -10,6 +10,7 @@ The issue:
 
 This is the EXACT scenario from PrintOptim Backend.
 """
+
 import logging
 import uuid
 from unittest.mock import patch
@@ -63,11 +64,13 @@ class PrintOptimBackendMockDB:
     async def execute_function_with_context(self, function_name, context_args, input_data):
         """Mock the PostgreSQL function that expects dns_1_id, dns_2_id."""
 
-        self.calls.append({
-            'function': function_name,
-            'context_args': context_args,
-            'input_data': input_data.copy()
-        })
+        self.calls.append(
+            {
+                "function": function_name,
+                "context_args": context_args,
+                "input_data": input_data.copy(),
+            }
+        )
 
         logger.info("=" * 80)
         logger.info(f"PRINTOPTIM BACKEND POSTGRESQL FUNCTION: {function_name}")
@@ -77,15 +80,21 @@ class PrintOptimBackendMockDB:
         logger.info("=" * 80)
 
         # Check if we got the problematic parameters
-        expected_params = ['dns_1_id', 'dns_2_id', 'gateway_id', 'ip_address', 'subnet_mask']
+        expected_params = ["dns_1_id", "dns_2_id", "gateway_id", "ip_address", "subnet_mask"]
         problematic_params = []
 
         for param in input_data.keys():
-            if param not in expected_params and param not in ['print_server_ids', 'router_id', 'smtp_server_id', 'email_address', 'is_dhcp']:
+            if param not in expected_params and param not in [
+                "print_server_ids",
+                "router_id",
+                "smtp_server_id",
+                "email_address",
+                "is_dhcp",
+            ]:
                 problematic_params.append(param)
 
         logger.info("PARAMETER ANALYSIS:")
-        for expected in ['dns_1_id', 'dns_2_id']:
+        for expected in ["dns_1_id", "dns_2_id"]:
             if expected in input_data:
                 logger.info(f"  ✅ {expected}: FOUND")
             else:
@@ -95,12 +104,12 @@ class PrintOptimBackendMockDB:
             logger.info(f"  🐛 UNEXPECTED: {problematic}")
 
         # This is where the bug manifests - if we get dns_1 instead of dns_1_id
-        if 'dns_1' in input_data:
+        if "dns_1" in input_data:
             error_msg = "got an unexpected keyword argument 'dns_1'"
             logger.error(f"🐛 BUG REPRODUCED: {error_msg}")
             raise TypeError(error_msg)
 
-        if 'dns_2' in input_data:
+        if "dns_2" in input_data:
             error_msg = "got an unexpected keyword argument 'dns_2'"
             logger.error(f"🐛 BUG REPRODUCED: {error_msg}")
             raise TypeError(error_msg)
@@ -109,14 +118,12 @@ class PrintOptimBackendMockDB:
             "status": "success",
             "object_data": {
                 "id": str(uuid.uuid4()),
-                "ip_address": str(input_data.get('ip_address', '10.0.0.1')),
-                "dns_1_id": input_data.get('dns_1_id'),
-                "dns_2_id": input_data.get('dns_2_id'),
+                "ip_address": str(input_data.get("ip_address", "10.0.0.1")),
+                "dns_1_id": input_data.get("dns_1_id"),
+                "dns_2_id": input_data.get("dns_2_id"),
             },
             "message": "Network configuration created successfully",
-            "extra_metadata": {
-                "entity": "network_configuration"
-            }
+            "extra_metadata": {"entity": "network_configuration"},
         }
 
 
@@ -136,7 +143,7 @@ class CreateNetworkConfiguration:
     failure: CreateNetworkConfigurationError
 
 
-@patch('fraiseql.config.schema_config.SchemaConfig.get_instance')
+@patch("fraiseql.config.schema_config.SchemaConfig.get_instance")
 @pytest.mark.asyncio
 async def test_printoptim_backend_exact_bug_reproduction(mock_config):
     """Reproduce the exact bug from PrintOptim Backend."""
@@ -148,13 +155,11 @@ async def test_printoptim_backend_exact_bug_reproduction(mock_config):
 
     # Setup
     mock_db = PrintOptimBackendMockDB()
-    mock_info = type('MockInfo', (), {
-        'context': {
-            'db': mock_db,
-            'tenant_id': uuid.uuid4(),
-            'user_id': uuid.uuid4()
-        }
-    })()
+    mock_info = type(
+        "MockInfo",
+        (),
+        {"context": {"db": mock_db, "tenant_id": uuid.uuid4(), "user_id": uuid.uuid4()}},
+    )()
 
     # Create the EXACT GraphQL input data that PrintOptim Backend sends
     # This comes from their test: test_create_network_configuration.py lines 36-46
@@ -181,7 +186,7 @@ async def test_printoptim_backend_exact_bug_reproduction(mock_config):
 
         # Check what fields the coerced object has
         coerced_fields = []
-        for attr in ['dns_1_id', 'dns_2_id', 'gateway_id', 'ip_address', 'subnet_mask']:
+        for attr in ["dns_1_id", "dns_2_id", "gateway_id", "ip_address", "subnet_mask"]:
             if hasattr(coerced_input, attr):
                 value = getattr(coerced_input, attr)
                 coerced_fields.append(f"{attr}={value}")
@@ -190,14 +195,15 @@ async def test_printoptim_backend_exact_bug_reproduction(mock_config):
 
         # Convert to dict (this is what _to_dict does in the mutation)
         from fraiseql.mutations.mutation_decorator import _to_dict
+
         input_dict = _to_dict(coerced_input)
 
         logger.info(f"Final input_dict keys: {list(input_dict.keys())}")
 
         # Check for the bug
-        if 'dns_1' in input_dict:
+        if "dns_1" in input_dict:
             logger.error(f"🐛 BUG FOUND: dns_1 in input_dict: {input_dict}")
-        elif 'dns_1_id' not in input_dict:
+        elif "dns_1_id" not in input_dict:
             logger.warning(f"⚠️ Expected dns_1_id missing: {list(input_dict.keys())}")
         else:
             logger.info("✅ dns_1_id correctly present in input_dict")
@@ -215,7 +221,7 @@ async def test_printoptim_backend_exact_bug_reproduction(mock_config):
             router_id=uuid.UUID(graphql_client_input["routerId"]),
             smtp_server_id=uuid.UUID(graphql_client_input["smtpServerId"]),
             email_address=graphql_client_input["emailAddress"],
-            is_dhcp=graphql_client_input["isDhcp"]
+            is_dhcp=graphql_client_input["isDhcp"],
         )
 
         resolver = CreateNetworkConfiguration.__fraiseql_resolver__
@@ -228,10 +234,18 @@ async def test_printoptim_backend_exact_bug_reproduction(mock_config):
         logger.info(f"Database received: {list(call['input_data'].keys())}")
 
         # Verify the correct fields were sent
-        assert 'dns_1_id' in call['input_data'], f"dns_1_id missing: {list(call['input_data'].keys())}"
-        assert 'dns_2_id' in call['input_data'], f"dns_2_id missing: {list(call['input_data'].keys())}"
-        assert 'dns_1' not in call['input_data'], f"BUG: dns_1 found: {list(call['input_data'].keys())}"
-        assert 'dns_2' not in call['input_data'], f"BUG: dns_2 found: {list(call['input_data'].keys())}"
+        assert "dns_1_id" in call["input_data"], (
+            f"dns_1_id missing: {list(call['input_data'].keys())}"
+        )
+        assert "dns_2_id" in call["input_data"], (
+            f"dns_2_id missing: {list(call['input_data'].keys())}"
+        )
+        assert "dns_1" not in call["input_data"], (
+            f"BUG: dns_1 found: {list(call['input_data'].keys())}"
+        )
+        assert "dns_2" not in call["input_data"], (
+            f"BUG: dns_2 found: {list(call['input_data'].keys())}"
+        )
 
     except TypeError as e:
         if "got an unexpected keyword argument" in str(e):
@@ -248,4 +262,5 @@ async def test_printoptim_backend_exact_bug_reproduction(mock_config):
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(test_printoptim_backend_exact_bug_reproduction())

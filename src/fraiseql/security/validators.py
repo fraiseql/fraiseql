@@ -23,7 +23,7 @@ class ValidationResult:
     sanitized_value: Any
     warnings: list[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize warnings list if not provided."""
         if self.warnings is None:
             self.warnings = []

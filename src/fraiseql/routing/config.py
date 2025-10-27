@@ -30,11 +30,11 @@ class EntityRoutingConfig:
     auto_routing_enabled: bool = True
     """Enable automatic query routing based on entity classification."""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         self._validate_configuration()
 
-    def _validate_configuration(self):
+    def _validate_configuration(self) -> None:
         """Validate the routing configuration for common issues."""
         overlapping = set(self.turbo_entities) & set(self.normal_entities)
         if overlapping:

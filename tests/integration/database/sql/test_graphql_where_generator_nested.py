@@ -246,9 +246,7 @@ class TestNestedObjectFiltering:
         # Document the expected behavior for type checking
         try:
             # This should fail or at least be caught by type checkers
-            AllocationWhereInput(
-                machine=StringFilter(eq="wrong")  # This is incorrect
-            )
+            AllocationWhereInput(machine=StringFilter(eq="wrong"))  # This is incorrect
             # If this doesn't fail at runtime, type checkers should catch it
         except (TypeError, ValueError) as e:
             # Expected to fail with clear error about wrong filter type

@@ -219,7 +219,6 @@ class TestFraiseQLMetrics:
                 assert hasattr(metrics.subscription_duration, "observe")
 
 
-
 class TestMetricsIntegration:
     """Test metrics integration functions."""
 

@@ -38,8 +38,7 @@ class TestNumericCastingConsistency:
 
             # ALL numeric operations should use ::numeric casting
             assert "::numeric" in sql_str, (
-                f"Operator '{op}' should use ::numeric casting for consistency. "
-                f"Got: {sql_str}"
+                f"Operator '{op}' should use ::numeric casting for consistency. Got: {sql_str}"
             )
 
     def test_numeric_comparison_correctness(self):
@@ -95,7 +94,9 @@ class TestNumericCastingConsistency:
             if op in ("eq", "neq"):
                 assert "Literal('true')" in sql_str, "Should convert True to 'true'"
             elif op in ("in", "notin"):
-                assert "Literal('true')" in sql_str and "Literal('false')" in sql_str, "Should convert boolean list items to strings"
+                assert "Literal('true')" in sql_str and "Literal('false')" in sql_str, (
+                    "Should convert boolean list items to strings"
+                )
 
     def test_mixed_operations_production_scenario(self):
         """Test the realistic scenario that caused the original confusion."""
@@ -166,9 +167,13 @@ class TestCastingEdgeCases:
         # Should use numeric casting for the field
         assert "::numeric" in sql_str, "List operations should use numeric casting"
         # Values should remain as integers (individual literals, not array)
-        assert "Literal(80)" in sql_str and "Literal(443)" in sql_str and "Literal(8080)" in sql_str, "Integer values should be individual literals"
+        assert (
+            "Literal(80)" in sql_str and "Literal(443)" in sql_str and "Literal(8080)" in sql_str
+        ), "Integer values should be individual literals"
 
 
 if __name__ == "__main__":
     print("Testing numeric casting consistency...")
-    print("Run with: pytest tests/regression/where_clause/test_numeric_consistency_validation.py -v -s")
+    print(
+        "Run with: pytest tests/regression/where_clause/test_numeric_consistency_validation.py -v -s"
+    )

@@ -19,6 +19,7 @@ from fraiseql.gql.builders.registry import SchemaRegistry
 @fraiseql.input
 class CreateItemInput:
     """Input for creating an item - has item_serial_number field."""
+
     item_serial_number: str
     description: Optional[str] = None
 
@@ -26,6 +27,7 @@ class CreateItemInput:
 @fraiseql.input
 class CreateItemComponentInput:
     """Input for creating an item component - has item_id field, NOT item_serial_number."""
+
     item_id: uuid.UUID
     component_type: str
     description: Optional[str] = None
@@ -61,6 +63,7 @@ class CreateItemComponentError:
 @fraiseql.mutation(function="create_item")
 class CreateItem:
     """Create a new item."""
+
     input: CreateItemInput
     success: CreateItemSuccess
     failure: CreateItemError
@@ -69,6 +72,7 @@ class CreateItem:
 @fraiseql.mutation(function="create_item_component")
 class CreateItemComponent:
     """Create a new item component."""
+
     input: CreateItemComponentInput
     success: CreateItemComponentSuccess
     failure: CreateItemComponentError
@@ -99,7 +103,10 @@ class TestMutationNameCollisionFix:
         assert create_item_component_resolver.__annotations__["input"] is CreateItemComponentInput
 
         # They should be different input types
-        assert create_item_resolver.__annotations__["input"] != create_item_component_resolver.__annotations__["input"]
+        assert (
+            create_item_resolver.__annotations__["input"]
+            != create_item_component_resolver.__annotations__["input"]
+        )
 
     def test_mutations_are_separately_registered(self):
         """Test that both mutations are registered with unique keys in the registry."""
@@ -162,16 +169,27 @@ class TestMutationNameCollisionFix:
         create_item_component_resolver = CreateItemComponent.__fraiseql_resolver__
 
         # The annotations dict objects should be different instances
-        assert create_item_resolver.__annotations__ is not create_item_component_resolver.__annotations__
+        assert (
+            create_item_resolver.__annotations__
+            is not create_item_component_resolver.__annotations__
+        )
 
         # Even though they have the same keys, they should have different values
-        assert create_item_resolver.__annotations__["input"] != create_item_component_resolver.__annotations__["input"]
+        assert (
+            create_item_resolver.__annotations__["input"]
+            != create_item_component_resolver.__annotations__["input"]
+        )
 
-    @pytest.mark.parametrize("mutation_class,expected_resolver_name,expected_input_type", [
-        (CreateItem, "create_item", CreateItemInput),
-        (CreateItemComponent, "create_item_component", CreateItemComponentInput),
-    ])
-    def test_each_mutation_has_correct_metadata(self, mutation_class, expected_resolver_name, expected_input_type):
+    @pytest.mark.parametrize(
+        "mutation_class,expected_resolver_name,expected_input_type",
+        [
+            (CreateItem, "create_item", CreateItemInput),
+            (CreateItemComponent, "create_item_component", CreateItemComponentInput),
+        ],
+    )
+    def test_each_mutation_has_correct_metadata(
+        self, mutation_class, expected_resolver_name, expected_input_type
+    ):
         """Test that each mutation has the correct metadata individually."""
         resolver = mutation_class.__fraiseql_resolver__
         definition = mutation_class.__fraiseql_mutation__

@@ -43,11 +43,7 @@ class TestAPQMiddlewareIntegration:
             enable_introspection=True,
             auth_enabled=False,
         )
-        return create_fraiseql_app(
-            config=config,
-            queries=[hello, get_user],
-            lifespan=noop_lifespan
-        )
+        return create_fraiseql_app(config=config, queries=[hello, get_user], lifespan=noop_lifespan)
 
     def test_apq_persisted_query_not_found_error(self, app_dev):
         """Test APQ returns PERSISTED_QUERY_NOT_FOUND for unknown hash."""
@@ -57,7 +53,7 @@ class TestAPQMiddlewareIntegration:
                 "extensions": {
                     "persistedQuery": {
                         "version": 1,
-                        "sha256Hash": "unknown_hash_that_does_not_exist_in_storage"
+                        "sha256Hash": "unknown_hash_that_does_not_exist_in_storage",
                     }
                 }
             }
@@ -87,12 +83,7 @@ class TestAPQMiddlewareIntegration:
 
             with TestClient(app_dev) as client:
                 apq_request = {
-                    "extensions": {
-                        "persistedQuery": {
-                            "version": 1,
-                            "sha256Hash": test_hash
-                        }
-                    }
+                    "extensions": {"persistedQuery": {"version": 1, "sha256Hash": test_hash}}
                 }
 
                 response = client.post("/graphql", json=apq_request)
@@ -116,12 +107,7 @@ class TestAPQMiddlewareIntegration:
             with TestClient(app_dev) as client:
                 apq_request = {
                     "variables": {"id": "123"},
-                    "extensions": {
-                        "persistedQuery": {
-                            "version": 1,
-                            "sha256Hash": test_hash
-                        }
-                    }
+                    "extensions": {"persistedQuery": {"version": 1, "sha256Hash": test_hash}},
                 }
 
                 response = client.post("/graphql", json=apq_request)
@@ -153,12 +139,7 @@ class TestAPQMiddlewareIntegration:
             with TestClient(app_dev) as client:
                 apq_request = {
                     "operationName": "GetUserHello",
-                    "extensions": {
-                        "persistedQuery": {
-                            "version": 1,
-                            "sha256Hash": test_hash
-                        }
-                    }
+                    "extensions": {"persistedQuery": {"version": 1, "sha256Hash": test_hash}},
                 }
 
                 response = client.post("/graphql", json=apq_request)
@@ -174,12 +155,7 @@ class TestAPQMiddlewareIntegration:
         """Test APQ handles invalid hash format gracefully."""
         with TestClient(app_dev) as client:
             apq_request = {
-                "extensions": {
-                    "persistedQuery": {
-                        "version": 1,
-                        "sha256Hash": ""  # Empty hash
-                    }
-                }
+                "extensions": {"persistedQuery": {"version": 1, "sha256Hash": ""}}  # Empty hash
             }
 
             response = client.post("/graphql", json=apq_request)
@@ -195,7 +171,7 @@ class TestAPQMiddlewareIntegration:
                 "extensions": {
                     "persistedQuery": {
                         "version": 2,  # Unsupported version
-                        "sha256Hash": "some_hash"
+                        "sha256Hash": "some_hash",
                     }
                 }
             }
@@ -209,9 +185,7 @@ class TestAPQMiddlewareIntegration:
     def test_regular_query_still_works(self, app_dev):
         """Test that regular GraphQL queries still work when APQ is integrated."""
         with TestClient(app_dev) as client:
-            regular_request = {
-                "query": 'query { hello(name: "Regular") }'
-            }
+            regular_request = {"query": 'query { hello(name: "Regular") }'}
 
             response = client.post("/graphql", json=regular_request)
 
@@ -231,20 +205,11 @@ class TestAPQMiddlewareIntegration:
             auth_enabled=True,  # Enable auth but no provider (realistic edge case)
         )
 
-        app = create_fraiseql_app(
-            config=config,
-            queries=[hello],
-            lifespan=noop_lifespan
-        )
+        app = create_fraiseql_app(config=config, queries=[hello], lifespan=noop_lifespan)
 
         with TestClient(app) as client:
             apq_request = {
-                "extensions": {
-                    "persistedQuery": {
-                        "version": 1,
-                        "sha256Hash": "some_hash"
-                    }
-                }
+                "extensions": {"persistedQuery": {"version": 1, "sha256Hash": "some_hash"}}
             }
 
             response = client.post("/graphql", json=apq_request)
@@ -263,11 +228,7 @@ class TestAPQMiddlewareIntegration:
             auth_enabled=False,
         )
 
-        app = create_fraiseql_app(
-            config=config,
-            queries=[hello],
-            lifespan=noop_lifespan
-        )
+        app = create_fraiseql_app(config=config, queries=[hello], lifespan=noop_lifespan)
 
         with TestClient(app) as client:
             test_query = "query { hello }"
@@ -277,12 +238,7 @@ class TestAPQMiddlewareIntegration:
                 mock_get.return_value = test_query
 
                 apq_request = {
-                    "extensions": {
-                        "persistedQuery": {
-                            "version": 1,
-                            "sha256Hash": test_hash
-                        }
-                    }
+                    "extensions": {"persistedQuery": {"version": 1, "sha256Hash": test_hash}}
                 }
 
                 response = client.post("/graphql", json=apq_request)

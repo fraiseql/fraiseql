@@ -233,7 +233,6 @@ def create_basic_template(project_path: Path) -> None:
     main_content = '''"""Main application entry point."""
 
 import os
-from typing import List
 
 import fraiseql
 from fraiseql import fraise_field
@@ -251,7 +250,7 @@ class User:
 @fraiseql.type
 class QueryRoot:
     """Root query type."""
-    users: List[User] = fraise_field(default_factory=list, description="List all users")
+    users: list[User] = fraise_field(default_factory=list, description="List all users")
 
     async def resolve_users(self, info):
         # TODO: Implement actual database query
@@ -352,7 +351,6 @@ class Comment:
     main_content = '''"""Blog API main application."""
 
 import os
-from typing import List
 
 import fraiseql
 from fraiseql import fraise_field
@@ -365,9 +363,9 @@ from src.types.comment import Comment
 @fraiseql.type
 class QueryRoot:
     """Root query type for blog."""
-    users: List[User] = fraise_field(default_factory=list, description="List all users")
-    posts: List[Post] = fraise_field(default_factory=list, description="List all posts")
-    comments: List[Comment] = fraise_field(default_factory=list, description="List all comments")
+    users: list[User] = fraise_field(default_factory=list, description="List all users")
+    posts: list[Post] = fraise_field(default_factory=list, description="List all posts")
+    comments: list[Comment] = fraise_field(default_factory=list, description="List all comments")
 
     async def resolve_users(self, info):
         # TODO: Implement actual database query

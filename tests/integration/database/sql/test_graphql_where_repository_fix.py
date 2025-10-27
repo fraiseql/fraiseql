@@ -19,7 +19,8 @@ class TestGraphQLWhereRepositoryFix:
         repo = CQRSRepository(conn)
 
         # Create test data
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TEMP TABLE test_devices (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -33,7 +34,8 @@ class TestGraphQLWhereRepositoryFix:
 
             CREATE TEMP VIEW v_test_devices AS
             SELECT id, data FROM test_devices;
-        """)
+        """
+        )
 
         # Test contains operator
         results = await repo.select_from_json_view(
@@ -62,7 +64,8 @@ class TestGraphQLWhereRepositoryFix:
         repo = CQRSRepository(conn)
 
         # Create test data with various IP addresses
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TEMP TABLE test_network_devices (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -76,7 +79,8 @@ class TestGraphQLWhereRepositoryFix:
 
             CREATE TEMP VIEW v_test_network_devices AS
             SELECT id, data FROM test_network_devices;
-        """)
+        """
+        )
 
         # Test isPrivate operator - should return RFC 1918 addresses
         results = await repo.select_from_json_view(
@@ -103,7 +107,8 @@ class TestGraphQLWhereRepositoryFix:
         repo = CQRSRepository(conn)
 
         # Create test data
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TEMP TABLE test_complex (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -117,7 +122,8 @@ class TestGraphQLWhereRepositoryFix:
 
             CREATE TEMP VIEW v_test_complex AS
             SELECT id, data FROM test_complex;
-        """)
+        """
+        )
 
         # Test multiple string and numeric operators
         results = await repo.select_from_json_view(
@@ -144,7 +150,8 @@ class TestGraphQLWhereRepositoryFix:
         repo = CQRSRepository(conn)
 
         # Create test data
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TEMP TABLE test_list_ops (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -158,7 +165,8 @@ class TestGraphQLWhereRepositoryFix:
 
             CREATE TEMP VIEW v_test_list_ops AS
             SELECT id, data FROM test_list_ops;
-        """)
+        """
+        )
 
         # Test 'in' operator
         results = await repo.select_from_json_view(
@@ -185,7 +193,8 @@ class TestGraphQLWhereRepositoryFix:
         repo = CQRSRepository(conn)
 
         # Create test data
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TEMP TABLE test_backward_compat (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -197,7 +206,8 @@ class TestGraphQLWhereRepositoryFix:
 
             CREATE TEMP VIEW v_test_backward_compat AS
             SELECT id, data FROM test_backward_compat;
-        """)
+        """
+        )
 
         # Test simple string equality (old style)
         results = await repo.select_from_json_view(

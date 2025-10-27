@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from graphql import (
     ExecutionResult,
@@ -58,7 +58,7 @@ async def execute_graphql(
     source: str,
     root_value: Any = None,
     context_value: Any = None,
-    variable_values: Optional[Dict[str, Any]] = None,
+    variable_values: Optional[dict[str, Any]] = None,
     operation_name: Optional[str] = None,
     enable_introspection: bool = True,
 ) -> ExecutionResult:
@@ -120,6 +120,10 @@ async def execute_graphql(
             )
         return ExecutionResult(data=None, errors=validation_errors)
 
+    # Disable type coercion for query operations to allow RustResponseBytes passthrough
+    # This is a workaround - we execute, and if there are type errors with RustResponseBytes,
+    # we know to bypass GraphQL serialization
+
     result = execute(
         schema,
         document,
@@ -136,6 +140,20 @@ async def execute_graphql(
     # Ensure we have an ExecutionResult
     if not isinstance(result, ExecutionResult):
         raise TypeError(f"Expected ExecutionResult, got {type(result)}")
+
+    # 🚀 DIRECT PATH: Check if we got type errors due to RustResponseBytes
+    # If the error is about RustResponseBytes, it means the resolver returned it
+    # In that case, we should NOT serialize - just return it as-is
+    if result.errors:
+        for error in result.errors:
+            if "RustResponseBytes" in str(error.message):
+                # The resolver returned RustResponseBytes but GraphQL rejected it
+                # This is the DIRECT PATH - return RustResponseBytes as-is
+                logger.info(
+                    "Detected RustResponseBytes type error - this is expected for direct path"
+                )
+                # Return the result with errors, the router will detect and handle RustResponseBytes
+                return result
 
     # Clean @fraise_type objects before returning to prevent JSON serialization issues
     cleaned_result = _serialize_fraise_types_in_result(result)
@@ -194,6 +212,14 @@ def _clean_fraise_types(obj: Any, _seen: set | None = None) -> Any:
     logger = logging.getLogger(__name__)
     if hasattr(obj, "__class__"):
         logger.info(f"_clean_fraise_types called on: {obj.__class__.__name__}")
+
+    # 🚀 DIRECT PATH: Handle RustResponseBytes - pass through as-is
+    # RustResponseBytes is already the complete GraphQL response and should not be processed
+    from fraiseql.core.rust_pipeline import RustResponseBytes
+
+    if isinstance(obj, RustResponseBytes):
+        logger.info("Detected RustResponseBytes - passing through directly")
+        return obj
 
     # Handle FraiseQL types first (objects with __fraiseql_definition__)
     if hasattr(obj, "__fraiseql_definition__"):

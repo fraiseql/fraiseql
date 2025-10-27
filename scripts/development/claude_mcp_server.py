@@ -5,7 +5,7 @@ Provides stack-specific context and code examples
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 
 class FraiseQLMCPServer:
@@ -16,7 +16,7 @@ class FraiseQLMCPServer:
         self.docs_path = self.project_root / "docs"
         self.examples_path = self.project_root / "examples"
 
-    def get_patterns(self, pattern_type: str) -> Dict[str, Any]:
+    def get_patterns(self, pattern_type: str) -> dict[str, Any]:
         """Get common FraiseQL patterns"""
         patterns = {
             "type_definition": {
@@ -67,7 +67,7 @@ async def create_user(info, input: CreateUserInput) -> CreateUserResult:
         }
         return patterns.get(pattern_type, {})
 
-    def get_architecture_guidance(self) -> Dict[str, str]:
+    def get_architecture_guidance(self) -> dict[str, str]:
         """Get architecture-specific guidance"""
         return {
             "cqrs": "Use database views for queries, PostgreSQL functions for mutations",
@@ -77,7 +77,7 @@ async def create_user(info, input: CreateUserInput) -> CreateUserResult:
             "frontend": "Generate TypeScript types from GraphQL schema",
         }
 
-    def suggest_file_structure(self, feature_name: str) -> Dict[str, str]:
+    def suggest_file_structure(self, feature_name: str) -> dict[str, str]:
         """Suggest file structure for a new feature"""
         return {
             f"src/types/{feature_name}.py": "Type definitions with @fraise_type",

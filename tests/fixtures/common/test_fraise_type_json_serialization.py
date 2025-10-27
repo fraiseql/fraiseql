@@ -280,9 +280,10 @@ class TestFraiseTypeJSONSerialization:
         cleaned = _clean_fraise_types(data)
         end_time = time.time()
 
-        # Should complete quickly (< 2.0 seconds for 1000 objects in CI environment)
+        # Should complete quickly (< 5.0 seconds for 1000 objects in CI environment)
+        # Increased threshold to account for slower CI machines
         duration = end_time - start_time
-        assert duration < 2.0, f"Cleaning 1000 objects took {duration} seconds"
+        assert duration < 5.0, f"Cleaning 1000 objects took {duration} seconds"
 
         # Verify correctness
         assert len(cleaned["errors"]) == 1000

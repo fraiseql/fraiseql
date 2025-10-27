@@ -5,7 +5,7 @@ Uses CQRS pattern with explicit sync for optimal performance.
 """
 
 import os
-from typing import List, Optional
+from typing import Optional
 
 import asyncpg
 import strawberry
@@ -34,7 +34,7 @@ class Post:
     published: bool
     author_id: int
     author: User
-    comments: List["Comment"]
+    comments: list["Comment"]
     created_at: str
 
 
@@ -96,7 +96,7 @@ class CreatePostInput:
 @strawberry.type
 class Query:
     @strawberry.field
-    async def users(self, limit: Optional[int] = None, offset: Optional[int] = None) -> List[User]:
+    async def users(self, limit: Optional[int] = None, offset: Optional[int] = None) -> list[User]:
         """Get users with optional pagination."""
         conn = await asyncpg.connect(DATABASE_URL)
 
@@ -138,7 +138,7 @@ class Query:
         where: Optional[UserFilter] = None,
         order_by: Optional[OrderBy] = None,
         limit: Optional[int] = None,
-    ) -> List[User]:
+    ) -> list[User]:
         """Get users with filtering and ordering."""
         conn = await asyncpg.connect(DATABASE_URL)
 
@@ -194,7 +194,7 @@ class Query:
             await conn.close()
 
     @strawberry.field
-    async def users_with_posts(self, limit: Optional[int] = None) -> List[User]:
+    async def users_with_posts(self, limit: Optional[int] = None) -> list[User]:
         """Get users with their posts (N+1 prevention test)."""
         conn = await asyncpg.connect(DATABASE_URL)
 
@@ -229,7 +229,7 @@ class Query:
             await conn.close()
 
     @strawberry.field
-    async def posts(self, limit: Optional[int] = None, offset: Optional[int] = None) -> List[Post]:
+    async def posts(self, limit: Optional[int] = None, offset: Optional[int] = None) -> list[Post]:
         """Get posts with optional pagination."""
         conn = await asyncpg.connect(DATABASE_URL)
 

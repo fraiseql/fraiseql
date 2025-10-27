@@ -38,9 +38,7 @@ def test_apq_protocol_persisted_query_not_found_error():
         "errors": [
             {
                 "message": "PersistedQueryNotFound",
-                "extensions": {
-                    "code": "PERSISTED_QUERY_NOT_FOUND"
-                }
+                "extensions": {"code": "PERSISTED_QUERY_NOT_FOUND"},
             }
         ]
     }

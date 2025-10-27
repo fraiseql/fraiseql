@@ -84,12 +84,16 @@ class TestDateTimeBasicOperators:
 
         # Test with offset
         result_offset = build_datetime_eq_sql(path_sql, "2023-07-15T14:30:00+02:00")
-        expected_offset = "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00+02:00'::timestamptz"
+        expected_offset = (
+            "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00+02:00'::timestamptz"
+        )
         assert result_offset.as_string(None) == expected_offset
 
         # Test negative offset
         result_neg_offset = build_datetime_eq_sql(path_sql, "2023-07-15T14:30:00-05:00")
-        expected_neg_offset = "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00-05:00'::timestamptz"
+        expected_neg_offset = (
+            "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00-05:00'::timestamptz"
+        )
         assert result_neg_offset.as_string(None) == expected_neg_offset
 
     def test_build_datetime_empty_list_handling(self):
@@ -165,12 +169,16 @@ class TestDateTimeComparisonOperators:
 
         # Test business hours start
         result_business_start = build_datetime_gte_sql(path_sql, "2023-07-15T09:00:00Z")
-        expected_business_start = "(data->>'event_time')::timestamptz >= '2023-07-15T09:00:00Z'::timestamptz"
+        expected_business_start = (
+            "(data->>'event_time')::timestamptz >= '2023-07-15T09:00:00Z'::timestamptz"
+        )
         assert result_business_start.as_string(None) == expected_business_start
 
         # Test business hours end
         result_business_end = build_datetime_lte_sql(path_sql, "2023-07-15T17:00:00Z")
-        expected_business_end = "(data->>'event_time')::timestamptz <= '2023-07-15T17:00:00Z'::timestamptz"
+        expected_business_end = (
+            "(data->>'event_time')::timestamptz <= '2023-07-15T17:00:00Z'::timestamptz"
+        )
         assert result_business_end.as_string(None) == expected_business_end
 
 
@@ -197,14 +205,14 @@ class TestDateTimeValidation:
 
         # Test various valid ISO 8601 datetime formats
         valid_datetimes = [
-            "2023-07-15T14:30:00Z",                    # UTC with Z
-            "2023-07-15T14:30:00+00:00",               # UTC with offset
-            "2023-07-15T14:30:00+02:00",               # Positive offset
-            "2023-07-15T14:30:00-05:00",               # Negative offset
-            "2023-07-15T14:30:00.123Z",                # With milliseconds
-            "2023-07-15T14:30:00.123456Z",             # With microseconds
-            "2023-12-31T23:59:59Z",                    # End of year
-            "2023-01-01T00:00:00Z",                    # Start of year
+            "2023-07-15T14:30:00Z",  # UTC with Z
+            "2023-07-15T14:30:00+00:00",  # UTC with offset
+            "2023-07-15T14:30:00+02:00",  # Positive offset
+            "2023-07-15T14:30:00-05:00",  # Negative offset
+            "2023-07-15T14:30:00.123Z",  # With milliseconds
+            "2023-07-15T14:30:00.123456Z",  # With microseconds
+            "2023-12-31T23:59:59Z",  # End of year
+            "2023-01-01T00:00:00Z",  # Start of year
         ]
 
         for datetime_str in valid_datetimes:
@@ -223,12 +231,16 @@ class TestDateTimeValidation:
 
         # Test millisecond precision
         result_millis = build_datetime_eq_sql(path_sql, "2023-07-15T14:30:00.123Z")
-        expected_millis = "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00.123Z'::timestamptz"
+        expected_millis = (
+            "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00.123Z'::timestamptz"
+        )
         assert result_millis.as_string(None) == expected_millis
 
         # Test microsecond precision
         result_micros = build_datetime_eq_sql(path_sql, "2023-07-15T14:30:00.123456Z")
-        expected_micros = "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00.123456Z'::timestamptz"
+        expected_micros = (
+            "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00.123456Z'::timestamptz"
+        )
         assert result_micros.as_string(None) == expected_micros
 
     def test_datetime_timezone_edge_cases(self):
@@ -237,10 +249,14 @@ class TestDateTimeValidation:
 
         # Test maximum positive offset
         result_max_pos = build_datetime_eq_sql(path_sql, "2023-07-15T14:30:00+14:00")
-        expected_max_pos = "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00+14:00'::timestamptz"
+        expected_max_pos = (
+            "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00+14:00'::timestamptz"
+        )
         assert result_max_pos.as_string(None) == expected_max_pos
 
         # Test maximum negative offset
         result_max_neg = build_datetime_eq_sql(path_sql, "2023-07-15T14:30:00-12:00")
-        expected_max_neg = "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00-12:00'::timestamptz"
+        expected_max_neg = (
+            "(data->>'timestamp')::timestamptz = '2023-07-15T14:30:00-12:00'::timestamptz"
+        )
         assert result_max_neg.as_string(None) == expected_max_neg

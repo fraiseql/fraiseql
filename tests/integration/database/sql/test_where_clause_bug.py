@@ -20,7 +20,8 @@ class TestWhereClauseFix:
         repo = CQRSRepository(conn)
 
         # Create test data
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TEMP TABLE test_entities (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -32,7 +33,8 @@ class TestWhereClauseFix:
 
             CREATE TEMP VIEW v_test_entities AS
             SELECT id, data FROM test_entities;
-        """)
+        """
+        )
 
         # This should filter results but currently returns all 3
         results = await repo.select_from_json_view(
@@ -50,11 +52,13 @@ class TestWhereClauseFix:
 
         # Create test data with IP addresses - use unique table name to avoid conflicts
         import uuid
-        table_suffix = str(uuid.uuid4()).replace('-', '_')[:8]
+
+        table_suffix = str(uuid.uuid4()).replace("-", "_")[:8]
         table_name = f"test_network_devices_{table_suffix}"
         view_name = f"v_test_network_devices_{table_suffix}"
 
-        await conn.execute(f"""
+        await conn.execute(
+            f"""
             DROP TABLE IF EXISTS {table_name} CASCADE;
             CREATE TEMP TABLE {table_name} (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -67,7 +71,8 @@ class TestWhereClauseFix:
 
             CREATE TEMP VIEW {view_name} AS
             SELECT id, data FROM {table_name};
-        """)
+        """
+        )
 
         # Test private IP filter - should return only private IPs
         results = await repo.select_from_json_view(
@@ -83,7 +88,8 @@ class TestWhereClauseFix:
         repo = CQRSRepository(conn)
 
         # Create test data
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TEMP TABLE test_items (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -95,7 +101,8 @@ class TestWhereClauseFix:
 
             CREATE TEMP VIEW v_test_items AS
             SELECT id, data FROM test_items;
-        """)
+        """
+        )
 
         # Test multiple conditions - should return electronics items >= 150
         results = await repo.select_from_json_view(
@@ -112,7 +119,8 @@ class TestWhereClauseFix:
         repo = CQRSRepository(conn)
 
         # Create test data
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TEMP TABLE test_simple (
                 id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                 data JSONB
@@ -123,7 +131,8 @@ class TestWhereClauseFix:
 
             CREATE TEMP VIEW v_test_simple AS
             SELECT id, data FROM test_simple;
-        """)
+        """
+        )
 
         # Test simple string equality (current implementation)
         results = await repo.select_from_json_view(

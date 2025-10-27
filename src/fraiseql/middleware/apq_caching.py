@@ -6,7 +6,7 @@ pre-computed responses.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.fastapi.routers import GraphQLRequest
@@ -17,7 +17,7 @@ from fraiseql.storage.backends.factory import create_apq_backend
 logger = logging.getLogger(__name__)
 
 # Global backend cache to avoid recreating backends
-_backend_cache: Dict[str, APQStorageBackend] = {}
+_backend_cache: dict[str, APQStorageBackend] = {}
 
 
 def get_apq_backend(config: FraiseQLConfig) -> APQStorageBackend:
@@ -45,8 +45,8 @@ def handle_apq_request_with_cache(
     request: GraphQLRequest,
     backend: APQStorageBackend,
     config: FraiseQLConfig,
-    context: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict[str, Any]]:
+    context: Optional[dict[str, Any]] = None,
+) -> Optional[dict[str, Any]]:
     """Handle APQ request with response caching support.
 
     This function implements the enhanced APQ flow:
@@ -95,10 +95,10 @@ def handle_apq_request_with_cache(
 
 def store_response_in_cache(
     hash_value: str,
-    response: Dict[str, Any],
+    response: dict[str, Any],
     backend: APQStorageBackend,
     config: FraiseQLConfig,
-    context: Optional[Dict[str, Any]] = None,
+    context: Optional[dict[str, Any]] = None,
 ) -> None:
     """Store GraphQL response in cache for future APQ requests.
 
@@ -150,7 +150,7 @@ def get_apq_hash_from_request(request: GraphQLRequest) -> Optional[str]:
     return persisted_query.get("sha256Hash")
 
 
-def is_cacheable_response(response: Dict[str, Any]) -> bool:
+def is_cacheable_response(response: dict[str, Any]) -> bool:
     """Check if a GraphQL response is suitable for caching.
 
     Args:

@@ -5,6 +5,8 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar, get_type_hints
 
+from graphql import GraphQLResolveInfo
+
 from fraiseql.optimization.dataloader import DataLoader
 from fraiseql.optimization.registry import get_loader
 
@@ -82,7 +84,7 @@ def dataloader_field(
             )
 
         # Create the auto-implemented resolver
-        async def auto_resolver(self, info):
+        async def auto_resolver(self: Any, info: GraphQLResolveInfo) -> Any:
             """Auto-generated DataLoader resolver."""
             # SECURITY: Validate self object to prevent attribute injection attacks
             if not hasattr(self, key_field):

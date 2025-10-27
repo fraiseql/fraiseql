@@ -6,7 +6,7 @@ and data validation throughout the RBAC system.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -43,7 +43,7 @@ class Permission(BaseModel):
     resource: str = Field(..., max_length=100)  # e.g., 'user', 'product', 'order'
     action: str = Field(..., max_length=50)  # e.g., 'create', 'read', 'update', 'delete'
     description: Optional[str] = None
-    constraints: Optional[Dict[str, Any]] = None  # JSONB constraints
+    constraints: Optional[dict[str, Any]] = None  # JSONB constraints
     created_at: datetime
 
     class Config:

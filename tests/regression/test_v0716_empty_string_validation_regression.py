@@ -14,6 +14,7 @@ from typing import Optional
 @fraiseql.type
 class PrintServer:
     """Output type representing a print server entity."""
+
     id: str
     hostname: str
     operating_system: str  # Required field that may have empty strings in existing data
@@ -23,6 +24,7 @@ class PrintServer:
 @fraiseql.input
 class CreatePrintServerInput:
     """Input type for creating a print server."""
+
     hostname: str
     operating_system: str  # Should reject empty strings for new input
     ip_address: str
@@ -43,7 +45,7 @@ class TestV0716EmptyStringValidationRegression:
             "id": "test-print-server-001",
             "hostname": "printer01.example.com",
             "operating_system": "",  # Empty string from existing database record
-            "ip_address": "192.168.1.100"
+            "ip_address": "192.168.1.100",
         }
 
         # This should work - output types should load existing data even with empty fields
@@ -60,7 +62,7 @@ class TestV0716EmptyStringValidationRegression:
             "id": "test-print-server-002",
             "hostname": "printer02.example.com",
             "operating_system": "   ",  # Whitespace-only string
-            "ip_address": "192.168.1.101"
+            "ip_address": "192.168.1.101",
         }
 
         # This should work - output types should load whitespace-only strings
@@ -79,7 +81,7 @@ class TestV0716EmptyStringValidationRegression:
             CreatePrintServerInput(
                 hostname="printer03.example.com",
                 operating_system="",  # Empty string should be rejected
-                ip_address="192.168.1.102"
+                ip_address="192.168.1.102",
             )
 
     def test_input_type_validation_rejects_whitespace_only_strings(self):
@@ -89,7 +91,7 @@ class TestV0716EmptyStringValidationRegression:
             CreatePrintServerInput(
                 hostname="printer04.example.com",
                 operating_system="   ",  # Whitespace-only string should be rejected
-                ip_address="192.168.1.103"
+                ip_address="192.168.1.103",
             )
 
     def test_input_type_validation_allows_valid_strings(self):
@@ -98,7 +100,7 @@ class TestV0716EmptyStringValidationRegression:
         input_obj = CreatePrintServerInput(
             hostname="printer05.example.com",
             operating_system="Linux Ubuntu 22.04",  # Valid non-empty string
-            ip_address="192.168.1.104"
+            ip_address="192.168.1.104",
         )
 
         assert input_obj.hostname == "printer05.example.com"
@@ -118,7 +120,7 @@ class TestV0716EmptyStringValidationRegression:
         existing_ou_data = {
             "id": "ou-001",
             "name": "",  # Empty name from existing data
-            "description": "Legacy organizational unit"
+            "description": "Legacy organizational unit",
         }
 
         # This should work without throwing "Field 'name' cannot be empty"
@@ -146,15 +148,15 @@ class TestV0716EmptyStringValidationRegression:
                     "id": "printer-001",
                     "hostname": "printer01",
                     "operating_system": "",  # Empty OS in nested object
-                    "ip_address": "192.168.1.100"
+                    "ip_address": "192.168.1.100",
                 },
                 {
                     "id": "printer-002",
                     "hostname": "printer02",
                     "operating_system": "Windows Server 2019",  # Valid OS
-                    "ip_address": "192.168.1.101"
-                }
-            ]
+                    "ip_address": "192.168.1.101",
+                },
+            ],
         }
 
         # This should work without failing on nested empty fields

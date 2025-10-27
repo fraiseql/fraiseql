@@ -27,7 +27,6 @@ class TestNetworkOperatorConsistencyBug:
         network_strategy = NetworkOperatorStrategy()
         subnet_sql = network_strategy.build_sql(field_path, "inSubnet", "1.1.1.0/24", IpAddress)
 
-
         # The issue: eq uses host() but inSubnet doesn't
         eq_str = str(eq_sql)
         subnet_str = str(subnet_sql)
@@ -55,7 +54,6 @@ class TestNetworkOperatorConsistencyBug:
         network_strategy = NetworkOperatorStrategy()
         private_sql = network_strategy.build_sql(field_path, "isPrivate", True, IpAddress)
 
-
         eq_str = str(eq_sql)
         private_str = str(private_sql)
 
@@ -78,7 +76,6 @@ class TestNetworkOperatorConsistencyBug:
 
         eq_str = str(eq_sql)
         subnet_str = str(subnet_sql)
-
 
         # The real issue: different casting approaches
         uses_host_for_eq = "host(" in eq_str
@@ -106,7 +103,6 @@ class TestSQLBehaviorWithPostgreSQL:
         network_strategy = registry.get_strategy("inSubnet")
         comparison_strategy = registry.get_strategy("eq")
 
-
         # Test that network strategy can handle the operator
         assert network_strategy.can_handle("inSubnet"), "Network strategy should handle inSubnet"
         assert comparison_strategy.can_handle("eq"), "Comparison strategy should handle eq"
@@ -116,7 +112,6 @@ class TestSQLBehaviorWithPostgreSQL:
 
         network_strategy_instance = NetworkOperatorStrategy()
         network_strategy_instance.can_handle("inSubnet")
-
 
         # The bug might be here - NetworkOperatorStrategy should only handle network operators
         # for network field types, but the can_handle method doesn't check field type!

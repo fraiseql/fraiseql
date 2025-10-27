@@ -60,9 +60,7 @@ class TestSchemaIntrospectionSecurity:
 
         with TestClient(app) as client:
             # Basic introspection query
-            client.post(
-                "/graphql", json={"query": "{ __schema { queryType { name } } }"}
-            )
+            client.post("/graphql", json={"query": "{ __schema { queryType { name } } }"})
 
             # This should be blocked in production, but currently isn't
             # This is the bug we need to fix
@@ -128,6 +126,7 @@ class TestSchemaIntrospectionSecurity:
         """RED: Introspection should be configurable via explicit setting."""
         # Explicitly enable introspection in production (override default)
         from fraiseql.fastapi.config import IntrospectionPolicy
+
         config = FraiseQLConfig(
             database_url="postgresql://test:test@localhost/test",
             environment="production",

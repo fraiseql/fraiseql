@@ -9,7 +9,7 @@ instead of deprecated build_*_response() functions.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
@@ -35,19 +35,24 @@ class RustResponseBytes:
     until fraiseql-rs is updated.
     """
 
-    __slots__ = ("_fixed", "bytes", "content_type")
+    __slots__ = ("_data", "_fixed", "content_type")
 
-    def __init__(self, data):
-        self.bytes = data
+    def __init__(self, data: bytes) -> None:
+        self._data = data
         self.content_type = "application/json"
         self._fixed = False
 
-    def __bytes__(self):
+    @property
+    def bytes(self) -> bytes:
+        """Backward compatibility property for accessing the data."""
+        return self._data
+
+    def __bytes__(self) -> bytes:
         # Workaround for Rust bug: Check if JSON is missing closing brace
         if not self._fixed:
             try:
                 # Try to parse the JSON
-                json_str = self.bytes.decode("utf-8")
+                json_str = self._data.decode("utf-8")  # type: ignore[union-attr]
                 json.loads(json_str)
                 # If it parses, no fix needed
                 self._fixed = True
@@ -61,7 +66,7 @@ class RustResponseBytes:
                     if open_braces > close_braces:
                         # Missing closing brace(s) - add them
                         missing_braces = open_braces - close_braces
-                        fixed_json = json_str + ("}" * missing_braces)
+                        fixed_json = json_str + ("}" * missing_braces)  # type: ignore[operator]
 
                         # Verify the fix works
                         try:
@@ -72,7 +77,7 @@ class RustResponseBytes:
                                 f"This bug affects queries with nested objects. "
                                 f"Update fraiseql-rs to fix permanently."
                             )
-                            self.bytes = fixed_json.encode("utf-8")
+                            self._data = fixed_json.encode("utf-8")
                             self._fixed = True
                         except json.JSONDecodeError:
                             # Fix didn't work, return original
@@ -86,17 +91,17 @@ class RustResponseBytes:
                     # Different JSON error, return original
                     pass
 
-        return self.bytes
+        return self._data
 
 
 async def execute_via_rust_pipeline(
     conn: AsyncConnection,
     query: Composed | SQL,
-    params: Optional[Dict[str, Any]],
+    params: Optional[dict[str, Any]],
     field_name: str,
     type_name: Optional[str],
     is_list: bool = True,
-    field_paths: Optional[List[List[str]]] = None,
+    field_paths: Optional[list[list[str]]] = None,
 ) -> RustResponseBytes:
     """Execute query and build HTTP response entirely in Rust.
 

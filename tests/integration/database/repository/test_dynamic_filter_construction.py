@@ -31,7 +31,8 @@ class TestDynamicFilterConstruction:
         # Set up test data
         async with db_pool.connection() as conn:
             # Create test table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS test_allocation (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     data JSONB NOT NULL,
@@ -41,7 +42,8 @@ class TestDynamicFilterConstruction:
                     quantity NUMERIC(10, 2) NOT NULL,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )
-            """)
+            """
+            )
 
             # Clear existing data
             await conn.execute("DELETE FROM test_allocation")
@@ -110,7 +112,8 @@ class TestDynamicFilterConstruction:
         # Set up test data
         async with db_pool.connection() as conn:
             # Create test table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS test_product (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     data JSONB NOT NULL,
@@ -120,7 +123,8 @@ class TestDynamicFilterConstruction:
                     is_active BOOLEAN NOT NULL DEFAULT true,
                     tenant_id UUID NOT NULL
                 )
-            """)
+            """
+            )
 
             # Clear existing data
             await conn.execute("DELETE FROM test_product")
@@ -214,7 +218,8 @@ class TestDynamicFilterConstruction:
 
         # Set up test data
         async with db_pool.connection() as conn:
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS test_items (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     data JSONB NOT NULL,
@@ -222,7 +227,8 @@ class TestDynamicFilterConstruction:
                     status TEXT NOT NULL,
                     tenant_id UUID NOT NULL
                 )
-            """)
+            """
+            )
 
             await conn.execute("DELETE FROM test_items")
 
@@ -284,7 +290,8 @@ class TestDynamicFilterConstruction:
 
         # Set up test data
         async with db_pool.connection() as conn:
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS test_events (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     data JSONB NOT NULL,
@@ -293,7 +300,8 @@ class TestDynamicFilterConstruction:
                     attendees INTEGER NOT NULL,
                     tenant_id UUID NOT NULL
                 )
-            """)
+            """
+            )
 
             await conn.execute("DELETE FROM test_events")
 

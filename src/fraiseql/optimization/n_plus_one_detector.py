@@ -8,8 +8,10 @@ import asyncio
 import logging
 import time
 from collections import defaultdict
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from typing import Any, Callable
 
 from graphql import GraphQLResolveInfo
 
@@ -236,7 +238,7 @@ def configure_detector(
 
 
 @asynccontextmanager
-async def n1_detection_context(request_id: str):
+async def n1_detection_context(request_id: str) -> AsyncGenerator[N1QueryDetector]:
     """Context manager for N+1 query detection during a request.
 
     Args:
@@ -260,14 +262,14 @@ async def n1_detection_context(request_id: str):
         detector.end_request()
 
 
-def track_resolver_execution(func):
+def track_resolver_execution(func: Callable[..., Any]) -> Callable:
     """Decorator to track resolver execution for N+1 detection.
 
     This decorator should be applied to GraphQL field resolvers
     to track their execution patterns.
     """
 
-    async def wrapper(self, info: GraphQLResolveInfo, *args, **kwargs):
+    async def wrapper(self: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any) -> Any:
         detector = get_detector()
 
         if not detector.enabled:
@@ -295,7 +297,7 @@ def track_resolver_execution(func):
     # Handle sync functions
     if not asyncio.iscoroutinefunction(func):
 
-        def sync_wrapper(self, info: GraphQLResolveInfo, *args, **kwargs):
+        def sync_wrapper(self: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any) -> Any:
             detector = get_detector()
 
             if not detector.enabled:

@@ -10,7 +10,7 @@ from fraiseql.optimization.dataloader import DataLoader
 class UserLoader(DataLoader[UUID, dict[str, Any]]):
     """DataLoader for loading users by ID."""
 
-    def __init__(self, db) -> None:
+    def __init__(self, db: Any) -> None:
         super().__init__()
         self.db = db
 
@@ -35,7 +35,7 @@ class UserLoader(DataLoader[UUID, dict[str, Any]]):
 class ProjectLoader(DataLoader[UUID, dict[str, Any]]):
     """DataLoader for loading projects by ID."""
 
-    def __init__(self, db) -> None:
+    def __init__(self, db: Any) -> None:
         super().__init__()
         self.db = db
 
@@ -56,7 +56,7 @@ class ProjectLoader(DataLoader[UUID, dict[str, Any]]):
 class TasksByProjectLoader(DataLoader[UUID, list[dict[str, Any]]]):
     """DataLoader for loading tasks by project ID."""
 
-    def __init__(self, db, limit: int = 100) -> None:
+    def __init__(self, db: Any, limit: int = 100) -> None:
         super().__init__()
         self.db = db
         self.limit = limit
@@ -95,7 +95,7 @@ class TasksByProjectLoader(DataLoader[UUID, list[dict[str, Any]]]):
 class GenericForeignKeyLoader(DataLoader[UUID, dict[str, Any]]):
     """Generic loader for foreign key relationships."""
 
-    def __init__(self, db, table: str, key_field: str = "id") -> None:
+    def __init__(self, db: Any, table: str, key_field: str = "id") -> None:
         super().__init__()
         self.db = db
         self.table = table

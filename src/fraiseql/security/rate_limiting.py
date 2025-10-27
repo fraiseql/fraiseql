@@ -6,8 +6,9 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Awaitable
 
-from fastapi import Request, Response
+from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -84,7 +85,7 @@ class RateLimitStore:
 class RedisRateLimitStore:
     """Redis-backed rate limit store."""
 
-    def __init__(self, redis_client) -> None:
+    def __init__(self, redis_client: Any) -> None:
         self.redis = redis_client
 
     async def get(self, key: str) -> tuple[float, int]:
@@ -310,7 +311,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: FastAPI,
         store: RateLimitStore | RedisRateLimitStore | None = None,
         rules: list[RateLimitRule] | None = None,
         default_limit: RateLimit | None = None,
@@ -323,7 +324,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.graphql_path = graphql_path
         self.graphql_limiter = GraphQLRateLimiter(self.store)
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Apply rate limiting to requests."""
         # Check if request should be exempt
         if await self._is_exempt(request):
@@ -340,7 +343,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         return await call_next(request)
 
-    async def _handle_graphql_request(self, request: Request, call_next):
+    async def _handle_graphql_request(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Handle GraphQL-specific rate limiting."""
         try:
             # Parse request body
@@ -348,7 +353,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             request_body = json.loads(body) if body else {}
 
             # Restore body for downstream processing
-            async def receive():
+            async def receive() -> dict[str, Any]:
                 return {"type": "http.request", "body": body}
 
             request._receive = receive
@@ -524,8 +529,8 @@ def create_default_rate_limit_rules() -> list[RateLimitRule]:
 
 
 def setup_rate_limiting(
-    app,
-    redis_client=None,
+    app: FastAPI,
+    redis_client: Any = None,
     custom_rules: list[RateLimitRule] | None = None,
     default_limit: RateLimit | None = None,
 ) -> RateLimitMiddleware:

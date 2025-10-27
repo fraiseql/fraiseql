@@ -1,13 +1,14 @@
 """FastAPI application factory for FraiseQL."""
 
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 
 import psycopg_pool
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from psycopg import AsyncConnection
 
 from fraiseql.auth.auth0 import Auth0Config
 from fraiseql.auth.base import AuthProvider
@@ -33,14 +34,14 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
     """Create async database connection pool with custom type handling."""
 
     # Configure how psycopg3 handles PostgreSQL types for each connection
-    async def configure_types(conn):
+    async def configure_types(conn: AsyncConnection) -> None:
         """Configure type adapters to keep dates as strings."""
         # Import here to avoid circular imports
         from psycopg.adapt import Loader
 
         # Create a custom loader that returns the raw text value
         class TextLoader(Loader):
-            def load(self, data):
+            def load(self, data: Any) -> Any:
                 # Return the raw text representation from PostgreSQL
                 return data.decode("utf-8") if isinstance(data, bytes) else data
 
@@ -52,7 +53,7 @@ async def create_db_pool(database_url: str, **pool_kwargs: Any) -> psycopg_pool.
         conn.adapters.register_loader("time", TextLoader)
         conn.adapters.register_loader("timetz", TextLoader)
 
-    async def check_connection(conn):
+    async def check_connection(conn: AsyncConnection) -> None:
         """Validate connection is alive before reuse.
 
         This prevents using connections that were terminated externally
@@ -208,7 +209,7 @@ def create_fraiseql_app(
     if lifespan is None:
         # Use default lifespan that manages database pool
         @asynccontextmanager
-        async def default_lifespan(app: FastAPI):
+        async def default_lifespan(app: FastAPI) -> AsyncGenerator[None]:
             """Manage application lifecycle."""
             # Startup
             pool = await create_db_pool(
@@ -233,7 +234,7 @@ def create_fraiseql_app(
     else:
         # Wrap user's lifespan to ensure database pool is still managed
         @asynccontextmanager
-        async def wrapped_lifespan(app: FastAPI):
+        async def wrapped_lifespan(app: FastAPI) -> AsyncGenerator[None]:
             """Wrap user lifespan with FraiseQL resource management."""
             # Startup - initialize database pool
             pool = await create_db_pool(
@@ -334,7 +335,7 @@ def create_fraiseql_app(
 
     # Add health check endpoint
     @app.get("/health")
-    async def health_check():
+    async def health_check() -> dict[str, str]:
         """Health check endpoint."""
         return {"status": "healthy", "service": "fraiseql"}
 
@@ -362,6 +363,6 @@ def create_production_app(**kwargs: Any) -> FastAPI:
 # Import to avoid circular dependency
 
 
-def get_global_turbo_registry():
+def get_global_turbo_registry() -> TurboRegistry | None:
     """Get the global turbo registry if available."""
     return _global_turbo_registry

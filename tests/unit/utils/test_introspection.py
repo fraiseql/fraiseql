@@ -181,12 +181,12 @@ class TestIntrospectionUtils:
 
     def test_describe_type_with_complex_fields(self):
         """Test describe_type with complex field types."""
-        from typing import List, Optional
+        from typing import Optional
 
         @fraiseql.type
         class ComplexType:
             id: str
-            tags: List[str]
+            tags: list[str]
             optional_field: Optional[str] = None
 
         result = describe_type(ComplexType)

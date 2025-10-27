@@ -10,6 +10,7 @@ from fraiseql.mutations.error_config import DEFAULT_ERROR_CONFIG
 @fraiseql.type
 class Location:
     """Test location entity for conflict testing."""
+
     id: str
     name: str
 
@@ -21,6 +22,7 @@ class Location:
 @fraiseql.success
 class CreateLocationSuccess:
     """Success type for location creation."""
+
     location: Location
     message: str = "Location created successfully"
 
@@ -28,6 +30,7 @@ class CreateLocationSuccess:
 @fraiseql.failure
 class CreateLocationError:
     """Error type with conflict_location field."""
+
     message: str
     code: str
     conflict_location: Location | None = None
@@ -51,18 +54,15 @@ class TestConflictAutoPopulationFixes:
                 "conflict": {
                     "conflict_object": {  # snake_case format now works!
                         "id": "loc-123",
-                        "name": "Existing Location"
+                        "name": "Existing Location",
                     }
                 }
-            }
+            },
         }
 
         # Parse using DEFAULT_ERROR_CONFIG (now works!)
         parsed_result = parse_mutation_result(
-            result_data,
-            CreateLocationSuccess,
-            CreateLocationError,
-            DEFAULT_ERROR_CONFIG
+            result_data, CreateLocationSuccess, CreateLocationError, DEFAULT_ERROR_CONFIG
         )
 
         # Verify the fix works
@@ -83,26 +83,25 @@ class TestConflictAutoPopulationFixes:
             "message": "Location already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {  # camelCase format
-                                "id": "loc-456",
-                                "name": "Another Existing Location"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {  # camelCase format
+                                    "id": "loc-456",
+                                    "name": "Another Existing Location",
+                                }
                             }
                         }
+                        # Note: Missing "message" field is now handled with defaults
                     }
-                    # Note: Missing "message" field is now handled with defaults
-                }]
-            }
+                ]
+            },
         }
 
         # This should no longer fail with TypeError
         parsed_result = parse_mutation_result(
-            result_data,
-            CreateLocationSuccess,
-            CreateLocationError,
-            DEFAULT_ERROR_CONFIG
+            result_data, CreateLocationSuccess, CreateLocationError, DEFAULT_ERROR_CONFIG
         )
 
         # Verify no exception and conflict_location is populated
@@ -130,10 +129,10 @@ class TestConflictAutoPopulationFixes:
                 "conflict": {
                     "conflict_object": {  # snake_case - now works!
                         "id": "loc-789",
-                        "name": "Snake Case Location"
+                        "name": "Snake Case Location",
                     }
                 }
-            }
+            },
         )
 
         annotations = {
@@ -142,10 +141,7 @@ class TestConflictAutoPopulationFixes:
             "conflict_location": Location | None,
         }
 
-        fields = {
-            "message": "Location already exists",
-            "code": "conflict"
-        }
+        fields = {"message": "Location already exists", "code": "conflict"}
 
         # Call _populate_conflict_fields directly
         _populate_conflict_fields(mutation_result, annotations, fields)
@@ -165,30 +161,24 @@ class TestConflictAutoPopulationFixes:
         snake_case_result = MutationResult(
             status="conflict",
             extra_metadata={
-                "conflict": {
-                    "conflict_object": {
-                        "id": "snake-123",
-                        "name": "Snake Case Entity"
-                    }
-                }
-            }
+                "conflict": {"conflict_object": {"id": "snake-123", "name": "Snake Case Entity"}}
+            },
         )
 
         # Test camelCase format (API/frontend)
         camel_case_result = MutationResult(
             status="conflict",
             extra_metadata={
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "camel-456",
-                                "name": "Camel Case Entity"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {"id": "camel-456", "name": "Camel Case Entity"}
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         )
 
         annotations = {"conflict_location": Location | None}
@@ -216,17 +206,19 @@ class TestConflictAutoPopulationFixes:
             "message": "Entity already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "default-config-test",
-                                "name": "Default Config Location"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "default-config-test",
+                                    "name": "Default Config Location",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         # Using DEFAULT_ERROR_CONFIG now just works
@@ -234,7 +226,7 @@ class TestConflictAutoPopulationFixes:
             result_data,
             CreateLocationSuccess,
             CreateLocationError,
-            DEFAULT_ERROR_CONFIG  # This configuration now works automatically
+            DEFAULT_ERROR_CONFIG,  # This configuration now works automatically
         )
 
         # Verify everything works perfectly
@@ -252,12 +244,9 @@ class TestConflictAutoPopulationFixes:
             "message": "Multiple conflicts detected",
             "extra_metadata": {
                 "conflict": {
-                    "conflict_object": {
-                        "id": "multi-conflict",
-                        "name": "Multi Conflict Location"
-                    }
+                    "conflict_object": {"id": "multi-conflict", "name": "Multi Conflict Location"}
                 }
-            }
+            },
         }
 
         @fraiseql.failure
@@ -268,10 +257,7 @@ class TestConflictAutoPopulationFixes:
             conflict_primary: Location | None = None
 
         result = parse_mutation_result(
-            result_data,
-            CreateLocationSuccess,
-            MultiConflictError,
-            DEFAULT_ERROR_CONFIG
+            result_data, CreateLocationSuccess, MultiConflictError, DEFAULT_ERROR_CONFIG
         )
 
         # Both conflict fields should be populated
@@ -286,19 +272,12 @@ class TestConflictAutoPopulationFixes:
         result_data = {
             "status": "conflict",
             "message": "Malformed test",
-            "extra_metadata": {
-                "conflict": {
-                    "conflict_object": "not-a-dict"  # Invalid structure
-                }
-            }
+            "extra_metadata": {"conflict": {"conflict_object": "not-a-dict"}},  # Invalid structure
         }
 
         # Should not crash, just not populate conflict fields
         result = parse_mutation_result(
-            result_data,
-            CreateLocationSuccess,
-            CreateLocationError,
-            DEFAULT_ERROR_CONFIG
+            result_data, CreateLocationSuccess, CreateLocationError, DEFAULT_ERROR_CONFIG
         )
 
         assert isinstance(result, CreateLocationError)

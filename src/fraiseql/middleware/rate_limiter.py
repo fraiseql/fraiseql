@@ -8,7 +8,7 @@ import asyncio
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Protocol, Set
+from typing import TYPE_CHECKING, Awaitable, Callable, Optional, Protocol
 
 from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -31,7 +31,7 @@ except ImportError:
 class RateLimitExceeded(HTTPException):
     """Raised when rate limit is exceeded."""
 
-    def __init__(self, retry_after: int, detail: str = "Rate limit exceeded"):
+    def __init__(self, retry_after: int, detail: str = "Rate limit exceeded") -> None:
         """Initialize rate limit exception."""
         super().__init__(
             status_code=429,
@@ -75,10 +75,10 @@ class RateLimitConfig:
     key_func: Optional[Callable[[Request], str]] = None
 
     # IP whitelist (never rate limited)
-    whitelist: List[str] = field(default_factory=list)
+    whitelist: list[str] = field(default_factory=list)
 
     # IP blacklist (always blocked)
-    blacklist: List[str] = field(default_factory=list)
+    blacklist: list[str] = field(default_factory=list)
 
 
 class RateLimiter(Protocol):
@@ -100,11 +100,11 @@ class RateLimiter(Protocol):
 class InMemoryRateLimiter:
     """In-memory rate limiter for development/single instance."""
 
-    def __init__(self, config: RateLimitConfig):
+    def __init__(self, config: RateLimitConfig) -> None:
         """Initialize in-memory rate limiter."""
         self.config = config
-        self._minute_windows: Dict[str, deque] = defaultdict(deque)
-        self._hour_windows: Dict[str, deque] = defaultdict(deque)
+        self._minute_windows: dict[str, deque] = defaultdict(deque)
+        self._hour_windows: dict[str, deque] = defaultdict(deque)
         self._lock = asyncio.Lock()
 
     async def check_rate_limit(self, key: str) -> RateLimitInfo:
@@ -274,7 +274,7 @@ class InMemoryRateLimiter:
 
             return cleaned
 
-    async def get_limited_keys(self) -> Set[str]:
+    async def get_limited_keys(self) -> set[str]:
         """Get all currently rate-limited keys."""
         async with self._lock:
             return set(self._minute_windows.keys()) | set(self._hour_windows.keys())
@@ -300,7 +300,7 @@ class PostgreSQLRateLimiter:
         config: RateLimitConfig,
         pool: "AsyncConnectionPool",
         table_name: str = "tb_rate_limit",
-    ):
+    ) -> None:
         """Initialize PostgreSQL rate limiter."""
         if not PSYCOPG_AVAILABLE:
             msg = "psycopg and psycopg_pool required for PostgreSQL rate limiter"
@@ -318,26 +318,32 @@ class PostgreSQLRateLimiter:
 
         async with self.pool.connection() as conn, conn.cursor() as cur:
             # Create rate limit table
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE TABLE IF NOT EXISTS {self.table_name} (
                     client_key TEXT NOT NULL,
                     request_time TIMESTAMPTZ NOT NULL,
                     window_type TEXT NOT NULL,
                     PRIMARY KEY (client_key, request_time, window_type)
                 )
-            """)
+            """
+            )
 
             # Create index for time-based queries
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_time_idx
                 ON {self.table_name} (request_time)
-            """)
+            """
+            )
 
             # Create index for client queries
-            await cur.execute(f"""
+            await cur.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS {self.table_name}_client_idx
                 ON {self.table_name} (client_key, window_type, request_time)
-            """)
+            """
+            )
 
             await conn.commit()
             self._initialized = True
@@ -609,12 +615,14 @@ class PostgreSQLRateLimiter:
 class RateLimiterMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for rate limiting."""
 
-    def __init__(self, app: ASGIApp, rate_limiter: RateLimiter):
+    def __init__(self, app: ASGIApp, rate_limiter: RateLimiter) -> None:
         """Initialize rate limiter middleware."""
         super().__init__(app)
         self.rate_limiter = rate_limiter
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request with rate limiting."""
         # Skip rate limiting for certain paths
         if request.url.path in ["/health", "/metrics", "/"]:

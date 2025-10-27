@@ -45,11 +45,11 @@ class TestFieldTypePropagation:
         print(f"Type hints for TestNetworkModel: {type_hints}")
 
         # Verify that special types are detected
-        assert 'ip_address' in type_hints
-        assert type_hints['ip_address'] == IpAddress
+        assert "ip_address" in type_hints
+        assert type_hints["ip_address"] == IpAddress
 
         # Also test optional types
-        if 'secondary_ip' in type_hints:
+        if "secondary_ip" in type_hints:
             # Should handle Optional[IpAddress] correctly
             print(f"secondary_ip type: {type_hints['secondary_ip']}")
 
@@ -59,7 +59,7 @@ class TestFieldTypePropagation:
 
         # Create an instance to test
         where_instance = WhereType()
-        assert hasattr(where_instance, 'ip_address')
+        assert hasattr(where_instance, "ip_address")
 
         # Set up a filter condition
         where_instance.ip_address = {"isPrivate": True}
@@ -85,7 +85,7 @@ class TestFieldTypePropagation:
             ("ip_address", {"isPrivate": True}, "::inet"),
             ("path", {"ancestor_of": "top.middle"}, "::ltree"),
             ("period", {"contains_date": "2024-06-15"}, "::daterange"),
-            ("mac", {"eq": "00:11:22:33:44:55"}, "::macaddr")
+            ("mac", {"eq": "00:11:22:33:44:55"}, "::macaddr"),
         ]
 
         for field_name, filter_dict, expected_cast in test_cases:
@@ -100,8 +100,9 @@ class TestFieldTypePropagation:
             print(f"Field {field_name} SQL: {sql_str}")
 
             # Verify proper casting
-            assert expected_cast in sql_str, \
+            assert expected_cast in sql_str, (
                 f"Field {field_name} missing {expected_cast} casting: {sql_str}"
+            )
 
             # Reset for next test
             setattr(where_instance, field_name, {})
@@ -118,7 +119,7 @@ class TestFieldTypePropagation:
             "ip_address",
             {"isPrivate": True},
             json_path,
-            field_type=None  # This might be the production issue
+            field_type=None,  # This might be the production issue
         )
 
         if result_no_type:
@@ -132,10 +133,7 @@ class TestFieldTypePropagation:
 
         # Test with proper field_type (simulating test environment success)
         result_with_type = _make_filter_field_composed(
-            "ip_address",
-            {"isPrivate": True},
-            json_path,
-            field_type=IpAddress
+            "ip_address", {"isPrivate": True}, json_path, field_type=IpAddress
         )
 
         if result_with_type:
@@ -166,7 +164,9 @@ class TestFieldTypePropagation:
                 if op in ("isPrivate", "isPublic"):
                     result = strategy.build_sql(SQL("data->>'ip_address'"), op, True, None)
                 elif op == "inSubnet":
-                    result = strategy.build_sql(SQL("data->>'ip_address'"), op, "192.168.0.0/16", None)
+                    result = strategy.build_sql(
+                        SQL("data->>'ip_address'"), op, "192.168.0.0/16", None
+                    )
 
                 sql_str = str(result)
                 print(f"  Generated SQL: {sql_str}")
@@ -206,7 +206,9 @@ class TestFieldTypePropagation:
         print(f"  Without field_type: {sql_no_type}")
 
         # Compare the results
-        print(f"  Same strategy selected: {strategy_with_type.__class__ == strategy_no_type.__class__}")
+        print(
+            f"  Same strategy selected: {strategy_with_type.__class__ == strategy_no_type.__class__}"
+        )
         print(f"  With type has inet casting: {'::inet' in sql_with_type}")
         print(f"  Without type has inet casting: {'::inet' in sql_no_type}")
 
@@ -233,7 +235,7 @@ class TestProductionScenarioSimulation:
         print(f"Type hints in current environment: {type_hints}")
 
         # Check if the type is what we expect
-        ip_type = type_hints.get('ip_address')
+        ip_type = type_hints.get("ip_address")
         print(f"IP address type: {ip_type}")
         print(f"Is IpAddress: {ip_type is IpAddress}")
         print(f"IpAddress module: {getattr(IpAddress, '__module__', 'unknown')}")
@@ -249,11 +251,7 @@ class TestProductionScenarioSimulation:
         WhereType = safe_create_where_type(TestNetworkModel)
 
         # Simulate GraphQL input parsing
-        graphql_input = {
-            "ipAddress": {  # Note: GraphQL uses camelCase
-                "isPrivate": True
-            }
-        }
+        graphql_input = {"ipAddress": {"isPrivate": True}}  # Note: GraphQL uses camelCase
 
         # This would need to be converted to the internal format
         # The conversion might lose field_type information

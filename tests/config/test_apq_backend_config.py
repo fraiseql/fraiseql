@@ -23,7 +23,7 @@ def test_apq_backend_config_memory():
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
         apq_cache_responses=True,
-        apq_response_cache_ttl=300
+        apq_response_cache_ttl=300,
     )
 
     assert config.apq_storage_backend == "memory"
@@ -33,16 +33,13 @@ def test_apq_backend_config_memory():
 
 def test_apq_backend_config_postgresql():
     """Test PostgreSQL backend configuration."""
-    backend_config = {
-        "table_prefix": "apq_",
-        "connection_pool_size": 10
-    }
+    backend_config = {"table_prefix": "apq_", "connection_pool_size": 10}
 
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="postgresql",
         apq_cache_responses=True,
-        apq_backend_config=backend_config
+        apq_backend_config=backend_config,
     )
 
     assert config.apq_storage_backend == "postgresql"
@@ -55,13 +52,13 @@ def test_apq_backend_config_custom():
     backend_config = {
         "backend_class": "myapp.storage.CustomAPQBackend",
         "redis_url": "redis://localhost:6379",
-        "key_prefix": "apq:"
+        "key_prefix": "apq:",
     }
 
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="custom",
-        apq_backend_config=backend_config
+        apq_backend_config=backend_config,
     )
 
     assert config.apq_storage_backend == "custom"
@@ -73,13 +70,13 @@ def test_apq_backend_config_redis():
     backend_config = {
         "redis_url": "redis://localhost:6379",
         "key_prefix": "fraiseql:apq:",
-        "ttl": 3600
+        "ttl": 3600,
     }
 
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="redis",
-        apq_backend_config=backend_config
+        apq_backend_config=backend_config,
     )
 
     assert config.apq_storage_backend == "redis"
@@ -93,16 +90,14 @@ def test_apq_backend_config_validation():
 
     for backend in valid_backends:
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            apq_storage_backend=backend
+            database_url="postgresql://test@localhost/test", apq_storage_backend=backend
         )
         assert config.apq_storage_backend == backend
 
     # Invalid backend names should raise validation error
     with pytest.raises(ValidationError):
         FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            apq_storage_backend="invalid_backend"
+            database_url="postgresql://test@localhost/test", apq_storage_backend="invalid_backend"
         )
 
 
@@ -113,32 +108,26 @@ def test_apq_cache_ttl_validation():
 
     for ttl in valid_ttls:
         config = FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            apq_response_cache_ttl=ttl
+            database_url="postgresql://test@localhost/test", apq_response_cache_ttl=ttl
         )
         assert config.apq_response_cache_ttl == ttl
 
     # Negative TTL should raise validation error
     with pytest.raises(ValidationError):
-        FraiseQLConfig(
-            database_url="postgresql://test@localhost/test",
-            apq_response_cache_ttl=-1
-        )
+        FraiseQLConfig(database_url="postgresql://test@localhost/test", apq_response_cache_ttl=-1)
 
 
 def test_apq_config_environment_specific_defaults():
     """Test that APQ config has appropriate defaults for different environments."""
     # Development environment
     dev_config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        environment="development"
+        database_url="postgresql://test@localhost/test", environment="development"
     )
     assert dev_config.apq_cache_responses is False  # Conservative default
 
     # Production environment
     prod_config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        environment="production"
+        database_url="postgresql://test@localhost/test", environment="production"
     )
     assert prod_config.apq_cache_responses is False  # Should remain conservative
 
@@ -161,26 +150,15 @@ def test_apq_config_from_environment_variables(monkeypatch):
 def test_apq_backend_config_as_dict():
     """Test that backend config accepts complex dictionary structures."""
     complex_config = {
-        "database": {
-            "host": "localhost",
-            "port": 5432,
-            "database": "apq_cache"
-        },
-        "tables": {
-            "queries": "persisted_queries",
-            "responses": "cached_responses"
-        },
-        "features": {
-            "compression": True,
-            "encryption": False,
-            "ttl_enabled": True
-        }
+        "database": {"host": "localhost", "port": 5432, "database": "apq_cache"},
+        "tables": {"queries": "persisted_queries", "responses": "cached_responses"},
+        "features": {"compression": True, "encryption": False, "ttl_enabled": True},
     }
 
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="custom",
-        apq_backend_config=complex_config
+        apq_backend_config=complex_config,
     )
 
     assert config.apq_backend_config == complex_config

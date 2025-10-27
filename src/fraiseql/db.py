@@ -112,7 +112,7 @@ class FraiseQLRepository:
         self._type_name_cache[view_name] = type_name
         return type_name
 
-    async def _set_session_variables(self, cursor_or_conn) -> None:
+    async def _set_session_variables(self, cursor_or_conn: Any) -> None:
         """Set PostgreSQL session variables from context.
 
         Sets app.tenant_id, app.contact_id, app.user_id, and app.is_super_admin
@@ -494,7 +494,7 @@ class FraiseQLRepository:
             self._introspection_in_progress.discard(view_name)
 
     async def find(
-        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs
+        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs: Any
     ) -> RustResponseBytes:
         """Find records using unified Rust-first pipeline.
 
@@ -515,7 +515,10 @@ class FraiseQLRepository:
             from fraiseql.core.ast_parser import extract_field_paths_from_info
             from fraiseql.utils.casing import to_snake_case
 
-            field_paths = extract_field_paths_from_info(info, transform_path=to_snake_case)
+            field_path_objects = extract_field_paths_from_info(info, transform_path=to_snake_case)
+            # Convert from list[FieldPath] to list[list[str]] for Rust
+            if field_path_objects:
+                field_paths = [fp.path for fp in field_path_objects]
 
         # 2. Get JSONB column from cached metadata (NO sample query!)
         jsonb_column = None  # default to None (use row_to_json)
@@ -539,9 +542,13 @@ class FraiseQLRepository:
         # 4. Get type name for Rust transformation
         type_name = self._get_cached_type_name(view_name)
 
+        # Extract field_name from info if not explicitly provided
+        if not field_name and info and hasattr(info, "field_name"):
+            field_name = info.field_name
+
         # 5. Execute via Rust pipeline (ALWAYS)
         async with self._pool.connection() as conn:
-            return await execute_via_rust_pipeline(
+            result = await execute_via_rust_pipeline(
                 conn,
                 query.statement,
                 query.params,
@@ -551,8 +558,16 @@ class FraiseQLRepository:
                 field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
             )
 
+            # Store RustResponseBytes in context for direct path
+            if info and hasattr(info, "context"):
+                if "_rust_response" not in info.context:
+                    info.context["_rust_response"] = {}
+                info.context["_rust_response"][field_name or view_name] = result
+
+            return result
+
     async def find_one(
-        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs
+        self, view_name: str, field_name: str | None = None, info: Any = None, **kwargs: Any
     ) -> RustResponseBytes:
         """Find single record using unified Rust-first pipeline.
 
@@ -565,13 +580,16 @@ class FraiseQLRepository:
         Returns:
             RustResponseBytes ready for HTTP response
         """
-        # 1. Extract field paths
+        # 1. Extract field paths from GraphQL info
         field_paths = None
         if info:
             from fraiseql.core.ast_parser import extract_field_paths_from_info
             from fraiseql.utils.casing import to_snake_case
 
-            field_paths = extract_field_paths_from_info(info, transform_path=to_snake_case)
+            field_path_objects = extract_field_paths_from_info(info, transform_path=to_snake_case)
+            # Convert from list[FieldPath] to list[list[str]] for Rust
+            if field_path_objects:
+                field_paths = [fp.path for fp in field_path_objects]
 
         # 2. Get JSONB column from cached metadata
         jsonb_column = None  # default to None (use row_to_json)
@@ -595,9 +613,13 @@ class FraiseQLRepository:
         # 4. Get type name
         type_name = self._get_cached_type_name(view_name)
 
+        # Extract field_name from info if not explicitly provided
+        if not field_name and info and hasattr(info, "field_name"):
+            field_name = info.field_name
+
         # 5. Execute via Rust pipeline (ALWAYS)
         async with self._pool.connection() as conn:
-            return await execute_via_rust_pipeline(
+            result = await execute_via_rust_pipeline(
                 conn,
                 query.statement,
                 query.params,
@@ -606,6 +628,14 @@ class FraiseQLRepository:
                 is_list=False,
                 field_paths=field_paths,  # NEW: Pass field paths for Rust-side projection!
             )
+
+            # Store RustResponseBytes in context for direct path
+            if info and hasattr(info, "context"):
+                if "_rust_response" not in info.context:
+                    info.context["_rust_response"] = {}
+                info.context["_rust_response"][field_name or view_name] = result
+
+            return result
 
     def _extract_type(self, field_type: type) -> Optional[type]:
         """Extract the actual type from Optional, Union, etc."""
@@ -643,7 +673,7 @@ class FraiseQLRepository:
         field_paths: list[Any] | None = None,
         info: Any = None,
         jsonb_column: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> DatabaseQuery:
         """Build a SELECT query for finding multiple records.
 
@@ -682,9 +712,10 @@ class FraiseQLRepository:
                         where_parts.append(where_composed)
             elif isinstance(where_obj, dict):
                 # Use sophisticated dict processing for complex filters
-                # For now, pass None for table_columns to avoid async issues
-                # The method will fall back to heuristics
-                dict_where_sql = self._convert_dict_where_to_sql(where_obj, view_name, None)
+                # Pass jsonb_column so JSONB tables use path operators
+                dict_where_sql = self._convert_dict_where_to_sql(
+                    where_obj, view_name, None, jsonb_column
+                )
                 if dict_where_sql:
                     where_parts.append(dict_where_sql)
 
@@ -755,7 +786,7 @@ class FraiseQLRepository:
         field_paths: list[Any] | None = None,
         info: Any = None,
         jsonb_column: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> DatabaseQuery:
         """Build a SELECT query for finding a single record."""
         # Force limit=1 for find_one
@@ -791,18 +822,20 @@ class FraiseQLRepository:
         where_dict: dict[str, Any],
         view_name: str | None = None,
         table_columns: set[str] | None = None,
+        jsonb_column: str | None = None,
     ) -> Composed | None:
         """Convert a dictionary WHERE clause to SQL conditions.
 
         This method handles dynamically constructed where clauses used in GraphQL resolvers.
-        Unlike WhereInput types (which use JSONB paths), dictionary filters use direct
-        column names for regular tables.
+        For JSONB tables, uses JSONB path operators (data->>'field').
+        For regular tables, uses direct column names.
 
         Args:
             where_dict: Dictionary with field names as keys and operator dictionaries as values
                        e.g., {'name': {'contains': 'router'}, 'port': {'gt': 20}}
             view_name: Optional view/table name for hybrid table detection
             table_columns: Optional set of actual table columns for accurate detection
+            jsonb_column: Optional JSONB column name (if present, use JSONB path operators)
 
         Returns:
             A Composed SQL object with parameterized conditions, or None if no valid conditions
@@ -834,12 +867,9 @@ class FraiseQLRepository:
                     # 1. A single "id" key (or very few keys like "id" + metadata)
                     # 2. The "id" value is a dict with operator keys
                     # 3. The field name suggests a relationship (not a scalar field)
-                    looks_like_nested = (
-                        len(field_filter) == 1  # Only contains "id" key
-                        or (
-                            len(field_filter) <= 2
-                            and all(k in ("id", "__typename") for k in field_filter)
-                        )
+                    looks_like_nested = len(field_filter) == 1 or (  # Only contains "id" key
+                        len(field_filter) <= 2
+                        and all(k in ("id", "__typename") for k in field_filter)
                     )
 
                     if table_columns and potential_fk_column in table_columns:
@@ -889,7 +919,12 @@ class FraiseQLRepository:
                                     continue
                                 # Build condition using the FK column directly
                                 condition_sql = self._build_dict_where_condition(
-                                    potential_fk_column, operator, value, view_name, table_columns
+                                    potential_fk_column,
+                                    operator,
+                                    value,
+                                    view_name,
+                                    table_columns,
+                                    jsonb_column,
                                 )
                                 if condition_sql:
                                     conditions.append(condition_sql)
@@ -904,7 +939,7 @@ class FraiseQLRepository:
 
                         # Build SQL condition using converted database field name
                         condition_sql = self._build_dict_where_condition(
-                            db_field_name, operator, value, view_name, table_columns
+                            db_field_name, operator, value, view_name, table_columns, jsonb_column
                         )
                         if condition_sql:
                             field_conditions.append(condition_sql)
@@ -951,6 +986,7 @@ class FraiseQLRepository:
         value: Any,
         view_name: str | None = None,
         table_columns: set[str] | None = None,
+        jsonb_column: str | None = None,
     ) -> Composed | None:
         """Build a single WHERE condition using FraiseQL's operator strategy system.
 
@@ -967,6 +1003,7 @@ class FraiseQLRepository:
             value: Filter value
             view_name: Optional view/table name for hybrid table detection
             table_columns: Optional set of actual table columns (for accurate detection)
+            jsonb_column: Optional JSONB column name (if set, use JSONB paths for all non-id fields)
 
         Returns:
             Composed SQL condition with intelligent type casting, or None if operator not supported
@@ -982,7 +1019,10 @@ class FraiseQLRepository:
             # Determine if this field is a regular column or needs JSONB path
             use_jsonb_path = False
 
-            if table_columns is not None:
+            if jsonb_column:
+                # Explicit JSONB column specified - use JSONB paths for all fields except 'id'
+                use_jsonb_path = field_name != "id"
+            elif table_columns is not None:
                 # We have actual column info - use it!
                 # Field is JSONB if: table has 'data' column AND field is NOT a regular column
                 has_data_column = "data" in table_columns
@@ -994,7 +1034,8 @@ class FraiseQLRepository:
 
             if use_jsonb_path:
                 # Field is in JSONB data column, use JSONB path
-                path_sql = Composed([SQL("data"), SQL(" ->> "), Literal(field_name)])
+                jsonb_col = jsonb_column or "data"
+                path_sql = Composed([Identifier(jsonb_col), SQL(" ->> "), Literal(field_name)])
             else:
                 # Field is a regular column, use direct column name
                 path_sql = Identifier(field_name)

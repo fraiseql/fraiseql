@@ -407,7 +407,7 @@ After successful installation:
 ## Getting Help
 
 - **Installation issues**: Check this troubleshooting section
-- **Framework questions**: See [Getting Started](docs/GETTING_STARTED.md)
+- **Framework questions**: See [Quick Start Guide](docs/quickstart.md)
 - **Bug reports**: [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
 - **Community**: [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
 

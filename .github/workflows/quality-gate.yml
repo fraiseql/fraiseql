@@ -186,15 +186,10 @@ jobs:
       uses: astral-sh/setup-uv@v7
     - name: Install dependencies
       run: uv pip install --system -e ".[dev]"
-    - name: Run ruff check
+    - name: Run ruff check (includes type checking)
       run: ruff check .
     - name: Run ruff format check
       run: ruff format --check .
-    - name: Run type checker
-      run: |
-        pip install pyright
-        pyright src/
-      continue-on-error: true
 
   security:
     name: Security

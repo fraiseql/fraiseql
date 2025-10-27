@@ -24,6 +24,7 @@ from fraiseql.types.generic import Connection
 @fraise_type
 class DnsServer:
     """DNS Server type for enterprise JSONB testing."""
+
     id: UUID
     identifier: str
     ip_address: str
@@ -39,7 +40,7 @@ class DnsServer:
                 id=UUID(str(row["id"])),
                 identifier=row["identifier"],
                 ip_address=row["ip_address"],
-                n_total_allocations=row.get("n_total_allocations")
+                n_total_allocations=row.get("n_total_allocations"),
             )
         # JSONB extraction from v_dns_server
         data = row.get("data", {})
@@ -47,7 +48,7 @@ class DnsServer:
             id=UUID(str(data.get("id", row.get("id")))),
             identifier=data.get("identifier", ""),
             ip_address=data.get("ip_address", ""),
-            n_total_allocations=data.get("n_total_allocations")
+            n_total_allocations=data.get("n_total_allocations"),
         )
 
 
@@ -64,9 +65,8 @@ class TestConnectionJSONBIntegration:
         # Test enterprise JSONB configuration (v0.11.0+)
         config = FraiseQLConfig(
             database_url="postgresql://test@localhost/test",
-
             # 🎯 GOLD STANDARD: v0.11.0 Rust-only JSONB configuration
-            jsonb_field_limit_threshold=20,             # Field count threshold for optimization
+            jsonb_field_limit_threshold=20,  # Field count threshold for optimization
         )
 
         # v0.11.0: JSONB extraction always enabled, Rust handles all transformation
@@ -92,25 +92,25 @@ class TestConnectionJSONBIntegration:
                     "data": {  # JSONB column with DNS server data
                         "identifier": "dns-001",
                         "ip_address": "192.168.1.10",
-                        "n_total_allocations": 5
-                    }
+                        "n_total_allocations": 5,
+                    },
                 },
                 {
                     "id": "22222222-2222-2222-2222-222222222222",
                     "data": {
                         "identifier": "dns-002",
                         "ip_address": "192.168.1.20",
-                        "n_total_allocations": 3
-                    }
-                }
+                        "n_total_allocations": 3,
+                    },
+                },
             ],
             "page_info": {
                 "has_next_page": False,
                 "has_previous_page": False,
                 "start_cursor": "22222222-2222-2222-2222-222222222221",
-                "end_cursor": "22222222-2222-2222-2222-222222222222"
+                "end_cursor": "22222222-2222-2222-2222-222222222222",
             },
-            "total_count": 2
+            "total_count": 2,
         }
 
         # Mock GraphQL info with enterprise context
@@ -125,7 +125,7 @@ class TestConnectionJSONBIntegration:
             default_page_size=20,
             max_page_size=100,
             include_total_count=True,
-            cursor_field="id"
+            cursor_field="id",
             # ✅ NO jsonb_extraction or jsonb_column needed!
             # Global config is inherited automatically
         )
@@ -143,8 +143,8 @@ class TestConnectionJSONBIntegration:
         config_meta = dns_servers.__fraiseql_connection__
         assert config_meta["node_type"] == DnsServer
         assert config_meta["view_name"] == "v_dns_server"
-        assert config_meta["jsonb_extraction"] is None    # Will inherit at runtime
-        assert config_meta["jsonb_column"] is None        # Will inherit at runtime
+        assert config_meta["jsonb_extraction"] is None  # Will inherit at runtime
+        assert config_meta["jsonb_column"] is None  # Will inherit at runtime
         assert config_meta["supports_global_jsonb"] is True  # ✅ KEY FIX!
 
     async def test_connection_runtime_jsonb_resolution(self):
@@ -165,9 +165,9 @@ class TestConnectionJSONBIntegration:
                 "has_next_page": False,
                 "has_previous_page": False,
                 "start_cursor": None,
-                "end_cursor": None
+                "end_cursor": None,
             },
-            "total_count": 0
+            "total_count": 0,
         }
 
         mock_info = Mock()
@@ -198,9 +198,11 @@ class TestConnectionJSONBIntegration:
         @connection(
             node_type=DnsServer,
             view_name="v_dns_server",
-            jsonb_column="custom_json"     # Explicit column name
+            jsonb_column="custom_json",  # Explicit column name
         )
-        async def explicit_override_connection(info, first: int | None = None) -> Connection[DnsServer]:
+        async def explicit_override_connection(
+            info, first: int | None = None
+        ) -> Connection[DnsServer]:
             pass
 
         config_meta = explicit_override_connection.__fraiseql_connection__
@@ -225,7 +227,7 @@ class TestConnectionJSONBIntegration:
             default_page_size=20,
             max_page_size=100,
             include_total_count=True,
-            cursor_field="id"
+            cursor_field="id",
         )
         @query
         async def dns_servers_clean(

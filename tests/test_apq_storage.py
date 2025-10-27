@@ -51,7 +51,7 @@ def test_apq_query_storage_multiple_queries():
     queries = {
         "hash1": "{ users { id } }",
         "hash2": "{ posts { title } }",
-        "hash3": "{ comments { content } }"
+        "hash3": "{ comments { content } }",
     }
 
     # Store all queries
@@ -121,11 +121,7 @@ def test_compute_query_hash():
 
 def test_get_storage_stats():
     """Test storage statistics."""
-    from fraiseql.storage.apq_store import (
-        store_persisted_query,
-        get_storage_stats,
-        clear_storage
-    )
+    from fraiseql.storage.apq_store import store_persisted_query, get_storage_stats, clear_storage
 
     # Clear storage first
     clear_storage()

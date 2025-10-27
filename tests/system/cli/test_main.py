@@ -19,6 +19,7 @@ class TestCLIMain:
         assert "fraiseql, version" in result.output
         # Verify version format matches expected pattern (semantic versioning)
         import re
+
         version_pattern = r"fraiseql, version \d+\.\d+\.\d+"
         assert re.search(version_pattern, result.output)
 

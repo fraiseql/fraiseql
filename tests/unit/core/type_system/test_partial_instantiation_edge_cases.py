@@ -3,7 +3,7 @@ import pytest
 """Comprehensive tests for partial instantiation edge cases."""
 
 import dataclasses
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from fraiseql.partial_instantiation import (
@@ -21,7 +21,7 @@ class Level4Model:
     id: UUID
     name: str
     value: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclasses.dataclass
@@ -31,7 +31,7 @@ class Level3Model:
     id: UUID
     title: str
     level4: Optional[Level4Model] = None
-    level4_list: Optional[List[Level4Model]] = None
+    level4_list: Optional[list[Level4Model]] = None
 
 
 @dataclasses.dataclass
@@ -41,7 +41,7 @@ class Level2Model:
     id: UUID
     description: str
     level3: Optional[Level3Model] = None
-    tags: Optional[List[str]] = None
+    tags: Optional[list[str]] = None
 
 
 @dataclasses.dataclass
@@ -52,7 +52,7 @@ class Level1Model:
     name: str
     required_field: str
     level2: Optional[Level2Model] = None
-    level2_list: Optional[List[Level2Model]] = None
+    level2_list: Optional[list[Level2Model]] = None
 
 
 @dataclasses.dataclass
@@ -62,7 +62,7 @@ class CircularModelA:
     id: UUID
     name: str
     b_ref: Optional["CircularModelB"] = None
-    b_list: Optional[List["CircularModelB"]] = None
+    b_list: Optional[list["CircularModelB"]] = None
 
 
 @dataclasses.dataclass
@@ -72,7 +72,7 @@ class CircularModelB:
     id: UUID
     title: str
     a_ref: Optional[CircularModelA] = None
-    a_list: Optional[List[CircularModelA]] = None
+    a_list: Optional[list[CircularModelA]] = None
 
 
 class TestDeeplyNestedPartialInstantiation:
@@ -353,7 +353,7 @@ class TestMixedPartialFullObjects:
         @dataclasses.dataclass
         class Container:
             id: int
-            items: List[Item]
+            items: list[Item]
 
         # Create list with mix of partial and full items
         items = []
@@ -582,8 +582,8 @@ class TestEdgeCaseScenarios:
         @dataclasses.dataclass
         class WithDefaults:
             id: int
-            items: List[str] = dataclasses.field(default_factory=list)
-            metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
+            items: list[str] = dataclasses.field(default_factory=list)
+            metadata: dict[str, Any] = dataclasses.field(default_factory=dict)
 
         # Create without providing default factory fields
         instance = create_partial_instance(WithDefaults, {"id": 1})

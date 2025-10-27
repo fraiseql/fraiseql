@@ -29,17 +29,17 @@ class TestPreciseSQLValidation:
         except Exception:
             # Fallback: manually render the structure
             def render_part(part):
-                if hasattr(part, 'as_string'):
+                if hasattr(part, "as_string"):
                     return part.as_string(None)
-                elif hasattr(part, 'string'):  # SQL object
+                elif hasattr(part, "string"):  # SQL object
                     return part.string
-                elif hasattr(part, 'seq'):  # Nested Composed
-                    return ''.join(render_part(p) for p in part.seq)
+                elif hasattr(part, "seq"):  # Nested Composed
+                    return "".join(render_part(p) for p in part.seq)
                 else:  # Literal
-                    return '%s'  # Parameter placeholder
+                    return "%s"  # Parameter placeholder
 
-            if hasattr(result, 'seq'):
-                rendered_sql = ''.join(render_part(part) for part in result.seq)
+            if hasattr(result, "seq"):
+                rendered_sql = "".join(render_part(part) for part in result.seq)
             else:
                 rendered_sql = render_part(result)
 
@@ -47,9 +47,9 @@ class TestPreciseSQLValidation:
 
         # Should be valid PostgreSQL syntax
         expected_patterns = [
-            "data ->> 'port'",    # JSONB extraction
-            "::numeric",          # Type casting
-            ">="                  # Comparison operator
+            "data ->> 'port'",  # JSONB extraction
+            "::numeric",  # Type casting
+            ">=",  # Comparison operator
         ]
 
         for pattern in expected_patterns:
@@ -83,6 +83,7 @@ class TestPreciseSQLValidation:
     def test_hostname_comparison_no_ltree_casting(self):
         """Test that hostname comparison doesn't incorrectly use ltree casting."""
         from fraiseql.types import Hostname
+
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'hostname')")
 
@@ -158,12 +159,12 @@ class TestPreciseSQLValidation:
         print(f"Malicious input handling: {sql_str}")
 
         # The malicious content should be wrapped in Literal()
-        assert f"Literal(\"{malicious_input}\")" in sql_str, (
+        assert f'Literal("{malicious_input}")' in sql_str, (
             f"Malicious content not properly parameterized: {sql_str}"
         )
 
         # Should not have raw SQL injection
-        assert "DROP TABLE" not in sql_str.replace(f"Literal(\"{malicious_input}\")", ""), (
+        assert "DROP TABLE" not in sql_str.replace(f'Literal("{malicious_input}")', ""), (
             f"Raw SQL injection detected outside of Literal: {sql_str}"
         )
 
@@ -186,7 +187,9 @@ class TestPreciseSQLValidation:
         # Should have same structural pattern (only values differ)
         assert sql1.count("::numeric") == sql2.count("::numeric"), "Inconsistent casting"
         assert sql1.count("SQL(' = ')") == sql2.count("SQL(' = ')"), "Inconsistent operators"
-        assert "Literal(100)" in sql1 and "Literal(200)" in sql2, "Values not properly differentiated"
+        assert "Literal(100)" in sql1 and "Literal(200)" in sql2, (
+            "Values not properly differentiated"
+        )
 
 
 if __name__ == "__main__":

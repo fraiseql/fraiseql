@@ -293,9 +293,7 @@ class TestNotificationManager:
         assert notification_manager.channels["custom"] == CustomChannel
 
     @pytest.mark.asyncio
-    async def test_send_notifications_no_config(
-        self, error_tracker, notification_manager
-    ):
+    async def test_send_notifications_no_config(self, error_tracker, notification_manager):
         """Test sending notifications with no matching config."""
         # Create an error
         try:
@@ -317,9 +315,7 @@ class TestNotificationManager:
                 assert result[0] == 0
 
     @pytest.mark.asyncio
-    async def test_send_notifications_with_config(
-        self, error_tracker, notification_manager
-    ):
+    async def test_send_notifications_with_config(self, error_tracker, notification_manager):
         """Test sending notifications with matching config."""
         # Create notification config
         async with error_tracker.db.connection() as conn:
@@ -429,9 +425,7 @@ class TestErrorTrackerNotificationIntegration:
     async def test_notifications_triggered_on_error(self, error_tracker):
         """Test that notifications are triggered when error is captured."""
         # Mock NotificationManager at the import location
-        with patch(
-            "fraiseql.monitoring.notifications.NotificationManager"
-        ) as mock_manager_class:
+        with patch("fraiseql.monitoring.notifications.NotificationManager") as mock_manager_class:
             mock_manager = MagicMock()
             mock_manager.send_notifications = AsyncMock()
             mock_manager_class.return_value = mock_manager
@@ -462,9 +456,7 @@ class TestErrorTrackerNotificationIntegration:
             enable_notifications=False,
         )
 
-        with patch(
-            "fraiseql.monitoring.notifications.NotificationManager"
-        ) as mock_manager_class:
+        with patch("fraiseql.monitoring.notifications.NotificationManager") as mock_manager_class:
             # Capture an error
             try:
                 raise ValueError("Test error")
@@ -477,14 +469,10 @@ class TestErrorTrackerNotificationIntegration:
             mock_manager_class.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_notification_failure_doesnt_break_error_tracking(
-        self, error_tracker
-    ):
+    async def test_notification_failure_doesnt_break_error_tracking(self, error_tracker):
         """Test that notification failures don't break error tracking."""
         # Mock NotificationManager to raise an exception
-        with patch(
-            "fraiseql.monitoring.notifications.NotificationManager"
-        ) as mock_manager_class:
+        with patch("fraiseql.monitoring.notifications.NotificationManager") as mock_manager_class:
             mock_manager_class.side_effect = Exception("Notification system failed")
 
             # Capture an error (should succeed despite notification failure)

@@ -7,7 +7,7 @@ automatically converted to SQL ORDER BY clauses.
 
 from dataclasses import make_dataclass
 from enum import Enum
-from typing import Any, List, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, Optional, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from fraiseql import fraise_enum, fraise_input
 from fraiseql.sql.order_by_generator import OrderBy, OrderBySet
@@ -56,7 +56,7 @@ def _is_fraiseql_type(field_type: type) -> bool:
             origin = get_origin(field_type)
 
     # Don't consider list types as FraiseQL types
-    if origin in (list, List):
+    if origin is list:
         return False
 
     return hasattr(field_type, "__fraiseql_definition__")
@@ -112,7 +112,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
     # Handle object with field-specific order directions
     if hasattr(order_by_input, "__gql_fields__"):
 
-        def process_order_by(obj, prefix=""):
+        def process_order_by(obj: Any, prefix: str = "") -> None:
             """Recursively process order by object."""
             for field_name in obj.__gql_fields__:
                 value = getattr(obj, field_name)
@@ -130,7 +130,7 @@ def _convert_order_by_input_to_sql(order_by_input: Any) -> OrderBySet | None:
     # Handle plain dict (common from GraphQL frameworks)
     elif isinstance(order_by_input, dict):
 
-        def process_dict_order_by(obj_dict, prefix=""):
+        def process_dict_order_by(obj_dict: dict[str, Any], prefix: str = "") -> None:
             """Process dictionary-style order by input."""
             for field_name, value in obj_dict.items():
                 if value is not None:

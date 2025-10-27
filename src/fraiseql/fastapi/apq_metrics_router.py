@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -22,7 +21,7 @@ router = APIRouter(prefix="/admin/apq", tags=["APQ Metrics"])
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def get_apq_dashboard(request: Request):
+async def get_apq_dashboard(request: Request) -> HTMLResponse:
     """Serve the APQ monitoring dashboard.
 
     Interactive web dashboard for monitoring APQ (Automatic Persisted Queries)
@@ -56,7 +55,7 @@ async def get_apq_dashboard(request: Request):
 
 
 @router.get("/stats")
-async def get_apq_stats() -> Dict[str, Any]:
+async def get_apq_stats() -> JSONResponse:
     """Get current APQ statistics and metrics.
 
     Returns comprehensive APQ system statistics including:
@@ -151,7 +150,7 @@ async def get_apq_stats() -> Dict[str, Any]:
 
 
 @router.get("/metrics")
-async def get_apq_metrics() -> Dict[str, Any]:
+async def get_apq_metrics() -> JSONResponse:
     """Get APQ metrics in Prometheus-compatible format.
 
     Returns metrics formatted for easy integration with monitoring systems
@@ -234,7 +233,7 @@ async def get_apq_metrics() -> Dict[str, Any]:
 
 
 @router.get("/top-queries")
-async def get_top_queries(limit: int = 10) -> Dict[str, Any]:
+async def get_top_queries(limit: int = 10) -> JSONResponse:
     """Get top N queries by usage frequency.
 
     Args:
@@ -294,7 +293,7 @@ async def get_top_queries(limit: int = 10) -> Dict[str, Any]:
 
 
 @router.post("/reset")
-async def reset_apq_metrics() -> Dict[str, str]:
+async def reset_apq_metrics() -> JSONResponse:
     """Reset APQ metrics to zero.
 
     ⚠️ WARNING: This will clear all accumulated metrics data.
@@ -332,7 +331,7 @@ async def reset_apq_metrics() -> Dict[str, str]:
 
 
 @router.get("/health")
-async def get_apq_health() -> Dict[str, Any]:
+async def get_apq_health() -> JSONResponse:
     """Get APQ system health status.
 
     Provides a simple health check endpoint for monitoring and alerting.
@@ -399,7 +398,7 @@ async def get_apq_health() -> Dict[str, Any]:
 
 
 @router.get("/history")
-async def get_apq_history(limit: int = 10) -> Dict[str, Any]:
+async def get_apq_history(limit: int = 10) -> JSONResponse:
     """Get historical APQ metrics snapshots.
 
     Provides time-series data for trend analysis and graphing.
