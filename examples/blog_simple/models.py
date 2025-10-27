@@ -56,7 +56,7 @@ class User:
     email: str
     password_hash: str
     role: UserRole
-    profile_data: dict[str, Any | None]
+    profile_data: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
 
@@ -391,6 +391,18 @@ class PermissionError:
     required_role: str | None = None
 
 
+@fraiseql.failure
+class BlogError:
+    """Generic blog operation error."""
+
+    message: str
+    code: str
+    entity_type: str | None = None
+    entity_id: UUID | None = None
+    field_errors: list[dict[str, str]] | None = None
+    required_role: str | None = None
+
+
 # Mutation classes
 @fraiseql.mutation
 class CreatePost:
@@ -398,11 +410,11 @@ class CreatePost:
 
     input: CreatePostInput
     success: CreatePostSuccess
-    failure: ValidationError | PermissionError
+    failure: BlogError
 
     async def resolve(
         self, info: GraphQLResolveInfo
-    ) -> CreatePostSuccess | ValidationError | PermissionError:
+    ) -> CreatePostSuccess | BlogError:
         db = info.context["db"]
         user_id = info.context["user_id"]
 
@@ -432,7 +444,7 @@ class CreatePost:
             return CreatePostSuccess(post=Post(**post))
 
         except Exception as e:
-            return ValidationError(message=f"Failed to create post: {e!s}")
+            return BlogError(message=f"Failed to create post: {e!s}", code="VALIDATION_ERROR")
 
 
 @fraiseql.mutation
@@ -442,11 +454,11 @@ class UpdatePost:
     id: UUID
     input: UpdatePostInput
     success: UpdatePostSuccess
-    failure: ValidationError | NotFoundError | PermissionError
+    failure: BlogError
 
     async def resolve(
         self, info: GraphQLResolveInfo
-    ) -> UpdatePostSuccess | ValidationError | NotFoundError | PermissionError:
+    ) -> UpdatePostSuccess | BlogError:
         db = info.context["db"]
         user_id = info.context["user_id"]
 
@@ -454,12 +466,17 @@ class UpdatePost:
             # Check if post exists and user has permission
             existing_post = await db.find_one("posts", id=self.id)
             if not existing_post:
-                return NotFoundError(
-                    message="Post not found", entity_type="Post", entity_id=self.id
+                return BlogError(
+                    message="Post not found",
+                    code="NOT_FOUND",
+                    entity_type="Post",
+                    entity_id=self.id,
                 )
 
             if existing_post["author_id"] != user_id:
-                return PermissionError(message="You can only edit your own posts")
+                return BlogError(
+                    message="You can only edit your own posts", code="PERMISSION_DENIED"
+                )
 
             # Build update data
             update_data = {}
@@ -494,7 +511,7 @@ class UpdatePost:
             return UpdatePostSuccess(post=Post(**post))
 
         except Exception as e:
-            return ValidationError(message=f"Failed to update post: {e!s}")
+            return BlogError(message=f"Failed to update post: {e!s}", code="VALIDATION_ERROR")
 
 
 @fraiseql.mutation
@@ -503,11 +520,11 @@ class CreateComment:
 
     input: CreateCommentInput
     success: CreateCommentSuccess
-    failure: ValidationError | NotFoundError
+    failure: BlogError
 
     async def resolve(
         self, info: GraphQLResolveInfo
-    ) -> CreateCommentSuccess | ValidationError | NotFoundError:
+    ) -> CreateCommentSuccess | BlogError:
         db = info.context["db"]
         user_id = info.context["user_id"]
 
@@ -515,8 +532,11 @@ class CreateComment:
             # Check if post exists
             post = await db.find_one("posts", id=self.input.post_id)
             if not post:
-                return NotFoundError(
-                    message="Post not found", entity_type="Post", entity_id=self.input.post_id
+                return BlogError(
+                    message="Post not found",
+                    code="NOT_FOUND",
+                    entity_type="Post",
+                    entity_id=self.input.post_id,
                 )
 
             # Create comment
@@ -534,7 +554,7 @@ class CreateComment:
             return CreateCommentSuccess(comment=Comment(**comment))
 
         except Exception as e:
-            return ValidationError(message=f"Failed to create comment: {e!s}")
+            return BlogError(message=f"Failed to create comment: {e!s}", code="VALIDATION_ERROR")
 
 
 # Query resolvers
