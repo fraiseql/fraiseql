@@ -14,6 +14,7 @@ from httpx import AsyncClient, ASGITransport
 
 from fraiseql import type as fraiseql_type, query
 from fraiseql.fastapi import create_fraiseql_app
+from fraiseql.sql import create_graphql_where_input
 
 
 @pytest.mark.asyncio
@@ -193,11 +194,10 @@ async def test_graphql_field_selection(create_fraiseql_app_with_db, db_connectio
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="WHERE filter requires input types to be defined - separate feature")
 async def test_graphql_with_where_filter(create_fraiseql_app_with_db, db_connection):
     """Test GraphQL queries with WHERE filters via direct path.
 
-    TODO: WHERE filters work with dict arguments in direct path - requires input type definitions.
+    ✅ Tests: WHERE filters work with dict arguments in direct path.
     """
     # Setup test data
     await db_connection.execute("""
@@ -225,13 +225,16 @@ async def test_graphql_with_where_filter(create_fraiseql_app_with_db, db_connect
         first_name: str
         active: bool
 
+    # Generate Where input type
+    UserWhereInput = create_graphql_where_input(User)
+
     @query
-    async def users(info, where: dict | None = None) -> list[User]:
+    async def users(info, where: UserWhereInput | None = None) -> list[User]:
         db = info.context["db"]
         return await db.find("v_user", info=info, where=where)
 
     app = create_fraiseql_app_with_db(
-        types=[User],
+        types=[User, UserWhereInput],
         queries=[users]
     )
 
