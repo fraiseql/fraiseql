@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No unreleased changes at this time._
 
+## [1.0.3] - 2025-10-27
+
+### Fixed
+
+- **Critical**: Fixed RustResponseBytes handling in GraphQL execution
+  - Rust pipeline responses now bypass GraphQL serialization layer
+  - Queries no longer fail with "Expected value of type X but got RustResponseBytes"
+  - Direct HTTP response path now working as designed
+
+### Enhanced
+
+- Added direct path interceptor in FastAPI router
+- Enhanced WHERE clause generation for JSONB tables
+  - `_convert_dict_where_to_sql()` now accepts `jsonb_column` parameter
+  - `_build_dict_where_condition()` correctly uses JSONB path operators
+
+### Tests
+
+- Added integration tests for end-to-end query execution
+- All previously skipped tests now passing ✅
+- No regressions in existing test suite
+
+### Technical Details
+
+- Router now detects `RustResponseBytes` and returns directly to HTTP
+- WHERE clauses use `data->>'field'` operators for JSONB tables
+- Automatic fallback to traditional GraphQL for complex queries
+
 ## [1.0.2] - 2025-10-25
 
 ### 📝 PyPI Documentation Fix Release

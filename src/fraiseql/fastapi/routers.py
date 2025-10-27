@@ -7,12 +7,13 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from graphql import GraphQLSchema
 from pydantic import BaseModel, field_validator
 
 from fraiseql.analysis.query_analyzer import QueryAnalyzer
 from fraiseql.auth.base import AuthProvider
+from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.execution.mode_selector import ModeSelector
 from fraiseql.execution.unified_executor import UnifiedExecutor
 from fraiseql.fastapi.config import FraiseQLConfig
@@ -173,13 +174,16 @@ def create_graphql_router(
     else:
         context_dependency = Depends(build_graphql_context)
 
-    @router.post("/graphql", response_class=FraiseQLJSONResponse)
+    @router.post("/graphql", response_class=FraiseQLJSONResponse, response_model=None)
     async def graphql_endpoint(
         request: GraphQLRequest,
         http_request: Request,
         context: dict[str, Any] = context_dependency,
-    ) -> dict[str, Any]:
-        """Execute GraphQL query with adaptive behavior."""
+    ) -> dict[str, Any] | Response:
+        """Execute GraphQL query with adaptive behavior.
+
+        Returns either a dict (normal GraphQL response) or Response (direct Rust bytes).
+        """
         # Check authentication first (before APQ processing to ensure security)
         # For APQ requests, we need to check auth regardless of query availability
         if (
@@ -321,6 +325,26 @@ def create_graphql_router(
                     context=context,
                 )
 
+                # 🚀 DIRECT PATH: Check if GraphQL rejected RustResponseBytes
+                if isinstance(result, dict) and "errors" in result and "_rust_response" in context:
+                    for error in result.get("errors", []):
+                        error_msg = str(error.get("message", ""))
+                        # Check for RustResponseBytes type errors (single objects or lists)
+                        if "RustResponseBytes" in error_msg or "Expected Iterable" in error_msg:
+                            # GraphQL rejected RustResponseBytes - retrieve it from context
+                            rust_responses = context["_rust_response"]
+                            if rust_responses:
+                                # Get the first RustResponseBytes
+                                first_response = next(iter(rust_responses.values()))
+                                logger.info(
+                                    "🚀 Direct path: Returning RustResponseBytes directly "
+                                    "(unified executor)"
+                                )
+                                return Response(
+                                    content=bytes(first_response),
+                                    media_type="application/json",
+                                )
+
                 return result
 
             # Fallback to standard execution
@@ -357,6 +381,38 @@ def create_graphql_router(
                 response["errors"] = [
                     _format_error(error, is_production_env) for error in result.errors
                 ]
+
+            # 🚀 DIRECT PATH: Check for RustResponseBytes in multiple places
+
+            # 1. Check if GraphQL rejected RustResponseBytes (type error)
+            if result.errors and "_rust_response" in context:
+                for error in result.errors:
+                    error_msg = str(error.message)
+                    if "RustResponseBytes" in error_msg or "Expected Iterable" in error_msg:
+                        # GraphQL rejected RustResponseBytes - retrieve it from context
+                        rust_responses = context["_rust_response"]
+                        if rust_responses:
+                            # Get the first RustResponseBytes
+                            first_response = next(iter(rust_responses.values()))
+                            logger.info(
+                                "🚀 Direct path: Returning RustResponseBytes directly "
+                                "(fallback executor)"
+                            )
+                            return Response(
+                                content=bytes(first_response),
+                                media_type="application/json",
+                            )
+
+            # 2. Check if result contains RustResponseBytes (fallback path)
+            if result.data and isinstance(result.data, dict):
+                for value in result.data.values():
+                    if isinstance(value, RustResponseBytes):
+                        # Return Rust bytes directly to HTTP
+                        logger.info("🚀 Direct path: Returning RustResponseBytes directly")
+                        return Response(
+                            content=bytes(value),
+                            media_type="application/json",
+                        )
 
             # Cache response for APQ if it was an APQ request and response is cacheable
             if is_apq_request and apq_backend:
