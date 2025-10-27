@@ -161,15 +161,15 @@ class User:
 
 **FraiseQL security advantages:**
 
-✅ **Explicit field whitelisting** - Only fields in JSONB view can be queried
-✅ **Impossible to over-fetch** - View defines the complete data structure
-✅ **Fixed recursion depth** - View defines max nesting, prevents depth attacks
-✅ **Protected against N+1 bombs** - One query regardless of GraphQL complexity
-✅ **Clear audit trail** - Database view + Python type = two-layer verification
-✅ **SQL injection protection** - Prepared statements + typed parameters always
-✅ **Mass assignment prevention** - Input types define allowed fields precisely
-✅ **Row-level security** - PostgreSQL RLS integrates directly with views
-✅ **Cryptographic audit logging** - Built-in SHA-256 + HMAC audit chains
+- ✅ **Explicit field whitelisting** - Only fields in JSONB view can be queried
+- ✅ **Impossible to over-fetch** - View defines the complete data structure
+- ✅ **Fixed recursion depth** - View defines max nesting, prevents depth attacks
+- ✅ **Protected against N+1 bombs** - One query regardless of GraphQL complexity
+- ✅ **Clear audit trail** - Database view + Python type = two-layer verification
+- ✅ **SQL injection protection** - Prepared statements + typed parameters always
+- ✅ **Mass assignment prevention** - Input types define allowed fields precisely
+- ✅ **Row-level security** - PostgreSQL RLS integrates directly with views
+- ✅ **Cryptographic audit logging** - Built-in SHA-256 + HMAC audit chains
 
 ### Recursion Depth Attack Protection
 
@@ -358,11 +358,11 @@ class CreateUser:
 
 ### Why AI Loves This
 
-✅ **SQL + Python** - Massively trained languages (no proprietary DSLs)
-✅ **JSONB everywhere** - Clear data structures, obvious contracts
-✅ **Database functions** - Complete context in one file
-✅ **Explicit logging** - AI can trace execution without debugging
-✅ **No abstraction layers** - What you see is what executes
+- ✅ **SQL + Python** - Massively trained languages (no proprietary DSLs)
+- ✅ **JSONB everywhere** - Clear data structures, obvious contracts
+- ✅ **Database functions** - Complete context in one file
+- ✅ **Explicit logging** - AI can trace execution without debugging
+- ✅ **No abstraction layers** - What you see is what executes
 
 **Real Impact:** Claude Code, GitHub Copilot, and ChatGPT generate correct FraiseQL code on first try.
 
@@ -590,12 +590,12 @@ Pre-built dashboards in `grafana/` query PostgreSQL directly:
 
 ### Operational Benefits
 
-✅ **70% fewer services** to deploy and monitor
-✅ **One database to backup** (not 4 separate systems)
-✅ **No Redis connection timeouts** or cluster issues
-✅ **No Sentry quota surprises** or rate limiting
-✅ **ACID guarantees** for everything (no eventual consistency)
-✅ **Self-hosted** - full control, no vendor lock-in
+- ✅ **70% fewer services** to deploy and monitor
+- ✅ **One database to backup** (not 4 separate systems)
+- ✅ **No Redis connection timeouts** or cluster issues
+- ✅ **No Sentry quota surprises** or rate limiting
+- ✅ **ACID guarantees** for everything (no eventual consistency)
+- ✅ **Self-hosted** - full control, no vendor lock-in
 
 ---
 
@@ -722,14 +722,14 @@ Benefits: Instant lookups, embedded relations, explicitly synchronized
 
 ### FraiseQL's Unique Advantages
 
-✅ **Database returns final structure** (JSONB views)
-✅ **Rust handles field selection** (compiled performance)
-✅ **No Python in hot path** (zero serialization overhead)
-✅ **No ORM abstraction** (SQL functions are business logic)
-✅ **Built-in recursion protection** (view defines max depth, no middleware needed)
-✅ **Secure by design** (explicit field contracts prevent data leaks)
-✅ **AI-readable** (clear contracts, full context visible)
-✅ **PostgreSQL-native** (caching, monitoring, APQ in one database)
+- ✅ **Database returns final structure** (JSONB views)
+- ✅ **Rust handles field selection** (compiled performance)
+- ✅ **No Python in hot path** (zero serialization overhead)
+- ✅ **No ORM abstraction** (SQL functions are business logic)
+- ✅ **Built-in recursion protection** (view defines max depth, no middleware needed)
+- ✅ **Secure by design** (explicit field contracts prevent data leaks)
+- ✅ **AI-readable** (clear contracts, full context visible)
+- ✅ **PostgreSQL-native** (caching, monitoring, APQ in one database)
 
 ---
 
