@@ -11,6 +11,7 @@ Goal: Validate the claimed 10-80x speedup.
 import json
 import statistics
 import time
+from collections.abc import Callable
 from typing import Any
 
 
@@ -44,7 +45,9 @@ def transform_json_python(json_str: str) -> str:
     return json.dumps(transformed)
 
 
-def benchmark_transformation(name: str, func, input_data: str, iterations: int = 1000):
+def benchmark_transformation(
+    name: str, func: Callable[[str], str], input_data: str, iterations: int = 1000
+) -> dict[str, Any]:
     """Run benchmark and return statistics."""
     # Warm-up
     for _ in range(10):
@@ -134,7 +137,7 @@ def create_test_data(complexity: str) -> dict:
     return {}
 
 
-def run_benchmarks():
+def run_benchmarks() -> None:
     """Run all benchmarks and print results."""
     # Import Rust transformer
     try:
