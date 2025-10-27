@@ -197,15 +197,15 @@ class TestDateValidation:
 
         # Test valid ISO 8601 date formats
         valid_dates = [
-            "2023-07-15",        # Standard format
-            "2023-01-01",        # New Year's Day
-            "2023-12-31",        # New Year's Eve
-            "2023-02-28",        # Non-leap year
-            "2024-02-29",        # Leap year
-            "2023-04-30",        # Month with 30 days
-            "2023-06-15",        # Mid-year date
-            "2023-09-22",        # Autumn equinox
-            "2023-12-21",        # Winter solstice
+            "2023-07-15",  # Standard format
+            "2023-01-01",  # New Year's Day
+            "2023-12-31",  # New Year's Eve
+            "2023-02-28",  # Non-leap year
+            "2024-02-29",  # Leap year
+            "2023-04-30",  # Month with 30 days
+            "2023-06-15",  # Mid-year date
+            "2023-09-22",  # Autumn equinox
+            "2023-12-21",  # Winter solstice
         ]
 
         for date_str in valid_dates:

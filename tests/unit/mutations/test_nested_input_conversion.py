@@ -4,7 +4,6 @@ This test demonstrates the bug where nested input objects bypass camelCase→sna
 field name conversion, causing inconsistent payloads to reach database functions.
 """
 
-
 import fraiseql
 from fraiseql.mutations.sql_generator import _serialize_value
 from fraiseql.types.definitions import UNSET
@@ -14,6 +13,7 @@ from fraiseql.utils.casing import to_snake_case
 @fraiseql.input
 class CreatePublicAddressInput:
     """Direct input for creating public address."""
+
     street_number: str
     street_name: str
     postal_code: str
@@ -22,6 +22,7 @@ class CreatePublicAddressInput:
 @fraiseql.input
 class CreateNestedPublicAddressInput:
     """Nested input for creating public address (used within other inputs)."""
+
     street_number: str | None = UNSET
     street_name: str
     postal_code: str
@@ -30,6 +31,7 @@ class CreateNestedPublicAddressInput:
 @fraiseql.input
 class CreateLocationInput:
     """Input that contains nested address input."""
+
     name: str
     address: CreateNestedPublicAddressInput | None = UNSET
 
@@ -41,9 +43,7 @@ class TestNestedInputConversion:
         """Show what happens with direct input serialization."""
         # Create direct input object
         direct_input = CreatePublicAddressInput(
-            street_number="123",
-            street_name="Main St",
-            postal_code="12345"
+            street_number="123", street_name="Main St", postal_code="12345"
         )
 
         # The current _serialize_value behavior with FraiseQL inputs
@@ -56,19 +56,13 @@ class TestNestedInputConversion:
         """🔴 RED: Show the inconsistent behavior with nested inputs."""
         # Create nested input object
         nested_address = CreateNestedPublicAddressInput(
-            street_number="456",
-            street_name="Oak Ave",
-            postal_code="67890"
+            street_number="456", street_name="Oak Ave", postal_code="67890"
         )
 
-        location_input = CreateLocationInput(
-            name="Test Location",
-            address=nested_address
-        )
+        location_input = CreateLocationInput(name="Test Location", address=nested_address)
 
         # Serialize location input
         serialized = _serialize_value(location_input)
-
 
         # The nested address field names - this is the bug we're testing
         nested_json = serialized["address"]
@@ -103,13 +97,12 @@ class TestNestedInputConversion:
         raw_nested_data = {
             "streetNumber": "789",  # This is camelCase as would come from GraphQL
             "streetName": "Pine Rd",
-            "postalCode": "54321"
+            "postalCode": "54321",
         }
 
         # The issue: when _serialize_value processes this dict,
         # it should convert camelCase keys to snake_case but doesn't
         serialized = _serialize_value(raw_nested_data)
-
 
         # 🔴 This should fail - we expect field name conversion but don't get it
         # After our fix, these assertions should pass:
@@ -127,15 +120,12 @@ class TestNestedInputConversion:
         nested_dict = {
             "topLevel": {
                 "middleLevel": {
-                    "deepLevel": {
-                        "veryDeepField": "value",
-                        "anotherField": "another_value"
-                    },
-                    "secondMiddleField": "middle_value"
+                    "deepLevel": {"veryDeepField": "value", "anotherField": "another_value"},
+                    "secondMiddleField": "middle_value",
                 },
-                "topSecondField": "top_value"
+                "topSecondField": "top_value",
             },
-            "anotherTopField": "top_value"
+            "anotherTopField": "top_value",
         }
 
         serialized = _serialize_value(nested_dict)
@@ -173,7 +163,7 @@ class TestNestedInputConversion:
             "camelCaseField": "camel_value",
             "snake_case_field": "snake_value",
             "alreadyCamelCase": "existing_camel",
-            "already_snake": "existing_snake"
+            "already_snake": "existing_snake",
         }
 
         serialized = _serialize_value(mixed_dict)

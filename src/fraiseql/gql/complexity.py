@@ -5,7 +5,7 @@ and prevent resource-intensive queries from being executed.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from graphql import (
     FieldNode,
@@ -30,7 +30,7 @@ class ComplexityError(GraphQLError):
         complexity: Optional[int] = None,
         depth: Optional[int] = None,
         limit: Optional[int] = None,
-    ):
+    ) -> None:
         """Initialize complexity error."""
         super().__init__(message)
         self.complexity = complexity
@@ -52,7 +52,7 @@ class ComplexityConfig:
     default_list_size: int = 10
 
     # Custom multipliers for expensive fields
-    field_multipliers: Dict[str, int] = field(default_factory=dict)
+    field_multipliers: dict[str, int] = field(default_factory=dict)
 
     # Whether complexity checking is enabled
     enabled: bool = True
@@ -71,7 +71,7 @@ class ComplexityInfo:
     total_score: int
     depth: int
     field_count: int
-    field_scores: Dict[str, int] = field(default_factory=dict)
+    field_scores: dict[str, int] = field(default_factory=dict)
 
 
 def calculate_field_complexity(
@@ -120,9 +120,9 @@ def calculate_field_complexity(
 
 def calculate_query_complexity(
     node: SelectionNode,
-    fragments: Dict[str, FragmentDefinitionNode],
+    fragments: dict[str, FragmentDefinitionNode],
     config: ComplexityConfig,
-    variables: Optional[Dict[str, Any]] = None,
+    variables: Optional[dict[str, Any]] = None,
     depth: int = 0,
 ) -> tuple[int, int, int]:
     """Calculate complexity for a selection node.
@@ -231,11 +231,11 @@ def calculate_query_complexity(
 class QueryComplexityAnalyzer:
     """Analyzer for GraphQL query complexity."""
 
-    def __init__(self, config: ComplexityConfig):
+    def __init__(self, config: ComplexityConfig) -> None:
         """Initialize analyzer with configuration."""
         self.config = config
 
-    def analyze(self, query: str, variables: Optional[Dict[str, Any]] = None) -> ComplexityInfo:
+    def analyze(self, query: str, variables: Optional[dict[str, Any]] = None) -> ComplexityInfo:
         """Analyze query complexity.
 
         Args:

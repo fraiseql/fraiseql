@@ -183,7 +183,6 @@ python run.py
 - **[5-Minute Quickstart](docs/quickstart.md)** - Instant working API
 - **[Understanding FraiseQL](docs/UNDERSTANDING.md)** - Conceptual overview
 - **[Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions
-- **[Getting Started](docs/GETTING_STARTED.md)** - Choose your learning path
 
 ### Core Documentation
 - **[Types & Schema](docs/core/types-and-schema.md)** - GraphQL type system

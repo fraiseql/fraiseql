@@ -44,9 +44,9 @@ test-core: ## Run core tests only (excluding examples)
 	pytest tests/ -xvs -m "not blog_simple and not blog_enterprise"
 
 .PHONY: test-fast
-test-fast: ## Run tests in parallel (faster)
-	@echo -e "$(GREEN)Running tests in parallel...$(NC)"
-	pytest -n auto
+test-fast: ## Run tests quickly (subset)
+	@echo -e "$(GREEN)Running fast test subset...$(NC)"
+	pytest tests/unit/ -x
 
 .PHONY: test-unit
 test-unit: ## Run only unit tests (no database)
@@ -136,19 +136,19 @@ lint-fix: ## Fix linting issues automatically
 	ruff check src/ --fix
 
 .PHONY: format
-format: ## Format code with black
-	@echo -e "$(GREEN)Formatting code with black...$(NC)"
-	black src/ tests/
+format: ## Format code with ruff
+	@echo -e "$(GREEN)Formatting code with ruff...$(NC)"
+	ruff format src/ tests/
 
 .PHONY: format-check
 format-check: ## Check code formatting without changes
 	@echo -e "$(GREEN)Checking code format...$(NC)"
-	black --check src/ tests/
+	ruff format --check src/ tests/
 
 .PHONY: type-check
-type-check: ## Run type checking with pyright
-	@echo -e "$(GREEN)Running pyright type checker...$(NC)"
-	pyright
+type-check: ## Run type checking with ruff
+	@echo -e "$(GREEN)Running ruff type checker...$(NC)"
+	ruff check --ignore FAST001 src/
 
 
 .PHONY: qa

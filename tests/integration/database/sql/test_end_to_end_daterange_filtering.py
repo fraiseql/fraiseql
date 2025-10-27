@@ -19,7 +19,15 @@ class TestDateRangeEndToEndIntegration:
         """Test that DateRange field types can be detected and mapped to operators."""
         # Test operator lookup for DateRange field type
         basic_operators = ["eq", "neq", "in", "notin"]
-        range_operators = ["contains_date", "overlaps", "adjacent", "strictly_left", "strictly_right", "not_left", "not_right"]
+        range_operators = [
+            "contains_date",
+            "overlaps",
+            "adjacent",
+            "strictly_left",
+            "strictly_right",
+            "not_left",
+            "not_right",
+        ]
 
         for op in basic_operators + range_operators:
             # This should not raise an exception
@@ -159,9 +167,17 @@ class TestDateRangeEndToEndIntegration:
     def test_daterange_operator_coverage_integration(self):
         """Test that all expected DateRange operators are available."""
         expected_operators = {
-            "eq", "neq", "in", "notin",  # Basic operators
-            "contains_date", "overlaps", "adjacent",  # Range operators
-            "strictly_left", "strictly_right", "not_left", "not_right"  # Positioning operators
+            "eq",
+            "neq",
+            "in",
+            "notin",  # Basic operators
+            "contains_date",
+            "overlaps",
+            "adjacent",  # Range operators
+            "strictly_left",
+            "strictly_right",
+            "not_left",
+            "not_right",  # Positioning operators
         }
 
         available_operators = set()
@@ -173,7 +189,9 @@ class TestDateRangeEndToEndIntegration:
             except ValueError:
                 pass  # Operator not available
 
-        assert available_operators == expected_operators, f"Missing DateRange operators: {expected_operators - available_operators}"
+        assert available_operators == expected_operators, (
+            f"Missing DateRange operators: {expected_operators - available_operators}"
+        )
 
     def test_daterange_mixed_bracket_types_integration(self):
         """Test DateRange operators with mixed bracket types (inclusive/exclusive)."""

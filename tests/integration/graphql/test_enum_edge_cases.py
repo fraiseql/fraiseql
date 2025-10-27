@@ -11,6 +11,7 @@ from graphql import GraphQLResolveInfo
 @fraiseql.enum
 class Color(Enum):
     """Test enum with string values."""
+
     RED = "red"
     GREEN = "green"
     BLUE = "blue"
@@ -19,6 +20,7 @@ class Color(Enum):
 @fraiseql.enum
 class Level(Enum):
     """Test enum with integer values."""
+
     BASIC = 1
     INTERMEDIATE = 2
     ADVANCED = 3
@@ -27,6 +29,7 @@ class Level(Enum):
 @fraiseql.enum
 class MixedEnum(Enum):
     """Test enum with mixed value types."""
+
     STRING_VAL = "test"
     INT_VAL = 42
     FLOAT_VAL = 3.14

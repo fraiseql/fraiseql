@@ -1,7 +1,7 @@
 """GraphQL types for FraiseQL Enterprise RBAC (Role-Based Access Control)."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from fraiseql.strawberry_compat import strawberry
@@ -93,8 +93,8 @@ class RoleWithPermissions:
     """Role with its associated permissions."""
 
     role: RoleType
-    permissions: List[PermissionType]
-    inherited_permissions: List[PermissionType]
+    permissions: list[PermissionType]
+    inherited_permissions: list[PermissionType]
 
 
 @strawberry.type
@@ -103,8 +103,8 @@ class UserPermissions:
 
     user_id: UUID
     tenant_id: Optional[UUID]
-    permissions: List[PermissionType]
-    roles: List[RoleType]
+    permissions: list[PermissionType]
+    roles: list[RoleType]
 
 
 @strawberry.input

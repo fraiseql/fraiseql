@@ -56,7 +56,8 @@ class TestHybridTableNestedObjectFiltering:
         """Create a hybrid allocation table matching the issue description."""
         async with db_pool.connection() as conn:
             # Create table with both SQL columns and JSONB data
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS tv_allocation (
                     -- SQL columns
                     id UUID PRIMARY KEY,
@@ -68,7 +69,8 @@ class TestHybridTableNestedObjectFiltering:
                     -- JSONB column containing nested objects
                     data JSONB
                 )
-            """)
+            """
+            )
 
             # Clear existing data
             await conn.execute("DELETE FROM tv_allocation")

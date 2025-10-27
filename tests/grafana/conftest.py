@@ -12,13 +12,11 @@ KNOWN_EXCEPTIONS = {
     "no_environment_filter": [
         ("error_monitoring", "Errors by Environment"),
     ],
-
     # Queries with time columns but don't need time filtering
     # (e.g., latest value queries with complex CTEs)
     "no_time_filter": [
         ("database_pool", "Pool Utilization Rate"),
     ],
-
     # Queries with aggregates that intentionally don't use GROUP BY
     # (e.g., simple aggregate-only queries with FILTER clauses or single-row results)
     "no_group_by": [

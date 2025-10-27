@@ -20,17 +20,17 @@ def render_composed_to_sql(composed):
     except Exception:
         # Fallback: manually render the structure
         def render_part(part):
-            if hasattr(part, 'as_string'):
+            if hasattr(part, "as_string"):
                 return part.as_string(None)
-            elif hasattr(part, 'string'):  # SQL object
+            elif hasattr(part, "string"):  # SQL object
                 return part.string
-            elif hasattr(part, 'seq'):  # Nested Composed
-                return ''.join(render_part(p) for p in part.seq)
+            elif hasattr(part, "seq"):  # Nested Composed
+                return "".join(render_part(p) for p in part.seq)
             else:  # Literal
-                return '%s'  # Parameter placeholder
+                return "%s"  # Parameter placeholder
 
-        if hasattr(composed, 'seq'):
-            return ''.join(render_part(part) for part in composed.seq)
+        if hasattr(composed, "seq"):
+            return "".join(render_part(part) for part in composed.seq)
         else:
             return render_part(composed)
 
@@ -64,16 +64,19 @@ class TestCompleteSQLValidation:
             assert "::numeric" in sql, f"Missing numeric casting in: {sql}"
 
             # Check operator and value
-            assert expected_operator in sql, f"Missing expected operator '{expected_operator}' in: {sql}"
+            assert expected_operator in sql, (
+                f"Missing expected operator '{expected_operator}' in: {sql}"
+            )
 
             # Validate parentheses balance
-            assert sql.count('(') == sql.count(')'), f"Unbalanced parentheses in: {sql}"
+            assert sql.count("(") == sql.count(")"), f"Unbalanced parentheses in: {sql}"
 
             # Validate that we get valid PostgreSQL syntax
             # The format should be: ((data ->> 'port'))::numeric [operator] [value]
             # or: (data ->> 'port')::numeric [operator] [value]
             numeric_pattern = r"\(\(?data ->> 'port'\)?\)::numeric"
             import re
+
             assert re.search(numeric_pattern, sql), f"Invalid numeric casting pattern in: {sql}"
 
     def test_boolean_where_clause_full_sql(self):
@@ -100,14 +103,17 @@ class TestCompleteSQLValidation:
             assert "::boolean" not in sql, f"Should not use boolean casting in: {sql}"
 
             # Check operator and value conversion
-            assert expected_operator in sql, f"Missing expected operator '{expected_operator}' in: {sql}"
+            assert expected_operator in sql, (
+                f"Missing expected operator '{expected_operator}' in: {sql}"
+            )
 
             # Validate parentheses balance
-            assert sql.count('(') == sql.count(')'), f"Unbalanced parentheses in: {sql}"
+            assert sql.count("(") == sql.count(")"), f"Unbalanced parentheses in: {sql}"
 
     def test_hostname_where_clause_full_sql(self):
         """Test that hostname operations generate valid complete SQL without ltree casting."""
         from fraiseql.types import Hostname
+
         registry = get_operator_registry()
         jsonb_path = SQL("(data ->> 'hostname')")
 
@@ -132,7 +138,9 @@ class TestCompleteSQLValidation:
             assert "data ->> 'hostname'" in sql, f"Missing JSONB extraction in: {sql}"
 
             # Check operator and value
-            assert expected_operator in sql, f"Missing expected operator '{expected_operator}' in: {sql}"
+            assert expected_operator in sql, (
+                f"Missing expected operator '{expected_operator}' in: {sql}"
+            )
 
     def test_mixed_where_clause_full_sql(self):
         """Test complex WHERE clauses with multiple conditions."""
@@ -188,7 +196,9 @@ class TestCompleteSQLValidation:
 
             # The malicious content should be within the quoted literal, not as executable SQL
             # The fact that it's rendered as a quoted string shows it's properly escaped
-            assert sql.startswith("(data ->> 'comment') = '"), f"Should start with field comparison: {sql}"
+            assert sql.startswith("(data ->> 'comment') = '"), (
+                f"Should start with field comparison: {sql}"
+            )
             assert sql.endswith("'"), f"Should end with closing quote: {sql}"
 
     def test_complex_list_operations_full_sql(self):
@@ -197,16 +207,17 @@ class TestCompleteSQLValidation:
 
         test_cases = [
             # Numeric lists
-            (SQL("(data ->> 'port')"), "in", [80, 443, 8080], int,
-             "IN (80, 443, 8080)"),
-
+            (SQL("(data ->> 'port')"), "in", [80, 443, 8080], int, "IN (80, 443, 8080)"),
             # Boolean lists
-            (SQL("(data ->> 'enabled')"), "notin", [True, False], bool,
-             "NOT IN ('true', 'false')"),
-
+            (SQL("(data ->> 'enabled')"), "notin", [True, False], bool, "NOT IN ('true', 'false')"),
             # String lists
-            (SQL("(data ->> 'status')"), "in", ["active", "pending"], str,
-             "IN ('active', 'pending')"),
+            (
+                SQL("(data ->> 'status')"),
+                "in",
+                ["active", "pending"],
+                str,
+                "IN ('active', 'pending')",
+            ),
         ]
 
         for path_sql, op, values, value_type, expected_operator in test_cases:
@@ -221,13 +232,17 @@ class TestCompleteSQLValidation:
             if value_type == int:
                 assert "::numeric" in sql, f"Missing numeric casting for int list in: {sql}"
             elif value_type == bool:
-                assert "::boolean" not in sql, f"Should not use boolean casting for bool list in: {sql}"
+                assert "::boolean" not in sql, (
+                    f"Should not use boolean casting for bool list in: {sql}"
+                )
 
             # Validate operator and values
-            assert expected_operator in sql, f"Missing expected operator '{expected_operator}' in: {sql}"
+            assert expected_operator in sql, (
+                f"Missing expected operator '{expected_operator}' in: {sql}"
+            )
 
             # Validate parentheses balance
-            assert sql.count('(') == sql.count(')'), f"Unbalanced parentheses in: {sql}"
+            assert sql.count("(") == sql.count(")"), f"Unbalanced parentheses in: {sql}"
 
     def test_postgresql_syntax_compliance(self):
         """Test that generated SQL follows PostgreSQL syntax rules."""
@@ -263,7 +278,9 @@ class TestCompleteSQLValidation:
 
             # 4. Proper operator spacing
             if " = " in sql:
-                assert not " =  " in sql and not "=  " in sql, f"Improper operator spacing in: {sql}"
+                assert not " =  " in sql and not "=  " in sql, (
+                    f"Improper operator spacing in: {sql}"
+                )
 
             # 5. Contains actual values (not parameter placeholders in this rendering)
             # The as_string(None) method renders actual values for validation

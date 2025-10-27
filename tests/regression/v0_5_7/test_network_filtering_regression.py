@@ -46,9 +46,7 @@ DnsServerWhereInput = create_graphql_where_input(DnsServer)
 
 @fraiseql.query
 async def dns_servers(
-    info,
-    where: DnsServerWhereInput | None = None,
-    first: int = 100
+    info, where: DnsServerWhereInput | None = None, first: int = 100
 ) -> list[DnsServer]:
     """Query DNS servers with filtering support."""
     # In real implementation, this would use the repository
@@ -75,9 +73,7 @@ class TestJSONBNetworkFilteringBug:
 
     @pytest.mark.database
     @pytest.mark.asyncio
-    async def test_cqrs_schema_setup(
-        self, db_connection, create_test_table, create_test_view
-    ):
+    async def test_cqrs_schema_setup(self, db_connection, create_test_table, create_test_view):
         """Set up the CQRS schema pattern that reproduces the bug."""
         # 1. Create command-side table (INET storage)
         command_table_schema = """
@@ -104,7 +100,8 @@ class TestJSONBNetworkFilteringBug:
         await create_test_view(db_connection, "v_dns_server", query_view_sql)
 
         # 3. Seed with test data
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             INSERT INTO tenant_tb_dns_server (pk_dns_server, identifier, ip_address) VALUES
             ('646e7300-1111-1111-1111-000000000001', 'Primary DNS Google', '8.8.8.8'),
             ('646e7300-1111-1111-1111-000000000002', 'Secondary DNS Google', '8.8.4.4'),
@@ -114,7 +111,8 @@ class TestJSONBNetworkFilteringBug:
             ('646e7300-1111-1111-1111-000000000008', 'Internal DNS 10', '10.0.0.1'),
             ('646e7300-1111-1111-1111-000000000009', 'Test Network 21.43', '21.43.60.1'),
             ('646e7300-1111-1111-1111-000000000010', 'Test Network 21.43 #2', '21.43.65.100')
-        """)
+        """
+        )
 
         # Verify data seeded correctly in command table
         cursor = await db_connection.execute(
@@ -194,7 +192,7 @@ class TestJSONBNetworkFilteringBug:
         app = create_fraiseql_app_with_db(
             types=[DnsServer, DnsServerWhereInput],
             queries=[dns_servers, dns_server],
-            production=False
+            production=False,
         )
 
         client = TestClient(app)
@@ -277,37 +275,45 @@ class TestJSONBNetworkFilteringBug:
 
         # Test 1: Direct PostgreSQL queries on command table (should work)
         # Test 1: Direct INET column queries
-        cursor = await db_connection.execute("""
+        cursor = await db_connection.execute(
+            """
             SELECT identifier, ip_address
             FROM tenant_tb_dns_server
             WHERE ip_address = '8.8.8.8'::inet
-        """)
+        """
+        )
         await cursor.fetchall()
         # Direct INET equality test
 
-        cursor = await db_connection.execute("""
+        cursor = await db_connection.execute(
+            """
             SELECT identifier, ip_address
             FROM tenant_tb_dns_server
             WHERE ip_address <<= '21.43.0.0/16'::inet
-        """)
+        """
+        )
         await cursor.fetchall()
         # Direct INET subnet test
 
         # Test 2: JSONB text extraction queries (query view)
         # Test 2: JSONB text extraction queries
-        cursor = await db_connection.execute("""
+        cursor = await db_connection.execute(
+            """
             SELECT id, data->>'ip_address' as ip
             FROM v_dns_server
             WHERE data->>'ip_address' = '8.8.8.8'
-        """)
+        """
+        )
         await cursor.fetchall()
         # JSONB text equality test
 
-        cursor = await db_connection.execute("""
+        cursor = await db_connection.execute(
+            """
             SELECT id, data->>'ip_address' as ip
             FROM v_dns_server
             WHERE (data->>'ip_address')::inet <<= '21.43.0.0/16'::inet
-        """)
+        """
+        )
         await cursor.fetchall()
         # JSONB text cast to INET subnet test
 
@@ -315,20 +321,24 @@ class TestJSONBNetworkFilteringBug:
         # Test 3: FraiseQL-style generated SQL
 
         # This is what should work for equality
-        cursor = await db_connection.execute("""
+        cursor = await db_connection.execute(
+            """
             SELECT id, data->>'ip_address' as ip
             FROM v_dns_server
             WHERE (data->>'ip_address')::inet = '8.8.8.8'::inet
-        """)
+        """
+        )
         await cursor.fetchall()
         # INET cast equality test
 
         # This is what works for subnet
-        cursor = await db_connection.execute("""
+        cursor = await db_connection.execute(
+            """
             SELECT id, data->>'ip_address' as ip
             FROM v_dns_server
             WHERE (data->>'ip_address')::inet <<= '21.43.0.0/16'::inet
-        """)
+        """
+        )
         await cursor.fetchall()
         # INET cast subnet test
 
@@ -341,7 +351,8 @@ class TestJSONBNetworkFilteringBug:
         await db_connection.execute("DROP VIEW IF EXISTS v_dns_server CASCADE")
 
         # Create command table
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             CREATE TABLE tenant_tb_dns_server (
                 pk_dns_server UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 pk_organization UUID NOT NULL DEFAULT '22222222-2222-2222-2222-222222222222',
@@ -349,10 +360,12 @@ class TestJSONBNetworkFilteringBug:
                 ip_address INET NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
-        """)
+        """
+        )
 
         # Create query view
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             CREATE VIEW v_dns_server AS
             SELECT
                 pk_dns_server::text as id,
@@ -361,10 +374,12 @@ class TestJSONBNetworkFilteringBug:
                     'ip_address', ip_address::text
                 ) AS data
             FROM tenant_tb_dns_server
-        """)
+        """
+        )
 
         # Seed data
-        await db_connection.execute("""
+        await db_connection.execute(
+            """
             INSERT INTO tenant_tb_dns_server (pk_dns_server, identifier, ip_address) VALUES
             ('646e7300-1111-1111-1111-000000000001', 'Primary DNS Google', '8.8.8.8'),
             ('646e7300-1111-1111-1111-000000000002', 'Secondary DNS Google', '8.8.4.4'),
@@ -374,7 +389,8 @@ class TestJSONBNetworkFilteringBug:
             ('646e7300-1111-1111-1111-000000000008', 'Internal DNS 10', '10.0.0.1'),
             ('646e7300-1111-1111-1111-000000000009', 'Test Network 21.43', '21.43.60.1'),
             ('646e7300-1111-1111-1111-000000000010', 'Test Network 21.43 #2', '21.43.65.100')
-        """)
+        """
+        )
 
 
 class TestFraiseQLNetworkOperatorStrategy:

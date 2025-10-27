@@ -17,7 +17,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class InstallStrategy(Enum):
     """Available installation strategies."""
+
     UV = "uv"
     PIP = "pip"
     SKIP = "skip"
@@ -33,6 +34,7 @@ class InstallStrategy(Enum):
 
 class InstallResult(Enum):
     """Installation results."""
+
     SUCCESS = "success"
     FAILED = "failed"
     CACHED = "cached"
@@ -42,6 +44,7 @@ class InstallResult(Enum):
 @dataclass
 class DependencyInfo:
     """Information about a dependency."""
+
     name: str
     version: Optional[str] = None
     install_command: Optional[str] = None
@@ -52,6 +55,7 @@ class DependencyInfo:
 @dataclass
 class InstallContext:
     """Context for dependency installation."""
+
     strategy: InstallStrategy
     timeout: int = 300
     cache_duration: int = 3600  # 1 hour cache
@@ -76,7 +80,7 @@ class SmartDependencyManager:
         # Load cached dependency state
         self.dependency_cache = self._load_cache()
 
-    def _load_cache(self) -> Dict:
+    def _load_cache(self) -> dict:
         """Load cached dependency state."""
         if self.cache_file.exists():
             try:
@@ -90,7 +94,7 @@ class SmartDependencyManager:
     def _save_cache(self):
         """Save dependency cache to disk."""
         try:
-            with open(self.cache_file, 'w') as f:
+            with open(self.cache_file, "w") as f:
                 json.dump(self.dependency_cache, f, indent=2)
         except OSError as e:
             logger.warning(f"Failed to save dependency cache: {e}")
@@ -101,7 +105,7 @@ class SmartDependencyManager:
         log_entry = f"[{timestamp}] {message}\n"
 
         try:
-            with open(self.install_log, 'a') as f:
+            with open(self.install_log, "a") as f:
                 f.write(log_entry)
         except OSError as e:
             logger.warning(f"Failed to write install log: {e}")
@@ -112,8 +116,7 @@ class SmartDependencyManager:
 
         # Check for UV first (preferred and fastest)
         try:
-            subprocess.run(['uv', '--version'],
-                         capture_output=True, check=True, timeout=5)
+            subprocess.run(["uv", "--version"], capture_output=True, check=True, timeout=5)
             if (project_root / "uv.lock").exists():
                 return InstallStrategy.UV
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
@@ -128,10 +131,10 @@ class SmartDependencyManager:
 
         # Handle special cases
         import_mapping = {
-            'fraiseql': 'fraiseql',
-            'httpx': 'httpx',
-            'psycopg': 'psycopg',
-            'fastapi': 'fastapi'
+            "fraiseql": "fraiseql",
+            "httpx": "httpx",
+            "psycopg": "psycopg",
+            "fastapi": "fastapi",
         }
         import_name = import_mapping.get(import_name, import_name)
 
@@ -147,12 +150,14 @@ class SmartDependencyManager:
         if not cache_entry:
             return False
 
-        cached_time = cache_entry.get('installed_at', 0)
-        cache_duration = cache_entry.get('cache_duration', 3600)
+        cached_time = cache_entry.get("installed_at", 0)
+        cache_duration = cache_entry.get("cache_duration", 3600)
 
         return (time.time() - cached_time) < cache_duration
 
-    def _install_dependency(self, dep_info: DependencyInfo, context: InstallContext) -> InstallResult:
+    def _install_dependency(
+        self, dep_info: DependencyInfo, context: InstallContext
+    ) -> InstallResult:
         """Install a single dependency."""
         # Check if already cached and valid
         if self._is_cached_valid(dep_info.name) and self._is_dependency_available(dep_info):
@@ -163,9 +168,9 @@ class SmartDependencyManager:
         if self._is_dependency_available(dep_info):
             # Update cache
             self.dependency_cache[dep_info.name] = {
-                'installed_at': time.time(),
-                'method': 'pre-installed',
-                'cache_duration': context.cache_duration
+                "installed_at": time.time(),
+                "method": "pre-installed",
+                "cache_duration": context.cache_duration,
             }
             return InstallResult.SUCCESS
 
@@ -181,19 +186,16 @@ class SmartDependencyManager:
             self._log_install_attempt(f"Installing {dep_info.name}: {' '.join(install_cmd)}")
 
             result = subprocess.run(
-                install_cmd,
-                capture_output=True,
-                text=True,
-                timeout=context.timeout
+                install_cmd, capture_output=True, text=True, timeout=context.timeout
             )
 
             if result.returncode == 0:
                 # Verify installation worked
                 if self._is_dependency_available(dep_info):
                     self.dependency_cache[dep_info.name] = {
-                        'installed_at': time.time(),
-                        'method': context.strategy.value,
-                        'cache_duration': context.cache_duration
+                        "installed_at": time.time(),
+                        "method": context.strategy.value,
+                        "cache_duration": context.cache_duration,
                     }
                     logger.info(f"Successfully installed {dep_info.name}")
                     return InstallResult.SUCCESS
@@ -212,22 +214,26 @@ class SmartDependencyManager:
             logger.error(f"Exception installing {dep_info.name}: {e}")
             return InstallResult.FAILED
 
-    def _build_install_command(self, dep_info: DependencyInfo, context: InstallContext) -> List[str]:
+    def _build_install_command(
+        self, dep_info: DependencyInfo, context: InstallContext
+    ) -> list[str]:
         """Build installation command based on strategy."""
         if dep_info.install_command:
             return dep_info.install_command.split()
 
         if context.strategy == InstallStrategy.UV:
-            return ['uv', 'pip', 'install', dep_info.name]
+            return ["uv", "pip", "install", dep_info.name]
         else:  # PIP fallback
-            return [sys.executable, '-m', 'pip', 'install', dep_info.name]
+            return [sys.executable, "-m", "pip", "install", dep_info.name]
 
-    def ensure_dependencies(self, dependencies: List[str], context: Optional[InstallContext] = None) -> Tuple[bool, Dict[str, InstallResult]]:
+    def ensure_dependencies(
+        self, dependencies: list[str], context: Optional[InstallContext] = None
+    ) -> tuple[bool, dict[str, InstallResult]]:
         """Install missing dependencies and return success status."""
         if context is None:
             context = InstallContext(
                 strategy=self.detect_install_strategy(),
-                auto_install_enabled=self._should_auto_install()
+                auto_install_enabled=self._should_auto_install(),
             )
 
         # Convert string dependencies to DependencyInfo objects
@@ -265,17 +271,18 @@ class SmartDependencyManager:
         import os
 
         # Check environment variable override
-        if os.getenv('FRAISEQL_SKIP_AUTO_INSTALL', '').lower() in ['true', '1', 'yes']:
+        if os.getenv("FRAISEQL_SKIP_AUTO_INSTALL", "").lower() in ["true", "1", "yes"]:
             return False
 
-        if os.getenv('FRAISEQL_AUTO_INSTALL', '').lower() in ['true', '1', 'yes']:
+        if os.getenv("FRAISEQL_AUTO_INSTALL", "").lower() in ["true", "1", "yes"]:
             return True
 
         # Enable auto-install for local development by default
         # Disable in CI unless explicitly enabled
-        in_ci = any(ci_var in os.environ for ci_var in [
-            'CI', 'CONTINUOUS_INTEGRATION', 'GITHUB_ACTIONS', 'TRAVIS', 'JENKINS'
-        ])
+        in_ci = any(
+            ci_var in os.environ
+            for ci_var in ["CI", "CONTINUOUS_INTEGRATION", "GITHUB_ACTIONS", "TRAVIS", "JENKINS"]
+        )
 
         return not in_ci
 
@@ -286,18 +293,18 @@ class SmartDependencyManager:
             self.cache_file.unlink()
         logger.info("Dependency cache cleared")
 
-    def get_cache_status(self) -> Dict:
+    def get_cache_status(self) -> dict:
         """Get current cache status for debugging."""
         return {
-            'cache_file_exists': self.cache_file.exists(),
-            'cache_entries': len(self.dependency_cache),
-            'cached_dependencies': list(self.dependency_cache.keys()),
-            'install_strategy': self.detect_install_strategy().value,
-            'auto_install_enabled': self._should_auto_install()
+            "cache_file_exists": self.cache_file.exists(),
+            "cache_entries": len(self.dependency_cache),
+            "cached_dependencies": list(self.dependency_cache.keys()),
+            "install_strategy": self.detect_install_strategy().value,
+            "auto_install_enabled": self._should_auto_install(),
         }
 
 
-def get_example_dependencies() -> List[DependencyInfo]:
+def get_example_dependencies() -> list[DependencyInfo]:
     """Get the list of dependencies required for example integration tests."""
     return [
         DependencyInfo(name="fraiseql", import_name="fraiseql", required=True),
@@ -310,6 +317,7 @@ def get_example_dependencies() -> List[DependencyInfo]:
 
 # Global instance for easy access
 _dependency_manager = None
+
 
 def get_dependency_manager() -> SmartDependencyManager:
     """Get global dependency manager instance."""

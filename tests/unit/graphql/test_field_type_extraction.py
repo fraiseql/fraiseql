@@ -24,11 +24,11 @@ class TestFieldTypeExtraction:
     def test_extract_ip_address_from_field_name_heuristics(self):
         """Test IP address field type detection from field names."""
         ip_field_names = [
-            'ipAddress',
-            'ip_address',
-            'serverIp',
-            'gateway_ip',
-            'host',
+            "ipAddress",
+            "ip_address",
+            "serverIp",
+            "gateway_ip",
+            "host",
         ]
 
         for field_name in ip_field_names:
@@ -38,10 +38,10 @@ class TestFieldTypeExtraction:
     def test_extract_mac_address_from_field_name_heuristics(self):
         """Test MAC address field type detection from field names."""
         mac_field_names = [
-            'macAddress',
-            'mac_address',
-            'mac',
-            'hardware_address',
+            "macAddress",
+            "mac_address",
+            "mac",
+            "hardware_address",
         ]
 
         for field_name in mac_field_names:
@@ -51,12 +51,12 @@ class TestFieldTypeExtraction:
     def test_extract_no_type_for_generic_fields(self):
         """Test that generic field names don't match network types."""
         generic_field_names = [
-            'id',
-            'name',
-            'identifier',
-            'description',
-            'status',
-            'created_at',
+            "id",
+            "name",
+            "identifier",
+            "description",
+            "status",
+            "created_at",
         ]
 
         for field_name in generic_field_names:
@@ -66,12 +66,12 @@ class TestFieldTypeExtraction:
     def test_camel_to_snake_conversion(self):
         """Test camelCase to snake_case conversion."""
         test_cases = [
-            ('ipAddress', 'ip_address'),
-            ('macAddress', 'mac_address'),
-            ('serverId', 'server_id'),
-            ('createdAt', 'created_at'),
-            ('HTTPSProxy', 'https_proxy'),
-            ('simpleField', 'simple_field'),
+            ("ipAddress", "ip_address"),
+            ("macAddress", "mac_address"),
+            ("serverId", "server_id"),
+            ("createdAt", "created_at"),
+            ("HTTPSProxy", "https_proxy"),
+            ("simpleField", "simple_field"),
         ]
 
         for camel_case, expected_snake_case in test_cases:
@@ -86,21 +86,21 @@ class TestFieldTypeExtraction:
         mock_info.parent_type = None
 
         # Should fall back to heuristics
-        field_type = extract_field_type_from_graphql_info(mock_info, 'ipAddress')
+        field_type = extract_field_type_from_graphql_info(mock_info, "ipAddress")
         assert field_type == IpAddress
 
-        field_type = extract_field_type_from_graphql_info(mock_info, 'macAddress')
+        field_type = extract_field_type_from_graphql_info(mock_info, "macAddress")
         assert field_type == MacAddress
 
-        field_type = extract_field_type_from_graphql_info(mock_info, 'identifier')
+        field_type = extract_field_type_from_graphql_info(mock_info, "identifier")
         assert field_type is None
 
     def test_enhance_type_hints_with_graphql_context(self):
         """Test enhancement of type hints with GraphQL context."""
         # Initial type hints (incomplete)
         initial_hints = {
-            'id': int,
-            'name': str,
+            "id": int,
+            "name": str,
         }
 
         # Mock GraphQL info
@@ -108,7 +108,7 @@ class TestFieldTypeExtraction:
         mock_info.field_definition = None
 
         # Fields to extract types for
-        field_names = ['id', 'name', 'ipAddress', 'macAddress']
+        field_names = ["id", "name", "ipAddress", "macAddress"]
 
         # Enhance with GraphQL context
         enhanced_hints = enhance_type_hints_with_graphql_context(
@@ -116,12 +116,12 @@ class TestFieldTypeExtraction:
         )
 
         # Should preserve existing hints
-        assert enhanced_hints['id'] == int
-        assert enhanced_hints['name'] == str
+        assert enhanced_hints["id"] == int
+        assert enhanced_hints["name"] == str
 
         # Should add extracted types
-        assert enhanced_hints['ipAddress'] == IpAddress
-        assert enhanced_hints['macAddress'] == MacAddress
+        assert enhanced_hints["ipAddress"] == IpAddress
+        assert enhanced_hints["macAddress"] == MacAddress
 
     def test_enhance_type_hints_with_none_input(self):
         """Test enhancement works with None type_hints."""
@@ -130,23 +130,21 @@ class TestFieldTypeExtraction:
         mock_info.field_definition = None
 
         # Fields to extract types for
-        field_names = ['ipAddress', 'identifier']
+        field_names = ["ipAddress", "identifier"]
 
         # Enhance with None input
-        enhanced_hints = enhance_type_hints_with_graphql_context(
-            None, mock_info, field_names
-        )
+        enhanced_hints = enhance_type_hints_with_graphql_context(None, mock_info, field_names)
 
         # Should create new hints dict
-        assert enhanced_hints['ipAddress'] == IpAddress
-        assert 'identifier' not in enhanced_hints  # No type detected
+        assert enhanced_hints["ipAddress"] == IpAddress
+        assert "identifier" not in enhanced_hints  # No type detected
 
     def test_enhance_type_hints_overrides_generic_types(self):
         """Test that generic types are overridden with specific GraphQL-detected types."""
         # Initial type hints with generic types that should be overridden
         initial_hints = {
-            'ipAddress': str,  # Generic string type - should be upgraded to IpAddress
-            'name': str,       # Generic string type - no specific detection, stays str
+            "ipAddress": str,  # Generic string type - should be upgraded to IpAddress
+            "name": str,  # Generic string type - no specific detection, stays str
         }
 
         # Mock GraphQL info
@@ -154,7 +152,7 @@ class TestFieldTypeExtraction:
         mock_info.field_definition = None
 
         # Fields to extract types for
-        field_names = ['ipAddress', 'name', 'macAddress']
+        field_names = ["ipAddress", "name", "macAddress"]
 
         # Enhance with GraphQL context
         enhanced_hints = enhance_type_hints_with_graphql_context(
@@ -162,11 +160,11 @@ class TestFieldTypeExtraction:
         )
 
         # Should override generic str with specific IpAddress for IP address fields
-        assert enhanced_hints['ipAddress'] == IpAddress  # Upgraded from str
-        assert enhanced_hints['name'] == str            # No specific type detected, stays str
+        assert enhanced_hints["ipAddress"] == IpAddress  # Upgraded from str
+        assert enhanced_hints["name"] == str  # No specific type detected, stays str
 
         # Should add new extracted type
-        assert enhanced_hints['macAddress'] == MacAddress
+        assert enhanced_hints["macAddress"] == MacAddress
 
 
 class TestNetworkFieldTypeIntegration:
@@ -180,19 +178,19 @@ class TestNetworkFieldTypeIntegration:
         mock_info = Mock()
 
         # Extract field type
-        field_type = extract_field_type_from_graphql_info(mock_info, 'ipAddress')
+        field_type = extract_field_type_from_graphql_info(mock_info, "ipAddress")
         assert field_type == IpAddress
 
         # Use extracted type for operator strategy selection
         registry = get_operator_registry()
 
         # Without field type - should get generic strategy
-        strategy_no_type = registry.get_strategy('eq', field_type=None)
-        assert strategy_no_type.__class__.__name__ == 'ComparisonOperatorStrategy'
+        strategy_no_type = registry.get_strategy("eq", field_type=None)
+        assert strategy_no_type.__class__.__name__ == "ComparisonOperatorStrategy"
 
         # With extracted field type - should get network strategy
-        strategy_with_type = registry.get_strategy('eq', field_type=field_type)
-        assert strategy_with_type.__class__.__name__ == 'NetworkOperatorStrategy'
+        strategy_with_type = registry.get_strategy("eq", field_type=field_type)
+        assert strategy_with_type.__class__.__name__ == "NetworkOperatorStrategy"
 
     def test_field_type_enables_proper_sql_casting(self):
         """Test that field type extraction enables proper SQL casting."""
@@ -201,19 +199,19 @@ class TestNetworkFieldTypeIntegration:
 
         # Mock GraphQL info and extract field type
         mock_info = Mock()
-        field_type = extract_field_type_from_graphql_info(mock_info, 'ipAddress')
+        field_type = extract_field_type_from_graphql_info(mock_info, "ipAddress")
 
         # Generate SQL with field type
         registry = get_operator_registry()
-        strategy = registry.get_strategy('eq', field_type=field_type)
+        strategy = registry.get_strategy("eq", field_type=field_type)
 
         field_path = SQL("data->>'ipAddress'")
-        sql = strategy.build_sql(field_path, 'eq', '8.8.8.8', field_type)
+        sql = strategy.build_sql(field_path, "eq", "8.8.8.8", field_type)
         sql_str = str(sql)
 
         # Should use proper network casting
-        assert '::inet' in sql_str, f"Expected ::inet casting in SQL: {sql_str}"
-        assert 'NetworkOperatorStrategy' in strategy.__class__.__name__
+        assert "::inet" in sql_str, f"Expected ::inet casting in SQL: {sql_str}"
+        assert "NetworkOperatorStrategy" in strategy.__class__.__name__
 
 
 if __name__ == "__main__":

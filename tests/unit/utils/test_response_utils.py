@@ -1,13 +1,13 @@
 """Utility functions for handling test responses, especially RustResponseBytes."""
 
 import json
-from typing import Any, Dict, Union
+from typing import Any, Union
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
 
 
 def extract_graphql_data(
-    result: Union[RustResponseBytes, Dict[str, Any], Any], field_name: str
+    result: Union[RustResponseBytes, dict[str, Any], Any], field_name: str
 ) -> Any:
     """Extract data from RustResponseBytes or dict response.
 

@@ -242,7 +242,7 @@ class TestProductionReproduction:
         failing_operations = [
             ("isPrivate", True),
             ("isPublic", True),
-            ("inSubnet", "192.168.0.0/16")
+            ("inSubnet", "192.168.0.0/16"),
         ]
 
         for op, value in failing_operations:
@@ -279,11 +279,7 @@ class TestEnvironmentalParity:
         jsonb_path = SQL("(data ->> 'ip_address')")
 
         # Test all the operations that work in tests but fail in production
-        operations = [
-            ("eq", "8.8.8.8"),
-            ("isPrivate", True),
-            ("inSubnet", "192.168.0.0/16")
-        ]
+        operations = [("eq", "8.8.8.8"), ("isPrivate", True), ("inSubnet", "192.168.0.0/16")]
 
         for op, value in operations:
             result = build_operator_composed(jsonb_path, op, value, IpAddress)
@@ -314,4 +310,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ isPrivate test failed: {e}")
 
-    print("\nRun full tests with: pytest tests/core/test_jsonb_network_casting_fix.py -m core -v -s")
+    print(
+        "\nRun full tests with: pytest tests/core/test_jsonb_network_casting_fix.py -m core -v -s"
+    )

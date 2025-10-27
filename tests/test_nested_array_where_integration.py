@@ -5,7 +5,7 @@ in real GraphQL query resolution scenarios.
 """
 
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 import pytest
 
@@ -32,7 +32,7 @@ class NetworkConfiguration:
     identifier: str
     name: str
     # This is the critical test - can we add where parameter to this field?
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
+    print_servers: list[PrintServer] = fraise_field(default_factory=list)
 
 
 @pytest.mark.integration
@@ -52,16 +52,15 @@ class TestNestedArrayWhereIntegration:
             identifier: str
             name: str
             # This syntax should now work
-            print_servers: List[PrintServer] = fraise_field(
-                default_factory=list,
-                where_input_type=PrintServerWhereInput
+            print_servers: list[PrintServer] = fraise_field(
+                default_factory=list, where_input_type=PrintServerWhereInput
             )
 
         # Verify the field has the where_input_type set
-        field_dict = getattr(NetworkConfigurationWithWhereSupport, '__gql_fields__', {})
-        if 'print_servers' in field_dict:
-            print_servers_field = field_dict['print_servers']
-            if hasattr(print_servers_field, 'where_input_type'):
+        field_dict = getattr(NetworkConfigurationWithWhereSupport, "__gql_fields__", {})
+        if "print_servers" in field_dict:
+            print_servers_field = field_dict["print_servers"]
+            if hasattr(print_servers_field, "where_input_type"):
                 assert print_servers_field.where_input_type == PrintServerWhereInput
 
     def test_graphql_resolver_generation_fails_for_where_parameter(self):
@@ -69,11 +68,12 @@ class TestNestedArrayWhereIntegration:
 
         # Try to create a query that would use where parameters
         try:
+
             @fraiseql.query
             async def network_configuration_with_where(
                 info,
                 id: uuid.UUID,
-                print_servers_where: Optional[dict] = None  # This should fail
+                print_servers_where: Optional[dict] = None,  # This should fail
             ) -> Optional[NetworkConfiguration]:
                 """This resolver attempts to use where filtering - should fail."""
                 # This is testing that the current system doesn't support this
@@ -91,17 +91,18 @@ class TestNestedArrayWhereIntegration:
         from fraiseql.core.nested_field_resolver import create_smart_nested_field_resolver
 
         # Current resolvers should not accept where parameters
-        resolver = create_smart_nested_field_resolver('print_servers', List[PrintServer])
+        resolver = create_smart_nested_field_resolver("print_servers", list[PrintServer])
 
         # Check resolver signature - should not have where parameter
         import inspect
+
         sig = inspect.signature(resolver)
 
         # Should only have parent, info, **kwargs - no explicit where parameter
         param_names = list(sig.parameters.keys())
-        assert 'parent' in param_names
-        assert 'info' in param_names
-        assert 'where' not in param_names  # This is the key assertion - no where support yet
+        assert "parent" in param_names
+        assert "info" in param_names
+        assert "where" not in param_names  # This is the key assertion - no where support yet
 
     def test_fraise_field_accepts_where_parameters(self):
         """Test that fraise_field now accepts where-related parameters."""
@@ -145,15 +146,15 @@ class TestNestedArrayWhereIntegration:
                     id=uuid.uuid4(),
                     hostname="server1",
                     operating_system="Linux",
-                    n_total_allocations=50
+                    n_total_allocations=50,
                 ),
                 PrintServer(
                     id=uuid.uuid4(),
                     hostname="server2",
                     operating_system="Windows",
-                    n_total_allocations=100
-                )
-            ]
+                    n_total_allocations=100,
+                ),
+            ],
         )
 
         # Try to filter the servers - this should not be possible in current implementation

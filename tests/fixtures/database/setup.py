@@ -87,12 +87,14 @@ async def drop_test_database(db_name: str) -> None:
             await conn.set_autocommit(True)
 
             # Terminate active connections
-            await conn.execute(f"""
+            await conn.execute(
+                f"""
                 SELECT pg_terminate_backend(pg_stat_activity.pid)
                 FROM pg_stat_activity
                 WHERE pg_stat_activity.datname = '{db_name}'
                   AND pid <> pg_backend_pid()
-            """)
+            """
+            )
 
             # Drop database
             await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')

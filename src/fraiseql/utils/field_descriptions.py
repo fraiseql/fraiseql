@@ -6,12 +6,12 @@ from various sources like inline comments, docstrings, and field annotations.
 
 import inspect
 import re
-from typing import Dict, get_type_hints
+from typing import get_type_hints
 
 from fraiseql.fields import FraiseQLField
 
 
-def extract_field_descriptions(cls: type) -> Dict[str, str]:
+def extract_field_descriptions(cls: type) -> dict[str, str]:
     """Extract field descriptions from a class definition.
 
     Supports multiple sources for field descriptions in priority order:
@@ -56,7 +56,7 @@ def extract_field_descriptions(cls: type) -> Dict[str, str]:
     return descriptions
 
 
-def _extract_inline_comments(cls: type) -> Dict[str, str]:
+def _extract_inline_comments(cls: type) -> dict[str, str]:
     """Extract field descriptions from inline comments in source code."""
     try:
         source = inspect.getsource(cls)
@@ -83,7 +83,7 @@ def _extract_inline_comments(cls: type) -> Dict[str, str]:
         return {}
 
 
-def _extract_docstring_descriptions(cls: type) -> Dict[str, str]:
+def _extract_docstring_descriptions(cls: type) -> dict[str, str]:
     """Extract field descriptions from class docstring."""
     docstring = cls.__doc__
     if not docstring:
@@ -111,7 +111,7 @@ def _extract_docstring_descriptions(cls: type) -> Dict[str, str]:
     return descriptions
 
 
-def _extract_annotation_descriptions(cls: type) -> Dict[str, str]:
+def _extract_annotation_descriptions(cls: type) -> dict[str, str]:
     """Extract descriptions from Annotated type hints."""
     try:
         from typing import get_args, get_origin

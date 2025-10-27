@@ -39,11 +39,11 @@ class TestProductionCQRSIPFilteringBug:
         # Production IP addresses from PrintOptim that were failing
         production_ips = [
             "21.43.63.2",  # delete_netconfig_2
-            "120.0.0.1",   # primary-dns-server
-            "8.8.8.8",     # Primary DNS Google
-            "1.1.1.1",     # Cloudflare DNS
-            "192.168.1.1", # Common router IP
-            "10.0.0.1",    # Private network
+            "120.0.0.1",  # primary-dns-server
+            "8.8.8.8",  # Primary DNS Google
+            "1.1.1.1",  # Cloudflare DNS
+            "192.168.1.1",  # Common router IP
+            "10.0.0.1",  # Private network
         ]
 
         field_path = SQL("data->>'ip_address'")
@@ -70,12 +70,12 @@ class TestProductionCQRSIPFilteringBug:
         field_path = SQL("data->>'ip_address'")
 
         edge_cases = [
-            "127.0.0.1",      # Localhost
-            "0.0.0.0",        # Any address
-            "255.255.255.255", # Broadcast
-            "169.254.1.1",    # Link-local
-            "::1",            # IPv6 localhost
-            "2001:db8::1",    # IPv6 example
+            "127.0.0.1",  # Localhost
+            "0.0.0.0",  # Any address
+            "255.255.255.255",  # Broadcast
+            "169.254.1.1",  # Link-local
+            "::1",  # IPv6 localhost
+            "2001:db8::1",  # IPv6 example
         ]
 
         for ip in edge_cases:
@@ -96,10 +96,10 @@ class TestProductionCQRSIPFilteringBug:
         non_ip_values = [
             "not.an.ip.address",
             "192.168.1.300",  # Invalid IP (> 255)
-            "192.168.1",      # Incomplete IP
-            "example.com",    # Domain name
-            "test_string",    # Regular string
-            "12345",          # Number as string
+            "192.168.1",  # Incomplete IP
+            "example.com",  # Domain name
+            "test_string",  # Regular string
+            "12345",  # Number as string
         ]
 
         for value in non_ip_values:
@@ -107,7 +107,9 @@ class TestProductionCQRSIPFilteringBug:
             eq_str = str(eq_sql)
 
             # Should NOT be cast to inet
-            assert "::inet" not in eq_str, f"Non-IP value '{value}' should not be cast to inet: {eq_str}"
+            assert "::inet" not in eq_str, (
+                f"Non-IP value '{value}' should not be cast to inet: {eq_str}"
+            )
 
     def test_mixed_list_filtering(self):
         """Test filtering with mixed IP and non-IP values in lists."""
@@ -136,7 +138,9 @@ class TestProductionCQRSIPFilteringBug:
 
         # Both should properly handle IP addresses
         eq_sql = eq_strategy.build_sql(field_path, "eq", test_ip, field_type=None)
-        subnet_sql = insubnet_strategy.build_sql(field_path, "inSubnet", "192.168.1.0/24", field_type=None)
+        subnet_sql = insubnet_strategy.build_sql(
+            field_path, "inSubnet", "192.168.1.0/24", field_type=None
+        )
 
         eq_str = str(eq_sql)
         subnet_str = str(subnet_sql)

@@ -15,6 +15,7 @@ from fraiseql.fastapi import create_fraiseql_app
 @fraise_type
 class UserInfo:
     """User information object for GraphQL."""
+
     id: Optional[str] = None
     email: Optional[str] = None
     authenticated: bool = False
@@ -23,6 +24,7 @@ class UserInfo:
 @fraise_type
 class ContextInfo:
     """Context information object for GraphQL."""
+
     has_user: bool = False
     authenticated: bool = False
     user_id: Optional[str] = None

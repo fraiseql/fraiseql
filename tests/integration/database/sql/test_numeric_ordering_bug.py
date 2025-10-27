@@ -39,14 +39,18 @@ class TestNumericOrderingBug:
 
         # What it SHOULD generate for numeric fields (CORRECT)
         # This test will fail until we fix the implementation
-        assert sql == "data -> 'amount' ASC", f"Expected numeric JSONB extraction, got text extraction: {sql}"
+        assert sql == "data -> 'amount' ASC", (
+            f"Expected numeric JSONB extraction, got text extraction: {sql}"
+        )
 
     def test_multiple_numeric_fields_ordering_bug(self):
         """Test numeric ordering bug with multiple numeric fields."""
-        order_by_set = OrderBySet([
-            OrderBy(field="amount", direction="asc"),
-            OrderBy(field="quantity", direction="desc"),
-        ])
+        order_by_set = OrderBySet(
+            [
+                OrderBy(field="amount", direction="asc"),
+                OrderBy(field="quantity", direction="desc"),
+            ]
+        )
         sql = order_by_set.to_sql().as_string(None)
 
         # Now FIXED - uses JSONB extraction for proper numeric ordering
@@ -60,10 +64,12 @@ class TestNumericOrderingBug:
         This is acceptable since JSONB extraction preserves original types and
         PostgreSQL can handle both numeric and text comparisons correctly.
         """
-        order_by_set = OrderBySet([
-            OrderBy(field="amount", direction="asc"),      # Uses JSONB extraction
-            OrderBy(field="identifier", direction="desc"), # Uses JSONB extraction
-        ])
+        order_by_set = OrderBySet(
+            [
+                OrderBy(field="amount", direction="asc"),  # Uses JSONB extraction
+                OrderBy(field="identifier", direction="desc"),  # Uses JSONB extraction
+            ]
+        )
         sql = order_by_set.to_sql().as_string(None)
 
         # FIXED - both use JSONB extraction which preserves types
@@ -76,7 +82,9 @@ class TestNumericOrderingBug:
         sql = order_by.to_sql().as_string(None)
 
         # Should use JSONB extraction for nested numeric fields (CORRECT)
-        assert sql == "data -> 'pricing' -> 'amount' DESC", f"Expected full JSONB extraction, got: {sql}"
+        assert sql == "data -> 'pricing' -> 'amount' DESC", (
+            f"Expected full JSONB extraction, got: {sql}"
+        )
 
 
 @pytest.mark.integration
@@ -97,7 +105,7 @@ class TestNumericOrderingRealWorld:
         numeric = sorted(amounts)
 
         # Verify they differ (demonstrating the original bug)
-        assert lexicographic == ['1000.0', '1234.53', '125.0', '25.0']
+        assert lexicographic == ["1000.0", "1234.53", "125.0", "25.0"]
         assert numeric == [25.0, 125.0, 1000.0, 1234.53]
         assert [float(x) for x in lexicographic] != numeric
 

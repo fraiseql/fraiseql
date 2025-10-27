@@ -17,7 +17,7 @@ from types import UnionType
 from typing import (
     Annotated,
     Any,
-    List,
+    Callable,
     TypeVar,
     Union,
     cast,
@@ -35,6 +35,7 @@ from graphql import (
     GraphQLList,
     GraphQLObjectType,
     GraphQLOutputType,
+    GraphQLResolveInfo,
     GraphQLScalarType,
     GraphQLType,
     GraphQLUnionType,
@@ -240,7 +241,7 @@ def convert_type_to_graphql_input(
         _graphql_type_cache[cache_key] = gql_type
         return gql_type
 
-    # Handle list types like List[str]
+    # Handle list types like list[str]
     origin = get_origin(typ)
     if origin is list:
         inner = get_args(typ)[0]
@@ -515,7 +516,7 @@ def convert_type_to_graphql_output(
                             continue  # Skip the regular resolver creation
 
                         # Create resolver for enum serialization and nested object conversion
-                        def make_field_resolver(field_name: str, field_type: Any):
+                        def make_field_resolver(field_name: str, field_type: Any) -> Callable:
                             def resolve_field(obj: Any, info: Any) -> Any:
                                 # Rust-first: Objects are plain dicts (Rust-transformed)
                                 # No JSONPassthrough wrapper needed
@@ -551,7 +552,7 @@ def convert_type_to_graphql_output(
                                         if isinstance(item, Enum):
                                             # Check if list contains enum types
                                             list_origin = get_origin(field_type)
-                                            if list_origin in (list, List):
+                                            if list_origin is list:
                                                 list_args = get_args(field_type)
                                                 if list_args:
                                                     item_type = list_args[0]
@@ -681,18 +682,22 @@ def convert_type_to_graphql_output(
                             gql_return_type = convert_type_to_graphql_output(return_type)
 
                             # Create a wrapper that adapts the method signature for GraphQL
-                            def make_custom_resolver(method):
+                            def make_custom_resolver(method: Callable[..., Any]) -> Callable:
                                 import asyncio
 
                                 if asyncio.iscoroutinefunction(method):
 
-                                    async def async_resolver(obj, info, **kwargs):
+                                    async def async_resolver(
+                                        obj: Any, info: GraphQLResolveInfo, **kwargs: Any
+                                    ) -> Any:
                                         # Call the method with the object instance and info
                                         return await method(obj, info, **kwargs)
 
                                     return async_resolver
 
-                                def sync_resolver(obj, info, **kwargs):
+                                def sync_resolver(
+                                    obj: Any, info: GraphQLResolveInfo, **kwargs: Any
+                                ) -> Any:
                                     # Call the method with the object instance and info
                                     return method(obj, info, **kwargs)
 
@@ -743,7 +748,7 @@ def convert_type_to_graphql_output(
                             interfaces.append(interface_gql)
 
                 # Add is_type_of function to help with interface resolution
-                def is_type_of(obj, info):
+                def is_type_of(obj: Any, info: GraphQLResolveInfo) -> bool:
                     """Check if an object is of this type."""
                     return (
                         obj.__class__.__name__ == typ.__name__
@@ -785,7 +790,9 @@ def convert_type_to_graphql_output(
                         )
 
                 # Create interface type with type resolver
-                def resolve_type(obj, info, type_):
+                def resolve_type(
+                    obj: Any, info: GraphQLResolveInfo, type_: GraphQLType
+                ) -> str | None:
                     """Resolve the concrete type for an interface."""
                     if hasattr(obj, "__class__") and hasattr(obj.__class__, "__name__"):
                         return obj.__class__.__name__

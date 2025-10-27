@@ -9,7 +9,6 @@ This tests the @connection decorator that should:
 4. Support all Relay connection specification features
 """
 
-
 import pytest
 
 from fraiseql.types import fraise_type
@@ -19,6 +18,7 @@ from fraiseql.types.generic import Connection
 @fraise_type
 class User:
     """Test user type for connection testing."""
+
     id: str
     name: str
     email: str
@@ -33,6 +33,7 @@ class TestConnectionDecorator:
         """Test that connection decorator can be imported - should PASS in GREEN phase."""
         # This should pass in GREEN phase since decorator now exists
         from fraiseql.decorators import connection
+
         assert connection is not None
 
     def test_connection_decorator_basic_usage(self):
@@ -63,7 +64,7 @@ class TestConnectionDecorator:
             default_page_size=25,
             max_page_size=50,
             include_total_count=False,
-            cursor_field="created_at"
+            cursor_field="created_at",
         )
         async def custom_users_connection(info, first: int | None = None) -> Connection[User]:
             pass
@@ -82,24 +83,28 @@ class TestConnectionDecorator:
 
         # Should raise error for missing node_type
         with pytest.raises(ValueError, match="node_type is required"):
+
             @connection(node_type=None)  # type: ignore
             async def invalid_connection(info) -> Connection[User]:
                 pass
 
         # Should raise error for invalid default_page_size
         with pytest.raises(ValueError, match="default_page_size must be positive"):
+
             @connection(node_type=User, default_page_size=0)
             async def invalid_page_size_connection(info) -> Connection[User]:
                 pass
 
         # Should raise error for invalid max_page_size
         with pytest.raises(ValueError, match="max_page_size must be positive"):
+
             @connection(node_type=User, max_page_size=-1)
             async def invalid_max_page_size_connection(info) -> Connection[User]:
                 pass
 
         # Should raise error if max_page_size < default_page_size
         with pytest.raises(ValueError, match="max_page_size must be >= default_page_size"):
+
             @connection(node_type=User, default_page_size=50, max_page_size=25)
             async def inconsistent_page_sizes_connection(info) -> Connection[User]:
                 pass
@@ -127,25 +132,25 @@ class TestConnectionDecorator:
                     "data": {  # JSONB column with extracted fields
                         "identifier": "dns-001",
                         "ip_address": "192.168.1.10",
-                        "n_total_allocations": 5
-                    }
+                        "n_total_allocations": 5,
+                    },
                 },
                 {
                     "id": "dns-server-2",
                     "data": {
                         "identifier": "dns-002",
                         "ip_address": "192.168.1.20",
-                        "n_total_allocations": 3
-                    }
-                }
+                        "n_total_allocations": 3,
+                    },
+                },
             ],
             "pageInfo": {
                 "hasNextPage": False,
                 "hasPreviousPage": False,
                 "startCursor": "dns-server-1",
-                "endCursor": "dns-server-2"
+                "endCursor": "dns-server-2",
             },
-            "totalCount": 2
+            "totalCount": 2,
         }
 
         # Mock GraphQL info with database context
@@ -157,7 +162,7 @@ class TestConnectionDecorator:
             node_type=User,
             view_name="v_dns_server",
             jsonb_extraction=True,  # 🔴 This parameter should exist but doesn't yet
-            jsonb_column="data"     # 🔴 This parameter should exist but doesn't yet
+            jsonb_column="data",  # 🔴 This parameter should exist but doesn't yet
         )
         async def dns_servers_connection(info, first: int | None = None) -> Connection[User]:
             pass
@@ -191,7 +196,7 @@ class TestConnectionDecorator:
         # Test metadata shows None (will be resolved at runtime)
         config = auto_jsonb_connection.__fraiseql_connection__
         assert config["jsonb_extraction"] is None  # Will inherit at runtime
-        assert config["jsonb_column"] is None      # Will inherit at runtime
+        assert config["jsonb_column"] is None  # Will inherit at runtime
         assert config["supports_global_jsonb"] is True
 
         # Test runtime resolution by calling the function
@@ -206,15 +211,15 @@ class TestConnectionDecorator:
         @connection(
             node_type=User,
             view_name="v_test",
-            jsonb_extraction=False,    # Explicit override
-            jsonb_column="custom_data" # Explicit override
+            jsonb_extraction=False,  # Explicit override
+            jsonb_column="custom_data",  # Explicit override
         )
         async def explicit_jsonb_connection(info, first: int | None = None) -> Connection[User]:
             pass
 
         config = explicit_jsonb_connection.__fraiseql_connection__
-        assert config["jsonb_extraction"] is False       # Explicit override
-        assert config["jsonb_column"] == "custom_data"   # Explicit override
+        assert config["jsonb_extraction"] is False  # Explicit override
+        assert config["jsonb_column"] == "custom_data"  # Explicit override
         assert config["supports_global_jsonb"] is True
 
     def test_connection_decorator_backward_compatibility(self):
@@ -235,5 +240,5 @@ class TestConnectionDecorator:
         assert config["include_total_count"] is True
         assert config["cursor_field"] == "id"
         assert config["jsonb_extraction"] is None  # Will inherit global
-        assert config["jsonb_column"] is None      # Will inherit global
+        assert config["jsonb_column"] is None  # Will inherit global
         assert config["supports_global_jsonb"] is True

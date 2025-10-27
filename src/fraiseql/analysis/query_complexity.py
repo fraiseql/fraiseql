@@ -9,7 +9,7 @@ Analyzes GraphQL queries to determine their complexity, which is useful for:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from graphql import (
     DocumentNode,
@@ -144,18 +144,18 @@ class QueryComplexityAnalyzer(Visitor):
 
         return self.score
 
-    def enter_operation_definition(self, node: OperationDefinitionNode, *_) -> None:
+    def enter_operation_definition(self, node: OperationDefinitionNode, *_: Any) -> None:
         """Enter an operation definition."""
         # Track operation type
         if node.operation.value in ("query", "mutation", "subscription"):
             self.types_accessed.add(node.operation.value.capitalize())
 
-    def enter_fragment_definition(self, node: FragmentDefinitionNode, *_) -> None:
+    def enter_fragment_definition(self, node: FragmentDefinitionNode, *_: Any) -> None:
         """Enter a fragment definition."""
         self.fragments[node.name.value] = node
         self.score.fragment_count += 1
 
-    def enter_field(self, node: FieldNode, *_) -> None:
+    def enter_field(self, node: FieldNode, *_: Any) -> None:
         """Enter a field selection."""
         self.score.field_count += self.config.base_field_cost
 
@@ -168,16 +168,16 @@ class QueryComplexityAnalyzer(Visitor):
         # Add depth score - using config's penalty calculation
         self.score.depth_score += self.config.calculate_depth_penalty(self.current_depth)
 
-    def enter_selection_set(self, node: SelectionSetNode, *_) -> None:
+    def enter_selection_set(self, node: SelectionSetNode, *_: Any) -> None:
         """Enter a selection set (nested fields)."""
         self.current_depth += 1
         self.score.max_depth = max(self.score.max_depth, self.current_depth)
 
-    def leave_selection_set(self, node: SelectionSetNode, *_) -> None:
+    def leave_selection_set(self, node: SelectionSetNode, *_: Any) -> None:
         """Leave a selection set."""
         self.current_depth -= 1
 
-    def enter_fragment_spread(self, node: FragmentSpreadNode, *_) -> None:
+    def enter_fragment_spread(self, node: FragmentSpreadNode, *_: Any) -> None:
         """Enter a fragment spread."""
         # Analyze the fragment if we have it
         fragment_name = node.name.value
@@ -185,7 +185,7 @@ class QueryComplexityAnalyzer(Visitor):
             # This is simplified - in production we'd properly handle recursive fragments
             pass
 
-    def enter_inline_fragment(self, node: InlineFragmentNode, *_) -> None:
+    def enter_inline_fragment(self, node: InlineFragmentNode, *_: Any) -> None:
         """Enter an inline fragment."""
         if node.type_condition:
             self.types_accessed.add(node.type_condition.name.value)

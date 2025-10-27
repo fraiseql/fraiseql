@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, NoReturn, Optional
 
 from .base import APQStorageBackend
 
@@ -23,7 +23,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
     - Graceful error handling
     """
 
-    def __init__(self, config: Dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         """Initialize the PostgreSQL backend with configuration.
 
         Args:
@@ -97,8 +97,8 @@ class PostgreSQLAPQBackend(APQStorageBackend):
             logger.warning(f"Failed to store persisted query: {e}")
 
     def get_cached_response(
-        self, hash_value: str, context: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, hash_value: str, context: Optional[dict[str, Any]] = None
+    ) -> Optional[dict[str, Any]]:
         """Get cached JSON response for APQ hash with tenant isolation.
 
         Args:
@@ -142,7 +142,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
             return None
 
     def store_cached_response(
-        self, hash_value: str, response: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+        self, hash_value: str, response: dict[str, Any], context: Optional[dict[str, Any]] = None
     ) -> None:
         """Store pre-computed JSON response for APQ hash with tenant isolation.
 
@@ -214,7 +214,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
                 ON {self._responses_table} (tenant_id) WHERE tenant_id IS NOT NULL;
         """
 
-    def _get_connection(self):
+    def _get_connection(self) -> NoReturn:
         """Get database connection.
 
         This is a placeholder that would integrate with FraiseQL's
@@ -224,7 +224,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
         # FraiseQL's database pool or create a new one
         raise NotImplementedError("Database connection integration needed")
 
-    def _execute_query(self, sql: str, params: Optional[Tuple] = None) -> None:
+    def _execute_query(self, sql: str, params: Optional[tuple] = None) -> None:
         """Execute a SQL query.
 
         Args:
@@ -237,7 +237,7 @@ class PostgreSQLAPQBackend(APQStorageBackend):
         # In a real implementation, this would use the database connection
         logger.debug(f"Executing SQL: {sql[:100]}...")
 
-    def _fetch_one(self, sql: str, params: Optional[Tuple] = None) -> Optional[Tuple]:
+    def _fetch_one(self, sql: str, params: Optional[tuple] = None) -> Optional[tuple]:
         """Fetch one row from a SQL query.
 
         Args:

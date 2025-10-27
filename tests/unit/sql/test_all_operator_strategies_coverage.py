@@ -65,11 +65,24 @@ class TestAllOperatorStrategiesCoverage:
         # Test that it now has all expected operators
         expected_operators = {
             # Basic operators (were missing, now added)
-            "eq", "neq", "in", "notin", "nin",
+            "eq",
+            "neq",
+            "in",
+            "notin",
+            "nin",
             # Network-specific operators (were always there)
-            "inSubnet", "inRange", "isPrivate", "isPublic", "isIPv4", "isIPv6",
+            "inSubnet",
+            "inRange",
+            "isPrivate",
+            "isPublic",
+            "isIPv4",
+            "isIPv6",
             # Enhanced network-specific operators (newly added)
-            "isLoopback", "isLinkLocal", "isMulticast", "isDocumentation", "isCarrierGrade"
+            "isLoopback",
+            "isLinkLocal",
+            "isMulticast",
+            "isDocumentation",
+            "isCarrierGrade",
         }
 
         strategy_operators = set(strategy.operators)
@@ -94,7 +107,9 @@ class TestAllOperatorStrategiesCoverage:
 
         # Should have MAC-specific operators
         missing_specific = expected_mac_specific - strategy_operators
-        assert not missing_specific, f"MAC Address Strategy missing MAC-specific operators: {missing_specific}"
+        assert not missing_specific, (
+            f"MAC Address Strategy missing MAC-specific operators: {missing_specific}"
+        )
 
     def test_daterange_operator_strategy_specific(self):
         """Test DateRangeOperatorStrategy (should already be complete)."""
@@ -102,7 +117,13 @@ class TestAllOperatorStrategiesCoverage:
 
         # Test that it has basic operators plus range-specific ones
         expected_basic = {"eq", "neq", "in", "notin"}
-        expected_range_specific = {"contains_date", "overlaps", "adjacent", "strictly_left", "strictly_right"}
+        expected_range_specific = {
+            "contains_date",
+            "overlaps",
+            "adjacent",
+            "strictly_left",
+            "strictly_right",
+        }
 
         strategy_operators = set(strategy.operators)
 
@@ -112,7 +133,9 @@ class TestAllOperatorStrategiesCoverage:
 
         # Should have range-specific operators
         missing_specific = expected_range_specific - strategy_operators
-        assert not missing_specific, f"Date Range Strategy missing range-specific operators: {missing_specific}"
+        assert not missing_specific, (
+            f"Date Range Strategy missing range-specific operators: {missing_specific}"
+        )
 
     def test_ltree_operator_strategy_specific(self):
         """Test LTreeOperatorStrategy (should already be complete)."""
@@ -120,7 +143,12 @@ class TestAllOperatorStrategiesCoverage:
 
         # Test that it has basic operators plus tree-specific ones
         expected_basic = {"eq", "neq", "in", "notin"}
-        expected_tree_specific = {"ancestor_of", "descendant_of", "matches_lquery", "matches_ltxtquery"}
+        expected_tree_specific = {
+            "ancestor_of",
+            "descendant_of",
+            "matches_lquery",
+            "matches_ltxtquery",
+        }
 
         strategy_operators = set(strategy.operators)
 
@@ -130,7 +158,9 @@ class TestAllOperatorStrategiesCoverage:
 
         # Should have tree-specific operators
         missing_specific = expected_tree_specific - strategy_operators
-        assert not missing_specific, f"LTree Strategy missing tree-specific operators: {missing_specific}"
+        assert not missing_specific, (
+            f"LTree Strategy missing tree-specific operators: {missing_specific}"
+        )
 
     def test_operator_precedence_consistency(self):
         """Test that all strategies follow consistent precedence patterns."""

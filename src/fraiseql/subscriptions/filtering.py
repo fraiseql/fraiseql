@@ -2,7 +2,9 @@
 
 import ast
 from functools import wraps
-from typing import Any, ClassVar
+from typing import Any, Callable, ClassVar
+
+from graphql import GraphQLResolveInfo
 
 from fraiseql.core.exceptions import FilterError
 
@@ -62,7 +64,7 @@ class FilterExpressionEvaluator:
             msg = f"Invalid filter expression: {e}"
             raise FilterError(msg) from e
 
-    def _validate_ast(self, node) -> None:
+    def _validate_ast(self, node: ast.AST) -> None:
         """Validate AST nodes for safety."""
         for child in ast.walk(node):
             # Only allow specific node types
@@ -102,7 +104,7 @@ class FilterExpressionEvaluator:
                 raise FilterError(msg)
 
 
-def filter(expression: str):  # noqa: A001
+def filter(expression: str) -> Callable:  # noqa: A001
     """Decorator for declarative subscription filtering.
 
     Usage:
@@ -112,11 +114,11 @@ def filter(expression: str):  # noqa: A001
             ...
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable:
         func._filter_expression = expression
 
         @wraps(func)
-        async def wrapper(info, **kwargs):
+        async def wrapper(info: GraphQLResolveInfo, **kwargs: Any) -> Any:
             # Build filter context
             context = {
                 "info": info,

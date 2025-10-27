@@ -6,7 +6,6 @@ from fraiseql.gql.schema_builder import build_fraiseql_schema
 
 class TestQueryDescriptions:
     def test_query_uses_docstring_as_description(self):
-
         @fraiseql.query
         async def get_user_profile(info, user_id: int) -> str:
             """Retrieve the user's profile information and settings."""
@@ -21,10 +20,12 @@ class TestQueryDescriptions:
         assert query_type is not None
         user_profile_field = query_type.fields.get("getUserProfile")
         assert user_profile_field is not None
-        assert user_profile_field.description == "Retrieve the user's profile information and settings."
+        assert (
+            user_profile_field.description
+            == "Retrieve the user's profile information and settings."
+        )
 
     def test_query_without_docstring_has_no_description(self):
-
         @fraiseql.query
         async def get_data(info) -> str:
             return "test data"
@@ -41,7 +42,6 @@ class TestQueryDescriptions:
         assert data_field.description is None
 
     def test_query_multiline_docstring_is_cleaned(self):
-
         @fraiseql.query
         async def search_products(info, query: str) -> str:
             """
@@ -65,10 +65,10 @@ class TestQueryDescriptions:
         assert search_field.description == expected_description
 
     def test_query_description_preserved_with_existing_functionality(self):
-
         @fraiseql.type(sql_source="users")
         class User:
             """A user in the system."""
+
             id: int
             name: str
 
@@ -95,7 +95,6 @@ class TestQueryDescriptions:
 
 class TestMutationDescriptions:
     def test_mutation_uses_docstring_as_description(self):
-
         @fraiseql.input
         class CreateUserInput:
             name: str
@@ -136,7 +135,6 @@ class TestMutationDescriptions:
         assert create_user_field.description == "Create a new user account with validation."
 
     def test_mutation_without_docstring_has_no_description(self):
-
         @fraiseql.input
         class UpdateDataInput:
             value: str
@@ -174,7 +172,6 @@ class TestMutationDescriptions:
         assert update_field.description is None
 
     def test_mutation_multiline_docstring_is_cleaned(self):
-
         @fraiseql.input
         class ProcessOrderInput:
             order_id: int

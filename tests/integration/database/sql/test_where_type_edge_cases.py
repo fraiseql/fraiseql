@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from fraiseql.sql.where_generator import safe_create_where_type
 
@@ -24,8 +24,8 @@ class ComplexModel:
     is_active: bool
     birth_date: date
     last_login: datetime
-    tags: List[str]
-    metadata: Dict[str, Any]
+    tags: list[str]
+    metadata: dict[str, Any]
     status: Optional[str] = None
 
 
@@ -35,7 +35,7 @@ class NestedLevel3:
 
     id: int
     value: str
-    items: List[str]
+    items: list[str]
 
 
 @dataclass
@@ -45,7 +45,7 @@ class NestedLevel2:
     id: int
     name: str
     level3: Optional[NestedLevel3] = None
-    level3_list: Optional[List[NestedLevel3]] = None
+    level3_list: Optional[list[NestedLevel3]] = None
 
 
 @dataclass
@@ -55,7 +55,7 @@ class NestedLevel1:
     id: uuid.UUID
     title: str
     level2: Optional[NestedLevel2] = None
-    level2_list: Optional[List[NestedLevel2]] = None
+    level2_list: Optional[list[NestedLevel2]] = None
 
 
 # Create where types

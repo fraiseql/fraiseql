@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Type, TypeVar, overload
+from typing import Any, Callable, Type, TypeVar, overload
 
 from .mutations.error_config import MutationErrorConfig as MutationErrorConfig
 
@@ -13,7 +13,7 @@ def fraise_type_decorator(
     *,
     sql_source: str | None = None,
     jsonb_column: str | None = None,
-    implements: List[Type[Any]] | None = None,
+    implements: list[Type[Any]] | None = None,
     resolve_nested: bool = False,
 ) -> Callable[[Type[_T]], Type[_T]]: ...
 def fraise_type_decorator(
@@ -21,7 +21,7 @@ def fraise_type_decorator(
     *,
     sql_source: str | None = None,
     jsonb_column: str | None = None,
-    implements: List[Type[Any]] | None = None,
+    implements: list[Type[Any]] | None = None,
     resolve_nested: bool = False,
 ) -> Type[_T] | Callable[[Type[_T]], Type[_T]]: ...
 @overload
@@ -86,7 +86,7 @@ def mutation(
     *,
     function: str | None = None,
     schema: str = "graphql",
-    context_params: Dict[str, str] | None = None,
+    context_params: dict[str, str] | None = None,
     error_config: MutationErrorConfig | None = None,
 ) -> Callable[[Type[_T]], Type[_T]]: ...
 
@@ -133,7 +133,7 @@ class Hostname:
 
 # Generic types
 class Connection:
-    edges: List[Any]
+    edges: list[Any]
     page_info: Any
     total_count: int | None
 
@@ -148,7 +148,7 @@ class PageInfo:
     end_cursor: str | None
 
 def create_connection(
-    items: List[Any],
+    items: list[Any],
     *,
     first: int | None = None,
     after: str | None = None,
@@ -162,32 +162,32 @@ class CQRSRepository:
     async def find(
         self,
         view: str,
-        filters: Dict[str, Any] | None = None,
+        filters: dict[str, Any] | None = None,
         *,
         limit: int | None = None,
         offset: int | None = None,
-        order_by: str | List[str] | None = None,
-    ) -> List[Dict[str, Any]]: ...
+        order_by: str | list[str] | None = None,
+    ) -> list[dict[str, Any]]: ...
     async def find_one(
         self,
         view: str,
-        filters: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any] | None: ...
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None: ...
     async def execute_function(
         self,
         function_name: str,
-        params: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]: ...
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]: ...
 
 class CQRSExecutor:
     def __init__(self, repository: CQRSRepository) -> None: ...
 
 # Schema builder
 def build_fraiseql_schema(
-    types: List[Type[Any]] | None = None,
-    mutations: List[Type[Any]] | None = None,
-    queries: List[Type[Any]] | None = None,
-    subscriptions: List[Type[Any]] | None = None,
+    types: list[Type[Any]] | None = None,
+    mutations: list[Type[Any]] | None = None,
+    queries: list[Type[Any]] | None = None,
+    subscriptions: list[Type[Any]] | None = None,
 ) -> Any: ...
 
 # Error configurations
@@ -203,8 +203,8 @@ class AuthProvider: ...
 
 class UserContext:
     user_id: str
-    roles: List[str]
-    permissions: List[str]
+    roles: list[str]
+    permissions: list[str]
 
 def requires_auth(
     func: _F | None = None,
@@ -225,7 +225,7 @@ def requires_permission(
 class Auth0Config:
     domain: str
     audience: str
-    algorithms: List[str]
+    algorithms: list[str]
 
 class Auth0Provider(AuthProvider):
     def __init__(self, config: Auth0Config) -> None: ...

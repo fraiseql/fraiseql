@@ -4,7 +4,9 @@ import asyncio
 import time
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, Dict, Optional, TypeVar, overload
+from typing import Any, Optional, TypeVar, overload
+
+from graphql import GraphQLResolveInfo
 
 from fraiseql.gql.schema_builder import SchemaRegistry
 
@@ -441,7 +443,9 @@ def field(
 
         if is_async:
 
-            async def async_wrapped_resolver(root, info, *args, **kwargs):
+            async def async_wrapped_resolver(
+                root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+            ) -> Any:
                 # Check if N+1 detector is available in context
                 detector = None
                 if track_n1 and info and hasattr(info, "context") and info.context:
@@ -502,7 +506,9 @@ def field(
 
         else:
 
-            def sync_wrapped_resolver(root, info, *args, **kwargs):
+            def sync_wrapped_resolver(
+                root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+            ) -> Any:
                 # Check if N+1 detector is available in context
                 detector = None
                 if track_n1 and info and hasattr(info, "context") and info.context:
@@ -607,7 +613,7 @@ def field(
 def turbo_query(
     cache_ttl: int = 300,
     auto_register: bool = True,
-    param_mapping: Optional[Dict[str, str]] = None,
+    param_mapping: Optional[dict[str, str]] = None,
     operation_name: Optional[str] = None,
 ) -> Callable[[F], F]:
     """Decorator to mark a query for TurboRouter optimization.
@@ -696,7 +702,7 @@ def turbo_query(
                 registry.mark_for_turbo_registration(func)
 
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Check if we're in turbo mode
             info = args[0] if args else None
             if info and hasattr(info, "context"):
@@ -862,14 +868,14 @@ def connection(
 
         @wraps(func)
         async def wrapper(
-            info,
+            info: GraphQLResolveInfo,
             first: int | None = None,
             after: str | None = None,
             last: int | None = None,
             before: str | None = None,
             where: dict[str, Any] | None = None,
-            **kwargs,
-        ):
+            **kwargs: Any,
+        ) -> Any:
             # Validate runtime pagination parameters
             _validate_pagination_params(first, last, max_page_size)
 

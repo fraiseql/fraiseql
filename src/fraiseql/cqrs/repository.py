@@ -1,6 +1,6 @@
 """CQRS Repository base class for FraiseQL."""
 
-from typing import Any, List, TypeVar
+from typing import Any, TypeVar
 from uuid import UUID
 
 from psycopg import AsyncConnection
@@ -9,7 +9,6 @@ from psycopg.sql import SQL, Composed
 from fraiseql.sql.where_generator import _make_filter_field_composed
 
 from .executor import CQRSExecutor
-from .pagination import paginate_query as _paginate_query
 
 T = TypeVar("T")
 
@@ -42,7 +41,7 @@ class CQRSRepository:
             })
 
             # Query users with filtering
-            users = await repo.list(
+            users = await repo.list_entities(
                 User,
                 where={"status": {"eq": "active"}},
                 order_by=[("created_at", "DESC")],
@@ -513,6 +512,8 @@ class CQRSRepository:
             from fraiseql import Connection
             posts_connection = Connection[Post].from_dict(result)
         """
+        from .pagination import paginate_query as _paginate_query
+
         return await _paginate_query(
             self,
             view_name,
@@ -590,7 +591,7 @@ class CQRSRepository:
 
     # Transaction support
 
-    def transaction(self):
+    def transaction(self) -> Any:
         """Create a transaction context manager.
 
         Returns:
@@ -600,7 +601,7 @@ class CQRSRepository:
 
     # Utility methods
 
-    def _convert_order_by_to_tuples(self, order_by):
+    def _convert_order_by_to_tuples(self, order_by: Any) -> list[tuple[str, str]] | None:
         """Convert any OrderBy format to list of tuples.
 
         Args:
@@ -695,15 +696,15 @@ class CQRSRepository:
         view_name = self._get_view_name(entity_class)
         return await self.get_by_id(view_name, entity_id)
 
-    async def list(
+    async def list_entities(
         self,
         entity_class: type[T],
         *,
         where: dict[str, Any] | None = None,
-        order_by: List[tuple[str, str]] | None = None,
+        order_by: list[tuple[str, str]] | None = None,
         limit: int | None = None,
         offset: int = 0,
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """List entities with optional filtering and ordering.
 
         Args:
@@ -744,7 +745,7 @@ class CQRSRepository:
         where: dict[str, Any] | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Find entities by view name with optional filtering.
 
         Args:

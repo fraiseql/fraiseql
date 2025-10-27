@@ -17,6 +17,7 @@ from fraiseql.types.definitions import UNSET
 @fraiseql.input
 class CreatePublicAddressInput:
     """Direct address input that was working in v0.7.13."""
+
     street_number: str
     street_name: str
     postal_code: str
@@ -28,6 +29,7 @@ class CreatePublicAddressInput:
 @fraiseql.input
 class CreateNestedPublicAddressInput:
     """Nested address input that was broken in v0.7.13."""
+
     street_number: str | None = UNSET
     street_name: str
     postal_code: str
@@ -39,6 +41,7 @@ class CreateNestedPublicAddressInput:
 @fraiseql.input
 class CreateLocationInput:
     """Location input containing nested address."""
+
     name: str
     description: str | None = UNSET
     address: CreateNestedPublicAddressInput | None = UNSET
@@ -47,6 +50,7 @@ class CreateLocationInput:
 @fraiseql.success
 class CreatePublicAddressSuccess:
     """Success response for address creation."""
+
     address: dict  # Simplified - would be proper type in real scenario
     message: str = "Address created successfully"
 
@@ -54,6 +58,7 @@ class CreatePublicAddressSuccess:
 @fraiseql.failure
 class CreatePublicAddressError:
     """Error response for address creation."""
+
     message: str
     code: str
     field_errors: dict | None = UNSET
@@ -62,6 +67,7 @@ class CreatePublicAddressError:
 @fraiseql.success
 class CreateLocationSuccess:
     """Success response for location creation."""
+
     location: dict  # Simplified
     message: str = "Location created successfully"
 
@@ -69,6 +75,7 @@ class CreateLocationSuccess:
 @fraiseql.failure
 class CreateLocationError:
     """Error response for location creation."""
+
     message: str
     code: str
     field_errors: dict | None = UNSET
@@ -86,7 +93,7 @@ def test_direct_address_creation_works():
         "postalCode": "12345",
         "countryCode": "US",
         "latitude": 40.7128,
-        "longitude": -74.0060
+        "longitude": -74.0060,
     }
 
     # Step 1: Coerce GraphQL input to dataclass
@@ -137,8 +144,8 @@ def test_nested_address_creation_now_works():
             "postalCode": "12345",
             "countryCode": "US",
             "latitude": 40.7128,
-            "longitude": -74.0060
-        }
+            "longitude": -74.0060,
+        },
     }
 
     # Step 1: Coerce GraphQL input to dataclass
@@ -205,7 +212,7 @@ def test_database_function_simulation():
         "streetNumber": "123",
         "streetName": "Direct St",
         "postalCode": "11111",
-        "countryCode": "CA"
+        "countryCode": "CA",
     }
 
     nested_graphql_input = {
@@ -214,8 +221,8 @@ def test_database_function_simulation():
             "streetNumber": "456",
             "streetName": "Nested Ave",
             "postalCode": "22222",
-            "countryCode": "UK"
-        }
+            "countryCode": "UK",
+        },
     }
 
     # Process both
@@ -241,7 +248,7 @@ def test_database_function_simulation():
             return {
                 "success": True,
                 "address_id": str(uuid4()),
-                "formatted_address": f"{street_number} {street_name}, {postal_code}, {country_code}"
+                "formatted_address": f"{street_number} {street_name}, {postal_code}, {country_code}",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -259,7 +266,9 @@ def test_database_function_simulation():
 
     # Verify both produce consistent results
     assert all("street_number" in payload for payload in [direct_payload, nested_address_payload])
-    assert all("streetNumber" not in payload for payload in [direct_payload, nested_address_payload])
+    assert all(
+        "streetNumber" not in payload for payload in [direct_payload, nested_address_payload]
+    )
 
 
 def test_regression_prevention():
@@ -269,7 +278,7 @@ def test_regression_prevention():
     from typing import get_origin, get_args
 
     # Test the specific Union type handling that was broken
-    location_field_type = CreateLocationInput.__annotations__['address']
+    location_field_type = CreateLocationInput.__annotations__["address"]
 
     # Verify union type detection works
     origin = get_origin(location_field_type)
@@ -277,17 +286,14 @@ def test_regression_prevention():
 
     # This should be types.UnionType in Python 3.10+
     import types
+
     assert origin is types.UnionType or origin.__name__ == "Union"
     assert len(args) == 2
     assert CreateNestedPublicAddressInput in args
     assert type(None) in args
 
     # Test _coerce_field_value handles Union correctly
-    raw_address_data = {
-        "streetNumber": "789",
-        "streetName": "Union Test St",
-        "postalCode": "99999"
-    }
+    raw_address_data = {"streetNumber": "789", "streetName": "Union Test St", "postalCode": "99999"}
 
     coerced = _coerce_field_value(raw_address_data, location_field_type)
 

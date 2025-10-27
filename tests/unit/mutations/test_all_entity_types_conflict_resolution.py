@@ -17,6 +17,7 @@ from fraiseql.mutations.parser import parse_mutation_result
 @fraiseql.type
 class Location:
     """Location entity for geographic entities."""
+
     id: str
     name: str
     identifier: str
@@ -30,6 +31,7 @@ class Location:
 @fraiseql.type
 class DnsServer:
     """DNS Server entity for network entities."""
+
     id: str
     name: str
     ip_address: str
@@ -43,6 +45,7 @@ class DnsServer:
 @fraiseql.type
 class Gateway:
     """Gateway entity for network routing."""
+
     id: str
     name: str
     ip_address: str
@@ -56,6 +59,7 @@ class Gateway:
 @fraiseql.type
 class Router:
     """Router entity for network infrastructure."""
+
     id: str
     name: str
     model: str
@@ -69,6 +73,7 @@ class Router:
 @fraiseql.type
 class SmtpServer:
     """SMTP Server entity for mail services."""
+
     id: str
     name: str
     hostname: str
@@ -82,6 +87,7 @@ class SmtpServer:
 @fraiseql.type
 class FileServer:
     """File Server entity for file services."""
+
     id: str
     name: str
     hostname: str
@@ -153,19 +159,21 @@ class TestAllEntityTypesConflictResolution:
             "message": "Location already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "location-123",
-                                "name": "Main Office Building",
-                                "identifier": "main.office.building",
-                                "level": "building"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "location-123",
+                                    "name": "Main Office Building",
+                                    "identifier": "main.office.building",
+                                    "level": "building",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
@@ -188,19 +196,21 @@ class TestAllEntityTypesConflictResolution:
             "message": "DNS server already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "dns-server-456",
-                                "name": "Primary DNS",
-                                "ip_address": "8.8.8.8",
-                                "port": 53
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "dns-server-456",
+                                    "name": "Primary DNS",
+                                    "ip_address": "8.8.8.8",
+                                    "port": 53,
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
@@ -223,19 +233,21 @@ class TestAllEntityTypesConflictResolution:
             "message": "Gateway already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "gateway-789",
-                                "name": "Main Gateway",
-                                "ip_address": "192.168.1.1",
-                                "subnet": "192.168.1.0/24"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "gateway-789",
+                                    "name": "Main Gateway",
+                                    "ip_address": "192.168.1.1",
+                                    "subnet": "192.168.1.0/24",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
@@ -258,19 +270,21 @@ class TestAllEntityTypesConflictResolution:
             "message": "Router already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "router-101",
-                                "name": "Core Router",
-                                "model": "Cisco ASR9000",
-                                "firmware_version": "7.3.2"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "router-101",
+                                    "name": "Core Router",
+                                    "model": "Cisco ASR9000",
+                                    "firmware_version": "7.3.2",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
@@ -293,19 +307,21 @@ class TestAllEntityTypesConflictResolution:
             "message": "SMTP server already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "smtp-server-202",
-                                "name": "Corporate Mail Server",
-                                "hostname": "mail.company.com",
-                                "port": 587
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "smtp-server-202",
+                                    "name": "Corporate Mail Server",
+                                    "hostname": "mail.company.com",
+                                    "port": 587,
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
@@ -328,19 +344,21 @@ class TestAllEntityTypesConflictResolution:
             "message": "File server already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "file-server-303",
-                                "name": "Main File Server",
-                                "hostname": "files.office.com",
-                                "share_path": "/shared/documents"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "file-server-303",
+                                    "name": "Main File Server",
+                                    "hostname": "files.office.com",
+                                    "share_path": "/shared/documents",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
@@ -372,18 +390,20 @@ class TestAllEntityTypesConflictResolution:
             "message": "Multiple location conflicts detected",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "multi-location-123",
-                                "name": "Conflict Location",
-                                "identifier": "conflict.location"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "multi-location-123",
+                                    "name": "Conflict Location",
+                                    "identifier": "conflict.location",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
@@ -412,18 +432,20 @@ class TestAllEntityTypesConflictResolution:
             "message": "A location with this name already exists in this organization",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "01411222-4111-0000-1000-000000000002",
-                                "name": "21411-1 child",
-                                "identifier": "test_create_location_deduplication.child"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "01411222-4111-0000-1000-000000000002",
+                                    "name": "21411-1 child",
+                                    "identifier": "test_create_location_deduplication.child",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(

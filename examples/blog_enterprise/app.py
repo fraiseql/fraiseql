@@ -12,6 +12,7 @@ An enterprise-grade blog application demonstrating:
 import logging
 import os
 from contextlib import asynccontextmanager
+from typing import Any
 from uuid import UUID
 
 import psycopg

@@ -3,7 +3,7 @@
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fraiseql.fastapi.turbo import TurboQuery, TurboRegistry, TurboRouter
 
@@ -28,7 +28,7 @@ class EnhancedTurboRegistry(TurboRegistry):
         max_size: int = 1000,
         max_total_weight: float = 2000.0,
         enable_adaptive_caching: bool = True,
-    ):
+    ) -> None:
         """Initialize enhanced registry.
 
         Args:
@@ -142,7 +142,9 @@ class EnhancedTurboRegistry(TurboRegistry):
 
         return query_hash
 
-    def update_metrics(self, query_hash: str, execution_time: float, cache_hit: bool = True):
+    def update_metrics(
+        self, query_hash: str, execution_time: float, cache_hit: bool = True
+    ) -> None:
         """Update query metrics after execution.
 
         Args:
@@ -176,7 +178,7 @@ class EnhancedTurboRegistry(TurboRegistry):
             # Move to end for LRU
             self._queries.move_to_end(query_hash)
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get registry metrics.
 
         Returns:
@@ -207,7 +209,7 @@ class EnhancedTurboRegistry(TurboRegistry):
 class EnhancedTurboRouter(TurboRouter):
     """TurboRouter with enhanced metrics and adaptive behavior."""
 
-    def __init__(self, registry: EnhancedTurboRegistry):
+    def __init__(self, registry: EnhancedTurboRegistry) -> None:
         """Initialize enhanced router.
 
         Args:
@@ -220,9 +222,9 @@ class EnhancedTurboRouter(TurboRouter):
     async def execute(
         self,
         query: str,
-        variables: Dict[str, Any],
-        context: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+        variables: dict[str, Any],
+        context: dict[str, Any],
+    ) -> Optional[dict[str, Any]]:
         """Execute query with enhanced metrics tracking.
 
         Args:
@@ -325,7 +327,7 @@ class EnhancedTurboRouter(TurboRouter):
 
         return {"data": None}
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get router metrics.
 
         Returns:

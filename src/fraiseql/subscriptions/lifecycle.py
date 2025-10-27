@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
 
+from graphql import GraphQLResolveInfo
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,7 +19,7 @@ class SubscriptionLifecycle:
         """Hook called when subscription starts."""
 
         @wraps(func)
-        async def wrapper(info, **kwargs):
+        async def wrapper(info: GraphQLResolveInfo, **kwargs: Any) -> str:
             # Record start
             start_time = datetime.now(UTC)
             subscription_id = f"{func.__name__}_{id(info)}"
@@ -39,7 +41,7 @@ class SubscriptionLifecycle:
         """Hook called for each subscription event."""
 
         @wraps(func)
-        async def wrapper(info, event: Any, **kwargs):
+        async def wrapper(info: GraphQLResolveInfo, event: Any, **kwargs: Any) -> Any:
             # Call hook
             result = await func(info, event, **kwargs)
 
@@ -64,7 +66,7 @@ class SubscriptionLifecycle:
         """Hook called when subscription completes."""
 
         @wraps(func)
-        async def wrapper(info, **kwargs) -> None:
+        async def wrapper(info: GraphQLResolveInfo, **kwargs: Any) -> None:
             # Calculate duration
             start_time = None
             if hasattr(info, "context") and info.context is not None:
@@ -90,7 +92,7 @@ def with_lifecycle(
     on_start: Callable | None = None,
     on_event: Callable | None = None,
     on_complete: Callable | None = None,
-):
+) -> Callable:
     """Add lifecycle hooks to subscription.
 
     Usage:
@@ -104,9 +106,9 @@ def with_lifecycle(
             ...
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
-        async def wrapper(info, **kwargs):
+        async def wrapper(info: GraphQLResolveInfo, **kwargs: Any) -> Any:
             # Call on_start
             if on_start:
                 await on_start(info, func.__name__, kwargs)

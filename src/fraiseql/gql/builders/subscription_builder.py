@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, cast, get_type_hints
 
 from graphql import (
     GraphQLArgument,
     GraphQLField,
     GraphQLObjectType,
     GraphQLOutputType,
+    GraphQLResolveInfo,
 )
 
 from fraiseql.config.schema_config import SchemaConfig
@@ -96,7 +97,9 @@ class SubscriptionTypeBuilder:
 
         return GraphQLObjectType(name="Subscription", fields=MappingProxyType(fields))
 
-    def _make_subscription(self, fn, arg_name_mapping: dict[str, str] | None = None):
+    def _make_subscription(
+        self, fn: Callable[..., Any], arg_name_mapping: dict[str, str] | None = None
+    ) -> Callable[..., Any]:
         """Create a GraphQL subscription from an async generator function.
 
         Args:
@@ -107,7 +110,9 @@ class SubscriptionTypeBuilder:
             A GraphQL-compatible subscription function.
         """
 
-        async def subscribe(root, info, **kwargs):
+        async def subscribe(
+            root: Any, info: GraphQLResolveInfo, **kwargs: Any
+        ) -> AsyncGenerator[Any]:
             # Map GraphQL argument names to Python parameter names
             if arg_name_mapping:
                 mapped_kwargs = {}

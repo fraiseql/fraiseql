@@ -59,7 +59,6 @@ def test_partial_update_issue_demonstration():
     assert new_dict["ip_address"] == "192.168.1.100"
 
 
-
 def test_explicit_null_vs_unset():
     """Test the difference between explicit null and UNSET."""
     # Explicitly setting a field to None
@@ -86,7 +85,6 @@ def test_explicit_null_vs_unset():
     assert "hostname" not in dict_unset  # UNSET is excluded
 
 
-
 def test_real_world_scenario():
     """Test a realistic scenario with multiple fields."""
     # Scenario: Update IP and clear location, leave hostname and MAC unchanged
@@ -106,7 +104,6 @@ def test_real_world_scenario():
     assert result_dict["location"] is None  # Explicit null preserved
     assert "hostname" not in result_dict  # UNSET excluded
     assert "mac_address" not in result_dict  # UNSET excluded
-
 
 
 if __name__ == "__main__":

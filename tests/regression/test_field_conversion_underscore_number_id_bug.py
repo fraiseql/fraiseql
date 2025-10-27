@@ -3,6 +3,7 @@
 This test reproduces the bug where fields like dns_1_id are incorrectly
 transformed to dns_1 when passed to PostgreSQL functions.
 """
+
 import uuid
 from typing import Any
 
@@ -57,7 +58,9 @@ class MockDatabase:
         self.last_function_call = None
         self.last_input_data = None
 
-    async def execute_function(self, function_name: str, input_data: dict[str, Any]) -> dict[str, Any]:
+    async def execute_function(
+        self, function_name: str, input_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """Mock function execution that captures parameters."""
         self.last_function_call = function_name
         self.last_input_data = input_data
@@ -79,9 +82,7 @@ class MockDatabase:
                 "gateway_id": input_data.get("gateway_id"),
             },
             "message": "Network configuration created successfully",
-            "extra_metadata": {
-                "entity": "network_configuration"
-            }
+            "extra_metadata": {"entity": "network_configuration"},
         }
 
 
@@ -112,7 +113,7 @@ async def test_dns_1_id_field_not_transformed():
         dns_2_id=dns_2_uuid,
         backup_1_id=backup_1_uuid,
         gateway_id=gateway_uuid,
-        name="Test Network Config"
+        name="Test Network Config",
     )
 
     # Get the resolver from the mutation
@@ -130,13 +131,17 @@ async def test_dns_1_id_field_not_transformed():
     # These assertions will FAIL initially due to the bug
     assert "dns_1_id" in input_dict, "dns_1_id should be preserved, not transformed to dns_1"
     assert "dns_2_id" in input_dict, "dns_2_id should be preserved, not transformed to dns_2"
-    assert "backup_1_id" in input_dict, "backup_1_id should be preserved, not transformed to backup_1"
+    assert "backup_1_id" in input_dict, (
+        "backup_1_id should be preserved, not transformed to backup_1"
+    )
     assert "gateway_id" in input_dict, "gateway_id should be preserved (currently works)"
 
     # These should NOT exist (they would indicate the bug is present)
     assert "dns_1" not in input_dict, "dns_1 should NOT exist - indicates incorrect transformation"
     assert "dns_2" not in input_dict, "dns_2 should NOT exist - indicates incorrect transformation"
-    assert "backup_1" not in input_dict, "backup_1 should NOT exist - indicates incorrect transformation"
+    assert "backup_1" not in input_dict, (
+        "backup_1 should NOT exist - indicates incorrect transformation"
+    )
 
     # Verify the values are correct
     assert str(input_dict["dns_1_id"]) == str(dns_1_uuid)
@@ -188,7 +193,7 @@ async def test_various_underscore_number_id_patterns():
         host_3_id=host_3_uuid,
         backup_10_id=backup_10_uuid,
         primary_id=primary_uuid,
-        name="Test"
+        name="Test",
     )
 
     # Execute
@@ -204,22 +209,19 @@ async def test_various_underscore_number_id_patterns():
         "host_3_id",
         "backup_10_id",
         "primary_id",
-        "name"
+        "name",
     ]
 
     for field in expected_fields:
         assert field in input_dict, f"Field {field} should be preserved in input data"
 
     # Verify transformed versions don't exist
-    bad_fields = [
-        "server_1",
-        "server_2",
-        "host_3",
-        "backup_10"
-    ]
+    bad_fields = ["server_1", "server_2", "host_3", "backup_10"]
 
     for field in bad_fields:
-        assert field not in input_dict, f"Field {field} should NOT exist - indicates incorrect transformation"
+        assert field not in input_dict, (
+            f"Field {field} should NOT exist - indicates incorrect transformation"
+        )
 
 
 if __name__ == "__main__":

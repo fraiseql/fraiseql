@@ -27,9 +27,7 @@ class TestRepositoryFindWhereProcessing:
         # Test the _build_dict_where_condition method directly
         # This is the problematic method that uses hardcoded SQL
         where_condition = db._build_dict_where_condition(
-            field_name="ip_address",
-            operator="eq",
-            value="192.168.1.1"
+            field_name="ip_address", operator="eq", value="192.168.1.1"
         )
 
         # Convert to string to check the generated SQL
@@ -64,7 +62,7 @@ class TestRepositoryFindWhereProcessing:
         db = FraiseQLRepository(db_pool)
 
         # Mock the operator strategy system to show it should be called
-        with patch('fraiseql.sql.operator_strategies.get_operator_registry') as mock_registry:
+        with patch("fraiseql.sql.operator_strategies.get_operator_registry") as mock_registry:
             mock_strategy = Mock()
             mock_strategy.build_sql.return_value = Mock()  # Mock SQL result
 
@@ -76,21 +74,19 @@ class TestRepositoryFindWhereProcessing:
             where_input = {"ipAddress": {"eq": "192.168.1.1"}}
 
             try:
-                await db.find(
-                    "test_view",
-                    tenant_id="test-tenant",
-                    where=where_input,
-                    limit=1
-                )
+                await db.find("test_view", tenant_id="test-tenant", where=where_input, limit=1)
             except Exception:
                 # Expected to fail due to missing view, that's fine
                 pass
 
             # This assertion will FAIL because find() doesn't use operator strategies
             # It uses primitive SQL templates instead
-            mock_registry.assert_called(), (
-                "find() should use get_operator_registry() to get operator strategies "
-                "instead of primitive SQL templates"
+            (
+                mock_registry.assert_called(),
+                (
+                    "find() should use get_operator_registry() to get operator strategies "
+                    "instead of primitive SQL templates"
+                ),
             )
 
     def test_operator_strategy_system_provides_intelligent_casting(self):
@@ -119,7 +115,9 @@ class TestRepositoryFindWhereProcessing:
 
             # Verify intelligent casting behavior
             if expected_cast:
-                assert expected_cast in condition_str, f"Expected {expected_cast} casting for {field} but got: {condition_str}"
+                assert expected_cast in condition_str, (
+                    f"Expected {expected_cast} casting for {field} but got: {condition_str}"
+                )
             else:
                 # For non-cast fields, just verify we get some valid SQL
                 assert condition_str != "None", f"Should generate valid SQL for {field}"

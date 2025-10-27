@@ -129,10 +129,7 @@ class TestCSRFTokenGenerator:
 
         # Various malformed tokens
         malformed_tokens = [
-            ""
-            """abc"""
-            """not-base64!@#"""
-            "dGVzdA==",  # Valid base64 but wrong format
+            "" """abc""" """not-base64!@#""" "dGVzdA==",  # Valid base64 but wrong format
         ]
 
         for token in malformed_tokens:

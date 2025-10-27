@@ -18,7 +18,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 from uuid import uuid4
@@ -64,10 +64,10 @@ class ExampleConfig:
 
     name: str
     path: Path
-    schema_files: List[Path] = field(default_factory=list)
-    seed_files: List[Path] = field(default_factory=list)
-    validation_queries: List[str] = field(default_factory=list)
-    dependencies: List[str] = field(default_factory=list)
+    schema_files: list[Path] = field(default_factory=list)
+    seed_files: list[Path] = field(default_factory=list)
+    validation_queries: list[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
 
 
 class ExampleDatabaseManager:
@@ -83,7 +83,7 @@ class ExampleDatabaseManager:
         # Ensure cache directory exists
         self.cache_dir.mkdir(exist_ok=True)
 
-    def _load_examples_cache(self) -> Dict:
+    def _load_examples_cache(self) -> dict:
         """Load cached database state for examples."""
         if self.state_cache_file.exists():
             try:
@@ -134,7 +134,7 @@ class ExampleDatabaseManager:
 
     def _run_psql_command(
         self, sql: str, db_name: str = None, admin: bool = False
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Run a PostgreSQL command."""
         target_db = db_name or (self.config.admin_db if admin else None)
 
@@ -316,7 +316,7 @@ class ExampleDatabaseManager:
 
         return DatabaseState.READY
 
-    async def ensure_test_database(self, example_name: str) -> Tuple[bool, str]:
+    async def ensure_test_database(self, example_name: str) -> tuple[bool, str]:
         """Ensure clean test database exists for example."""
         try:
             # Load example configuration
@@ -453,7 +453,7 @@ class ExampleDatabaseManager:
             logger.info(f"Cleaning up test database: {db_name}")
             self._drop_database(db_name)
 
-    def get_manager_status(self) -> Dict[str, Any]:
+    def get_manager_status(self) -> dict[str, Any]:
         """Get current manager status for debugging."""
         return {
             "cache_file_exists": self.state_cache_file.exists(),
@@ -466,7 +466,7 @@ class ExampleDatabaseManager:
             "available_examples": self._get_available_examples(),
         }
 
-    def _get_available_examples(self) -> List[str]:
+    def _get_available_examples(self) -> list[str]:
         """Get list of available examples."""
         examples_dir = Path(__file__).parent.parent.parent.parent / "examples"
         if not examples_dir.exists():

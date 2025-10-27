@@ -19,7 +19,7 @@ class TestErrorJSONSerialization:
             message="Test error",
             code=400,
             identifier="test_error",
-            details={"field": "name", "reason": "invalid"}
+            details={"field": "name", "reason": "invalid"},
         )
 
         # This should fail without the fix
@@ -30,7 +30,7 @@ class TestErrorJSONSerialization:
         """Test that lists of Error objects cannot be JSON serialized (RED phase)."""
         errors = [
             Error(message="Error 1", code=400, identifier="error_1"),
-            Error(message="Error 2", code=500, identifier="error_2", details={"key": "value"})
+            Error(message="Error 2", code=500, identifier="error_2", details={"key": "value"}),
         ]
 
         # This should fail without the fix
@@ -43,11 +43,7 @@ class TestErrorJSONSerialization:
 
         complex_structure = {
             "data": {
-                "createUser": {
-                    "message": "Validation failed",
-                    "errors": [error],
-                    "success": False
-                }
+                "createUser": {"message": "Validation failed", "errors": [error], "success": False}
             }
         }
 
@@ -61,11 +57,13 @@ class TestErrorJSONSerialization:
             message="Test error",
             code=400,
             identifier="test_error",
-            details={"field": "name", "reason": "invalid"}
+            details={"field": "name", "reason": "invalid"},
         )
 
         # Should be able to serialize directly with custom JSONEncoder
-        json_result = json.dumps(error, default=lambda x: x.__json__() if hasattr(x, '__json__') else str(x))
+        json_result = json.dumps(
+            error, default=lambda x: x.__json__() if hasattr(x, "__json__") else str(x)
+        )
 
         # Parse back to verify structure
         parsed = json.loads(json_result)
@@ -80,11 +78,11 @@ class TestErrorJSONSerialization:
             message="Dict test",
             code=422,
             identifier="dict_test",
-            details={"nested": {"key": "value"}}
+            details={"nested": {"key": "value"}},
         )
 
         # Should have a to_dict method
-        assert hasattr(error, 'to_dict'), "Error should have a to_dict method"
+        assert hasattr(error, "to_dict"), "Error should have a to_dict method"
 
         # Should return the correct dictionary
         result_dict = error.to_dict()
@@ -92,7 +90,7 @@ class TestErrorJSONSerialization:
             "message": "Dict test",
             "code": 422,
             "identifier": "dict_test",
-            "details": {"nested": {"key": "value"}}
+            "details": {"nested": {"key": "value"}},
         }
         assert result_dict == expected
 
@@ -101,7 +99,7 @@ class TestErrorJSONSerialization:
         error = Error(
             message="No details error",
             code=500,
-            identifier="no_details"
+            identifier="no_details",
             # details defaults to None
         )
 
@@ -111,13 +109,16 @@ class TestErrorJSONSerialization:
             "message": "No details error",
             "code": 500,
             "identifier": "no_details",
-            "details": None
+            "details": None,
         }
         assert result == expected
 
         # Should be JSON serializable
         import json
-        json_str = json.dumps(error, default=lambda x: x.__json__() if hasattr(x, '__json__') else str(x))
+
+        json_str = json.dumps(
+            error, default=lambda x: x.__json__() if hasattr(x, "__json__") else str(x)
+        )
         parsed = json.loads(json_str)
         assert parsed == expected
 
@@ -127,24 +128,21 @@ class TestErrorJSONSerialization:
             "validation": {
                 "fields": [
                     {"field": "email", "errors": ["invalid format"]},
-                    {"field": "age", "errors": ["must be positive"]}
+                    {"field": "age", "errors": ["must be positive"]},
                 ]
             },
             "metadata": {
                 "request_id": "123e4567-e89b-12d3",
                 "timestamp": "2025-01-01T00:00:00Z",
-                "user_context": {
-                    "role": "admin",
-                    "permissions": ["read", "write"]
-                }
-            }
+                "user_context": {"role": "admin", "permissions": ["read", "write"]},
+            },
         }
 
         error = Error(
             message="Complex validation failed",
             code=422,
             identifier="validation_failed",
-            details=complex_details
+            details=complex_details,
         )
 
         # Should handle complex nested structures
@@ -153,7 +151,10 @@ class TestErrorJSONSerialization:
 
         # Should be JSON serializable
         import json
-        json_str = json.dumps(error, default=lambda x: x.__json__() if hasattr(x, '__json__') else str(x))
+
+        json_str = json.dumps(
+            error, default=lambda x: x.__json__() if hasattr(x, "__json__") else str(x)
+        )
         parsed = json.loads(json_str)
         assert parsed["details"]["validation"]["fields"][0]["field"] == "email"
         assert parsed["details"]["metadata"]["user_context"]["role"] == "admin"
@@ -162,24 +163,21 @@ class TestErrorJSONSerialization:
         """Test list of Errors mixed with other data types (integration edge case)."""
         errors = [
             Error(message="Error 1", code=400, identifier="error_1"),
-            Error(message="Error 2", code=500, identifier="error_2", details={"info": "extra"})
+            Error(message="Error 2", code=500, identifier="error_2", details={"info": "extra"}),
         ]
 
         mixed_data = {
             "success": False,
             "errors": errors,
-            "metadata": {
-                "timestamp": "2025-01-01T00:00:00Z",
-                "request_id": "test-123"
-            },
-            "counts": [1, 2, 3]
+            "metadata": {"timestamp": "2025-01-01T00:00:00Z", "request_id": "test-123"},
+            "counts": [1, 2, 3],
         }
 
         # Should be serializable with custom default handler
         import json
 
         def error_serializer(obj):
-            if hasattr(obj, '__json__'):
+            if hasattr(obj, "__json__"):
                 return obj.__json__()
             raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 

@@ -10,6 +10,7 @@ from fraiseql.mutations.types import MutationResult
 @fraiseql.type
 class TestEntity:
     """Test entity for conflict field testing."""
+
     id: str
     name: str
 
@@ -26,16 +27,15 @@ class TestPopulateConflictFields:
         # Setup test data
         result = MutationResult(
             extra_metadata={
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "test-id-123",
-                                "name": "Test Entity"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {"id": "test-id-123", "name": "Test Entity"}
                             }
                         }
                     }
-                }]
+                ]
             }
         )
 
@@ -68,11 +68,7 @@ class TestPopulateConflictFields:
 
     def test_populate_conflict_fields_malformed_errors_structure(self):
         """Test that function handles malformed errors structure gracefully."""
-        result = MutationResult(
-            extra_metadata={
-                "errors": "not-a-list"  # Invalid structure
-            }
-        )
+        result = MutationResult(extra_metadata={"errors": "not-a-list"})  # Invalid structure
         annotations = {"conflict_entity": TestEntity | None}
         fields = {}
 
@@ -83,13 +79,15 @@ class TestPopulateConflictFields:
         """Test that function handles missing conflictObject gracefully."""
         result = MutationResult(
             extra_metadata={
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            # Missing conflictObject
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                # Missing conflictObject
+                            }
                         }
                     }
-                }]
+                ]
             }
         )
         annotations = {"conflict_entity": TestEntity | None}
@@ -102,16 +100,13 @@ class TestPopulateConflictFields:
         """Test that function skips fields that are already populated."""
         result = MutationResult(
             extra_metadata={
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "new-id",
-                                "name": "New Entity"
-                            }
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {"conflictObject": {"id": "new-id", "name": "New Entity"}}
                         }
                     }
-                }]
+                ]
             }
         )
 
@@ -131,16 +126,15 @@ class TestPopulateConflictFields:
 
         result = MutationResult(
             extra_metadata={
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "multi-test",
-                                "name": "Multi Test"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {"id": "multi-test", "name": "Multi Test"}
                             }
                         }
                     }
-                }]
+                ]
             }
         )
 
@@ -168,22 +162,20 @@ class TestPopulateConflictFields:
         # by not being a FraiseQL type and not having from_dict method
         class BadEntity:
             """Entity that will fail to instantiate properly."""
+
             def __init__(self, **kwargs):
                 # This constructor signature won't work with _instantiate_type
                 raise ValueError("Constructor designed to fail")
 
         result = MutationResult(
             extra_metadata={
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "bad-test",
-                                "name": "Bad Test"
-                            }
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {"conflictObject": {"id": "bad-test", "name": "Bad Test"}}
                         }
                     }
-                }]
+                ]
             }
         )
 
@@ -204,16 +196,15 @@ class TestPopulateConflictFields:
         """Test that function only processes fields starting with 'conflict_'."""
         result = MutationResult(
             extra_metadata={
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "ignore-test",
-                                "name": "Ignore Test"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {"id": "ignore-test", "name": "Ignore Test"}
                             }
                         }
                     }
-                }]
+                ]
             }
         )
 

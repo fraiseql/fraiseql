@@ -145,9 +145,9 @@ class TestExtensionDetection:
 
             # Check for success log message
             log_messages = [record.message for record in caplog.records]
-            assert any(
-                "pg_fraiseql_cache" in msg and "1.0" in msg for msg in log_messages
-            ), "Should log extension detection with version"
+            assert any("pg_fraiseql_cache" in msg and "1.0" in msg for msg in log_messages), (
+                "Should log extension detection with version"
+            )
 
     @pytest.mark.asyncio
     async def test_properties_accessible_before_initialization(self, mock_pool):
@@ -201,9 +201,7 @@ class TestExtensionDetection:
         second_call_count = mock_cursor.execute.call_count
 
         # Call count should be the same (no new queries)
-        assert (
-            first_call_count == second_call_count
-        ), "Extension detection should only run once"
+        assert first_call_count == second_call_count, "Extension detection should only run once"
 
     @pytest.mark.asyncio
     async def test_graceful_fallback_on_extension_query_error(self, mock_pool, caplog):
@@ -256,9 +254,9 @@ class TestExtensionDetection:
 
             # Check for warning log
             log_messages = [record.message for record in caplog.records]
-            assert any(
-                "Failed to detect pg_fraiseql_cache" in msg for msg in log_messages
-            ), "Should log warning on error"
+            assert any("Failed to detect pg_fraiseql_cache" in msg for msg in log_messages), (
+                "Should log warning on error"
+            )
 
 
 class TestTenantIdInCacheKeys:
@@ -667,13 +665,13 @@ class TestVersionChecking:
         await cache._ensure_initialized()
 
         # Step 1: Cache value with version 42
-        await cache.set(
-            "test_key", [{"id": 1, "name": "Alice"}], ttl=300, versions={"user": 42}
-        )
+        await cache.set("test_key", [{"id": 1, "name": "Alice"}], ttl=300, versions={"user": 42})
 
         # Step 2: Get cached value (should include version metadata)
         result, cached_versions = await cache.get_with_metadata("test_key")
-        assert cached_versions == {"user": 42}, f"Should cache with version 42, got {cached_versions}"
+        assert cached_versions == {"user": 42}, (
+            f"Should cache with version 42, got {cached_versions}"
+        )
 
         # Step 3: Get current versions (simulates data change to version 43)
         current_versions = await cache.get_domain_versions(tenant_id, ["user"])
@@ -772,9 +770,9 @@ class TestCascadeRules:
         cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
 
         # Method should exist
-        assert hasattr(
-            cache, "register_cascade_rule"
-        ), "register_cascade_rule() method should exist"
+        assert hasattr(cache, "register_cascade_rule"), (
+            "register_cascade_rule() method should exist"
+        )
 
     @pytest.mark.asyncio
     async def test_register_cascade_rule_inserts_into_table(self, mock_pool):
@@ -810,9 +808,7 @@ class TestCascadeRules:
 
         # Verify INSERT was executed
         calls = [str(call) for call in mock_cursor.execute.call_args_list]
-        insert_found = any(
-            "INSERT INTO" in call and "cascade_rules" in call for call in calls
-        )
+        insert_found = any("INSERT INTO" in call and "cascade_rules" in call for call in calls)
         assert insert_found, "Should INSERT into fraiseql_cache.cascade_rules"
 
     @pytest.mark.asyncio
@@ -865,9 +861,7 @@ class TestCascadeRules:
         cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
 
         # Method should exist
-        assert hasattr(
-            cache, "clear_cascade_rules"
-        ), "clear_cascade_rules() method should exist"
+        assert hasattr(cache, "clear_cascade_rules"), "clear_cascade_rules() method should exist"
 
 
 class TestTriggerSetup:
@@ -896,9 +890,7 @@ class TestTriggerSetup:
         cache = PostgresCache(connection_pool=mock_pool, auto_initialize=False)
 
         # Method should exist
-        assert hasattr(
-            cache, "setup_table_trigger"
-        ), "setup_table_trigger() method should exist"
+        assert hasattr(cache, "setup_table_trigger"), "setup_table_trigger() method should exist"
 
     @pytest.mark.asyncio
     async def test_setup_table_trigger_calls_extension_function(self, mock_pool):
@@ -936,9 +928,7 @@ class TestTriggerSetup:
         setup_function_called = any(
             "fraiseql_cache.setup_table_invalidation" in call for call in calls
         )
-        assert (
-            setup_function_called
-        ), "Should call fraiseql_cache.setup_table_invalidation()"
+        assert setup_function_called, "Should call fraiseql_cache.setup_table_invalidation()"
 
     @pytest.mark.asyncio
     async def test_setup_table_trigger_with_custom_domain(self, mock_pool):

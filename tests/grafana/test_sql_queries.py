@@ -43,12 +43,14 @@ def all_sql_queries():
         for panel in panels:
             for target in panel.get("targets", []):
                 if "rawSql" in target:
-                    queries.append({
-                        "dashboard": dashboard_name,
-                        "panel": panel["title"],
-                        "ref_id": target["refId"],
-                        "sql": target["rawSql"],
-                    })
+                    queries.append(
+                        {
+                            "dashboard": dashboard_name,
+                            "panel": panel["title"],
+                            "ref_id": target["refId"],
+                            "sql": target["rawSql"],
+                        }
+                    )
 
     return queries
 
@@ -60,15 +62,15 @@ class TestSQLSyntax:
         """All SQL queries should have content."""
         for query_info in all_sql_queries:
             sql = query_info["sql"].strip()
-            assert sql, \
-                f"{query_info['dashboard']}.{query_info['panel']}: Empty SQL query"
+            assert sql, f"{query_info['dashboard']}.{query_info['panel']}: Empty SQL query"
 
     def test_queries_have_select_statement(self, all_sql_queries):
         """All queries should contain SELECT statement."""
         for query_info in all_sql_queries:
             sql = query_info["sql"].upper()
-            assert "SELECT" in sql, \
+            assert "SELECT" in sql, (
                 f"{query_info['dashboard']}.{query_info['panel']}: No SELECT statement"
+            )
 
     def test_queries_have_from_clause(self, all_sql_queries):
         """All queries should have FROM clause (except CTEs)."""
@@ -79,8 +81,7 @@ class TestSQLSyntax:
             if "WITH" in sql and "FROM" not in sql:
                 continue
 
-            assert "FROM" in sql, \
-                f"{query_info['dashboard']}.{query_info['panel']}: No FROM clause"
+            assert "FROM" in sql, f"{query_info['dashboard']}.{query_info['panel']}: No FROM clause"
 
     def test_queries_end_with_semicolon_or_not(self, all_sql_queries):
         """Queries should consistently handle semicolons."""
@@ -89,9 +90,10 @@ class TestSQLSyntax:
 
             # Grafana queries typically don't need semicolons, but if present should be at end
             if ";" in sql:
-                assert sql.endswith(";"), \
-                    f"{query_info['dashboard']}.{query_info['panel']}: " \
+                assert sql.endswith(";"), (
+                    f"{query_info['dashboard']}.{query_info['panel']}: "
                     f"Semicolon should be at end of query"
+                )
 
 
 class TestTableReferences:
@@ -119,7 +121,15 @@ class TestTableReferences:
 
             for table in tables:
                 # Skip subqueries, CTEs, and SQL keywords
-                if table.lower() in ["select", "with", "(", "lateral", "interval", "distinct", "on"]:
+                if table.lower() in [
+                    "select",
+                    "with",
+                    "(",
+                    "lateral",
+                    "interval",
+                    "distinct",
+                    "on",
+                ]:
                     continue
 
                 # Check if table is in expected tables or is a CTE
@@ -131,9 +141,9 @@ class TestTableReferences:
                     continue
 
                 if not is_cte:
-                    assert any(expected in table_lower for expected in self.EXPECTED_TABLES), \
-                        f"{query_info['dashboard']}.{query_info['panel']}: " \
-                        f"Unknown table '{table}'"
+                    assert any(expected in table_lower for expected in self.EXPECTED_TABLES), (
+                        f"{query_info['dashboard']}.{query_info['panel']}: Unknown table '{table}'"
+                    )
 
     def test_monitoring_schema_usage(self, all_sql_queries):
         """Queries should use monitoring schema for observability tables."""
@@ -145,9 +155,10 @@ class TestTableReferences:
             for table in observability_tables:
                 # If table is referenced, it should use monitoring schema
                 if f" {table} " in sql or f" {table}\n" in sql:
-                    assert f"monitoring.{table}" in sql, \
-                        f"{query_info['dashboard']}.{query_info['panel']}: " \
+                    assert f"monitoring.{table}" in sql, (
+                        f"{query_info['dashboard']}.{query_info['panel']}: "
                         f"Table '{table}' should use 'monitoring.' schema prefix"
+                    )
 
 
 class TestGrafanaVariables:
@@ -155,7 +166,13 @@ class TestGrafanaVariables:
 
     def test_queries_use_time_range_variables(self, all_sql_queries):
         """Time-series queries should use Grafana time range variables."""
-        time_sensitive_keywords = ["occurred_at", "start_time", "timestamp", "created_at", "sent_at"]
+        time_sensitive_keywords = [
+            "occurred_at",
+            "start_time",
+            "timestamp",
+            "created_at",
+            "sent_at",
+        ]
 
         for query_info in all_sql_queries:
             sql = query_info["sql"]
@@ -168,12 +185,17 @@ class TestGrafanaVariables:
                 # OR be a latest/single-value query (ORDER BY ... DESC LIMIT 1)
                 uses_grafana_time = "$__timeFrom()" in sql or "$__timeTo()" in sql
                 uses_now_interval = "NOW() - INTERVAL" in sql or "NOW()" in sql
-                is_latest_query = "ORDER BY" in sql.upper() and "DESC" in sql.upper() and "LIMIT 1" in sql.upper()
-                is_exception = is_known_exception(query_info["dashboard"], query_info["panel"], "no_time_filter")
+                is_latest_query = (
+                    "ORDER BY" in sql.upper() and "DESC" in sql.upper() and "LIMIT 1" in sql.upper()
+                )
+                is_exception = is_known_exception(
+                    query_info["dashboard"], query_info["panel"], "no_time_filter"
+                )
 
-                assert uses_grafana_time or uses_now_interval or is_latest_query or is_exception, \
-                    f"{query_info['dashboard']}.{query_info['panel']}: " \
+                assert uses_grafana_time or uses_now_interval or is_latest_query or is_exception, (
+                    f"{query_info['dashboard']}.{query_info['panel']}: "
                     f"Time-sensitive query should use Grafana time variables, NOW(), or be a latest-value query"
+                )
 
     def test_queries_use_environment_variable(self, all_sql_queries):
         """Queries should filter by environment variable."""
@@ -197,12 +219,15 @@ class TestGrafanaVariables:
                 is_aggregate_only = "COUNT(*)" in sql and "GROUP BY" not in sql
                 groups_by_environment = "GROUP BY environment" in sql.lower()
                 is_multi_env_query = groups_by_environment
-                is_exception = is_known_exception(query_info["dashboard"], query_info["panel"], "no_environment_filter")
+                is_exception = is_known_exception(
+                    query_info["dashboard"], query_info["panel"], "no_environment_filter"
+                )
 
                 if not (is_aggregate_only or is_multi_env_query or is_exception):
-                    assert uses_env_var, \
-                        f"{query_info['dashboard']}.{query_info['panel']}: " \
+                    assert uses_env_var, (
+                        f"{query_info['dashboard']}.{query_info['panel']}: "
                         f"Query should filter by '$environment' variable"
+                    )
 
     def test_custom_time_range_variable(self, all_sql_queries):
         """Queries using custom time range should use '$time_range' variable."""
@@ -221,9 +246,17 @@ class TestQueryPerformance:
     def test_queries_use_indexed_columns(self, all_sql_queries):
         """WHERE clauses should use indexed columns."""
         indexed_columns = [
-            "occurred_at", "start_time", "timestamp", "created_at",
-            "fingerprint", "error_id", "trace_id", "environment",
-            "error_type", "metric_name", "operation_name",
+            "occurred_at",
+            "start_time",
+            "timestamp",
+            "created_at",
+            "fingerprint",
+            "error_id",
+            "trace_id",
+            "environment",
+            "error_type",
+            "metric_name",
+            "operation_name",
         ]
 
         for query_info in all_sql_queries:
@@ -237,9 +270,10 @@ class TestQueryPerformance:
                 is_simple_aggregate = "select count(*)" in sql and "group by" not in sql
 
                 if not is_simple_aggregate:
-                    assert has_indexed_filter, \
-                        f"{query_info['dashboard']}.{query_info['panel']}: " \
+                    assert has_indexed_filter, (
+                        f"{query_info['dashboard']}.{query_info['panel']}: "
                         f"Query should filter by indexed columns for performance"
+                    )
 
     def test_queries_have_reasonable_limits(self, all_sql_queries):
         """Table queries should have LIMIT clauses."""
@@ -258,9 +292,10 @@ class TestQueryPerformance:
                     limit_match = re.search(r"LIMIT\s+(\d+)", sql)
                     if limit_match:
                         limit_value = int(limit_match.group(1))
-                        assert limit_value <= 1000, \
-                            f"{query_info['dashboard']}.{query_info['panel']}: " \
+                        assert limit_value <= 1000, (
+                            f"{query_info['dashboard']}.{query_info['panel']}: "
                             f"LIMIT {limit_value} is too high (max 1000)"
+                        )
 
     def test_queries_avoid_select_star(self, all_sql_queries):
         """Queries should select specific columns, not SELECT *."""
@@ -295,7 +330,9 @@ class TestSQLInjectionPrevention:
             # Exception: Functions like $__timeFrom() don't need quotes
 
             # Find WHERE clauses
-            where_clauses = re.findall(r"WHERE.*?(?:GROUP BY|ORDER BY|LIMIT|$)", sql, re.DOTALL | re.IGNORECASE)
+            where_clauses = re.findall(
+                r"WHERE.*?(?:GROUP BY|ORDER BY|LIMIT|$)", sql, re.DOTALL | re.IGNORECASE
+            )
 
             for where_clause in where_clauses:
                 # Look for $variables
@@ -308,13 +345,16 @@ class TestSQLInjectionPrevention:
 
                     # Variable should be quoted if used in comparison
                     # Check context around variable
-                    var_context = re.search(rf"=\s*{re.escape(var)}|{re.escape(var)}\s*=", where_clause)
+                    var_context = re.search(
+                        rf"=\s*{re.escape(var)}|{re.escape(var)}\s*=", where_clause
+                    )
                     if var_context:
                         # Should be quoted: = '$variable'
                         is_quoted = re.search(rf"['\"]?\${re.escape(var[1:])}['\"]", where_clause)
-                        assert is_quoted, \
-                            f"{query_info['dashboard']}.{query_info['panel']}: " \
+                        assert is_quoted, (
+                            f"{query_info['dashboard']}.{query_info['panel']}: "
                             f"Variable {var} should be quoted in WHERE clause"
+                        )
 
     def test_no_dynamic_sql_construction(self, all_sql_queries):
         """Queries should not use dynamic SQL construction."""
@@ -328,9 +368,10 @@ class TestSQLInjectionPrevention:
             sql = query_info["sql"]
 
             for pattern in dangerous_patterns:
-                assert not re.search(pattern, sql, re.IGNORECASE), \
-                    f"{query_info['dashboard']}.{query_info['panel']}: " \
+                assert not re.search(pattern, sql, re.IGNORECASE), (
+                    f"{query_info['dashboard']}.{query_info['panel']}: "
                     f"Query contains potentially unsafe dynamic SQL"
+                )
 
 
 class TestQueryCorrectness:
@@ -369,12 +410,15 @@ class TestQueryCorrectness:
                         # Has non-aggregate columns
                         # Allow CTEs and subqueries
                         is_cte_query = "WITH" in sql
-                        is_exception = is_known_exception(query_info["dashboard"], query_info["panel"], "no_group_by")
+                        is_exception = is_known_exception(
+                            query_info["dashboard"], query_info["panel"], "no_group_by"
+                        )
 
                         if not (is_cte_query or is_exception):
-                            assert has_group_by, \
-                                f"{query_info['dashboard']}.{query_info['panel']}: " \
+                            assert has_group_by, (
+                                f"{query_info['dashboard']}.{query_info['panel']}: "
                                 f"Query with aggregates and non-aggregate columns needs GROUP BY clause"
+                            )
 
     def test_json_operators_are_valid(self, all_sql_queries):
         """JSONB operators should use valid PostgreSQL syntax."""
@@ -389,9 +433,10 @@ class TestQueryCorrectness:
 
                 for op in jsonb_ops:
                     # Should have quotes around key
-                    assert "'" in op or '"' in op, \
-                        f"{query_info['dashboard']}.{query_info['panel']}: " \
+                    assert "'" in op or '"' in op, (
+                        f"{query_info['dashboard']}.{query_info['panel']}: "
                         f"JSONB key should be quoted: {op}"
+                    )
 
     def test_cte_syntax(self, all_sql_queries):
         """CTE (Common Table Expression) syntax should be valid."""
@@ -400,14 +445,14 @@ class TestQueryCorrectness:
 
             if "WITH" in sql:
                 # CTE should have AS keyword
-                assert " AS " in sql, \
-                    f"{query_info['dashboard']}.{query_info['panel']}: " \
-                    f"CTE missing AS keyword"
+                assert " AS " in sql, (
+                    f"{query_info['dashboard']}.{query_info['panel']}: CTE missing AS keyword"
+                )
 
                 # Should have opening parenthesis
-                assert "(" in sql, \
-                    f"{query_info['dashboard']}.{query_info['panel']}: " \
-                    f"CTE missing parentheses"
+                assert "(" in sql, (
+                    f"{query_info['dashboard']}.{query_info['panel']}: CTE missing parentheses"
+                )
 
 
 if __name__ == "__main__":

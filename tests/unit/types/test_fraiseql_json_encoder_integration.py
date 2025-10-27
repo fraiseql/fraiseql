@@ -20,7 +20,7 @@ class TestFraiseQLJSONEncoderIntegration:
             message="Test encoder integration",
             code=400,
             identifier="encoder_test",
-            details={"source": "json_encoder", "test": True}
+            details={"source": "json_encoder", "test": True},
         )
 
         # Create encoder instance
@@ -33,7 +33,7 @@ class TestFraiseQLJSONEncoderIntegration:
             "message": "Test encoder integration",
             "code": 400,
             "identifier": "encoder_test",
-            "details": {"source": "json_encoder", "test": True}
+            "details": {"source": "json_encoder", "test": True},
         }
 
         assert result == expected
@@ -45,7 +45,7 @@ class TestFraiseQLJSONEncoderIntegration:
             message="Full serialization test",
             code=422,
             identifier="full_test",
-            details={"nested": {"key": "value"}, "array": [1, 2, 3]}
+            details={"nested": {"key": "value"}, "array": [1, 2, 3]},
         )
 
         # Test full serialization path
@@ -64,7 +64,7 @@ class TestFraiseQLJSONEncoderIntegration:
         """Test serialization of lists containing Error objects."""
         errors = [
             Error(message="Error 1", code=400, identifier="error_1"),
-            Error(message="Error 2", code=500, identifier="error_2", details={"info": "test"})
+            Error(message="Error 2", code=500, identifier="error_2", details={"info": "test"}),
         ]
 
         # Test serialization of list with Error objects
@@ -89,15 +89,15 @@ class TestFraiseQLJSONEncoderIntegration:
                             message="Email already exists",
                             code=409,
                             identifier="duplicate_email",
-                            details={"field": "email", "value": "test@example.com"}
+                            details={"field": "email", "value": "test@example.com"},
                         ),
                         Error(
                             message="Password too weak",
                             code=400,
                             identifier="weak_password",
-                            details={"requirements": ["uppercase", "numbers", "symbols"]}
-                        )
-                    ]
+                            details={"requirements": ["uppercase", "numbers", "symbols"]},
+                        ),
+                    ],
                 }
             }
         }
@@ -129,7 +129,7 @@ class TestFraiseQLJSONEncoderIntegration:
         error = Error(
             message="No details error",
             code=500,
-            identifier="no_details"
+            identifier="no_details",
             # details defaults to None
         )
 
@@ -147,7 +147,7 @@ class TestFraiseQLJSONEncoderIntegration:
             message="Method validation",
             code=400,
             identifier="method_test",
-            details={"check": "specific"}
+            details={"check": "specific"},
         )
 
         # Mock the __json__ method to verify it's being called

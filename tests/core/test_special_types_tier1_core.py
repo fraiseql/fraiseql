@@ -81,6 +81,7 @@ class TestTier1NetworkTypes:
         strategy_no_field_type = registry.get_strategy("eq", field_type=None)
 
         from psycopg.sql import SQL
+
         jsonb_path_sql = SQL("(data ->> 'ip_address')")
 
         # This is the core fix - should work now even without field_type
@@ -95,7 +96,9 @@ class TestTier1NetworkTypes:
 
         # Also test with field_type for backward compatibility
         strategy_with_field_type = registry.get_strategy("eq", field_type=IpAddress)
-        result_with_type = strategy_with_field_type.build_sql(jsonb_path_sql, "eq", "8.8.8.8", field_type=IpAddress)
+        result_with_type = strategy_with_field_type.build_sql(
+            jsonb_path_sql, "eq", "8.8.8.8", field_type=IpAddress
+        )
 
         sql_with_type = str(result_with_type)
         print(f"Network eq SQL (with field_type): {sql_with_type}")
@@ -421,8 +424,9 @@ class TestTier1StrategySelection:
 
         for op in network_ops:
             strategy = registry.get_strategy(op, IpAddress)
-            assert strategy.__class__.__name__ == "NetworkOperatorStrategy", \
+            assert strategy.__class__.__name__ == "NetworkOperatorStrategy", (
                 f"Operator {op} should use NetworkOperatorStrategy"
+            )
 
     def test_ltree_strategy_selection(self):
         """Test that LTree operators select LTreeOperatorStrategy."""
@@ -433,8 +437,9 @@ class TestTier1StrategySelection:
 
         for op in ltree_ops:
             strategy = registry.get_strategy(op, LTree)
-            assert strategy.__class__.__name__ == "LTreeOperatorStrategy", \
+            assert strategy.__class__.__name__ == "LTreeOperatorStrategy", (
                 f"Operator {op} should use LTreeOperatorStrategy"
+            )
 
     def test_daterange_strategy_selection(self):
         """Test that DateRange operators select DateRangeOperatorStrategy."""
@@ -445,8 +450,9 @@ class TestTier1StrategySelection:
 
         for op in daterange_ops:
             strategy = registry.get_strategy(op, DateRange)
-            assert strategy.__class__.__name__ == "DateRangeOperatorStrategy", \
+            assert strategy.__class__.__name__ == "DateRangeOperatorStrategy", (
                 f"Operator {op} should use DateRangeOperatorStrategy"
+            )
 
     def test_macaddress_strategy_selection(self):
         """Test that MAC address operators with field_type select MacAddressOperatorStrategy."""
@@ -458,8 +464,9 @@ class TestTier1StrategySelection:
         for op in mac_ops:
             strategy = registry.get_strategy(op, MacAddress)
             # This should select MacAddressOperatorStrategy for proper macaddr casting
-            assert strategy.__class__.__name__ == "MacAddressOperatorStrategy", \
+            assert strategy.__class__.__name__ == "MacAddressOperatorStrategy", (
                 f"Operator {op} with MacAddress field_type should use MacAddressOperatorStrategy"
+            )
 
 
 if __name__ == "__main__":

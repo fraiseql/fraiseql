@@ -11,8 +11,7 @@ from fraiseql.storage.backends.memory import MemoryAPQBackend
 def test_factory_creates_memory_backend():
     """Test that factory creates memory backend for memory config."""
     config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        apq_storage_backend="memory"
+        database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
     )
 
     backend = create_apq_backend(config)
@@ -36,22 +35,21 @@ def test_factory_creates_postgresql_backend():
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="postgresql",
-        apq_backend_config={
-            "table_prefix": "apq_",
-            "pool_size": 10
-        }
+        apq_backend_config={"table_prefix": "apq_", "pool_size": 10},
     )
 
     backend = create_apq_backend(config)
 
     # Import here to avoid circular imports
     from fraiseql.storage.backends.postgresql import PostgreSQLAPQBackend
+
     assert isinstance(backend, PostgreSQLAPQBackend)
     assert isinstance(backend, APQStorageBackend)
 
 
 def test_factory_creates_custom_backend():
     """Test that factory creates custom backend from class path."""
+
     # Create a mock custom backend class for testing
     class MockCustomBackend(APQStorageBackend):
         def __init__(self, config_dict):
@@ -71,6 +69,7 @@ def test_factory_creates_custom_backend():
 
     # Temporarily add the class to the test module's globals
     import sys
+
     current_module = sys.modules[__name__]
     current_module.MockCustomBackend = MockCustomBackend
 
@@ -79,8 +78,8 @@ def test_factory_creates_custom_backend():
         apq_storage_backend="custom",
         apq_backend_config={
             "backend_class": f"{__name__}.MockCustomBackend",
-            "custom_setting": "test_value"
-        }
+            "custom_setting": "test_value",
+        },
     )
 
     backend = create_apq_backend(config)
@@ -93,8 +92,7 @@ def test_factory_creates_custom_backend():
 def test_factory_raises_error_for_unknown_backend():
     """Test that factory raises error for unknown backend type."""
     config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        apq_storage_backend="memory"
+        database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
     )
 
     # Use object.__setattr__ to bypass Pydantic validation and test error handling
@@ -109,9 +107,7 @@ def test_factory_raises_error_for_invalid_custom_class():
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="custom",
-        apq_backend_config={
-            "backend_class": "nonexistent.module.NonexistentClass"
-        }
+        apq_backend_config={"backend_class": "nonexistent.module.NonexistentClass"},
     )
 
     with pytest.raises((ImportError, AttributeError)):
@@ -123,7 +119,7 @@ def test_factory_raises_error_for_missing_custom_class():
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="custom",
-        apq_backend_config={}  # Missing backend_class
+        apq_backend_config={},  # Missing backend_class
     )
 
     with pytest.raises(ValueError, match="backend_class is required for custom backend"):
@@ -132,15 +128,12 @@ def test_factory_raises_error_for_missing_custom_class():
 
 def test_factory_passes_config_to_backends():
     """Test that factory passes configuration to backend constructors."""
-    backend_config = {
-        "test_setting": "test_value",
-        "number_setting": 42
-    }
+    backend_config = {"test_setting": "test_value", "number_setting": 42}
 
     config = FraiseQLConfig(
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="postgresql",
-        apq_backend_config=backend_config
+        apq_backend_config=backend_config,
     )
 
     backend = create_apq_backend(config)
@@ -153,8 +146,7 @@ def test_factory_passes_config_to_backends():
 def test_factory_singleton_behavior():
     """Test that factory can create multiple independent backend instances."""
     config = FraiseQLConfig(
-        database_url="postgresql://test@localhost/test",
-        apq_storage_backend="memory"
+        database_url="postgresql://test@localhost/test", apq_storage_backend="memory"
     )
 
     backend1 = create_apq_backend(config)
@@ -171,7 +163,7 @@ def test_factory_with_cache_enabled():
         database_url="postgresql://test@localhost/test",
         apq_storage_backend="memory",
         apq_cache_responses=True,
-        apq_response_cache_ttl=1800
+        apq_response_cache_ttl=1800,
     )
 
     backend = create_apq_backend(config)

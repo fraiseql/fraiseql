@@ -21,10 +21,7 @@ class TestDateRangeFilterOperations:
         path_sql = SQL("data->>'period'")
 
         sql = registry.build_sql(
-            path_sql=path_sql,
-            op="contains_date",
-            val="2023-06-15",
-            field_type=DateRangeField
+            path_sql=path_sql, op="contains_date", val="2023-06-15", field_type=DateRangeField
         )
 
         sql_str = str(sql)
@@ -41,7 +38,7 @@ class TestDateRangeFilterOperations:
             path_sql=path_sql,
             op="overlaps",
             val="[2023-06-01,2023-06-30]",
-            field_type=DateRangeField
+            field_type=DateRangeField,
         )
 
         sql_str = str(sql)
@@ -58,7 +55,7 @@ class TestDateRangeFilterOperations:
             path_sql=path_sql,
             op="adjacent",
             val="[2023-07-01,2023-07-31]",
-            field_type=DateRangeField
+            field_type=DateRangeField,
         )
 
         sql_str = str(sql)
@@ -75,7 +72,7 @@ class TestDateRangeFilterOperations:
             path_sql=path_sql,
             op="strictly_left",
             val="[2023-07-01,2023-12-31]",
-            field_type=DateRangeField
+            field_type=DateRangeField,
         )
 
         sql_str = str(sql)
@@ -92,7 +89,7 @@ class TestDateRangeFilterOperations:
             path_sql=path_sql,
             op="strictly_right",
             val="[2023-01-01,2023-06-30]",
-            field_type=DateRangeField
+            field_type=DateRangeField,
         )
 
         sql_str = str(sql)
@@ -109,7 +106,7 @@ class TestDateRangeFilterOperations:
             path_sql=path_sql,
             op="not_left",
             val="[2023-01-01,2023-06-30]",
-            field_type=DateRangeField
+            field_type=DateRangeField,
         )
 
         sql_str = str(sql)
@@ -126,7 +123,7 @@ class TestDateRangeFilterOperations:
             path_sql=path_sql,
             op="not_right",
             val="[2023-07-01,2023-12-31]",
-            field_type=DateRangeField
+            field_type=DateRangeField,
         )
 
         sql_str = str(sql)
@@ -140,10 +137,7 @@ class TestDateRangeFilterOperations:
         path_sql = SQL("data->>'period'")
 
         sql = registry.build_sql(
-            path_sql=path_sql,
-            op="eq",
-            val="[2023-01-01,2023-12-31]",
-            field_type=DateRangeField
+            path_sql=path_sql, op="eq", val="[2023-01-01,2023-12-31]", field_type=DateRangeField
         )
 
         sql_str = str(sql)
@@ -157,10 +151,7 @@ class TestDateRangeFilterOperations:
         path_sql = SQL("data->>'period'")
 
         sql = registry.build_sql(
-            path_sql=path_sql,
-            op="neq",
-            val="[2023-01-01,2023-06-30]",
-            field_type=DateRangeField
+            path_sql=path_sql, op="neq", val="[2023-01-01,2023-06-30]", field_type=DateRangeField
         )
 
         sql_str = str(sql)
@@ -175,19 +166,13 @@ class TestDateRangeFilterOperations:
 
         # Test IS NULL
         sql_null = registry.build_sql(
-            path_sql=path_sql,
-            op="isnull",
-            val=True,
-            field_type=DateRangeField
+            path_sql=path_sql, op="isnull", val=True, field_type=DateRangeField
         )
         assert "IS NULL" in str(sql_null)
 
         # Test IS NOT NULL
         sql_not_null = registry.build_sql(
-            path_sql=path_sql,
-            op="isnull",
-            val=False,
-            field_type=DateRangeField
+            path_sql=path_sql, op="isnull", val=False, field_type=DateRangeField
         )
         assert "IS NOT NULL" in str(sql_not_null)
 
@@ -199,15 +184,10 @@ class TestDateRangeFilterOperations:
         ranges = [
             "[2023-01-01,2023-03-31]",  # Q1
             "[2023-04-01,2023-06-30]",  # Q2
-            "[2023-07-01,2023-09-30]"   # Q3
+            "[2023-07-01,2023-09-30]",  # Q3
         ]
 
-        sql = registry.build_sql(
-            path_sql=path_sql,
-            op="in",
-            val=ranges,
-            field_type=DateRangeField
-        )
+        sql = registry.build_sql(path_sql=path_sql, op="in", val=ranges, field_type=DateRangeField)
 
         sql_str = str(sql)
         assert "::daterange" in sql_str, "Missing daterange cast"
@@ -222,14 +202,11 @@ class TestDateRangeFilterOperations:
 
         excluded_ranges = [
             "[2023-12-01,2023-12-31]",  # December
-            "[2023-01-01,2023-01-31]"   # January
+            "[2023-01-01,2023-01-31]",  # January
         ]
 
         sql = registry.build_sql(
-            path_sql=path_sql,
-            op="notin",
-            val=excluded_ranges,
-            field_type=DateRangeField
+            path_sql=path_sql, op="notin", val=excluded_ranges, field_type=DateRangeField
         )
 
         sql_str = str(sql)
@@ -247,13 +224,10 @@ class TestDateRangeFilterOperations:
         problematic_ops = ["contains", "startswith", "endswith"]
 
         for op in problematic_ops:
-            with pytest.raises(ValueError, match=f"Pattern operator '{op}' is not supported for DateRange fields"):
-                registry.build_sql(
-                    path_sql=path_sql,
-                    op=op,
-                    val="2023",
-                    field_type=DateRangeField
-                )
+            with pytest.raises(
+                ValueError, match=f"Pattern operator '{op}' is not supported for DateRange fields"
+            ):
+                registry.build_sql(path_sql=path_sql, op=op, val="2023", field_type=DateRangeField)
 
     def test_daterange_vs_string_field_behavior(self):
         """Test that DateRange fields get different treatment than string fields."""
@@ -262,20 +236,14 @@ class TestDateRangeFilterOperations:
 
         # For DateRange fields, should use daterange casting
         daterange_sql = registry.build_sql(
-            path_sql=path_sql,
-            op="eq",
-            val="[2023-01-01,2023-12-31]",
-            field_type=DateRangeField
+            path_sql=path_sql, op="eq", val="[2023-01-01,2023-12-31]", field_type=DateRangeField
         )
         daterange_sql_str = str(daterange_sql)
         assert "::daterange" in daterange_sql_str
 
         # For regular string fields, should NOT use daterange casting
         string_sql = registry.build_sql(
-            path_sql=path_sql,
-            op="eq",
-            val="[2023-01-01,2023-12-31]",
-            field_type=str
+            path_sql=path_sql, op="eq", val="[2023-01-01,2023-12-31]", field_type=str
         )
         string_sql_str = str(string_sql)
         assert "::daterange" not in string_sql_str
@@ -291,39 +259,38 @@ class TestDateRangeFilterOperations:
                 "description": "Check if event period contains specific date",
                 "op": "contains_date",
                 "val": "2023-06-15",
-                "expected_op": "@>"
+                "expected_op": "@>",
             },
             {
                 "description": "Find overlapping periods",
                 "op": "overlaps",
                 "val": "[2023-06-01,2023-06-30]",
-                "expected_op": "&&"
+                "expected_op": "&&",
             },
             {
                 "description": "Find adjacent periods",
                 "op": "adjacent",
                 "val": "[2023-07-01,2023-07-31]",
-                "expected_op": "-|-"
+                "expected_op": "-|-",
             },
             {
                 "description": "Find periods strictly before another",
                 "op": "strictly_left",
                 "val": "[2023-07-01,2023-12-31]",
-                "expected_op": "<<"
-            }
+                "expected_op": "<<",
+            },
         ]
 
         for case in test_cases:
             sql = registry.build_sql(
-                path_sql=path_sql,
-                op=case["op"],
-                val=case["val"],
-                field_type=DateRangeField
+                path_sql=path_sql, op=case["op"], val=case["val"], field_type=DateRangeField
             )
 
             sql_str = str(sql)
             assert "::daterange" in sql_str, f"Missing daterange cast for {case['description']}"
-            assert case["expected_op"] in sql_str, f"Missing {case['expected_op']} for {case['description']}"
+            assert case["expected_op"] in sql_str, (
+                f"Missing {case['expected_op']} for {case['description']}"
+            )
             assert case["val"] in sql_str, f"Missing value for {case['description']}"
 
     def test_daterange_complex_range_queries(self):
@@ -340,26 +307,23 @@ class TestDateRangeFilterOperations:
             {
                 "op": "overlaps",
                 "val": "[2023-01-15,2023-02-15]",  # Overlaps month boundary
-                "description": "Cross-month overlap"
+                "description": "Cross-month overlap",
             },
             {
                 "op": "contains_date",
                 "val": "2023-12-25",  # Christmas
-                "description": "Holiday date containment"
+                "description": "Holiday date containment",
             },
             {
                 "op": "adjacent",
                 "val": "(2023-06-30,2023-08-01)",  # Adjacent to July
-                "description": "Adjacent exclusive ranges"
-            }
+                "description": "Adjacent exclusive ranges",
+            },
         ]
 
         for scenario in complex_scenarios:
             sql = registry.build_sql(
-                path_sql=path_sql,
-                op=scenario["op"],
-                val=scenario["val"],
-                field_type=DateRangeField
+                path_sql=path_sql, op=scenario["op"], val=scenario["val"], field_type=DateRangeField
             )
 
             sql_str = str(sql)
@@ -385,10 +349,7 @@ class TestDateRangeFilterOperations:
 
         for boundary in boundary_types:
             sql = registry.build_sql(
-                path_sql=path_sql,
-                op="eq",
-                val=boundary,
-                field_type=DateRangeField
+                path_sql=path_sql, op="eq", val=boundary, field_type=DateRangeField
             )
 
             sql_str = str(sql)

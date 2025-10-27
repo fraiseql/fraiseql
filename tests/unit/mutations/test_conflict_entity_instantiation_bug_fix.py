@@ -18,6 +18,7 @@ from fraiseql.mutations.parser import parse_mutation_result
 @fraiseql.type
 class Location:
     """Location entity for testing conflict resolution."""
+
     id: str
     name: str
     identifier: str
@@ -31,6 +32,7 @@ class Location:
 @fraiseql.success
 class CreateLocationSuccess:
     """Success response for location creation."""
+
     location: Location
     message: str
 
@@ -38,6 +40,7 @@ class CreateLocationSuccess:
 @fraiseql.failure
 class CreateLocationError:
     """Error response for location creation with conflict entity field."""
+
     message: str
     conflict_location: Location | None = None
     errors: list[dict] | None = None
@@ -60,26 +63,25 @@ class TestConflictEntityInstantiationBugFix:
             "object_data": None,
             # This is where the bug manifests - conflict data is in extra_metadata.errors.details but not extracted
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "01411222-4111-0000-1000-000000000002",
-                                "name": "21411-1 child",
-                                "identifier": "test_create_location_deduplication.child"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "01411222-4111-0000-1000-000000000002",
+                                    "name": "21411-1 child",
+                                    "identifier": "test_create_location_deduplication.child",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         # Parse using DEFAULT_ERROR_CONFIG (as mentioned in the bug ticket)
         result = parse_mutation_result(
-            mutation_result,
-            CreateLocationSuccess,
-            CreateLocationError,
-            DEFAULT_ERROR_CONFIG
+            mutation_result, CreateLocationSuccess, CreateLocationError, DEFAULT_ERROR_CONFIG
         )
 
         # Verify it parsed as an error
@@ -96,7 +98,6 @@ class TestConflictEntityInstantiationBugFix:
         # The conflict data should be available in extra_metadata for debugging
         # Note: this is just to verify the bug exists - we're checking the raw data structure
 
-
     def test_conflict_entity_instantiation_should_work_when_fixed(self):
         """🟢 GREEN: Test that defines the expected behavior after the fix.
 
@@ -111,25 +112,24 @@ class TestConflictEntityInstantiationBugFix:
             "message": "A location with this name already exists in this organization",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "01411222-4111-0000-1000-000000000002",
-                                "name": "21411-1 child",
-                                "identifier": "test_create_location_deduplication.child"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "01411222-4111-0000-1000-000000000002",
+                                    "name": "21411-1 child",
+                                    "identifier": "test_create_location_deduplication.child",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
-            mutation_result,
-            CreateLocationSuccess,
-            CreateLocationError,
-            DEFAULT_ERROR_CONFIG
+            mutation_result, CreateLocationSuccess, CreateLocationError, DEFAULT_ERROR_CONFIG
         )
 
         # After the fix, this should work
@@ -154,7 +154,7 @@ class TestConflictEntityInstantiationBugFix:
         conflict_data = {
             "id": "01411222-4111-0000-1000-000000000002",
             "name": "21411-1 child",
-            "identifier": "test_create_location_deduplication.child"
+            "identifier": "test_create_location_deduplication.child",
         }
 
         # This should work fine
@@ -189,25 +189,27 @@ class TestConflictEntityInstantiationBugFix:
             "message": "DNS server already exists",
             "object_data": None,
             "extra_metadata": {
-                "errors": [{
-                    "details": {
-                        "conflict": {
-                            "conflictObject": {
-                                "id": "dns-server-123",
-                                "name": "Primary DNS",
-                                "ip_address": "8.8.8.8"
+                "errors": [
+                    {
+                        "details": {
+                            "conflict": {
+                                "conflictObject": {
+                                    "id": "dns-server-123",
+                                    "name": "Primary DNS",
+                                    "ip_address": "8.8.8.8",
+                                }
                             }
                         }
                     }
-                }]
-            }
+                ]
+            },
         }
 
         result = parse_mutation_result(
             mutation_result,
             CreateLocationSuccess,  # Reusing success type for simplicity
             CreateDnsServerError,
-            DEFAULT_ERROR_CONFIG
+            DEFAULT_ERROR_CONFIG,
         )
 
         # After fix: conflict_dns_server should be populated

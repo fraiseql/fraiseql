@@ -4,11 +4,18 @@ import asyncio
 import json
 import statistics
 import time
+from typing import Any, Callable
 
 import psycopg_pool
 
 
-async def detailed_benchmark(pool, query, transform_func, name, iterations=100):
+async def detailed_benchmark(
+    pool: psycopg_pool.AsyncConnectionPool,
+    query: str,
+    transform_func: Callable[[str], str],
+    name: str,
+    iterations: int = 100,
+) -> dict[str, Any]:
     """Run detailed benchmark with outlier analysis."""
     times = []
 
@@ -78,11 +85,11 @@ async def detailed_benchmark(pool, query, transform_func, name, iterations=100):
 def transform_python(json_str: str) -> str:
     """Pure Python transformation."""
 
-    def to_camel(s):
+    def to_camel(s: str) -> str:
         parts = s.split("_")
         return parts[0] + "".join(p.title() for p in parts[1:])
 
-    def transform_dict(d):
+    def transform_dict(d: dict) -> dict:
         result = {}
         for k, v in d.items():
             ck = to_camel(k)
@@ -98,7 +105,7 @@ def transform_python(json_str: str) -> str:
     return json.dumps(transform_dict(data))
 
 
-async def setup_test_data(pool):
+async def setup_test_data(pool: psycopg_pool.AsyncConnectionPool) -> None:
     """Setup test table."""
     async with pool.connection() as conn:
         async with conn.cursor() as cursor:
@@ -122,7 +129,7 @@ async def setup_test_data(pool):
                 )
 
 
-async def main():
+async def main() -> None:
     """Run outlier analysis."""
     import os
 
