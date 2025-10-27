@@ -8,6 +8,7 @@ import uuid
 from typing import Optional
 
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 
 from fraiseql import query
@@ -102,7 +103,7 @@ async def posts(info, limit: int = 10) -> list[Post]:
     return posts_list
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def setup_typename_test_data(db_connection):
     """Set up real database with JSONB for typename tests."""
     async with db_connection.cursor() as cur:
