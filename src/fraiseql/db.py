@@ -509,9 +509,16 @@ class FraiseQLRepository:
         Returns:
             RustResponseBytes ready for HTTP response
         """
-        # 1. Extract field paths - NOTE: Set to None for now to avoid Rust conversion issues
-        # TODO(lionel): Fix field_paths extraction/format for Rust pipeline (#TBD)
+        # 1. Extract field paths from GraphQL info
         field_paths = None
+        if info:
+            from fraiseql.core.ast_parser import extract_field_paths_from_info
+            from fraiseql.utils.casing import to_snake_case
+
+            field_path_objects = extract_field_paths_from_info(info, transform_path=to_snake_case)
+            # Convert from list[FieldPath] to list[list[str]] for Rust
+            if field_path_objects:
+                field_paths = [fp.path for fp in field_path_objects]
 
         # 2. Get JSONB column from cached metadata (NO sample query!)
         jsonb_column = None  # default to None (use row_to_json)
@@ -573,9 +580,16 @@ class FraiseQLRepository:
         Returns:
             RustResponseBytes ready for HTTP response
         """
-        # 1. Extract field paths - NOTE: Set to None for now to avoid Rust conversion issues
-        # TODO(lionel): Fix field_paths extraction/format for Rust pipeline (#TBD)
+        # 1. Extract field paths from GraphQL info
         field_paths = None
+        if info:
+            from fraiseql.core.ast_parser import extract_field_paths_from_info
+            from fraiseql.utils.casing import to_snake_case
+
+            field_path_objects = extract_field_paths_from_info(info, transform_path=to_snake_case)
+            # Convert from list[FieldPath] to list[list[str]] for Rust
+            if field_path_objects:
+                field_paths = [fp.path for fp in field_path_objects]
 
         # 2. Get JSONB column from cached metadata
         jsonb_column = None  # default to None (use row_to_json)

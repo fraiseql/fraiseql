@@ -187,10 +187,9 @@ async def test_graphql_field_selection(create_fraiseql_app_with_db, db_connectio
     assert "id" in user_data
     assert "firstName" in user_data
 
-    # TODO: Enable field projection by fixing field_paths extraction
-    # Currently field_paths is disabled to avoid Rust conversion issues
-    # assert "email" not in user_data
-    # assert "lastName" not in user_data
+    # Should NOT have non-requested fields (Rust field projection)
+    assert "email" not in user_data
+    assert "lastName" not in user_data
 
 
 @pytest.mark.asyncio

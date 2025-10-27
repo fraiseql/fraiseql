@@ -24,6 +24,9 @@ _No unreleased changes at this time._
 - Enhanced WHERE clause generation for JSONB tables
   - `_convert_dict_where_to_sql()` now accepts `jsonb_column` parameter
   - `_build_dict_where_condition()` correctly uses JSONB path operators
+- Fixed field_paths extraction for Rust pipeline
+  - Properly convert from `list[FieldPath]` to `list[list[str]]` for Rust
+  - Field projection now working (Rust filters to requested fields only)
 
 ### Tests
 
