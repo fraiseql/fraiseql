@@ -403,45 +403,7 @@ class BlogError:
     required_role: str | None = None
 
 
-# Repository helper functions (handle not found checks)
-async def get_post_or_error(db, post_id: UUID, user_id: UUID | None = None) -> Post | BlogError:
-    """Get post by ID or return error. Follows printoptim pattern: db layer returns errors."""
-    post_data = await db.find_one("posts", id=post_id)
-
-    if not post_data:
-        return BlogError(
-            message="Post not found",
-            code="NOT_FOUND",
-            entity_type="Post",
-            entity_id=post_id,
-        )
-
-    # Check ownership if user_id provided
-    if user_id and post_data.get("author_id") != user_id:
-        return BlogError(
-            message="You can only edit your own posts",
-            code="PERMISSION_DENIED",
-        )
-
-    return Post(**post_data)
-
-
-async def get_post_for_comment_or_error(db, post_id: UUID) -> Post | BlogError:
-    """Get post for commenting or return error. Database layer handles not found."""
-    post_data = await db.find_one("posts", id=post_id)
-
-    if not post_data:
-        return BlogError(
-            message="Post not found",
-            code="NOT_FOUND",
-            entity_type="Post",
-            entity_id=post_id,
-        )
-
-    return Post(**post_data)
-
-
-# Mutation classes
+# Mutation classes (following printoptim pattern: database functions handle validation)
 @fraiseql.mutation
 class CreatePost:
     """Create a new blog post."""
@@ -485,99 +447,55 @@ class CreatePost:
             return BlogError(message=f"Failed to create post: {e!s}", code="VALIDATION_ERROR")
 
 
-@fraiseql.mutation
+@fraiseql.mutation(
+    function="update_post",
+    context_params={
+        "user_id": "input_user_id",
+    },
+    error_config=fraiseql.DEFAULT_ERROR_CONFIG,
+)
 class UpdatePost:
-    """Update an existing blog post."""
+    """Update an existing blog post.
 
-    id: UUID
-    input: UpdatePostInput
+    Following printoptim pattern:
+    - SQL function handles all validation (existence, ownership)
+    - Returns mutation_result with status codes:
+      - 'success:updated' -> UpdatePostSuccess
+      - 'noop:not_found' -> BlogError (post not found)
+      - 'error:permission_denied' -> BlogError (not post owner)
+    """
+
+    id: UUID  # Maps to input_post_id
+    input: UpdatePostInput  # Maps to input_payload (converted to JSONB)
     success: UpdatePostSuccess
     failure: BlogError
 
-    async def resolve(
-        self, info: GraphQLResolveInfo
-    ) -> UpdatePostSuccess | BlogError:
-        db = info.context["db"]
-        user_id = info.context["user_id"]
-
-        try:
-            # Database layer handles not found / permission checks
-            post_or_error = await get_post_or_error(db, self.id, user_id)
-            if isinstance(post_or_error, BlogError):
-                return post_or_error
-
-            # Build update data
-            update_data = {}
-            if self.input.title is not None:
-                update_data["title"] = self.input.title
-                update_data["slug"] = self.input.title.lower().replace(" ", "-").replace("_", "-")
-            if self.input.content is not None:
-                update_data["content"] = self.input.content
-            if self.input.excerpt is not None:
-                update_data["excerpt"] = self.input.excerpt
-            if self.input.status is not None:
-                update_data["status"] = self.input.status
-                if self.input.status == PostStatus.PUBLISHED:
-                    update_data["published_at"] = datetime.utcnow()
-
-            # Update post
-            await db.update("posts", update_data, id=self.id)
-
-            # Update tags if provided
-            if self.input.tag_ids is not None:
-                # Remove existing tags
-                from fraiseql.db import DatabaseQuery
-
-                delete_query = DatabaseQuery("DELETE FROM post_tags WHERE post_id = %s", [self.id])
-                await db.run(delete_query)
-                # Add new tags
-                for tag_id in self.input.tag_ids:
-                    await db.insert("post_tags", {"post_id": self.id, "tag_id": tag_id})
-
-            # Return updated post
-            post = await db.find_one("posts", id=self.id)
-            return UpdatePostSuccess(post=Post(**post))
-
-        except Exception as e:
-            return BlogError(message=f"Failed to update post: {e!s}", code="VALIDATION_ERROR")
+    # No resolve method - SQL function handles everything
 
 
-@fraiseql.mutation
+@fraiseql.mutation(
+    function="create_comment",
+    context_params={
+        "user_id": "input_user_id",
+    },
+    error_config=fraiseql.DEFAULT_ERROR_CONFIG,
+)
 class CreateComment:
-    """Create a comment on a blog post."""
+    """Create a comment on a blog post.
 
-    input: CreateCommentInput
+    Following printoptim pattern:
+    - SQL function handles all validation (post existence, user existence)
+    - Returns mutation_result with status codes:
+      - 'success:created' -> CreateCommentSuccess
+      - 'noop:not_found' -> BlogError (post not found)
+      - 'noop:user_not_found' -> BlogError (user not found)
+    """
+
+    input: CreateCommentInput  # Maps to input_payload (contains post_id, content, parent_id)
     success: CreateCommentSuccess
     failure: BlogError
 
-    async def resolve(
-        self, info: GraphQLResolveInfo
-    ) -> CreateCommentSuccess | BlogError:
-        db = info.context["db"]
-        user_id = info.context["user_id"]
-
-        try:
-            # Database layer handles not found check
-            post_or_error = await get_post_for_comment_or_error(db, self.input.post_id)
-            if isinstance(post_or_error, BlogError):
-                return post_or_error
-
-            # Create comment
-            comment_data = {
-                "post_id": self.input.post_id,
-                "author_id": user_id,
-                "parent_id": self.input.parent_id,
-                "content": self.input.content,
-                "status": CommentStatus.PENDING,  # Requires moderation
-            }
-
-            comment_id = await db.insert("comments", comment_data, returning="id")
-            comment = await db.find_one("comments", id=comment_id)
-
-            return CreateCommentSuccess(comment=Comment(**comment))
-
-        except Exception as e:
-            return BlogError(message=f"Failed to create comment: {e!s}", code="VALIDATION_ERROR")
+    # No resolve method - SQL function handles everything
 
 
 # Query resolvers
