@@ -403,6 +403,44 @@ class BlogError:
     required_role: str | None = None
 
 
+# Repository helper functions (handle not found checks)
+async def get_post_or_error(db, post_id: UUID, user_id: UUID | None = None) -> Post | BlogError:
+    """Get post by ID or return error. Follows printoptim pattern: db layer returns errors."""
+    post_data = await db.find_one("posts", id=post_id)
+
+    if not post_data:
+        return BlogError(
+            message="Post not found",
+            code="NOT_FOUND",
+            entity_type="Post",
+            entity_id=post_id,
+        )
+
+    # Check ownership if user_id provided
+    if user_id and post_data.get("author_id") != user_id:
+        return BlogError(
+            message="You can only edit your own posts",
+            code="PERMISSION_DENIED",
+        )
+
+    return Post(**post_data)
+
+
+async def get_post_for_comment_or_error(db, post_id: UUID) -> Post | BlogError:
+    """Get post for commenting or return error. Database layer handles not found."""
+    post_data = await db.find_one("posts", id=post_id)
+
+    if not post_data:
+        return BlogError(
+            message="Post not found",
+            code="NOT_FOUND",
+            entity_type="Post",
+            entity_id=post_id,
+        )
+
+    return Post(**post_data)
+
+
 # Mutation classes
 @fraiseql.mutation
 class CreatePost:
@@ -463,20 +501,10 @@ class UpdatePost:
         user_id = info.context["user_id"]
 
         try:
-            # Check if post exists and user has permission
-            existing_post = await db.find_one("posts", id=self.id)
-            if not existing_post:
-                return BlogError(
-                    message="Post not found",
-                    code="NOT_FOUND",
-                    entity_type="Post",
-                    entity_id=self.id,
-                )
-
-            if existing_post["author_id"] != user_id:
-                return BlogError(
-                    message="You can only edit your own posts", code="PERMISSION_DENIED"
-                )
+            # Database layer handles not found / permission checks
+            post_or_error = await get_post_or_error(db, self.id, user_id)
+            if isinstance(post_or_error, BlogError):
+                return post_or_error
 
             # Build update data
             update_data = {}
@@ -529,15 +557,10 @@ class CreateComment:
         user_id = info.context["user_id"]
 
         try:
-            # Check if post exists
-            post = await db.find_one("posts", id=self.input.post_id)
-            if not post:
-                return BlogError(
-                    message="Post not found",
-                    code="NOT_FOUND",
-                    entity_type="Post",
-                    entity_id=self.input.post_id,
-                )
+            # Database layer handles not found check
+            post_or_error = await get_post_for_comment_or_error(db, self.input.post_id)
+            if isinstance(post_or_error, BlogError):
+                return post_or_error
 
             # Create comment
             comment_data = {
