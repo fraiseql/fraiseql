@@ -160,7 +160,7 @@ async def setup_typename_test_data(db_connection):
 
 
 @pytest.fixture
-def graphql_client(db_pool, setup_typename_test_data):
+def graphql_client(db_pool, setup_typename_test_data, clear_registry):
     """Create a GraphQL test client with real database connection."""
     # Inject the test database pool
     from fraiseql.fastapi.dependencies import set_db_pool
