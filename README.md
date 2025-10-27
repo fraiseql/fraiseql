@@ -829,18 +829,30 @@ class DeletePost:
 Three types of identifiers per entity for different purposes:
 
 ```python
-@type(sql_source="v_post")
-class Post:
-    pk_post: int              # Internal (fast joins, never exposed)
+@fraiseql.type(sql_source="posts")
+class Post(TrinityMixin):
+    """
+    Trinity Pattern:
+    - pk_post (int): Internal SERIAL key (NOT exposed, only in database)
+    - id (UUID): Public API key (exposed, stable)
+    - identifier (str): Human-readable slug (exposed, SEO-friendly)
+    """
+
+    # GraphQL exposed fields
     id: UUID                  # Public API (stable, secure)
-    identifier: str           # Human-readable (SEO-friendly, slugs)
+    identifier: str | None    # Human-readable (SEO-friendly, slugs)
+    title: str
+    content: str
+    # ... other fields
+
+    # pk_post is NOT a field - accessed via TrinityMixin.get_internal_pk()
 ```
 
 **Why three?**
 
-- **pk_*:** Fast integer joins (PostgreSQL performance)
-- **id:** Public API stability (UUID, never changes)
-- **identifier:** Human-friendly URLs (SEO, readability)
+- **pk_\*:** Fast integer joins (PostgreSQL only, never in GraphQL schema)
+- **id:** Public API stability (UUID, exposed, never changes)
+- **identifier:** Human-friendly URLs (exposed, SEO, readability)
 
 ---
 
