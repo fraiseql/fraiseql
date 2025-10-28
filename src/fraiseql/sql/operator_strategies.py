@@ -418,6 +418,122 @@ class NullOperatorStrategy(BaseOperatorStrategy):
         return Composed([path_sql, SQL(" IS NOT NULL")])
 
 
+class ArrayOperatorStrategy(BaseOperatorStrategy):
+    """Strategy for array operators.
+
+    Supports: eq, neq, contains, contained_by, overlaps, length & element ops.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            [
+                "eq",
+                "neq",
+                "contains",
+                "contained_by",
+                "overlaps",
+                "len_eq",
+                "len_neq",
+                "len_gt",
+                "len_gte",
+                "len_lt",
+                "len_lte",
+                "any_eq",
+                "all_eq",
+            ]
+        )
+
+    def can_handle(self, op: str, field_type: type | None = None) -> bool:
+        """Check if this strategy can handle the given operator."""
+        if op not in self.operators:
+            return False
+
+        # Only handle array operations when field_type indicates array
+        if field_type is None:
+            return False
+
+        # Check if field_type is an array type
+        from typing import get_origin
+
+        return get_origin(field_type) is list
+
+    def build_sql(
+        self,
+        path_sql: SQL,
+        op: str,
+        val: Any,
+        field_type: type | None = None,
+    ) -> Composed:
+        """Build SQL for array operators."""
+        # Compare JSONB arrays directly
+        import json
+
+        json_str = json.dumps(val)
+
+        if op == "eq":
+            return Composed([path_sql, SQL(" = "), Literal(json_str), SQL("::jsonb")])
+        if op == "neq":
+            return Composed([path_sql, SQL(" != "), Literal(json_str), SQL("::jsonb")])
+
+        if op == "contains":
+            # @> operator: left_array @> right_array means left contains right
+            return Composed([path_sql, SQL(" @> "), Literal(json_str), SQL("::jsonb")])
+        if op == "contained_by":
+            # <@ operator: left_array <@ right_array means left is contained by right
+            return Composed([path_sql, SQL(" <@ "), Literal(json_str), SQL("::jsonb")])
+        if op == "overlaps":
+            # Check if arrays have any elements in common using ?| operator
+            # Build ARRAY['item1', 'item2', ...] syntax for the ?| check
+            if isinstance(val, list):
+                array_elements = [str(item) for item in val]
+                array_str = "{" + ",".join(f'"{elem}"' for elem in array_elements) + "}"
+                return Composed([path_sql, SQL(" ?| "), Literal(array_str)])
+            return Composed([path_sql, SQL(" ?| "), Literal(json_str)])
+
+        # Length operations using jsonb_array_length()
+        if op == "len_eq":
+            return Composed([SQL("jsonb_array_length("), path_sql, SQL(") = "), Literal(val)])
+        if op == "len_neq":
+            return Composed([SQL("jsonb_array_length("), path_sql, SQL(") != "), Literal(val)])
+        if op == "len_gt":
+            return Composed([SQL("jsonb_array_length("), path_sql, SQL(") > "), Literal(val)])
+        if op == "len_gte":
+            return Composed([SQL("jsonb_array_length("), path_sql, SQL(") >= "), Literal(val)])
+        if op == "len_lt":
+            return Composed([SQL("jsonb_array_length("), path_sql, SQL(") < "), Literal(val)])
+        if op == "len_lte":
+            return Composed([SQL("jsonb_array_length("), path_sql, SQL(") <= "), Literal(val)])
+
+        # Element query operations using jsonb_array_elements_text
+        if op == "any_eq":
+            # Check if any element in the array equals the value
+            return Composed(
+                [
+                    SQL("EXISTS (SELECT 1 FROM jsonb_array_elements_text("),
+                    path_sql,
+                    SQL(") AS elem WHERE elem = "),
+                    Literal(val),
+                    SQL(")"),
+                ]
+            )
+        if op == "all_eq":
+            # Check if all elements in the array equal the value
+            # This means: array_length = count of elements that equal the value
+            return Composed(
+                [
+                    SQL("jsonb_array_length("),
+                    path_sql,
+                    SQL(") = (SELECT COUNT(*) FROM jsonb_array_elements_text("),
+                    path_sql,
+                    SQL(") AS elem WHERE elem = "),
+                    Literal(val),
+                    SQL(")"),
+                ]
+            )
+
+        raise ValueError(f"Unsupported array operator: {op}")
+
+
 class ComparisonOperatorStrategy(BaseOperatorStrategy):
     """Strategy for comparison operators (=, !=, <, >, <=, >=)."""
 
@@ -538,7 +654,9 @@ class PatternMatchingStrategy(BaseOperatorStrategy):
     """Strategy for pattern matching operators."""
 
     def __init__(self) -> None:
-        super().__init__(["matches", "startswith", "contains", "endswith", "ilike"])
+        super().__init__(
+            ["matches", "startswith", "contains", "endswith", "ilike", "imatches", "not_matches"]
+        )
 
     def build_sql(
         self,
@@ -581,6 +699,10 @@ class PatternMatchingStrategy(BaseOperatorStrategy):
                 like_val = f"%%{val}%%"
                 return Composed([casted_path, SQL(" ILIKE "), Literal(like_val)])
             return Composed([casted_path, SQL(" ~* "), Literal(val)])
+        if op == "imatches":
+            return Composed([casted_path, SQL(" ~* "), Literal(val)])
+        if op == "not_matches":
+            return Composed([casted_path, SQL(" !~ "), Literal(val)])
         raise ValueError(f"Unsupported pattern operator: {op}")
 
 
@@ -1972,6 +2094,7 @@ class OperatorRegistry:
         """Initialize the registry with all available strategies."""
         self.strategies: list[OperatorStrategy] = [
             NullOperatorStrategy(),
+            ArrayOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             DateRangeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             LTreeOperatorStrategy(),  # Must come before ComparisonOperatorStrategy
             CoordinateOperatorStrategy(),  # Must come before ComparisonOperatorStrategy

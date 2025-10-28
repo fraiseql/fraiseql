@@ -375,7 +375,9 @@ class TestTier1FieldTypePassthrough:
             # The issue is when field_type=None prevents proper strategy selection
         except Exception as e:
             # Expected behavior if field_type is required for network operators
-            assert "field_type" in str(e).lower() or "ip address" in str(e).lower()
+            # The error should mention field type detection issue or IP address requirement
+            error_msg = str(e).lower()
+            assert "field type" in error_msg or "ip address" in error_msg
 
     def test_field_type_propagation_ltree(self):
         """Test that LTree field_type propagates to operator strategies."""

@@ -131,3 +131,89 @@ def build_matches_ltxtquery_sql(path_sql: SQL, value: str) -> Composed:
         Composed SQL: (path)::ltree ? 'pattern'::ltxtquery
     """
     return Composed([SQL("("), path_sql, SQL(")::ltree ? "), Literal(value), SQL("::ltxtquery")])
+
+
+# Depth operators for ltree paths
+
+
+def build_depth_eq_sql(path_sql: SQL, value: int) -> Composed:
+    """Build SQL for LTree depth equality check using nlevel().
+
+    The nlevel() function returns the depth (number of levels) in an ltree path.
+
+    Args:
+        path_sql: The SQL path expression (e.g., data->>'category_path')
+        value: Integer depth value to compare
+
+    Returns:
+        Composed SQL: nlevel((path)::ltree) = value
+
+    Example:
+        nlevel('science.physics.quantum'::ltree) = 3
+    """
+    return Composed([SQL("nlevel(("), path_sql, SQL(")::ltree) = "), Literal(value)])
+
+
+def build_depth_gt_sql(path_sql: SQL, value: int) -> Composed:
+    """Build SQL for LTree depth greater than check using nlevel().
+
+    Args:
+        path_sql: The SQL path expression (e.g., data->>'category_path')
+        value: Integer depth value to compare
+
+    Returns:
+        Composed SQL: nlevel((path)::ltree) > value
+    """
+    return Composed([SQL("nlevel(("), path_sql, SQL(")::ltree) > "), Literal(value)])
+
+
+def build_depth_gte_sql(path_sql: SQL, value: int) -> Composed:
+    """Build SQL for LTree depth greater than or equal check using nlevel().
+
+    Args:
+        path_sql: The SQL path expression (e.g., data->>'category_path')
+        value: Integer depth value to compare
+
+    Returns:
+        Composed SQL: nlevel((path)::ltree) >= value
+    """
+    return Composed([SQL("nlevel(("), path_sql, SQL(")::ltree) >= "), Literal(value)])
+
+
+def build_depth_lt_sql(path_sql: SQL, value: int) -> Composed:
+    """Build SQL for LTree depth less than check using nlevel().
+
+    Args:
+        path_sql: The SQL path expression (e.g., data->>'category_path')
+        value: Integer depth value to compare
+
+    Returns:
+        Composed SQL: nlevel((path)::ltree) < value
+    """
+    return Composed([SQL("nlevel(("), path_sql, SQL(")::ltree) < "), Literal(value)])
+
+
+def build_depth_lte_sql(path_sql: SQL, value: int) -> Composed:
+    """Build SQL for LTree depth less than or equal check using nlevel().
+
+    Args:
+        path_sql: The SQL path expression (e.g., data->>'category_path')
+        value: Integer depth value to compare
+
+    Returns:
+        Composed SQL: nlevel((path)::ltree) <= value
+    """
+    return Composed([SQL("nlevel(("), path_sql, SQL(")::ltree) <= "), Literal(value)])
+
+
+def build_depth_neq_sql(path_sql: SQL, value: int) -> Composed:
+    """Build SQL for LTree depth inequality check using nlevel().
+
+    Args:
+        path_sql: The SQL path expression (e.g., data->>'category_path')
+        value: Integer depth value to compare
+
+    Returns:
+        Composed SQL: nlevel((path)::ltree) != value
+    """
+    return Composed([SQL("nlevel(("), path_sql, SQL(")::ltree) != "), Literal(value)])

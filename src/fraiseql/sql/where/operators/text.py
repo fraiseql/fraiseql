@@ -24,3 +24,13 @@ def build_endswith_sql(path_sql: SQL, value: str) -> Composed:
 def build_matches_sql(path_sql: SQL, value: str) -> Composed:
     """Build SQL for regex matching."""
     return Composed([path_sql, SQL(" ~ "), Literal(value)])
+
+
+def build_imatches_sql(path_sql: SQL, value: str) -> Composed:
+    """Build SQL for case-insensitive regex matching."""
+    return Composed([path_sql, SQL(" ~* "), Literal(value)])
+
+
+def build_not_matches_sql(path_sql: SQL, value: str) -> Composed:
+    """Build SQL for negative regex matching."""
+    return Composed([path_sql, SQL(" !~ "), Literal(value)])
