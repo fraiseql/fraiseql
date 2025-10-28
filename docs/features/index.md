@@ -47,7 +47,7 @@ Complete overview of all FraiseQL capabilities.
 | **Hierarchical Data (ltree)** | ✅ Stable | [Hierarchical Guide](../advanced/database-patterns.md#ltree) | [ltree-hierarchical-data](../../examples/ltree-hierarchical-data/) |
 | **Date/Time Ranges** | ✅ Stable | [Range Types](../advanced/where_input_types.md#range-types) | [specialized_types](../../examples/specialized_types/) |
 | **Full-Text Search** | ✅ Stable | [Search Guide](../advanced/database-patterns.md#full-text-search) | [ecommerce](../../examples/ecommerce/) |
-| **Geospatial Queries (PostGIS)** | 🚧 Beta | [PostGIS Guide](../advanced/postgis.md) | - |
+| **Geospatial Queries (PostGIS)** | 🚧 Beta | Coming soon | - |
 
 ---
 
@@ -124,7 +124,7 @@ Complete overview of all FraiseQL capabilities.
 |---------|--------|---------------|---------|
 | **FastAPI Integration** | ✅ Stable | [FastAPI Guide](../integrations/fastapi.md) | [fastapi](../../examples/fastapi/) |
 | **Starlette Integration** | ✅ Stable | [Starlette Guide](../integrations/starlette.md) | [fastapi](../../examples/fastapi/) |
-| **ASGI Applications** | ✅ Stable | [ASGI Guide](../integrations/asgi.md) | All examples |
+| **ASGI Applications** | ✅ Stable | Built-in | All examples |
 | **TypeScript Client Generation** | ✅ Stable | [Client Generation](../integrations/typescript.md) | [documented_api](../../examples/documented_api/) |
 
 ---
@@ -133,9 +133,9 @@ Complete overview of all FraiseQL capabilities.
 
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
-| **GraphQL Playground** | ✅ Stable | [Development Tools](../development/tools.md#playground) | All examples |
+| **GraphQL Playground** | ✅ Stable | Built-in | All examples |
 | **Schema Introspection** | ✅ Stable | Built-in | All examples |
-| **Hot Reload** | ✅ Stable | [Development Tools](../development/tools.md#hot-reload) | All examples |
+| **Hot Reload** | ✅ Stable | Built-in | All examples |
 | **CLI Commands** | ✅ Stable | [CLI Reference](../reference/cli.md) | - |
 | **Type Generation** | ✅ Stable | [CLI Reference](../reference/cli.md#type-generation) | - |
 | **Schema Export** | ✅ Stable | [CLI Reference](../reference/cli.md#schema-export) | - |
