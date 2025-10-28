@@ -112,8 +112,6 @@ None currently. All features in v1.0.0 are production-stable.
 
 ## Future Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features in v1.1+.
-
 ### Planned for v1.1
 - CLI code generation from database schema
 - Enhanced multi-tenancy patterns
