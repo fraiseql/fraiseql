@@ -44,6 +44,7 @@ app = create_fraiseql_app(
 - 🔒 **Secure by design** - Explicit field contracts prevent data leaks
 - 🤖 **AI-native** - LLMs generate correct code on first try
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
+- 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
 
 ---
 
@@ -385,6 +386,7 @@ class CreateUser:
 - [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md) - 10-minute architecture overview
 - [Database API](https://github.com/fraiseql/fraiseql/blob/main/docs/core/database-api.md) - Connection pooling and query execution
 - [Types and Schema](https://github.com/fraiseql/fraiseql/blob/main/docs/core/types-and-schema.md) - Complete type system guide
+- [Filter Operators](https://github.com/fraiseql/fraiseql/blob/main/docs/advanced/filter-operators.md) - Advanced PostgreSQL filtering (arrays, full-text search, JSONB, regex)
 
 ---
 

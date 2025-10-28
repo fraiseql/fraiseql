@@ -52,6 +52,8 @@ Key concepts you should now understand:
 
 ✅ **Checkpoint**: Can you explain why FraiseQL uses JSONB views instead of traditional ORMs?
 
+> **💡 Advanced Filtering**: FraiseQL supports powerful PostgreSQL operators including array filtering, full-text search, JSONB queries, and regex matching. See [Filter Operators Reference](advanced/filter-operators.md) for details.
+
 ## Minute 15-30: Extend Your API - Add Tags to Notes
 
 **Challenge**: Add a "tags" feature so notes can be categorized.

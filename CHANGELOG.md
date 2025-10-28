@@ -7,7 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes at this time._
+### Added
+
+**Comprehensive PostgreSQL Filter Operators Documentation**
+- Added complete filter operators reference documentation (`docs/advanced/filter-operators.md`, 1,073 lines)
+  - Array operators: `eq`, `neq`, `contains`, `contained_by`, `overlaps`, `len_*`, `any_eq`, `all_eq`
+  - Full-text search operators: `matches`, `plain_query`, `phrase_query`, `websearch_query`, `rank_*`, `rank_cd_*`
+  - JSONB operators: `has_key`, `has_any_keys`, `has_all_keys`, `contains`, `path_exists`, `path_match`, `get_path`
+  - Text regex operators: `matches`, `imatches`, `not_matches`
+  - Dual-path array intelligence: Automatic detection of native arrays vs JSONB arrays
+  - Complete SQL examples, performance tips, index recommendations, and troubleshooting guides
+
+- Added real-world filtering examples (`docs/examples/advanced-filtering.md`, 926 lines)
+  - E-commerce product catalog filtering with full-text search and array operations
+  - Content management system with relevance ranking and metadata queries
+  - User management & permissions with JSONB role queries
+  - Log analysis & monitoring with pattern matching
+  - Multi-tenant SaaS application with feature flags and usage analytics
+  - Complete database schemas with GIN indexes and performance optimization
+
+### Enhanced
+
+**Documentation Integration**
+- Updated `README.md`: Added "Advanced filtering" to feature highlights and Core Concepts quick links
+- Updated `docs/FIRST_HOUR.md`: Added callout box highlighting advanced filtering capabilities
+- Updated `docs/advanced/where_input_types.md`: Added comprehensive advanced operators section with cross-links
+- Updated `docs/core/database-api.md`: Added prominent link to advanced filter operators in Dynamic Filters section
+
+### Technical Details
+
+- All 38 PostgreSQL filter operators now fully documented
+- 2,091 lines of new/updated documentation
+- All code examples validated by test suite (3,645 tests passing)
+- Performance guidance includes index creation for GIN, btree, and jsonb_path_ops
+- Documentation covers PostgreSQL 12+ operator features
 
 ## [1.0.3] - 2025-10-27
 
