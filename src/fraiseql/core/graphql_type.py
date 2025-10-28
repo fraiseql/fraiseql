@@ -453,17 +453,27 @@ def convert_type_to_graphql_output(
                             from graphql import GraphQLArgument
 
                             # Determine the WhereInput type
+                            # Priority: field.where_input_type > field.nested_where_type > registry
                             where_input_type = None
+                            nested_type = None
+
                             if field.where_input_type:
                                 where_input_type = field.where_input_type
                             elif field.nested_where_type:
+                                nested_type = field.nested_where_type
+                            else:
+                                # Check registry as fallback
+                                from fraiseql.nested_array_filters import get_nested_array_filter
+
+                                nested_type = get_nested_array_filter(typ, name)
+
+                            # Generate WhereInput type if we have a nested type
+                            if nested_type and not where_input_type:
                                 from fraiseql.sql.graphql_where_generator import (
                                     create_graphql_where_input,
                                 )
 
-                                where_input_type = create_graphql_where_input(
-                                    field.nested_where_type
-                                )
+                                where_input_type = create_graphql_where_input(nested_type)
 
                             # Create args dict with where parameter
                             gql_args = {}
