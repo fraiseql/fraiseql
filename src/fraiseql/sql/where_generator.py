@@ -28,7 +28,8 @@ from typing import (
 
 from psycopg.sql import SQL, Composed, Literal
 
-from .operator_strategies import get_operator_registry
+from .where.core.field_detection import FieldType, detect_field_type
+from .where.operators import get_operator_function
 
 # Define a type variable for the generic value to coerce
 TValue = TypeVar("TValue", bound=object)
@@ -50,27 +51,35 @@ class DynamicType(Protocol):
 
 
 def build_operator_composed(
-    path_sql: SQL,
+    path_sql: SQL | Composed,
     op: str,
     val: object,
     field_type: type | None = None,
+    detected_field_type: FieldType | None = None,
 ) -> Composed:
     """Build parameterized SQL for a specific operator using psycopg Composed.
 
-    This function delegates to the operator registry which uses a strategy
-    pattern to handle different operators in a clean, maintainable way.
+    This function uses the new function-based operator mapping system.
 
     Args:
         path_sql: The SQL object representing the JSONB path expression.
         op: The operator name.
         val: The value to compare against.
         field_type: Optional type hint for proper casting.
+        detected_field_type: Optional pre-detected field type (overrides detection).
 
     Returns:
         A psycopg Composed object with properly parameterized SQL.
     """
-    registry = get_operator_registry()
-    return registry.build_sql(path_sql, op, val, field_type)
+    # Use pre-detected field type if provided, otherwise detect it
+    if detected_field_type is None:
+        detected_field_type = detect_field_type("", val, field_type)
+
+    # Get the operator function
+    operator_func = get_operator_function(detected_field_type, op)
+
+    # Call the operator function
+    return operator_func(path_sql, val)
 
 
 def _build_nested_path(parent_path: str | None, field_name: str) -> str:
@@ -112,8 +121,34 @@ def _make_filter_field_composed(
             continue
         try:
             # Build the JSONB path expression
-            path_sql = Composed([SQL("("), SQL(json_path), SQL(" ->> "), Literal(name), SQL(")")])
-            condition = build_operator_composed(path_sql, op, val, field_type)
+            # For arrays, use -> to get JSON array, for others use ->> to get text
+            from .where.core.field_detection import detect_field_type
+
+            detected_field_type = detect_field_type(name, val, field_type)
+
+            if detected_field_type == FieldType.FULLTEXT:
+                # For full-text search, use the direct column (tsvector)
+                path_sql = SQL(name)  # type: ignore[arg-type]
+            elif detected_field_type == FieldType.ARRAY and op not in ("in", "in_", "notin", "nin"):
+                # For arrays, get the JSON array value
+                # BUT: if using IN/NOTIN operators, we're checking membership of scalar values,
+                # so we still need text extraction (->>)
+                path_sql = Composed(
+                    [SQL("("), SQL(json_path), SQL(" -> "), Literal(name), SQL(")")]
+                )
+            elif detected_field_type == FieldType.JSONB:
+                # For JSONB, get the JSON value (preserve JSONB type)
+                path_sql = Composed(
+                    [SQL("("), SQL(json_path), SQL(" -> "), Literal(name), SQL(")")]
+                )
+            else:
+                # For other types, get the text value
+                # This includes IN/NOTIN operators with list values - the field is text, not array
+                path_sql = Composed(
+                    [SQL("("), SQL(json_path), SQL(" ->> "), Literal(name), SQL(")")]
+                )
+
+            condition = build_operator_composed(path_sql, op, val, field_type, detected_field_type)
             conditions.append(condition)
         except ValueError:
             # Skip unsupported operators

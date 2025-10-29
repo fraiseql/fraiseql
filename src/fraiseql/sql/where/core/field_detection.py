@@ -20,6 +20,8 @@ class FieldType(Enum):
     UUID = "uuid"
     DATE = "date"
     DATETIME = "datetime"
+    ARRAY = "array"
+    JSONB = "jsonb"
     IP_ADDRESS = "ip_address"
     MAC_ADDRESS = "mac_address"
     LTREE = "ltree"
@@ -27,6 +29,7 @@ class FieldType(Enum):
     HOSTNAME = "hostname"
     EMAIL = "email"
     PORT = "port"
+    FULLTEXT = "fulltext"
 
     def is_ip_address(self) -> bool:
         """Check if this field type is IP address."""
@@ -68,10 +71,19 @@ class FieldType(Enum):
         except ImportError:
             pass
 
+        # Check for JSONB type (dict type hint often indicates JSONB)
+        if python_type is dict:
+            return cls.JSONB
+
         # Standard Python types
         from datetime import date, datetime
         from decimal import Decimal
+        from typing import get_origin
         from uuid import UUID
+
+        # Handle list types (arrays)
+        if get_origin(python_type) is list:
+            return cls.ARRAY
 
         type_mapping = {
             str: cls.STRING,
@@ -129,11 +141,7 @@ class FieldType(Enum):
             return cls.STRING
 
         if isinstance(value, list):
-            # For lists, detect based on first non-None item
-            for item in value:
-                if item is not None:
-                    return cls.from_value(item)
-            return cls.ANY
+            return cls.ARRAY
 
         return cls.ANY
 
@@ -149,6 +157,24 @@ def detect_field_type(field_name: str, value: Any, field_type: type | None = Non
     Returns:
         FieldType enum indicating what type of field this is
     """
+    # Check field name for FULLTEXT type specifically before type hint
+    # This allows detecting tsvector fields which are often typed as str in Python
+    field_lower = field_name.lower() if field_name else ""
+    fulltext_patterns = [
+        "search_vector",
+        "searchvector",
+        "tsvector",
+        "ts_vector",
+        "fulltext_vector",
+        "fulltextvector",
+        "text_search",
+        "textsearch",
+        "search_index",
+        "searchindex",
+    ]
+    if any(pattern in field_lower for pattern in fulltext_patterns):
+        return FieldType.FULLTEXT
+
     # First priority: explicit type hint
     if field_type is not None:
         return FieldType.from_python_type(field_type)
@@ -380,6 +406,32 @@ def _detect_field_type_from_name(field_name: str) -> FieldType:
         or field_lower.startswith(("port_", "port"))
     ):
         return FieldType.PORT
+
+    # Full-text search patterns - handle both snake_case and camelCase
+    fulltext_patterns = [
+        "search_vector",
+        "searchvector",
+        "tsvector",
+        "ts_vector",
+        "fulltext_vector",
+        "fulltextvector",
+        "text_search",
+        "textsearch",
+        "search_index",
+        "searchindex",
+    ]
+
+    # Check Full-text pattern matches
+    if any(pattern in field_lower for pattern in fulltext_patterns):
+        return FieldType.FULLTEXT
+
+    # Additional Full-text patterns
+    if (
+        field_lower in ["search", "tsvector", "fulltext"]
+        or field_lower.endswith(("_search", "search", "_vector", "vector", "_index", "index"))
+        or field_lower.startswith(("search_", "search", "ts_", "ts", "fulltext_", "fulltext"))
+    ):
+        return FieldType.FULLTEXT
 
     return FieldType.ANY
 

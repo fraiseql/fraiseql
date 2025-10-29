@@ -34,9 +34,32 @@ class StringFilter:
     contains: str | None = None
     startswith: str | None = None
     endswith: str | None = None
+    matches: str | None = None
+    imatches: str | None = None
+    not_matches: str | None = None
     in_: list[str] | None = fraise_field(default=None, graphql_name="in")
     nin: list[str] | None = None
     isnull: bool | None = None
+
+
+@fraise_input
+class ArrayFilter:
+    """Array field filter operations."""
+
+    eq: list | None = None
+    neq: list | None = None
+    isnull: bool | None = None
+    contains: list | None = None
+    contained_by: list | None = None
+    overlaps: list | None = None
+    len_eq: int | None = None
+    len_neq: int | None = None
+    len_gt: int | None = None
+    len_gte: int | None = None
+    len_lt: int | None = None
+    len_lte: int | None = None
+    any_eq: str | None = None
+    all_eq: str | None = None
 
 
 @fraise_input
@@ -252,7 +275,68 @@ class DateRangeFilter:
     # Intentionally excludes string pattern matching (use range operators instead)
 
 
-def _get_filter_type_for_field(field_type: type, parent_class: type | None = None) -> type:
+@fraise_input
+class FullTextFilter:
+    """Filter for PostgreSQL full-text search (tsvector) with comprehensive search operators.
+
+    Provides PostgreSQL's full-text search capabilities including basic search,
+    advanced query parsing, and relevance ranking.
+    """
+
+    # Basic search operators
+    matches: str | None = None  # @@ with to_tsquery()
+    plain_query: str | None = None  # @@ with plainto_tsquery()
+
+    # Advanced query types
+    phrase_query: str | None = None  # @@ with phraseto_tsquery()
+    websearch_query: str | None = None  # @@ with websearch_to_tsquery()
+
+    # Relevance ranking operators (format: "query:threshold")
+    rank_gt: str | None = None  # ts_rank() >
+    rank_gte: str | None = None  # ts_rank() >=
+    rank_lt: str | None = None  # ts_rank() <
+    rank_lte: str | None = None  # ts_rank() <=
+
+    # Cover density ranking operators (format: "query:threshold")
+    rank_cd_gt: str | None = None  # ts_rank_cd() >
+    rank_cd_gte: str | None = None  # ts_rank_cd() >=
+    rank_cd_lt: str | None = None  # ts_rank_cd() <
+    rank_cd_lte: str | None = None  # ts_rank_cd() <=
+
+    # Basic null check
+    isnull: bool | None = None
+
+
+@fraise_input
+class JSONBFilter:
+    """Filter for PostgreSQL JSONB with comprehensive operator support.
+
+    Provides PostgreSQL's JSONB capabilities including key existence,
+    containment, JSONPath queries, and deep path access.
+    """
+
+    # Basic comparison operators
+    eq: dict | list | None = None  # Exact equality
+    neq: dict | list | None = None  # Not equal
+    isnull: bool | None = None  # Null check
+
+    # Key existence operators
+    has_key: str | None = None  # ? operator
+    has_any_keys: list[str] | None = None  # ?| operator
+    has_all_keys: list[str] | None = None  # ?& operator
+
+    # Containment operators
+    contains: dict | list | None = None  # @> operator
+    contained_by: dict | list | None = None  # <@ operator
+
+    # JSONPath operators
+    path_exists: str | None = None  # @? operator
+    path_match: str | None = None  # @@ operator
+
+
+def _get_filter_type_for_field(
+    field_type: type, parent_class: type | None = None, field_name: str | None = None
+) -> type:
     """Get the appropriate filter type for a field type."""
     # Handle Optional types FIRST before any other checks
     origin = get_origin(field_type)
@@ -268,12 +352,29 @@ def _get_filter_type_for_field(field_type: type, parent_class: type | None = Non
             field_type = non_none_types[0]
             origin = get_origin(field_type)
 
+    # Check for full-text search fields by name (before type checking)
+    # This allows detecting tsvector fields which are usually str type in Python
+    if field_name:
+        field_lower = field_name.lower()
+        fulltext_patterns = [
+            "search_vector",
+            "searchvector",
+            "tsvector",
+            "ts_vector",
+            "fulltext_vector",
+            "fulltextvector",
+            "text_search",
+            "textsearch",
+            "search_index",
+            "searchindex",
+        ]
+        if any(pattern in field_lower for pattern in fulltext_patterns):
+            return FullTextFilter
+
     # Check if it's a List type
     if origin is list:
-        # For now, treat lists as StringFilter
-        # Known limitation: List relationship filtering not yet implemented
-        # GitHub issue: Implement list relationship filtering
-        return StringFilter
+        # Use ArrayFilter for list/array fields
+        return ArrayFilter
 
     # Check if this is a FraiseQL type (nested object)
     if hasattr(field_type, "__fraiseql_definition__"):
@@ -326,6 +427,7 @@ def _get_filter_type_for_field(field_type: type, parent_class: type | None = Non
         UUID: UUIDFilter,
         date: DateFilter,
         datetime: DateTimeFilter,
+        dict: JSONBFilter,  # JSONB fields are typically dict type in Python
     }
 
     return type_mapping.get(field_type, StringFilter)  # Default to StringFilter
@@ -504,7 +606,9 @@ def create_graphql_where_input(cls: type, name: str | None = None) -> type:
                 continue
 
             # Get the appropriate filter type
-            filter_type = _get_filter_type_for_field(field_type, parent_class=cls)
+            filter_type = _get_filter_type_for_field(
+                field_type, parent_class=cls, field_name=field_name
+            )
 
             # Check if this is a deferred type (circular reference)
             if hasattr(filter_type, "__name__") and filter_type.__name__.startswith("_Deferred_"):

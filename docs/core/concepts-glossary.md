@@ -31,8 +31,8 @@ Same code path                          Separate optimized paths
 - ACID transactions for writes
 
 **See Also**:
-- [CQRS Implementation](../examples/complete_cqrs_blog/) - Complete CQRS blog example
-- [Enterprise Patterns](../examples/blog_api/) - Production CQRS with audit trails
+- [CQRS Implementation](../../examples/complete_cqrs_blog/) - Complete CQRS blog example
+- [Enterprise Patterns](../../examples/blog_api/) - Production CQRS with audit trails
 - Independent scaling of reads and writes
 
 ### JSONB View Pattern

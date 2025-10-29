@@ -50,6 +50,10 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 
 ## Filter Operators by Field Type
 
+> **💡 Advanced Operators**: FraiseQL provides comprehensive PostgreSQL operator support including arrays, full-text search, JSONB, and regex. See:
+> - **[Filter Operators Reference](./filter-operators.md)** - Complete operator documentation with examples
+> - **[Advanced Filtering Examples](../examples/advanced-filtering.md)** - Real-world use cases
+
 ### String Fields
 
 ```graphql
@@ -142,10 +146,17 @@ query {
 }
 ```
 
-**Available operators:**
+**Basic operators:**
 - `contains` - array contains this value
 - `in` - array intersects with provided list
 - `isnull` - null checking
+
+**Advanced array operators** ([full documentation](./filter-operators.md#array-operators)):
+- `eq`, `neq` - Array equality/inequality
+- `overlaps` - Arrays share elements (automatically optimized for native/JSONB arrays)
+- `contained_by` - Array is subset of provided values
+- `len_eq`, `len_gt`, `len_gte`, `len_lt`, `len_lte` - Length comparisons
+- `any_eq`, `all_eq` - Element-level matching
 
 ### UUID Fields
 
@@ -447,5 +458,77 @@ query {
 }
 ```
 
-This approach provides much more flexibility while maintaining the same simple API surface.</content>
-</xai:function_call">
+This approach provides much more flexibility while maintaining the same simple API surface.
+
+## Advanced Filtering Capabilities
+
+Beyond basic operators, FraiseQL provides comprehensive PostgreSQL operator support:
+
+### Full-Text Search
+
+Search text content with PostgreSQL's powerful full-text search:
+
+```graphql
+query {
+  posts(where: {
+    searchVector: {
+      websearch_query: "python OR graphql",
+      rank_gt: 0.1  # Filter by relevance score
+    }
+  }) {
+    id
+    title
+  }
+}
+```
+
+**Available operators**: `matches`, `plain_query`, `phrase_query`, `websearch_query`, `rank_gt`, `rank_gte`, `rank_lt`, `rank_lte`, `rank_cd_*`
+
+**[See full documentation →](./filter-operators.md#full-text-search-operators)**
+
+### JSONB Operators
+
+Query JSON structure and content:
+
+```graphql
+query {
+  products(where: {
+    attributes: {
+      has_key: "ram",
+      contains: {brand: "Apple"}
+    }
+  }) {
+    id
+    name
+  }
+}
+```
+
+**Available operators**: `has_key`, `has_any_keys`, `has_all_keys`, `contains`, `contained_by`, `path_exists`, `path_match`, `get_path`, `get_path_text`
+
+**[See full documentation →](./filter-operators.md#jsonb-operators)**
+
+### Text Regex
+
+Pattern matching with POSIX regular expressions:
+
+```graphql
+query {
+  products(where: {
+    sku: { matches: "^PROD-[0-9]{4}$" }
+  }) {
+    id
+    sku
+  }
+}
+```
+
+**Available operators**: `matches`, `imatches`, `not_matches`
+
+**[See full documentation →](./filter-operators.md#text-regex-operators)**
+
+## Next Steps
+
+- **[Filter Operators Reference](./filter-operators.md)** - Complete operator documentation
+- **[Advanced Filtering Examples](../examples/advanced-filtering.md)** - Real-world use cases
+- **[Nested Array Filtering](./nested-array-filtering.md)** - Complex array queries

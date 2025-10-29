@@ -44,6 +44,27 @@ app = create_fraiseql_app(
 - 🔒 **Secure by design** - Explicit field contracts prevent data leaks
 - 🤖 **AI-native** - LLMs generate correct code on first try
 - 💰 **Save $5-48K/year** - Eliminate Redis, Sentry, APM tools
+- 🔍 **Advanced filtering** - Full-text search, JSONB queries, array operations, regex
+
+## 🤔 Is this for me?
+
+**FraiseQL is for production teams** building high-performance GraphQL APIs with PostgreSQL.
+
+### ✅ You should use FraiseQL if you:
+
+- Build customer-facing APIs with PostgreSQL
+- Need sub-millisecond query performance
+- Want enterprise-grade security and monitoring
+- Have 2-50 developers on your team
+- Are tired of Python serialization overhead
+
+### ❌ Consider alternatives if you:
+
+- Need multi-database support (FraiseQL is PostgreSQL-only)
+- Are building your first GraphQL API (start with simpler frameworks)
+- Don't use JSONB columns in PostgreSQL
+
+*See [detailed audience guide](docs/strategic/AUDIENCES.md) for complete user profiles.*
 
 ---
 
@@ -385,6 +406,7 @@ class CreateUser:
 - [Understanding FraiseQL](https://github.com/fraiseql/fraiseql/blob/main/docs/UNDERSTANDING.md) - 10-minute architecture overview
 - [Database API](https://github.com/fraiseql/fraiseql/blob/main/docs/core/database-api.md) - Connection pooling and query execution
 - [Types and Schema](https://github.com/fraiseql/fraiseql/blob/main/docs/core/types-and-schema.md) - Complete type system guide
+- [Filter Operators](https://github.com/fraiseql/fraiseql/blob/main/docs/advanced/filter-operators.md) - Advanced PostgreSQL filtering (arrays, full-text search, JSONB, regex)
 
 ---
 

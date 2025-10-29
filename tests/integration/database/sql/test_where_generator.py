@@ -96,7 +96,7 @@ class TestBuildOperatorComposed:
         """Test JSONB-specific operators."""
         path_sql = SQL("data")
 
-        # Contains with dict value uses regex pattern matching (current implementation)
+        # Contains with dict value uses JSONB @> (containment) operator
         result = build_operator_composed(path_sql, "contains", {"key": "value"})
         # Just check that the result is a valid Composed object with the right operator
         assert isinstance(result, Composed)
@@ -108,10 +108,11 @@ class TestBuildOperatorComposed:
             else:
                 parts.append(str(part))
         result_str = " ".join(parts)
-        # Currently uses regex matching for all contains operations
-        assert " ~ " in result_str
+        # Uses JSONB @> operator for containment
+        assert " @> " in result_str
 
-        # Overlaps
+        # Overlaps - for JSONB arrays, PostgreSQL uses ?| operator, not &&
+        # The && operator only exists for native PostgreSQL arrays, not JSONB
         result = build_operator_composed(path_sql, "overlaps", ["a", "b"])
         assert isinstance(result, Composed)
         parts = []
@@ -121,7 +122,7 @@ class TestBuildOperatorComposed:
             else:
                 parts.append(str(part))
         result_str = " ".join(parts)
-        assert " && " in result_str
+        assert " ?| " in result_str  # JSONB uses ?| for array element existence check
 
     def test_regex_operators(self):
         """Test regex operators."""
@@ -277,7 +278,7 @@ class TestBuildOperatorComposed:
     def test_unsupported_operator(self):
         """Test unsupported operator raises ValueError."""
         path_sql = SQL("data->>'value'")
-        with pytest.raises(ValueError, match="Unsupported operator: invalid_op"):
+        with pytest.raises(ValueError, match="Unsupported operator 'invalid_op'"):
             build_operator_composed(path_sql, "invalid_op", "value")
 
 
@@ -340,7 +341,7 @@ class TestSafeCreateWhereType:
         assert "(data ->> 'name') = 'test'" in sql_str
 
         # Test numeric field - should have proper casting structure
-        # Valid patterns: (data ->> 'age')::numeric > 21 OR ((data ->> 'age'))::numeric > 21
+        # Valid pattern: (data ->> 'age')::numeric > 21
         import re
 
         numeric_pattern = r"\(\(data ->> 'age'\)\)::numeric > 21|\(data ->> 'age'\)::numeric > 21"
@@ -374,8 +375,8 @@ class TestSafeCreateWhereType:
         sql_str = sql.as_string(None)
 
         assert "::uuid" in sql_str
-        # Check for startswith pattern instead of LIKE
-        assert "^test" in sql_str or "LIKE 'test%%'" in sql_str or "startswith" in sql_str
+        # Check for startswith pattern - uses LIKE with % suffix
+        assert "LIKE 'test%'" in sql_str
         assert " IN (" in sql_str
         assert "::date" in sql_str
 
@@ -406,7 +407,7 @@ class TestSafeCreateWhereType:
         print(f"Generated SQL: {sql_str}")
 
         # Validate the complete SQL is exactly what we expect for proper age range filtering
-        expected_sql = "((data ->> 'age'))::numeric >= 21 AND ((data ->> 'age'))::numeric <= 65"
+        expected_sql = "(data ->> 'age')::numeric >= 21 AND (data ->> 'age')::numeric <= 65"
         assert sql_str == expected_sql, f"Expected exact SQL: {expected_sql}, got: {sql_str}"
 
         # Additional validations for robustness
@@ -442,7 +443,7 @@ class TestSafeCreateWhereType:
 
         assert "name" not in sql_str
         # Validate complete SQL - should be exactly this with our casting approach
-        expected_sql = "((data ->> 'age'))::numeric > 21"
+        expected_sql = "(data ->> 'age')::numeric > 21"
         assert sql_str == expected_sql, f"Expected: {expected_sql}, got: {sql_str}"
 
     def test_where_type_caching(self):
@@ -479,7 +480,7 @@ class TestSafeCreateWhereType:
         sql_str = sql.as_string(None)
 
         # Validate complete SQL - adjusted for our casting approach
-        assert "((data ->> 'id'))::numeric = 1" in sql_str
+        assert "(data ->> 'id')::numeric = 1" in sql_str
         # Child's name should now be accessed via nested path: data -> 'child' ->> 'name'
         assert "(data -> 'child' ->> 'name') = 'test'" in sql_str
 
@@ -502,7 +503,7 @@ class TestEdgeCases:
         sql_str = sql.as_string(None)
 
         assert "name" not in sql_str
-        assert "((data ->> 'age'))::numeric > 21" in sql_str
+        assert "(data ->> 'age')::numeric > 21" in sql_str
 
     def test_unsupported_operators_ignored(self):
         """Test that unsupported operators are silently ignored."""

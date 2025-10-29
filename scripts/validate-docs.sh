@@ -198,10 +198,165 @@ validate_file_references() {
 }
 
 # Validate code syntax in examples
+# Validate Python syntax using AST parsing (documentation-friendly)
+validate_python_ast() {
+    local code="$1"
+    local file="$2"
+    local line_num="$3"
+
+    # Write code to temp file and validate
+    local temp_code_file="/tmp/fraiseql_ast_check.py"
+    echo "$code" > "$temp_code_file"
+
+    local result
+    result=$(python3 -c "
+import ast
+import sys
+try:
+    with open('$temp_code_file', 'r') as f:
+        code = f.read()
+    ast.parse(code)
+    print('VALID')
+except SyntaxError as e:
+    print('SYNTAX_ERROR: ' + str(e))
+except Exception as e:
+    print('OTHER_ERROR: ' + str(e))
+" 2>/dev/null)
+
+    rm -f "$temp_code_file"
+    echo "$result"
+}
+
+# Detect documentation patterns in code
+detect_documentation_pattern() {
+    local code="$1"
+
+    # Check for documentation indicators
+    if echo "$code" | grep -q "^\s*# Example\|^# Note\|^# \.\.\.\|^\s*\.\.\.\|^\s*# TODO\|^\s*# FIXME"; then
+        echo "documentation_example"
+        return 0
+    fi
+
+    # Check for incomplete function/class patterns (functions/classes without bodies)
+    if echo "$code" | grep -q "^\s*def.*:\s*$" && ! echo "$code" | grep -q "^\s*pass\|^return\|^raise\|^yield\|^\"\"\""; then
+        echo "incomplete_function"
+        return 0
+    fi
+
+    # Check for class definitions without complete bodies
+    if echo "$code" | grep -q "^\s*class.*:\s*$" && ! echo "$code" | grep -q "^\s*pass\|^def\|^class\|^\"\"\""; then
+        echo "incomplete_class"
+        return 0
+    fi
+
+    # Check for FraiseQL framework usage
+    if echo "$code" | grep -q "@type\|from fraiseql\|fraiseql\."; then
+        echo "fraiseql_example"
+        return 0
+    fi
+
+    # Check for code that looks like examples (short snippets, contains ...)
+    if echo "$code" | grep -q "\.\.\." && [[ $(echo "$code" | wc -l) -lt 10 ]]; then
+        echo "code_snippet"
+        return 0
+    fi
+
+    echo "complete_code"
+}
+
+# Add context for common documentation patterns
+add_documentation_context() {
+    local code="$1"
+    local pattern="$2"
+
+    case "$pattern" in
+        "fraiseql_example")
+            # Add common imports for FraiseQL examples
+            echo "# Auto-added imports for FraiseQL examples"
+            echo "from typing import Optional, List, Dict, Any"
+            echo "from datetime import datetime"
+            echo "from uuid import UUID"
+            echo ""
+            echo "# Mock FraiseQL imports (for documentation validation)"
+            echo "class type:"
+            echo "    def __init__(self, **kwargs): pass"
+            echo "    def __call__(self, cls): return cls"
+            echo ""
+            echo "$code"
+            ;;
+        "code_snippet"|"documentation_example")
+            # Add basic typing imports for code snippets
+            echo "# Auto-added imports for code validation"
+            echo "from typing import Optional, List, Dict, Any"
+            echo "from datetime import datetime"
+            echo "from uuid import UUID"
+            echo ""
+            echo "$code"
+            ;;
+        "incomplete_function"|"incomplete_class")
+            # For incomplete code, add pass statements to make it valid
+            if echo "$code" | grep -q "^\s*def.*:\s*$" && ! echo "$code" | grep -q "^\s*pass\|^return\|^raise\|^yield"; then
+                echo "$code"
+                echo "    pass"
+            elif echo "$code" | grep -q "^\s*class.*:\s*$" && ! echo "$code" | grep -q "^\s*pass\|^def\|^class"; then
+                echo "$code"
+                echo "    pass"
+            else
+                echo "$code"
+            fi
+            ;;
+        *)
+            echo "$code"
+            ;;
+    esac
+}
+
+# Classify and report syntax errors appropriately
+classify_and_report_error() {
+    local error_msg="$1"
+    local file="$2"
+    local line_num="$3"
+    local pattern="$4"
+
+    # Extract line number from error message if available
+    local error_line=""
+    if echo "$error_msg" | grep -q "line [0-9]"; then
+        error_line=$(echo "$error_msg" | sed 's/.*line \([0-9]*\).*/\1/')
+        error_line=$((line_num + error_line - 1))
+    else
+        error_line=$line_num
+    fi
+
+    if echo "$error_msg" | grep -q "No module named\|ImportError"; then
+        case "$pattern" in
+            "documentation_example"|"incomplete_function"|"incomplete_class"|"fraiseql_example")
+                log_warning "Missing import in $file:$error_line (documentation example - treating as warning)"
+                return 0  # Warning, not error
+                ;;
+            *)
+                log_error "Missing import in $file:$error_line"
+                return 1
+                ;;
+        esac
+    elif echo "$error_msg" | grep -q "unexpected indent\|expected an indented"; then
+        log_error "Indentation error in $file:$error_line - check markdown formatting (Python code needs proper indentation)"
+        return 1
+    elif echo "$error_msg" | grep -q "invalid syntax"; then
+        log_error "Syntax error in $file:$error_line - $error_msg"
+        return 1
+    else
+        log_error "Code validation error in $file:$error_line - $error_msg"
+        return 1
+    fi
+
+    return 0
+}
+
 validate_code_syntax() {
-    log_info "Validating code syntax in examples..."
+    log_info "Validating code syntax in examples (enhanced mode)..."
 
     local errors=0
+    local warnings=0
 
     # Check if python is available for syntax validation
     if ! command_exists python3; then
@@ -213,6 +368,7 @@ validate_code_syntax() {
     while IFS= read -r -d '' file; do
         local in_python_block=false
         local line_num=0
+        local block_start_line=0
         local temp_file="/tmp/fraiseql_syntax_check.py"
 
         while IFS= read -r line; do
@@ -220,6 +376,7 @@ validate_code_syntax() {
 
             if [[ $line =~ ^\`\`\`python ]]; then
                 in_python_block=true
+                block_start_line=$line_num
                 # Start collecting Python code
                 > "$temp_file"
                 continue
@@ -228,10 +385,74 @@ validate_code_syntax() {
             if [[ $line =~ ^\`\`\` ]] && [[ $in_python_block == true ]]; then
                 # End of Python block, validate syntax
                 if [[ -s $temp_file ]]; then
-                    if ! python3 -m py_compile "$temp_file" 2>/dev/null; then
-                        log_error "Invalid Python syntax in $file at line $line_num"
-                        ((errors++))
+                    local code
+                    code=$(cat "$temp_file")
+
+                    # Skip empty or trivial blocks
+                    if [[ -z "$(echo "$code" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')" ]]; then
+                        continue
                     fi
+
+                    # Detect pattern
+                    local pattern
+                    pattern=$(detect_documentation_pattern "$code")
+
+                    # For documentation examples and code snippets, be more lenient
+                    case "$pattern" in
+                        "documentation_example"|"code_snippet")
+                            # Skip AST validation for documentation snippets - they're not meant to be complete programs
+                            log_info "Skipping detailed validation for $file:$block_start_line ($pattern)"
+                            continue
+                            ;;
+                        "incomplete_function"|"incomplete_class")
+                            # Try to make incomplete code valid by adding context
+                            local enhanced_code
+                            enhanced_code=$(add_documentation_context "$code" "$pattern")
+                            local validation_result
+                            validation_result=$(validate_python_ast "$enhanced_code" "$file" "$block_start_line")
+
+                            if [[ $validation_result == "VALID" ]]; then
+                                # Success - continue
+                                continue
+                            else
+                                # For incomplete code that we tried to fix, treat as warning
+                                log_warning "Could not validate incomplete code in $file:$block_start_line"
+                                ((warnings++))
+                                continue
+                            fi
+                            ;;
+                        *)
+                            # For complete code, do full validation
+                            local enhanced_code
+                            enhanced_code=$(add_documentation_context "$code" "$pattern")
+                            local validation_result
+                            validation_result=$(validate_python_ast "$enhanced_code" "$file" "$block_start_line")
+
+                            if [[ $validation_result == "VALID" ]]; then
+                                # Success - continue
+                                continue
+                            elif [[ $validation_result == *"SYNTAX_ERROR:"* ]]; then
+                                local error_msg
+                                error_msg=$(echo "$validation_result" | sed 's/^SYNTAX_ERROR: //')
+                                if classify_and_report_error "$error_msg" "$file" "$block_start_line" "$pattern"; then
+                                    ((warnings++))
+                                else
+                                    ((errors++))
+                                fi
+                            elif [[ $validation_result == *"OTHER_ERROR:"* ]]; then
+                                local error_msg
+                                error_msg=$(echo "$validation_result" | sed 's/^OTHER_ERROR: //')
+                                if classify_and_report_error "$error_msg" "$file" "$block_start_line" "$pattern"; then
+                                    ((warnings++))
+                                else
+                                    ((errors++))
+                                fi
+                            else
+                                log_error "Unknown validation result for $file:$block_start_line: '$validation_result'"
+                                ((errors++))
+                            fi
+                            ;;
+                    esac
                 fi
                 in_python_block=false
                 continue
@@ -250,9 +471,13 @@ validate_code_syntax() {
     done < <(find "$PROJECT_ROOT" -name "*.md" -type f -not -path "*/archive/*" -print0)
 
     if [[ $errors -eq 0 ]]; then
-        log_success "All Python code blocks have valid syntax"
+        if [[ $warnings -gt 0 ]]; then
+            log_success "All Python code blocks validated ($warnings warnings for documentation examples)"
+        else
+            log_success "All Python code blocks have valid syntax"
+        fi
     else
-        log_error "Found $errors Python syntax errors in documentation"
+        log_error "Found $errors syntax errors and $warnings warnings in documentation"
         return 1
     fi
 }

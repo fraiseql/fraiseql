@@ -2,18 +2,19 @@
 
 **Last Updated**: 2025-10-25
 
-## Current Production Version: v1.0.2
+## Current Production Version: v1.0.3
 
-FraiseQL v1.0.2 is the stable, production-ready release suitable for all users. This patch release fixes README rendering and documentation links on PyPI.
+FraiseQL v1.0.3 is the stable, production-ready release suitable for all users.
 
 ## Version Overview
 
 | Version | Status | Recommended For | Stability |
 |---------|--------|----------------|-----------|
-| **v1.0.2** | Production Stable | All users | ✅ Stable |
+| **v1.0.3** | Production Stable | All users | ✅ Stable |
+| v1.0.2 | Stable | All users | ✅ Stable |
 | v1.0.1 | Stable | All users | ✅ Stable |
 | v1.0.0 | Stable | All users | ✅ Stable |
-| v0.11.5 | Superseded | Legacy projects | ⚠️ Use v1.0.2 |
+| v0.11.5 | Superseded | Legacy projects | ⚠️ Use v1.0.3 |
 | Rust Pipeline | Integrated | Included in v1.0+ | ✅ Stable |
 
 ## What's New in v1.0.2
@@ -111,8 +112,6 @@ See [MIGRATION_GUIDE.md](docs/migration/v0-to-v1.md) for upgrade instructions.
 None currently. All features in v1.0.0 are production-stable.
 
 ## Future Roadmap
-
-See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features in v1.1+.
 
 ### Planned for v1.1
 - CLI code generation from database schema
