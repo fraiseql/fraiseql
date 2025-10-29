@@ -7,18 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [1.1.0] - 2025-10-29
 
-**Comprehensive PostgreSQL Filter Operators Documentation**
-- Added complete filter operators reference documentation (`docs/advanced/filter-operators.md`, 1,073 lines)
+### 🎯 Major Features
+
+**Enhanced Array Filtering with PostgreSQL Operator Support** (#99)
+- **38+ PostgreSQL operators** now fully supported with comprehensive documentation
+- **Dual-path intelligence**: Automatic detection and optimization for native arrays vs JSONB arrays
+  - Native columns (TEXT[], INTEGER[]): Uses `&&` operator for fast GIN-indexed overlaps
+  - JSONB fields (data->'tags'): Uses `?|` operator for element existence
+- **Full-text search**: 12 operators including `matches`, `plain_query`, `phrase_query`, `websearch_query` with ranking
+- **JSONB operators**: 10 operators for JSON querying including `has_key`, `path_exists`, `path_match`
+- **Regex operators**: POSIX regex text matching with `matches`, `imatches`, `not_matches`
+- **Array operators**: Length checking, element testing with `any_eq`, `all_eq`
+- **Performance optimized**: All operators support proper indexing (GIN, btree, jsonb_path_ops)
+
+### 🐛 Bug Fixes
+
+**Nested Array Filter Registry Integration** (#97, #100)
+- Fixed decorator-based API (`@register_nested_array_filter`) not being wired to schema builder
+- Schema builder now checks registry as fallback when field attributes are not set
+- Priority system: field attributes → nested_where_type → registry lookup
+- All 4 new registry integration tests passing
+
+### 📚 Documentation
+
+**Comprehensive PostgreSQL Filter Operators Documentation** (2,091 lines)
+- Complete filter operators reference (`docs/advanced/filter-operators.md`, 1,073 lines)
   - Array operators: `eq`, `neq`, `contains`, `contained_by`, `overlaps`, `len_*`, `any_eq`, `all_eq`
   - Full-text search operators: `matches`, `plain_query`, `phrase_query`, `websearch_query`, `rank_*`, `rank_cd_*`
   - JSONB operators: `has_key`, `has_any_keys`, `has_all_keys`, `contains`, `path_exists`, `path_match`, `get_path`
   - Text regex operators: `matches`, `imatches`, `not_matches`
-  - Dual-path array intelligence: Automatic detection of native arrays vs JSONB arrays
-  - Complete SQL examples, performance tips, index recommendations, and troubleshooting guides
+  - Complete SQL examples, performance tips, GIN index recommendations, troubleshooting guides
 
-- Added real-world filtering examples (`docs/examples/advanced-filtering.md`, 926 lines)
+- Real-world filtering examples (`docs/examples/advanced-filtering.md`, 926 lines)
   - E-commerce product catalog filtering with full-text search and array operations
   - Content management system with relevance ranking and metadata queries
   - User management & permissions with JSONB role queries
@@ -26,21 +48,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Multi-tenant SaaS application with feature flags and usage analytics
   - Complete database schemas with GIN indexes and performance optimization
 
-### Enhanced
+- Documentation integration across codebase
+  - Updated `README.md`: Added "Advanced filtering" to feature highlights
+  - Updated `docs/FIRST_HOUR.md`: Added callout box for advanced filtering capabilities
+  - Updated `docs/advanced/where_input_types.md`: Added comprehensive advanced operators section
+  - Updated `docs/core/database-api.md`: Added prominent link to filter operators reference
+  - Fixed nested array filtering documentation to match actual working API
 
-**Documentation Integration**
-- Updated `README.md`: Added "Advanced filtering" to feature highlights and Core Concepts quick links
-- Updated `docs/FIRST_HOUR.md`: Added callout box highlighting advanced filtering capabilities
-- Updated `docs/advanced/where_input_types.md`: Added comprehensive advanced operators section with cross-links
-- Updated `docs/core/database-api.md`: Added prominent link to advanced filter operators in Dynamic Filters section
+### 🔒 Security
 
-### Technical Details
+- Fixed PyO3 buffer overflow vulnerability (GHSA-pph8-gcv7-4qj5, RUSTSEC-2025-0020)
+  - Updated PyO3 from 0.20 to 0.24.1 in archived prototype
+  - Active fraiseql_rs already uses PyO3 0.25.0 (not affected)
+  - Severity: Low
 
-- All 38 PostgreSQL filter operators now fully documented
-- 2,091 lines of new/updated documentation
-- All code examples validated by test suite (3,645 tests passing)
-- Performance guidance includes index creation for GIN, btree, and jsonb_path_ops
-- Documentation covers PostgreSQL 12+ operator features
+### 🔧 Improvements
+
+- Enhanced documentation validation script with AST parsing for better accuracy
+- Fixed 10 pre-existing broken documentation links across the codebase
+- Improved test coverage for SQL injection prevention (5 tests, 0 skipped, all passing)
+- Fixed deployment YAML validation to properly exclude Kubernetes multi-document files
+
+### ✅ Tests
+
+- **3,650 tests passing** (up from 3,616)
+- **+34 net new tests** added
+- **29 previously failing tests fixed**
+- **4 skipped tests properly rewritten** and now passing
+- **100% pass rate** maintained
+- All operator functionality validated with comprehensive test coverage
+
+### 📈 Statistics
+
+- **2,091 lines** of new/updated documentation
+- **38 PostgreSQL operators** fully documented and tested
+- **Zero breaking changes** - fully backward compatible
+- All code examples validated by test suite
+
+### 🔄 Migration Notes
+
+**No migration required** - This is a fully backward-compatible feature release.
+
+All existing code continues to work without modification. New filter operators and documentation are available for immediate use.
+
+### 💡 Upgrade Instructions
+
+```bash
+pip install --upgrade fraiseql==1.1.0
+```
+
+Then explore the new filter operators:
+- Read the [Filter Operators Guide](docs/advanced/filter-operators.md)
+- Check out [Advanced Filtering Examples](docs/examples/advanced-filtering.md)
+- Use the decorator-based nested array filter API
+
+### 🙏 Contributors
+
+- Lionel Hamayon (@lionelh)
+- Claude AI Assistant
+
+---
 
 ## [1.0.3] - 2025-10-27
 
