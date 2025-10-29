@@ -1337,18 +1337,186 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#patterns" class="md-nav__link">
+  <a href="#core-patterns" class="md-nav__link">
     <span class="md-ellipsis">
-      Patterns
+      Core Patterns
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trinity-identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trinity Identifiers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cqrs-command-query-responsibility-segregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      CQRS (Command Query Responsibility Segregation)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#table-views-tv_-explicit-sync-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      Table Views (tv_*) - Explicit Sync Pattern
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Advanced Patterns
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multi-tenancy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-Tenancy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-sourcing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Event Sourcing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bounded-contexts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Bounded Contexts
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Database Patterns
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Database Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#naming-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Naming Conventions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hybrid-tables-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      Hybrid Tables Pattern
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication-authorization-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Authentication &amp; Authorization Patterns
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#coming-soon" class="md-nav__link">
+  <a href="#real-world-examples" class="md-nav__link">
     <span class="md-ellipsis">
-      Coming Soon
+      Real-World Examples
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Real-World Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#blog-api-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Blog API Patterns
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-commerce-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      E-commerce Patterns
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saas-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      SaaS Patterns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pattern-selection-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pattern Selection Guide
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#additional-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Additional Resources
     </span>
   </a>
   
@@ -1374,21 +1542,236 @@
 
 
 <h1 id="design-patterns">Design Patterns<a class="headerlink" href="#design-patterns" title="Permanent link">&para;</a></h1>
-<p>Common design patterns for FraiseQL applications.</p>
-<h2 id="patterns">Patterns<a class="headerlink" href="#patterns" title="Permanent link">&para;</a></h2>
+<p>Common design patterns and architectural approaches for FraiseQL applications.</p>
+<h2 id="core-patterns">Core Patterns<a class="headerlink" href="#core-patterns" title="Permanent link">&para;</a></h2>
+<h3 id="trinity-identifiers">Trinity Identifiers<a class="headerlink" href="#trinity-identifiers" title="Permanent link">&para;</a></h3>
+<p><strong><a href="trinity_identifiers/">Trinity Identifiers Pattern</a></strong> - Three-tier ID system for optimal performance and UX</p>
+<p>The trinity pattern uses three types of identifiers per entity:
+- <strong><code>pk_*</code></strong> - Internal integer IDs for fast database joins
+- <strong><code>id</code></strong> - Public UUID for API stability (never changes)
+- <strong><code>identifier</code></strong> - Human-readable slugs for SEO and usability</p>
+<p><strong>Example:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@type</span><span class="p">(</span><span class="n">sql_source</span><span class="o">=</span><span class="s2">&quot;v_post&quot;</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">Post</span><span class="p">:</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pk_post</span><span class="p">:</span> <span class="nb">int</span>              <span class="c1"># Internal: Fast joins, never exposed to API</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>                  <span class="c1"># Public: Stable API identifier</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">identifier</span><span class="p">:</span> <span class="nb">str</span>           <span class="c1"># Human: &quot;how-to-use-fraiseql&quot; (SEO-friendly)</span>
+</span></code></pre></div></p>
+<p><strong>When to use</strong>: Production applications requiring SEO-friendly URLs and stable API contracts.</p>
+<hr />
+<h3 id="cqrs-command-query-responsibility-segregation">CQRS (Command Query Responsibility Segregation)<a class="headerlink" href="#cqrs-command-query-responsibility-segregation" title="Permanent link">&para;</a></h3>
+<p><strong><a href="../advanced/bounded-contexts/#cqrs-pattern">CQRS Pattern</a></strong> - Separate read and write models</p>
+<p>FraiseQL implements CQRS at the database level:
+- <strong>Queries (Reads)</strong>: Use views (<code>v_*</code>) or table views (<code>tv_*</code>) with pre-composed JSONB
+- <strong>Mutations (Writes)</strong>: Use functions (<code>fn_*</code>) with business logic in PostgreSQL</p>
+<p><strong>Benefits:</strong>
+- Read models optimized for GraphQL responses (no N+1 queries)
+- Write models contain validation and business rules
+- Clear separation of concerns
+- Database-enforced consistency</p>
+<p><strong>Example:</strong>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1">-- Read model (view)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">v_user</span><span class="w"> </span><span class="k">AS</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">jsonb_build_object</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;name&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;email&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">email</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="k">data</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">tb_user</span><span class="p">;</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1">-- Write model (function)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">fn_create_user</span><span class="p">(</span><span class="n">p_email</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">p_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">)</span><span class="w"> </span><span class="k">RETURNS</span><span class="w"> </span><span class="n">JSONB</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="err">$$</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="k">BEGIN</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="c1">-- Validation logic here</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">tb_user</span><span class="w"> </span><span class="p">(</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">)</span><span class="w"> </span><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="n">p_email</span><span class="p">,</span><span class="w"> </span><span class="n">p_name</span><span class="p">);</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="k">RETURN</span><span class="w"> </span><span class="n">jsonb_build_object</span><span class="p">(</span><span class="s1">&#39;success&#39;</span><span class="p">,</span><span class="w"> </span><span class="k">true</span><span class="p">);</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="k">END</span><span class="p">;</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="err">$$</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="p">;</span>
+</span></code></pre></div></p>
+<p><strong>See also:</strong> <a href="../advanced/database-patterns/">Database Patterns Guide</a></p>
+<hr />
+<h3 id="table-views-tv_-explicit-sync-pattern">Table Views (tv_*) - Explicit Sync Pattern<a class="headerlink" href="#table-views-tv_-explicit-sync-pattern" title="Permanent link">&para;</a></h3>
+<p><strong><a href="../core/explicit-sync/">Explicit Sync Pattern</a></strong> - Denormalized JSONB tables for complex queries</p>
+<p>Table views (<code>tv_*</code>) are <strong>denormalized tables</strong> with JSONB columns, explicitly synchronized from source tables:</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Table view (denormalized storage)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">tv_user</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="nb">INT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="k">data</span><span class="w"> </span><span class="n">JSONB</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="n">updated_at</span><span class="w"> </span><span class="n">TIMESTAMPTZ</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">()</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">);</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1">-- Sync function (called by mutations)</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">FUNCTION</span><span class="w"> </span><span class="n">fn_sync_tv_user</span><span class="p">(</span><span class="n">p_user_id</span><span class="w"> </span><span class="nb">INT</span><span class="p">)</span><span class="w"> </span><span class="k">RETURNS</span><span class="w"> </span><span class="n">VOID</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="err">$$</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="k">BEGIN</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">tv_user</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="k">data</span><span class="p">)</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="k">data</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">v_user</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p_user_id</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="k">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EXCLUDED</span><span class="p">.</span><span class="k">data</span><span class="p">;</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="k">END</span><span class="p">;</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="err">$$</span><span class="w"> </span><span class="k">LANGUAGE</span><span class="w"> </span><span class="n">plpgsql</span><span class="p">;</span>
+</span></code></pre></div>
+<p><strong>When to use:</strong>
+- Complex queries requiring joins across multiple tables
+- Performance-critical read paths
+- Data that doesn't change frequently</p>
+<p><strong>Trade-offs:</strong>
+- ✅ Instant lookups (pre-computed joins)
+- ✅ Embedded relations (no N+1 queries)
+- ❌ Requires explicit synchronization
+- ❌ Storage overhead (denormalization)</p>
+<hr />
+<h2 id="advanced-patterns">Advanced Patterns<a class="headerlink" href="#advanced-patterns" title="Permanent link">&para;</a></h2>
+<h3 id="multi-tenancy">Multi-Tenancy<a class="headerlink" href="#multi-tenancy" title="Permanent link">&para;</a></h3>
+<p><strong><a href="../advanced/multi-tenancy/">Multi-Tenancy Pattern</a></strong> - Isolate data per tenant</p>
+<p>Strategies:
+- <strong>Row-Level Security (RLS)</strong>: PostgreSQL enforces tenant isolation
+- <strong>Schema-per-tenant</strong>: Separate schemas for each customer
+- <strong>Database-per-tenant</strong>: Complete isolation (enterprise)</p>
+<p><strong>See:</strong> <a href="../advanced/multi-tenancy/">Multi-Tenancy Guide</a></p>
+<hr />
+<h3 id="event-sourcing">Event Sourcing<a class="headerlink" href="#event-sourcing" title="Permanent link">&para;</a></h3>
+<p><strong><a href="../advanced/event-sourcing/">Event Sourcing Pattern</a></strong> - Store events instead of current state</p>
+<p>FraiseQL supports event sourcing with PostgreSQL:
+- Store domain events in append-only tables
+- Project events into read models (views or table views)
+- Replay events for rebuilding state</p>
+<p><strong>Example use cases:</strong>
+- Audit logging with full history
+- CQRS with event-driven architecture
+- Temporal queries ("what was the state on date X?")</p>
+<p><strong>See:</strong> <a href="../advanced/event-sourcing/">Event Sourcing Guide</a></p>
+<hr />
+<h3 id="bounded-contexts">Bounded Contexts<a class="headerlink" href="#bounded-contexts" title="Permanent link">&para;</a></h3>
+<p><strong><a href="../advanced/bounded-contexts/">Bounded Contexts Pattern</a></strong> - Organize code by domain</p>
+<p>Domain-Driven Design applied to FraiseQL:
+- Separate modules per business domain
+- Shared database with schema organization
+- Clear boundaries between contexts</p>
+<p><strong>Example structure:</strong>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>app/
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>├── domain/
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>│   ├── users/        # User management context
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>│   ├── posts/        # Content management context
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>│   └── payments/     # Billing context
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>└── shared/           # Shared types and utilities
+</span></code></pre></div></p>
+<p><strong>See:</strong> <a href="../advanced/bounded-contexts/">Bounded Contexts Guide</a></p>
+<hr />
+<h2 id="database-patterns">Database Patterns<a class="headerlink" href="#database-patterns" title="Permanent link">&para;</a></h2>
+<h3 id="naming-conventions">Naming Conventions<a class="headerlink" href="#naming-conventions" title="Permanent link">&para;</a></h3>
+<p><strong><a href="../core/ddl-organization/">DDL Organization</a></strong> - Consistent naming for clarity</p>
 <ul>
-<li>CQRS (Command Query Responsibility Segregation)</li>
-<li>Repository Pattern</li>
-<li>DataLoader Pattern</li>
-<li>Trinity Identifiers</li>
-<li>Hybrid Tables</li>
+<li><code>tb_*</code> - Base tables (source of truth)</li>
+<li><code>v_*</code> - Views (JSONB-generating queries for real-time data)</li>
+<li><code>tv_*</code> - Table views (denormalized JSONB tables)</li>
+<li><code>fn_*</code> - Functions (mutations and business logic)</li>
 </ul>
-<h2 id="coming-soon">Coming Soon<a class="headerlink" href="#coming-soon" title="Permanent link">&para;</a></h2>
-<p>Detailed pattern guides are being written.</p>
-<p>For now, see:
-- <a href="../architecture/">Architecture</a>
-- <a href="../../examples/">Examples</a>
-- <a href="../advanced/">Advanced Features</a></p>
+<hr />
+<h3 id="hybrid-tables-pattern">Hybrid Tables Pattern<a class="headerlink" href="#hybrid-tables-pattern" title="Permanent link">&para;</a></h3>
+<p><strong><a href="../advanced/database-patterns/#hybrid-tables">Database Patterns</a></strong> - Mix relational and JSONB storage</p>
+<p>Store structured data in columns, flexible data in JSONB:</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">tb_product</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="nb">INT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="n">name</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">                    </span><span class="c1">-- Structured</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="n">price</span><span class="w"> </span><span class="nb">DECIMAL</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">          </span><span class="c1">-- Structured</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="n">metadata</span><span class="w"> </span><span class="n">JSONB</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">&#39;{}&#39;</span><span class="p">::</span><span class="n">JSONB</span><span class="p">,</span><span class="w">    </span><span class="c1">-- Flexible</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="n">tags</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">[]</span><span class="w">                            </span><span class="c1">-- Array</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">);</span>
+</span></code></pre></div>
+<p><strong>When to use:</strong> Products, settings, or entities with variable attributes.</p>
+<hr />
+<h2 id="authentication-authorization-patterns">Authentication &amp; Authorization Patterns<a class="headerlink" href="#authentication-authorization-patterns" title="Permanent link">&para;</a></h2>
+<p><strong><a href="../advanced/authentication/">Authentication Guide</a></strong> - Common auth patterns</p>
+<p>Strategies:
+- JWT tokens with PostgreSQL validation
+- Session-based authentication
+- OAuth2 integration
+- Row-Level Security for authorization</p>
+<p><strong>Authorization decorator:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nd">@authorized</span><span class="p">(</span><span class="n">roles</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;editor&quot;</span><span class="p">])</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nd">@mutation</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">DeletePost</span><span class="p">:</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="nb">input</span><span class="p">:</span> <span class="n">DeletePostInput</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">success</span><span class="p">:</span> <span class="n">DeleteSuccess</span>
+</span></code></pre></div></p>
+<hr />
+<h2 id="real-world-examples">Real-World Examples<a class="headerlink" href="#real-world-examples" title="Permanent link">&para;</a></h2>
+<h3 id="blog-api-patterns">Blog API Patterns<a class="headerlink" href="#blog-api-patterns" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Simple</strong>: <a href="../../examples/blog_simple/">blog_simple</a> - Basic CRUD</li>
+<li><strong>Intermediate</strong>: <a href="../../examples/blog_api/">blog_api</a> - Nested relations</li>
+<li><strong>Enterprise</strong>: <a href="../../examples/blog_enterprise/">blog_enterprise</a> - Full CQRS + bounded contexts</li>
+</ul>
+<h3 id="e-commerce-patterns">E-commerce Patterns<a class="headerlink" href="#e-commerce-patterns" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../../examples/ecommerce/">ecommerce</a> - Product catalog, cart, orders</li>
+<li><a href="../../examples/ecommerce_api/">ecommerce_api</a> - Advanced filtering</li>
+</ul>
+<h3 id="saas-patterns">SaaS Patterns<a class="headerlink" href="#saas-patterns" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../../examples/saas-starter/">saas-starter</a> - Multi-tenancy template</li>
+<li><a href="../../examples/apq_multi_tenant/">apq_multi_tenant</a> - APQ + multi-tenancy</li>
+</ul>
+<hr />
+<h2 id="pattern-selection-guide">Pattern Selection Guide<a class="headerlink" href="#pattern-selection-guide" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Use When</th>
+<th>Complexity</th>
+<th>Performance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Trinity IDs</strong></td>
+<td>Production APIs with SEO needs</td>
+<td>Medium</td>
+<td>High</td>
+</tr>
+<tr>
+<td><strong>CQRS</strong></td>
+<td>Separating reads from writes</td>
+<td>Medium</td>
+<td>Very High</td>
+</tr>
+<tr>
+<td><strong>Table Views (tv_*)</strong></td>
+<td>Complex joins, performance-critical</td>
+<td>High</td>
+<td>Excellent</td>
+</tr>
+<tr>
+<td><strong>Regular Views (v_*)</strong></td>
+<td>Real-time data, simple joins</td>
+<td>Low</td>
+<td>Good</td>
+</tr>
+<tr>
+<td><strong>Event Sourcing</strong></td>
+<td>Full audit trail required</td>
+<td>High</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><strong>Multi-Tenancy (RLS)</strong></td>
+<td>SaaS applications</td>
+<td>Medium</td>
+<td>Good</td>
+</tr>
+<tr>
+<td><strong>Bounded Contexts</strong></td>
+<td>Large applications (5+ domains)</td>
+<td>High</td>
+<td>N/A</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="additional-resources">Additional Resources<a class="headerlink" href="#additional-resources" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="../core/concepts-glossary/">Core Concepts</a></strong> - Terminology and mental models</li>
+<li><strong><a href="../architecture/decisions/">Architecture Decisions</a></strong> - ADRs explaining why patterns were chosen</li>
+<li><strong><a href="../advanced/database-patterns/">Database Patterns</a></strong> - Detailed database design patterns</li>
+<li><strong><a href="../../examples/">Examples Directory</a></strong> - Real implementations</li>
+</ul>
+<p><strong>Need help choosing a pattern?</strong> See <a href="../architecture/decisions/">Architecture Decision Records</a> for context on trade-offs.</p>
 
 
 

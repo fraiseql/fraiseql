@@ -1337,18 +1337,147 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#topics" class="md-nav__link">
+  <a href="#deployment" class="md-nav__link">
     <span class="md-ellipsis">
-      Topics
+      Deployment
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#coming-soon" class="md-nav__link">
+  <a href="#monitoring-observability" class="md-nav__link">
     <span class="md-ellipsis">
-      Coming Soon
+      Monitoring &amp; Observability
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cost Optimization
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      Production Checklist
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Production Checklist">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#database" class="md-nav__link">
+    <span class="md-ellipsis">
+      Database
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#application" class="md-nav__link">
+    <span class="md-ellipsis">
+      Application
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-scaling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Performance &amp; Scaling
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#platform-specific-guides" class="md-nav__link">
+    <span class="md-ellipsis">
+      Platform-Specific Guides
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Platform-Specific Guides">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#container-platforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      Container Platforms
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloud-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cloud Providers
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start-production-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start - Production Deployment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Support &amp; Troubleshooting
     </span>
   </a>
   
@@ -1374,21 +1503,122 @@
 
 
 <h1 id="production-documentation">Production Documentation<a class="headerlink" href="#production-documentation" title="Permanent link">&para;</a></h1>
-<p>Guides for deploying and running FraiseQL in production.</p>
-<h2 id="topics">Topics<a class="headerlink" href="#topics" title="Permanent link">&para;</a></h2>
+<p>Complete guides for deploying, monitoring, and running FraiseQL in production environments.</p>
+<h2 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Deployment</li>
-<li>Monitoring</li>
-<li>Security</li>
-<li>Scaling</li>
-<li>Best Practices</li>
+<li><strong><a href="deployment/">Deployment Guide</a></strong> - Production deployment strategies</li>
+<li>Docker and Docker Compose setup</li>
+<li>Environment configuration</li>
+<li>Database connection pooling (PgBouncer recommended)</li>
+<li>Scaling strategies and best practices</li>
 </ul>
-<h2 id="coming-soon">Coming Soon<a class="headerlink" href="#coming-soon" title="Permanent link">&para;</a></h2>
-<p>Detailed production deployment guides are being written.</p>
-<p>For now, see:
-- <a href="../../SECURITY.md">Security Policy</a>
-- <a href="../performance/PERFORMANCE_GUIDE/">Performance Guide</a>
-- <a href="../../examples/">Examples</a></p>
+<h2 id="monitoring-observability">Monitoring &amp; Observability<a class="headerlink" href="#monitoring-observability" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="monitoring/">Monitoring</a></strong> - Built-in monitoring and error tracking</li>
+<li>PostgreSQL-based error tracking (replaces Sentry)</li>
+<li>Custom notification channels (Email, Slack, Webhook)</li>
+<li>Error fingerprinting and grouping</li>
+<li>OpenTelemetry integration</li>
+<li><strong><a href="observability/">Observability</a></strong> - Logging, tracing, and metrics</li>
+<li>Structured logging patterns</li>
+<li>Distributed tracing with OpenTelemetry</li>
+<li>Performance metrics collection</li>
+<li>Grafana dashboard integration</li>
+<li><strong><a href="health-checks/">Health Checks</a></strong> - Application health monitoring</li>
+<li>Liveness and readiness probes</li>
+<li>Database connection health</li>
+<li>Custom health check endpoints</li>
+</ul>
+<h2 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="security/">Security Guide</a></strong> - Production security hardening</li>
+<li>Row-Level Security (RLS) implementation</li>
+<li>Authentication and authorization patterns</li>
+<li>CORS configuration</li>
+<li>SQL injection prevention</li>
+<li>Cryptographic audit logging (SHA-256 + HMAC)</li>
+<li>Rate limiting and DDoS protection</li>
+<li><strong><a href="../../SECURITY.md">Security Policy</a></strong> - Vulnerability reporting and security updates</li>
+</ul>
+<h2 id="cost-optimization">Cost Optimization<a class="headerlink" href="#cost-optimization" title="Permanent link">&para;</a></h2>
+<p><strong>Replace 4 Services with PostgreSQL</strong> - Save $5,400-48,000/year:
+- <strong>Caching</strong>: PostgreSQL UNLOGGED tables (replaces Redis)
+- <strong>Error Tracking</strong>: Built-in monitoring (replaces Sentry)
+- <strong>Observability</strong>: PostgreSQL-based metrics (replaces APM tools)
+- <strong>Centralized Storage</strong>: One database to backup and monitor</p>
+<p>See <a href="monitoring/">Monitoring Guide</a> for migration from Redis/Sentry.</p>
+<h2 id="production-checklist">Production Checklist<a class="headerlink" href="#production-checklist" title="Permanent link">&para;</a></h2>
+<p>Before deploying to production:</p>
+<h3 id="database">Database<a class="headerlink" href="#database" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Connection pooling configured (PgBouncer or pgpool-II)</li>
+<li>[ ] Row-Level Security policies created</li>
+<li>[ ] Audit logging enabled</li>
+<li>[ ] Backup strategy implemented</li>
+<li>[ ] PostgreSQL extensions installed (<code>uuid-ossp</code>, <code>ltree</code>, etc.)</li>
+</ul>
+<h3 id="application">Application<a class="headerlink" href="#application" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Environment variables secured (use secrets manager)</li>
+<li>[ ] CORS configured for production domains</li>
+<li>[ ] Rate limiting enabled</li>
+<li>[ ] Health check endpoints configured</li>
+<li>[ ] Error tracking initialized</li>
+</ul>
+<h3 id="monitoring">Monitoring<a class="headerlink" href="#monitoring" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Grafana dashboards imported</li>
+<li>[ ] Alert notifications configured</li>
+<li>[ ] OpenTelemetry traces enabled</li>
+<li>[ ] Log aggregation setup</li>
+</ul>
+<h3 id="security_1">Security<a class="headerlink" href="#security_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] HTTPS/TLS configured</li>
+<li>[ ] SQL injection protection verified</li>
+<li>[ ] Authentication/authorization tested</li>
+<li>[ ] Sensitive data audit completed</li>
+<li>[ ] Security headers configured</li>
+</ul>
+<h2 id="performance-scaling">Performance &amp; Scaling<a class="headerlink" href="#performance-scaling" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="../performance/">Performance Guide</a></strong> - Optimization strategies</li>
+<li><strong><a href="../performance/apq-optimization-guide/">APQ Configuration</a></strong> - Automatic Persisted Queries</li>
+<li><strong><a href="../performance/rust-pipeline-optimization/">Rust Pipeline</a></strong> - Rust acceleration setup</li>
+</ul>
+<h2 id="platform-specific-guides">Platform-Specific Guides<a class="headerlink" href="#platform-specific-guides" title="Permanent link">&para;</a></h2>
+<h3 id="container-platforms">Container Platforms<a class="headerlink" href="#container-platforms" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Docker</strong>: See <a href="deployment/#docker-setup">Deployment Guide</a></li>
+<li><strong>Kubernetes</strong>: See <a href="deployment/#kubernetes-deployment">Deployment Guide</a></li>
+</ul>
+<h3 id="cloud-providers">Cloud Providers<a class="headerlink" href="#cloud-providers" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>AWS</strong>: ECS/Fargate + RDS PostgreSQL</li>
+<li><strong>GCP</strong>: Cloud Run + Cloud SQL</li>
+<li><strong>Azure</strong>: Container Instances + PostgreSQL Flexible Server</li>
+</ul>
+<p><strong>Note</strong>: Detailed Kubernetes manifests and cloud-specific configurations coming soon. For now, use Docker Compose template in <a href="deployment/">Deployment Guide</a>.</p>
+<h2 id="quick-start-production-deployment">Quick Start - Production Deployment<a class="headerlink" href="#quick-start-production-deployment" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 1. Setup environment</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>cp<span class="w"> </span>.env.example<span class="w"> </span>.env.production
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Edit .env.production with production credentials</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># 2. Run with Docker Compose</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>docker-compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>up<span class="w"> </span>-d
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># 3. Verify health</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>curl<span class="w"> </span>http://localhost:8000/health
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># 4. Import Grafana dashboards</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># See monitoring.md for dashboard setup</span>
+</span></code></pre></div>
+<h2 id="support-troubleshooting">Support &amp; Troubleshooting<a class="headerlink" href="#support-troubleshooting" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="../TROUBLESHOOTING/">Troubleshooting Guide</a></strong> - Common production issues</li>
+<li><strong><a href="../../SECURITY.md">Security Issues</a></strong> - Report security vulnerabilities</li>
+<li><strong><a href="https://github.com/fraiseql/fraiseql/issues">GitHub Issues</a></strong> - Bug reports and feature requests</li>
+</ul>
 
 
 

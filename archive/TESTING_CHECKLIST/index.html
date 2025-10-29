@@ -1,0 +1,2244 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Enterprise-grade GraphQL framework built on PostgreSQL, FastAPI, and Strawberry">
+      
+      
+        <meta name="author" content="Lionel Hamayon">
+      
+      
+        <link rel="canonical" href="https://fraiseql.dev/docs/archive/TESTING_CHECKLIST/">
+      
+      
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>Documentation Testing & Quality Assurance Checklist - FraiseQL Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#documentation-testing-quality-assurance-checklist" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="FraiseQL Documentation" class="md-header__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            FraiseQL Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Documentation Testing &amp; Quality Assurance Checklist
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../tutorials/beginner-path/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Tutorials
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../core/fraiseql-philosophy/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Core Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../performance/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Performance
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../advanced/authentication/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Advanced
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../production/deployment/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Production
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api-reference/database/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="FraiseQL Documentation" class="md-nav__button md-logo" aria-label="FraiseQL Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    FraiseQL Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fraiseql/fraiseql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fraiseql/fraiseql
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tutorials
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Tutorials
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/beginner-path/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Beginner Learning Path
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/blog-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Blog API Tutorial
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tutorials/production-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Production Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Core Concepts
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Core Concepts
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/fraiseql-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    FraiseQL Philosophy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/types-and-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Types & Schema
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/queries-and-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Queries & Mutations
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/database-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../performance/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    Performance
+    
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Performance
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Authentication
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/multi-tenancy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Multi-Tenancy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/bounded-contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Bounded Contexts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/event-sourcing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Event Sourcing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/database-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database Patterns
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/llm-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    LLM Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Production
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Production
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Security
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api-reference/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Database API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI Reference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#testing-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      📋 Testing Overview
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📋 Testing Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automated-checks-run-via-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automated Checks (Run via CI)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-checks-human-verification-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      Manual Checks (Human verification required)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#link-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔗 Link Validation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🔗 Link Validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#internal-links-relative-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      Internal Links (Relative paths)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#external-links-httphttps" class="md-nav__link">
+    <span class="md-ellipsis">
+      External Links (HTTP/HTTPS)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      File References
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#content-accuracy" class="md-nav__link">
+    <span class="md-ellipsis">
+      📝 Content Accuracy
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📝 Content Accuracy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#version-information" class="md-nav__link">
+    <span class="md-ellipsis">
+      Version Information
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Code Examples
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation-instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation Instructions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-example-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      🚀 Code Example Testing
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🚀 Code Example Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quickstart-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quickstart Examples
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tutorial-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tutorial Examples
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#production-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Production Examples
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      API Examples
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation-path-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      🏗️ Installation Path Testing
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🏗️ Installation Path Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Installation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enterprise-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Enterprise Installation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#development-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Development Installation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Platform Testing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-user-onboarding-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      👤 New User Onboarding Test
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="👤 New User Onboarding Test">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beginner-path-30-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Beginner Path (&lt; 30 minutes)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#production-path-60-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Production Path (&lt; 60 minutes)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contributor-path-45-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Contributor Path (&lt; 45 minutes)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#content-quality-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔍 Content Quality Checks
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🔍 Content Quality Checks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#consistency" class="md-nav__link">
+    <span class="md-ellipsis">
+      Consistency
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#completeness" class="md-nav__link">
+    <span class="md-ellipsis">
+      Completeness
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clarity" class="md-nav__link">
+    <span class="md-ellipsis">
+      Clarity
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#currency" class="md-nav__link">
+    <span class="md-ellipsis">
+      Currency
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automated-validation-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      🧪 Automated Validation Scripts
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🧪 Automated Validation Scripts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#link-checker" class="md-nav__link">
+    <span class="md-ellipsis">
+      Link Checker
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-example-tester" class="md-nav__link">
+    <span class="md-ellipsis">
+      Code Example Tester
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installation-verifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation Verifier
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quality-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      📊 Quality Metrics
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📊 Quality Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quantitative-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quantitative Metrics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qualitative-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Qualitative Metrics
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-issues-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      🚨 Common Issues &amp; Fixes
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="🚨 Common Issues &amp; Fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dead-links" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dead Links
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outdated-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Outdated Examples
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#missing-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Missing Prerequisites
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#version-inconsistencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Version Inconsistencies
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#continuous-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      📈 Continuous Quality
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📈 Continuous Quality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pre-commit-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pre-Commit Checks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cicd-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      CI/CD Integration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#regular-audits" class="md-nav__link">
+    <span class="md-ellipsis">
+      Regular Audits
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#final-verification-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      ✅ Final Verification Checklist
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="documentation-testing-quality-assurance-checklist">Documentation Testing &amp; Quality Assurance Checklist<a class="headerlink" href="#documentation-testing-quality-assurance-checklist" title="Permanent link">&para;</a></h1>
+<p><strong>Last Updated</strong>: October 17, 2025
+<strong>Purpose</strong>: Comprehensive verification that all documentation is accurate, complete, and user-friendly.</p>
+<hr />
+<h2 id="testing-overview">📋 Testing Overview<a class="headerlink" href="#testing-overview" title="Permanent link">&para;</a></h2>
+<p>This checklist ensures FraiseQL documentation meets production quality standards. Run these checks before releases and after major documentation changes.</p>
+<h3 id="automated-checks-run-via-ci"><strong>Automated Checks</strong> (Run via CI)<a class="headerlink" href="#automated-checks-run-via-ci" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ Link validation (internal/external)</li>
+<li>✅ Code syntax validation</li>
+<li>✅ File existence verification</li>
+<li>✅ Terminology consistency</li>
+</ul>
+<h3 id="manual-checks-human-verification-required"><strong>Manual Checks</strong> (Human verification required)<a class="headerlink" href="#manual-checks-human-verification-required" title="Permanent link">&para;</a></h3>
+<ul>
+<li>✅ Code example execution</li>
+<li>✅ Installation path testing</li>
+<li>✅ New user onboarding flow</li>
+<li>✅ Content accuracy review</li>
+</ul>
+<hr />
+<h2 id="link-validation">🔗 Link Validation<a class="headerlink" href="#link-validation" title="Permanent link">&para;</a></h2>
+<h3 id="internal-links-relative-paths"><strong>Internal Links</strong> (Relative paths)<a class="headerlink" href="#internal-links-relative-paths" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] All <code>../</code> and <code>./</code> links resolve to existing files</li>
+<li>[ ] Section anchors (<code>#section-name</code>) exist in target files</li>
+<li>[ ] Navigation breadcrumbs work correctly</li>
+<li>[ ] Cross-references between docs are accurate</li>
+</ul>
+<h3 id="external-links-httphttps"><strong>External Links</strong> (HTTP/HTTPS)<a class="headerlink" href="#external-links-httphttps" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] GitHub repository links are valid</li>
+<li>[ ] Documentation site links work</li>
+<li>[ ] Package registry links (PyPI) are current</li>
+<li>[ ] External tool documentation links are accessible</li>
+</ul>
+<h3 id="file-references"><strong>File References</strong><a class="headerlink" href="#file-references" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] All referenced files exist (<code>README.md</code>, <code>pyproject.toml</code>, etc.)</li>
+<li>[ ] Code imports resolve correctly</li>
+<li>[ ] Example file paths are accurate</li>
+<li>[ ] Image/diagram references exist</li>
+</ul>
+<hr />
+<h2 id="content-accuracy">📝 Content Accuracy<a class="headerlink" href="#content-accuracy" title="Permanent link">&para;</a></h2>
+<h3 id="version-information"><strong>Version Information</strong><a class="headerlink" href="#version-information" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Current version numbers are correct (pyproject.toml matches README)</li>
+<li>[ ] Version status descriptions are accurate</li>
+<li>[ ] Compatibility requirements are up-to-date</li>
+<li>[ ] Deprecation notices are current</li>
+</ul>
+<h3 id="code-examples"><strong>Code Examples</strong><a class="headerlink" href="#code-examples" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] All code blocks have correct syntax highlighting</li>
+<li>[ ] Import statements are valid</li>
+<li>[ ] Function calls match current API</li>
+<li>[ ] Variable names are consistent</li>
+<li>[ ] Error handling examples are realistic</li>
+</ul>
+<h3 id="installation-instructions"><strong>Installation Instructions</strong><a class="headerlink" href="#installation-instructions" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Package names are correct</li>
+<li>[ ] Version constraints are appropriate</li>
+<li>[ ] System requirements are accurate</li>
+<li>[ ] Platform-specific instructions work</li>
+</ul>
+<h3 id="configuration-examples"><strong>Configuration Examples</strong><a class="headerlink" href="#configuration-examples" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] All config options exist in code</li>
+<li>[ ] Default values are correct</li>
+<li>[ ] Environment variable names match</li>
+<li>[ ] JSON/YAML syntax is valid</li>
+</ul>
+<hr />
+<h2 id="code-example-testing">🚀 Code Example Testing<a class="headerlink" href="#code-example-testing" title="Permanent link">&para;</a></h2>
+<h3 id="quickstart-examples"><strong>Quickstart Examples</strong><a class="headerlink" href="#quickstart-examples" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>fraiseql init</code> creates working project</li>
+<li>[ ] Generated code runs without errors</li>
+<li>[ ] Database setup works as documented</li>
+<li>[ ] GraphQL queries execute successfully</li>
+</ul>
+<h3 id="tutorial-examples"><strong>Tutorial Examples</strong><a class="headerlink" href="#tutorial-examples" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] All tutorial steps produce expected results</li>
+<li>[ ] Intermediate files are correct</li>
+<li>[ ] Error recovery instructions work</li>
+<li>[ ] Final applications are functional</li>
+</ul>
+<h3 id="production-examples"><strong>Production Examples</strong><a class="headerlink" href="#production-examples" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Enterprise examples deploy successfully</li>
+<li>[ ] Performance benchmarks are reproducible</li>
+<li>[ ] Security configurations work</li>
+<li>[ ] Monitoring integrations function</li>
+</ul>
+<h3 id="api-examples"><strong>API Examples</strong><a class="headerlink" href="#api-examples" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] All documented methods exist</li>
+<li>[ ] Parameter types are correct</li>
+<li>[ ] Return values match documentation</li>
+<li>[ ] Error conditions are handled</li>
+</ul>
+<hr />
+<h2 id="installation-path-testing">🏗️ Installation Path Testing<a class="headerlink" href="#installation-path-testing" title="Permanent link">&para;</a></h2>
+<h3 id="basic-installation"><strong>Basic Installation</strong><a class="headerlink" href="#basic-installation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>pip install fraiseql</code> works</li>
+<li>[ ] All dependencies install correctly</li>
+<li>[ ] Import statements work</li>
+<li>[ ] Basic functionality available</li>
+</ul>
+<h3 id="enterprise-installation"><strong>Enterprise Installation</strong><a class="headerlink" href="#enterprise-installation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>pip install fraiseql[enterprise]</code> succeeds</li>
+<li>[ ] Optional dependencies install</li>
+<li>[ ] Enterprise features are available</li>
+<li>[ ] Performance optimizations active</li>
+</ul>
+<h3 id="development-installation"><strong>Development Installation</strong><a class="headerlink" href="#development-installation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>pip install -e .[dev]</code> works</li>
+<li>[ ] Development tools available</li>
+<li>[ ] Testing framework configured</li>
+<li>[ ] Code quality tools functional</li>
+</ul>
+<h3 id="platform-testing"><strong>Platform Testing</strong><a class="headerlink" href="#platform-testing" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Linux installation works</li>
+<li>[ ] macOS installation works</li>
+<li>[ ] Windows installation works (if supported)</li>
+<li>[ ] Docker container builds successfully</li>
+</ul>
+<hr />
+<h2 id="new-user-onboarding-test">👤 New User Onboarding Test<a class="headerlink" href="#new-user-onboarding-test" title="Permanent link">&para;</a></h2>
+<h3 id="beginner-path-30-minutes"><strong>Beginner Path</strong> (&lt; 30 minutes)<a class="headerlink" href="#beginner-path-30-minutes" title="Permanent link">&para;</a></h3>
+<ol>
+<li>[ ] Start from main README.md</li>
+<li>[ ] Follow "Is this for me?" guidance</li>
+<li>[ ] Complete quickstart successfully</li>
+<li>[ ] Execute first GraphQL query</li>
+<li>[ ] Verify working API</li>
+</ol>
+<p><strong>Time Target</strong>: &lt; 30 minutes from start to working API</p>
+<h3 id="production-path-60-minutes"><strong>Production Path</strong> (&lt; 60 minutes)<a class="headerlink" href="#production-path-60-minutes" title="Permanent link">&para;</a></h3>
+<ol>
+<li>[ ] Start from main README.md</li>
+<li>[ ] Choose production path</li>
+<li>[ ] Install enterprise version</li>
+<li>[ ] Deploy example application</li>
+<li>[ ] Verify performance metrics</li>
+</ol>
+<p><strong>Time Target</strong>: &lt; 60 minutes to production deployment</p>
+<h3 id="contributor-path-45-minutes"><strong>Contributor Path</strong> (&lt; 45 minutes)<a class="headerlink" href="#contributor-path-45-minutes" title="Permanent link">&para;</a></h3>
+<ol>
+<li>[ ] Start from main README.md</li>
+<li>[ ] Follow contributor guidance</li>
+<li>[ ] Set up development environment</li>
+<li>[ ] Run test suite successfully</li>
+<li>[ ] Make first code change</li>
+</ol>
+<p><strong>Time Target</strong>: &lt; 45 minutes to contributing</p>
+<hr />
+<h2 id="content-quality-checks">🔍 Content Quality Checks<a class="headerlink" href="#content-quality-checks" title="Permanent link">&para;</a></h2>
+<h3 id="consistency"><strong>Consistency</strong><a class="headerlink" href="#consistency" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Terminology is standardized (e.g., "FraiseQL" vs "fraiseql")</li>
+<li>[ ] Code style is consistent across examples</li>
+<li>[ ] Naming conventions are followed</li>
+<li>[ ] Voice/tone is appropriate for audience</li>
+</ul>
+<h3 id="completeness"><strong>Completeness</strong><a class="headerlink" href="#completeness" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] All features are documented</li>
+<li>[ ] Prerequisites are clearly stated</li>
+<li>[ ] Troubleshooting sections exist</li>
+<li>[ ] Related topics are cross-referenced</li>
+</ul>
+<h3 id="clarity"><strong>Clarity</strong><a class="headerlink" href="#clarity" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Instructions are step-by-step</li>
+<li>[ ] Concepts are explained before use</li>
+<li>[ ] Error messages are anticipated</li>
+<li>[ ] Examples include expected output</li>
+</ul>
+<h3 id="currency"><strong>Currency</strong><a class="headerlink" href="#currency" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] All version numbers are current</li>
+<li>[ ] API changes are reflected</li>
+<li>[ ] Best practices are up-to-date</li>
+<li>[ ] Security recommendations current</li>
+</ul>
+<hr />
+<h2 id="automated-validation-scripts">🧪 Automated Validation Scripts<a class="headerlink" href="#automated-validation-scripts" title="Permanent link">&para;</a></h2>
+<h3 id="link-checker"><strong>Link Checker</strong><a class="headerlink" href="#link-checker" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Run link validation</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./scripts/validate-docs.sh<span class="w"> </span>--links
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Check specific file</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>./scripts/validate-docs.sh<span class="w"> </span>--file<span class="w"> </span>docs/quickstart.md
+</span></code></pre></div>
+<h3 id="code-example-tester"><strong>Code Example Tester</strong><a class="headerlink" href="#code-example-tester" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Test all examples</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>./scripts/validate-docs.sh<span class="w"> </span>--examples
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Test specific example</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>./scripts/validate-docs.sh<span class="w"> </span>--example<span class="w"> </span>quickstart
+</span></code></pre></div>
+<h3 id="installation-verifier"><strong>Installation Verifier</strong><a class="headerlink" href="#installation-verifier" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Test all install paths</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./scripts/validate-docs.sh<span class="w"> </span>--install
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Test specific platform</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>./scripts/validate-docs.sh<span class="w"> </span>--install<span class="w"> </span>--platform<span class="w"> </span>linux
+</span></code></pre></div>
+<hr />
+<h2 id="quality-metrics">📊 Quality Metrics<a class="headerlink" href="#quality-metrics" title="Permanent link">&para;</a></h2>
+<h3 id="quantitative-metrics"><strong>Quantitative Metrics</strong><a class="headerlink" href="#quantitative-metrics" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Link Health</strong>: 100% of internal links working</li>
+<li><strong>Code Coverage</strong>: 100% of examples tested</li>
+<li><strong>Installation Success</strong>: 100% of documented paths working</li>
+<li><strong>User Success Rate</strong>: &gt; 95% complete onboarding successfully</li>
+</ul>
+<h3 id="qualitative-metrics"><strong>Qualitative Metrics</strong><a class="headerlink" href="#qualitative-metrics" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Readability</strong>: Content understandable by target audience</li>
+<li><strong>Accuracy</strong>: No factual errors or contradictions</li>
+<li><strong>Completeness</strong>: All necessary information provided</li>
+<li><strong>Usability</strong>: Users can achieve goals efficiently</li>
+</ul>
+<hr />
+<h2 id="common-issues-fixes">🚨 Common Issues &amp; Fixes<a class="headerlink" href="#common-issues-fixes" title="Permanent link">&para;</a></h2>
+<h3 id="dead-links"><strong>Dead Links</strong><a class="headerlink" href="#dead-links" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Symptom</strong>: 404 errors or broken navigation</li>
+<li><strong>Fix</strong>: Update file paths, check file existence</li>
+<li><strong>Prevention</strong>: Run link checker before commits</li>
+</ul>
+<h3 id="outdated-examples"><strong>Outdated Examples</strong><a class="headerlink" href="#outdated-examples" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Symptom</strong>: Code fails to execute</li>
+<li><strong>Fix</strong>: Update to current API, test execution</li>
+<li><strong>Prevention</strong>: Test examples after API changes</li>
+</ul>
+<h3 id="missing-prerequisites"><strong>Missing Prerequisites</strong><a class="headerlink" href="#missing-prerequisites" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Symptom</strong>: Users can't follow instructions</li>
+<li><strong>Fix</strong>: Add clear prerequisites section</li>
+<li><strong>Prevention</strong>: Include prerequisites in all guides</li>
+</ul>
+<h3 id="version-inconsistencies"><strong>Version Inconsistencies</strong><a class="headerlink" href="#version-inconsistencies" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Symptom</strong>: Conflicting version information</li>
+<li><strong>Fix</strong>: Centralize version data, update all references</li>
+<li><strong>Prevention</strong>: Single source of truth for versions</li>
+</ul>
+<hr />
+<h2 id="continuous-quality">📈 Continuous Quality<a class="headerlink" href="#continuous-quality" title="Permanent link">&para;</a></h2>
+<h3 id="pre-commit-checks"><strong>Pre-Commit Checks</strong><a class="headerlink" href="#pre-commit-checks" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Run link validation on changed files</li>
+<li>Syntax check code examples</li>
+<li>Verify file references exist</li>
+</ul>
+<h3 id="cicd-integration"><strong>CI/CD Integration</strong><a class="headerlink" href="#cicd-integration" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Automated testing on pull requests</li>
+<li>Documentation validation in releases</li>
+<li>Performance regression detection</li>
+</ul>
+<h3 id="regular-audits"><strong>Regular Audits</strong><a class="headerlink" href="#regular-audits" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Monthly documentation review</li>
+<li>User feedback integration</li>
+<li>Competitive analysis updates</li>
+</ul>
+<hr />
+<h2 id="final-verification-checklist">✅ Final Verification Checklist<a class="headerlink" href="#final-verification-checklist" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] All automated checks pass</li>
+<li>[ ] Manual testing completed</li>
+<li>[ ] New user onboarding successful</li>
+<li>[ ] Cross-team review completed</li>
+<li>[ ] Performance benchmarks current</li>
+<li>[ ] Security review passed</li>
+<li>[ ] Accessibility standards met</li>
+</ul>
+<hr />
+<p><em>This checklist ensures FraiseQL documentation maintains production quality and provides excellent user experience.</em></content>
+</xai:function_call name="list">
+<parameter name="path">scripts</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2025 <a href="https://github.com/fraiseql" target="_blank" rel="noopener">FraiseQL Project</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/fraiseql/fraiseql" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/fraiseql/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "toc.follow"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

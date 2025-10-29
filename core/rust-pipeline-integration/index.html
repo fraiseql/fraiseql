@@ -1614,7 +1614,7 @@
 <h2 id="type-safety">Type Safety<a class="headerlink" href="#type-safety" title="Permanent link">&para;</a></h2>
 <p>The Python/Rust boundary is type-safe via PyO3:
 - Python <code>list[str]</code> → Rust <code>Vec&lt;String&gt;</code>
-- Python <code>Optional[str]</code> → Rust <code>Option&lt;String&gt;</code>
+- Python <code>str | None</code> → Rust <code>Option&lt;String&gt;</code>
 - Rust <code>Vec&lt;u8&gt;</code> → Python <code>bytes</code></p>
 <h2 id="debugging">Debugging<a class="headerlink" href="#debugging" title="Permanent link">&para;</a></h2>
 <h3 id="enable-rust-logs">Enable Rust Logs:<a class="headerlink" href="#enable-rust-logs" title="Permanent link">&para;</a></h3>

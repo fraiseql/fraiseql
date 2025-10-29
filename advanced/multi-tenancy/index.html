@@ -2130,6 +2130,10 @@
 <p>Comprehensive guide to implementing multi-tenant architectures in FraiseQL with complete data isolation, tenant context propagation, and scalable database patterns.</p>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>Multi-tenancy allows a single application instance to serve multiple organizations (tenants) with complete data isolation and customizable behavior per tenant.</p>
+<p><strong>Prerequisites</strong>: Before implementing multi-tenancy, ensure you understand:
+- <a href="../../core/concepts-glossary/#cqrs-command-query-responsibility-segregation">CQRS Pattern</a> - Foundation for tenant isolation
+- <a href="../../production/security/">Security Basics</a> - RLS and access control fundamentals
+- <a href="../where_input_types/">Context Propagation</a> - Dynamic filtering patterns</p>
 <p><strong>Key Strategies:</strong>
 - Row-level security (RLS) with tenant_id filtering
 - Database per tenant

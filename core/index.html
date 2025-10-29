@@ -1337,18 +1337,54 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#contents" class="md-nav__link">
+  <a href="#getting-started" class="md-nav__link">
     <span class="md-ellipsis">
-      Contents
+      Getting Started
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#coming-soon" class="md-nav__link">
+  <a href="#type-system-schema" class="md-nav__link">
     <span class="md-ellipsis">
-      Coming Soon
+      Type System &amp; Schema
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Database Integration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Advanced Concepts
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration &amp; Dependencies
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-navigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Navigation
     </span>
   </a>
   
@@ -1374,21 +1410,68 @@
 
 
 <h1 id="core-documentation">Core Documentation<a class="headerlink" href="#core-documentation" title="Permanent link">&para;</a></h1>
-<p>Core FraiseQL concepts and features.</p>
-<h2 id="contents">Contents<a class="headerlink" href="#contents" title="Permanent link">&para;</a></h2>
+<p>Essential FraiseQL concepts, architecture, and core features.</p>
+<h2 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Type System</li>
-<li>Queries and Mutations</li>
-<li>Schema Building</li>
-<li>Field Decorators</li>
-<li>Connections and Pagination</li>
+<li><strong><a href="concepts-glossary/">Concepts &amp; Glossary</a></strong> - Core terminology and mental models</li>
+<li>CQRS pattern, JSONB views, Trinity identifiers, Database-first architecture</li>
+<li><strong><a href="fraiseql-philosophy/">FraiseQL Philosophy</a></strong> - Design principles and trade-offs</li>
+<li><strong><a href="project-structure/">Project Structure</a></strong> - How to organize FraiseQL projects</li>
 </ul>
-<h2 id="coming-soon">Coming Soon<a class="headerlink" href="#coming-soon" title="Permanent link">&para;</a></h2>
-<p>Detailed documentation for core features is being written.</p>
-<p>For now, see:
-- <a href="../quickstart/">Quick Start</a>
-- <a href="../../examples/">Examples</a>
-- <a href="../reference/">API Reference</a></p>
+<h2 id="type-system-schema">Type System &amp; Schema<a class="headerlink" href="#type-system-schema" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="types-and-schema/">Types and Schema</a></strong> - Complete guide to FraiseQL's type system</li>
+<li><code>@type</code> decorator and GraphQL type mapping</li>
+<li>Input types, success/failure patterns</li>
+<li>Type composition and reusability</li>
+<li><strong><a href="queries-and-mutations/">Queries and Mutations</a></strong> - Define GraphQL operations</li>
+<li><code>@query</code> and <code>@mutation</code> decorators</li>
+<li>Auto-generated resolvers</li>
+<li>Success/failure pattern implementation</li>
+</ul>
+<h2 id="database-integration">Database Integration<a class="headerlink" href="#database-integration" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="database-api/">Database API</a></strong> - PostgreSQL connection and query execution</li>
+<li>Connection pooling and management</li>
+<li>Calling PostgreSQL functions</li>
+<li>Transaction handling</li>
+<li><strong><a href="ddl-organization/">DDL Organization</a></strong> - SQL schema organization patterns</li>
+<li>Naming conventions: <code>tb_*</code>, <code>v_*</code>, <code>tv_*</code>, <code>fn_*</code></li>
+<li>Migration strategies</li>
+<li><strong><a href="postgresql-extensions/">PostgreSQL Extensions</a></strong> - Required and recommended extensions</li>
+<li>uuid-ossp, ltree, pg_trgm, PostGIS</li>
+</ul>
+<h2 id="advanced-concepts">Advanced Concepts<a class="headerlink" href="#advanced-concepts" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="rust-pipeline-integration/">Rust Pipeline Integration</a></strong> - How the Rust acceleration works</li>
+<li>JSONB → Rust → HTTP response path</li>
+<li>Field selection optimization</li>
+<li>Performance characteristics</li>
+<li><strong><a href="explicit-sync/">Explicit Sync Pattern</a></strong> - Table views (tv_*) synchronization</li>
+<li>When to use table views vs regular views</li>
+<li>Sync function patterns</li>
+<li>Performance trade-offs</li>
+</ul>
+<h2 id="configuration-dependencies">Configuration &amp; Dependencies<a class="headerlink" href="#configuration-dependencies" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="configuration/">Configuration</a></strong> - Application configuration reference</li>
+<li>Database settings</li>
+<li>APQ configuration</li>
+<li>Caching backends</li>
+<li>Security and CORS</li>
+<li><strong><a href="dependencies/">Dependencies</a></strong> - Required and optional Python/system dependencies</li>
+<li><strong><a href="migrations/">Migrations</a></strong> - Database schema migration strategies</li>
+</ul>
+<h2 id="quick-navigation">Quick Navigation<a class="headerlink" href="#quick-navigation" title="Permanent link">&para;</a></h2>
+<p><strong>New to FraiseQL?</strong> Start here:
+1. <a href="concepts-glossary/">Concepts &amp; Glossary</a> - Understand the mental model
+2. <a href="types-and-schema/">Types and Schema</a> - Learn the type system
+3. <a href="database-api/">Database API</a> - Connect to PostgreSQL
+4. <a href="queries-and-mutations/">Queries and Mutations</a> - Build your API</p>
+<p><strong>Building production apps?</strong>
+- <a href="configuration/">Configuration</a> - Production settings
+- <a href="rust-pipeline-integration/">Rust Pipeline Integration</a> - Performance optimization
+- <a href="explicit-sync/">Explicit Sync Pattern</a> - Complex data patterns</p>
 
 
 

@@ -22,7 +22,7 @@
     
     
       
-        <title>Architecture Documentation - FraiseQL Documentation</title>
+        <title>FraiseQL Architecture Documentation - FraiseQL Documentation</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#architecture-documentation" class="md-skip">
+        <a href="#fraiseql-architecture-documentation" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Architecture Documentation
+              FraiseQL Architecture Documentation
             
           </span>
         </div>
@@ -1337,18 +1337,93 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#topics" class="md-nav__link">
+  <a href="#key-documents" class="md-nav__link">
     <span class="md-ellipsis">
-      Topics
+      Key Documents
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Documents">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#direct-path-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Direct Path Implementation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#type-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      Type System
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architectural-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Architectural Decisions
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architectural-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Architectural Topics
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
+  <a href="#quick-reference" class="md-nav__link">
     <span class="md-ellipsis">
-      Related
+      Quick Reference
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#direct-path-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Direct Path Pipeline
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trinity-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trinity Pattern
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Related Documentation
     </span>
   </a>
   
@@ -1373,17 +1448,41 @@
   
 
 
-<h1 id="architecture-documentation">Architecture Documentation<a class="headerlink" href="#architecture-documentation" title="Permanent link">&para;</a></h1>
-<p>FraiseQL architecture and design patterns.</p>
-<h2 id="topics">Topics<a class="headerlink" href="#topics" title="Permanent link">&para;</a></h2>
+<h1 id="fraiseql-architecture-documentation">FraiseQL Architecture Documentation<a class="headerlink" href="#fraiseql-architecture-documentation" title="Permanent link">&para;</a></h1>
+<p>This directory contains architectural documentation for FraiseQL.</p>
+<h2 id="key-documents">Key Documents<a class="headerlink" href="#key-documents" title="Permanent link">&para;</a></h2>
+<h3 id="direct-path-implementation">Direct Path Implementation<a class="headerlink" href="#direct-path-implementation" title="Permanent link">&para;</a></h3>
+<p><strong><a href="DIRECT_PATH_IMPLEMENTATION/">DIRECT_PATH_IMPLEMENTATION.md</a></strong> - Complete documentation of the direct path pipeline that bypasses GraphQL resolvers for maximum performance.</p>
+<p><strong>Status</strong>: ✅ Implemented and working
+- GraphQL → SQL → Rust → HTTP pipeline
+- 3-4x performance improvement
+- Full WHERE clause support
+- Automatic fallback to traditional GraphQL</p>
+<h3 id="type-system">Type System<a class="headerlink" href="#type-system" title="Permanent link">&para;</a></h3>
+<p><strong><a href="type-operator-architecture/">type-operator-architecture.md</a></strong> - Documentation of FraiseQL's type system and operator strategies for WHERE clauses.</p>
+<h3 id="architectural-decisions">Architectural Decisions<a class="headerlink" href="#architectural-decisions" title="Permanent link">&para;</a></h3>
+<p><strong><a href="./decisions/">decisions/</a></strong> - Records of key architectural decisions and their rationale.</p>
+<h2 id="architectural-topics">Architectural Topics<a class="headerlink" href="#architectural-topics" title="Permanent link">&para;</a></h2>
 <ul>
-<li>CQRS Pattern</li>
-<li>View-Based Reads</li>
-<li>Event Sourcing</li>
-<li>Bounded Contexts</li>
-<li>Hybrid Tables</li>
+<li><strong>CQRS Pattern</strong> - Command Query Responsibility Segregation</li>
+<li><strong>View-Based Reads</strong> - Query through database views (<code>v_{entity}</code>)</li>
+<li><strong>Trinity Pattern</strong> - Table (<code>tv_*</code>) + View (<code>v_*</code>) + Type (Python class)</li>
+<li><strong>Hybrid Tables</strong> - Tables with both relational columns and JSONB data</li>
+<li><strong>Direct Path</strong> - Bypass GraphQL resolvers for performance</li>
 </ul>
-<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
+<h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
+<h3 id="direct-path-pipeline">Direct Path Pipeline<a class="headerlink" href="#direct-path-pipeline" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>GraphQL Query → Parser → SQL + WHERE → JSONB → Rust → HTTP
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>              ↓
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>   Bypass GraphQL Resolvers (3-4x faster)
+</span></code></pre></div>
+<h3 id="trinity-pattern">Trinity Pattern<a class="headerlink" href="#trinity-pattern" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Table</strong>: <code>tv_{entity}</code> - Physical storage (id + JSONB)</li>
+<li><strong>View</strong>: <code>v_{entity}</code> - Query interface</li>
+<li><strong>Type</strong>: <code>{Entity}</code> - GraphQL schema</li>
+</ul>
+<h2 id="related-documentation">Related Documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../advanced/">Advanced Patterns</a></li>
 <li><a href="../enterprise/">Enterprise Features</a></li>

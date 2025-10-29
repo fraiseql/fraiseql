@@ -1337,18 +1337,177 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#modules" class="md-nav__link">
+  <a href="#core-decorators" class="md-nav__link">
     <span class="md-ellipsis">
-      Modules
+      Core Decorators
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core Decorators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#type-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      Type System
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-mutation-decorators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query &amp; Mutation Decorators
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authorization" class="md-nav__link">
+    <span class="md-ellipsis">
+      Authorization
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Database API
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Database API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#connection-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Connection Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query Execution
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-input-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Where Input Types
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#coming-soon" class="md-nav__link">
+  <a href="#advanced-features" class="md-nav__link">
     <span class="md-ellipsis">
-      Coming Soon
+      Advanced Features
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#caching" class="md-nav__link">
+    <span class="md-ellipsis">
+      Caching
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-error-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring &amp; Error Tracking
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apq-automatic-persisted-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      APQ (Automatic Persisted Queries)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Utilities
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Utilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trinity-identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Trinity Identifiers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#type-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      Type Operators
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auto-generated-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Auto-Generated Documentation
     </span>
   </a>
   
@@ -1374,21 +1533,101 @@
 
 
 <h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
-<p>API documentation for FraiseQL.</p>
-<h2 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">&para;</a></h2>
+<p>Complete API documentation for FraiseQL decorators, classes, and functions.</p>
+<h2 id="core-decorators">Core Decorators<a class="headerlink" href="#core-decorators" title="Permanent link">&para;</a></h2>
+<h3 id="type-system">Type System<a class="headerlink" href="#type-system" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Database</li>
-<li>GraphQL</li>
-<li>Authentication</li>
-<li>Caching</li>
-<li>Types</li>
+<li><strong><a href="../core/types-and-schema/#type-decorator">@type</a></strong> - Map PostgreSQL views to GraphQL types</li>
+<li>Parameters: <code>sql_source</code>, <code>jsonb_column</code>, <code>table_view</code>, <code>pk_column</code></li>
+<li><strong><a href="../core/types-and-schema/#input-types">@input</a></strong> - Define GraphQL input types for mutations</li>
+<li><strong><a href="../core/queries-and-mutations/#success-failure-pattern">@success</a></strong> - Define success response types</li>
+<li><strong><a href="../core/queries-and-mutations/#success-failure-pattern">@failure</a></strong> - Define failure/error response types</li>
 </ul>
-<h2 id="coming-soon">Coming Soon<a class="headerlink" href="#coming-soon" title="Permanent link">&para;</a></h2>
-<p>Detailed API reference documentation is being generated.</p>
-<p>For now, see:
-- <a href="../core/">Core Concepts</a>
-- <a href="../../examples/">Examples</a>
-- <a href="../../src/fraiseql/">Source Code</a></p>
+<h3 id="query-mutation-decorators">Query &amp; Mutation Decorators<a class="headerlink" href="#query-mutation-decorators" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../core/queries-and-mutations/#query-decorator">@query</a></strong> - Define GraphQL queries</li>
+<li>Auto-generates <code>get_&lt;name&gt;</code> and <code>list_&lt;name&gt;</code> resolvers</li>
+<li><strong><a href="../core/queries-and-mutations/#mutation-decorator">@mutation</a></strong> - Define GraphQL mutations</li>
+<li>Supports success/failure patterns with explicit error handling</li>
+</ul>
+<h3 id="authorization">Authorization<a class="headerlink" href="#authorization" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../advanced/authentication/#authorization-decorator">@authorized</a></strong> - Protect queries/mutations with role-based access</li>
+<li>Parameters: <code>roles</code>, <code>permissions</code>, <code>custom_check</code></li>
+</ul>
+<h2 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h2>
+<h3 id="connection-management">Connection Management<a class="headerlink" href="#connection-management" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="database/#connection-pool">Database Pool</a></strong> - PostgreSQL connection pooling</li>
+<li><code>create_pool()</code> - Initialize connection pool</li>
+<li><code>acquire()</code> - Get connection from pool</li>
+<li><code>close()</code> - Cleanup connections</li>
+</ul>
+<h3 id="query-execution">Query Execution<a class="headerlink" href="#query-execution" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="database/#calling-functions">call_function()</a></strong> - Execute PostgreSQL functions</li>
+<li><strong><a href="database/#raw-queries">execute_query()</a></strong> - Run raw SQL queries</li>
+<li><strong><a href="database/#fetching-data">fetch_one() / fetch_all()</a></strong> - Retrieve query results</li>
+</ul>
+<h3 id="where-input-types">Where Input Types<a class="headerlink" href="#where-input-types" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../advanced/where_input_types/">create_graphql_where_input()</a></strong> - Generate filtering types</li>
+<li>Standard operators: <code>eq</code>, <code>neq</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>in</code>, <code>isnull</code></li>
+<li>Specialized operators: Network types, ltree hierarchy, date ranges</li>
+<li>Nested array filtering: <code>AND</code>, <code>OR</code>, <code>NOT</code> logical operators</li>
+</ul>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="../core/configuration/">FraiseQLConfig</a></strong> - Application configuration</li>
+<li>Database connection settings</li>
+<li>APQ (Automatic Persisted Queries) configuration</li>
+<li>Caching backend selection</li>
+<li>Security and CORS settings</li>
+</ul>
+<h2 id="advanced-features">Advanced Features<a class="headerlink" href="#advanced-features" title="Permanent link">&para;</a></h2>
+<h3 id="caching">Caching<a class="headerlink" href="#caching" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../performance/#postgresql-caching">PostgresCache</a></strong> - PostgreSQL-based caching</li>
+<li><code>set()</code>, <code>get()</code>, <code>delete()</code>, <code>clear()</code> - Standard cache operations</li>
+<li><code>set_many()</code>, <code>get_many()</code> - Batch operations</li>
+<li>TTL-based expiration</li>
+</ul>
+<h3 id="monitoring-error-tracking">Monitoring &amp; Error Tracking<a class="headerlink" href="#monitoring-error-tracking" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../production/monitoring/#error-tracking">init_error_tracker()</a></strong> - Configure error tracking</li>
+<li>Automatic error fingerprinting and grouping</li>
+<li>Stack trace capture</li>
+<li>OpenTelemetry trace correlation</li>
+</ul>
+<h3 id="apq-automatic-persisted-queries">APQ (Automatic Persisted Queries)<a class="headerlink" href="#apq-automatic-persisted-queries" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../performance/apq-optimization-guide/">APQConfig</a></strong> - Configure APQ</li>
+<li>Storage backends: memory, PostgreSQL</li>
+<li>Query hash validation</li>
+<li>Multi-instance coordination</li>
+</ul>
+<h2 id="utilities">Utilities<a class="headerlink" href="#utilities" title="Permanent link">&para;</a></h2>
+<h3 id="trinity-identifiers">Trinity Identifiers<a class="headerlink" href="#trinity-identifiers" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../patterns/trinity_identifiers/">Trinity Pattern</a></strong> - Three-tier ID system</li>
+<li><code>pk_*</code> - Internal integer IDs for fast joins</li>
+<li><code>id</code> - Public UUID for API stability</li>
+<li><code>identifier</code> - Human-readable slugs for SEO</li>
+</ul>
+<h3 id="type-operators">Type Operators<a class="headerlink" href="#type-operators" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><a href="../architecture/type-operator-architecture/">Type Operator Architecture</a></strong> - Advanced filtering</li>
+<li>Network operators: <code>inet_eq</code>, <code>cidr_contains</code></li>
+<li>Hierarchy operators: <code>ancestor_of</code>, <code>descendant_of</code></li>
+<li>Range operators: <code>overlaps</code>, <code>contains</code></li>
+</ul>
+<h2 id="auto-generated-documentation">Auto-Generated Documentation<a class="headerlink" href="#auto-generated-documentation" title="Permanent link">&para;</a></h2>
+<p>Full API reference with function signatures and parameter details:</p>
+<p><strong>Coming Soon</strong>: Auto-generated docs from source code docstrings (mkdocstrings)</p>
+<p>For now, refer to:
+- <strong><a href="../../src/fraiseql/">Source Code</a></strong> - Comprehensive inline documentation
+- <strong><a href="../core/">Core Concepts Guide</a></strong> - Detailed explanations with examples
+- <strong><a href="../../examples/">Examples Directory</a></strong> - Real-world usage patterns</p>
 
 
 
