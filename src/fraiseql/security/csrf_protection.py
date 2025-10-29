@@ -8,8 +8,9 @@ import secrets
 import time
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Awaitable, Callable
 
-from fastapi import Request, Response
+from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -262,7 +263,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: FastAPI,
         config: CSRFConfig,
         graphql_path: str = "/graphql",
     ) -> None:
@@ -286,7 +287,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 "/redoc",
             }
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Apply CSRF protection to requests."""
         # Skip exempt paths
         if request.url.path in self.config.exempt_paths:
@@ -313,7 +316,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         await self._add_csrf_token_to_response(request, response)
         return response
 
-    async def _handle_graphql_request(self, request: Request, call_next):
+    async def _handle_graphql_request(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Handle GraphQL-specific CSRF protection."""
         try:
             # Parse request body
@@ -321,7 +326,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             request_body = json.loads(body) if body else {}
 
             # Restore body for downstream processing
-            async def receive():
+            async def receive() -> dict[str, Any]:
                 return {"type": "http.request", "body": body}
 
             request._receive = receive
@@ -473,7 +478,7 @@ class CSRFTokenEndpoint:
 
 
 def setup_csrf_protection(
-    app,
+    app: FastAPI,
     secret_key: str,
     config: CSRFConfig | None = None,
     graphql_path: str = "/graphql",
@@ -498,7 +503,7 @@ def setup_csrf_protection(
     csrf_endpoint = CSRFTokenEndpoint(config)
 
     @app.get("/csrf-token")
-    async def get_csrf_token(request: Request):
+    async def get_csrf_token(request: Request) -> dict[str, Any]:
         """Get CSRF token for SPA applications."""
         return await csrf_endpoint.get_csrf_token(request)
 

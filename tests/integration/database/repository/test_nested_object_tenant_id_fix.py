@@ -105,7 +105,6 @@ async def test_nested_object_with_sql_source_no_tenant_id_error():
     mock_db.find_one.assert_not_called()
 
 
-
 @pytest.mark.asyncio
 async def test_smart_resolver_prefers_embedded_data():
     """Test that the smart resolver uses embedded data when available."""
@@ -163,7 +162,6 @@ async def test_smart_resolver_prefers_embedded_data():
 
     # Database should not be queried for embedded data
     mock_db.find_one.assert_not_called()
-
 
 
 @pytest.mark.asyncio
@@ -240,7 +238,6 @@ async def test_smart_resolver_queries_when_no_embedded_data():
     call_args = mock_db.find_one.call_args
     assert call_args[0][0] == "departments"  # Table name
     assert "id" in call_args[1]  # Query parameters
-
 
 
 if __name__ == "__main__":

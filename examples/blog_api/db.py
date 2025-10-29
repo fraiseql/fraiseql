@@ -1,6 +1,6 @@
 """Database layer for blog API using FraiseQL CQRS."""
 
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from fraiseql.cqrs import CQRSRepository as BaseCQRSRepository
@@ -21,15 +21,15 @@ class BlogRepository(BaseCQRSRepository):
 
     # Query operations (using new generic pattern)
 
-    async def get_user_by_id(self, user_id: UUID) -> Optional[dict[str, Any]]:
+    async def get_user_by_id(self, user_id: UUID) -> dict[str, Any | None]:
         """Get user by ID."""
         return await self.get_by_id("v_users", user_id)
 
-    async def get_user_by_email(self, email: str) -> Optional[dict[str, Any]]:
+    async def get_user_by_email(self, email: str) -> dict[str, Any | None]:
         """Get user by email."""
         return await self.select_one_from_json_view("v_users", where={"email": email})
 
-    async def get_post_by_id(self, post_id: UUID) -> Optional[dict[str, Any]]:
+    async def get_post_by_id(self, post_id: UUID) -> dict[str, Any | None]:
         """Get post by ID with comments."""
         post_data = await self.get_by_id("v_posts", post_id)
         if post_data:
@@ -39,8 +39,8 @@ class BlogRepository(BaseCQRSRepository):
 
     async def get_posts(
         self,
-        filters: Optional[dict[str, Any]] = None,
-        order_by: Optional[str] = None,
+        filters: dict[str, Any | None] = None,
+        order_by: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
@@ -122,39 +122,4 @@ class BlogRepository(BaseCQRSRepository):
         return await self.call_function(
             "fn_increment_view_count",
             {"post_id": str(post_id)},
-        )
-
-    # Batch methods for DataLoader support
-
-    async def get_users_by_ids(self, user_ids: list[str]) -> list[dict[str, Any]]:
-        """Get multiple users by their IDs."""
-        if not user_ids:
-            return []
-
-        return await self.select_from_json_view(
-            "v_users",
-            where={"id": {"$in": user_ids}},
-        )
-
-    async def get_posts_by_ids(self, post_ids: list[str]) -> list[dict[str, Any]]:
-        """Get multiple posts by their IDs."""
-        if not post_ids:
-            return []
-
-        return await self.select_from_json_view(
-            "v_posts",
-            where={"id": {"$in": post_ids}},
-        )
-
-    async def get_comments_by_post_ids(
-        self,
-        post_ids: list[str],
-    ) -> list[dict[str, Any]]:
-        """Get all comments for multiple posts."""
-        if not post_ids:
-            return []
-
-        return await self.select_from_json_view(
-            "v_comments",
-            where={"postId": {"$in": post_ids}},
         )

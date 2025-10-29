@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, Callable, Dict, List, Type
+from typing import Any, Callable, Type
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -72,16 +72,16 @@ class FraiseQLConfig(BaseModel):
 def create_fraiseql_app(
     config: FraiseQLConfig | None = None,
     *,
-    types: List[Type[Any]] | None = None,
-    mutations: List[Type[Any]] | None = None,
-    queries: List[Type[Any]] | None = None,
-    subscriptions: List[Type[Any]] | None = None,
-    context_getter: Callable[..., Coroutine[Any, Any, Dict[str, Any]]] | None = None,
-    middleware: List[Any] | None = None,
-    cors_origins: List[str] | None = None,
+    types: list[Type[Any]] | None = None,
+    mutations: list[Type[Any]] | None = None,
+    queries: list[Type[Any]] | None = None,
+    subscriptions: list[Type[Any]] | None = None,
+    context_getter: Callable[..., Coroutine[Any, Any, dict[str, Any]]] | None = None,
+    middleware: list[Any] | None = None,
+    cors_origins: list[str] | None = None,
     cors_allow_credentials: bool = True,
-    cors_allow_methods: List[str] | None = None,
-    cors_allow_headers: List[str] | None = None,
+    cors_allow_methods: list[str] | None = None,
+    cors_allow_headers: list[str] | None = None,
     title: str = "FraiseQL API",
     description: str = "GraphQL API built with FraiseQL",
     version: str = "1.0.0",
@@ -100,13 +100,13 @@ class TurboRouter:
     async def execute(
         self,
         query: str,
-        variables: Dict[str, Any] | None = None,
-        context: Dict[str, Any] | None = None,
+        variables: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
         operation_name: str | None = None,
-    ) -> Dict[str, Any]: ...
+    ) -> dict[str, Any]: ...
 
 # Development utilities
-def get_dev_context() -> Dict[str, Any]: ...
+def get_dev_context() -> dict[str, Any]: ...
 
 # Configuration helpers
 def load_config_from_env() -> FraiseQLConfig: ...

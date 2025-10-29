@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from graphql import GraphQLSchema, print_schema
+from graphql import GraphQLObjectType, GraphQLSchema, print_schema
 
 from fraiseql.config.schema_config import SchemaConfig
 from fraiseql.gql.builders import (
@@ -94,7 +94,7 @@ def build_fraiseql_schema(
 
 
 # Add backward compatibility methods to SchemaRegistry
-def _build_query_type(self):
+def _build_query_type(self: SchemaRegistry) -> GraphQLObjectType:
     """Build the Query type using QueryTypeBuilder."""
     from fraiseql.gql.builders.query_builder import QueryTypeBuilder
 
@@ -102,7 +102,7 @@ def _build_query_type(self):
     return builder.build()
 
 
-def _build_mutation_type(self):
+def _build_mutation_type(self: SchemaRegistry) -> GraphQLObjectType:
     """Build the Mutation type using MutationTypeBuilder."""
     from fraiseql.gql.builders.mutation_builder import MutationTypeBuilder
 
@@ -110,7 +110,7 @@ def _build_mutation_type(self):
     return builder.build()
 
 
-def _build_subscription_type(self):
+def _build_subscription_type(self: SchemaRegistry) -> GraphQLObjectType:
     """Build the Subscription type using SubscriptionTypeBuilder."""
     from fraiseql.gql.builders.subscription_builder import SubscriptionTypeBuilder
 
@@ -118,13 +118,13 @@ def _build_subscription_type(self):
     return builder.build()
 
 
-def _build_schema(self):
+def _build_schema(self: SchemaRegistry) -> GraphQLSchema:
     """Build the complete schema using SchemaComposer."""
     composer = SchemaComposer(self)
     return composer.compose()
 
 
-def _build_schema_string(self):
+def _build_schema_string(self: SchemaRegistry) -> str:
     """Build the GraphQL schema and return it as a string."""
     schema = self.build_schema()
     return print_schema(schema)

@@ -11,12 +11,14 @@ async def setup_audit_schema(db_pool):
     # Check if schema already exists
     async with db_pool.connection() as conn:
         async with conn.cursor() as cur:
-            await cur.execute("""
+            await cur.execute(
+                """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'audit_events'
                 )
-            """)
+            """
+            )
             exists = (await cur.fetchone())[0]
 
             if not exists:

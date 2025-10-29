@@ -12,15 +12,18 @@ def test_graphql_request_accepts_extensions_field():
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": "ecf4edb46db40b5132295c0291d62fb65d6759a9eedfa4d5d612dd5ec54a6b38"
+                "sha256Hash": "ecf4edb46db40b5132295c0291d62fb65d6759a9eedfa4d5d612dd5ec54a6b38",
             }
-        }
+        },
     }
     # Should not raise validation error
     request = GraphQLRequest(**apq_request)
     assert request.extensions is not None
     assert request.extensions["persistedQuery"]["version"] == 1
-    assert request.extensions["persistedQuery"]["sha256Hash"] == "ecf4edb46db40b5132295c0291d62fb65d6759a9eedfa4d5d612dd5ec54a6b38"
+    assert (
+        request.extensions["persistedQuery"]["sha256Hash"]
+        == "ecf4edb46db40b5132295c0291d62fb65d6759a9eedfa4d5d612dd5ec54a6b38"
+    )
 
 
 def test_graphql_request_extensions_optional():
@@ -39,12 +42,7 @@ def test_graphql_request_with_query_and_extensions():
     request_data = {
         "query": "{ users { id name } }",
         "variables": {"limit": 10},
-        "extensions": {
-            "persistedQuery": {
-                "version": 1,
-                "sha256Hash": "abc123"
-            }
-        }
+        "extensions": {"persistedQuery": {"version": 1, "sha256Hash": "abc123"}},
     }
     request = GraphQLRequest(**request_data)
     assert request.query == "{ users { id name } }"
@@ -57,43 +55,30 @@ def test_graphql_request_apq_validation_errors():
     """Test APQ validation catches invalid formats."""
     # Missing version
     with pytest.raises(ValueError, match="persistedQuery.version is required"):
-        GraphQLRequest(extensions={
-            "persistedQuery": {"sha256Hash": "abc123"}
-        })
+        GraphQLRequest(extensions={"persistedQuery": {"sha256Hash": "abc123"}})
 
     # Missing sha256Hash
     with pytest.raises(ValueError, match="persistedQuery.sha256Hash is required"):
-        GraphQLRequest(extensions={
-            "persistedQuery": {"version": 1}
-        })
+        GraphQLRequest(extensions={"persistedQuery": {"version": 1}})
 
     # Wrong version
     with pytest.raises(ValueError, match="Only APQ version 1 is supported"):
-        GraphQLRequest(extensions={
-            "persistedQuery": {"version": 2, "sha256Hash": "abc123"}
-        })
+        GraphQLRequest(extensions={"persistedQuery": {"version": 2, "sha256Hash": "abc123"}})
 
     # Empty sha256Hash
     with pytest.raises(ValueError, match="persistedQuery.sha256Hash must be a non-empty string"):
-        GraphQLRequest(extensions={
-            "persistedQuery": {"version": 1, "sha256Hash": ""}
-        })
+        GraphQLRequest(extensions={"persistedQuery": {"version": 1, "sha256Hash": ""}})
 
     # Non-string sha256Hash
     with pytest.raises(ValueError, match="persistedQuery.sha256Hash must be a non-empty string"):
-        GraphQLRequest(extensions={
-            "persistedQuery": {"version": 1, "sha256Hash": 123}
-        })
+        GraphQLRequest(extensions={"persistedQuery": {"version": 1, "sha256Hash": 123}})
 
 
 def test_graphql_request_non_apq_extensions():
     """Test that non-APQ extensions pass through without validation."""
     request_data = {
         "query": "{ hello }",
-        "extensions": {
-            "tracing": {"version": 1},
-            "complexity": {"maximumComplexity": 1000}
-        }
+        "extensions": {"tracing": {"version": 1}, "complexity": {"maximumComplexity": 1000}},
     }
     request = GraphQLRequest(**request_data)
     assert request.extensions["tracing"]["version"] == 1

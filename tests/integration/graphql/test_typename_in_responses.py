@@ -2,12 +2,17 @@
 
 These tests verify that __typename fields are correctly injected into GraphQL query responses
 when using the Rust pipeline with real database queries.
+
+Database Schema (Trinity Pattern):
+- tv_user / tv_post: JSONB tables
+- v_user / v_post: Views for GraphQL access
 """
 
 import uuid
 from typing import Optional
 
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 
 from fraiseql import query
@@ -102,28 +107,54 @@ async def posts(info, limit: int = 10) -> list[Post]:
     return posts_list
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def setup_typename_test_data(db_connection):
-    """Set up real database with JSONB for typename tests."""
+    """Set up real database with JSONB for typename tests following trinity pattern."""
     async with db_connection.cursor() as cur:
-        # Create tables with JSONB
-        await cur.execute("""
-            CREATE TABLE IF NOT EXISTS v_user (
+        # Drop existing objects to ensure clean state
+        await cur.execute("DROP VIEW IF EXISTS v_user CASCADE")
+        await cur.execute("DROP VIEW IF EXISTS v_post CASCADE")
+        await cur.execute("DROP TABLE IF EXISTS tv_user CASCADE")
+        await cur.execute("DROP TABLE IF EXISTS tv_post CASCADE")
+
+        # Create tables with JSONB (trinity pattern: tv_* for tables)
+        await cur.execute(
+            """
+            CREATE TABLE tv_user (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
-        await cur.execute("""
-            CREATE TABLE IF NOT EXISTS v_post (
+        await cur.execute(
+            """
+            CREATE TABLE tv_post (
                 id UUID PRIMARY KEY,
                 data JSONB NOT NULL
             )
-        """)
+        """
+        )
 
-        # Insert test data
-        await cur.execute("""
-            INSERT INTO v_user (id, data) VALUES
+        # Create views (trinity pattern: v_* for views)
+        await cur.execute(
+            """
+            CREATE VIEW v_user AS
+            SELECT id, data FROM tv_user
+        """
+        )
+
+        await cur.execute(
+            """
+            CREATE VIEW v_post AS
+            SELECT id, data FROM tv_post
+        """
+        )
+
+        # Insert test data into tables
+        await cur.execute(
+            """
+            INSERT INTO tv_user (id, data) VALUES
             (
                 '11111111-1111-1111-1111-111111111111',
                 '{"id": "11111111-1111-1111-1111-111111111111", "name": "Alice", "email": "alice@example.com"}'
@@ -132,11 +163,12 @@ async def setup_typename_test_data(db_connection):
                 '22222222-2222-2222-2222-222222222222',
                 '{"id": "22222222-2222-2222-2222-222222222222", "name": "Bob", "email": "bob@example.com"}'
             )
-            ON CONFLICT (id) DO NOTHING
-        """)
+        """
+        )
 
-        await cur.execute("""
-            INSERT INTO v_post (id, data) VALUES
+        await cur.execute(
+            """
+            INSERT INTO tv_post (id, data) VALUES
             (
                 '33333333-3333-3333-3333-333333333333',
                 '{"id": "33333333-3333-3333-3333-333333333333", "title": "First Post", "content": "Content of first post"}'
@@ -145,14 +177,14 @@ async def setup_typename_test_data(db_connection):
                 '44444444-4444-4444-4444-444444444444',
                 '{"id": "44444444-4444-4444-4444-444444444444", "title": "Second Post", "content": "Content of second post"}'
             )
-            ON CONFLICT (id) DO NOTHING
-        """)
+        """
+        )
 
         await db_connection.commit()
 
 
 @pytest.fixture
-def graphql_client(db_pool, setup_typename_test_data):
+def graphql_client(db_pool, setup_typename_test_data, clear_registry):
     """Create a GraphQL test client with real database connection."""
     # Inject the test database pool
     from fraiseql.fastapi.dependencies import set_db_pool

@@ -27,7 +27,7 @@ class NativeAuthProvider(AuthProvider):
         token_manager: TokenManager,
         db_pool: AsyncConnectionPool,
         schema: str = "public",
-    ):
+    ) -> None:
         """Initialize the native auth provider.
 
         Args:

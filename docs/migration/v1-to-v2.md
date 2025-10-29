@@ -17,7 +17,6 @@ The following features are under consideration for v2.0:
 ## Stay Updated
 
 - Watch the [GitHub repository](https://github.com/fraiseql/fraiseql) for updates
-- Follow the [roadmap](../ROADMAP.md)
 - Join [discussions](https://github.com/fraiseql/fraiseql/discussions)
 
 ---

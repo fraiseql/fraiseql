@@ -22,7 +22,7 @@ class LoaderRegistry:
         self._loaders: dict[type[DataLoader], DataLoader] = {}
         self._custom_loaders: dict[str, DataLoader] = {}
 
-    def get_loader(self, loader_class: type[T], **kwargs) -> T:
+    def get_loader(self, loader_class: type[T], **kwargs: Any) -> T:
         """Get or create a DataLoader instance."""
         # Check if already exists
         if loader_class in self._loaders:
@@ -67,7 +67,7 @@ class LoaderRegistry:
 
 
 # Helper function for resolvers
-def get_loader(loader_class: type[T], **kwargs) -> T:
+def get_loader(loader_class: type[T], **kwargs: Any) -> T:
     """Get a DataLoader for the current request."""
     registry = LoaderRegistry.get_current()
     if not registry:

@@ -108,7 +108,7 @@ def extract_field_paths_from_info(info, transform_path=None):
 
 async def find_rust(self, view_name: str, field_name: str, info: Any, **kwargs):
     #                                                           ↑
-    #                                             NO LONGER Optional[Any]
+    #                                             NO LONGER Any | None
     #                                             info is REQUIRED for security
 
     # Extract field paths from GraphQL info (REQUIRED for security)
@@ -159,7 +159,7 @@ async def execute_via_rust_pipeline(
     query: Composed | SQL,
     params: dict[str, Any] | None,
     field_name: str,
-    type_name: Optional[str],
+    type_name: str | None,
     field_selection: list[str],  # ← REQUIRED parameter (not Optional)
     is_list: bool = True,
 ) -> RustResponseBytes:

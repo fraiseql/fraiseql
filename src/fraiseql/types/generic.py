@@ -131,7 +131,7 @@ def _substitute_typevar(type_annotation: Any, concrete_type: type) -> Any:
     if isinstance(type_annotation, TypeVar):
         return concrete_type
 
-    # Handle generic types like List[T]
+    # Handle generic types like list[T]
     origin = get_origin(type_annotation)
     args = get_args(type_annotation)
 

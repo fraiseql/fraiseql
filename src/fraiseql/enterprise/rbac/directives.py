@@ -4,10 +4,14 @@ These directives integrate with the PostgreSQL-cached PermissionResolver
 to provide field-level authorization in GraphQL schemas.
 """
 
-from typing import Any, Dict
+from typing import Any, Callable
 
-import strawberry
-from strawberry.types import Info
+try:
+    import strawberry  # type: ignore[import]
+    from strawberry.types import Info  # type: ignore[import]
+except ImportError:
+    # Strawberry not available - enterprise features disabled
+    raise ImportError("strawberry is required for enterprise RBAC features")
 
 from .resolver import PermissionResolver
 
@@ -16,7 +20,7 @@ from .resolver import PermissionResolver
     locations=[strawberry.directive_location.FIELD_DEFINITION],
     description="Require specific permission to access field",
 )
-def requires_permission(resource: str, action: str, check_constraints: bool = True):
+def requires_permission(resource: str, action: str, check_constraints: bool = True) -> Callable:
     """Directive to enforce permission requirements on fields.
 
     Args:
@@ -34,8 +38,8 @@ def requires_permission(resource: str, action: str, check_constraints: bool = Tr
                 return await get_user_by_id(id)
     """
 
-    def directive_resolver(resolver):
-        async def wrapper(*args, **kwargs):
+    def directive_resolver(resolver: Callable[..., Any]) -> Callable:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             info: Info = args[1]  # GraphQL Info is second arg
             context = info.context
 
@@ -93,7 +97,7 @@ def requires_permission(resource: str, action: str, check_constraints: bool = Tr
     locations=[strawberry.directive_location.FIELD_DEFINITION],
     description="Require specific role to access field",
 )
-def requires_role(role_name: str):
+def requires_role(role_name: str) -> Callable:
     """Directive to enforce role requirements on fields.
 
     Args:
@@ -109,8 +113,8 @@ def requires_role(role_name: str):
                 return await delete_user_by_id(id)
     """
 
-    def directive_resolver(resolver):
-        async def wrapper(*args, **kwargs):
+    def directive_resolver(resolver: Callable[..., Any]) -> Callable:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             info: Info = args[1]
             context = info.context
 
@@ -148,7 +152,7 @@ def requires_role(role_name: str):
 
 
 async def _evaluate_constraints(
-    constraints: Dict[str, Any], context: Dict[str, Any], field_args: Dict[str, Any]
+    constraints: dict[str, Any], context: dict[str, Any], field_args: dict[str, Any]
 ) -> bool:
     """Evaluate permission constraints against context and field arguments.
 

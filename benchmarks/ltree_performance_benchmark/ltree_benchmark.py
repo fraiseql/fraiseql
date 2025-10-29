@@ -11,14 +11,14 @@ import logging
 import statistics
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import psycopg_pool
 
 
 async def benchmark_ltree_query(
     pool: psycopg_pool.AsyncConnectionPool, query: str, description: str, iterations: int = 100
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Benchmark a single LTREE query."""
     times = []
 
@@ -52,7 +52,7 @@ async def benchmark_ltree_query(
     }
 
 
-async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> List[Dict[str, Any]]:
+async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> list[dict[str, Any]]:
     """Run comprehensive LTREE operator benchmarks."""
     benchmarks = []
 
@@ -216,7 +216,7 @@ async def run_ltree_benchmarks(pool: psycopg_pool.AsyncConnectionPool) -> List[D
     return benchmarks
 
 
-async def run_index_comparison_benchmark(pool: psycopg_pool.AsyncConnectionPool) -> Dict[str, Any]:
+async def run_index_comparison_benchmark(pool: psycopg_pool.AsyncConnectionPool) -> dict[str, Any]:
     """Compare performance with and without GiST index."""
     # Test query that benefits from index
     test_query = "SELECT * FROM ltree_benchmark WHERE category_path <@ 'top.science'::ltree"
@@ -245,7 +245,7 @@ async def run_index_comparison_benchmark(pool: psycopg_pool.AsyncConnectionPool)
     }
 
 
-async def main():
+async def main() -> None:
     """Main benchmark execution."""
     # Set up logging
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

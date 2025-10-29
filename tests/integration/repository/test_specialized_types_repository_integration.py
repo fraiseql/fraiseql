@@ -41,7 +41,9 @@ class TestSpecializedTypesRepositoryIntegration:
 
             # Verify IP addresses get ::inet casting
             assert condition is not None, f"Should generate SQL for IP field {field}"
-            assert "::inet" in condition_str, f"IP address should use ::inet casting: {condition_str}"
+            assert "::inet" in condition_str, (
+                f"IP address should use ::inet casting: {condition_str}"
+            )
 
     def test_mac_address_repository_integration(self):
         """Test MAC address filtering works through repository layer."""
@@ -64,7 +66,9 @@ class TestSpecializedTypesRepositoryIntegration:
 
             # MAC addresses should generate valid SQL (may not have type casting yet)
             assert condition is not None, f"Should generate SQL for MAC field {field}"
-            assert field.replace("_", "") in condition_str or "mac" in condition_str, f"Should reference MAC field: {condition_str}"
+            assert field.replace("_", "") in condition_str or "mac" in condition_str, (
+                f"Should reference MAC field: {condition_str}"
+            )
 
     def test_ltree_repository_integration(self):
         """Test LTree hierarchical path filtering through repository layer."""
@@ -239,10 +243,10 @@ class TestSpecializedTypesRepositoryIntegration:
 
         # Mix of different specialized types
         mixed_cases = [
-            ("server_ip", "eq", "192.168.1.100"),     # IP address
-            ("server_port", "eq", 8080),              # Port
-            ("server_hostname", "eq", "api.local"),    # Hostname
-            ("server_mac", "eq", "aa:bb:cc:dd:ee:ff"), # MAC address
+            ("server_ip", "eq", "192.168.1.100"),  # IP address
+            ("server_port", "eq", 8080),  # Port
+            ("server_hostname", "eq", "api.local"),  # Hostname
+            ("server_mac", "eq", "aa:bb:cc:dd:ee:ff"),  # MAC address
             ("admin_email", "eq", "admin@local.com"),  # Email
         ]
 
@@ -257,7 +261,9 @@ class TestSpecializedTypesRepositoryIntegration:
 
         # Verify all different types generated different SQL patterns
         sql_patterns = [sql for _, sql in results]
-        assert len(set(sql_patterns)) > 1, "Different specialized types should generate different SQL patterns"
+        assert len(set(sql_patterns)) > 1, (
+            "Different specialized types should generate different SQL patterns"
+        )
 
         # IP address should have inet casting
         ip_sql = next(sql for field, sql in results if "ip" in field)

@@ -64,7 +64,7 @@ class TestTurboRouterHashIssue:
 }"""
 
         # This is how the hash was calculated in the issue (raw string)
-        raw_hash = hashlib.sha256(raw_query.encode('utf-8')).hexdigest()
+        raw_hash = hashlib.sha256(raw_query.encode("utf-8")).hexdigest()
 
         # This is how FraiseQL calculates it (normalized)
         registry = TurboRegistry()
@@ -90,7 +90,7 @@ class TestTurboRouterHashIssue:
             graphql_query=normalized_query,
             sql_template="SELECT '{}' as result",
             param_mapping={},
-            operation_name="GetNetworkConfigurations"
+            operation_name="GetNetworkConfigurations",
         )
         registry.register(turbo_query)
 
@@ -122,8 +122,8 @@ class TestTurboRouterHashIssue:
 
         # All should produce the same hash
         for i, h in enumerate(hashes):
-            print(f"Query {i+1} hash: {h}")
-            assert h == hashes[0], f"Query {i+1} should have same hash as first query"
+            print(f"Query {i + 1} hash: {h}")
+            assert h == hashes[0], f"Query {i + 1} should have same hash as first query"
 
     def test_proposed_fix_backward_compatibility(self):
         """Test that the proposed fix maintains backward compatibility."""
@@ -142,7 +142,7 @@ class TestTurboRouterHashIssue:
             graphql_query=formatted_query,
             sql_template="SELECT '{}' as result",
             param_mapping={},
-            operation_name="GetUser"
+            operation_name="GetUser",
         )
         registry.register(turbo_query)
 
@@ -215,7 +215,7 @@ class TestTurboRouterHashIssue:
             graphql_query=raw_query,
             sql_template="SELECT turbo.fn_get_network_configurations()::json as result",
             param_mapping={},
-            operation_name="GetNetworkConfigurations"
+            operation_name="GetNetworkConfigurations",
         )
         registry.register_with_raw_hash(turbo_query, raw_hash)
 
@@ -223,7 +223,10 @@ class TestTurboRouterHashIssue:
         found_query = registry.get(raw_query)
         assert found_query is not None
         assert found_query.operation_name == "GetNetworkConfigurations"
-        assert found_query.sql_template == "SELECT turbo.fn_get_network_configurations()::json as result"
+        assert (
+            found_query.sql_template
+            == "SELECT turbo.fn_get_network_configurations()::json as result"
+        )
 
         # 4. Should also work with slightly different formatting
         minified_query = "query GetNetworkConfigurations{networkConfigurations{id ipAddress}}"

@@ -38,7 +38,7 @@ class TestInlineCommentExtraction:
         import re
 
         # Test the pattern used in _extract_inline_comments
-        pattern = r'^\s*(\w+)\s*:\s*[^#]*#\s*(.+)$'
+        pattern = r"^\s*(\w+)\s*:\s*[^#]*#\s*(.+)$"
 
         test_lines = [
             "    id: UUID  # User identifier",
@@ -81,6 +81,7 @@ class TestDocstringExtraction:
                 email: User's email address
                 status: Current account status
             """
+
             id: UUID
             name: str
             email: str
@@ -106,6 +107,7 @@ class TestDocstringExtraction:
                 name: Product name
                 price: Price in USD
             """
+
             id: UUID
             name: str
             price: float
@@ -129,6 +131,7 @@ class TestDocstringExtraction:
                 email: User's email address
                 password: User's password
             """
+
             name: str
             email: str
             password: str
@@ -158,6 +161,7 @@ class TestDocstringExtraction:
         @dataclass
         class Invoice:
             """This is a simple invoice model without field documentation."""
+
             id: UUID
             amount: float
 
@@ -237,6 +241,7 @@ class TestIntegratedExtraction:
                 name: User's full name
                 status: Account status
             """
+
             id: UUID
             name: str
             email: str
@@ -259,6 +264,7 @@ class TestIntegratedExtraction:
             Fields:
                 name: Product name from docstring
             """
+
             name: str
 
         descriptions = extract_field_descriptions(Product)
@@ -298,6 +304,7 @@ class TestAutoDescriptionApplication:
             Fields:
                 name: Auto description from docstring
             """
+
             id: UUID
             price: float  # Price in USD
             name: str = fraise_field(description="Explicit description")
@@ -323,6 +330,7 @@ class TestEdgeCases:
 
     def test_malformed_source_code(self):
         """Test that extraction gracefully handles when source code is unavailable."""
+
         # This is hard to test directly, but the function should handle OSError, TypeError, etc.
         # We can test by creating a class and then trying to extract
         class DynamicClass:
@@ -346,6 +354,7 @@ class TestEdgeCases:
                 metadata: Key-value metadata
                 optional_field: Optional string field
             """
+
             id: UUID
             tags: list[str]
             metadata: dict[str, str]
@@ -370,6 +379,7 @@ class TestEdgeCases:
                 id: Base user ID
                 created_at: Creation timestamp
             """
+
             id: UUID
             created_at: str
 
@@ -381,6 +391,7 @@ class TestEdgeCases:
             Fields:
                 permissions: Admin permissions
             """
+
             permissions: list[str]
 
         base_descriptions = extract_field_descriptions(BaseUser)
@@ -406,6 +417,7 @@ class TestIntegrationWithExistingFramework:
                 id: Unique user identifier
                 name: Full display name
             """
+
             id: UUID
             name: str
             email: str = fraise_field(description="Contact email address")

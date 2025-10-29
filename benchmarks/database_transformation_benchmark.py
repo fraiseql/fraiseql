@@ -17,8 +17,11 @@ import psycopg_pool
 
 
 async def benchmark_query_with_transformation(
-    pool: psycopg_pool.AsyncConnectionPool, query: str, transform_func, iterations: int = 50
-):
+    pool: psycopg_pool.AsyncConnectionPool,
+    query: str,
+    transform_func: callable,
+    iterations: int = 50,
+) -> dict[str, float]:
     """Benchmark query execution + transformation."""
     times = []
 
@@ -58,7 +61,7 @@ async def benchmark_query_with_transformation(
     }
 
 
-async def setup_test_table(pool: psycopg_pool.AsyncConnectionPool):
+async def setup_test_table(pool: psycopg_pool.AsyncConnectionPool) -> None:
     """Create test table with sample data."""
     async with pool.connection() as conn:
         async with conn.cursor() as cursor:
@@ -111,11 +114,11 @@ async def setup_test_table(pool: psycopg_pool.AsyncConnectionPool):
 def transform_python(json_str: str) -> str:
     """Pure Python transformation."""
 
-    def to_camel(s):
+    def to_camel(s: str) -> str:
         parts = s.split("_")
         return parts[0] + "".join(p.title() for p in parts[1:])
 
-    def transform_dict(d):
+    def transform_dict(d: dict) -> dict:
         result = {}
         for k, v in d.items():
             ck = to_camel(k)
@@ -132,7 +135,7 @@ def transform_python(json_str: str) -> str:
     return json.dumps(transformed)
 
 
-async def run_database_benchmark():
+async def run_database_benchmark() -> None:
     """Run end-to-end database benchmarks."""
     # Check database availability
     try:

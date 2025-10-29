@@ -34,7 +34,6 @@ Real-World Use Cases:
 - Delivery and logistics systems
 """
 
-from typing import Optional
 import fraiseql
 from fraiseql.types import Coordinate
 
@@ -47,7 +46,7 @@ class Location:
     id: int
     name: str
     coordinates: Coordinate  # Latitude/Longitude as (lat, lng) tuple
-    description: Optional[str] = None
+    description: str | None = None
 
 
 # Example usage functions

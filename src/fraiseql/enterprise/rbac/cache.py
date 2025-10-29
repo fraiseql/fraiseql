@@ -10,8 +10,10 @@ extension is available.
 
 import logging
 from datetime import timedelta
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
+
+from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.caching import PostgresCache
 
@@ -29,14 +31,14 @@ class PermissionCache:
     - Automatic invalidation via domain versioning (requires pg_fraiseql_cache)
     """
 
-    def __init__(self, db_pool):
+    def __init__(self, db_pool: AsyncConnectionPool) -> None:
         """Initialize permission cache.
 
         Args:
             db_pool: PostgreSQL connection pool
         """
         self.pg_cache = PostgresCache(db_pool, table_name="fraiseql_cache")
-        self._request_cache: dict[str, List[Permission]] = {}
+        self._request_cache: dict[str, list[Permission]] = {}
         self._cache_ttl = timedelta(minutes=5)  # 5 minute TTL
 
         # RBAC domains for version checking
@@ -50,7 +52,7 @@ class PermissionCache:
         tenant_str = str(tenant_id) if tenant_id else "global"
         return f"rbac:permissions:{user_id}:{tenant_str}"
 
-    async def get(self, user_id: UUID, tenant_id: Optional[UUID]) -> Optional[List[Permission]]:
+    async def get(self, user_id: UUID, tenant_id: Optional[UUID]) -> Optional[list[Permission]]:
         """Get cached permissions with version checking.
 
         Flow:
@@ -110,7 +112,9 @@ class PermissionCache:
         logger.debug("Permission cache HIT (PostgreSQL): %s", key)
         return permissions
 
-    async def set(self, user_id: UUID, tenant_id: Optional[UUID], permissions: List[Permission]):
+    async def set(
+        self, user_id: UUID, tenant_id: Optional[UUID], permissions: list[Permission]
+    ) -> None:
         """Cache permissions with domain version metadata.
 
         Stores in both request-level and PostgreSQL cache.
@@ -152,11 +156,11 @@ class PermissionCache:
 
         logger.debug("Cached permissions for user %s (versions: %s)", user_id, versions)
 
-    def clear_request_cache(self):
+    def clear_request_cache(self) -> None:
         """Clear request-level cache (called at end of request)."""
         self._request_cache.clear()
 
-    async def invalidate_user(self, user_id: UUID, tenant_id: Optional[UUID] = None):
+    async def invalidate_user(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> None:
         """Manually invalidate cache for user.
 
         Note: With domain versioning, manual invalidation is rarely needed
@@ -171,7 +175,7 @@ class PermissionCache:
         await self.pg_cache.delete(key)
         logger.debug("Invalidated permissions cache for user %s", user_id)
 
-    async def invalidate_all(self):
+    async def invalidate_all(self) -> None:
         """Invalidate all cached permissions.
 
         Useful for testing or emergency cache clearing.

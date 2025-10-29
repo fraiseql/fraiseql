@@ -7,12 +7,10 @@ import functools
 import warnings
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, Union
 
-from graphql import GraphQLError
+from graphql import GraphQLError, GraphQLResolveInfo
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
-
-    from graphql import GraphQLResolveInfo
 
 
 T = TypeVar("T")
@@ -99,7 +97,9 @@ def authorize_field(
         if is_async:
 
             @functools.wraps(func)
-            async def async_auth_wrapper(root, info, *args: Any, **kwargs: Any) -> Any:
+            async def async_auth_wrapper(
+                root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+            ) -> Any:
                 # Check permission first
                 if asyncio.iscoroutinefunction(permission_check):
                     if expects_root:
@@ -135,7 +135,9 @@ def authorize_field(
             return async_auth_wrapper  # type: ignore[return-value]
 
         @functools.wraps(func)
-        def sync_auth_wrapper(root, info, *args: Any, **kwargs: Any) -> Any:
+        def sync_auth_wrapper(
+            root: Any, info: GraphQLResolveInfo, *args: Any, **kwargs: Any
+        ) -> Any:
             # Check permission first
             if asyncio.iscoroutinefunction(permission_check):
                 # Warn about using async permission check with sync resolver
@@ -152,7 +154,7 @@ def authorize_field(
                     if loop.is_running():
                         # We're in an async context, create a task
                         # Store reference to avoid RUF006
-                        _ = asyncio.ensure_future(permission_check(info, *args, **kwargs))  # noqa: RUF006
+                        asyncio.ensure_future(permission_check(info, *args, **kwargs))  # noqa: RUF006
                         # This is not ideal but necessary for sync resolvers
                         authorized = asyncio.run_coroutine_threadsafe(
                             permission_check(info, *args, **kwargs),

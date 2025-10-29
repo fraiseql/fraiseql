@@ -5,7 +5,7 @@ This module maintains backward compatibility while using the new backend system 
 
 import hashlib
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from fraiseql.monitoring import get_global_metrics
 
@@ -87,7 +87,7 @@ def compute_query_hash(query: str) -> str:
     return hashlib.sha256(query.encode("utf-8")).hexdigest()
 
 
-def get_storage_stats() -> Dict[str, int]:
+def get_storage_stats() -> dict[str, int]:
     """Get storage statistics.
 
     Returns:

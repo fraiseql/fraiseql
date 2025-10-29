@@ -5,7 +5,8 @@
 This example demonstrates how to build a complete GraphQL API using FraiseQL with enterprise-grade patterns for production systems.
 
 **What you'll learn:**
-- CQRS architecture with PostgreSQL functions
+- CQRS architecture with PostgreSQL functions and views
+- Direct database queries for relationship resolution (no DataLoader needed)
 - Enterprise mutation patterns (success/error/noop)
 - Audit trails and change tracking
 - Authentication and role-based access

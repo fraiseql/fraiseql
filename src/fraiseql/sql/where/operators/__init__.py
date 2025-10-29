@@ -11,12 +11,15 @@ from psycopg.sql import SQL, Composed
 from fraiseql.sql.where.core.field_detection import FieldType
 
 from . import (
+    arrays,
     basic,
     date,
     date_range,
     datetime,
     email,
+    fulltext,
     hostname,
+    jsonb,
     lists,
     ltree,
     mac_address,
@@ -35,10 +38,37 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.ANY, "gte"): basic.build_gte_sql,
     (FieldType.ANY, "lt"): basic.build_lt_sql,
     (FieldType.ANY, "lte"): basic.build_lte_sql,
+    # JSONB operators that can work on any field (when value is dict/list)
+    (FieldType.ANY, "contains"): jsonb.build_contains_sql,
+    (FieldType.ANY, "strictly_contains"): jsonb.build_strictly_contains_sql,
+    # Depth operators - can work on integer values (detecting depth of ltree)
+    (FieldType.INTEGER, "depth_eq"): ltree.build_depth_eq_sql,
+    (FieldType.INTEGER, "depth_neq"): ltree.build_depth_neq_sql,
+    (FieldType.INTEGER, "depth_gt"): ltree.build_depth_gt_sql,
+    (FieldType.INTEGER, "depth_gte"): ltree.build_depth_gte_sql,
+    (FieldType.INTEGER, "depth_lt"): ltree.build_depth_lt_sql,
+    (FieldType.INTEGER, "depth_lte"): ltree.build_depth_lte_sql,
     # Text operators
     (FieldType.STRING, "contains"): text.build_contains_sql,
     (FieldType.STRING, "startswith"): text.build_startswith_sql,
     (FieldType.STRING, "endswith"): text.build_endswith_sql,
+    (FieldType.STRING, "matches"): text.build_matches_sql,
+    (FieldType.STRING, "imatches"): text.build_imatches_sql,
+    (FieldType.STRING, "not_matches"): text.build_not_matches_sql,
+    # Array operators
+    (FieldType.ARRAY, "eq"): arrays.build_array_eq_sql,
+    (FieldType.ARRAY, "neq"): arrays.build_array_neq_sql,
+    (FieldType.ARRAY, "contains"): arrays.build_array_contains_sql,
+    (FieldType.ARRAY, "contained_by"): arrays.build_array_contained_by_sql,
+    (FieldType.ARRAY, "overlaps"): arrays.build_array_overlaps_sql,
+    (FieldType.ARRAY, "len_eq"): arrays.build_array_len_eq_sql,
+    (FieldType.ARRAY, "len_neq"): arrays.build_array_len_neq_sql,
+    (FieldType.ARRAY, "len_gt"): arrays.build_array_len_gt_sql,
+    (FieldType.ARRAY, "len_gte"): arrays.build_array_len_gte_sql,
+    (FieldType.ARRAY, "len_lt"): arrays.build_array_len_lt_sql,
+    (FieldType.ARRAY, "len_lte"): arrays.build_array_len_lte_sql,
+    (FieldType.ARRAY, "any_eq"): arrays.build_array_any_eq_sql,
+    (FieldType.ARRAY, "all_eq"): arrays.build_array_all_eq_sql,
     # List operators for any field type
     (FieldType.ANY, "in_"): lists.build_in_sql,
     (FieldType.ANY, "in"): lists.build_in_sql,  # Handle both in_ and in
@@ -72,8 +102,15 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.LTREE, "nin"): ltree.build_ltree_notin_sql,
     (FieldType.LTREE, "ancestor_of"): ltree.build_ancestor_of_sql,
     (FieldType.LTREE, "descendant_of"): ltree.build_descendant_of_sql,
+    (FieldType.LTREE, "isdescendant"): ltree.build_descendant_of_sql,  # Alias for descendant_of
     (FieldType.LTREE, "matches_lquery"): ltree.build_matches_lquery_sql,
     (FieldType.LTREE, "matches_ltxtquery"): ltree.build_matches_ltxtquery_sql,
+    (FieldType.LTREE, "depth_eq"): ltree.build_depth_eq_sql,
+    (FieldType.LTREE, "depth_neq"): ltree.build_depth_neq_sql,
+    (FieldType.LTREE, "depth_gt"): ltree.build_depth_gt_sql,
+    (FieldType.LTREE, "depth_gte"): ltree.build_depth_gte_sql,
+    (FieldType.LTREE, "depth_lt"): ltree.build_depth_lt_sql,
+    (FieldType.LTREE, "depth_lte"): ltree.build_depth_lte_sql,
     # DateRange operators for temporal range operations
     (FieldType.DATE_RANGE, "eq"): date_range.build_daterange_eq_sql,
     (FieldType.DATE_RANGE, "neq"): date_range.build_daterange_neq_sql,
@@ -135,10 +172,38 @@ OPERATOR_MAP: dict[tuple[FieldType, str], Callable[[SQL, any], Composed]] = {
     (FieldType.DATE, "gte"): date.build_date_gte_sql,
     (FieldType.DATE, "lt"): date.build_date_lt_sql,
     (FieldType.DATE, "lte"): date.build_date_lte_sql,
+    # Full-text search operators for tsvector columns
+    (FieldType.FULLTEXT, "matches"): fulltext.build_matches_sql,
+    (FieldType.FULLTEXT, "plain_query"): fulltext.build_plain_query_sql,
+    (FieldType.FULLTEXT, "phrase_query"): fulltext.build_phrase_query_sql,
+    (FieldType.FULLTEXT, "websearch_query"): fulltext.build_websearch_query_sql,
+    (FieldType.FULLTEXT, "rank_gt"): fulltext.build_rank_gt_sql,
+    (FieldType.FULLTEXT, "rank_gte"): fulltext.build_rank_gte_sql,
+    (FieldType.FULLTEXT, "rank_lt"): fulltext.build_rank_lt_sql,
+    (FieldType.FULLTEXT, "rank_lte"): fulltext.build_rank_lte_sql,
+    (FieldType.FULLTEXT, "rank_cd_gt"): fulltext.build_rank_cd_gt_sql,
+    (FieldType.FULLTEXT, "rank_cd_gte"): fulltext.build_rank_cd_gte_sql,
+    (FieldType.FULLTEXT, "rank_cd_lt"): fulltext.build_rank_cd_lt_sql,
+    (FieldType.FULLTEXT, "rank_cd_lte"): fulltext.build_rank_cd_lte_sql,
+    # JSONB operators for JSONB columns
+    (FieldType.JSONB, "eq"): basic.build_eq_sql,
+    (FieldType.JSONB, "neq"): basic.build_neq_sql,
+    (FieldType.JSONB, "has_key"): jsonb.build_has_key_sql,
+    (FieldType.JSONB, "has_any_keys"): jsonb.build_has_any_keys_sql,
+    (FieldType.JSONB, "has_all_keys"): jsonb.build_has_all_keys_sql,
+    (FieldType.JSONB, "contains"): jsonb.build_contains_sql,
+    (FieldType.JSONB, "strictly_contains"): jsonb.build_strictly_contains_sql,
+    (FieldType.JSONB, "contained_by"): jsonb.build_contained_by_sql,
+    (FieldType.JSONB, "path_exists"): jsonb.build_path_exists_sql,
+    (FieldType.JSONB, "path_match"): jsonb.build_path_match_sql,
+    (FieldType.JSONB, "get_path"): jsonb.build_get_path_sql,
+    (FieldType.JSONB, "get_path_text"): jsonb.build_get_path_text_sql,
 }
 
 
-def get_operator_function(field_type: FieldType, operator: str) -> Callable[[SQL, any], Composed]:
+def get_operator_function(
+    field_type: FieldType, operator: str
+) -> Callable[[SQL | Composed, any], Composed]:
     """Get the function to build SQL for this operator.
 
     Args:
@@ -160,3 +225,10 @@ def get_operator_function(field_type: FieldType, operator: str) -> Callable[[SQL
         return OPERATOR_MAP[(FieldType.ANY, operator)]
 
     raise ValueError(f"Unsupported operator '{operator}' for field type '{field_type.value}'")
+
+
+# Export filter classes for GraphQL schema generation
+from .fulltext import FullTextFilter
+from .jsonb import JSONBFilter
+
+__all__ = ["FullTextFilter", "JSONBFilter", "get_operator_function"]

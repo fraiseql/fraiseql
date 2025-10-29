@@ -37,7 +37,7 @@ class User:
         password_hash: str | None = None,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
-    ):
+    ) -> None:
         """Initialize a User instance.
 
         Args:

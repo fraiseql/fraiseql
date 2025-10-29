@@ -4,7 +4,6 @@ This example shows how to use the enhanced architecture that reduces
 import order dependencies and provides better testability.
 """
 
-from typing import Optional
 
 import fraiseql
 from fraiseql.db import FraiseQLRepository
@@ -37,7 +36,7 @@ class CreateUserSuccess:
 class CreateUserError:
     code: str
     message: str
-    field: Optional[str] = None
+    field: str | None = None
 
 
 # Example 1: Using explicit registration
@@ -193,9 +192,9 @@ class UpdateUserError:
 
 @fraiseql.input
 class UpdateUserInput:
-    name: Optional[str] = None
-    email: Optional[str] = None
-    active: Optional[bool] = None
+    name: str | None = None
+    email: str | None = None
+    active: bool | None = None
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ Test session variables functionality in the Rust pipeline.
 
 import json
 from contextlib import asynccontextmanager
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 

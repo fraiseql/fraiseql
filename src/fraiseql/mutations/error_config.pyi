@@ -1,17 +1,15 @@
-from typing import Set
-
 class MutationErrorConfig:
-    success_keywords: Set[str]
-    error_prefixes: Set[str]
-    error_as_data_prefixes: Set[str]
-    error_keywords: Set[str]
+    success_keywords: set[str]
+    error_prefixes: set[str]
+    error_as_data_prefixes: set[str]
+    error_keywords: set[str]
 
     def __init__(
         self,
-        success_keywords: Set[str],
-        error_prefixes: Set[str],
-        error_as_data_prefixes: Set[str],
-        error_keywords: Set[str],
+        success_keywords: set[str],
+        error_prefixes: set[str],
+        error_as_data_prefixes: set[str],
+        error_keywords: set[str],
     ) -> None: ...
     def is_success(self, status: str) -> bool: ...
     def is_error(self, status: str) -> bool: ...

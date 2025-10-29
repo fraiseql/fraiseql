@@ -20,7 +20,7 @@ class FraiseQLException(Exception):
         hint: Optional[str] = None,
         code: Optional[str] = None,
         cause: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Initialize FraiseQL exception with enhanced information.
 
         Args:
@@ -65,7 +65,7 @@ class PartialInstantiationError(FraiseQLException):
         available_fields: Optional[set[str]] = None,
         requested_fields: Optional[set[str]] = None,
         cause: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Initialize partial instantiation error.
 
         Args:
@@ -131,7 +131,7 @@ class WhereClauseError(FraiseQLException):
         operator: Optional[str] = None,
         supported_operators: Optional[list[str]] = None,
         cause: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Initialize WHERE clause error.
 
         Args:
@@ -187,7 +187,7 @@ class QueryValidationError(FraiseQLException):
         valid_fields: Optional[list[str]] = None,
         query_info: Optional[GraphQLResolveInfo] = None,
         cause: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Initialize query validation error.
 
         Args:
@@ -244,7 +244,7 @@ class DatabaseQueryError(FraiseQLException):
         params: Optional[dict[str, Any]] = None,
         view_name: Optional[str] = None,
         cause: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Initialize database query error.
 
         Args:
@@ -303,7 +303,7 @@ class TypeRegistrationError(FraiseQLException):
         reason: str,
         existing_types: Optional[list[str]] = None,
         cause: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Initialize type registration error.
 
         Args:
@@ -351,7 +351,7 @@ class ResolverError(FraiseQLException):
         query_info: Optional[GraphQLResolveInfo] = None,
         args: Optional[dict[str, Any]] = None,
         cause: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Initialize resolver error.
 
         Args:

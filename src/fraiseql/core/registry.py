@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from threading import Lock
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self, cast
 
 if TYPE_CHECKING:
     from fraiseql.core.types import MutationField, QueryField, SubscriptionField
@@ -15,13 +15,13 @@ class TypeRegistry:
     _instance: TypeRegistry | None = None
     _lock = Lock()
 
-    def __new__(cls):
+    def __new__(cls) -> Self:
         """Create or return singleton instance."""
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
                 cls._instance._initialized = False
-            return cls._instance
+            return cast(Self, cls._instance)
 
     def __init__(self) -> None:
         if self._initialized:

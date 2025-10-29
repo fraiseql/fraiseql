@@ -54,7 +54,8 @@ class TestHybridTableFiltering:
         """Create a hybrid table with both regular SQL columns and JSONB data column."""
         async with db_pool.connection() as conn:
             # Create hybrid table matching a common pattern
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS products (
                     -- Regular SQL columns (used for filtering)
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -70,7 +71,8 @@ class TestHybridTableFiltering:
                     -- JSONB column (contains flexible data)
                     data JSONB
                 )
-            """)
+            """
+            )
 
             # Clear existing data
             await conn.execute("DELETE FROM products")
@@ -148,9 +150,9 @@ class TestHybridTableFiltering:
                         "is_featured": product["is_featured"],
                         "is_available": product["is_available"],
                         "category_id": product["category_id"],
-                        "created_date": product["created_date"].isoformat()
-                        if product["created_date"]
-                        else None,
+                        "created_date": (
+                            product["created_date"].isoformat() if product["created_date"] else None
+                        ),
                         "brand": product["brand"],
                         "color": product["color"],
                         "specifications": product["specifications"],

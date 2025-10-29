@@ -6,7 +6,6 @@ Following DDD principles with pure Python classes for enterprise blog domain.
 from abc import ABC
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, List, Optional
 from uuid import UUID, uuid4
 
 
@@ -41,8 +40,8 @@ class Entity(ABC):
     organization_id: UUID  # Multi-tenant support
     created_at: datetime = field(default_factory=datetime.utcnow, init=False)
     updated_at: datetime = field(default_factory=datetime.utcnow, init=False)
-    created_by: Optional[UUID] = None
-    updated_by: Optional[UUID] = None
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
     version: int = field(default=1, init=False)
 
     def __eq__(self, other: object) -> bool:
@@ -66,21 +65,21 @@ class DomainEvent:
     event_id: UUID = field(default_factory=uuid4, init=False)
     occurred_at: datetime = field(default_factory=datetime.utcnow, init=False)
     version: int = field(default=1, init=False)
-    correlation_id: Optional[UUID] = field(default=None, init=False)
-    causation_id: Optional[UUID] = field(default=None, init=False)
+    correlation_id: UUID | None = field(default=None, init=False)
+    causation_id: UUID | None = field(default=None, init=False)
 
 
 @dataclass
 class AggregateRoot(Entity):
     """Base class for aggregate roots with domain events."""
 
-    _domain_events: List[DomainEvent] = field(default_factory=list, init=False)
+    _domain_events: list[DomainEvent] = field(default_factory=list, init=False)
 
     def emit_event(self, event: DomainEvent) -> None:
         """Add a domain event to be published."""
         self._domain_events.append(event)
 
-    def get_uncommitted_events(self) -> List[DomainEvent]:
+    def get_uncommitted_events(self) -> list[DomainEvent]:
         """Get uncommitted domain events."""
         return self._domain_events.copy()
 
@@ -105,7 +104,7 @@ class BusinessRule:
 class DomainException(Exception):
     """Base exception for domain-related errors."""
 
-    def __init__(self, message: str, details: Optional[dict] = None):
+    def __init__(self, message: str, details: dict | None = None):
         super().__init__(message)
         self.message = message
         self.details = details or {}

@@ -1,7 +1,7 @@
 """Clean, immutable mutation result processor."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, Optional, Type, TypeVar
 
 from .types import MutationResult
 
@@ -15,7 +15,7 @@ class ErrorDetail:
     code: int
     identifier: str
     message: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
 
 
 @dataclass(frozen=True)  # Immutable
@@ -25,10 +25,10 @@ class ProcessedResult:
     typename: str
     status: str
     message: str
-    errors: List[ErrorDetail]
-    data: Optional[Dict[str, Any]] = None
+    errors: list[ErrorDetail]
+    data: Optional[dict[str, Any]] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to JSON-serializable dictionary."""
         result = {
             "__typename": self.typename,
@@ -105,7 +105,7 @@ class MutationResultProcessor:
 
     def _extract_error_data(
         self, db_result: MutationResult, error_class: Type[T]
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Extract error-specific data from database result."""
         # Start with base error class fields
         data = {}
@@ -131,7 +131,7 @@ class MutationResultProcessor:
 
     def _extract_success_data(
         self, db_result: MutationResult, success_class: Type[T]
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Extract success-specific data from database result."""
         data = {}
 

@@ -155,7 +155,7 @@ class CancelOrderInput:
     """Cancel order input."""
 
     order_id: fraiseql.UUID
-    reason: fraiseql.Optional[str] = None
+    reason: fraiseql.str | None = None
 
 
 @fraiseql.input
@@ -163,14 +163,14 @@ class UpdateAddressInput:
     """Update address input."""
 
     address_id: fraiseql.UUID
-    label: fraiseql.Optional[str] = None
-    street1: fraiseql.Optional[str] = None
-    street2: fraiseql.Optional[str] = None
-    city: fraiseql.Optional[str] = None
-    state: fraiseql.Optional[str] = None
-    postal_code: fraiseql.Optional[str] = None
-    country: fraiseql.Optional[str] = None
-    is_default: fraiseql.Optional[bool] = None
+    label: fraiseql.str | None = None
+    street1: fraiseql.str | None = None
+    street2: fraiseql.str | None = None
+    city: fraiseql.str | None = None
+    state: fraiseql.str | None = None
+    postal_code: fraiseql.str | None = None
+    country: fraiseql.str | None = None
+    is_default: fraiseql.bool | None = None
 
 
 @fraiseql.input

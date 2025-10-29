@@ -12,7 +12,7 @@ Key Features:
 """
 
 import logging
-from typing import List, Optional, Set
+from typing import Optional
 from uuid import UUID
 
 from fraiseql.db import DatabaseQuery, FraiseQLRepository
@@ -34,7 +34,7 @@ class PermissionResolver:
     - Multi-tenant support with tenant-scoped permissions
     """
 
-    def __init__(self, repo: FraiseQLRepository, cache: Optional[PermissionCache] = None):
+    def __init__(self, repo: FraiseQLRepository, cache: Optional[PermissionCache] = None) -> None:
         """Initialize permission resolver.
 
         Args:
@@ -47,7 +47,7 @@ class PermissionResolver:
 
     async def get_user_permissions(
         self, user_id: UUID, tenant_id: Optional[UUID] = None, use_cache: bool = True
-    ) -> List[Permission]:
+    ) -> list[Permission]:
         """Get all effective permissions for a user.
 
         Flow:
@@ -83,7 +83,7 @@ class PermissionResolver:
 
     async def _compute_permissions(
         self, user_id: UUID, tenant_id: Optional[UUID]
-    ) -> List[Permission]:
+    ) -> list[Permission]:
         """Compute effective permissions from database.
 
         This is the expensive operation that we cache.
@@ -99,7 +99,7 @@ class PermissionResolver:
         user_roles = await self._get_user_roles(user_id, tenant_id)
 
         # Get all inherited roles
-        all_role_ids: Set[UUID] = set()
+        all_role_ids: set[UUID] = set()
         for role in user_roles:
             inherited = await self.hierarchy.get_inherited_roles(role.id)
             all_role_ids.update(r.id for r in inherited)
@@ -127,7 +127,7 @@ class PermissionResolver:
         logger.debug("Computed %d permissions for user %s", len(permissions), user_id)
         return permissions
 
-    async def _get_user_roles(self, user_id: UUID, tenant_id: Optional[UUID]) -> List[Role]:
+    async def _get_user_roles(self, user_id: UUID, tenant_id: Optional[UUID]) -> list[Role]:
         """Get roles directly assigned to user."""
         results = await self.repo.run(
             DatabaseQuery(
@@ -197,13 +197,13 @@ class PermissionResolver:
 
         return has_perm
 
-    async def get_user_roles(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> List[Role]:
+    async def get_user_roles(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> list[Role]:
         """Get roles assigned to user (public method)."""
         return await self._get_user_roles(user_id, tenant_id)
 
     async def get_role_permissions(
         self, role_id: UUID, include_inherited: bool = True
-    ) -> List[Permission]:
+    ) -> list[Permission]:
         """Get permissions for a specific role.
 
         Args:
@@ -238,7 +238,7 @@ class PermissionResolver:
 
         return [Permission(**row) for row in permissions_data]
 
-    async def invalidate_user_cache(self, user_id: UUID, tenant_id: Optional[UUID] = None):
+    async def invalidate_user_cache(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> None:
         """Manually invalidate permission cache for user.
 
         Note: With domain versioning, manual invalidation is rarely needed

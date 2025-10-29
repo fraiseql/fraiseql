@@ -1,10 +1,12 @@
 """SQL generation and GraphQL where/order by type utilities."""
 
+from typing import Any
+
 from .where_generator import safe_create_where_type
 
 
 # Lazy imports to avoid circular dependencies
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     if name == "create_graphql_where_input":
         from .graphql_where_generator import create_graphql_where_input
 

@@ -14,7 +14,6 @@ Features demonstrated:
 import asyncio
 import os
 from datetime import datetime
-from typing import List, Optional
 from uuid import UUID
 
 from fastapi import FastAPI
@@ -39,7 +38,7 @@ class User:
     id: UUID
     email: EmailStr
     name: str
-    roles: List[str]
+    roles: list[str]
     is_active: bool
     email_verified: bool
     created_at: datetime
@@ -61,7 +60,7 @@ class Post:
 # Define GraphQL queries
 @fraiseql.query
 @requires_auth
-async def me(info) -> Optional[User]:
+async def me(info) -> User | None:
     """Get current user information."""
     user_context = info.context["user"]
 
@@ -76,7 +75,7 @@ async def me(info) -> Optional[User]:
 
 @fraiseql.query
 @requires_auth
-async def my_posts(info, limit: int = 10) -> List[Post]:
+async def my_posts(info, limit: int = 10) -> list[Post]:
     """Get posts by current user."""
     user_context = info.context["user"]
 
@@ -88,7 +87,7 @@ async def my_posts(info, limit: int = 10) -> List[Post]:
 
 @fraiseql.query
 @requires_role("admin")
-async def all_users(info, limit: int = 50) -> List[User]:
+async def all_users(info, limit: int = 50) -> list[User]:
     """Get all users (admin only)."""
     db = info.context["db"]
     results = await db.find("user_view", limit=limit)

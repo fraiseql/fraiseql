@@ -11,7 +11,6 @@ The "hybrid" aspect is filtering using SQL columns while querying JSONB data.
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from fraiseql import FraiseQL
 
@@ -104,7 +103,7 @@ class Order:
     payment_method: dict
     """Payment method details"""
 
-    notes: Optional[str]
+    notes: str | None
     """Customer notes"""
 
 
@@ -116,11 +115,11 @@ class Order:
 @app.query
 async def products(
     info,
-    category_id: Optional[int] = None,
+    category_id: int | None = None,
     is_active: bool = True,
-    min_price: Optional[Decimal] = None,
-    max_price: Optional[Decimal] = None,
-    brand: Optional[str] = None,
+    min_price: Decimal | None = None,
+    max_price: Decimal | None = None,
+    brand: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> list[Product]:
@@ -203,10 +202,10 @@ async def expensive_products(info, min_price: Decimal = Decimal("1000")) -> list
 @app.query
 async def orders(
     info,
-    customer_id: Optional[int] = None,
-    status: Optional[str] = None,
-    min_amount: Optional[Decimal] = None,
-    from_date: Optional[datetime] = None,
+    customer_id: int | None = None,
+    status: str | None = None,
+    min_amount: Decimal | None = None,
+    from_date: datetime | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> list[Order]:

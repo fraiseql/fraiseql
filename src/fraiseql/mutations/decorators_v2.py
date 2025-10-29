@@ -7,7 +7,7 @@ that reduces coupling and makes dependencies explicit.
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from .registry_v2 import ResultRegistry
 
@@ -48,7 +48,7 @@ class MutationBuilder:
         error_type: type,
         sql_function: str | None = None,
         description: str | None = None,
-    ):
+    ) -> Callable:
         """Explicit mutation decorator with dependency injection.
 
         Args:
@@ -79,7 +79,7 @@ class MutationBuilder:
             self.mutations[func.__name__] = metadata
 
             @wraps(func)
-            async def wrapper(*args, **kwargs):
+            async def wrapper(*args: Any, **kwargs: Any) -> Any:
                 return await func(*args, **kwargs)
 
             # Attach metadata for introspection
@@ -162,7 +162,7 @@ class MutationRegistry:
 
 
 # Example migration helper
-def migrate_mutation_decorator(registry: ResultRegistry):
+def migrate_mutation_decorator(registry: ResultRegistry) -> Callable:
     """Helper to migrate from global decorators to explicit registration.
 
     Args:

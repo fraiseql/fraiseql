@@ -117,7 +117,6 @@ async def create_post(title: str, author_id: UUID) -> Post:
 ### Basic Sync Function
 
 ```python
-from typing import List
 from uuid import UUID
 import asyncpg
 
@@ -128,7 +127,7 @@ class EntitySync:
     def __init__(self, pool: asyncpg.Pool):
         self.pool = pool
 
-    async def sync_post(self, post_ids: List[UUID], mode: str = "incremental") -> None:
+    async def sync_post(self, post_ids: list[UUID], mode: str = "incremental") -> None:
         """
         Sync posts from tb_post to tv_post.
 
@@ -194,7 +193,7 @@ class EntitySync:
 ### Sync with Nested Data
 
 ```python
-async def sync_post_with_comments(self, post_ids: List[UUID]) -> None:
+async def sync_post_with_comments(self, post_ids: list[UUID]) -> None:
     """Sync posts with embedded comments (denormalized)."""
     async with self.pool.acquire() as conn:
         for post_id in post_ids:
@@ -277,7 +276,7 @@ async def create_post(self, info, title: str, content: str, author_id: str) -> P
 ### Pattern 2: Batch Sync
 
 ```python
-async def create_many_posts(posts: List[dict]) -> List[UUID]:
+async def create_many_posts(posts: list[dict]) -> list[UUID]:
     """Create multiple posts and batch sync."""
     post_ids = []
 
@@ -515,7 +514,7 @@ CREATE INCREMENTAL MATERIALIZED VIEW tv_post;
 **With IVM**, sync becomes simpler:
 
 ```python
-async def sync_post_with_ivm(self, post_ids: List[UUID]):
+async def sync_post_with_ivm(self, post_ids: list[UUID]):
     """Sync with IVM extension (faster!)."""
     # IVM automatically maintains tv_post when tb_post changes
     # Just trigger a refresh
@@ -593,7 +592,7 @@ async def like_post(post_id: UUID, user_id: UUID):
 ### Pattern: Sync Validation
 
 ```python
-async def sync_with_validation(self, post_ids: List[UUID]):
+async def sync_with_validation(self, post_ids: list[UUID]):
     """Sync with validation to ensure data integrity."""
     for post_id in post_ids:
         # Fetch from tb_post
@@ -683,7 +682,7 @@ for post_id in post_ids:
 ```python
 import time
 
-async def sync_post(self, post_ids: List[UUID]):
+async def sync_post(self, post_ids: list[UUID]):
     start = time.time()
 
     # Do sync...
@@ -698,7 +697,7 @@ async def sync_post(self, post_ids: List[UUID]):
 ### 4. Handle Sync Errors
 
 ```python
-async def sync_post(self, post_ids: List[UUID]):
+async def sync_post(self, post_ids: list[UUID]):
     for post_id in post_ids:
         try:
             await self._do_sync(post_id)

@@ -37,7 +37,7 @@ The goal is not to build a community of many, but a foundation of quality that e
 
 ### Development Setup
 1. **Fork and Clone**: Fork the repository and clone your fork
-2. **Environment**: Set up Python 3.13+ and PostgreSQL
+2. **Environment**: Set up Python 3.10+ and PostgreSQL 13+
 3. **Dependencies**: Install development dependencies with `pip install -e ".[dev]"`
 4. **Database**: Set up test database with `./scripts/development/test-db-setup.sh`
 5. **Pre-commit**: Install pre-commit hooks with `pre-commit install`

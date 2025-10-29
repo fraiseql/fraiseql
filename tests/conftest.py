@@ -4,6 +4,7 @@ import pytest
 try:
     from fraiseql.config.schema_config import SchemaConfig
     from fraiseql.gql.schema_builder import SchemaRegistry
+
     FRAISEQL_AVAILABLE = True
 except ImportError:
     FRAISEQL_AVAILABLE = False
@@ -41,6 +42,7 @@ def clear_registry():
 
     # Clear the database type registry
     from fraiseql.db import _type_registry
+
     _type_registry.clear()
 
     yield

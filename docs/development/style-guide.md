@@ -53,10 +53,9 @@ class User:
 
 ```python
 from fraiseql import query
-from typing import List
 
 @query
-def get_users() -> List[User]:
+def get_users() -> list[User]:
     """Get all users."""
     pass  # Implementation handled by framework
 
@@ -69,7 +68,7 @@ def get_user_by_id(id: UUID) -> User:
 **Rules:**
 - Use `@query` decorator
 - Return type hints must match GraphQL schema
-- Use `List[Type]` for collections
+- Use `list[Type]` for collections
 - Include docstrings explaining the query
 - Parameter names should match GraphQL field names
 
@@ -172,16 +171,15 @@ my-fraiseql-api/
 
 ```python
 from fraiseql import mutation
-from typing import Optional
 
 @mutation
-def create_user(input: CreateUserInput) -> Optional[User]:
+def create_user(input: CreateUserInput) -> User | None:
     """Create a new user. Returns None if email already exists."""
     pass  # Framework handles database errors
 ```
 
 **Rules:**
-- Use `Optional[Type]` for mutations that might fail
+- Use `Type | None` for mutations that might fail
 - Document failure conditions in docstrings
 - Let framework handle database constraint violations
 - Use descriptive error messages in GraphQL responses

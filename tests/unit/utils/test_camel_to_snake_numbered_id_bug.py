@@ -3,6 +3,7 @@
 This test specifically targets the bug where camelCase field names like
 'dns1Id' are incorrectly converted to 'dns_1' instead of 'dns_1_id'.
 """
+
 import pytest
 
 from fraiseql.utils.naming import camel_to_snake
@@ -27,15 +28,15 @@ class TestCamelToSnakeNumberedIdBug:
         """
         # These are the failing cases from the bug report
         # RED TEST - these should fail initially
-        assert camel_to_snake("dns1Id") == "dns_1_id"   # Currently produces "dns1_id"
-        assert camel_to_snake("dns2Id") == "dns_2_id"   # Currently produces "dns2_id"
+        assert camel_to_snake("dns1Id") == "dns_1_id"  # Currently produces "dns1_id"
+        assert camel_to_snake("dns2Id") == "dns_2_id"  # Currently produces "dns2_id"
         assert camel_to_snake("backup1Id") == "backup_1_id"  # Currently produces "backup1_id"
 
         # Additional test cases for the pattern
-        assert camel_to_snake("server1Id") == "server_1_id"   # Currently produces "server1_id"
-        assert camel_to_snake("host3Id") == "host_3_id"       # Currently produces "host3_id"
-        assert camel_to_snake("backup10Id") == "backup_10_id" # Currently produces "backup10_id"
-        assert camel_to_snake("primary1Id") == "primary_1_id" # Currently produces "primary1_id"
+        assert camel_to_snake("server1Id") == "server_1_id"  # Currently produces "server1_id"
+        assert camel_to_snake("host3Id") == "host_3_id"  # Currently produces "host3_id"
+        assert camel_to_snake("backup10Id") == "backup_10_id"  # Currently produces "backup10_id"
+        assert camel_to_snake("primary1Id") == "primary_1_id"  # Currently produces "primary1_id"
 
     def test_camel_to_snake_edge_cases(self):
         """Test edge cases that should continue working."""

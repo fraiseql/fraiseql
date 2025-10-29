@@ -60,7 +60,7 @@ repo = FraiseQLRepository(pool, context={"mode": "turbo"})
 **Replace with:**
 
 ```python
-# ✅ NEW: Simplified configuration
+# Simplified configuration
 config = FraiseQLConfig(
     database_url=os.getenv("DATABASE_URL")
     # Rust pipeline always active, no additional config needed
@@ -87,7 +87,7 @@ result = await repo.find("v_user")
 assert isinstance(result, list)  # Fails - now RustResponseBytes
 assert result[0].name == "John"  # Fails - no longer Product instances
 
-# ✅ NEW: Handle RustResponseBytes
+# Handle RustResponseBytes
 import json
 from fraiseql.core.rust_pipeline import RustResponseBytes
 
@@ -114,7 +114,7 @@ assert users[0]["firstName"] == "John"  # Note: camelCase field names
 assert user.first_name == "John"
 assert user.is_active is True
 
-# ✅ NEW: GraphQL camelCase field names
+# GraphQL camelCase field names
 assert user["firstName"] == "John"
 assert user["isActive"] is True
 ```
@@ -125,7 +125,7 @@ assert user["isActive"] is True
 result = await repo.find("users")
 assert isinstance(result, list)
 
-# ✅ NEW: RustResponseBytes wrapper
+# RustResponseBytes wrapper
 result = await repo.find("users")
 assert isinstance(result, RustResponseBytes)
 

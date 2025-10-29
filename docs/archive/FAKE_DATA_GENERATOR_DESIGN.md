@@ -69,7 +69,7 @@ WHERE deleted_at IS NULL;
 ### Simplified Generator Flow
 
 ```python
-def _generate_single_row(self, metadata: TableMetadata, overrides: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _generate_single_row(self, metadata: TableMetadata, overrides: dict[str, Any] | None) -> dict[str, Any]:
     """Generate single row - SIMPLIFIED for FraiseQL pattern"""
 
     row = {}
@@ -141,7 +141,7 @@ The UUID generator is identical - we still encode metadata:
 class SemanticUUIDGenerator:
     """Generate deterministic, metadata-encoded UUIDs"""
 
-    def generate(self, table_code: int, sequence: Optional[int] = None) -> uuid.UUID:
+    def generate(self, table_code: int, sequence: int | None = None) -> uuid.UUID:
         """Generate UUID for table"""
         if sequence is None:
             sequence = self._next_sequence(table_code)
@@ -168,8 +168,8 @@ class ColumnMetadata:
     is_pk: bool  # True for pk_entity
     is_uuid_id: bool  # True for 'id' column (NEW)
     is_fk: bool
-    fk_table: Optional[str]
-    fk_column: Optional[str]  # e.g., "pk_continent" (INTEGER!)
+    fk_table: str | None
+    fk_column: str | None  # e.g., "pk_continent" (INTEGER!)
     is_nullable: bool
     is_identifier: bool
     is_audit: bool
@@ -179,11 +179,11 @@ class TableMetadata:
     schema: str
     name: str
     table_code: int
-    columns: Dict[str, ColumnMetadata]
+    columns: dict[str, ColumnMetadata]
 
     pk_column: str  # "pk_language" (INTEGER)
     uuid_id_column: str  # "id" (UUID) - NEW!
-    identifier_column: Optional[str]  # "identifier" (slug)
+    identifier_column: str | None  # "identifier" (slug)
 ```
 
 ### 3. Simplified FakeDataGenerator
@@ -197,7 +197,7 @@ class FakeDataGenerator:
         db_connection,
         scenario_id: int,
         locale: str = 'en_US',
-        seed: Optional[int] = None
+        seed: int | None = None
     ):
         self.db = db_connection
         self.introspector = SchemaIntrospector(db_connection)
@@ -210,8 +210,8 @@ class FakeDataGenerator:
     def insert_generated_data(
         self,
         table: str,
-        rows: List[Dict[str, Any]]
-    ) -> List[int]:
+        rows: list[dict[str, Any]]
+    ) -> list[int]:
         """Insert rows and return generated integer PKs"""
 
         metadata = self.introspector.get_table_metadata(table)
@@ -342,14 +342,14 @@ tables:
 **PrintOptim Pattern**:
 ```python
 # Need to track UUID→Integer mapping for ALL entities
-self._uuid_to_pk: Dict[uuid.UUID, int] = {}
+self._uuid_to_pk: dict[uuid.UUID, int] = {}
 # For 100K rows → 100K dict entries → ~3-4MB memory
 ```
 
 **FraiseQL Pattern**:
 ```python
 # Optional: Cache parent PKs for round-robin (only parent tables)
-self._parent_pk_cache: Dict[str, List[int]] = {}
+self._parent_pk_cache: dict[str, list[int]] = {}
 # For 7 continents → 1 list with 7 integers → ~100 bytes
 ```
 
@@ -490,7 +490,7 @@ If converting an existing generator:
 3. **Remove UUID Mapping**:
    ```python
    # OLD
-   self._uuid_to_pk: Dict[uuid.UUID, int] = {}
+   self._uuid_to_pk: dict[uuid.UUID, int] = {}
 
    # NEW
    # Delete this entirely!

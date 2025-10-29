@@ -7,7 +7,6 @@ import asyncio
 import json
 import os
 from contextlib import asynccontextmanager, suppress
-from typing import Annotated, Dict, Set
 
 import asyncpg
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -44,11 +43,11 @@ security = HTTPBearer()
 class ConnectionManager:
     def __init__(self):
         # room_id -> set of websockets
-        self.room_connections: Dict[str, Set[WebSocket]] = {}
+        self.room_connections: dict[str, set[WebSocket]] = {}
         # user_id -> set of websockets
-        self.user_connections: Dict[str, Set[WebSocket]] = {}
+        self.user_connections: dict[str, set[WebSocket]] = {}
         # websocket -> user_id
-        self.connection_users: Dict[WebSocket, str] = {}
+        self.connection_users: dict[WebSocket, str] = {}
 
     async def connect(self, websocket: WebSocket, user_id: str, room_id: str | None = None):
         """Connect a WebSocket and associate with user/room"""

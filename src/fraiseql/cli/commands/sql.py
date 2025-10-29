@@ -2,6 +2,7 @@
 
 import importlib.util
 import sys
+from typing import IO
 
 import click
 
@@ -21,7 +22,15 @@ def sql() -> None:
 @click.option("--exclude", "-e", multiple=True, help="Fields to exclude")
 @click.option("--with-comments/--no-comments", default=True, help="Include explanatory comments")
 @click.option("--output", "-o", type=click.File("w"), help="Output file (default: stdout)")
-def generate_view(type_name, module, table, view, exclude, with_comments, output) -> None:
+def generate_view(
+    type_name: str,
+    module: str | None,
+    table: str | None,
+    view: str | None,
+    exclude: tuple[str, ...],
+    with_comments: bool,
+    output: IO[str] | None,
+) -> None:
     """Generate a SQL view for a FraiseQL type.
 
     Example:
@@ -57,7 +66,14 @@ def generate_view(type_name, module, table, view, exclude, with_comments, output
 @click.option("--with-indexes", is_flag=True, help="Include index creation")
 @click.option("--with-data", is_flag=True, help="Include sample data")
 @click.option("--output", "-o", type=click.File("w"), help="Output file")
-def generate_setup(type_name, module, with_table, with_indexes, with_data, output) -> None:
+def generate_setup(
+    type_name: str,
+    module: str | None,
+    with_table: bool,
+    with_indexes: bool,
+    with_data: bool,
+    output: IO[str] | None,
+) -> None:
     """Generate complete SQL setup for a type.
 
     Example:
@@ -94,15 +110,15 @@ def generate_setup(type_name, module, with_table, with_indexes, with_data, outpu
 @click.option("--foreign-key", help="Foreign key for relationship")
 @click.option("--group-by", help="Group by field for aggregation")
 def generate_pattern(
-    pattern_type,
-    table_name,
-    limit,
-    offset,
-    where,
-    order,
-    child_table,
-    foreign_key,
-    group_by,
+    pattern_type: str,
+    table_name: str,
+    limit: int,
+    offset: int,
+    where: tuple[str, ...],
+    order: tuple[str, ...],
+    child_table: str | None,
+    foreign_key: str | None,
+    group_by: str | None,
 ) -> None:
     """Generate common SQL patterns for FraiseQL.
 
@@ -171,7 +187,7 @@ def generate_pattern(
 
 @sql.command()
 @click.argument("sql_file", type=click.File("r"))
-def validate(sql_file) -> None:
+def validate(sql_file: IO[str]) -> None:
     """Validate SQL for FraiseQL compatibility.
 
     Example:
@@ -201,7 +217,7 @@ def validate(sql_file) -> None:
 
 @sql.command()
 @click.argument("sql_file", type=click.File("r"))
-def explain(sql_file) -> None:
+def explain(sql_file: IO[str]) -> None:
     """Explain SQL in beginner-friendly terms.
 
     Example:

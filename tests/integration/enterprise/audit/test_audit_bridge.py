@@ -18,12 +18,14 @@ async def setup_bridge_schema(db_pool):
     async with db_pool.connection() as conn:
         async with conn.cursor() as cur:
             # Check if audit_events exists
-            await cur.execute("""
+            await cur.execute(
+                """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'audit_events'
                 )
-            """)
+            """
+            )
             exists = (await cur.fetchone())[0]
 
             if not exists:
@@ -53,7 +55,8 @@ async def setup_bridge_schema(db_pool):
             # Create tenant schema and tb_audit_log if not exists
             await cur.execute("CREATE SCHEMA IF NOT EXISTS tenant")
 
-            await cur.execute("""
+            await cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS tenant.tb_audit_log (
                     pk_audit_log UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     pk_organization UUID NOT NULL,
@@ -69,21 +72,26 @@ async def setup_bridge_schema(db_pool):
                     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                     correlation_id UUID DEFAULT gen_random_uuid()
                 )
-            """)
+            """
+            )
 
             # Enable the bridge trigger for testing
             # First, drop if exists to avoid errors
-            await cur.execute("""
+            await cur.execute(
+                """
                 DROP TRIGGER IF EXISTS bridge_to_cryptographic_audit
                 ON tenant.tb_audit_log
-            """)
+            """
+            )
 
-            await cur.execute("""
+            await cur.execute(
+                """
                 CREATE TRIGGER bridge_to_cryptographic_audit
                     AFTER INSERT ON tenant.tb_audit_log
                     FOR EACH ROW
                     EXECUTE FUNCTION bridge_audit_to_chain()
-            """)
+            """
+            )
 
             await conn.commit()
 

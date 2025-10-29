@@ -6,7 +6,7 @@ for metrics collection.
 
 import time
 from functools import wraps
-from typing import Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -27,17 +27,23 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     - Error rates
     """
 
-    def __init__(self, app, metrics: FraiseQLMetrics, config: MetricsConfig | None = None) -> None:
+    def __init__(
+        self, app: FastAPI, metrics: FraiseQLMetrics, config: MetricsConfig | None = None
+    ) -> None:
         """Initialize metrics middleware."""
         super().__init__(app)
         self.metrics = metrics
         self.config = config or MetricsConfig()
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request and record metrics."""
         return await self.process_request(request, call_next)
 
-    async def process_request(self, request: Request, call_next) -> Response:
+    async def process_request(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request with metrics collection."""
         # Skip excluded paths
         if request.url.path in self.config.exclude_paths:
@@ -133,7 +139,7 @@ def setup_metrics(app: FastAPI, config: MetricsConfig | None = None) -> FraiseQL
 
     # Add metrics endpoint
     @app.get(config.metrics_path, include_in_schema=False)
-    async def metrics_endpoint():
+    async def metrics_endpoint() -> Response:
         """Prometheus metrics endpoint."""
         return Response(
             content=metrics.generate_metrics(),
@@ -143,7 +149,7 @@ def setup_metrics(app: FastAPI, config: MetricsConfig | None = None) -> FraiseQL
     return metrics
 
 
-def with_metrics(operation_type: str = "operation"):
+def with_metrics(operation_type: str = "operation") -> Callable:
     """Decorator to automatically record metrics for a function.
 
     This decorator tracks:
@@ -163,9 +169,9 @@ def with_metrics(operation_type: str = "operation"):
         ```
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable:
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             metrics = get_metrics()
             start_time = time.time()
             success = False
@@ -194,7 +200,7 @@ def with_metrics(operation_type: str = "operation"):
                         )
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             metrics = get_metrics()
             start_time = time.time()
             success = False

@@ -66,12 +66,12 @@ class SigningKeyManager:
     - Forensic analysis from Python
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.current_key: Optional[str] = None
         self.previous_keys: list[tuple[str, datetime]] = []
         self._load_keys()
 
-    def _load_keys(self):
+    def _load_keys(self) -> None:
         """Load signing keys from environment or key vault.
 
         NOTE: In production, PostgreSQL uses audit_signing_keys table.

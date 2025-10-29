@@ -129,7 +129,7 @@ By delegating to Rust:
 
 The Python/Rust boundary is type-safe via PyO3:
 - Python `list[str]` → Rust `Vec<String>`
-- Python `Optional[str]` → Rust `Option<String>`
+- Python `str | None` → Rust `Option<String>`
 - Rust `Vec<u8>` → Python `bytes`
 
 ## Debugging

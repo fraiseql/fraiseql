@@ -11,7 +11,7 @@ import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, Dict
+from typing import Any
 
 import psycopg
 from fastapi import FastAPI, Request
@@ -50,7 +50,7 @@ def _create_base_app() -> FastAPI:
     """Create the base simple blog FastAPI application."""
 
     # Context getter for GraphQL - use FraiseQL's database dependency
-    async def get_context(request: Request) -> Dict[str, Any]:
+    async def get_context(request: Request) -> dict[str, Any]:
         """Provide context for GraphQL operations."""
         # Import here to avoid circular imports
         from fraiseql.fastapi.dependencies import get_db

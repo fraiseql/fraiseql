@@ -327,6 +327,8 @@ class QueryOptions:
 
 Filter syntax supports multiple operators for flexible querying.
 
+> **💡 Advanced Filtering**: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see **[Filter Operators Reference](../advanced/filter-operators.md)** and **[Advanced Filtering Examples](../examples/advanced-filtering.md)**.
+
 ### Supported Operators
 
 | Operator | SQL Equivalent | Example | Description |

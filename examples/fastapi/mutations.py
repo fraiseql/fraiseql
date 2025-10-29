@@ -8,7 +8,6 @@ This provides:
 - Better performance (fewer round-trips)
 """
 
-from typing import Optional
 from types import Project, Task, CreateProjectInput, UpdateProjectInput, CreateTaskInput, UpdateTaskInput
 
 
@@ -49,7 +48,7 @@ async def create_project(info, input: CreateProjectInput) -> Project:
     return result[0] if result else None
 
 
-async def update_project(info, id: int, input: UpdateProjectInput) -> Optional[Project]:
+async def update_project(info, id: int, input: UpdateProjectInput) -> Project | None:
     """Update an existing project.
 
     Calls the `fn_update_project()` PostgreSQL function.
@@ -132,7 +131,7 @@ async def create_task(info, input: CreateTaskInput) -> Task:
     return result[0] if result else None
 
 
-async def update_task(info, id: int, input: UpdateTaskInput) -> Optional[Task]:
+async def update_task(info, id: int, input: UpdateTaskInput) -> Task | None:
     """Update an existing task.
 
     Calls the `fn_update_task()` PostgreSQL function.
@@ -174,7 +173,7 @@ async def update_task(info, id: int, input: UpdateTaskInput) -> Optional[Task]:
     return result[0] if result else None
 
 
-async def assign_task(info, task_id: int, user_id: int) -> Optional[Task]:
+async def assign_task(info, task_id: int, user_id: int) -> Task | None:
     """Assign a task to a user.
 
     Calls the `fn_assign_task()` PostgreSQL function.

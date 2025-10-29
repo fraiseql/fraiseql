@@ -7,7 +7,6 @@ Mutations use PostgreSQL functions and return these types.
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 
 # ============================================================================
@@ -22,16 +21,16 @@ class Customer:
     id: int
     email: str
     name: str
-    phone: Optional[str]
-    address: Optional[str]
-    city: Optional[str]
-    country: Optional[str]
+    phone: str | None
+    address: str | None
+    city: str | None
+    country: str | None
     created_at: datetime
     updated_at: datetime
     version: int
 
     # Relationships
-    orders: Optional[list["OrderSummary"]] = None
+    orders: list["OrderSummary"] | None = None
 
 
 @dataclass
@@ -41,7 +40,7 @@ class Product:
     id: int
     sku: str
     name: str
-    description: Optional[str]
+    description: str | None
     price: Decimal
     cost: Decimal
     quantity_available: int
@@ -85,20 +84,20 @@ class OrderSummary:
     shipping: Decimal
     total: Decimal
     item_count: int
-    notes: Optional[str]
-    paid_at: Optional[datetime]
-    shipped_at: Optional[datetime]
-    delivered_at: Optional[datetime]
-    cancelled_at: Optional[datetime]
-    cancellation_reason: Optional[str]
+    notes: str | None
+    paid_at: datetime | None
+    shipped_at: datetime | None
+    delivered_at: datetime | None
+    cancelled_at: datetime | None
+    cancellation_reason: str | None
     created_at: datetime
     updated_at: datetime
     version: int
 
     # Relationships
-    customer: Optional[Customer] = None
-    items: Optional[list["OrderItemDetails"]] = None
-    payments: Optional[list["Payment"]] = None
+    customer: Customer | None = None
+    items: list["OrderItemDetails"] | None = None
+    payments: list["Payment"] | None = None
 
 
 @dataclass
@@ -118,7 +117,7 @@ class OrderItemDetails:
     created_at: datetime
 
     # Relationships
-    product: Optional[Product] = None
+    product: Product | None = None
 
 
 @dataclass
@@ -132,12 +131,12 @@ class Payment:
     customer_name: str
     amount: Decimal
     payment_method: str  # 'credit_card', 'debit_card', 'paypal', etc.
-    transaction_id: Optional[str]
+    transaction_id: str | None
     status: str  # 'pending', 'completed', 'failed', 'refunded'
-    processed_at: Optional[datetime]
-    refunded_at: Optional[datetime]
-    refund_amount: Optional[Decimal]
-    notes: Optional[str]
+    processed_at: datetime | None
+    refunded_at: datetime | None
+    refund_amount: Decimal | None
+    notes: str | None
     created_at: datetime
 
 
@@ -172,8 +171,8 @@ class CustomerLifetimeValue:
     cancelled_orders: int
     lifetime_value: Decimal
     average_order_value: Decimal
-    first_order_date: Optional[datetime]
-    last_order_date: Optional[datetime]
+    first_order_date: datetime | None
+    last_order_date: datetime | None
     customer_since: datetime
 
 
@@ -185,15 +184,15 @@ class AuditLog:
     operation: str  # 'INSERT', 'UPDATE', 'DELETE'
     entity_type: str
     entity_id: int
-    changed_by: Optional[str]
-    old_values: Optional[dict]
-    new_values: Optional[dict]
-    changes: Optional[dict]
-    ip_address: Optional[str]
-    user_agent: Optional[str]
+    changed_by: str | None
+    old_values: dict | None
+    new_values: dict | None
+    changes: dict | None
+    ip_address: str | None
+    user_agent: str | None
     created_at: datetime
-    order_number: Optional[str]
-    customer_email: Optional[str]
+    order_number: str | None
+    customer_email: str | None
 
 
 @dataclass
@@ -203,14 +202,14 @@ class OrderStatusTimeline:
     order_id: int
     order_number: str
     order_created: datetime
-    paid_at: Optional[datetime]
-    shipped_at: Optional[datetime]
-    delivered_at: Optional[datetime]
-    cancelled_at: Optional[datetime]
-    hours_to_payment: Optional[float]
-    hours_to_shipment: Optional[float]
-    hours_to_delivery: Optional[float]
-    total_fulfillment_hours: Optional[float]
+    paid_at: datetime | None
+    shipped_at: datetime | None
+    delivered_at: datetime | None
+    cancelled_at: datetime | None
+    hours_to_payment: float | None
+    hours_to_shipment: float | None
+    hours_to_delivery: float | None
+    total_fulfillment_hours: float | None
     status: str
 
 
@@ -233,7 +232,7 @@ class CreateOrderInput:
 
     customer_id: int
     items: list[OrderItemInput]
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 @dataclass
@@ -243,8 +242,8 @@ class ProcessPaymentInput:
     order_id: int
     amount: Decimal
     payment_method: str
-    transaction_id: Optional[str] = None
-    version: Optional[int] = None  # For optimistic locking
+    transaction_id: str | None = None
+    version: int | None = None  # For optimistic locking
 
 
 @dataclass
@@ -269,7 +268,7 @@ class AddProductInput:
 
     sku: str
     name: str
-    description: Optional[str]
+    description: str | None
     price: Decimal
     cost: Decimal
     quantity_available: int = 0

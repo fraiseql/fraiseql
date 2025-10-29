@@ -9,7 +9,6 @@ This module demonstrates FraiseQL's explicit sync pattern:
 """
 
 import time
-from typing import List, Optional
 from uuid import UUID
 
 import asyncpg
@@ -35,7 +34,7 @@ class EntitySync:
         operation: str,
         duration_ms: int,
         success: bool = True,
-        error_message: Optional[str] = None,
+        error_message: str | None = None,
     ):
         """Log sync operation for monitoring."""
         await conn.execute(
@@ -51,7 +50,7 @@ class EntitySync:
             error_message,
         )
 
-    async def sync_user(self, user_ids: List[UUID], mode: str = "incremental") -> None:
+    async def sync_user(self, user_ids: list[UUID], mode: str = "incremental") -> None:
         """
         Sync users from tb_user to tv_user with denormalized post count.
 
@@ -126,7 +125,7 @@ class EntitySync:
                     await self._log_sync(conn, "user", user_id, mode, duration_ms, False, str(e))
                     raise SyncError(f"Failed to sync user {user_id}: {e}") from e
 
-    async def sync_post(self, post_ids: List[UUID], mode: str = "incremental") -> None:
+    async def sync_post(self, post_ids: list[UUID], mode: str = "incremental") -> None:
         """
         Sync posts from tb_post to tv_post with denormalized author and comments.
 
@@ -232,7 +231,7 @@ class EntitySync:
                     await self._log_sync(conn, "post", post_id, mode, duration_ms, False, str(e))
                     raise SyncError(f"Failed to sync post {post_id}: {e}") from e
 
-    async def sync_comment(self, comment_ids: List[UUID], mode: str = "incremental") -> None:
+    async def sync_comment(self, comment_ids: list[UUID], mode: str = "incremental") -> None:
         """
         Sync comments from tb_comment to tv_comment with denormalized author.
 

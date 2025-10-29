@@ -13,6 +13,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from psycopg_pool import AsyncConnectionPool
+
 logger = logging.getLogger(__name__)
 
 
@@ -103,12 +105,12 @@ class IVMAnalyzer:
 
     def __init__(
         self,
-        connection_pool,
+        connection_pool: AsyncConnectionPool,
         *,
         min_rows_threshold: int = 1000,
         min_jsonb_fields: int = 5,
         incremental_score_threshold: float = 5.0,
-    ):
+    ) -> None:
         """Initialize IVM analyzer.
 
         Args:
@@ -133,16 +135,18 @@ class IVMAnalyzer:
         """
         try:
             async with self.pool.connection() as conn, conn.cursor() as cur:
-                await cur.execute("""
+                await cur.execute(
+                    """
                     SELECT extversion
                     FROM pg_extension
                     WHERE extname = 'jsonb_ivm'
-                """)
+                """
+                )
                 result = await cur.fetchone()
 
                 if result:
                     self.has_jsonb_ivm = True
-                    self.extension_version = result[0]
+                    self.extension_version = result[0] if result[0] is not None else None
                     logger.info("✓ Detected jsonb_ivm v%s", self.extension_version)
                     return True
 
@@ -161,13 +165,15 @@ class IVMAnalyzer:
         """
         try:
             async with self.pool.connection() as conn, conn.cursor() as cur:
-                await cur.execute("""
+                await cur.execute(
+                    """
                     SELECT tablename
                     FROM pg_tables
                     WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
                       AND tablename LIKE 'tv_%'
                     ORDER BY tablename
-                """)
+                """
+                )
 
                 rows = await cur.fetchall()
                 tables = [row[0] for row in rows]
@@ -192,7 +198,8 @@ class IVMAnalyzer:
             async with self.pool.connection() as conn, conn.cursor() as cur:
                 # Get row count
                 await cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-                row_count = (await cur.fetchone())[0]
+                result = await cur.fetchone()
+                row_count = result[0] if result else 0
 
                 # Analyze JSONB structure (assuming 'data' column contains JSONB)
                 await cur.execute(
@@ -228,7 +235,8 @@ class IVMAnalyzer:
                     """,
                     (source_table,),
                 )
-                source_exists = (await cur.fetchone())[0]
+                result = await cur.fetchone()
+                source_exists = result[0] if result else False
 
                 if not source_exists:
                     source_table = None

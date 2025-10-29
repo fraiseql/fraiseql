@@ -95,13 +95,13 @@ class TestDashboardStructure:
 
             for i, panel in enumerate(panels):
                 for field in required_panel_fields:
-                    assert field in panel, \
+                    assert field in panel, (
                         f"{name}, panel {i} ({panel.get('title', 'untitled')}): Missing field '{field}'"
+                    )
 
                 # Verify panel ID is unique
                 panel_ids = [p["id"] for p in panels]
-                assert len(panel_ids) == len(set(panel_ids)), \
-                    f"{name}: Duplicate panel IDs found"
+                assert len(panel_ids) == len(set(panel_ids)), f"{name}: Duplicate panel IDs found"
 
     def test_panel_grid_position(self, dashboards):
         """Each panel should have valid grid position."""
@@ -118,12 +118,15 @@ class TestDashboardStructure:
                 assert "y" in grid_pos, f"{name}, panel '{panel['title']}': Missing y position"
 
                 # Validate grid values
-                assert 0 <= grid_pos["x"] <= 24, \
+                assert 0 <= grid_pos["x"] <= 24, (
                     f"{name}, panel '{panel['title']}': Invalid x position {grid_pos['x']}"
-                assert 0 < grid_pos["w"] <= 24, \
+                )
+                assert 0 < grid_pos["w"] <= 24, (
                     f"{name}, panel '{panel['title']}': Invalid width {grid_pos['w']}"
-                assert grid_pos["h"] > 0, \
+                )
+                assert grid_pos["h"] > 0, (
                     f"{name}, panel '{panel['title']}': Invalid height {grid_pos['h']}"
+                )
 
     def test_panel_targets(self, dashboards):
         """Each panel should have at least one target with SQL query."""
@@ -132,49 +135,47 @@ class TestDashboardStructure:
 
             for panel in panels:
                 targets = panel["targets"]
-                assert len(targets) > 0, \
-                    f"{name}, panel '{panel['title']}': No targets defined"
+                assert len(targets) > 0, f"{name}, panel '{panel['title']}': No targets defined"
 
                 for target in targets:
-                    assert "refId" in target, \
+                    assert "refId" in target, (
                         f"{name}, panel '{panel['title']}': Target missing refId"
-                    assert "rawSql" in target, \
+                    )
+                    assert "rawSql" in target, (
                         f"{name}, panel '{panel['title']}': Target missing rawSql"
-                    assert target["rawSql"], \
-                        f"{name}, panel '{panel['title']}': Empty SQL query"
+                    )
+                    assert target["rawSql"], f"{name}, panel '{panel['title']}': Empty SQL query"
 
     def test_templating_variables(self, dashboards):
         """Dashboards should have required template variables."""
         for name, dashboard in dashboards.items():
-            assert "templating" in dashboard["dashboard"], \
+            assert "templating" in dashboard["dashboard"], (
                 f"{name}: Missing templating configuration"
+            )
 
             templating = dashboard["dashboard"]["templating"]
-            assert "list" in templating, \
-                f"{name}: Missing template variable list"
+            assert "list" in templating, f"{name}: Missing template variable list"
 
             variables = templating["list"]
 
             # All dashboards should have 'environment' variable
             var_names = [v["name"] for v in variables]
-            assert "environment" in var_names, \
-                f"{name}: Missing 'environment' template variable"
+            assert "environment" in var_names, f"{name}: Missing 'environment' template variable"
 
             # Check environment variable structure
             env_var = next(v for v in variables if v["name"] == "environment")
-            assert "options" in env_var, \
-                f"{name}: Environment variable missing options"
+            assert "options" in env_var, f"{name}: Environment variable missing options"
 
             # Should include production option
             env_options = [opt["value"] for opt in env_var["options"]]
-            assert "production" in env_options, \
+            assert "production" in env_options, (
                 f"{name}: Environment variable missing 'production' option"
+            )
 
     def test_time_configuration(self, dashboards):
         """Dashboards should have time configuration."""
         for name, dashboard in dashboards.items():
-            assert "time" in dashboard["dashboard"], \
-                f"{name}: Missing time configuration"
+            assert "time" in dashboard["dashboard"], f"{name}: Missing time configuration"
 
             time_config = dashboard["dashboard"]["time"]
             assert "from" in time_config, f"{name}: Missing time 'from'"
@@ -183,13 +184,17 @@ class TestDashboardStructure:
     def test_refresh_rate(self, dashboards):
         """Dashboards should have refresh rate configured."""
         for name, dashboard in dashboards.items():
-            assert "refresh" in dashboard["dashboard"], \
-                f"{name}: Missing refresh configuration"
+            assert "refresh" in dashboard["dashboard"], f"{name}: Missing refresh configuration"
 
             refresh = dashboard["dashboard"]["refresh"]
             # Should be valid refresh interval (10s, 30s, 1m, etc.)
-            assert refresh in ["10s", "30s", "1m", "5m", False], \
-                f"{name}: Invalid refresh rate '{refresh}'"
+            assert refresh in [
+                "10s",
+                "30s",
+                "1m",
+                "5m",
+                False,
+            ], f"{name}: Invalid refresh rate '{refresh}'"
 
 
 class TestDashboardSpecificContent:
@@ -208,8 +213,7 @@ class TestDashboardSpecificContent:
         ]
 
         for expected in expected_panels:
-            assert expected in panel_titles, \
-                f"Error monitoring dashboard missing panel: {expected}"
+            assert expected in panel_titles, f"Error monitoring dashboard missing panel: {expected}"
 
     def test_performance_metrics_dashboard(self, dashboards):
         """Performance metrics dashboard should have performance-specific panels."""
@@ -223,8 +227,7 @@ class TestDashboardSpecificContent:
         ]
 
         for expected in expected_panels:
-            assert expected in panel_titles, \
-                f"Performance dashboard missing panel: {expected}"
+            assert expected in panel_titles, f"Performance dashboard missing panel: {expected}"
 
     def test_cache_hit_rate_dashboard(self, dashboards):
         """Cache hit rate dashboard should have cache-specific panels."""
@@ -238,8 +241,7 @@ class TestDashboardSpecificContent:
         ]
 
         for expected in expected_panels:
-            assert expected in panel_titles, \
-                f"Cache hit rate dashboard missing panel: {expected}"
+            assert expected in panel_titles, f"Cache hit rate dashboard missing panel: {expected}"
 
     def test_database_pool_dashboard(self, dashboards):
         """Database pool dashboard should have pool-specific panels."""
@@ -253,8 +255,7 @@ class TestDashboardSpecificContent:
         ]
 
         for expected in expected_panels:
-            assert expected in panel_titles, \
-                f"Database pool dashboard missing panel: {expected}"
+            assert expected in panel_titles, f"Database pool dashboard missing panel: {expected}"
 
     def test_apq_effectiveness_dashboard(self, dashboards):
         """APQ effectiveness dashboard should have APQ-specific panels."""
@@ -268,8 +269,9 @@ class TestDashboardSpecificContent:
         ]
 
         for expected in expected_panels:
-            assert expected in panel_titles, \
+            assert expected in panel_titles, (
                 f"APQ effectiveness dashboard missing panel: {expected}"
+            )
 
 
 class TestDashboardTags:
@@ -290,8 +292,7 @@ class TestDashboardTags:
             expected = expected_tags[name]
 
             for tag in expected:
-                assert tag in tags, \
-                    f"{name}: Missing expected tag '{tag}'"
+                assert tag in tags, f"{name}: Missing expected tag '{tag}'"
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ For complete enterprise example, see ../enterprise_patterns/
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 # Import enterprise pattern types (would be defined in models.py)
@@ -37,9 +37,9 @@ from .models import (
 async def add_to_cart(
     variant_id: UUID,
     quantity: int,
-    cart_id: Optional[UUID] = None,
-    customer_id: Optional[UUID] = None,
-    session_id: Optional[str] = None,
+    cart_id: UUID | None = None,
+    customer_id: UUID | None = None,
+    session_id: str | None = None,
 ) -> CartMutationResult:
     """Add item to cart with inventory checking"""
 
@@ -52,8 +52,8 @@ async def add_to_cart(
 async def update_cart_item(
     cart_item_id: UUID,
     quantity: int,
-    customer_id: Optional[UUID] = None,
-    session_id: Optional[str] = None,
+    customer_id: UUID | None = None,
+    session_id: str | None = None,
 ) -> CartMutationResult:
     """Update cart item quantity or remove if quantity is 0"""
 
@@ -65,8 +65,8 @@ async def update_cart_item(
 )
 async def clear_cart(
     cart_id: UUID,
-    customer_id: Optional[UUID] = None,
-    session_id: Optional[str] = None,
+    customer_id: UUID | None = None,
+    session_id: str | None = None,
 ) -> CartMutationResult:
     """Clear all items from cart"""
 
@@ -79,8 +79,8 @@ async def clear_cart(
 async def apply_coupon_to_cart(
     cart_id: UUID,
     coupon_code: str,
-    customer_id: Optional[UUID] = None,
-    session_id: Optional[str] = None,
+    customer_id: UUID | None = None,
+    session_id: str | None = None,
 ) -> CartMutationResult:
     """Apply coupon code to cart"""
 
@@ -95,9 +95,9 @@ async def create_order(
     cart_id: UUID,
     customer_id: UUID,
     shipping_address_id: UUID,
-    billing_address_id: Optional[UUID] = None,
-    payment_method: Optional[dict] = None,
-    notes: Optional[str] = None,
+    billing_address_id: UUID | None = None,
+    payment_method: dict | None = None,
+    notes: str | None = None,
 ) -> OrderMutationResult:
     """Convert cart to order with inventory reservation"""
 
@@ -110,7 +110,7 @@ async def create_order(
 async def update_order_status(
     order_id: UUID,
     status: str,
-    notes: Optional[str] = None,
+    notes: str | None = None,
 ) -> OrderMutationResult:
     """Update order status with validation"""
 
@@ -147,7 +147,7 @@ async def register_customer(
     password: str,
     first_name: str,
     last_name: str,
-    phone: Optional[str] = None,
+    phone: str | None = None,
 ) -> CustomerMutationResult:
     """Register new customer with email validation"""
 
@@ -159,10 +159,10 @@ async def register_customer(
 )
 async def update_customer_profile(
     customer_id: UUID,
-    first_name: Optional[str] = None,
-    last_name: Optional[str] = None,
-    phone: Optional[str] = None,
-    metadata: Optional[dict] = None,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    phone: str | None = None,
+    metadata: dict | None = None,
 ) -> CustomerMutationResult:
     """Update customer profile fields"""
 
@@ -180,11 +180,11 @@ async def add_customer_address(
     address_line1: str,
     city: str,
     country_code: str,
-    company: Optional[str] = None,
-    address_line2: Optional[str] = None,
-    state_province: Optional[str] = None,
-    postal_code: Optional[str] = None,
-    phone: Optional[str] = None,
+    company: str | None = None,
+    address_line2: str | None = None,
+    state_province: str | None = None,
+    postal_code: str | None = None,
+    phone: str | None = None,
     is_default: bool = False,
 ) -> AddressMutationResult:
     """Add new address to customer account"""
@@ -199,10 +199,10 @@ async def add_customer_address(
 async def add_to_wishlist(
     customer_id: UUID,
     product_id: UUID,
-    variant_id: Optional[UUID] = None,
-    wishlist_id: Optional[UUID] = None,
+    variant_id: UUID | None = None,
+    wishlist_id: UUID | None = None,
     priority: int = 0,
-    notes: Optional[str] = None,
+    notes: str | None = None,
 ) -> dict:
     """Add product to wishlist"""
 
@@ -217,9 +217,9 @@ async def submit_review(
     customer_id: UUID,
     product_id: UUID,
     rating: int,
-    title: Optional[str] = None,
-    comment: Optional[str] = None,
-    order_id: Optional[UUID] = None,
+    title: str | None = None,
+    comment: str | None = None,
+    order_id: UUID | None = None,
 ) -> ReviewMutationResult:
     """Submit product review with optional order verification"""
 
@@ -232,8 +232,8 @@ async def submit_review(
 async def mark_review_helpful(
     review_id: UUID,
     is_helpful: bool,
-    customer_id: Optional[UUID] = None,
-    session_id: Optional[str] = None,
+    customer_id: UUID | None = None,
+    session_id: str | None = None,
 ) -> dict:
     """Mark review helpfulness"""
 
@@ -331,14 +331,14 @@ class ProcessOrderInput:
     cart_id: UUID
     customer_id: UUID
     shipping_address_id: UUID
-    billing_address_id: Optional[UUID] = None
+    billing_address_id: UUID | None = None
     payment_details: dict[str, Any]
-    coupon_codes: Optional[list[str]] = None
-    special_instructions: Optional[str] = None
+    coupon_codes: list[str] | None = None
+    special_instructions: str | None = None
 
     # Enterprise validation metadata
-    _expected_total: Optional[Decimal] = None  # For price validation
-    _inventory_reserved_until: Optional[datetime] = None  # For inventory checks
+    _expected_total: Decimal | None = None  # For price validation
+    _inventory_reserved_until: datetime | None = None  # For inventory checks
 
 
 @success
@@ -349,7 +349,7 @@ class ProcessOrderSuccess:
     order_number: str
     total_amount: Decimal
     payment_status: str
-    estimated_delivery: Optional[datetime] = None
+    estimated_delivery: datetime | None = None
 
     # Enterprise audit information
     inventory_adjustments: list[dict[str, Any]]
@@ -363,13 +363,13 @@ class ProcessOrderNoop:
     """Order processing was a no-op."""
 
     reason: str
-    order_id: Optional[UUID] = None
+    order_id: UUID | None = None
     blocking_issues: list[dict[str, Any]]
 
     # Context for NOOP scenarios
-    inventory_shortfalls: Optional[list[dict[str, Any]]] = None
-    credit_limit_exceeded: Optional[dict[str, Any]] = None
-    pricing_discrepancies: Optional[list[dict[str, Any]]] = None
+    inventory_shortfalls: list[dict[str, Any | None]] = None
+    credit_limit_exceeded: dict[str, Any] | None = None
+    pricing_discrepancies: list[dict[str, Any | None]] = None
 
 
 @failure
@@ -378,7 +378,7 @@ class ProcessOrderError:
 
     message: str
     error_code: str
-    field_errors: Optional[dict[str, str]] = None
+    field_errors: dict[str, str] | None = None
 
     # Enterprise error context
     validation_failures: list[dict[str, Any]]
@@ -393,11 +393,11 @@ class UpdateInventoryInput:
     product_variant_id: UUID
     quantity_change: int  # Can be negative
     reason_code: str  # 'restock', 'sale', 'damage', 'adjustment'
-    reference_id: Optional[UUID] = None  # Order ID, return ID, etc.
-    notes: Optional[str] = None
+    reference_id: UUID | None = None  # Order ID, return ID, etc.
+    notes: str | None = None
 
     # Enterprise validation
-    _expected_current_quantity: Optional[int] = None  # For optimistic locking
+    _expected_current_quantity: int | None = None  # For optimistic locking
     _force_negative: bool = False  # Allow negative inventory
 
 
@@ -426,8 +426,8 @@ class UpdateInventoryNoop:
     attempted_change: int
 
     # NOOP context
-    business_rule_violation: Optional[str] = None
-    concurrent_modification: Optional[dict[str, Any]] = None
+    business_rule_violation: str | None = None
+    concurrent_modification: dict[str, Any] | None = None
 
 
 @failure
@@ -449,13 +449,13 @@ class ApplyDiscountInput:
     """Discount application with eligibility rules."""
 
     cart_id: UUID
-    discount_code: Optional[str] = None
-    discount_id: Optional[UUID] = None
+    discount_code: str | None = None
+    discount_id: UUID | None = None
     customer_id: UUID
 
     # Validation context
-    _cart_total_for_validation: Optional[Decimal] = None
-    _customer_tier: Optional[str] = None
+    _cart_total_for_validation: Decimal | None = None
+    _customer_tier: str | None = None
 
 
 @success
@@ -464,7 +464,7 @@ class ApplyDiscountSuccess:
 
     discount_id: UUID
     discount_amount: Decimal
-    discount_percentage: Optional[Decimal] = None
+    discount_percentage: Decimal | None = None
     cart_total_before: Decimal
     cart_total_after: Decimal
 
@@ -478,13 +478,13 @@ class ApplyDiscountNoop:
     """Discount application was a no-op."""
 
     reason: str
-    discount_code: Optional[str] = None
+    discount_code: str | None = None
     customer_id: UUID
 
     # Eligibility context
     customer_ineligible_reasons: list[str]
     product_restrictions: list[dict[str, Any]]
-    temporal_restrictions: Optional[dict[str, Any]] = None
+    temporal_restrictions: dict[str, Any] | None = None
 
 
 @failure
@@ -493,7 +493,7 @@ class ApplyDiscountError:
 
     message: str
     error_code: str
-    discount_code: Optional[str] = None
+    discount_code: str | None = None
 
     # Error details
     eligibility_failures: list[str]

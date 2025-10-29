@@ -26,7 +26,7 @@ from fraiseql.types.scalars.ip_address import IpAddressField
 @dataclass
 class NetworkDevice:
     ipv4_address: IpAddressField  # "192.168.1.1" or "192.168.1.1/24"
-    ipv6_address: Optional[IpAddressField]  # "2001:db8::1"
+    ipv6_address: IpAddressField | None  # "2001:db8::1"
 ```
 
 **Benefits:**
@@ -250,7 +250,7 @@ CREATE INDEX idx_devices_ipv4
 @app.type
 @dataclass
 class Device:
-    ipv6_address: Optional[IpAddressField]
+    ipv6_address: IpAddressField | None
     # "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
     # or compressed: "2001:db8::1"
 ```

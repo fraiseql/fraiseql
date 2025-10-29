@@ -52,7 +52,8 @@ async def setup_test_database():
         await conn.execute("CREATE SCHEMA IF NOT EXISTS public")
 
         # Create the organizations table
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TABLE tenant.tb_organization (
                 pk_organization UUID PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -60,10 +61,12 @@ async def setup_test_database():
                 data JSONB NOT NULL DEFAULT '{}'::jsonb,
                 created_at TIMESTAMPTZ DEFAULT NOW()
             )
-        """)
+        """
+        )
 
         # Create the contacts table
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TABLE tenant.tb_contact (
                 pk_contact UUID PRIMARY KEY,
                 fk_customer_org UUID NOT NULL REFERENCES tenant.tb_organization(pk_organization),
@@ -73,10 +76,12 @@ async def setup_test_database():
                 data JSONB NOT NULL DEFAULT '{}'::jsonb,
                 created_at TIMESTAMPTZ DEFAULT NOW()
             )
-        """)
+        """
+        )
 
         # Create materialized view for organizations
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE MATERIALIZED VIEW public.mv_organization AS
             SELECT
                 pk_organization AS id,
@@ -88,10 +93,12 @@ async def setup_test_database():
                     'status', COALESCE(data->>'status', 'active')
                 ) AS data
             FROM tenant.tb_organization
-        """)
+        """
+        )
 
         # Create view for users with EMBEDDED organization data
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE VIEW public.v_user AS
             SELECT
                 c.pk_contact AS id,
@@ -110,10 +117,12 @@ async def setup_test_database():
                 ) AS data
             FROM tenant.tb_contact c
             JOIN tenant.tb_organization o ON c.fk_customer_org = o.pk_organization
-        """)
+        """
+        )
 
         # Insert test data
-        await conn.execute("""
+        await conn.execute(
+            """
             INSERT INTO tenant.tb_organization (pk_organization, name, identifier, data)
             VALUES (
                 '6f726700-0000-0000-0000-000000000000'::uuid,
@@ -121,9 +130,11 @@ async def setup_test_database():
                 'TEST-ORG',
                 '{"status": "active", "type": "enterprise"}'::jsonb
             )
-        """)
+        """
+        )
 
-        await conn.execute("""
+        await conn.execute(
+            """
             INSERT INTO tenant.tb_contact (
                 pk_contact,
                 fk_customer_org,
@@ -140,7 +151,8 @@ async def setup_test_database():
                 'alice@example.com',
                 '{"role": "admin", "department": "Engineering"}'::jsonb
             )
-        """)
+        """
+        )
 
         # Refresh materialized view
         await conn.execute("REFRESH MATERIALIZED VIEW public.mv_organization")
@@ -347,7 +359,6 @@ async def test_nested_organization_without_tenant_id():
         assert org_data["identifier"] == "TEST-ORG"
         assert org_data["status"] == "active"
 
-
     finally:
         # Cleanup
         await conn.close()
@@ -393,7 +404,8 @@ async def test_comparison_with_and_without_embedded():
 
     try:
         # Also create a view WITHOUT embedded organization (for comparison)
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE VIEW public.v_user_no_embed AS
             SELECT
                 c.pk_contact AS id,
@@ -406,7 +418,8 @@ async def test_comparison_with_and_without_embedded():
                     'organization_id', c.fk_customer_org  -- Just the FK, not embedded
                 ) AS data
             FROM tenant.tb_contact c
-        """)
+        """
+        )
         await conn.commit()
 
         from fraiseql.cqrs.repository import CQRSRepository
@@ -448,7 +461,6 @@ async def test_comparison_with_and_without_embedded():
         assert result is not None
         assert "organization" not in result  # No embedded org
         assert "organization_id" in result  # Just the FK
-
 
     finally:
         await conn.close()

@@ -20,7 +20,6 @@ class TestGenerateSchema:
             '''
 import fraiseql
 from fraiseql import fraise_field
-from typing import List
 
 @fraiseql.type
 class User:
@@ -40,8 +39,8 @@ class Post:
 @fraiseql.type
 class QueryRoot:
     """Root query type."""
-    users: List[User] = fraise_field(default_factory=list, description="List all users")
-    posts: List[Post] = fraise_field(default_factory=list, description="List all posts")
+    users: list[User] = fraise_field(default_factory=list, description="List all users")
+    posts: list[Post] = fraise_field(default_factory=list, description="List all posts")
 
     async def resolve_users(self, info):
         return []
@@ -76,7 +75,6 @@ app = fraiseql.create_fraiseql_app(queries=[QueryRoot])
             """
 import fraiseql
 from fraiseql import fraise_field
-from typing import List
 
 @fraiseql.type
 class Item:
@@ -85,7 +83,7 @@ class Item:
 
 @fraiseql.type
 class QueryRoot:
-    items: List[Item] = fraise_field(default_factory=list, description="List all items")
+    items: list[Item] = fraise_field(default_factory=list, description="List all items")
 
     async def resolve_items(self, info):
         return []

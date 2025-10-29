@@ -187,7 +187,7 @@ class ArchiveOrganization:
 
     organization_id: str  # UUID as string for GraphQL
     archive_reason: str
-    transfer_data_to: Optional[str] = None  # UUID of receiving org
+    transfer_data_to: str | None = None  # UUID of receiving org
 
     # Return type would be defined similarly to above patterns
     # success: ArchiveOrganizationSuccess
@@ -256,8 +256,8 @@ class TransferProject:
     project_id: str  # UUID
     destination_organization_id: str  # UUID
     transfer_team_members: bool = True
-    preserve_access_for_days: Optional[int] = 30
-    compliance_approval_token: Optional[str] = None
+    preserve_access_for_days: int | None = 30
+    compliance_approval_token: str | None = None
 
     # Would include comprehensive transfer results
     # success: TransferProjectSuccess

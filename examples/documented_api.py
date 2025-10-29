@@ -7,7 +7,6 @@ with FraiseQL, including docstrings, descriptions, and examples.
 
 import fraiseql
 from fraiseql import Info
-from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
 
@@ -45,7 +44,7 @@ class Post:
 def get_user(
     info: Info,
     id: UUID
-) -> Optional[User]:
+) -> User | None:
     """
     Get a single user by ID.
 
@@ -74,7 +73,7 @@ def get_users(
     info: Info,
     limit: int = 10,
     active_only: bool = True
-) -> List[User]:
+) -> list[User]:
     """
     Get a list of users.
 
@@ -106,7 +105,7 @@ def search_posts(
     info: Info,
     query: str,
     published_only: bool = True
-) -> List[Post]:
+) -> list[Post]:
     """
     Search for posts by title or content.
 
@@ -178,8 +177,8 @@ async def create_user(
 async def update_user(
     info: Info,
     id: UUID,
-    name: Optional[str] = None,
-    email: Optional[str] = None
+    name: str | None = None,
+    email: str | None = None
 ) -> User:
     """
     Update an existing user.

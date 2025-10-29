@@ -324,7 +324,7 @@ complete_cqrs_blog/
 class EntitySync:
     """Handles synchronization from tb_* to tv_* tables."""
 
-    async def sync_post(self, post_ids: List[UUID], mode: str = "incremental"):
+    async def sync_post(self, post_ids: list[UUID], mode: str = "incremental"):
         """
         Sync posts from tb_post to tv_post.
 

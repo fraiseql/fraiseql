@@ -1,7 +1,7 @@
 """Unified query executor with mode switching."""
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from graphql import GraphQLSchema
 
@@ -21,7 +21,7 @@ class UnifiedExecutor:
         mode_selector: ModeSelector,
         turbo_router: Optional[TurboRouter] = None,
         query_analyzer: Optional[QueryAnalyzer] = None,
-    ):
+    ) -> None:
         """Initialize unified executor.
 
         Args:
@@ -51,10 +51,10 @@ class UnifiedExecutor:
     async def execute(
         self,
         query: str,
-        variables: Optional[Dict[str, Any]] = None,
+        variables: Optional[dict[str, Any]] = None,
         operation_name: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        context: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         """Execute query using unified Rust-first pipeline.
 
         Args:
@@ -131,7 +131,7 @@ class UnifiedExecutor:
                 ]
             }
 
-    def _format_error(self, error) -> Dict[str, Any]:
+    def _format_error(self, error: Any) -> dict[str, Any]:
         """Format GraphQL error for response.
 
         Args:
@@ -157,7 +157,7 @@ class UnifiedExecutor:
 
         return formatted
 
-    def _track_execution(self, mode: ExecutionMode, execution_time: float):
+    def _track_execution(self, mode: ExecutionMode, execution_time: float) -> None:
         """Track execution metrics.
 
         Args:
@@ -172,7 +172,7 @@ class UnifiedExecutor:
         if len(times) > 100:
             times.pop(0)
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get execution metrics.
 
         Returns:

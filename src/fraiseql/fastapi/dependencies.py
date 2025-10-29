@@ -1,12 +1,14 @@
 """FastAPI dependencies for FraiseQL."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Callable
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.auth.base import AuthProvider, UserContext
 from fraiseql.db import FraiseQLRepository
+from fraiseql.fastapi.config import FraiseQLConfig
 from fraiseql.optimization.registry import LoaderRegistry
 
 # Global instances (will be set by create_app)
@@ -15,7 +17,7 @@ _auth_provider: AuthProvider | None = None
 _fraiseql_config = None
 
 
-def get_db_pool():
+def get_db_pool() -> Any:
     """Get the database connection pool."""
     if _db_pool is None:
         msg = "Database pool not initialized. Call create_fraiseql_app first."
@@ -23,7 +25,7 @@ def get_db_pool():
     return _db_pool
 
 
-def set_db_pool(pool) -> None:
+def set_db_pool(pool: AsyncConnectionPool) -> None:
     """Set the database connection pool (called by create_app)."""
     global _db_pool
     _db_pool = pool
@@ -40,12 +42,12 @@ def set_auth_provider(provider: AuthProvider | None) -> None:
     _auth_provider = provider
 
 
-def get_fraiseql_config():
+def get_fraiseql_config() -> Any:
     """Get the FraiseQL configuration."""
     return _fraiseql_config
 
 
-def set_fraiseql_config(config) -> None:
+def set_fraiseql_config(config: FraiseQLConfig) -> None:
     """Set the FraiseQL configuration (called by create_app)."""
     global _fraiseql_config
     _fraiseql_config = config
@@ -118,7 +120,7 @@ async def get_current_user(
     return user
 
 
-def require_permission(permission: str):
+def require_permission(permission: str) -> Callable:
     """Dependency to require a specific permission."""
 
     async def check_permission(
@@ -134,7 +136,7 @@ def require_permission(permission: str):
     return check_permission
 
 
-def require_role(role: str):
+def require_role(role: str) -> Callable:
     """Dependency to require a specific role."""
 
     async def check_role(

@@ -14,7 +14,7 @@ Key Features Tested:
 """
 
 import uuid
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import pytest
 
@@ -53,18 +53,18 @@ class ValidationError:
 class CreateAuthorSuccess:
     author: Author
     message: str = "Author created successfully"
-    errors: List[ValidationError] = []
+    errors: list[ValidationError] = []
 
 
 @fraiseql.failure
 class CreateAuthorError:
     message: str
-    errors: List[ValidationError]
+    errors: list[ValidationError]
     validation_summary: Optional[dict] = None
     conflict_author: Optional[Author] = None
 
 
-def validate_author_input(input_data: dict) -> List[dict]:
+def validate_author_input(input_data: dict) -> list[dict]:
     """Mock validation function that returns error array."""
     errors = []
 
@@ -220,9 +220,15 @@ class TestErrorArraysV050:
             assert isinstance(error.message, str), f"Error {i} 'message' should be string"
 
             # Code should be valid HTTP status code
-            assert error.code in [400, 401, 403, 404, 409, 422, 500], (
-                f"Error {i} has invalid code: {error.code}"
-            )
+            assert error.code in [
+                400,
+                401,
+                403,
+                404,
+                409,
+                422,
+                500,
+            ], f"Error {i} has invalid code: {error.code}"
 
             # Message should be non-empty
             assert len(error.message) > 0, f"Error {i} has empty message"
@@ -292,7 +298,7 @@ class TestErrorArraysV050:
         """Test that error arrays can contain different HTTP status codes."""
 
         # Add conflict check to validation function temporarily for this test
-        def extended_validation(input_data: dict) -> List[dict]:
+        def extended_validation(input_data: dict) -> list[dict]:
             errors = validate_author_input(input_data)
 
             # Simulate conflict error

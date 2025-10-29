@@ -73,7 +73,6 @@ class TestIdParameterWithCamelCase:
         search_field = query_type.fields.get("searchUsers")
         assert search_field is not None
 
-
         # Check if Python reserved keywords are handled
         assert "type" in search_field.args
         # class_ should become class in GraphQL
@@ -111,7 +110,6 @@ class TestIdParameterWithCamelCase:
             variable_values={"userId": "12345678-1234-5678-1234-567812345678"},
             context_value={"db": None},
         )
-
 
         # Check if we get the expected error
         if result.errors:

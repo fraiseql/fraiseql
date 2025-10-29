@@ -55,7 +55,7 @@ recommendation = await setup_auto_ivm(db_pool, verbose=True)
 # IVM Analysis: 5/8 tables benefit from incremental updates
 ```
 
-**Documentation**: [PostgreSQL Extensions Guide](./postgresql-extensions.md#jsonb_ivm-extension)
+**Documentation**: [PostgreSQL Extensions Guide](./postgresql-extensions.md#jsonbivm-extension)
 
 ---
 

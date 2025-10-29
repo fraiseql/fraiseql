@@ -100,7 +100,9 @@ class TestLTreeHierarchicalOperators:
 
         result = ltree.build_descendant_of_sql(path_sql, ltree_value)
 
-        expected_sql = "(data->>'category_path')::ltree <@ 'top.science.astrophysics.black_holes'::ltree"
+        expected_sql = (
+            "(data->>'category_path')::ltree <@ 'top.science.astrophysics.black_holes'::ltree"
+        )
         assert result.as_string(None) == expected_sql
 
     def test_build_matches_lquery_sql(self):
@@ -136,7 +138,9 @@ class TestLTreeHierarchicalOperators:
         # Test complex lquery pattern
         complex_pattern = "top.academics.university.*.faculty.*"
         result_lquery = ltree.build_matches_lquery_sql(path_sql, complex_pattern)
-        expected_lquery = "(data->>'navigation_path')::ltree ~ 'top.academics.university.*.faculty.*'::lquery"
+        expected_lquery = (
+            "(data->>'navigation_path')::ltree ~ 'top.academics.university.*.faculty.*'::lquery"
+        )
         assert result_lquery.as_string(None) == expected_lquery
 
 

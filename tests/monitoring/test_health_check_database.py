@@ -56,7 +56,9 @@ class TestDatabaseHealthCheck:
         assert isinstance(result, CheckResult)
         assert result.name == "database"
         assert result.status == HealthStatus.UNHEALTHY
-        assert "not available" in result.message.lower() or "not configured" in result.message.lower()
+        assert (
+            "not available" in result.message.lower() or "not configured" in result.message.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_check_database_with_metadata(self):

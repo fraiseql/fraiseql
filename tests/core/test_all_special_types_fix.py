@@ -27,22 +27,18 @@ class TestAllSpecialTypesFix:
             ("IPv4 Localhost", "127.0.0.1", "::inet", None),
             ("IPv6 Short", "::1", "::inet", None),
             ("IPv6 Full", "2001:db8::1", "::inet", None),
-
             # MAC addresses (should be detected before IP addresses)
             ("MAC Colon", "00:11:22:33:44:55", "::macaddr", None),
             ("MAC Hyphen", "00-11-22-33-44-55", "::macaddr", None),
             ("MAC Upper", "AA:BB:CC:DD:EE:FF", "::macaddr", None),
-
             # LTree hierarchical paths
             ("LTree Simple", "top.middle", "::ltree", None),
             ("LTree Complex", "org.dept.team.user", "::ltree", None),
             ("LTree Underscore", "app_config.db_settings", "::ltree", None),
-
             # DateRange temporal ranges
             ("DateRange Inclusive", "[2024-01-01,2024-12-31]", "::daterange", None),
             ("DateRange Exclusive", "(2024-01-01,2024-12-31)", "::daterange", None),
             ("DateRange Mixed", "[2024-01-01,2024-12-31)", "::daterange", None),
-
             # Regular strings (should NOT get special casting)
             ("Regular Text", "hello world", None, None),
             ("Domain Name", "example.com", None, None),  # Has dot but not LTree pattern
@@ -60,21 +56,24 @@ class TestAllSpecialTypesFix:
 
             if expected_cast:
                 # Should have the expected casting
-                assert expected_cast in sql_str, \
+                assert expected_cast in sql_str, (
                     f"{test_name} should have {expected_cast} casting: {sql_str}"
+                )
 
                 # Should NOT have other special castings
                 other_casts = ["::inet", "::ltree", "::daterange", "::macaddr"]
                 other_casts.remove(expected_cast)
 
                 for other_cast in other_casts:
-                    assert other_cast not in sql_str, \
+                    assert other_cast not in sql_str, (
                         f"{test_name} should not have {other_cast} casting: {sql_str}"
+                    )
 
                 # Check for extra requirements (like host() for IP addresses)
                 if extra_check:
-                    assert extra_check in sql_str, \
+                    assert extra_check in sql_str, (
                         f"{test_name} should contain '{extra_check}': {sql_str}"
+                    )
 
                 print(f"  ✅ CORRECT: Has {expected_cast} casting")
 
@@ -82,8 +81,9 @@ class TestAllSpecialTypesFix:
                 # Should NOT have any special casting
                 special_casts = ["::inet", "::ltree", "::daterange", "::macaddr"]
                 for cast in special_casts:
-                    assert cast not in sql_str, \
+                    assert cast not in sql_str, (
                         f"{test_name} should not have {cast} casting: {sql_str}"
+                    )
 
                 print(f"  ✅ CORRECT: No special casting")
 
@@ -100,7 +100,6 @@ class TestAllSpecialTypesFix:
             ("MAC-like Invalid", "GG:HH:II:JJ:KK:LL", None),  # Invalid MAC, no casting
             ("Date-like Invalid", "[invalid-date]", None),  # Invalid DateRange, no casting
             ("Empty String", "", None),  # Empty string, no casting
-
             # Valid patterns that should be detected
             ("Minimal LTree", "a.b", "::ltree"),
             ("Valid MAC No Separators", "001122334455", "::macaddr"),
@@ -115,14 +114,16 @@ class TestAllSpecialTypesFix:
             print(f"  SQL: {sql_str}")
 
             if expected_cast:
-                assert expected_cast in sql_str, \
+                assert expected_cast in sql_str, (
                     f"{test_name} should have {expected_cast} casting: {sql_str}"
+                )
                 print(f"  ✅ DETECTED: {expected_cast}")
             else:
                 special_casts = ["::inet", "::ltree", "::daterange", "::macaddr"]
                 for cast in special_casts:
-                    assert cast not in sql_str, \
+                    assert cast not in sql_str, (
                         f"{test_name} should not have {cast} casting: {sql_str}"
+                    )
                 print(f"  ✅ NOT DETECTED: No special casting (correct)")
 
     def test_list_values_for_in_operator(self):
@@ -177,8 +178,9 @@ class TestAllSpecialTypesFix:
             sql_str = str(result)
 
             print(f"{field_type.__name__} with field_type: {sql_str}")
-            assert expected_cast in sql_str, \
+            assert expected_cast in sql_str, (
                 f"Backward compatibility broken for {field_type.__name__}"
+            )
 
     def test_production_parity_scenarios(self):
         """Test scenarios that directly address the production failures."""
@@ -199,13 +201,11 @@ class TestAllSpecialTypesFix:
             sql_str = str(result)
 
             print(f"{test_name}: {sql_str}")
-            assert expected_cast in sql_str, \
-                f"Production fix failed for {test_name}: {sql_str}"
+            assert expected_cast in sql_str, f"Production fix failed for {test_name}: {sql_str}"
 
             # Should use proper INET casting for comparison, not text comparison
             # Note: Fixed behavior no longer uses host() for equality operators
-            assert "::inet" in sql_str, \
-                f"Should use INET casting for IP comparison: {sql_str}"
+            assert "::inet" in sql_str, f"Should use INET casting for IP comparison: {sql_str}"
 
             print(f"  ✅ PRODUCTION FIX VALIDATED")
 

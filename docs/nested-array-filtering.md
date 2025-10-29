@@ -1,4 +1,4 @@
-# Nested Array Where Filtering in FraiseQL v0.7.10+
+# Nested Array Where Filtering in FraiseQL v1.0+
 
 ## Overview
 
@@ -6,65 +6,47 @@ FraiseQL provides comprehensive nested array where filtering with complete AND/O
 
 ## Features
 
-- ✅ **Clean Registration-Based API** - No verbose field definitions required
 - ✅ **Complete Logical Operators** - Full AND/OR/NOT support with unlimited nesting depth
 - ✅ **All Field Operators** - equals, contains, gte, isnull, and more
-- ✅ **Convention Over Configuration** - Automatic detection of filterable nested arrays
-- ✅ **Performance Optimized** - Client-side filtering with efficient evaluation
 - ✅ **Type Safe** - Full TypeScript/Python type safety with generated WhereInput types
+- ✅ **Performance Optimized** - Client-side filtering with efficient evaluation
 
 ## Quick Start
 
-### 1. Clean Registration Approaches
+### 1. Enable Where Filtering on Fields
+
+To enable where filtering on a nested array field, use the `fraise_field` function with the `supports_where_filtering` and `nested_where_type` parameters:
 
 ```python
-from fraiseql import type, query, mutation, input, field
-
+import fraiseql
 from fraiseql.fields import fraise_field
-from fraiseql.nested_array_filters import (
-    auto_nested_array_filters,
-    nested_array_filterable,
-    register_nested_array_filter,
-)
-from fraiseql.types import fraise_type
-from typing import List
+from uuid import UUID
+from typing import Optional
 
-@fraise_type
+@fraiseql.type
 class PrintServer:
     id: UUID
     hostname: str
-    ip_address: str | None = None
+    ip_address: Optional[str] = None
     operating_system: str
     n_total_allocations: int = 0
 
-# Option 1: Automatic detection (recommended)
-@auto_nested_array_filters
-@fraise_type
+@fraiseql.type(sql_source="v_network", jsonb_column="data")
 class NetworkConfiguration:
     id: UUID
     name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
-
-# Option 2: Selective fields
-@nested_array_filterable("print_servers", "dns_servers")
-@fraise_type
-class NetworkConfiguration:
-    id: UUID
-    name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
-    dns_servers: List[DnsServer] = fraise_field(default_factory=list)
-
-# Option 3: Manual registration (maximum control)
-@fraise_type
-class NetworkConfiguration:
-    id: UUID
-    name: str
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
-
-register_nested_array_filter(NetworkConfiguration, "print_servers", PrintServer)
+    # Enable where filtering on this field
+    print_servers: list[PrintServer] = fraise_field(
+        default_factory=list,
+        supports_where_filtering=True,
+        nested_where_type=PrintServer,
+        description="Network print servers with optional filtering"
+    )
 ```
 
 ### 2. Generated GraphQL Schema
+
+FraiseQL automatically generates the WhereInput types:
 
 ```graphql
 type NetworkConfiguration {
@@ -87,490 +69,335 @@ input PrintServerWhereInput {
 }
 
 input StringWhereInput {
-  equals: String
-  not: String
+  eq: String
+  neq: String
   in: [String!]
-  notIn: [String!]
+  nin: [String!]
   contains: String
-  startsWith: String
-  endsWith: String
+  startswith: String
+  endswith: String
   isnull: Boolean
 }
 
 input IntWhereInput {
-  equals: Int
-  not: Int
-  in: [Int!]
-  notIn: [Int!]
-  lt: Int
-  lte: Int
+  eq: Int
+  neq: Int
   gt: Int
   gte: Int
+  lt: Int
+  lte: Int
+  in: [Int!]
+  nin: [Int!]
   isnull: Boolean
 }
 ```
 
-## Query Examples
-
-### Simple Field Filtering (Implicit AND)
+### 3. Query with Complex Filters
 
 ```graphql
 query {
-  networkConfiguration(id: "some-uuid") {
-    printServers(where: {
-      operatingSystem: { equals: "Linux" }
-      nTotalAllocations: { gte: 50 }
-      ipAddress: { isnull: false }
-    }) {
-      hostname
-      operatingSystem
-      nTotalAllocations
-      ipAddress
-    }
-  }
-}
-```
-
-### Explicit AND Operator
-
-```graphql
-query {
-  networkConfiguration(id: "some-uuid") {
+  network(id: "123e4567-e89b-12d3-a456-426614174000") {
+    name
     printServers(where: {
       AND: [
-        { operatingSystem: { equals: "Windows Server" } }
-        { nTotalAllocations: { gte: 100 } }
-        { hostname: { contains: "prod" } }
-      ]
-    }) {
-      hostname
-      operatingSystem
-      nTotalAllocations
-    }
-  }
-}
-```
-
-### OR Operator
-
-```graphql
-query {
-  networkConfiguration(id: "some-uuid") {
-    printServers(where: {
-      OR: [
-        { operatingSystem: { equals: "Linux" } }
-        { nTotalAllocations: { gte: 200 } }
-      ]
-    }) {
-      hostname
-      operatingSystem
-      nTotalAllocations
-    }
-  }
-}
-```
-
-### NOT Operator
-
-```graphql
-query {
-  networkConfiguration(id: "some-uuid") {
-    printServers(where: {
-      NOT: {
-        operatingSystem: { equals: "Windows Server" }
-      }
-    }) {
-      hostname
-      operatingSystem
-    }
-  }
-}
-```
-
-### Complex Nested Logic
-
-```graphql
-query {
-  networkConfiguration(id: "some-uuid") {
-    printServers(where: {
-      OR: [
-        {
-          # High-spec production servers
-          AND: [
-            { hostname: { contains: "prod" } }
+        { operatingSystem: { in: ["Linux", "Windows"] } }
+        { OR: [
             { nTotalAllocations: { gte: 100 } }
-            { operatingSystem: { in: ["Windows Server", "Linux"] } }
-          ]
-        }
-        {
-          # Active development servers
-          AND: [
-            { hostname: { contains: "dev" } }
-            { ipAddress: { isnull: false } }
-            { NOT: { operatingSystem: { equals: "legacy" } } }
-          ]
-        }
-      ]
-    }) {
-      hostname
-      operatingSystem
-      nTotalAllocations
-      ipAddress
-    }
-  }
-}
-```
-
-### Advanced Complex Example
-
-```graphql
-query {
-  networkConfiguration(id: "some-uuid") {
-    printServers(where: {
-      AND: [
-        {
-          OR: [
-            { operatingSystem: { equals: "Linux" } }
-            { operatingSystem: { equals: "Windows Server" } }
-          ]
-        }
-        {
-          OR: [
-            { nTotalAllocations: { gte: 50 } }
             { hostname: { contains: "critical" } }
           ]
         }
-        {
-          NOT: {
-            AND: [
-              { ipAddress: { isnull: true } }
-              { operatingSystem: { equals: "legacy" } }
-            ]
-          }
-        }
+        { NOT: { ipAddress: { isnull: true } } }
       ]
     }) {
       hostname
+      ipAddress
       operatingSystem
       nTotalAllocations
-      ipAddress
     }
   }
 }
 ```
 
-## Field Operators Reference
+## Complete Example
 
-### String Operators
+```python
+import fraiseql
+from fraiseql.fields import fraise_field
+from uuid import UUID
+from datetime import datetime
+from typing import Optional
+from enum import Enum
 
-| Operator | GraphQL Syntax | Description | Example |
-|----------|----------------|-------------|---------|
-| `equals` | `{ equals: "value" }` | Exact match | `hostname: { equals: "server-01" }` |
-| `not` | `{ not: "value" }` | Not equal to | `hostname: { not: "localhost" }` |
-| `in` | `{ in: ["val1", "val2"] }` | Matches any value in list | `operatingSystem: { in: ["Linux", "Windows"] }` |
-| `notIn` | `{ notIn: ["val1", "val2"] }` | Does not match any value | `hostname: { notIn: ["test", "temp"] }` |
-| `contains` | `{ contains: "substring" }` | Contains substring | `hostname: { contains: "prod" }` |
-| `startsWith` | `{ startsWith: "prefix" }` | Starts with prefix | `hostname: { startsWith: "web-" }` |
-| `endsWith` | `{ endsWith: "suffix" }` | Ends with suffix | `hostname: { endsWith: "-01" }` |
-| `isnull` | `{ isnull: true/false }` | Is null or not null | `ipAddress: { isnull: false }` |
+# Define enums
+@fraiseql.enum
+class ServerStatus(str, Enum):
+    ACTIVE = "active"
+    MAINTENANCE = "maintenance"
+    OFFLINE = "offline"
 
-### Numeric Operators
+# Define nested types
+@fraiseql.type
+class Server:
+    id: UUID
+    hostname: str
+    ip_address: Optional[str] = None
+    status: ServerStatus = ServerStatus.ACTIVE
+    last_check: datetime
+    cpu_usage: float
+    memory_gb: int
 
-| Operator | GraphQL Syntax | Description | Example |
-|----------|----------------|-------------|---------|
-| `equals` | `{ equals: 42 }` | Exact match | `nTotalAllocations: { equals: 100 }` |
-| `not` | `{ not: 42 }` | Not equal to | `nTotalAllocations: { not: 0 }` |
-| `gt` | `{ gt: 42 }` | Greater than | `nTotalAllocations: { gt: 50 }` |
-| `gte` | `{ gte: 42 }` | Greater than or equal | `nTotalAllocations: { gte: 100 }` |
-| `lt` | `{ lt: 42 }` | Less than | `nTotalAllocations: { lt: 200 }` |
-| `lte` | `{ lte: 42 }` | Less than or equal | `nTotalAllocations: { lte: 150 }` |
-| `in` | `{ in: [10, 20, 30] }` | Matches any value in list | `nTotalAllocations: { in: [50, 100, 150] }` |
-| `notIn` | `{ notIn: [10, 20] }` | Does not match any value | `nTotalAllocations: { notIn: [0] }` |
-| `isnull` | `{ isnull: true/false }` | Is null or not null | `nTotalAllocations: { isnull: false }` |
+@fraiseql.type(sql_source="v_datacenter", jsonb_column="data")
+class Datacenter:
+    id: UUID
+    name: str
+    location: str
+
+    # Enable where filtering
+    servers: list[Server] = fraise_field(
+        default_factory=list,
+        supports_where_filtering=True,
+        nested_where_type=Server,
+        description="Servers in this datacenter"
+    )
+
+# Define query
+@fraiseql.query
+async def datacenter(id: UUID) -> Datacenter:
+    """Get datacenter by ID."""
+    # Your implementation here
+    pass
+```
+
+Query example:
+
+```graphql
+query {
+  datacenter(id: "...") {
+    name
+    location
+    # Filter servers with complex conditions
+    servers(where: {
+      AND: [
+        { status: { eq: ACTIVE } }
+        { cpuUsage: { lt: 80.0 } }
+        { memoryGb: { gte: 16 } }
+        { NOT: { ipAddress: { isnull: true } } }
+      ]
+    }) {
+      hostname
+      ipAddress
+      status
+      cpuUsage
+      memoryGb
+    }
+  }
+}
+```
 
 ## Logical Operators
 
-### AND Operator
+### AND
 
-**Behavior**: All conditions must be true
-**Syntax**: `{ AND: [condition1, condition2, ...] }`
-**Empty Array**: Returns all items (`[]` = match all)
+All conditions must be true:
 
 ```graphql
-# All conditions must match
-printServers(where: {
+where: {
   AND: [
-    { operatingSystem: { equals: "Linux" } }
-    { nTotalAllocations: { gte: 50 } }
-    { ipAddress: { isnull: false } }
+    { hostname: { contains: "prod" } }
+    { status: { eq: ACTIVE } }
   ]
-})
+}
 ```
 
-**Implicit AND**: Multiple fields at the same level are automatically AND'ed:
+### OR
+
+At least one condition must be true:
 
 ```graphql
-# These are equivalent
-printServers(where: {
-  operatingSystem: { equals: "Linux" }
-  nTotalAllocations: { gte: 50 }
-})
-
-printServers(where: {
-  AND: [
-    { operatingSystem: { equals: "Linux" } }
-    { nTotalAllocations: { gte: 50 } }
-  ]
-})
-```
-
-### OR Operator
-
-**Behavior**: Any condition can be true
-**Syntax**: `{ OR: [condition1, condition2, ...] }`
-**Empty Array**: Returns no items (`[]` = match none)
-
-```graphql
-# Any condition can match
-printServers(where: {
+where: {
   OR: [
-    { operatingSystem: { equals: "Linux" } }
-    { nTotalAllocations: { gte: 200 } }
+    { cpuUsage: { gte: 90 } }
+    { memoryGb: { lte: 4 } }
   ]
-})
+}
 ```
 
-### NOT Operator
+### NOT
 
-**Behavior**: Inverts the condition result
-**Syntax**: `{ NOT: condition }`
+Inverts the condition:
 
 ```graphql
-# Exclude Windows servers
-printServers(where: {
-  NOT: {
-    operatingSystem: { equals: "Windows Server" }
-  }
-})
-
-# Complex NOT with nested conditions
-printServers(where: {
-  NOT: {
-    AND: [
-      { operatingSystem: { equals: "legacy" } }
-      { ipAddress: { isnull: true } }
-    ]
-  }
-})
+where: {
+  NOT: { status: { eq: OFFLINE } }
+}
 ```
 
-## Advanced Usage
+### Complex Nesting
 
-### Python Resolver Implementation
+You can combine all operators with unlimited depth:
 
-```python
-from fraiseql import type, query, mutation, input, field
-
-from fraiseql.core.nested_field_resolver import create_nested_array_field_resolver_with_where
-from fraiseql.sql.graphql_where_generator import create_graphql_where_input
-from typing import List
-
-# Create WhereInput type
-PrintServerWhereInput = create_graphql_where_input(PrintServer)
-
-# Create resolver with where filtering support
-resolver = create_nested_array_field_resolver_with_where("print_servers", List[PrintServer])
-
-# Use in GraphQL resolvers
-@query
-async def network_configuration_print_servers(
-    parent: NetworkConfiguration,
-    info: GraphQLResolveInfo,
-    where: PrintServerWhereInput | None = None
-) -> List[PrintServer]:
-    return await resolver(parent, info, where=where)
+```graphql
+where: {
+  AND: [
+    { status: { eq: ACTIVE } }
+    {
+      OR: [
+        { cpuUsage: { gte: 90 } }
+        {
+          AND: [
+            { memoryGb: { lte: 4 } }
+            { hostname: { contains: "critical" } }
+          ]
+        }
+      ]
+    }
+    { NOT: { ipAddress: { isnull: true } } }
+  ]
+}
 ```
 
-### Custom Resolver Logic
+## Field Operators
 
-```python
-async def test_complex_filtering():
-    # Create complex filter conditions
-    windows_condition = PrintServerWhereInput()
-    windows_condition.operating_system = {"equals": "Windows Server"}
-    windows_condition.nTotalAllocations = {"gte": 100}
+### String Operators
 
-    linux_condition = PrintServerWhereInput()
-    linux_condition.operating_system = {"equals": "Linux"}
-    linux_condition.ipAddress = {"isnull": False}
+- `eq`: Equals
+- `neq`: Not equals
+- `contains`: Contains substring
+- `startswith`: Starts with prefix
+- `endswith`: Ends with suffix
+- `in`: Value is in list
+- `nin`: Value is not in list
+- `isnull`: Field is null/not null
 
-    # Combine with OR
-    where_filter = PrintServerWhereInput()
-    where_filter.OR = [windows_condition, linux_condition]
+### Numeric Operators (Int, Float, Decimal)
 
-    # Execute filtering
-    result = await resolver(network_config, None, where=where_filter)
+- `eq`: Equals
+- `neq`: Not equals
+- `gt`: Greater than
+- `gte`: Greater than or equal
+- `lt`: Less than
+- `lte`: Less than or equal
+- `in`: Value is in list
+- `nin`: Value is not in list
+- `isnull`: Field is null/not null
 
-    # Process results
-    for server in result:
-        print(f"Found: {server.hostname} ({server.operating_system})")
-```
+### Boolean Operators
+
+- `eq`: Equals
+- `neq`: Not equals
+- `isnull`: Field is null/not null
+
+### UUID/Date/DateTime Operators
+
+- `eq`: Equals
+- `neq`: Not equals
+- `gt`: Greater than
+- `gte`: Greater than or equal
+- `lt`: Less than
+- `lte`: Less than or equal
+- `in`: Value is in list
+- `nin`: Value is not in list
+- `isnull`: Field is null/not null
 
 ## Performance Considerations
 
-### Client-Side Filtering
+FraiseQL's nested array where filtering is implemented efficiently:
 
-Nested array filtering is performed **client-side** in memory, not at the database level:
+1. **Client-Side Filtering**: Filtering happens after data is fetched from the database
+2. **Efficient Evaluation**: The filter logic is optimized for quick evaluation
+3. **Lazy Evaluation**: Filters are only applied when the field is requested
+4. **No N+1 Queries**: Filtering doesn't trigger additional database queries
 
-```python
-# Filtering happens after data is loaded
-async def _apply_where_filter_to_array(items: list, where_filter: Any) -> list:
-    """Apply where filtering to an array of items."""
-    filtered_items = []
-    for item in items:  # ← Iterates through each item in memory
-        if await _item_matches_where_criteria(item, where_filter):
-            filtered_items.append(item)
-    return filtered_items
+For very large arrays (1000+ items), consider:
+- Adding database-level filtering in your SQL views
+- Using pagination
+- Implementing cursor-based pagination for large result sets
+
+## Common Patterns
+
+### Filter Active Items
+
+```graphql
+items(where: { status: { eq: ACTIVE } })
 ```
 
-### Performance Characteristics
+### Search by Name
 
-- **Best for**: Small to medium arrays (< 1000 items)
-- **Response Time**: Sub-millisecond for simple conditions on small datasets
-- **Complex Queries**: < 0.1 seconds for deeply nested conditions on moderate datasets
-- **Memory Usage**: Minimal overhead, processes one item at a time
+```graphql
+users(where: { name: { contains: "john" } })
+```
 
-### Optimization Tips
+### Range Queries
 
-1. **Use specific filters early**: More restrictive conditions first
-2. **Combine with database filtering**: Filter at database level first, then use nested array filtering for refinement
-3. **Consider materialized views**: For frequently accessed filtered data
-4. **Monitor performance**: Use performance testing for complex nested conditions
+```graphql
+products(where: {
+  AND: [
+    { price: { gte: 10.0 } }
+    { price: { lte: 100.0 } }
+  ]
+})
+```
+
+### Exclude Nulls
+
+```graphql
+servers(where: { ipAddress: { isnull: false } })
+```
+
+### Multiple Options
+
+```graphql
+servers(where: {
+  status: { in: [ACTIVE, MAINTENANCE] }
+})
+```
 
 ## Troubleshooting
 
-### Common Issues
+### Where Parameter Not Available
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Filter not working | Field not registered | Use `@auto_nested_array_filters` or manual registration |
-| Empty results | Wrong field names | Check generated WhereInput field names (camelCase) |
-| Type errors | Incorrect operator | Use correct operators for field types |
-| Complex query slow | Too many items | Consider database-level pre-filtering |
+**Problem**: The `where` parameter doesn't appear on your field.
 
-### Debug Tips
+**Solution**: Make sure you've set both `supports_where_filtering=True` and `nested_where_type=YourType` on the field:
 
 ```python
-# Check registered filters
-from fraiseql.nested_array_filters import list_registered_filters
-filters = list_registered_filters()
-print("Registered filters:", filters)
-
-# Verify WhereInput structure
-PrintServerWhereInput = create_graphql_where_input(PrintServer)
-where_input = PrintServerWhereInput()
-print("Available fields:", dir(where_input))
-```
-
-## Migration Guide
-
-### From Verbose Field Definitions
-
-**Before (Verbose):**
-```python
-print_servers: List[PrintServer] = fraise_field(
+field_name: list[Type] = fraise_field(
     default_factory=list,
-    supports_where_filtering=True,
-    nested_where_type=PrintServer
+    supports_where_filtering=True,  # Required!
+    nested_where_type=Type          # Required!
 )
 ```
 
-**After (Clean):**
-```python
-@auto_nested_array_filters  # Just add this decorator
-@fraise_type
-class NetworkConfiguration:
-    print_servers: List[PrintServer] = fraise_field(default_factory=list)
-```
+### WhereInput Type Not Generated
 
-### Backward Compatibility
+**Problem**: The WhereInput type doesn't exist in your schema.
 
-The new registration-based API is **fully backward compatible**:
-- Existing verbose field definitions continue to work
-- Can mix verbose and clean approaches in the same codebase
-- Registry takes precedence over field metadata when both are present
+**Solution**: The WhereInput type is automatically generated from the `nested_where_type`. Ensure:
+1. The nested type is decorated with `@fraiseql.type`
+2. The nested type has properly typed fields
+3. The schema is being rebuilt after your changes
 
-## API Reference
+### Filters Not Working
 
-### Registry Functions
+**Problem**: Filters are applied but don't filter correctly.
 
-```python
-# Automatic registration
-enable_nested_array_filtering(parent_type: Type) -> None
+**Solution**: Check:
+1. Field names match exactly (case-sensitive)
+2. Types match (string vs int vs UUID, etc.)
+3. Enum values are correct (if using enums)
+4. Data exists in the parent object before filtering
 
-# Manual registration
-register_nested_array_filter(parent_type: Type, field_name: str, element_type: Type) -> None
+## Best Practices
 
-# Query functions
-get_nested_array_filter(parent_type: Type, field_name: str) -> Type | None
-is_nested_array_filterable(parent_type: Type, field_name: str) -> bool
-list_registered_filters() -> Dict[str, Dict[str, str]]
-
-# Utility
-clear_registry() -> None  # For testing
-```
-
-### Decorators
-
-```python
-# Automatic detection for all List[FraiseQLType] fields
-@auto_nested_array_filters
-class MyType: ...
-
-# Selective registration for specific fields
-@nested_array_filterable("field1", "field2")
-class MyType: ...
-```
-
-### Resolver Functions
-
-```python
-# Create enhanced resolver with where support
-create_nested_array_field_resolver_with_where(
-    field_name: str,
-    field_type: Any,
-    field_metadata: Any = None
-) -> AsyncResolver
-
-# Generate WhereInput types
-create_graphql_where_input(cls: type, name: str | None = None) -> type
-```
-
-
-
-## Testing
-
-Comprehensive test suite covering all logical operator scenarios:
-
-```bash
-# Run all nested array filtering tests
-python -m pytest tests/test_nested_array* -v
-
-# Run specific logical operator tests
-python -m pytest tests/test_nested_array_logical_operators.py -v
-
-# Run registry tests
-python -m pytest tests/test_nested_array_registry.py -v
-```
-
-Test coverage includes:
-- 40+ test cases covering all functionality
-- Complex nested logical operator combinations
-- Edge cases (empty arrays, null values)
-- Performance testing
-- Registry functionality
-- Backward compatibility
+1. **Use Type Hints**: Always properly type your fields for accurate WhereInput generation
+2. **Document Fields**: Add descriptions to help API consumers understand filtering options
+3. **Test Filters**: Write tests to verify complex filter logic works as expected
+4. **Consider Performance**: For large arrays, evaluate if database-level filtering is more appropriate
+5. **Use Enums**: Enums provide type-safe filtering for categorical data
 
 ---
 
-**FraiseQL Nested Array Where Filtering** provides powerful, intuitive filtering capabilities with clean, registration-based configuration. No more verbose field definitions—just simple decorators and comprehensive logical operator support for sophisticated GraphQL queries.
+**Next Steps:**
+- [See the end-to-end test](../tests/test_end_to_end_nested_array_where.py) for complete examples
+- [Check logical operators test](../tests/test_nested_array_logical_operators.py) for complex filter patterns
+- [Review the schema builder](../src/fraiseql/core/graphql_type.py) to understand internals

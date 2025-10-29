@@ -138,12 +138,12 @@ class TestEmailValidation:
 
         # Test valid email formats
         valid_emails = [
-            "user@example.com",                    # Standard email
-            "first.last@company.org",              # With dots
-            "user+tag@example.co.uk",              # With plus and multiple TLD
-            "admin@sub.domain.example.net",        # Subdomain
-            "test123@domain-name.info",            # With numbers and hyphens
-            "support@xn--e1afmkfd.xn--p1ai",       # Internationalized domain
+            "user@example.com",  # Standard email
+            "first.last@company.org",  # With dots
+            "user+tag@example.co.uk",  # With plus and multiple TLD
+            "admin@sub.domain.example.net",  # Subdomain
+            "test123@domain-name.info",  # With numbers and hyphens
+            "support@xn--e1afmkfd.xn--p1ai",  # Internationalized domain
         ]
 
         for email in valid_emails:
@@ -157,11 +157,11 @@ class TestEmailValidation:
 
         # Test emails with various allowed special characters
         special_emails = [
-            "user_name@example.com",               # Underscore
-            "user-name@example.com",               # Hyphen
-            "user.name+tag@example.com",           # Dot and plus
-            "123456@example.com",                  # All numbers
-            "a@b.co",                              # Minimal valid email
+            "user_name@example.com",  # Underscore
+            "user-name@example.com",  # Hyphen
+            "user.name+tag@example.com",  # Dot and plus
+            "123456@example.com",  # All numbers
+            "a@b.co",  # Minimal valid email
         ]
 
         for email in special_emails:

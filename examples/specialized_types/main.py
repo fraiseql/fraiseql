@@ -13,7 +13,6 @@ GraphQL framework offers out of the box.
 from dataclasses import dataclass
 from datetime import datetime
 from ipaddress import IPv4Address, IPv6Address
-from typing import Optional
 
 from fraiseql import FraiseQL
 from fraiseql.types.scalars.ip_address import IpAddressField
@@ -44,7 +43,7 @@ class NetworkDevice:
     Supports CIDR notation: '192.168.1.1/24'
     """
 
-    ipv6_address: Optional[IpAddressField]
+    ipv6_address: IpAddressField | None
     """IPv6 address if configured.
 
     Example: '2001:0db8:85a3:0000:0000:8a2e:0370:7334'
@@ -126,10 +125,10 @@ class SecurityRule:
 @app.query
 async def devices(
     info,
-    device_type: Optional[str] = None,
-    location: Optional[str] = None,
+    device_type: str | None = None,
+    location: str | None = None,
     is_active: bool = True,
-    vlan_id: Optional[int] = None,
+    vlan_id: int | None = None,
 ) -> list[NetworkDevice]:
     """Query network devices with filtering.
 
@@ -228,7 +227,7 @@ async def private_ip_devices(info) -> list[NetworkDevice]:
 
 
 @app.query
-async def device(info, id: int) -> Optional[NetworkDevice]:
+async def device(info, id: int) -> NetworkDevice | None:
     """Get a single device by ID.
 
     Args:
@@ -242,7 +241,7 @@ async def device(info, id: int) -> Optional[NetworkDevice]:
 
 
 @app.query
-async def device_by_ip(info, ip_address: str) -> Optional[NetworkDevice]:
+async def device_by_ip(info, ip_address: str) -> NetworkDevice | None:
     """Find device by its IP address.
 
     Supports both IPv4 and IPv6 addresses.
@@ -277,7 +276,7 @@ async def device_by_ip(info, ip_address: str) -> Optional[NetworkDevice]:
 @app.query
 async def security_rules(
     info,
-    protocol: Optional[str] = None,
+    protocol: str | None = None,
     enabled_only: bool = True,
 ) -> list[SecurityRule]:
     """Query security rules.

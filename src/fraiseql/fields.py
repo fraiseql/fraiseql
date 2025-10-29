@@ -210,7 +210,7 @@ def fraise_field(
             @fraise_type
             class Organization:
                 id: UUID
-                users: List[User] = fraise_field(
+                users: list[User] = fraise_field(
                     default_factory=list,
                     supports_where_filtering=True,
                     nested_where_type=User,
