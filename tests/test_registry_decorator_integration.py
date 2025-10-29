@@ -12,7 +12,7 @@ import pytest
 from fraiseql.fields import fraise_field
 from fraiseql.types import fraise_type
 from fraiseql.gql.schema_builder import build_fraiseql_schema
-from fraiseql.nested_array_filters import register_nested_array_filter
+from fraiseql.nested_array_filters import register_nested_array_filter, clear_registry
 
 
 # Define the DeviceRegistry type (unique name for this test file)
@@ -39,13 +39,26 @@ class NetworkWithRegistry:
     )
 
 
-# Register the nested array filter using the decorator
-register_nested_array_filter(NetworkWithRegistry, "devices", DeviceRegistry)
-
-
 @pytest.mark.integration
 class TestRegistryDecoratorIntegration:
     """Test that the registry decorator API is properly wired to schema generation."""
+
+    @pytest.fixture(autouse=True)
+    def setup_registry(self):
+        """Clear and setup registry before each test."""
+        from fraiseql.gql.builders.registry import SchemaRegistry
+
+        # Clear any existing registry state
+        clear_registry()
+        SchemaRegistry.get_instance().clear()
+
+        # Register the nested array filter for this test
+        register_nested_array_filter(NetworkWithRegistry, "devices", DeviceRegistry)
+        yield
+
+        # Cleanup after test
+        clear_registry()
+        SchemaRegistry.get_instance().clear()
 
     def test_registry_based_schema_generation(self):
         """Test that schema generation uses the registry when nested_where_type is not set."""
