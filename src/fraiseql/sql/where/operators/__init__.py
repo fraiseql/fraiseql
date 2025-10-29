@@ -228,7 +228,7 @@ def get_operator_function(
 
 
 # Export filter classes for GraphQL schema generation
-from .fulltext import FullTextFilter as FullTextFilter
-from .jsonb import JSONBFilter as JSONBFilter
+from .fulltext import FullTextFilter
+from .jsonb import JSONBFilter
 
 __all__ = ["FullTextFilter", "JSONBFilter", "get_operator_function"]
