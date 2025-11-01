@@ -101,7 +101,7 @@ Interactive diagrams using Mermaid syntax for:
 
 ## Related Documentation
 
-- [Understanding FraiseQL](../UNDERSTANDING.md) - Conceptual overview
+- [Understanding FraiseQL](../guides/understanding-fraiseql.md) - Conceptual overview
 - [Core Concepts](../core/concepts-glossary.md) - Terminology reference
 - [Performance Guide](../performance/index.md) - Optimization strategies
 - [Multi-Tenancy Guide](../advanced/multi-tenancy.md) - Tenant implementation

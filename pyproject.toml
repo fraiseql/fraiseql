@@ -11,7 +11,7 @@ authors = [
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 keywords = ["graphql", "postgresql", "api", "database", "jsonb", "fastapi", "async", "orm"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -19,8 +19,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Framework :: FastAPI",
     "Topic :: Database",
@@ -404,8 +402,8 @@ python-source = "src"
 python-packages = ["fraiseql"]
 # Module name for the Rust extension (will be installed as fraiseql/_fraiseql_rs.so)
 module-name = "fraiseql._fraiseql_rs"
-# Also include typed marker
-include = ["src/fraiseql/py.typed"]
+# Also include typed marker and Rust source files for sdist
+include = ["src/fraiseql/py.typed", "fraiseql_rs/**/*"]
 features = ["pyo3/extension-module"]
 
 # Development: Use local fraiseql-confiture for development

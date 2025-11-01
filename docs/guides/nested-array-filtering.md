@@ -398,6 +398,6 @@ field_name: list[Type] = fraise_field(
 ---
 
 **Next Steps:**
-- [See the end-to-end test](../tests/test_end_to_end_nested_array_where.py) for complete examples
-- [Check logical operators test](../tests/test_nested_array_logical_operators.py) for complex filter patterns
-- [Review the schema builder](../src/fraiseql/core/graphql_type.py) to understand internals
+- [See the end-to-end test](../../tests/test_end_to_end_nested_array_where.py) for complete examples
+- [Check logical operators test](../../tests/test_nested_array_logical_operators.py) for complex filter patterns
+- [Review the schema builder](../../src/fraiseql/core/graphql_type.py) to understand internals

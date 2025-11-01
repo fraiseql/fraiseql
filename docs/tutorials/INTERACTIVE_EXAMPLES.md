@@ -380,7 +380,7 @@ query GetPostAnalytics {
 
 ### Next Steps
 
-- [Quickstart Guide](../quickstart.md) - Get running in 5 minutes
-- [Understanding FraiseQL](../UNDERSTANDING.md) - Architecture deep dive
+- [Quickstart Guide](../getting-started/quickstart.md) - Get running in 5 minutes
+- [Understanding FraiseQL](../guides/understanding-fraiseql.md) - Architecture deep dive
 - [Database API](../core/database-api.md) - Repository patterns
 - Examples (../../examples/) - Complete working applications

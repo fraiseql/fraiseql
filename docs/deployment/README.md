@@ -466,6 +466,6 @@ See **[Production Deployment Guide](../production/deployment.md#scaling-strategi
 - **[Production Guide](../production/)** - Monitoring, security, observability
 - **[Security Policy](../../SECURITY.md)** - Security best practices
 - **[Health Checks](../production/health-checks.md)** - Liveness/readiness probes
-- **[Troubleshooting](../TROUBLESHOOTING.md)** - Common deployment issues
+- **[Troubleshooting](../guides/troubleshooting.md)** - Common deployment issues
 
 **Need help?** Open an issue at [GitHub Issues](https://github.com/fraiseql/fraiseql/issues)
