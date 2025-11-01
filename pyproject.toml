@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling", "setuptools_scm"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "fraiseql"
-version = "1.1.0"
+version = "1.1.1"
 description = "Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 authors = [
   { name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr" },
@@ -52,7 +52,6 @@ dependencies = [
   "pyyaml>=6.0.1",
   "sqlparse>=0.5.0",
   "fraiseql-confiture>=0.1.0",
-  "fraiseql-rs",
   "jinja2>=3.1.0",
 ]
 
@@ -388,39 +387,22 @@ convention = "google"
 [tool.ruff.lint.pylint]
 max-args = 8  # Increased from default 5
 
-[tool.setuptools_scm]
-version_scheme = "python-simplified-semver"
-local_scheme = "node-and-date"
+[tool.maturin]
+# Python source directory
+python-source = "src"
 
-[tool.hatch.build]
+# Bundle the Rust extension as a submodule of fraiseql
+module-name = "fraiseql._fraiseql_rs"
+
+# Path to the Rust Cargo.toml
+manifest-path = "fraiseql_rs/Cargo.toml"
+
+# Include Python files and type stubs
 include = [
     "src/fraiseql/**/*.py",
     "src/fraiseql/**/*.pyi",
     "src/fraiseql/py.typed"
 ]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/fraiseql"]
-include = [
-    "src/fraiseql/**/*.py",
-    "src/fraiseql/**/*.pyi",
-    "src/fraiseql/py.typed"
-]
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "src/fraiseql/**/*.py",
-    "src/fraiseql/**/*.pyi",
-    "src/fraiseql/py.typed"
-]
-
-[tool.uv.workspace]
-members = [
-    "fraiseql_rs",
-]
-
-[tool.uv.sources]
-fraiseql-rs = { workspace = true }
 
 # Development: Use local fraiseql-confiture for development
 # Production/CI: Comment out for releases to use PyPI version

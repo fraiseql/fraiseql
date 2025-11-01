@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-11-01
+
+### 🔧 Packaging Fix
+
+**Fixed PyPI Installation Issue** (#103)
+- **Bundled Rust extension**: fraiseql-rs is now bundled into the main fraiseql wheel using maturin
+- **No external dependency**: Removed fraiseql-rs from dependencies (was causing installation failures)
+- **Platform-specific wheels**: Building wheels for Linux, macOS, and Windows with GitHub Actions
+- **Migration to maturin**: Changed build backend from hatchling to maturin for mixed Python/Rust packaging
+- **Internal import path**: Rust extension now imported as `fraiseql._fraiseql_rs` (internal change, no API impact)
+
+### 📦 Build System Changes
+- Build backend: `hatchling` → `maturin`
+- CI: Added multi-platform wheel builds using PyO3/maturin-action
+- Package structure: Rust extension bundled as submodule instead of separate dependency
+
 ## [1.1.0] - 2025-10-29
 
 ### 🎯 Major Features

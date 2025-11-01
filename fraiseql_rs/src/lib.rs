@@ -124,7 +124,7 @@ pub fn build_graphql_response(
 ///
 /// Performance target: 10-50x faster than pure Python implementation
 #[pymodule]
-fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add version string
     m.add("__version__", VERSION)?;
 

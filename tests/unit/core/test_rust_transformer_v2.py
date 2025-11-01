@@ -1,7 +1,7 @@
 """Test rust_transformer.py with fraiseql_rs v0.2.0 API."""
 
 import pytest
-import fraiseql_rs
+from fraiseql import _fraiseql_rs as fraiseql_rs
 from src.fraiseql.core.rust_transformer import RustTransformer
 
 
