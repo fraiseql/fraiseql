@@ -90,7 +90,7 @@ These features are NOT found in the codebase:
    ```python
    # NOT FOUND in codebase
    type Point[T] = tuple[T, T]
-   def func[T](x: T) -> T: ...
+   def func[T](value: T) -> T: ...
    ```
 
 2. **PEP 702 `@deprecated` decorator** - Python 3.13+
