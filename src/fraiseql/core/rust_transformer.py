@@ -8,7 +8,7 @@ import logging
 from typing import Optional, Type
 
 try:
-    import fraiseql_rs
+    from fraiseql import _fraiseql_rs as fraiseql_rs
 except ImportError as e:
     raise ImportError(
         "fraiseql Rust extension is not available. "

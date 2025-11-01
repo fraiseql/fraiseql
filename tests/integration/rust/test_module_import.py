@@ -14,7 +14,7 @@ def test_fraiseql_rs_module_exists():
     GREEN: After creating the Rust module, this should pass
     """
     try:
-        import fraiseql_rs
+        from fraiseql import fraiseql_rs
 
         assert fraiseql_rs is not None
     except ModuleNotFoundError as e:
@@ -27,7 +27,7 @@ def test_fraiseql_rs_has_version():
     RED: This should fail because module doesn't exist
     GREEN: After creating the module with version, this should pass
     """
-    import fraiseql_rs
+    from fraiseql import fraiseql_rs
 
     assert hasattr(fraiseql_rs, "__version__")
     assert isinstance(fraiseql_rs.__version__, str)
@@ -39,7 +39,7 @@ def test_fraiseql_rs_version_format():
 
     Expected format: X.Y.Z or X.Y.Z-suffix
     """
-    import fraiseql_rs
+    from fraiseql import fraiseql_rs
 
     version = fraiseql_rs.__version__
     # Basic semver check: should have at least X.Y.Z
