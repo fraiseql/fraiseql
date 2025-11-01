@@ -8,7 +8,20 @@ import logging
 from typing import Optional, Type
 
 try:
-    from fraiseql import _fraiseql_rs as fraiseql_rs
+    # Direct import to avoid circular import during package initialization
+    from fraiseql._fraiseql_rs import (
+        to_camel_case as _to_camel_case,
+    )
+    from fraiseql._fraiseql_rs import (
+        transform_json as _transform_json,
+    )
+
+    # Create a namespace object to match the module interface
+    class _FraiseQLRs:
+        to_camel_case = staticmethod(_to_camel_case)
+        transform_json = staticmethod(_transform_json)
+
+    fraiseql_rs = _FraiseQLRs()
 except ImportError as e:
     raise ImportError(
         "fraiseql Rust extension is not available. "

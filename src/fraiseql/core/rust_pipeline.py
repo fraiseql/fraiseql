@@ -15,7 +15,16 @@ from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
 try:
-    from fraiseql import _fraiseql_rs as fraiseql_rs
+    # Direct import to avoid circular import during package initialization
+    from fraiseql._fraiseql_rs import (
+        build_graphql_response as _build_graphql_response,
+    )
+
+    # Create a namespace object to match the module interface
+    class _FraiseQLRs:
+        build_graphql_response = staticmethod(_build_graphql_response)
+
+    fraiseql_rs = _FraiseQLRs()
 except ImportError as e:
     raise ImportError(
         "fraiseql Rust extension is not available. "
