@@ -117,7 +117,7 @@ jobs:
       run: |
         python -m venv .venv
         source .venv/bin/activate
-          maturin build -m fraiseql_rs/Cargo.toml --release --out dist
+        maturin build -m fraiseql_rs/Cargo.toml --release --out dist
         uv pip install dist/*.whl[dev] --no-cache
     - name: Run ruff
       run: |
@@ -149,7 +149,7 @@ jobs:
       run: |
         python -m venv .venv
         source .venv/bin/activate
-          maturin build -m fraiseql_rs/Cargo.toml --release --out dist
+        maturin build -m fraiseql_rs/Cargo.toml --release --out dist
         uv pip install dist/*.whl[dev] --no-cache
     - name: Run bandit
       run: |
