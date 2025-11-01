@@ -73,7 +73,13 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
+
+# Import bundled Rust extension
+try:
+    from . import _fraiseql_rs
+except ImportError:
+    _fraiseql_rs = None  # Rust extension not available
 
 __all__ = [
     "ALWAYS_DATA_CONFIG",
