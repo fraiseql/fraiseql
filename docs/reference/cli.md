@@ -909,7 +909,7 @@ echo "FRAISEQL_DATABASE_URL=postgresql://localhost/mydb" >> .env
 
 ## See Also
 
-- [5-Minute Quickstart](../quickstart.md) - Get started quickly
+- [5-Minute Quickstart](../getting-started/quickstart.md) - Get started quickly
 - [Database API](../core/database-api.md) - Repository patterns
 - [Production Deployment](../tutorials/production-deployment.md) - Deployment guide
 - [Configuration](../core/configuration.md) - Application configuration

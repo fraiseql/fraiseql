@@ -43,7 +43,7 @@ ls -la  # 20+ working examples with Rust pipeline
 ### **For Contributors**
 - Build on the unified Rust pipeline architecture
 - Add features, fix bugs, improve documentation
-- See [Contributing Guide](../development/CONTRIBUTING.md)
+- See [Contributing Guide](../../CONTRIBUTING.md)
 
 ---
 
@@ -140,8 +140,8 @@ FraiseQL maintains backward compatibility within the unified Rust pipeline archi
 ## 📞 Getting Help
 
 ### **Documentation & Examples**
-- [Installation Guide](../INSTALLATION.md)
-- [Quickstart](../quickstart.md)
+- [Installation Guide](../getting-started/installation.md)
+- [Quickstart](../getting-started/quickstart.md)
 - Examples (../../examples/) - 20+ production patterns
 - [API Reference](../reference/)
 

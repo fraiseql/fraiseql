@@ -10,8 +10,7 @@ Internal documentation for FraiseQL maintainers and contributors.
 - [Audiences](architecture/audiences.md) - Target user personas
 
 ### Release Management
-- [Release Process](releases/release-process.md) - How to release new versions
-- [Push Instructions](releases/push-instructions.md) - PyPI publishing guide
+
 - Release execution notes and historical plans
 
 ### Code Audits

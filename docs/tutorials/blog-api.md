@@ -11,7 +11,7 @@ Build a blog API with:
 - Production-ready patterns
 
 **Time**: 30-45 minutes
-**Prerequisites**: Completed [quickstart](../quickstart.md), basic PostgreSQL knowledge
+**Prerequisites**: Completed [quickstart](../getting-started/quickstart.md), basic PostgreSQL knowledge
 
 ## Database Schema
 

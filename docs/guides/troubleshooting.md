@@ -3,7 +3,7 @@
 Common issues and solutions for FraiseQL beginners.
 
 **💡 Quick Navigation:**
-- **[Troubleshooting Decision Tree](TROUBLESHOOTING_DECISION_TREE.md)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
+- **[Troubleshooting Decision Tree](troubleshooting-decision-tree.md)** - Diagnose issues by category (Installation, Database, Performance, Deployment, etc.)
 - **This guide** - Specific error messages and detailed solutions
 
 Can't find your issue? Check the [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) or ask in [Discussions](https://github.com/fraiseql/fraiseql/discussions).
@@ -263,7 +263,7 @@ from fraiseql import type, query, mutation, input, field
 # import fraiseql as fq; fq.type
 ```
 
-**Prevention**: Check the [Style Guide](development/style-guide.md) for correct imports
+**Prevention**: Check the [Style Guide](../development/style-guide.md) for correct imports
 
 ---
 
@@ -303,12 +303,12 @@ lsof -i :8000
 6. ✅ GraphQL endpoint responds: `curl http://localhost:8000/graphql`
 
 ### Getting Help
-- 📖 Check the [First Hour Guide](FIRST_HOUR.md) for step-by-step help
+- 📖 Check the [First Hour Guide](../getting-started/first-hour.md) for step-by-step help
 - 🔍 Search [existing issues](https://github.com/fraiseql/fraiseql/issues)
 - 💬 Ask in [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)
 - 📧 File a [new issue](https://github.com/fraiseql/fraiseql/issues/new) with your error message
 
 ### Common Next Steps
-- [Quick Reference](reference/quick-reference.md) - Copy-paste code patterns
-- Examples (../examples/) - Working applications you can study
-- [Beginner Learning Path](tutorials/beginner-path.md) - Complete skill progression
+- [Quick Reference](../reference/quick-reference.md) - Copy-paste code patterns
+- Examples (../../examples/) - Working applications you can study
+- [Beginner Learning Path](../tutorials/beginner-path.md) - Complete skill progression

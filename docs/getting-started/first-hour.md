@@ -41,7 +41,7 @@ query {
 
 ## Minute 5-15: Understanding What You Built
 
-**[Read the Understanding Guide](UNDERSTANDING.md)**
+**[Read the Understanding Guide](../guides/understanding-fraiseql.md)**
 
 Key concepts you should now understand:
 
@@ -52,7 +52,7 @@ Key concepts you should now understand:
 
 ✅ **Checkpoint**: Can you explain why FraiseQL uses JSONB views instead of traditional ORMs?
 
-> **💡 Advanced Filtering**: FraiseQL supports powerful PostgreSQL operators including array filtering, full-text search, JSONB queries, and regex matching. See [Filter Operators Reference](advanced/filter-operators.md) for details.
+> **💡 Advanced Filtering**: FraiseQL supports powerful PostgreSQL operators including array filtering, full-text search, JSONB queries, and regex matching. See [Filter Operators Reference](../advanced/filter-operators.md) for details.
 
 ## Minute 15-30: Extend Your API - Add Tags to Notes
 
@@ -396,7 +396,7 @@ You've completed your first hour with FraiseQL! You now know how to:
 
 ### Immediate Next Steps (2-3 hours)
 
-- **[Beginner Learning Path](tutorials/beginner-path.md)** - Deep dive into all core concepts
+- **[Beginner Learning Path](../tutorials/beginner-path.md)** - Deep dive into all core concepts
 - **[Blog API Tutorial](tutorials/blog-api.md)** - Build a complete application
 
 ### Explore Examples (30 minutes each)
@@ -407,16 +407,16 @@ You've completed your first hour with FraiseQL! You now know how to:
 
 ### Advanced Topics
 
-- **[Performance Guide](performance/PERFORMANCE_GUIDE.md)** - Optimization techniques
-- **[Multi-tenancy](advanced/multi-tenancy.md)** - Building SaaS applications
-- **[Migration Guide](migration/v0-to-v1.md)** - Upgrading from older versions
+- **[Performance Guide](../guides/performance-guide.md)** - Optimization techniques
+- **[Multi-tenancy](../advanced/multi-tenancy.md)** - Building SaaS applications
+- **[Migration Guide](../migration/v0-to-v1.md)** - Upgrading from older versions
 
 ### Need Help?
 
-- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
-- **[Quick Reference](reference/quick-reference.md)** - Copy-paste code patterns
+- **[Troubleshooting Guide](../guides/troubleshooting.md)** - Common issues and solutions
+- **[Quick Reference](../reference/quick-reference.md)** - Copy-paste code patterns
 - **[GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions)** - Community support
 
 ---
 
-**Ready for more?** The [Beginner Learning Path](tutorials/beginner-path.md) will take you from here to building production applications! 🚀
+**Ready for more?** The [Beginner Learning Path](../tutorials/beginner-path.md) will take you from here to building production applications! 🚀
