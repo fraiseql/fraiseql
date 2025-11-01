@@ -199,14 +199,23 @@ jobs:
     - name: Install maturin
       run: pip install maturin
 
+    - name: Build Rust extension before tox
+      run: |
+        echo "=== Building Rust extension with maturin ==="
+        # Build a wheel with the Rust extension compiled
+        maturin build --release --out dist/
+
+        echo "=== Built wheels ==="
+        ls -lh dist/
+
     - name: Run tox for Python 3.13
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
       run: |
         echo "=== Running Tox Tests ==="
-        # Run tox for Python 3.13 (the only version we can guarantee in CI)
-        tox -e py313 || {
+        # Run tox for Python 3.13, installing the pre-built wheel
+        tox -e py313 --installpkg dist/fraiseql-*.whl || {
           echo "❌ Tox tests failed"
           exit 1
         }
