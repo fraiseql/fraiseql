@@ -11,7 +11,7 @@ FraiseQL v1.1.1 is the stable, production-ready release suitable for all users.
 | Version | Status | Recommended For | Stability |
 |---------|--------|----------------|-----------|
 | **v1.1.1** | Production Stable | All users | ✅ Stable |
-| v1.1.0 | Stable | All users | ✅ Stable |
+| v1.1.0 | Superseded | Legacy | ⚠️ Use v1.1.1 |
 | v1.0.3 | Stable | All users | ✅ Stable |
 | v1.0.2 | Stable | All users | ✅ Stable |
 | v1.0.1 | Stable | All users | ✅ Stable |
