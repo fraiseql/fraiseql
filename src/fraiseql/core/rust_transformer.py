@@ -5,29 +5,42 @@ fraiseql-rs Rust extension for high-performance JSON transformation.
 """
 
 import logging
-from typing import Optional, Type
+from typing import Any, Optional, Type
 
-try:
-    # Import specific functions from the bundled Rust extension
-    # Use absolute import to work correctly in both editable and wheel installs
-    from fraiseql._fraiseql_rs import (
-        to_camel_case as _to_camel_case,
-    )
-    from fraiseql._fraiseql_rs import (
-        transform_json as _transform_json,
-    )
 
-    # Create a namespace object to match the module interface
-    class _FraiseQLRs:
-        to_camel_case = staticmethod(_to_camel_case)
-        transform_json = staticmethod(_transform_json)
+# Lazy-load the Rust extension to avoid circular import issues
+# The fraiseql package re-exports _fraiseql_rs in its __init__.py
+def _get_fraiseql_rs():
+    """Lazy-load the Rust extension module."""
+    try:
+        from fraiseql import _fraiseql_rs
 
-    fraiseql_rs = _FraiseQLRs()
-except ImportError as e:
-    raise ImportError(
-        "fraiseql Rust extension is not available. "
-        "Please reinstall fraiseql: pip install --force-reinstall fraiseql"
-    ) from e
+        return _fraiseql_rs
+    except ImportError as e:
+        raise ImportError(
+            "fraiseql Rust extension is not available. "
+            "Please reinstall fraiseql: pip install --force-reinstall fraiseql"
+        ) from e
+
+
+# Create a namespace object that lazy-loads functions
+class _FraiseQLRs:
+    _module = None
+
+    @staticmethod
+    def to_camel_case(*args: Any, **kwargs: Any) -> Any:
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.to_camel_case(*args, **kwargs)
+
+    @staticmethod
+    def transform_json(*args: Any, **kwargs: Any) -> Any:
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.transform_json(*args, **kwargs)
+
+
+fraiseql_rs = _FraiseQLRs()
 
 logger = logging.getLogger(__name__)
 

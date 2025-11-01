@@ -14,23 +14,34 @@ from typing import Any, Optional
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
-try:
-    # Import specific functions from the bundled Rust extension
-    # Use absolute import to work correctly in both editable and wheel installs
-    from fraiseql._fraiseql_rs import (
-        build_graphql_response as _build_graphql_response,
-    )
 
-    # Create a namespace object to match the module interface
-    class _FraiseQLRs:
-        build_graphql_response = staticmethod(_build_graphql_response)
+# Lazy-load the Rust extension to avoid circular import issues
+# The fraiseql package re-exports _fraiseql_rs in its __init__.py
+def _get_fraiseql_rs():
+    """Lazy-load the Rust extension module."""
+    try:
+        from fraiseql import _fraiseql_rs
 
-    fraiseql_rs = _FraiseQLRs()
-except ImportError as e:
-    raise ImportError(
-        "fraiseql Rust extension is not available. "
-        "Please reinstall fraiseql: pip install --force-reinstall fraiseql"
-    ) from e
+        return _fraiseql_rs
+    except ImportError as e:
+        raise ImportError(
+            "fraiseql Rust extension is not available. "
+            "Please reinstall fraiseql: pip install --force-reinstall fraiseql"
+        ) from e
+
+
+# Create a namespace object that lazy-loads functions
+class _FraiseQLRs:
+    _module = None
+
+    @staticmethod
+    def build_graphql_response(*args: Any, **kwargs: Any) -> Any:
+        if _FraiseQLRs._module is None:
+            _FraiseQLRs._module = _get_fraiseql_rs()
+        return _FraiseQLRs._module.build_graphql_response(*args, **kwargs)
+
+
+fraiseql_rs = _FraiseQLRs()
 
 logger = logging.getLogger(__name__)
 
