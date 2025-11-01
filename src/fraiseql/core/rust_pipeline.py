@@ -15,10 +15,9 @@ from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
 
 try:
-    # Direct import to avoid circular import during package initialization
-    # Use relative import within the package
-
-    from .._fraiseql_rs import (
+    # Import specific functions from the bundled Rust extension
+    # Use absolute import to work correctly in both editable and wheel installs
+    from fraiseql._fraiseql_rs import (
         build_graphql_response as _build_graphql_response,
     )
 

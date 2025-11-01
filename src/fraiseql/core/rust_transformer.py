@@ -8,13 +8,12 @@ import logging
 from typing import Optional, Type
 
 try:
-    # Direct import to avoid circular import during package initialization
-    # Use relative import within the package
-
-    from .._fraiseql_rs import (
+    # Import specific functions from the bundled Rust extension
+    # Use absolute import to work correctly in both editable and wheel installs
+    from fraiseql._fraiseql_rs import (
         to_camel_case as _to_camel_case,
     )
-    from .._fraiseql_rs import (
+    from fraiseql._fraiseql_rs import (
         transform_json as _transform_json,
     )
 
