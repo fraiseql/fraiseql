@@ -44,34 +44,30 @@ jobs:
         toolchain: stable
 
     - name: Install maturin
-      run: pip install maturin
+      run: uv tool install maturin
 
-    - name: Create virtual environment and install dependencies
+    - name: Build and install with production optimization
       run: |
-        # Create virtual environment
-        python -m venv .venv
-        source .venv/bin/activate
+        # Create virtual environment with uv
+        uv venv
 
-        # Verify venv is active
-        which python
-        python --version
-
-        # Build the wheel with maturin first (bundled Python + Rust)
+        echo "=== Building production wheel with Rust extension ==="
+        # Build optimized release wheel (production-ready)
         maturin build --release --out dist
 
-        # Install the built wheel with dependencies
+        echo "=== Installing built wheel with dependencies ==="
         WHEEL=$(ls dist/fraiseql-*.whl)
         uv pip install "$WHEEL[dev,all]" --no-cache
 
-        # Verify bundled Rust extension installed correctly
-        python -c "from fraiseql import _fraiseql_rs; print(f'Bundled extension version: {_fraiseql_rs.__version__}')"
-        python -c "from fraiseql import _fraiseql_rs; print(f'Functions: {[f for f in dir(_fraiseql_rs) if not f.startswith(\"_\")]}')"
+        echo "=== Verifying bundled Rust extension ==="
+        uv run python -c "from fraiseql import _fraiseql_rs; print(f'Bundled extension version: {_fraiseql_rs.__version__}')"
+        uv run python -c "from fraiseql import _fraiseql_rs; print(f'Functions: {[f for f in dir(_fraiseql_rs) if not f.startswith(\"_\")]}')"
 
     - name: Run core tests with coverage
       run: |
-        source .venv/bin/activate
+        echo "=== Running Core Tests for Release ==="
         # Run core tests first - MUST PASS for release
-        pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise"
+        uv run pytest tests/ --cov=src/fraiseql --cov-report=xml --cov-report=term-missing -v -m "not blog_simple and not blog_enterprise"
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -82,9 +78,9 @@ jobs:
 
     - name: Run example integration tests
       run: |
-        source .venv/bin/activate
+        echo "=== Running Example Integration Tests for Release ==="
         # Run example integration tests - MUST PASS for release
-        pytest tests/integration/examples/ -v --tb=short
+        uv run pytest tests/integration/examples/ -v --tb=short
       env:
         DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
         TEST_DATABASE_URL: postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test
@@ -108,27 +104,14 @@ jobs:
         python-version: '3.13'
     - name: Install uv
       uses: astral-sh/setup-uv@v7
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-    - name: Install maturin
-      run: pip install maturin
-    - name: Create virtual environment and install dependencies
+    - name: Install dependencies
       run: |
-        python -m venv .venv
-        source .venv/bin/activate
-        maturin build --release --out dist
-        WHEEL=$(ls dist/fraiseql-*.whl)
-        uv pip install "$WHEEL[dev]" --no-cache
-    - name: Run ruff
-      run: |
-        source .venv/bin/activate
-        ruff check .
+        uv venv
+        uv pip install ruff
+    - name: Run ruff check
+      run: uv run ruff check .
     - name: Run ruff format
-      run: |
-        source .venv/bin/activate
-        ruff format --check .
+      run: uv run ruff format --check .
 
   security:
     name: Security (Required for Release)
@@ -141,23 +124,12 @@ jobs:
         python-version: '3.13'
     - name: Install uv
       uses: astral-sh/setup-uv@v7
-    - name: Setup Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-    - name: Install maturin
-      run: pip install maturin
-    - name: Create virtual environment and install dependencies
+    - name: Install dependencies
       run: |
-        python -m venv .venv
-        source .venv/bin/activate
-        maturin build --release --out dist
-        WHEEL=$(ls dist/fraiseql-*.whl)
-        uv pip install "$WHEEL[dev]" --no-cache
+        uv venv
+        uv pip install bandit
     - name: Run bandit
-      run: |
-        source .venv/bin/activate
-        bandit -r src/ -f json || true
+      run: uv run bandit -r src/ -f json || true
 
   build-wheels:
     name: Build wheels on ${{ matrix.os }}

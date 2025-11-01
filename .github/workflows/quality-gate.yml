@@ -52,36 +52,33 @@ jobs:
         toolchain: stable
 
     - name: Install maturin
-      run: pip install maturin
+      run: uv tool install maturin
 
-    - name: Create virtual environment and install dependencies
+    - name: Setup environment and install dependencies
       run: |
-        # Create virtual environment
-        python -m venv .venv
-        source .venv/bin/activate
+        # Create virtual environment with uv
+        uv venv
 
-        # Verify venv is active
-        which python
-        python --version
+        # Install Python dependencies (excluding the project itself)
+        uv pip install --no-build-isolation psycopg[pool] psycopg-pool pytest pytest-asyncio pytest-cov pytest-timeout pytest-xdist faker testcontainers docker ruff
 
-        # Install dependencies with uv
-        uv pip install -e ".[dev,all]" --no-cache
+        # Install optional dependencies
+        uv pip install --no-build-isolation ".[dev,all]"
 
-        # Verify installation
-        python -c "import fraiseql_rs; print(f'fraiseql_rs functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
+        # Build and install Rust extension with modern maturin+uv integration
+        uv run maturin develop --uv
 
     - name: Verify Environment
       run: |
-        source .venv/bin/activate
         echo "=== Environment Verification ==="
-        python --version
+        uv run python --version
         uv --version
-        pytest --version
+        uv run pytest --version
         rustc --version
         pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
-        python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
+        uv run python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()" || echo "❌ DB connection failed"
         echo "=== Rust Extension Verification ==="
-        python -c "import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
+        uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs module imported'); print(f'   Has build_graphql_response: {hasattr(fraiseql_rs, \"build_graphql_response\")}'); print(f'   Functions available: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')" || echo "❌ fraiseql_rs import failed"
 
     - name: Run core tests
       env:
@@ -94,13 +91,12 @@ jobs:
         # Environment variables for pytest configuration
         PYTEST_CURRENT_TEST: ""
       run: |
-        source .venv/bin/activate
         echo "=== Starting Core Tests ==="
         echo "Environment variables:"
         printenv | grep -E "(DATABASE_URL|DB_|PYTEST_)" || echo "No relevant env vars"
         echo "Running pytest with explicit configuration..."
 
-        python -m pytest tests/ \
+        uv run pytest tests/ \
           --cov=src/fraiseql \
           --cov-report=xml \
           --cov-report=term-missing \
@@ -123,19 +119,18 @@ jobs:
         DB_USER: fraiseql
         DB_PASSWORD: fraiseql
       run: |
-        source .venv/bin/activate
         echo "=== Validating Network Filtering Bug Fix ==="
         echo "This validates the core bug fix from PR #25"
 
         echo "Testing JSONB network filtering bug fix..."
-        python -m pytest tests/integration/database/sql/test_jsonb_network_filtering_bug.py -v --tb=short || {
+        uv run pytest tests/integration/database/sql/test_jsonb_network_filtering_bug.py -v --tb=short || {
           echo "❌ CRITICAL: Network filtering tests failed!"
           echo "This indicates the core bug fix from PR #25 is broken"
           exit 1
         }
 
         echo "Testing network address filtering functionality..."
-        python -m pytest tests/integration/database/sql/test_network_address_filtering.py -v --tb=short || {
+        uv run pytest tests/integration/database/sql/test_network_address_filtering.py -v --tb=short || {
           echo "❌ CRITICAL: Network address filtering tests failed!"
           echo "This indicates the core bug fix from PR #25 is broken"
           exit 1
@@ -155,9 +150,8 @@ jobs:
         FRAISEQL_AUTO_INSTALL: false
         FRAISEQL_LOG_LEVEL: INFO
       run: |
-        source .venv/bin/activate
         echo "=== Running Example Integration Tests ==="
-        python -m pytest tests/integration/examples/ -v --tb=short || {
+        uv run pytest tests/integration/examples/ -v --tb=short || {
           echo "❌ Example integration tests failed"
           echo "This may indicate issues with example configurations or database setup"
           exit 1
@@ -185,11 +179,13 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
     - name: Install dependencies
-      run: uv pip install --system -e ".[dev]"
+      run: |
+        uv venv
+        uv pip install ruff
     - name: Run ruff check (includes type checking)
-      run: ruff check .
+      run: uv run ruff check .
     - name: Run ruff format check
-      run: ruff format --check .
+      run: uv run ruff format --check .
 
   security:
     name: Security
@@ -203,11 +199,11 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v7
     - name: Install dependencies
-      run: uv pip install --system -e ".[dev]"
-    - name: Run bandit security scan
       run: |
-        pip install bandit
-        bandit -r src/ -f json || true
+        uv venv
+        uv pip install bandit
+    - name: Run bandit security scan
+      run: uv run bandit -r src/ -f json || true
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:

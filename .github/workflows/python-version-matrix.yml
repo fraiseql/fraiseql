@@ -57,41 +57,42 @@ jobs:
         toolchain: stable
 
     - name: Install maturin
-      run: pip install maturin
+      run: uv tool install maturin
 
-    - name: Create virtual environment and install dependencies
+    - name: Setup environment and install dependencies
       run: |
-        python -m venv .venv
-        source .venv/bin/activate
-
         echo "=== Python Version Info ==="
         python --version
-        which python
 
-        echo "=== Installing FraiseQL with dependencies ==="
-        uv pip install -e ".[dev,all]" --no-cache
+        # Create virtual environment with uv
+        uv venv
+
+        echo "=== Installing FraiseQL dependencies ==="
+        uv pip install --no-build-isolation ".[dev,all]"
+
+        echo "=== Building Rust extension with maturin ==="
+        uv run maturin develop --uv
 
         echo "=== Verifying Installation ==="
-        python -c "import fraiseql; print(f'FraiseQL version: {fraiseql.__version__}')"
-        python -c "import fraiseql_rs; print(f'fraiseql_rs loaded successfully')"
+        uv run python -c "import fraiseql; print(f'FraiseQL version: {fraiseql.__version__}')"
+        uv run python -c "from fraiseql import fraiseql_rs; print(f'fraiseql_rs loaded successfully')"
 
     - name: Verify Environment
       run: |
-        source .venv/bin/activate
         echo "=== Environment Verification ==="
-        python --version
+        uv run python --version
         uv --version
-        pytest --version
+        uv run pytest --version
         rustc --version
 
         echo "=== PostgreSQL Health Check ==="
         pg_isready -h localhost -p 5432 -U fraiseql && echo '✅ PostgreSQL Ready' || echo '❌ PostgreSQL Not Ready'
 
         echo "=== Database Connection Test ==="
-        python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()"
+        uv run python -c "import psycopg; conn = psycopg.connect('postgresql://fraiseql:fraiseql@localhost:5432/fraiseql_test'); print('✅ DB connection successful'); conn.close()"
 
         echo "=== Rust Extension Verification ==="
-        python -c "import fraiseql_rs; print(f'✅ fraiseql_rs imported'); print(f'Available functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
+        uv run python -c "from fraiseql import fraiseql_rs; print(f'✅ fraiseql_rs imported'); print(f'Available functions: {[f for f in dir(fraiseql_rs) if not f.startswith(\"_\")]}')"
 
     - name: Run tests with pytest
       env:
@@ -103,10 +104,9 @@ jobs:
         DB_PASSWORD: fraiseql
         PYTEST_CURRENT_TEST: ""
       run: |
-        source .venv/bin/activate
         echo "=== Running Tests on Python ${{ matrix.python-version }} ==="
 
-        python -m pytest tests/ \
+        uv run pytest tests/ \
           --cov=src/fraiseql \
           --cov-report=xml \
           --cov-report=term-missing \
