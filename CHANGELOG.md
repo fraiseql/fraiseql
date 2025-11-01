@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-11-01
+
+### 🐛 Critical Bug Fixes
+
+**PyPI Installation Fixed** (#103)
+- Bundled fraiseql-rs Rust extension into main wheel using maturin
+- Removed fraiseql-rs from dependencies (no longer separate package)
+- Fixed CI workflows to build bundled extension correctly
+- Added multi-platform wheel builds (Linux x86_64, macOS x86_64/ARM64, Windows x86_64)
+
+**Python Version Requirement Corrected**
+- Fixed Python version requirement to 3.11+ (was incorrectly 3.13+)
+- Codebase uses `typing.Self` which requires Python 3.11+
+- Widens compatibility to Python 3.11 and 3.12 users
+- Added comprehensive tox testing infrastructure for Python 3.11, 3.12, 3.13
+
+### 🔧 Build System Changes
+
+- Migrated from pure Python wheel to platform-specific wheels with bundled Rust
+- CI now builds wheels for:
+  - Linux: x86_64 (manylinux)
+  - macOS: x86_64 (Intel), aarch64 (Apple Silicon)
+  - Windows: x86_64
+
+### 📦 Installation Improvements
+
+Users can now install directly from PyPI without needing Rust toolchain:
+```bash
+pip install fraiseql==1.1.1
+```
+
+Previously would fail with:
+```
+ERROR: Could not find a version that satisfies the requirement fraiseql-rs
+```
+
+### ✅ Migration Notes
+
+**No code changes required** - This is a packaging fix only.
+
+If you previously had issues installing v1.1.0, simply upgrade:
+```bash
+pip install --upgrade fraiseql==1.1.1
+```
+
 ## [1.1.0] - 2025-10-29
 
 ### 🎯 Major Features

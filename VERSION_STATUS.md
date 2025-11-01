@@ -1,24 +1,25 @@
 # FraiseQL Version Status
 
-**Last Updated**: 2025-10-29
+**Last Updated**: 2025-11-01
 
-## Current Production Version: v1.1.0
+## Current Production Version: v1.1.1
 
-FraiseQL v1.1.0 is the stable, production-ready release suitable for all users.
+FraiseQL v1.1.1 is the stable, production-ready release suitable for all users.
 
 ## Version Overview
 
 | Version | Status | Recommended For | Stability |
 |---------|--------|----------------|-----------|
-| **v1.1.0** | Production Stable | All users | ✅ Stable |
+| **v1.1.1** | Production Stable | All users | ✅ Stable |
+| v1.1.0 | Stable | All users | ✅ Stable |
 | v1.0.3 | Stable | All users | ✅ Stable |
 | v1.0.2 | Stable | All users | ✅ Stable |
 | v1.0.1 | Stable | All users | ✅ Stable |
 | v1.0.0 | Stable | All users | ✅ Stable |
-| v0.11.5 | Superseded | Legacy projects | ⚠️ Use v1.1.0 |
+| v0.11.5 | Superseded | Legacy projects | ⚠️ Use v1.1.1 |
 | Rust Pipeline | Integrated | Included in v1.0+ | ✅ Stable |
 
-## What's New in v1.1.0
+## What's New in v1.1.1
 
 ### 🎯 Enhanced PostgreSQL Filtering
 - ✅ **38+ PostgreSQL operators** fully supported and documented
@@ -134,8 +135,8 @@ git clone https://github.com/fraiseql/fraiseql
 cd fraiseql
 
 # Or download specific templates
-curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.1.0/deployment/docker-compose.prod.yml
-curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.1.0/deployment/.env.example
+curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.1.1/deployment/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/fraiseql/fraiseql/v1.1.1/deployment/.env.example
 ```
 
 See [MIGRATION_GUIDE.md](docs/migration/v0-to-v1.md) for upgrade instructions.
