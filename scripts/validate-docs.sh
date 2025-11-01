@@ -161,9 +161,9 @@ validate_file_references() {
         "pyproject.toml"
         "CONTRIBUTING.md"
         "INSTALLATION.md"
-        "AUDIENCES.md"
-        "VERSION_STATUS.md"
-        "PERFORMANCE_GUIDE.md"
+        "dev/architecture/audiences.md"
+        "dev/audits/version-status.md"
+        "docs/guides/performance-guide.md"
     )
 
     for file in "${files_to_check[@]}"; do
@@ -518,9 +518,9 @@ check_version_consistency() {
             ((errors++))
         fi
 
-        # Check if version appears in VERSION_STATUS.md
-        if ! grep -q "$pyproject_version" "$PROJECT_ROOT/VERSION_STATUS.md"; then
-            log_error "Version $pyproject_version not found in VERSION_STATUS.md"
+        # Check if version appears in dev/audits/version-status.md
+        if ! grep -q "$pyproject_version" "$PROJECT_ROOT/dev/audits/version-status.md"; then
+            log_error "Version $pyproject_version not found in dev/audits/version-status.md"
             ((errors++))
         fi
     fi
